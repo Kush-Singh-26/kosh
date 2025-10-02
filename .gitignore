@@ -1,0 +1,16 @@
+# Go build files
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test files
+*.test
+
+# Output directory
+/public
+
+# Node modules
+/frontend/node_modules
+/frontend/dist
