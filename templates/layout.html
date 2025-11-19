@@ -1,31 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .Title }}</title>
     <meta name="description" content="{{ .Description }}">
-    
+
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
-    
+
     <style>
         /* ... Your NORD THEME CSS here ... */
         /* ... (Keep the CSS exactly as provided in the previous step) ... */
         /* Only change: Ensure any background images if used also respect path, but for now CSS is internal */
         :root {
-            --bg-body: #2E3440; --bg-card: #3B4252; --bg-code: #434C5E;
-            --text-main: #D8DEE9; --text-muted: #E5E9F0;
-            --accent-prim: #88C0D0; --accent-sec:  #81A1C1; --accent-tert: #5E81AC;
+            --bg-body: #2E3440;
+            --bg-card: #3B4252;
+            --bg-code: #434C5E;
+            --text-main: #D8DEE9;
+            --text-muted: #E5E9F0;
+            --accent-prim: #88C0D0;
+            --accent-sec: #81A1C1;
+            --accent-tert: #5E81AC;
             --success: #A3BE8C;
         }
-        body { background-color: var(--bg-body); color: var(--text-main); font-family: sans-serif; line-height: 1.7; max-width: 840px; margin: 0 auto; padding: 2rem; }
-        a { color: var(--accent-prim); text-decoration: none; }
-        header { margin-bottom: 3rem; border-bottom: 1px solid var(--bg-card); padding-bottom: 1rem; display:flex; justify-content:space-between;}
-        .tag-pill { background: var(--bg-card); padding: 0.5rem 1rem; border-radius: 50px; margin-right: 0.5rem; display: inline-block; }
-        img { max-width: 100%; }
-        pre { background: var(--bg-code) !important; padding: 1rem; overflow-x: auto; border-radius: 8px; }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: sans-serif;
+            line-height: 1.7;
+            max-width: 840px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        a {
+            color: var(--accent-prim);
+            text-decoration: none;
+        }
+
+        header {
+            margin-bottom: 3rem;
+            border-bottom: 1px solid var(--bg-card);
+            padding-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .tag-pill {
+            background: var(--bg-card);
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            margin-right: 0.5rem;
+            display: inline-block;
+        }
+
+        img {
+            max-width: 100%;
+        }
+
+        pre {
+            background: var(--bg-code) !important;
+            padding: 1rem;
+            overflow-x: auto;
+            border-radius: 8px;
+        }
     </style>
 </head>
+
 <body>
     <header>
         <a href="{{ .BaseURL }}/index.html" style="font-weight:bold; color: white;">MY BLOG</a>
@@ -37,52 +80,77 @@
 
     <main>
         {{ if .IsTagsIndex }}
-            <h1>All Tags</h1>
-            <div>
-                {{ range .AllTags }}
-                <a href="{{ .Link }}" class="tag-pill">#{{ .Name }} ({{ .Count }})</a>
+        <h1>All Tags</h1>
+        <div>
+            {{ range .AllTags }}
+            <a href="{{ .Link }}" class="tag-pill">#{{ .Name }} ({{ .Count }})</a>
+            {{ end }}
+        </div>
+        {{ else if .IsIndex }}
+        {{ if .Content }}<div style="margin-bottom:3rem">{{ .Content }}</div>
+        <hr style="border-color:#3B4252">{{ end }}
+        <h2>Recent Posts</h2>
+        <ul>
+            {{ range .Posts }}
+            <li style="margin-bottom: 1rem;">
+                <a href="{{ .Link }}" style="font-size:1.2rem; font-weight:bold">{{ .Title }}</a>
+                <div>{{ .Description }}</div>
+            </li>
+            {{ end }}
+        </ul>
+        {{ else }}
+        <article>
+            <h1>{{ .Title }}</h1>
+            {{ if .Meta.tags }}
+            <div style="margin-bottom: 2rem;">
+                {{ range .Meta.tags }}
+                <a href="{{ $.BaseURL }}/tags/{{ . | lower }}.html" class="tag-pill" style="font-size:0.8em">#{{ .
+                    }}</a>
                 {{ end }}
             </div>
-        {{ else if .IsIndex }}
-            {{ if .Content }}<div style="margin-bottom:3rem">{{ .Content }}</div> <hr style="border-color:#3B4252">{{ end }}
-            <h2>Recent Posts</h2>
-            <ul>
-                {{ range .Posts }}
-                <li style="margin-bottom: 1rem;">
-                    <a href="{{ .Link }}" style="font-size:1.2rem; font-weight:bold">{{ .Title }}</a>
-                    <div>{{ .Description }}</div>
-                </li>
-                {{ end }}
-            </ul>
-        {{ else }}
-            <article>
-                <h1>{{ .Title }}</h1>
-                {{ if .Meta.tags }}
-                <div style="margin-bottom: 2rem;">
-                    {{ range .Meta.tags }}
-                        <a href="{{ $.BaseURL }}/tags/{{ . | lower }}.html" class="tag-pill" style="font-size:0.8em">#{{ . }}</a>
-                    {{ end }}
-                </div>
-                {{ end }}
-                {{ .Content }}
-            </article>
+            {{ end }}
+            {{ .Content }}
+        </article>
         {{ end }}
     </main>
 
     <script defer src="{{ .BaseURL }}/static/js/katex.min.js"></script>
     <script defer src="{{ .BaseURL }}/static/js/auto-render.min.js"></script>
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
+        document.addEventListener("DOMContentLoaded", function () {
             renderMathInElement(document.body, {
                 delimiters: [
-                    {left: '$$', right: '$$', display: true},
-                    {left: '$', right: '$', display: false},
-                    {left: '\\(', right: '\\)', display: false},
-                    {left: '\\[', right: '\\]', display: true}
+                    { left: '$$', right: '$$', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\(', right: '\\)', display: false },
+                    { left: '\\[', right: '\\]', display: true }
                 ],
-                throwOnError : false
+                throwOnError: false
             });
         });
     </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            // 1. Get the BaseURL from the template (e.g., "/ssg-generator")
+            const baseURL = "{{ .BaseURL }}";
+
+            // 2. If we are on a sub-path (like GitHub Pages)
+            if (baseURL && baseURL !== "") {
+                // 3. Find all images on the page
+                const images = document.querySelectorAll('img');
+
+                images.forEach(img => {
+                    const src = img.getAttribute('src');
+                    // 4. If the source starts with '/' but DOES NOT start with the BaseURL
+                    if (src && src.startsWith('/') && !src.startsWith(baseURL)) {
+                        // 5. Prepend the BaseURL
+                        // Result: /static/img.png -> /ssg-generator/static/img.png
+                        img.src = baseURL + src;
+                    }
+                });
+            }
+        });
+    </script>
 </body>
+
 </html>
