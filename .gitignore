@@ -1,16 +1,32 @@
-# Go build files
+# 1. Ignore the generated site
+# We do NOT want to commit the build output to the main branch.
+# The GitHub Action will generate this on the fly.
+public/
+
+# 2. Mac OS System Files
+.DS_Store
+
+# 3. Windows System Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 4. Go Build Binaries
+# If you run 'go build', it creates binaries. We don't want those.
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+test
+main  # In case you name your binary 'main'
 
-# Go test files
-*.test
+# 5. Editor/IDE Configs
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Output directory
-/public
-
-# Node modules
-/frontend/node_modules
-/frontend/dist
+# 6. Go Modules (Optional)
+# Usually you commit go.sum, but if you have a vendor folder you might ignore it
+# vendor/
