@@ -1,33 +1,54 @@
-name: Deploy to GitHub Pages
+name: Deploy Go SSG
 
 on:
   push:
-    branches:
-      - main  # Trigger on push to main branch
+    branches: ["main"]
+  workflow_dispatch:
 
+# Permissions required for OIDC deployment to GitHub Pages
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.21' # Or your version
+          go-version: '1.21'
 
-      - name: Build Site
-        # REPLACE '/ssg-generator' WITH YOUR REPO NAME (e.g. '/my-blog')
-        run: |
-          go run builder/main.go --baseurl="/blog-temp"
+      # We removed the Node.js steps because your SSG is pure Go
+      
+      - name: Build Static Site
+        # This runs your builder and dynamically sets the BaseURL to your repo name
+        run: go run builder/main.go --baseurl="/${{ github.event.repository.name }}"
 
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
+          path: ./public
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
