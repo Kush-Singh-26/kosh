@@ -11,6 +11,8 @@ require (
 
 require (
 	github.com/alecthomas/chroma/v2 v2.2.0 // indirect
+	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect
+	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

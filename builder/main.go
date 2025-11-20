@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"image/png" // Needed for PNG compression constants
 	"io"
 	"io/fs"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/disintegration/imaging"
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -89,7 +91,7 @@ func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 func processDestination(n ast.Node, dest []byte) {
 	href := string(dest)
 
-	// 1. Handle External Links (New Tab) - Only for Links, not Images
+	// 1. Handle External Links (New Tab) - Only for Links
 	if strings.HasPrefix(href, "http") {
 		if _, isLink := n.(*ast.Link); isLink {
 			n.SetAttribute([]byte("target"), []byte("_blank"))
@@ -142,15 +144,15 @@ func main() {
 	os.RemoveAll("public")
 	os.MkdirAll("public/tags", 0755)
 	
-	// Copy Static Assets (CSS, JS, Images)
+	// 4. Copy & Optimize Static Assets
 	if _, err := os.Stat("static"); err == nil {
-		fmt.Println("📂 Copying static assets...")
+		fmt.Println("📂 Copying and optimizing static assets...")
 		if err := copyDir("static", "public/static"); err != nil {
 			log.Println("Error copying static:", err)
 		}
 	}
 
-	// 4. Initialize Data & Templates
+	// 5. Initialize Data & Templates
 	var allPosts []PostMetadata
 	tagMap := make(map[string][]PostMetadata)
 	
@@ -160,7 +162,7 @@ func main() {
 		log.Fatal("Template Parsing Error:", err)
 	}
 
-	// 5. Walk Content
+	// 6. Walk Content
 	err = filepath.Walk("content", func(path string, info fs.FileInfo, err error) error {
 		if !strings.HasSuffix(path, ".md") || strings.Contains(path, "_index.md") {
 			return nil
@@ -177,7 +179,7 @@ func main() {
 		relPath, _ := filepath.Rel("content", path)
 		htmlRelPath := strings.Replace(relPath, ".md", ".html", 1)
 		
-		// The link stored in metadata should include the BaseURL for the template to use
+		// The link stored in metadata should include the BaseURL
 		fullLink := BaseURL + "/" + htmlRelPath
 
 		post := PostMetadata{
@@ -208,7 +210,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// 6. Generate Custom Home Page
+	// 7. Generate Custom Home Page
 	homeContent := template.HTML("")
 	homeDesc := ""
 	if homeSrc, err := os.ReadFile("content/_index.md"); err == nil {
@@ -228,7 +230,7 @@ func main() {
 		BaseURL:     BaseURL,
 	})
 
-	// 7. Generate Tags Index
+	// 8. Generate Tags Index
 	var allTags []TagData
 	for t, posts := range tagMap {
 		allTags = append(allTags, TagData{
@@ -246,7 +248,7 @@ func main() {
 		BaseURL:     BaseURL,
 	})
 
-	// 8. Generate Individual Tag Pages
+	// 9. Generate Individual Tag Pages
 	for t, posts := range tagMap {
 		renderPage(tmpl, fmt.Sprintf("public/tags/%s.html", t), PageData{
 			Title:   "#" + t,
@@ -256,13 +258,13 @@ func main() {
 		})
 	}
 
-	// 9. Generate Sitemap
+	// 10. Generate Sitemap
 	generateSitemap(allPosts, tagMap)
 
 	fmt.Println("✅ Build Complete.")
 }
 
-// --- Helpers ---
+// --- Helper Functions ---
 
 func renderPage(tmpl *template.Template, path string, data PageData) {
 	os.MkdirAll(filepath.Dir(path), 0755)
@@ -273,28 +275,13 @@ func renderPage(tmpl *template.Template, path string, data PageData) {
 	}
 }
 
-func copyDir(src, dst string) error {
-	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
-		if err != nil { return err }
-		relPath, _ := filepath.Rel(src, path)
-		destPath := filepath.Join(dst, relPath)
-		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode())
-		}
-		s, _ := os.Open(path); defer s.Close()
-		d, _ := os.Create(destPath); defer d.Close()
-		_, err = io.Copy(d, s)
-		return err
-	})
-}
-
 func generateSitemap(posts []PostMetadata, tags map[string][]PostMetadata) {
 	var urls []Url
 	// Homepage
 	urls = append(urls, Url{Loc: BaseURL + "/", LastMod: time.Now().Format("2006-01-02")})
 	// Posts
 	for _, p := range posts {
-		urls = append(urls, Url{Loc: p.Link}) // Link already has BaseURL
+		urls = append(urls, Url{Loc: p.Link}) 
 	}
 	// Tags
 	for t := range tags {
@@ -308,6 +295,7 @@ func getString(m map[string]interface{}, key string) string {
 	if v, ok := m[key]; ok { return fmt.Sprintf("%v", v) }
 	return ""
 }
+
 func getSlice(m map[string]interface{}, key string) []string {
 	var res []string
 	if v, ok := m[key]; ok {
@@ -316,4 +304,69 @@ func getSlice(m map[string]interface{}, key string) []string {
 		}
 	}
 	return res
+}
+
+// --- Image Processing Helpers ---
+
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
+		if err != nil { return err }
+		
+		relPath, _ := filepath.Rel(src, path)
+		destPath := filepath.Join(dst, relPath)
+
+		if info.IsDir() {
+			return os.MkdirAll(destPath, info.Mode())
+		}
+
+		// Incremental Build Check
+		if destInfo, err := os.Stat(destPath); err == nil {
+			if destInfo.ModTime().After(info.ModTime()) {
+				return nil 
+			}
+		}
+
+		// Process Images (Compress/Resize)
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
+			fmt.Printf("Processing Image: %s\n", relPath)
+			return processImage(path, destPath, ext)
+		}
+
+		// Standard Copy for other files
+		return copyFileStandard(path, destPath)
+	})
+}
+
+func processImage(srcPath, dstPath, ext string) error {
+	// 1. Open the image
+	src, err := imaging.Open(srcPath)
+	if err != nil {
+		// Fallback to standard copy if imaging fails (e.g. unknown format)
+		return copyFileStandard(srcPath, dstPath)
+	}
+
+	// 2. Resize if too big (Max Width 1200px, maintain aspect ratio)
+	if src.Bounds().Dx() > 1200 {
+		src = imaging.Resize(src, 1200, 0, imaging.Lanczos)
+	}
+
+	// 3. Save with compression
+	if ext == ".png" {
+		return imaging.Save(src, dstPath, imaging.PNGCompressionLevel(png.BestCompression))
+	} else {
+		// JPG
+		return imaging.Save(src, dstPath, imaging.JPEGQuality(75))
+	}
+}
+
+func copyFileStandard(src, dst string) error {
+	s, err := os.Open(src)
+	if err != nil { return err }
+	defer s.Close()
+	d, err := os.Create(dst)
+	if err != nil { return err }
+	defer d.Close()
+	_, err = io.Copy(d, s)
+	return err
 }
