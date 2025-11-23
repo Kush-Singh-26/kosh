@@ -32,7 +32,7 @@ jobs:
       
       - name: Build Static Site
         # This runs your builder and dynamically sets the BaseURL to your repo name
-        run: go run builder/main.go --baseurl="/${{ github.event.repository.name }}"
+        run: go run builder/main.go --baseurl="/${{ github.event.repository.name }}" --compress
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

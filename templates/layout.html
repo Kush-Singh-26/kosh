@@ -1,150 +1,303 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .Title }}</title>
     <meta name="description" content="{{ .Description }}">
-
+    
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
-
+    
     <style>
-        /* ... Your NORD THEME CSS here ... */
-        /* ... (Keep the CSS exactly as provided in the previous step) ... */
-        /* Only change: Ensure any background images if used also respect path, but for now CSS is internal */
+        /* --- THEME: Midnight Gold --- */
         :root {
-            --bg-body: #2E3440;
-            --bg-card: #3B4252;
-            --bg-code: #434C5E;
-            --text-main: #D8DEE9;
-            --text-muted: #E5E9F0;
-            --accent-prim: #88C0D0;
-            --accent-sec: #81A1C1;
-            --accent-tert: #5E81AC;
-            --success: #A3BE8C;
+            /* Backgrounds */
+            --bg-body: #161b22;
+            --bg-card: #21262d;
+            --bg-code: #0d1117;
+            
+            /* Typography */
+            --text-main: #e6edf3;
+            --text-muted: #8b949e;
+            
+            /* Headings */
+            --h1-color: #f2cc8f;
+            --h2-color: #79c0ff;
+            --h3-color: #d2a8ff;
+            
+            /* Accents */
+            --accent-primary: #58a6ff;
+            --accent-secondary: #f2cc8f;
+            
+            /* Borders */
+            --border: #30363d;
         }
+
+        /* Global Reset */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             background-color: var(--bg-body);
             color: var(--text-main);
-            font-family: sans-serif;
-            line-height: 1.7;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.75;
             max-width: 840px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 2rem 1.5rem;
         }
 
-        a {
-            color: var(--accent-prim);
+        /* Links */
+        a { color: var(--accent-primary); text-decoration: none; transition: all 0.2s ease; }
+        a:hover { color: #fff; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+
+        /* Typography */
+        h1, h2, h3, h4 { font-weight: 700; margin-top: 2.5rem; margin-bottom: 1.2rem; letter-spacing: -0.02em; }
+        
+        h1 {
+            font-size: 2.4rem;
+            color: var(--h1-color);
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        h2 { font-size: 1.75rem; color: var(--h2-color); }
+        h3 { font-size: 1.4rem; color: var(--h3-color); }
+        
+        p { margin-bottom: 1.5rem; font-size: 1.05rem; color: var(--text-main); }
+        li { margin-bottom: 0.5rem; }
+        
+        /* --- FIX: Restore List Indentation --- */
+        
+        /* Apply only inside articles to avoid messing up the nav or post list */
+        article ul, article ol {
+            padding-left: 2rem;      /* Indent the bullets */
+            margin-bottom: 1.5rem;   /* Space after the list */
+        }
+
+        /* Ensure nested lists are also styled correctly */
+        article ul ul, article ol ul, article ul ol, article ol ol {
+            margin-top: 0.5rem;      /* Small space between parent item and sub-list */
+            margin-bottom: 0.5rem;
+        }
+
+        /* Ensure bullets are visible */
+        article li {
+            list-style-type: disc;   /* Standard bullet */
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Nested bullets can look different (optional) */
+        article li ul li {
+            list-style-type: circle; /* Hollow bullet for sub-items */
+        }
+
+        /* Header & Nav */
+        header {
+            margin-bottom: 4rem;
+            padding-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .site-title {
+            font-weight: 800;
+            font-size: 1.4rem;
+            color: var(--text-main) !important;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: 2px solid var(--h1-color);
+            padding: 0.3rem 0.8rem;
+            border-radius: 4px;
+        }
+        .site-title:hover {
+            background-color: var(--h1-color);
+            color: var(--bg-body) !important;
             text-decoration: none;
         }
 
-        header {
-            margin-bottom: 3rem;
-            border-bottom: 1px solid var(--bg-card);
-            padding-bottom: 1rem;
-            display: flex;
-            justify-content: space-between;
-        }
+        nav a { margin-left: 1.5rem; color: var(--text-muted); font-size: 0.95rem; font-weight: 600; }
+        nav a:hover { color: var(--text-main); text-decoration: none; }
 
-        .tag-pill {
-            background: var(--bg-card);
-            padding: 0.5rem 1rem;
-            border-radius: 50px;
-            margin-right: 0.5rem;
-            display: inline-block;
+        /* Pinned Post Cards */
+        .pinned-section { margin-bottom: 3rem; }
+        .section-header {
+            font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px;
+            color: var(--h1-color); margin-bottom: 1rem; font-weight: 700;
         }
-
-        img {
-            max-width: 100%;
+        
+        .pinned-card {
+            display: block; background: var(--bg-card); padding: 1.5rem;
+            border-radius: 8px; border: 1px solid var(--border); border-left: 4px solid var(--h1-color);
+            margin-bottom: 1.5rem; transition: transform 0.2s ease;
         }
+        .pinned-card:hover { transform: translateY(-3px); text-decoration: none; border-color: var(--h2-color); }
+        .pinned-card h2 { margin-top: 0; margin-bottom: 0.5rem; font-size: 1.5rem; color: var(--text-main); }
+        .pinned-card:hover h2 { color: var(--h2-color); }
 
+        .meta-info { font-size: 0.85rem; color: var(--text-muted); font-family: "JetBrains Mono", monospace; margin-bottom: 0.8rem; }
+
+        /* Images */
+        img { max-width: 100%; border-radius: 8px; margin: 2rem 0; display: block; border: 1px solid var(--border); }
+
+        /* Blockquotes */
+        blockquote {
+            border-left: 4px solid var(--h1-color); background-color: var(--bg-card);
+            padding: 1.2rem 1.8rem; margin: 2rem 0; border-radius: 0 8px 8px 0;
+            font-style: italic; color: var(--text-main);
+        }
+        blockquote p { margin: 0; }
+        blockquote ul, blockquote ol { margin: 0.8rem 0 0.8rem 2rem; }
+        blockquote li { list-style-type: disc; margin-bottom: 0.4rem; }
+
+        /* Code Blocks */
         pre {
-            background: var(--bg-code) !important;
-            padding: 1rem;
-            overflow-x: auto;
-            border-radius: 8px;
+            background-color: var(--bg-code) !important; padding: 1.5rem;
+            border-radius: 8px; overflow-x: auto; border: 1px solid var(--border); margin: 1.5rem 0;
         }
+        code { font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 0.85em; color: var(--text-main); }
+        p code, li code {
+            background-color: rgba(110, 118, 129, 0.2); color: var(--h1-color);
+            padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: "JetBrains Mono", monospace;
+        }
+
+        /* Tags */
+        .tag-cloud { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1rem; }
+        .tag-pill {
+            display: inline-flex; align-items: center; background: var(--bg-card);
+            padding: 0.3rem 0.8rem; border-radius: 6px; border: 1px solid var(--border);
+            color: var(--text-muted); font-size: 0.8rem; font-weight: 500; transition: all 0.2s ease;
+        }
+        .tag-pill:hover { border-color: var(--h2-color); color: var(--h2-color); background: var(--bg-code); text-decoration: none; }
+        .tag-count { background: var(--bg-body); color: var(--text-muted); padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.75em; margin-left: 8px; }
+
+        /* Post List */
+        .post-list { list-style: none; margin-top: 2rem; }
+        .post-list li { margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); transition: transform 0.2s ease; }
+        .post-list li:hover { transform: translateX(5px); }
+        .post-title { font-size: 1.5rem; font-weight: 700; display: block; color: var(--text-main); margin-bottom: 0.5rem; }
+        .post-title:hover { color: var(--h1-color); text-decoration: none; }
+        .post-desc { color: var(--text-muted); font-size: 1.05rem; line-height: 1.6; margin-bottom: 1rem; }
+
+        /* Tables & Misc */
+        table { width: 100%; border-collapse: collapse; margin: 2rem 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background-color: var(--bg-card); color: var(--h1-color); font-weight: 600; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em; }
+        tr:hover { background-color: var(--bg-card); }
+        hr { border: 0; border-top: 1px solid var(--border); margin: 3rem 0; }
+        .katex { color: var(--text-main) !important; font-size: 1.1em; }
     </style>
 </head>
-
 <body>
     <header>
-        <a href="{{ .BaseURL }}/index.html" style="font-weight:bold; color: white;">Kush Blogs</a>
+        <a href="{{ .BaseURL }}/index.html" class="site-title">Kush Blogs</a>
         <nav>
             <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
-            <a href="{{ .BaseURL }}/index.html" style="margin-left: 15px;">Home</a>
+            <a href="{{ .BaseURL }}/index.html">Home</a>
         </nav>
     </header>
 
     <main>
         {{ if .IsTagsIndex }}
-        <h1>All Tags</h1>
-        <div>
-            {{ range .AllTags }}
-            <a href="{{ .Link }}" class="tag-pill">#{{ .Name }} ({{ .Count }})</a>
-            {{ end }}
-        </div>
+            <h1 style="border:none; text-align:center; color:var(--h1-color);">Topics</h1>
+            <div class="tag-cloud" style="justify-content:center;">
+                {{ range .AllTags }}
+                <a href="{{ .Link }}" class="tag-pill">
+                    #{{ .Name }}
+                    <span class="tag-count">{{ .Count }}</span>
+                </a>
+                {{ end }}
+            </div>
+
         {{ else if .IsIndex }}
-        {{ if .Content }}<div style="margin-bottom:3rem">{{ .Content }}</div>
-        <hr style="border-color:#3B4252">{{ end }}
-        <h2>Recent Posts</h2>
-        <ul>
-            {{ range .Posts }}
-            <li style="margin-bottom: 1rem;">
-                <a href="{{ .Link }}" style="font-size:1.2rem; font-weight:bold">{{ .Title }}</a>
-                <div>{{ .Description }}</div>
-            </li>
+            {{ if .Content }}
+                <div style="margin-bottom: 3rem; color:var(--text-main); font-size:1.1rem;">
+                    {{ .Content }}
+                </div>
             {{ end }}
-        </ul>
-        {{ else }}
-        <article>
-            <h1>{{ .Title }}</h1>
-            {{ if .Meta.tags }}
-            <div style="margin-bottom: 2rem;">
-                {{ range .Meta.tags }}
-                <a href="{{ $.BaseURL }}/tags/{{ . | lower }}.html" class="tag-pill" style="font-size:0.8em">#{{ .
-                    }}</a>
+
+            {{ if .PinnedPosts }}
+            <div class="pinned-section">
+                <div class="section-header">★ Featured</div>
+                {{ range .PinnedPosts }}
+                <a href="{{ .Link }}" class="pinned-card">
+                    <h2>{{ .Title }}</h2>
+                    <div class="meta-info">
+                        {{ .ReadingTime }} min read
+                    </div>
+                    <div style="color: var(--text-muted); font-size: 0.95rem;">{{ .Description }}</div>
+                </a>
                 {{ end }}
             </div>
             {{ end }}
-            {{ .Content }}
-        </article>
+
+            <div class="section-header" style="color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1.5rem;">Latest Writings</div>
+            <ul class="post-list">
+                {{ range .Posts }}
+                <li>
+                    <a href="{{ .Link }}" class="post-title">{{ .Title }}</a>
+                    
+                    <div class="meta-info" style="margin-bottom: 0.5rem;">
+                        {{ .ReadingTime }} min read
+                    </div>
+
+                    <div class="post-desc">{{ .Description }}</div>
+                    
+                    {{ if .Tags }}
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            {{ range .Tags }}
+                            <span style="font-size:0.85rem; font-family:monospace; color:var(--h2-color);">#{{ . }}</span>
+                            {{ end }}
+                        </div>
+                    {{ end }}
+                </li>
+                {{ end }}
+            </ul>
+
+        {{ else }}
+            <article>
+                <h1>{{ .Title }}</h1>
+                
+                <div class="meta-info" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    {{ if .Meta.readingTime }}<span>{{ .Meta.readingTime }} min read</span>{{ end }}
+                    
+                    {{ if .Meta.tags }}
+                        {{ range .Meta.tags }}
+                        <a href="{{ $.BaseURL }}/tags/{{ . | lower }}.html" class="tag-pill" style="font-size:0.8em; border-color:transparent; background:var(--bg-code);">#{{ . }}</a>
+                        {{ end }}
+                    {{ end }}
+                </div>
+
+                {{ .Content }}
+            </article>
         {{ end }}
     </main>
 
     <script defer src="{{ .BaseURL }}/static/js/katex.min.js"></script>
     <script defer src="{{ .BaseURL }}/static/js/auto-render.min.js"></script>
+    
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
+        document.addEventListener("DOMContentLoaded", function() {
+            // KaTeX Init
             renderMathInElement(document.body, {
                 delimiters: [
-                    { left: '$$', right: '$$', display: true },
-                    { left: '$', right: '$', display: false },
-                    { left: '\\(', right: '\\)', display: false },
-                    { left: '\\[', right: '\\]', display: true }
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
                 ],
-                throwOnError: false
+                throwOnError : false
             });
-        });
-    </script>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            // 1. Get the BaseURL from the template (e.g., "/ssg-generator")
+
             const baseURL = "{{ .BaseURL }}";
 
-            // 2. If we are on a sub-path (like GitHub Pages)
+            // Image Path Fix for GitHub Pages
             if (baseURL && baseURL !== "") {
-                // 3. Find all images on the page
-                const images = document.querySelectorAll('img');
-
-                images.forEach(img => {
+                document.querySelectorAll('img').forEach(img => {
                     const src = img.getAttribute('src');
-                    // 4. If the source starts with '/' but DOES NOT start with the BaseURL
                     if (src && src.startsWith('/') && !src.startsWith(baseURL)) {
-                        // 5. Prepend the BaseURL
-                        // Result: /static/img.png -> /ssg-generator/static/img.png
                         img.src = baseURL + src;
                     }
                 });
@@ -152,5 +305,4 @@
         });
     </script>
 </body>
-
 </html>

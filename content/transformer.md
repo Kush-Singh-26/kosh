@@ -1,8 +1,9 @@
 ---
-title: "Transformer Deep Dive"
-date: "2025-11-19"
+title: "6. NLP: Transformers"
 description: "A complete guide to the transformer architecture, attention mechanisms, and positional encoding."
 tags: ["AI", "Deep Learning", "Transformers"]
+date: 2025-06-22
+pinned: true
 ---
 # Attention Is All You Need Deep Dive
 
@@ -165,15 +166,15 @@ $$ \boxed{ \text{FFN}(x) = \max{(0, xW_1 + b_1)}W_2 + b_2 } $$
 - The above analogy can be used to understand *Queries*, *Keys*, and *Values* in context of attention.
 
 > - To compute the attention of a word in one sentence with respect to all words in another sentence :
-    - Create a Query vector for the word.
-    - Create Key and Value vectors for each word in the second sentence.
-    - Compute the similarity between the Query and each Key.
-        - It gives the raw attention score for each word in the second sentence.
-    - Pass the resulting scores through a softmax function, turning them into a probability distribution.
-        - It converts the scores into a set of positive weights that all sum up to 1.
-        - Each weight represents how much attention the query word should pay to each value.
-    - Compute the weighted sum of all the value vectors using the softmax weights.
-        - This results in a single output vector which is just the enriched version of the original word representation with relevant context from other sentence.
+>    - Create a Query vector for the word.
+>    - Create Key and Value vectors for each word in the second sentence.
+>    - Compute the similarity between the Query and each Key.
+>        - It gives the raw attention score for each word in the second sentence.
+>    - Pass the resulting scores through a softmax function, turning them into a probability distribution.
+>        - It converts the scores into a set of positive weights that all sum up to 1.
+>        - Each weight represents how much attention the query word should pay to each value.
+>    - Compute the weighted sum of all the value vectors using the softmax weights.
+>        - This results in a single output vector which is just the enriched version of the original word representation with relevant context from other sentence.
 
 ## Mathematical formulation of Scaled Dot Product Attention
 
@@ -197,7 +198,7 @@ $$
 > $ Q $, $ K $ & $ V $ are the linear transformations of $ X $.
 
 > - $Q$ and $K$ are of same dimensionality as their dot product is calculate which requires them to be of same dimensionality.
-- $V$ can have different dimension because it is not used for any dot product calculation but for just weighted sum.
+>- $V$ can have different dimension because it is not used for any dot product calculation but for just weighted sum.
 
 - Where :
     - $ W^Q \in \mathbb{R}^{d_{model} \times d_k} $
@@ -216,9 +217,9 @@ The main idea behind **scaled dot product attention** mechanism is to :
 ### a. Dot Product
 
 > - Similarity between the query and key is computed using their **dot product**.
-$ q \cdot k = \sum_{j=1}^d q_j k_j = \left\lVert q \right\rVert \left\lVert k \right\rVert \cos\theta $
-- If $ \cos\theta $ is 1 then the vectors are aligned and if they are orthogonal then it will be 0.
-- Thus, dot product increases with alignment and is considered <u>unnormalized similarity measure</u>.
+>$ q \cdot k = \sum_{j=1}^d q_j k_j = \left\lVert q \right\rVert \left\lVert k \right\rVert \cos\theta $
+>- If $ \cos\theta $ is 1 then the vectors are aligned and if they are orthogonal then it will be 0.
+>- Thus, dot product increases with alignment and is considered <u>unnormalized similarity measure</u>.
 
 
 Thus the **attention scores** are computed as :
@@ -281,7 +282,7 @@ $$ \boxed{ Attention(Q,K,V) = softmax(\frac{QK^T}{\sqrt{d_k}})V \in {n \times d_
     - eg. `[32, 50, 512]` (32 sentences, 50 tokens each, 512-dim embedding).
 
 > - Reduced dimension of each head results in a similar total computation costs as that of single-head attention with full dimensionality. 
-- But single attention head will not allow the model to jointly attend to information from different representation subspaces at different positions.
+>- But single attention head will not allow the model to jointly attend to information from different representation subspaces at different positions.
 
 - There are *2 ways* to understand Multi-Head Attention (MHA). 
 - **Both ways are mathematically equivalent**.
@@ -392,14 +393,14 @@ $$
 ---
 
 > - Reasoning behind transpose :
-- **Exam Grading Analogy** :
-    - Let there be an exam in 32 sections. `([batch_size])`
-    - The exam consists of 8 questions.  `([seq_len])`
-    - Teacher can check each student's paper sequentially but it will be inefficient beacuse teacher will have to constantly switch context, i.e., logic of Q.1 then Q.2 and so on.
-    - The better way will be to take all the Q.1s of all 8 students and group them in a pile and repeat the same for all the other 31 Questions.
-    - Now, pick up a pile and grade all the 32 questions of that pile.
-        - It will be quicker beacuse teacher will be in the same mindset.
-    - That is grading is done as a batch operation, which GPUs are optimized for.
+>- **Exam Grading Analogy** :
+>    - Let there be an exam in 32 sections. `([batch_size])`
+>    - The exam consists of 8 questions.  `([seq_len])`
+>    - Teacher can check each student's paper sequentially but it will be inefficient beacuse teacher will have to constantly switch context, i.e., logic of Q.1 then Q.2 and so on.
+>    - The better way will be to take all the Q.1s of all 8 students and group them in a pile and repeat the same for all the other 31 Questions.
+>    - Now, pick up a pile and grade all the 32 questions of that pile.
+>        - It will be quicker beacuse teacher will be in the same mindset.
+>    - That is grading is done as a batch operation, which GPUs are optimized for.
 
 
 - Applying this analogy to the projected tensor :
@@ -485,13 +486,13 @@ Head 4 : [Token B1_data, Token B2_data, Token B3_data]
 - This tensor will be passed through the final linear projection $W^O$ of shape `[512, 512]`.
 
 > **Why the final linear projection is used?**
-- The re-shaped / concatenated vector lays the output vectors of each head nect to each other.
-    - Head 1's output is at indices : 0-64
-    - Head 2's output is at indices : 65-127, and so on.
-- Information from each head has not yet interacted with other head's information/
-- $W^O$ learns an optimal eay to combine and mix these parallel outputs.
-    - It synthesizes the information from all heads into a single useful representation.
-    - It can learn to weigh some heads more than others and find relationships between their outputs.
+>- The re-shaped / concatenated vector lays the output vectors of each head nect to each other.
+>    - Head 1's output is at indices : 0-64
+>    - Head 2's output is at indices : 65-127, and so on.
+>- Information from each head has not yet interacted with other head's information/
+>- $W^O$ learns an optimal eay to combine and mix these parallel outputs.
+>    - It synthesizes the information from all heads into a single useful representation.
+>    - It can learn to weigh some heads more than others and find relationships between their outputs.
 
 > We now end up with a tensor of same shape as the one which was the input to the MHA, but it is enriched with contextual information from the attention mechanism.
 
@@ -502,9 +503,9 @@ Head 4 : [Token B1_data, Token B2_data, Token B3_data]
 It is used in the **decoder block** of the transformer model. It is used to allow the decoder to process sequences in parallel while preserving the **autoregressive property** of transformers.
 
 > **Auto-Regressive Property** : 
-- When a sequence is being generated the prediction for next word should depend on the words that **came before** it and not the words that will come after.
-- The model should be forbidden from **peeking ahead** at any subsequent words.
-- This is enforced using **mask**.
+>- When a sequence is being generated the prediction for next word should depend on the words that **came before** it and not the words that will come after.
+>- The model should be forbidden from **peeking ahead** at any subsequent words.
+>- This is enforced using **mask**.
 
 - The *mask* or **look-ahead mask** is applied inside each attention head, **before softmax step**.
 - This mask is also called **causal mask** and **triangular mask**.
@@ -547,54 +548,103 @@ $$ softmax(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}} $$
     - For the second word (row 2), it can attend to the first word and itself.
 
 > ***Example*** :
-- Let the **scaled score matrix** ($ \frac{QK^T}{\sqrt{d_k}} $) be :
-$$
-S = \begin{pmatrix}
-1.2 & 0.5 & -1.0 & 0.0 \\
-0.3 & 2.0 & 0.1 & -0.5 \\
--0.8 & 0.7 & 1.5 & 0.2 \\
-1.0 & -1.2 & 0.3 & 0.8
-\end{pmatrix}
-$$
-<br><br>
-- Let the **mask matrix** be :
-$$
- M = \begin{pmatrix}
-0 & -\infty & -\infty & -\infty \\
-0 & 0 & -\infty & -\infty \\
-0 & 0 & 0 & -\infty \\
-0 & 0 & 0 & 0
-\end{pmatrix} 
-$$
-<br><br>
-- Adding them will give the masked scaled score matrix :
-$$
-S' = \begin{pmatrix}
-1.2 & .-\infty & -\infty & -\infty \\
-0.3 & 2.0 & -\infty & -\infty \\
--0.8 & 0.7 & 1.5 & -\infty \\
-1.0 & -1.2 & 0.3 & 0.8
-\end{pmatrix}
-$$
-<br><br>
-- Now softmax is applied to each row of $S'$.
-- For row 0 : $ softmax([1.2, -\infty, -\infty, -\infty]) $ = [1, 0, 0, 0].
-- For row 1 : $ softmax([0.3, 2.0, -\infty, -\infty]) = \frac{1}{e^{0.3} + e^{2.0}} [e^{0.3}, e^{2.0}] = [0.1544, 0.8456, 0, 0] $ 
-- And so on ...
-<br>
-- Final $A$ matrix is : 
-$$
-A = \begin{pmatrix}
-1.000 & 0.000 & 0.000 & 0.000 \\
-0.154 & 0.845 & 0.000 & 0.000 \\
-0.065 & 0.290 & 0.645 & 0.000 \\
-0.412 & 0.046 & 0.205 & 0.337
-\end{pmatrix}
-$$
-<br><br>
-- This can be interpreted as :
-    - In Row 0 (token 0), it can only attend to itself.
-    - In Row 1 (token 1), it can attend 15% to token 0, 84% to itself and cannot attend to other tokens.
+> - Let the **scaled score matrix** ($ \frac{QK^T}{\sqrt{d_k}} $) be :
+> $$
+> S = \begin{pmatrix}
+> 1.2 & 0.5 & -1.0 & 0.0 \\
+> 0.3 & 2.0 & 0.1 & -0.5 \\
+> -0.8 & 0.7 & 1.5 & 0.2 \\
+> 1.0 & -1.2 & 0.3 & 0.8
+> \end{pmatrix}
+> $$
+>
+> - Let the **mask matrix** be :
+> $$
+> M = \begin{pmatrix}
+> 0 & -\infty & -\infty & -\infty \\
+> 0 & 0 & -\infty & -\infty \\
+> 0 & 0 & 0 & -\infty \\
+> 0 & 0 & 0 & 0
+> \end{pmatrix}
+> $$
+>
+> - Adding them will give the masked scaled score matrix :
+> $$
+> S' = \begin{pmatrix}
+> 1.2 & -\infty & -\infty & -\infty \\
+> 0.3 & 2.0 & -\infty & -\infty \\
+> -0.8 & 0.7 & 1.5 & -\infty \\
+> 1.0 & -1.2 & 0.3 & 0.8
+> \end{pmatrix}
+> $$
+>
+> - Now softmax is applied to each row of $S'$.
+> - For row 0 : $ softmax([1.2, -\infty, -\infty, -\infty]) $ = [1, 0, 0, 0].
+> - For row 1 : $ softmax([0.3, 2.0, -\infty, -\infty]) = \frac{1}{e^{0.3} + e^{2.0}} [e^{0.3}, e^{2.0}] = [0.1544, 0.8456, 0, 0] $
+> - And so on ...
+>
+> - Final $A$ matrix is :
+> $$
+> A = \begin{pmatrix}
+> 1.000 & 0.000 & 0.000 & 0.000 \\
+> 0.154 & 0.845 & 0.000 & 0.000 \\
+> 0.065 & 0.290 & 0.645 & 0.000 \\
+> 0.412 & 0.046 & 0.205 & 0.337
+> \end{pmatrix}
+> $$
+>
+> - This can be interpreted as :
+>     - In Row 0 (token 0), it can only attend to itself.
+>     - In Row 1 (token 1), it can attend 15% to token 0, 84% to itself and cannot attend to other tokens.
+> ***Example*** :
+> - Let the **scaled score matrix** ($ \frac{QK^T}{\sqrt{d_k}} $) be :
+> $$
+> S = \begin{pmatrix}
+> 1.2 & 0.5 & -1.0 & 0.0 \\
+> 0.3 & 2.0 & 0.1 & -0.5 \\
+> -0.8 & 0.7 & 1.5 & 0.2 \\
+> 1.0 & -1.2 & 0.3 & 0.8
+> \end{pmatrix}
+> $$
+>
+> - Let the **mask matrix** be :
+> $$
+> M = \begin{pmatrix}
+> 0 & -\infty & -\infty & -\infty \\
+> 0 & 0 & -\infty & -\infty \\
+> 0 & 0 & 0 & -\infty \\
+> 0 & 0 & 0 & 0
+> \end{pmatrix}
+> $$
+>
+> - Adding them will give the masked scaled score matrix :
+> $$
+> S' = \begin{pmatrix}
+> 1.2 & -\infty & -\infty & -\infty \\
+> 0.3 & 2.0 & -\infty & -\infty \\
+> -0.8 & 0.7 & 1.5 & -\infty \\
+> 1.0 & -1.2 & 0.3 & 0.8
+> \end{pmatrix}
+> $$
+>
+> - Now softmax is applied to each row of $S'$.
+> - For row 0 : $ softmax([1.2, -\infty, -\infty, -\infty]) $ = [1, 0, 0, 0].
+> - For row 1 : $ softmax([0.3, 2.0, -\infty, -\infty]) = \frac{1}{e^{0.3} + e^{2.0}} [e^{0.3}, e^{2.0}] = [0.1544, 0.8456, 0, 0] $
+> - And so on ...
+>
+> - Final $A$ matrix is :
+> $$
+> A = \begin{pmatrix}
+> 1.000 & 0.000 & 0.000 & 0.000 \\
+> 0.154 & 0.845 & 0.000 & 0.000 \\
+> 0.065 & 0.290 & 0.645 & 0.000 \\
+> 0.412 & 0.046 & 0.205 & 0.337
+> \end{pmatrix}
+> $$
+>
+> - This can be interpreted as :
+>     - In Row 0 (token 0), it can only attend to itself.
+>     - In Row 1 (token 1), it can attend 15% to token 0, 84% to itself and cannot attend to other tokens.
     
 ### 4. Implementation using Multi-Heads :
 
@@ -626,7 +676,7 @@ $$ head_i = softmax(\frac{Q_i K_i^T}{\sqrt{d_k}} + M) V_i $$
             - *One of the dimensions is 1*.
 
 > - If both rules are satified for all dimensions then the tensors are **broadcast-compatible**.
--  PyTorch will virtually **stretch (or repeat)** the smaller tensor along any dimension where its size is 1 to match the larger tensor.
+>-  PyTorch will virtually **stretch (or repeat)** the smaller tensor along any dimension where its size is 1 to match the larger tensor.
 
 - No actual data is copied and unnecessary data duplication is avoided.
 
@@ -696,13 +746,13 @@ $$ head_i = softmax(\frac{Q_i K_i^T}{\sqrt{d_k}} + M) V_i $$
 - They also share their weight with the final linear layer that transforms the decoder's hidden states into logits over the vocabulary before applying softmax.
 
 > - Each token is mapped to a vector via the embedding matrix $ E \in \mathbb{R}^{V \times d_{model}} $. 
-    - $V$ is the vocabulary size.
-        - It is the total number of unique tokens in the vocabulary.
-- When the $i^{th}$ token comes, the $i^{th}$ row is looked in $E$. 
-- This vector / row of size $d_{model}$ is the embedding vector of that token.
-- This vector is scaled by $ d_{model} $ through element-wise multiplication.
-<br>
-- It is done to normalize variance.
+>    - $V$ is the vocabulary size.
+>        - It is the total number of unique tokens in the vocabulary.
+>- When the $i^{th}$ token comes, the $i^{th}$ row is looked in $E$. 
+>- This vector / row of size $d_{model}$ is the embedding vector of that token.
+>- This vector is scaled by $ d_{model} $ through element-wise multiplication.
+><br>
+>- It is done to normalize variance.
 
 ## Positional Encoding
 
@@ -714,8 +764,8 @@ $$ head_i = softmax(\frac{Q_i K_i^T}{\sqrt{d_k}} + M) V_i $$
 
 
 > - **Requirements**
-    - Positional Encodings must be same for a position irresepective of the sequence lenghts or the input sequnce.
-    - They must not be too large else they may push the embedding vectors in such a way that their semantic similarity may change. 
+>    - Positional Encodings must be same for a position irresepective of the sequence lenghts or the input sequnce.
+>    - They must not be too large else they may push the embedding vectors in such a way that their semantic similarity may change. 
 
 ### Working of PE :
 
@@ -741,10 +791,10 @@ $$ PE_{(pos,2i+1)} = \cos\left( \frac{pos}{10000^{\frac{2i}{d_{model}}}} \right)
 - $i$ can be thought of as an **index of for a pair of dimensions**.
 
 > **Analogy**
-- A clock has 3 hands each moving at a different frequency.
-- Each hands gives more information about what the time is.
-<br>
-- Same logic is being applied here, **each dimension of each embedded vector at position "pos" forms a different argument or frequency for the sine / cosine functions**.
+>- A clock has 3 hands each moving at a different frequency.
+>- Each hands gives more information about what the time is.
+><br>
+>- Same logic is being applied here, **each dimension of each embedded vector at position "pos" forms a different argument or frequency for the sine / cosine functions**.
 
 - For a token at a specific position *pos*, a Positional Encoding (PE) vector of the same dimension as the token embedding (d_model) is created. 
 - The entries of this PE vector are found as follows:

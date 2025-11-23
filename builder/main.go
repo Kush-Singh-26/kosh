@@ -6,10 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"image/png" // Needed for PNG compression constants
+	"image/png"
 	"io"
 	"io/fs"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -29,47 +30,44 @@ import (
 	meta "github.com/yuin/goldmark-meta"
 )
 
-// --- Global Configuration ---
-var BaseURL string
+var (
+	BaseURL        string
+	CompressImages bool
+)
 
 // --- Data Structures ---
 type PostMetadata struct {
-	Title       string
-	Link        string
-	Description string
-	Date        string
-	Tags        []string
+	Title, Link, Description string
+	Tags                     []string
+	ReadingTime              int
+	Pinned                   bool
+	DateObj                  time.Time // Used for sorting (Hidden from JSON/HTML)
 }
 
 type TagData struct {
-	Name  string
-	Count int
-	Link  string
+	Name, Link string
+	Count      int
 }
 
 type PageData struct {
-	Title       string
-	Description string
-	BaseURL     string
-	Content     template.HTML
-	Meta        map[string]interface{}
-	IsIndex     bool
-	IsTagsIndex bool
-	Posts       []PostMetadata
-	AllTags     []TagData
+	Title, Description, BaseURL string
+	Content                     template.HTML
+	Meta                        map[string]interface{}
+	IsIndex, IsTagsIndex        bool
+	Posts                       []PostMetadata
+	PinnedPosts                 []PostMetadata
+	AllTags                     []TagData
 }
 
-// --- Sitemap XML Structures ---
 type UrlSet struct {
 	XMLName xml.Name `xml:"http://www.sitemaps.org/schemas/sitemap/0.9 urlset"`
 	Urls    []Url    `xml:"url"`
 }
 type Url struct {
-	Loc     string `xml:"loc"`
-	LastMod string `xml:"lastmod,omitempty"`
+	Loc, LastMod string
 }
 
-// --- AST Transformer (Fixes URLs for Links AND Images) ---
+// --- AST Transformer ---
 type URLTransformer struct{}
 
 func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
@@ -77,7 +75,6 @@ func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 		if !entering {
 			return ast.WalkContinue, nil
 		}
-
 		switch target := n.(type) {
 		case *ast.Link:
 			processDestination(target, target.Destination)
@@ -90,17 +87,12 @@ func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 
 func processDestination(n ast.Node, dest []byte) {
 	href := string(dest)
-
-	// 1. Handle External Links (New Tab) - Only for Links
 	if strings.HasPrefix(href, "http") {
 		if _, isLink := n.(*ast.Link); isLink {
 			n.SetAttribute([]byte("target"), []byte("_blank"))
 			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
 		}
 	}
-
-	// 2. Handle Internal BaseURL (For GitHub Pages)
-	// If it starts with "/" and we have a BaseURL, prepend it.
 	if strings.HasPrefix(href, "/") && BaseURL != "" {
 		newDest := []byte(BaseURL + href)
 		switch t := n.(type) {
@@ -114,14 +106,14 @@ func processDestination(n ast.Node, dest []byte) {
 
 // --- Main Execution ---
 func main() {
-	// 1. Parse Flags
-	baseUrlFlag := flag.String("baseurl", "", "Base URL for the site (e.g. /my-repo)")
+	baseUrlFlag := flag.String("baseurl", "", "Base URL")
+	compressFlag := flag.Bool("compress", false, "Enable image compression")
 	flag.Parse()
-	BaseURL = strings.TrimSuffix(*baseUrlFlag, "/") // Normalize: no trailing slash
+	BaseURL = strings.TrimSuffix(*baseUrlFlag, "/")
+	CompressImages = *compressFlag
 
-	fmt.Printf("🔨 Building site with BaseURL: '%s' ...\n", BaseURL)
+	fmt.Printf("🔨 Building site...\n")
 
-	// 2. Configure Goldmark
 	md := goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
@@ -132,239 +124,193 @@ func main() {
 				BlockDelimiters:  []passthrough.Delimiters{{Open: "$$", Close: "$$"}, {Open: "\\[", Close: "\\]"}},
 			}),
 		),
-		goldmark.WithParserOptions(
-			parser.WithASTTransformers(
-				util.Prioritized(&URLTransformer{}, 100),
-			),
-		),
+		goldmark.WithParserOptions(parser.WithASTTransformers(util.Prioritized(&URLTransformer{}, 100))),
 		goldmark.WithRendererOptions(html.WithUnsafe()),
 	)
 
-	// 3. Prepare Output Directory
 	os.RemoveAll("public")
 	os.MkdirAll("public/tags", 0755)
-	
-	// 4. Copy & Optimize Static Assets
 	if _, err := os.Stat("static"); err == nil {
-		fmt.Println("📂 Copying and optimizing static assets...")
-		if err := copyDir("static", "public/static"); err != nil {
-			log.Println("Error copying static:", err)
-		}
+		copyDir("static", "public/static")
 	}
 
-	// 5. Initialize Data & Templates
 	var allPosts []PostMetadata
+	var pinnedPosts []PostMetadata
 	tagMap := make(map[string][]PostMetadata)
 	
 	funcMap := template.FuncMap{"lower": strings.ToLower}
 	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles("templates/layout.html")
-	if err != nil {
-		log.Fatal("Template Parsing Error:", err)
-	}
+	if err != nil { log.Fatal(err) }
 
-	// 6. Walk Content
+	// Walk Content
 	err = filepath.Walk("content", func(path string, info fs.FileInfo, err error) error {
 		if !strings.HasSuffix(path, ".md") || strings.Contains(path, "_index.md") {
 			return nil
 		}
-
 		source, _ := os.ReadFile(path)
 		var buf bytes.Buffer
 		context := parser.NewContext()
-		if err := md.Convert(source, &buf, parser.WithContext(context)); err != nil {
-			return err
-		}
-
+		if err := md.Convert(source, &buf, parser.WithContext(context)); err != nil { return err }
+		
 		metaData := meta.Get(context)
 		relPath, _ := filepath.Rel("content", path)
 		htmlRelPath := strings.Replace(relPath, ".md", ".html", 1)
-		
-		// The link stored in metadata should include the BaseURL
 		fullLink := BaseURL + "/" + htmlRelPath
+
+		// Word Count
+		wordCount := len(strings.Fields(string(source)))
+		readTime := int(math.Ceil(float64(wordCount) / 120.0))
+
+		// Check if pinned
+		isPinned := false
+		if p, ok := metaData["pinned"].(bool); ok {
+			isPinned = p
+		}
+
+		// Parse Date for Sorting (Format: YYYY-MM-DD)
+		dateStr := getString(metaData, "date")
+		dateObj, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			// Fallback if date is missing or wrong format
+			dateObj = time.Time{} 
+		}
 
 		post := PostMetadata{
 			Title:       getString(metaData, "title"),
 			Link:        fullLink,
 			Description: getString(metaData, "description"),
-			Date:        getString(metaData, "date"),
 			Tags:        getSlice(metaData, "tags"),
+			ReadingTime: readTime,
+			Pinned:      isPinned,
+			DateObj:     dateObj, // Store for sorting
 		}
-		allPosts = append(allPosts, post)
 
+		// Separate Pinned vs Regular
+		if isPinned {
+			pinnedPosts = append(pinnedPosts, post)
+		} else {
+			allPosts = append(allPosts, post)
+		}
+		
 		for _, t := range post.Tags {
-			tLower := strings.ToLower(strings.TrimSpace(t))
-			tagMap[tLower] = append(tagMap[tLower], post)
+			tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], post)
 		}
-
+		
 		renderPage(tmpl, "public/"+htmlRelPath, PageData{
-			Title:   post.Title,
-			Description: post.Description,
-			Content: template.HTML(buf.String()),
-			Meta:    metaData,
+			Title: post.Title, 
+			Description: post.Description, 
+			Content: template.HTML(buf.String()), 
+			Meta: metaData, 
 			BaseURL: BaseURL,
 		})
 		return nil
 	})
 
-	if err != nil {
-		log.Fatal(err)
+	if err != nil { log.Fatal(err) }
+
+	// --- SORTING LOGIC (Newest First) ---
+	sortPosts(allPosts)
+	sortPosts(pinnedPosts)
+	for k := range tagMap {
+		sortPosts(tagMap[k])
 	}
 
-	// 7. Generate Custom Home Page
+	// Generate Home
 	homeContent := template.HTML("")
-	homeDesc := ""
 	if homeSrc, err := os.ReadFile("content/_index.md"); err == nil {
 		var buf bytes.Buffer
-		context := parser.NewContext()
-		md.Convert(homeSrc, &buf, parser.WithContext(context))
+		md.Convert(homeSrc, &buf, parser.WithContext(parser.NewContext()))
 		homeContent = template.HTML(buf.String())
-		homeDesc = getString(meta.Get(context), "description")
 	}
 	
 	renderPage(tmpl, "public/index.html", PageData{
-		Title:       "Home",
-		Description: homeDesc,
-		Content:     homeContent,
-		IsIndex:     true,
-		Posts:       allPosts,
-		BaseURL:     BaseURL,
+		Title: "Home", Content: homeContent, IsIndex: true, 
+		Posts: allPosts, PinnedPosts: pinnedPosts, BaseURL: BaseURL,
 	})
 
-	// 8. Generate Tags Index
+	// Generate Tags & Sitemap
 	var allTags []TagData
 	for t, posts := range tagMap {
-		allTags = append(allTags, TagData{
-			Name: t,
-			Count: len(posts),
-			Link: fmt.Sprintf("%s/tags/%s.html", BaseURL, t),
-		})
+		allTags = append(allTags, TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("%s/tags/%s.html", BaseURL, t)})
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 	
-	renderPage(tmpl, "public/tags/index.html", PageData{
-		Title:       "All Tags",
-		IsTagsIndex: true,
-		AllTags:     allTags,
-		BaseURL:     BaseURL,
-	})
-
-	// 9. Generate Individual Tag Pages
+	renderPage(tmpl, "public/tags/index.html", PageData{Title: "All Tags", IsTagsIndex: true, AllTags: allTags, BaseURL: BaseURL})
+	
 	for t, posts := range tagMap {
-		renderPage(tmpl, fmt.Sprintf("public/tags/%s.html", t), PageData{
-			Title:   "#" + t,
-			IsIndex: true,
-			Posts:   posts,
-			BaseURL: BaseURL,
-		})
+		renderPage(tmpl, fmt.Sprintf("public/tags/%s.html", t), PageData{Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: BaseURL})
 	}
-
-	// 10. Generate Sitemap
-	generateSitemap(allPosts, tagMap)
+	
+	generateSitemap(append(allPosts, pinnedPosts...), tagMap)
 
 	fmt.Println("✅ Build Complete.")
 }
 
-// --- Helper Functions ---
+// --- Helpers ---
+
+// Helper to sort posts by DateObj descending
+func sortPosts(posts []PostMetadata) {
+	sort.Slice(posts, func(i, j int) bool {
+		return posts[i].DateObj.After(posts[j].DateObj)
+	})
+}
 
 func renderPage(tmpl *template.Template, path string, data PageData) {
 	os.MkdirAll(filepath.Dir(path), 0755)
 	f, _ := os.Create(path)
 	defer f.Close()
-	if err := tmpl.Execute(f, data); err != nil {
-		log.Printf("Error rendering %s: %v", path, err)
-	}
+	tmpl.Execute(f, data)
 }
 
 func generateSitemap(posts []PostMetadata, tags map[string][]PostMetadata) {
 	var urls []Url
-	// Homepage
 	urls = append(urls, Url{Loc: BaseURL + "/", LastMod: time.Now().Format("2006-01-02")})
-	// Posts
-	for _, p := range posts {
-		urls = append(urls, Url{Loc: p.Link}) 
-	}
-	// Tags
-	for t := range tags {
-		urls = append(urls, Url{Loc: fmt.Sprintf("%s/tags/%s.html", BaseURL, t)})
-	}
+	for _, p := range posts { urls = append(urls, Url{Loc: p.Link}) }
+	for t := range tags { urls = append(urls, Url{Loc: fmt.Sprintf("%s/tags/%s.html", BaseURL, t)}) }
 	output, _ := xml.MarshalIndent(UrlSet{Urls: urls}, "  ", "    ")
 	os.WriteFile("public/sitemap.xml", []byte(xml.Header+string(output)), 0644)
 }
 
-func getString(m map[string]interface{}, key string) string {
-	if v, ok := m[key]; ok { return fmt.Sprintf("%v", v) }
-	return ""
-}
-
-func getSlice(m map[string]interface{}, key string) []string {
+func getString(m map[string]interface{}, k string) string { if v, ok := m[k]; ok { return fmt.Sprintf("%v", v) }; return "" }
+func getSlice(m map[string]interface{}, k string) []string {
 	var res []string
-	if v, ok := m[key]; ok {
-		if list, ok := v.([]interface{}); ok {
-			for _, item := range list { res = append(res, fmt.Sprintf("%v", item)) }
-		}
+	if v, ok := m[k]; ok {
+		if l, ok := v.([]interface{}); ok { for _, i := range l { res = append(res, fmt.Sprintf("%v", i)) } }
 	}
 	return res
 }
 
-// --- Image Processing Helpers ---
-
 func copyDir(src, dst string) error {
 	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
 		if err != nil { return err }
-		
 		relPath, _ := filepath.Rel(src, path)
 		destPath := filepath.Join(dst, relPath)
-
-		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode())
-		}
-
-		// Incremental Build Check
+		if info.IsDir() { return os.MkdirAll(destPath, info.Mode()) }
 		if destInfo, err := os.Stat(destPath); err == nil {
-			if destInfo.ModTime().After(info.ModTime()) {
-				return nil 
-			}
+			if destInfo.ModTime().After(info.ModTime()) { return nil }
 		}
-
-		// Process Images (Compress/Resize)
 		ext := strings.ToLower(filepath.Ext(path))
-		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
-			fmt.Printf("Processing Image: %s\n", relPath)
+		if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") && CompressImages {
+			fmt.Printf("Compressing: %s\n", relPath)
 			return processImage(path, destPath, ext)
 		}
-
-		// Standard Copy for other files
 		return copyFileStandard(path, destPath)
 	})
 }
 
 func processImage(srcPath, dstPath, ext string) error {
-	// 1. Open the image
 	src, err := imaging.Open(srcPath)
-	if err != nil {
-		// Fallback to standard copy if imaging fails (e.g. unknown format)
-		return copyFileStandard(srcPath, dstPath)
-	}
-
-	// 2. Resize if too big (Max Width 1200px, maintain aspect ratio)
-	if src.Bounds().Dx() > 1200 {
-		src = imaging.Resize(src, 1200, 0, imaging.Lanczos)
-	}
-
-	// 3. Save with compression
-	if ext == ".png" {
-		return imaging.Save(src, dstPath, imaging.PNGCompressionLevel(png.BestCompression))
-	} else {
-		// JPG
-		return imaging.Save(src, dstPath, imaging.JPEGQuality(75))
-	}
+	if err != nil { return copyFileStandard(srcPath, dstPath) }
+	if src.Bounds().Dx() > 1200 { src = imaging.Resize(src, 1200, 0, imaging.Lanczos) }
+	if ext == ".png" { return imaging.Save(src, dstPath, imaging.PNGCompressionLevel(png.BestCompression)) }
+	return imaging.Save(src, dstPath, imaging.JPEGQuality(75))
 }
 
 func copyFileStandard(src, dst string) error {
-	s, err := os.Open(src)
+	s, err := os.Open(src); 
 	if err != nil { return err }
 	defer s.Close()
-	d, err := os.Create(dst)
+	d, err := os.Create(dst); 
 	if err != nil { return err }
 	defer d.Close()
 	_, err = io.Copy(d, s)
