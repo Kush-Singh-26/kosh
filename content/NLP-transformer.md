@@ -1,7 +1,7 @@
 ---
 title: "6. NLP: Transformers"
 description: "A complete guide to the transformer architecture, attention mechanisms, and positional encoding."
-tags: ["AI", "Deep Learning", "Transformers"]
+tags: ["NLP", "Transformers"]
 date: 2025-06-22
 pinned: true
 ---

@@ -472,7 +472,7 @@ Some of the code is already explained using comments above.
 
 This whole Attention Mechanism can be visualized through this image :
 
-![Image]({{"/images/ATT2.png"  | relative_url }})
+![Image](/static/images/ATT2.png)
 
 ---
 
@@ -517,7 +517,7 @@ class Generator(nn.Module):
 
 This whole process can be shown in this picture :
 
-![Image]({{"/images/ATT1.png"  | relative_url }})
+![Image](/static/images/ATT1.png)
 
 - `batch_size` = B
 - `src_len` = M
@@ -667,7 +667,7 @@ def beam_search_decode(model, src_tensor, src_mask, src_lengths, src_vocab, trg_
 
 Beam Search can be visualised through this diagram :
 
-![Image]({{"/images/ATT3.png"  | relative_url }})
+![Image](/static/images/ATT3.png)
 
 - Here :
     - Source Sentence: "the cat sat"
