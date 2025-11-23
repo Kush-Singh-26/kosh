@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .Title }}</title>
     <meta name="description" content="{{ .Description }}">
+    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.ico">
     
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
     
@@ -138,15 +139,32 @@
             padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: "JetBrains Mono", monospace;
         }
 
-        /* Fix for Lists inside Articles */
+        /* --- Fix for Lists inside Articles --- */
+        
+        /* Indentation for both types */
         article ul, article ol {
             padding-left: 2rem;
             margin-bottom: 1.5rem;
         }
+
+        /* Spacing for all list items */
         article li {
-            list-style-type: disc;
             margin-bottom: 0.5rem;
         }
+
+        /* Unordered Lists (Bullets) */
+        article ul {
+            list-style-type: disc;
+        }
+
+        /* Ordered Lists (Numbers) */
+        article ol {
+            list-style-type: decimal;
+        }
+
+        /* Nested List Styles (Optional but good for polish) */
+        article ul ul { list-style-type: circle; }
+        article ol ol { list-style-type: lower-alpha; }
 
         /* Tags */
         .tag-cloud { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1rem; }
