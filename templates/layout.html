@@ -87,11 +87,23 @@
             border: 2px solid var(--h1-color);
             padding: 0.3rem 0.8rem;
             border-radius: 4px;
+
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
         }
         .site-title:hover {
             background-color: var(--h1-color);
             color: var(--bg-body) !important;
             text-decoration: none;
+        }
+        .site-logo {
+            height: 30px;  /* Adjust size as needed */
+            width: auto;
+            margin: 0 !important; /* Override global img margin */
+            border: none !important; /* Remove border from logo */
+            box-shadow: none !important;
+            border-radius: 0 !important;
         }
 
         nav a { margin-left: 1.5rem; color: var(--text-muted); font-size: 0.95rem; font-weight: 600; }
@@ -195,7 +207,10 @@
 </head>
 <body>
     <header>
-        <a href="{{ .BaseURL }}/index.html" class="site-title">Kush Blogs</a>
+        <a href="{{ .BaseURL }}/index.html" class="site-title">
+            <img src="{{ .BaseURL }}/static/images/favicon.ico" alt="Logo" class="site-logo">
+            Kush Blogs
+        </a>        
         <nav>
             <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
             <a href="https://kush-singh-26.github.io/" target="_blank">Portfolio</a>

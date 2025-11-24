@@ -93,6 +93,15 @@ func processDestination(n ast.Node, dest []byte) {
 			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
 		}
 	}
+
+	if _, isImage := n.(*ast.Image); isImage {
+		// Always add lazy loading to images
+		n.SetAttribute([]byte("loading"), []byte("lazy"))
+		
+		// Optional: Add async decoding for smoother scrolling
+		n.SetAttribute([]byte("decoding"), []byte("async"))
+	}
+
 	if strings.HasPrefix(href, "/") && BaseURL != "" {
 		newDest := []byte(BaseURL + href)
 		switch t := n.(type) {
