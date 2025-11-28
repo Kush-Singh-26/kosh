@@ -5,13 +5,11 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-# Permissions required for OIDC deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -28,10 +26,18 @@ jobs:
         with:
           go-version: '1.21'
 
-      # We removed the Node.js steps because your SSG is pure Go
-      
+      # --- NEW: Cache the Public Folder ---
+      - name: Restore Cache
+        id: cache-public
+        uses: actions/cache@v3
+        with:
+          path: public
+          # Use a key that updates when assets change, but allow restore from older keys
+          key: public-cache-${{ github.sha }}
+          restore-keys: |
+            public-cache-
+
       - name: Build Static Site
-        # This runs your builder and dynamically sets the BaseURL to your repo name
         run: go run builder/main.go --baseurl="/${{ github.event.repository.name }}" --compress
 
       - name: Setup Pages

@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .Title }}</title>
     <meta name="description" content="{{ .Description }}">
-    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.ico">
     
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
+    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.ico">
     
     <style>
         /* --- THEME: Midnight Gold --- */
@@ -87,7 +87,6 @@
             border: 2px solid var(--h1-color);
             padding: 0.3rem 0.8rem;
             border-radius: 4px;
-
             display: inline-flex;
             align-items: center;
             gap: 10px;
@@ -97,12 +96,12 @@
             color: var(--bg-body) !important;
             text-decoration: none;
         }
+
         .site-logo {
-            height: 30px;  /* Adjust size as needed */
+            height: 30px;
             width: auto;
-            margin: 0 !important; /* Override global img margin */
-            border: none !important; /* Remove border from logo */
-            box-shadow: none !important;
+            margin: 0 !important;
+            border: none !important;
             border-radius: 0 !important;
         }
 
@@ -131,52 +130,88 @@
         img { max-width: 100%; border-radius: 8px; margin: 2rem 0; display: block; border: 1px solid var(--border); }
 
         /* Blockquotes */
+        blockquote h1, 
+        blockquote h2, 
+        blockquote h3, 
+        blockquote h4 {
+            margin-top: 0;
+            padding-top: 0;
+            border-bottom: none; /* Optional: looks cleaner inside quotes */
+        }
         blockquote {
             border-left: 4px solid var(--h1-color); background-color: var(--bg-card);
             padding: 1.2rem 1.8rem; margin: 2rem 0; border-radius: 0 8px 8px 0;
             font-style: italic; color: var(--text-main);
         }
         blockquote p { margin: 0; }
-        blockquote ul, blockquote ol { margin: 0.8rem 0 0.8rem 2rem; }
+        blockquote ul, blockquote ol { 
+            margin: 0.5rem 0; 
+            padding-left: 1.2rem; /* Tighter indentation inside quotes */
+        }
         blockquote li { list-style-type: disc; margin-bottom: 0.4rem; }
 
-        /* Code Blocks */
+        /* --- CODE BLOCKS & COPY BUTTON --- */
         pre {
-            background-color: var(--bg-code) !important; padding: 1.5rem;
-            border-radius: 8px; overflow-x: auto; border: 1px solid var(--border); margin: 1.5rem 0;
+            background-color: var(--bg-code) !important; 
+            padding: 1.5rem;
+            border-radius: 8px; 
+            overflow-x: auto; 
+            border: 1px solid var(--border); 
+            margin: 1.5rem 0;
+            position: relative; /* Anchor for copy button */
         }
-        code { font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 0.85em; color: var(--text-main); }
-        p code, li code {
-            background-color: rgba(110, 118, 129, 0.2); color: var(--h1-color);
-            padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: "JetBrains Mono", monospace;
+        
+        /* The Copy Button */
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: var(--bg-card);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            font-family: inherit;
+            cursor: pointer;
+            opacity: 0; /* Hidden by default */
+            transition: opacity 0.2s, background-color 0.2s;
+        }
+        
+        /* Show button on hover */
+        pre:hover .copy-btn {
+            opacity: 1;
+        }
+        
+        .copy-btn:hover {
+            background-color: var(--border);
+            color: var(--text-main);
         }
 
-        /* --- Fix for Lists inside Articles --- */
-        
-        /* Indentation for both types */
+        .copy-btn.copied {
+            background-color: var(--h1-color);
+            color: var(--bg-body);
+            border-color: var(--h1-color);
+        }
+
+        code { font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 0.85em; color: var(--text-main); }
+        p code, li code, td code, th code {
+            background-color: rgba(110, 118, 129, 0.2);
+            color: var(--h1-color);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-family: "JetBrains Mono", monospace;
+        }
+
+        /* Fix for Lists inside Articles */
         article ul, article ol {
             padding-left: 2rem;
             margin-bottom: 1.5rem;
         }
-
-        /* Spacing for all list items */
-        article li {
-            margin-bottom: 0.5rem;
-        }
-
-        /* Unordered Lists (Bullets) */
-        article ul {
-            list-style-type: disc;
-        }
-
-        /* Ordered Lists (Numbers) */
-        article ol {
-            list-style-type: decimal;
-        }
-
-        /* Nested List Styles (Optional but good for polish) */
-        article ul ul { list-style-type: circle; }
-        article ol ol { list-style-type: lower-alpha; }
+        article ul { list-style-type: disc; }
+        article ol { list-style-type: decimal; }
+        article li { margin-bottom: 0.5rem; }
 
         /* Tags */
         .tag-cloud { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1rem; }
@@ -210,10 +245,10 @@
         <a href="{{ .BaseURL }}/index.html" class="site-title">
             <img src="{{ .BaseURL }}/static/images/favicon.ico" alt="Logo" class="site-logo">
             Kush Blogs
-        </a>        
+        </a>
         <nav>
             <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
-            <a href="https://kush-singh-26.github.io/" target="_blank">Portfolio</a>
+            <a href="#" target="_blank">Portfolio</a>
             <a href="https://github.com/kush-singh-26" target="_blank">GitHub</a>
         </nav>
     </header>
@@ -299,7 +334,7 @@
     
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            // KaTeX Init
+            // 1. KaTeX Init
             renderMathInElement(document.body, {
                 delimiters: [
                     {left: '$$', right: '$$', display: true},
@@ -312,7 +347,7 @@
 
             const baseURL = "{{ .BaseURL }}";
 
-            // Image Path Fix for GitHub Pages
+            // 2. Image Path Fix for GitHub Pages
             if (baseURL && baseURL !== "") {
                 document.querySelectorAll('img').forEach(img => {
                     const src = img.getAttribute('src');
@@ -321,6 +356,38 @@
                     }
                 });
             }
+
+            // 3. Copy Logic for Code Blocks
+            document.querySelectorAll('pre').forEach(pre => {
+                // Create the button
+                const btn = document.createElement('button');
+                btn.className = 'copy-btn';
+                btn.textContent = 'Copy';
+                
+                // Add click event
+                btn.addEventListener('click', () => {
+                    const code = pre.querySelector('code');
+                    if (!code) return;
+                    
+                    // FIX: Use textContent and trim only the end to preserve indentation
+                    // but remove the extra newlines added by the HTML renderer
+                    const textToCopy = code.textContent.trimEnd();
+                    
+                    navigator.clipboard.writeText(textToCopy).then(() => {
+                        btn.textContent = 'Copied!';
+                        btn.classList.add('copied');
+                        setTimeout(() => {
+                            btn.textContent = 'Copy';
+                            btn.classList.remove('copied');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+                
+                // Append button to the pre block
+                pre.appendChild(btn);
+            });
         });
     </script>
 </body>

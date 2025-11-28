@@ -33,6 +33,7 @@ import (
 var (
 	BaseURL        string
 	CompressImages bool
+	ForceRebuild   bool // True if layout.html changed
 )
 
 // --- Data Structures ---
@@ -41,7 +42,7 @@ type PostMetadata struct {
 	Tags                     []string
 	ReadingTime              int
 	Pinned                   bool
-	DateObj                  time.Time // Used for sorting (Hidden from JSON/HTML)
+	DateObj                  time.Time
 }
 
 type TagData struct {
@@ -93,15 +94,9 @@ func processDestination(n ast.Node, dest []byte) {
 			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
 		}
 	}
-
 	if _, isImage := n.(*ast.Image); isImage {
-		// Always add lazy loading to images
 		n.SetAttribute([]byte("loading"), []byte("lazy"))
-		
-		// Optional: Add async decoding for smoother scrolling
-		n.SetAttribute([]byte("decoding"), []byte("async"))
 	}
-
 	if strings.HasPrefix(href, "/") && BaseURL != "" {
 		newDest := []byte(BaseURL + href)
 		switch t := n.(type) {
@@ -123,6 +118,24 @@ func main() {
 
 	fmt.Printf("🔨 Building site...\n")
 
+	// 1. Check Global Template Timestamp
+	// If layout.html is newer than the public folder, we must rebuild everything.
+	layoutInfo, err := os.Stat("templates/layout.html")
+	if err != nil {
+		log.Fatal("Could not find templates/layout.html")
+	}
+	
+	// Simple check: if public dir doesn't exist, force rebuild. 
+	// Ideally, we compare layout time vs public/index.html time.
+	if indexInfo, err := os.Stat("public/index.html"); err == nil {
+		if layoutInfo.ModTime().After(indexInfo.ModTime()) {
+			fmt.Println("⚡ Template changed. Forcing full rebuild.")
+			ForceRebuild = true
+		}
+	} else {
+		ForceRebuild = true // First run
+	}
+
 	md := goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
@@ -137,8 +150,10 @@ func main() {
 		goldmark.WithRendererOptions(html.WithUnsafe()),
 	)
 
-	os.RemoveAll("public")
+	// Don't delete public folder if doing incremental!
+	// os.RemoveAll("public") <--- REMOVED
 	os.MkdirAll("public/tags", 0755)
+	
 	if _, err := os.Stat("static"); err == nil {
 		copyDir("static", "public/static")
 	}
@@ -156,100 +171,88 @@ func main() {
 		if !strings.HasSuffix(path, ".md") || strings.Contains(path, "_index.md") {
 			return nil
 		}
+
+		// Determine paths
+		relPath, _ := filepath.Rel("content", path)
+		htmlRelPath := strings.Replace(relPath, ".md", ".html", 1)
+		destPath := filepath.Join("public", htmlRelPath)
+		fullLink := BaseURL + "/" + htmlRelPath
+
+		// --- INCREMENTAL CHECK ---
+		skipRendering := false
+		if !ForceRebuild {
+			if destInfo, err := os.Stat(destPath); err == nil {
+				// If dest exists and is newer than source, skip writing HTML
+				if destInfo.ModTime().After(info.ModTime()) {
+					skipRendering = true
+				}
+			}
+		}
+
+		// We ALWAYS need to parse metadata for the Index/Tag pages
 		source, _ := os.ReadFile(path)
 		var buf bytes.Buffer
 		context := parser.NewContext()
 		if err := md.Convert(source, &buf, parser.WithContext(context)); err != nil { return err }
 		
 		metaData := meta.Get(context)
-		relPath, _ := filepath.Rel("content", path)
-		htmlRelPath := strings.Replace(relPath, ".md", ".html", 1)
-		fullLink := BaseURL + "/" + htmlRelPath
-
-		// Word Count
+		
 		wordCount := len(strings.Fields(string(source)))
 		readTime := int(math.Ceil(float64(wordCount) / 120.0))
 
-		// Check if pinned
 		isPinned := false
-		if p, ok := metaData["pinned"].(bool); ok {
-			isPinned = p
-		}
+		if p, ok := metaData["pinned"].(bool); ok { isPinned = p }
 
-		// Parse Date for Sorting (Format: YYYY-MM-DD)
 		dateStr := getString(metaData, "date")
-		dateObj, err := time.Parse("2006-01-02", dateStr)
-		if err != nil {
-			// Fallback if date is missing or wrong format
-			dateObj = time.Time{} 
-		}
+		dateObj, _ := time.Parse("2006-01-02", dateStr)
 
 		post := PostMetadata{
-			Title:       getString(metaData, "title"),
-			Link:        fullLink,
-			Description: getString(metaData, "description"),
-			Tags:        getSlice(metaData, "tags"),
-			ReadingTime: readTime,
-			Pinned:      isPinned,
-			DateObj:     dateObj, // Store for sorting
+			Title: getString(metaData, "title"), Link: fullLink,
+			Description: getString(metaData, "description"), Tags: getSlice(metaData, "tags"),
+			ReadingTime: readTime, Pinned: isPinned, DateObj: dateObj,
 		}
 
-		// Separate Pinned vs Regular
-		if isPinned {
-			pinnedPosts = append(pinnedPosts, post)
-		} else {
-			allPosts = append(allPosts, post)
-		}
-		
+		if isPinned { pinnedPosts = append(pinnedPosts, post) } else { allPosts = append(allPosts, post) }
 		for _, t := range post.Tags {
 			tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], post)
 		}
 		
-		renderPage(tmpl, "public/"+htmlRelPath, PageData{
-			Title: post.Title, 
-			Description: post.Description, 
-			Content: template.HTML(buf.String()), 
-			Meta: metaData, 
-			BaseURL: BaseURL,
-		})
+		// ONLY Write file if NOT skipped
+		if !skipRendering {
+			fmt.Printf("   Rendering: %s\n", htmlRelPath)
+			renderPage(tmpl, destPath, PageData{
+				Title: post.Title, Description: post.Description, Content: template.HTML(buf.String()), Meta: metaData, BaseURL: BaseURL,
+			})
+		}
 		return nil
 	})
 
 	if err != nil { log.Fatal(err) }
 
-	// --- SORTING LOGIC (Newest First) ---
 	sortPosts(allPosts)
 	sortPosts(pinnedPosts)
-	for k := range tagMap {
-		sortPosts(tagMap[k])
-	}
+	for k := range tagMap { sortPosts(tagMap[k]) }
 
-	// Generate Home
+	// Always regenerate Home & Tags (Fast & aggregates info)
 	homeContent := template.HTML("")
 	if homeSrc, err := os.ReadFile("content/_index.md"); err == nil {
 		var buf bytes.Buffer
 		md.Convert(homeSrc, &buf, parser.WithContext(parser.NewContext()))
 		homeContent = template.HTML(buf.String())
 	}
-	
 	renderPage(tmpl, "public/index.html", PageData{
-		Title: "Home", Content: homeContent, IsIndex: true, 
-		Posts: allPosts, PinnedPosts: pinnedPosts, BaseURL: BaseURL,
+		Title: "Kush Blogs", Content: homeContent, IsIndex: true, Posts: allPosts, PinnedPosts: pinnedPosts, BaseURL: BaseURL,
 	})
 
-	// Generate Tags & Sitemap
 	var allTags []TagData
 	for t, posts := range tagMap {
 		allTags = append(allTags, TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("%s/tags/%s.html", BaseURL, t)})
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
-	
 	renderPage(tmpl, "public/tags/index.html", PageData{Title: "All Tags", IsTagsIndex: true, AllTags: allTags, BaseURL: BaseURL})
-	
 	for t, posts := range tagMap {
 		renderPage(tmpl, fmt.Sprintf("public/tags/%s.html", t), PageData{Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: BaseURL})
 	}
-	
 	generateSitemap(append(allPosts, pinnedPosts...), tagMap)
 
 	fmt.Println("✅ Build Complete.")
@@ -257,11 +260,8 @@ func main() {
 
 // --- Helpers ---
 
-// Helper to sort posts by DateObj descending
 func sortPosts(posts []PostMetadata) {
-	sort.Slice(posts, func(i, j int) bool {
-		return posts[i].DateObj.After(posts[j].DateObj)
-	})
+	sort.Slice(posts, func(i, j int) bool { return posts[i].DateObj.After(posts[j].DateObj) })
 }
 
 func renderPage(tmpl *template.Template, path string, data PageData) {
@@ -295,9 +295,15 @@ func copyDir(src, dst string) error {
 		relPath, _ := filepath.Rel(src, path)
 		destPath := filepath.Join(dst, relPath)
 		if info.IsDir() { return os.MkdirAll(destPath, info.Mode()) }
+		
+		// --- INCREMENTAL CHECK FOR IMAGES ---
 		if destInfo, err := os.Stat(destPath); err == nil {
-			if destInfo.ModTime().After(info.ModTime()) { return nil }
+			// If dest exists and is newer than source, SKIP
+			if destInfo.ModTime().After(info.ModTime()) {
+				return nil
+			}
 		}
+		
 		ext := strings.ToLower(filepath.Ext(path))
 		if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") && CompressImages {
 			fmt.Printf("Compressing: %s\n", relPath)

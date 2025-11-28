@@ -1,6 +1,6 @@
 ---
 title: "7. Computer Vision: Instance Segmentation"
-description: "A small description on Instance Segementation."
+description: "A small description on Instance Segmentation."
 tags: ["Computer Vision"]
 date: 2025-03-27
 pinned: false
