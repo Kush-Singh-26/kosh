@@ -3,10 +3,15 @@ package main
 import (
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
 )
 
 func main() {
+	// 1. Force register the WASM mime type
+	// (Fixes "Incorrect response MIME type" errors in browser)
+	mime.AddExtensionType(".wasm", "application/wasm")
+
 	port := ":8080"
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs)
