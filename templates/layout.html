@@ -27,7 +27,7 @@
         {{ .LayoutCSS }}
         {{ .ThemeCSS }}
     </style>
-    <script>const siteBaseURL = "{{ .BaseURL }}";</script>
+    <script>window.siteBaseURL = "{{ .BaseURL }}";</script>
     {{ if .HasMath }}
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
     {{ end }}
