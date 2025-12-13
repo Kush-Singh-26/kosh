@@ -17,14 +17,17 @@
     <meta property="og:description" content="{{ .Description }}">
     <meta property="og:image" content="{{ .Image }}">
 
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self';">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="{{ .Permalink }}">
     <meta name="twitter:title" content="{{ .Title }}">
     <meta name="twitter:description" content="{{ .Description }}">
     <meta name="twitter:image" content="{{ .Image }}">
 
+    {{ if .HasMath }}
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
-    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.ico">
+    {{ end }}
+    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.png" width="35" height="35">
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/layout.css?v={{ .BuildVersion }}">
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/theme.css?v={{ .BuildVersion }}">
 
@@ -50,7 +53,7 @@
 <body>
     <header>
         <a href="{{ .BaseURL }}/index.html" class="site-title">
-            <img src="{{ .BaseURL }}/static/images/favicon.ico" alt="Logo" class="site-logo">
+            <img src="{{ .BaseURL }}/static/images/favicon.png" alt="" class="site-logo" width="35" height="35">
             Kush Blogs
         </a>
         <nav>
@@ -153,8 +156,10 @@
         <p style="text-align: center; margin: 0 auto;">&copy; 2025 Kush Singh</p>
     </footer>
 
+    {{ if .HasMath }}
     <script defer src="{{ .BaseURL }}/static/js/katex.min.js"></script>
     <script defer src="{{ .BaseURL }}/static/js/auto-render.min.js"></script>
+    {{ end }}
     
     <script>const siteBaseURL = "{{ .BaseURL }}";</script>
     <script defer src="{{ .BaseURL }}/static/js/main.js?v={{ .BuildVersion }}"></script>

@@ -43,6 +43,7 @@ type PostMetadata struct {
 	ReadingTime              int
 	Pinned                   bool
 	DateObj                  time.Time
+	HasMath					 bool
 }
 
 type TagData struct {
@@ -59,6 +60,7 @@ type PageData struct {
 	PinnedPosts                 []PostMetadata
 	AllTags                     []TagData
 	BuildVersion                int64
+	HasMath					 	bool
 	// SEO Fields
 	Permalink                   string
 	Image                       string
@@ -239,10 +241,13 @@ func main() {
 		dateStr := getString(metaData, "date")
 		dateObj, _ := time.Parse("2006-01-02", dateStr)
 
+		hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
+
 		post := PostMetadata{
 			Title: getString(metaData, "title"), Link: fullLink,
 			Description: getString(metaData, "description"), Tags: getSlice(metaData, "tags"),
 			ReadingTime: readTime, Pinned: isPinned, DateObj: dateObj,
+			HasMath : hasMath,
 		}
 
 		
@@ -260,6 +265,7 @@ func main() {
 				BuildVersion: currentBuildVersion,
 				Permalink:    fullLink,  // <--- Pass Link
 				Image:        imagePath, // <--- Pass Image
+				HasMath: 	post.HasMath,
 			})
 		}
 
@@ -299,6 +305,7 @@ func main() {
 	renderPage(tmpl, "public/index.html", PageData{
 		Title: "Kush Blogs", Content: homeContent, IsIndex: true, Posts: allPosts, PinnedPosts: pinnedPosts, BaseURL: BaseURL,
 		BuildVersion: currentBuildVersion,
+		Description: "My personal blog documenting my learning journey in ML, NLP, and Deep Learning.",
 		Permalink:    BaseURL + "/",                          // <--- Home Link
 		Image:        BaseURL + "/static/images/favicon.ico", // <--- Home Image
 	})
