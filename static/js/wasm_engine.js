@@ -4,9 +4,12 @@ class WasmSim extends HTMLElement {
         let controls = [];
         try { controls = JSON.parse(this.getAttribute('controls') || "[]"); } catch (e) {}
 
-        // FIX: Prefix IDs with simName to ensure global uniqueness
-        const prefix = `canvas_${simName}`;
+        // 1. Define Unique IDs
+        const uniqueSuffix = Math.random().toString(36).substr(2, 9);
+        const prefix = `canvas_${simName}_${uniqueSuffix}`; 
+        const uiId = `ui_${simName}_${uniqueSuffix}`;
 
+        // 2. Render HTML with those IDs
         this.innerHTML = `
             <div style="background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; max-width: 900px; margin: 20px 0;">
                 <div style="position: relative; width: 100%; height: 500px; background: #0d1117; border: 1px solid #30363d; margin-bottom: 20px; overflow: hidden;">
@@ -20,7 +23,7 @@ class WasmSim extends HTMLElement {
                     <div id="${prefix}_label_j" class="sim-label" style="color: #f87171; opacity: 0;">ĵ</div>
                     <div id="${prefix}_label_v" class="sim-label" style="color: #facc15; opacity: 0;">v</div>
                 </div>
-                <div id="ui_${simName}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;"></div>
+                <div id="${uiId}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;"></div>
             </div>
             <style>
                 .sim-label {
@@ -32,16 +35,19 @@ class WasmSim extends HTMLElement {
                     background: transparent;
                     transform: translate(-50%, -50%);
                     pointer-events: none;
-                    transition: opacity 0.1s; /* Faster transition */
+                    transition: opacity 0.1s;
                 }
             </style>
         `;
 
-        this.initWasm(simName, controls);
+        // 3. Pass the IDs to the function
+        this.initWasm(simName, controls, prefix, uiId);
     }
 
-    async initWasm(name, controls) {
-        const canvas = this.querySelector('canvas');
+    // FIX: Add 'prefix' and 'uiId' to the arguments here!
+    async initWasm(name, controls, prefix, uiId) {
+        // Use the specific ID to be safe
+        const canvas = this.querySelector(`#${prefix}`);
         
         const script = document.createElement('script');
 
@@ -60,11 +66,12 @@ class WasmSim extends HTMLElement {
                 canvas.width = rect.width * dpr;
                 canvas.height = rect.height * dpr;
                 
-                // Pass the full ID including the #
-                sim.init(rect.width, rect.height, "#" + canvas.id);
+                // NOW 'prefix' IS DEFINED
+                sim.init(rect.width, rect.height, "#" + prefix);
 
-                // UI Controls
-                const ui = this.querySelector(`#ui_${name}`);
+                // Find the specific UI container
+                const ui = this.querySelector(`#${uiId}`);
+                
                 controls.forEach(c => {
                     if (sim.hasOwnProperty(c.id) || sim[c.id] !== undefined) {
                         sim[c.id] = c.val;
@@ -72,14 +79,14 @@ class WasmSim extends HTMLElement {
 
                     const wrap = document.createElement('div');
                     wrap.innerHTML = `
-                        <div style="color: #8b949e; font-size: 13px; margin-bottom: 6px;">${c.label}: <span id="val_${name}_${c.id}">${c.val}</span></div>
+                        <div style="color: #8b949e; font-size: 13px; margin-bottom: 6px;">${c.label}: <span id="val_${prefix}_${c.id}">${c.val}</span></div>
                         <input type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.val}" style="width: 100%;">
                     `;
                     
                     wrap.querySelector('input').addEventListener('input', (e) => {
                         const val = parseFloat(e.target.value);
                         if (sim[c.id] !== undefined) sim[c.id] = val; 
-                        wrap.querySelector(`#val_${name}_${c.id}`).textContent = val.toFixed(2);
+                        wrap.querySelector(`#val_${prefix}_${c.id}`).textContent = val.toFixed(2);
                     });
                     ui.appendChild(wrap);
                 });

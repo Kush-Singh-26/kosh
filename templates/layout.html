@@ -33,7 +33,7 @@
     {{ end }}
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.png" width="35" height="35">
 
-    
+    <script>const siteBaseURL = "{{ .BaseURL }}";</script> 
     {{ if not .IsIndex }}
     <script type="application/ld+json">
     {
@@ -164,7 +164,6 @@
     <script defer src="{{ .BaseURL }}/static/js/auto-render.min.js"></script>
     {{ end }}
     
-    <script>const siteBaseURL = "{{ .BaseURL }}";</script>
     <script defer src="{{ .BaseURL }}/static/js/main.js?v={{ .BuildVersion }}"></script>
 </body>
 </html>

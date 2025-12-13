@@ -125,6 +125,17 @@ func processDestination(n ast.Node, dest []byte) {
 			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
 		}
 	}
+	if strings.HasSuffix(href, ".md") && !strings.HasPrefix(href, "http") {
+        href = strings.Replace(href, ".md", ".html", 1)
+        href = strings.ToLower(href)
+        // Update the destination buffer
+        switch t := n.(type) {
+		case *ast.Link:
+			t.Destination = []byte(href)
+		case *ast.Image:
+			t.Destination = []byte(href)
+		}
+    }
 	if _, isImage := n.(*ast.Image); isImage {
 		n.SetAttribute([]byte("loading"), []byte("lazy"))
 	}

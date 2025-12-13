@@ -60,10 +60,4 @@ This is just a trial.
         {"id": "by", "label": "Vector B (y)", "min": -4, "max": 4, "val": -1, "step": 0.1}
     ]'>
 </wasm-sim>
-
-
-
-
-
-
 <script src="static/js/wasm_engine.js"></script>
