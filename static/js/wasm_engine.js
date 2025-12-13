@@ -44,7 +44,9 @@ class WasmSim extends HTMLElement {
         const canvas = this.querySelector('canvas');
         
         const script = document.createElement('script');
-        script.src = `static/wasm/${name}.js`;
+
+        const baseUrl = window.siteBaseURL || "";
+        script.src = `${baseUrl}/static/wasm/${name}.js`;
         
         script.onload = () => {
             const factory = window[`create_${name}`];

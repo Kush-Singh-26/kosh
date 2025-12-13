@@ -152,19 +152,29 @@ func main() {
 
 	fmt.Printf("🔨 Building site... (Version: %d)\n", currentBuildVersion)
 
-	// 1. Check Global Template Timestamp
-	layoutInfo, err := os.Stat("templates/layout.html")
-	if err != nil {
-		log.Fatal("Could not find templates/layout.html")
+	globalDependencies := []string{
+		"templates/layout.html",
+		"static/css/layout.css",
+		"static/css/theme.css",
 	}
 
+	
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
-		if layoutInfo.ModTime().After(indexInfo.ModTime()) {
-			fmt.Println("⚡ Template changed. Forcing full rebuild.")
-			ForceRebuild = true
+		lastBuildTime := indexInfo.ModTime()
+
+		for _, dep := range globalDependencies {
+			info, err := os.Stat(dep)
+			if err != nil {
+				log.Fatalf("❌ Could not find global dependency: %s", dep)
+			}
+			if info.ModTime().After(lastBuildTime) {
+				fmt.Printf("⚡ Global change detected in [%s]. Forcing full rebuild.\n", dep)
+				ForceRebuild = true
+				break
+			}
 		}
 	} else {
-		ForceRebuild = true // First run
+		ForceRebuild = true // First run (public/index.html doesn't exist)
 	}
 
 	md := goldmark.New(
@@ -279,6 +289,8 @@ func main() {
 				Permalink:    fullLink,  // <--- Pass Link
 				Image:        imagePath, // <--- Pass Image
 				HasMath:      post.HasMath,
+				LayoutCSS:    layoutCSS,
+        		ThemeCSS:     themeCSS,
 			})
 		}
 
@@ -338,6 +350,8 @@ func main() {
 		BuildVersion: currentBuildVersion,
 		Permalink:    BaseURL + "/tags/index.html",         // <--- Tags Index Link
 		Image:        BaseURL + "/static/images/favicon.ico", // <--- Default Image
+		LayoutCSS:    layoutCSS,
+    	ThemeCSS:     themeCSS,
 	})
 
 	for t, posts := range tagMap {
@@ -346,6 +360,8 @@ func main() {
 			BuildVersion: currentBuildVersion,
 			Permalink:    fmt.Sprintf("%s/tags/%s.html", BaseURL, t), // <--- Specific Tag Link
 			Image:        BaseURL + "/static/images/favicon.ico",     // <--- Default Image
+			LayoutCSS:    layoutCSS,
+    		ThemeCSS:     themeCSS,
 		})
 	}
 
