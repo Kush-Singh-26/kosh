@@ -24,13 +24,17 @@
     <meta name="twitter:description" content="{{ .Description }}">
     <meta name="twitter:image" content="{{ .Image }}">
 
+    <style>
+        {{ .LayoutCSS }}
+        {{ .ThemeCSS }}
+    </style>
+
     {{ if .HasMath }}
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
     {{ end }}
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.png" width="35" height="35">
-    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/layout.css?v={{ .BuildVersion }}">
-    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/theme.css?v={{ .BuildVersion }}">
 
+    
     {{ if not .IsIndex }}
     <script type="application/ld+json">
     {

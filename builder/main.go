@@ -33,17 +33,18 @@ import (
 var (
 	BaseURL        string
 	CompressImages bool
-	ForceRebuild   bool // True if layout.html changed
+	ForceRebuild   bool
 )
 
-// --- Data Structures ---
+/* -------------------- Data Structures -------------------- */
+
 type PostMetadata struct {
 	Title, Link, Description string
 	Tags                     []string
 	ReadingTime              int
 	Pinned                   bool
 	DateObj                  time.Time
-	HasMath					 bool
+	HasMath                  bool
 }
 
 type TagData struct {
@@ -60,22 +61,28 @@ type PageData struct {
 	PinnedPosts                 []PostMetadata
 	AllTags                     []TagData
 	BuildVersion                int64
-	HasMath					 	bool
-	// SEO Fields
-	Permalink                   string
-	Image                       string
+	HasMath                     bool
+	LayoutCSS                   template.CSS
+	ThemeCSS                    template.CSS
+
+	// SEO
+	Permalink string
+	Image     string
 }
 
-// --- Sitemap Structs ---
+/* -------------------- Sitemap -------------------- */
+
 type UrlSet struct {
 	XMLName xml.Name `xml:"http://www.sitemaps.org/schemas/sitemap/0.9 urlset"`
 	Urls    []Url    `xml:"url"`
 }
+
 type Url struct {
 	Loc, LastMod string
 }
 
-// --- RSS Structs (NEW) ---
+/* -------------------- RSS -------------------- */
+
 type Rss struct {
 	XMLName xml.Name `xml:"rss"`
 	Version string   `xml:"version,attr"`
@@ -93,11 +100,12 @@ type Item struct {
 	Title       string `xml:"title"`
 	Link        string `xml:"link"`
 	Description string `xml:"description"`
-	PubDate     string `xml:"pubDate"` // Format: Mon, 02 Jan 2006 15:04:05 GMT
+	PubDate     string `xml:"pubDate"`
 	Guid        string `xml:"guid"`
 }
 
-// --- AST Transformer ---
+/* -------------------- AST Transformer -------------------- */
+
 type URLTransformer struct{}
 
 func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
@@ -117,15 +125,18 @@ func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 
 func processDestination(n ast.Node, dest []byte) {
 	href := string(dest)
+
 	if strings.HasPrefix(href, "http") {
-		if _, isLink := n.(*ast.Link); isLink {
-			n.SetAttribute([]byte("target"), []byte("_blank"))
-			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
+		if link, ok := n.(*ast.Link); ok {
+			link.SetAttribute([]byte("target"), []byte("_blank"))
+			link.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
 		}
 	}
-	if _, isImage := n.(*ast.Image); isImage {
-		n.SetAttribute([]byte("loading"), []byte("lazy"))
+
+	if img, ok := n.(*ast.Image); ok {
+		img.SetAttribute([]byte("loading"), []byte("lazy"))
 	}
+
 	if strings.HasPrefix(href, "/") && BaseURL != "" {
 		newDest := []byte(BaseURL + href)
 		switch t := n.(type) {
@@ -137,32 +148,30 @@ func processDestination(n ast.Node, dest []byte) {
 	}
 }
 
-// --- Main Execution ---
+/* -------------------- Main -------------------- */
+
 func main() {
 	baseUrlFlag := flag.String("baseurl", "", "Base URL")
 	compressFlag := flag.Bool("compress", false, "Enable image compression")
 	flag.Parse()
+
 	BaseURL = strings.TrimSuffix(*baseUrlFlag, "/")
 	CompressImages = *compressFlag
 
-	// Generate Build Version Timestamp
-	currentBuildVersion := time.Now().Unix()
+	buildVersion := time.Now().Unix()
+	fmt.Printf("🔨 Building site... (Version: %d)\n", buildVersion)
 
-	fmt.Printf("🔨 Building site... (Version: %d)\n", currentBuildVersion)
-
-	// 1. Check Global Template Timestamp
 	layoutInfo, err := os.Stat("templates/layout.html")
 	if err != nil {
-		log.Fatal("Could not find templates/layout.html")
+		log.Fatal("templates/layout.html not found")
 	}
 
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
 		if layoutInfo.ModTime().After(indexInfo.ModTime()) {
-			fmt.Println("⚡ Template changed. Forcing full rebuild.")
 			ForceRebuild = true
 		}
 	} else {
-		ForceRebuild = true // First run
+		ForceRebuild = true
 	}
 
 	md := goldmark.New(
@@ -171,11 +180,19 @@ func main() {
 			meta.Meta,
 			highlighting.NewHighlighting(highlighting.WithStyle("nord")),
 			passthrough.New(passthrough.Config{
-				InlineDelimiters: []passthrough.Delimiters{{Open: "$", Close: "$"}, {Open: "\\(", Close: "\\)"}},
-				BlockDelimiters:  []passthrough.Delimiters{{Open: "$$", Close: "$$"}, {Open: "\\[", Close: "\\]"}},
+				InlineDelimiters: []passthrough.Delimiters{
+					{Open: "$", Close: "$"},
+					{Open: "\\(", Close: "\\)"},
+				},
+				BlockDelimiters: []passthrough.Delimiters{
+					{Open: "$$", Close: "$$"},
+					{Open: "\\[", Close: "\\]"},
+				},
 			}),
 		),
-		goldmark.WithParserOptions(parser.WithASTTransformers(util.Prioritized(&URLTransformer{}, 100))),
+		goldmark.WithParserOptions(
+			parser.WithASTTransformers(util.Prioritized(&URLTransformer{}, 100)),
+		),
 		goldmark.WithRendererOptions(html.WithUnsafe()),
 	)
 
@@ -185,197 +202,124 @@ func main() {
 		copyDir("static", "public/static")
 	}
 
-	var allPosts []PostMetadata
-	var pinnedPosts []PostMetadata
-	tagMap := make(map[string][]PostMetadata)
+	layoutBytes, _ := os.ReadFile("static/css/layout.css")
+	themeBytes, _ := os.ReadFile("static/css/theme.css")
+
+	layoutCSS := template.CSS(layoutBytes)
+	themeCSS := template.CSS(themeBytes)
 
 	funcMap := template.FuncMap{"lower": strings.ToLower}
-	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles("templates/layout.html")
-	if err != nil {
-		log.Fatal(err)
-	}
+	tmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFiles("templates/layout.html"))
 
-	// Walk Content
-	err = filepath.Walk("content", func(path string, info fs.FileInfo, err error) error {
+	var allPosts, pinnedPosts []PostMetadata
+	tagMap := make(map[string][]PostMetadata)
+
+	filepath.Walk("content", func(path string, info fs.FileInfo, err error) error {
 		if !strings.HasSuffix(path, ".md") || strings.Contains(path, "_index.md") {
 			return nil
 		}
 
-		// Determine paths
-		relPath, _ := filepath.Rel("content", path)
-
-		// --- NEW: Force Lowercase URLs ---
-		// Replaces .md with .html AND converts the whole string to lowercase
-		htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
-
-		destPath := filepath.Join("public", htmlRelPath)
-		fullLink := BaseURL + "/" + htmlRelPath
-
-		// --- INCREMENTAL CHECK ---
-		skipRendering := false
-		if !ForceRebuild {
-			if destInfo, err := os.Stat(destPath); err == nil {
-				if destInfo.ModTime().After(info.ModTime()) {
-					skipRendering = true
-				}
-			}
-		}
+		rel, _ := filepath.Rel("content", path)
+		htmlRel := strings.ToLower(strings.Replace(rel, ".md", ".html", 1))
+		dest := filepath.Join("public", htmlRel)
+		link := BaseURL + "/" + htmlRel
 
 		source, _ := os.ReadFile(path)
 		var buf bytes.Buffer
-		context := parser.NewContext()
-		if err := md.Convert(source, &buf, parser.WithContext(context)); err != nil {
-			return err
-		}
+		ctx := parser.NewContext()
+		md.Convert(source, &buf, parser.WithContext(ctx))
 
-		metaData := meta.Get(context)
+		metaData := meta.Get(ctx)
 
 		wordCount := len(strings.Fields(string(source)))
-		readTime := int(math.Ceil(float64(wordCount) / 120.0))
+		readTime := int(math.Ceil(float64(wordCount) / 120))
 
-		isPinned := false
-		if p, ok := metaData["pinned"].(bool); ok {
-			isPinned = p
-		}
-
-		dateStr := getString(metaData, "date")
-		dateObj, _ := time.Parse("2006-01-02", dateStr)
-
+		dateObj, _ := time.Parse("2006-01-02", getString(metaData, "date"))
 		hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
 
 		post := PostMetadata{
-			Title: getString(metaData, "title"), Link: fullLink,
-			Description: getString(metaData, "description"), Tags: getSlice(metaData, "tags"),
-			ReadingTime: readTime, Pinned: isPinned, DateObj: dateObj,
-			HasMath : hasMath,
+			Title:       getString(metaData, "title"),
+			Description: getString(metaData, "description"),
+			Tags:        getSlice(metaData, "tags"),
+			Link:        link,
+			ReadingTime: readTime,
+			Pinned:      metaData["pinned"] == true,
+			DateObj:     dateObj,
+			HasMath:     hasMath,
 		}
 
-		
-
-		// --- SEO: Calculate Image Path ---
-		imagePath := BaseURL + "/static/images/favicon.ico" // Default fallback
+		image := BaseURL + "/static/images/favicon.ico"
 		if img, ok := metaData["image"].(string); ok {
-			imagePath = BaseURL + img
+			image = BaseURL + img
 		}
 
-		if !skipRendering {
-			fmt.Printf("   Rendering: %s\n", htmlRelPath)
-			renderPage(tmpl, destPath, PageData{
-				Title: post.Title, Description: post.Description, Content: template.HTML(buf.String()), Meta: metaData, BaseURL: BaseURL,
-				BuildVersion: currentBuildVersion,
-				Permalink:    fullLink,  // <--- Pass Link
-				Image:        imagePath, // <--- Pass Image
-				HasMath: 	post.HasMath,
-			})
-		}
+		renderPage(tmpl, dest, PageData{
+			Title:       post.Title,
+			Description: post.Description,
+			Content:     template.HTML(buf.String()),
+			BaseURL:     BaseURL,
+			BuildVersion: buildVersion,
+			Permalink:   link,
+			Image:       image,
+			HasMath:     post.HasMath,
+			LayoutCSS:   layoutCSS,
+			ThemeCSS:    themeCSS,
+		})
 
-        if strings.Contains(path, "404.md") {
-            return nil
-        }
-
-        if isPinned {
+		if post.Pinned {
 			pinnedPosts = append(pinnedPosts, post)
 		} else {
 			allPosts = append(allPosts, post)
 		}
+
 		for _, t := range post.Tags {
-			tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], post)
+			tagMap[strings.ToLower(t)] = append(tagMap[strings.ToLower(t)], post)
 		}
 
 		return nil
 	})
 
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	sortPosts(allPosts)
 	sortPosts(pinnedPosts)
-	for k := range tagMap {
-		sortPosts(tagMap[k])
-	}
 
-	// Always regenerate Home
-	homeContent := template.HTML("")
-	if homeSrc, err := os.ReadFile("content/_index.md"); err == nil {
-		var buf bytes.Buffer
-		md.Convert(homeSrc, &buf, parser.WithContext(parser.NewContext()))
-		homeContent = template.HTML(buf.String())
-	}
-	renderPage(tmpl, "public/index.html", PageData{
-		Title: "Kush Blogs", Content: homeContent, IsIndex: true, Posts: allPosts, PinnedPosts: pinnedPosts, BaseURL: BaseURL,
-		BuildVersion: currentBuildVersion,
-		Description: "My personal blog documenting my learning journey in ML, NLP, and Deep Learning.",
-		Permalink:    BaseURL + "/",                          // <--- Home Link
-		Image:        BaseURL + "/static/images/favicon.ico", // <--- Home Image
-	})
-
-	// Always regenerate Tags
-	var allTags []TagData
-	for t, posts := range tagMap {
-		allTags = append(allTags, TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("%s/tags/%s.html", BaseURL, t)})
-	}
-	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
-
-	renderPage(tmpl, "public/tags/index.html", PageData{
-		Title: "All Tags", IsTagsIndex: true, AllTags: allTags, BaseURL: BaseURL,
-		BuildVersion: currentBuildVersion,
-		Permalink:    BaseURL + "/tags/index.html",           // <--- Tags Index Link
-		Image:        BaseURL + "/static/images/favicon.ico", // <--- Default Image
-	})
-
-	for t, posts := range tagMap {
-		renderPage(tmpl, fmt.Sprintf("public/tags/%s.html", t), PageData{
-			Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: BaseURL,
-			BuildVersion: currentBuildVersion,
-			Permalink:    fmt.Sprintf("%s/tags/%s.html", BaseURL, t), // <--- Specific Tag Link
-			Image:        BaseURL + "/static/images/favicon.ico",     // <--- Default Image
-		})
-	}
-
-	// --- GENERATORS ---
-	allContent := append(allPosts, pinnedPosts...)
+	allContent := append(pinnedPosts, allPosts...)
 	generateSitemap(allContent, tagMap)
-	generateRSS(allContent) // <--- NEW: Generate RSS
-
-	// --- Google Verification File (Optional) ---
-	// Uncomment if you need to upload a file for Google Search Console
-	// copyFileStandard("googleXXXXXXXXXXXXXXXX.html", "public/googleXXXXXXXXXXXXXXXX.html")
+	generateRSS(allContent)
 
 	fmt.Println("✅ Build Complete.")
 }
 
-// --- Helpers ---
+/* -------------------- Helpers -------------------- */
 
 func sortPosts(posts []PostMetadata) {
-	sort.Slice(posts, func(i, j int) bool { return posts[i].DateObj.After(posts[j].DateObj) })
+	sort.Slice(posts, func(i, j int) bool {
+		return posts[i].DateObj.After(posts[j].DateObj)
+	})
 }
 
-func renderPage(tmpl *template.Template, path string, data PageData) {
+func renderPage(t *template.Template, path string, data PageData) {
 	os.MkdirAll(filepath.Dir(path), 0755)
-	f, _ := os.Create(path)
+	f, err := os.Create(path)
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer f.Close()
-	tmpl.Execute(f, data)
+
+	if err := t.Execute(f, data); err != nil {
+		log.Fatal(err)
+	}
 }
 
-// Updated Sitemap Generator with LastMod
 func generateSitemap(posts []PostMetadata, tags map[string][]PostMetadata) {
 	var urls []Url
 	urls = append(urls, Url{Loc: BaseURL + "/", LastMod: time.Now().Format("2006-01-02")})
 	for _, p := range posts {
-		urls = append(urls, Url{
-			Loc:     p.Link,
-			LastMod: p.DateObj.Format("2006-01-02"), // <--- Now includes Date
-		})
+		urls = append(urls, Url{Loc: p.Link, LastMod: p.DateObj.Format("2006-01-02")})
 	}
-	for t := range tags {
-		urls = append(urls, Url{Loc: fmt.Sprintf("%s/tags/%s.html", BaseURL, t)})
-	}
-	output, _ := xml.MarshalIndent(UrlSet{Urls: urls}, "  ", "    ")
+	output, _ := xml.MarshalIndent(UrlSet{Urls: urls}, "", "  ")
 	os.WriteFile("public/sitemap.xml", []byte(xml.Header+string(output)), 0644)
 }
 
-// NEW: RSS Generator
 func generateRSS(posts []PostMetadata) {
 	var items []Item
 	for _, p := range posts {
@@ -398,10 +342,8 @@ func generateRSS(posts []PostMetadata) {
 		},
 	}
 
-	output, _ := xml.MarshalIndent(rss, "", "  ")
-	fullXML := []byte(xml.Header + string(output))
-	os.WriteFile("public/rss.xml", fullXML, 0644)
-	fmt.Println("📡 RSS Feed generated.")
+	out, _ := xml.MarshalIndent(rss, "", "  ")
+	os.WriteFile("public/rss.xml", []byte(xml.Header+string(out)), 0644)
 }
 
 func getString(m map[string]interface{}, k string) string {
@@ -410,13 +352,12 @@ func getString(m map[string]interface{}, k string) string {
 	}
 	return ""
 }
+
 func getSlice(m map[string]interface{}, k string) []string {
 	var res []string
-	if v, ok := m[k]; ok {
-		if l, ok := v.([]interface{}); ok {
-			for _, i := range l {
-				res = append(res, fmt.Sprintf("%v", i))
-			}
+	if v, ok := m[k].([]interface{}); ok {
+		for _, i := range v {
+			res = append(res, fmt.Sprintf("%v", i))
 		}
 	}
 	return res
@@ -427,39 +368,35 @@ func copyDir(src, dst string) error {
 		if err != nil {
 			return err
 		}
-		relPath, _ := filepath.Rel(src, path)
-		destPath := filepath.Join(dst, relPath)
-		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode())
-		}
+		rel, _ := filepath.Rel(src, path)
+		dest := filepath.Join(dst, rel)
 
-		if destInfo, err := os.Stat(destPath); err == nil {
-			if destInfo.ModTime().After(info.ModTime()) {
-				return nil
-			}
+		if info.IsDir() {
+			return os.MkdirAll(dest, info.Mode())
 		}
 
 		ext := strings.ToLower(filepath.Ext(path))
 		if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") && CompressImages {
-			fmt.Printf("Compressing: %s\n", relPath)
-			return processImage(path, destPath, ext)
+			return processImage(path, dest, ext)
 		}
-		return copyFileStandard(path, destPath)
+		return copyFileStandard(path, dest)
 	})
 }
 
 func processImage(srcPath, dstPath, ext string) error {
-	src, err := imaging.Open(srcPath)
+	img, err := imaging.Open(srcPath)
 	if err != nil {
 		return copyFileStandard(srcPath, dstPath)
 	}
-	if src.Bounds().Dx() > 1200 {
-		src = imaging.Resize(src, 1200, 0, imaging.Lanczos)
+
+	if img.Bounds().Dx() > 1200 {
+		img = imaging.Resize(img, 1200, 0, imaging.Lanczos)
 	}
+
 	if ext == ".png" {
-		return imaging.Save(src, dstPath, imaging.PNGCompressionLevel(png.BestCompression))
+		return imaging.Save(img, dstPath, imaging.PNGCompressionLevel(png.BestCompression))
 	}
-	return imaging.Save(src, dstPath, imaging.JPEGQuality(75))
+	return imaging.Save(img, dstPath, imaging.JPEGQuality(75))
 }
 
 func copyFileStandard(src, dst string) error {
@@ -468,11 +405,13 @@ func copyFileStandard(src, dst string) error {
 		return err
 	}
 	defer s.Close()
+
 	d, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer d.Close()
+
 	_, err = io.Copy(d, s)
 	return err
 }
