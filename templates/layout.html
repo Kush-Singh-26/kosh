@@ -27,13 +27,13 @@
         {{ .LayoutCSS }}
         {{ .ThemeCSS }}
     </style>
-
+    <script>const siteBaseURL = "{{ .BaseURL }}";</script>
     {{ if .HasMath }}
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
     {{ end }}
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.png" width="35" height="35">
 
-    <script>const siteBaseURL = "{{ .BaseURL }}";</script> 
+     
     {{ if not .IsIndex }}
     <script type="application/ld+json">
     {
