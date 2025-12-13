@@ -1,18 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .Title }}</title>
     <meta name="description" content="{{ .Description }}">
-    <meta name="google-site-verification" content="Xr0Ov0Imhz_enNxV6fyMfzSrJyICO_V5PZV49w4b2DM" />
     
+    <meta name="google-site-verification" content="Xr0Ov0Imhz_enNxV6fyMfzSrJyICO_V5PZV49w4b2DM" />
+
+    <link rel="canonical" href="{{ .Permalink }}">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="{{ .Permalink }}">
+    <meta property="og:title" content="{{ .Title }}">
+    <meta property="og:description" content="{{ .Description }}">
+    <meta property="og:image" content="{{ .Image }}">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ .Permalink }}">
+    <meta name="twitter:title" content="{{ .Title }}">
+    <meta name="twitter:description" content="{{ .Description }}">
+    <meta name="twitter:image" content="{{ .Image }}">
+
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.ico">
-    
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/layout.css?v={{ .BuildVersion }}">
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/theme.css?v={{ .BuildVersion }}">
+
+    {{ if not .IsIndex }}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "{{ .Title }}",
+      "image": ["{{ .Image }}"],
+      "description": "{{ .Description }}",
+      "datePublished": "{{ .Meta.date }}",
+      "author": {
+        "@type": "Person",
+        "name": "Kush Singh",
+        "url": "https://kush-singh-26.github.io/"
+      }
+    }
+    </script>
+    {{ end }}
 </head>
+
 <body>
     <header>
         <a href="{{ .BaseURL }}/index.html" class="site-title">
@@ -52,7 +86,9 @@
                 <a href="{{ .Link }}" class="pinned-card">
                     <h2>{{ .Title }}</h2>
                     <div class="meta-info">
-                        {{ .ReadingTime }} min read
+                        <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
+                        <span>•</span>
+                        <span>{{ .ReadingTime }} min read</span>
                     </div>
                     <div class="card-desc">{{ .Description }}</div>
                 </a>
@@ -67,7 +103,9 @@
                     <a href="{{ .Link }}" class="post-title">{{ .Title }}</a>
                     
                     <div class="meta-info mb-small">
-                        {{ .ReadingTime }} min read
+                        <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
+                        <span>•</span>
+                        <span>{{ .ReadingTime }} min read</span>
                     </div>
 
                     <div class="post-desc">{{ .Description }}</div>
@@ -88,19 +126,32 @@
                 <h1>{{ .Title }}</h1>
                 
                 <div class="meta-info article-meta">
-                    {{ if .Meta.readingTime }}<span>{{ .Meta.readingTime }} min read</span>{{ end }}
+                    {{ if .Meta.date }}
+                        <time datetime="{{ .Meta.date }}">📅 {{ .Meta.date }}</time>
+                    {{ end }}
                     
+                    {{ if .Meta.readingTime }}
+                        <span>⏱️ {{ .Meta.readingTime }} min read</span>
+                    {{ end }}
+
                     {{ if .Meta.tags }}
+                        <span class="meta-divider">|</span>
                         {{ range .Meta.tags }}
                         <a href="{{ $.BaseURL }}/tags/{{ . | lower }}.html" class="tag-pill small-pill">#{{ . }}</a>
                         {{ end }}
                     {{ end }}
                 </div>
 
-                {{ .Content }}
+                <div class="content-body">
+                    {{ .Content }}
+                </div>
             </article>
         {{ end }}
     </main>
+
+    <footer>
+        <p style="text-align: center; margin: 0 auto;">&copy; 2025 Kush Singh</p>
+    </footer>
 
     <script defer src="{{ .BaseURL }}/static/js/katex.min.js"></script>
     <script defer src="{{ .BaseURL }}/static/js/auto-render.min.js"></script>

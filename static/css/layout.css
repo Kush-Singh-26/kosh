@@ -7,43 +7,69 @@
     padding: 0; 
 }
 
-.section-header {
-    padding-bottom: 0.25rem;
-}
-
 body {
     max-width: 840px;
     margin: 0 auto;
-    padding: 2rem 1.5rem;
+    /* FIX: Removed top padding so sticky header hits the top edge */
+    padding: 0 1.5rem 2rem 1.5rem; 
     min-height: 100vh;
     line-height: 1.65;
 }
 
 /* Header & Nav Layout */
 header {
-    margin-bottom: 3.5rem;
-    padding: 1rem 1.5rem;
+    /* STICKY CONFIGURATION */
+    position: sticky;
+    top: 0;
+    z-index: 1000; /* Ensures it stays above blog images/code */
+    
+    /* COMPACT SIZING */
+    padding: 0.5rem 0; /* Very slim vertical padding */
+    margin-bottom: 2.5rem;
+    margin-top: 0;
+    
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 0.5rem;
+    
+    /* BACKGROUND (Set in theme.css, but layout ensures structure) */
+    width: 100%;
 }
 
 .site-title {
-    padding: 0.4rem 1rem;
+    /* COMPACT BOX */
+    padding: 0.2rem 0.6rem; 
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    padding: 5px 5px 5px 5px;
 }
 
 .site-logo {
-    height: 28px;
+    height: 22px; /* Smaller Logo */
     width: auto;
+    margin-top: 16px;
+    margin-bottom: 16px;
 }
 
 nav a { 
-    margin-left: 1.5rem; 
-    padding: 0.3rem 0.6rem;
+    margin-left: 1rem; 
+    padding: 0.2rem 0.5rem;
+}
+
+/* Footer Layout */
+footer {
+    text-align: center !important; /* Force centering */
+    margin-top: 4rem;
+    padding: 2rem 0;
+    width: 100%; /* Ensure it spans the full container */
+    display: block;
+}
+
+/* Explicitly center the text paragraph inside */
+footer p {
+    text-align: center; 
+    margin: 0 auto;
 }
 
 /* Typography Layout */
@@ -58,7 +84,7 @@ h1 {
 }
 
 h2 { 
-    padding-left: 0.8rem; /* Space for the decorative bar */
+    padding-left: 0.8rem; 
     position: relative;
 }
 
@@ -72,14 +98,11 @@ img {
 }
 
 blockquote {
-    /* Top: 0.8rem, Side: 1.2rem, Bottom: 0.5rem (Reduced) */
     padding: 0.8rem 1.2rem 0.5rem; 
     margin: 1.5rem 0; 
 }
 
-/* Fix: Remove default paragraph margin inside quotes to prevent huge bottom gap */
 blockquote p { margin-bottom: 0; }
-
 blockquote ul, blockquote ol { margin: 0.5rem 0; padding-left: 1rem; padding-bottom: 0rem;}
 
 /* Lists Layout */
@@ -91,6 +114,10 @@ article li { margin-bottom: 0.4rem; }
 
 /* Cards & Sections */
 .pinned-section { margin-bottom: 2.5rem; }
+
+.section-header {
+    padding-bottom: 0.5rem;
+}
 
 .pinned-card {
     display: block; 

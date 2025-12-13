@@ -10,10 +10,10 @@
     --text-muted: #9a9a9a;
     
     /* Headings & Accents */
-    --h1-color: #f4a261;  /* Burnt Orange */
-    --h2-color: #e76f51;  /* Terracotta */
-    --h3-color: #e9c46a;  /* Golden */
-    --h4-color: #2a9d8f;  /* Teal accent */
+    --h1-color: #f4a261;
+    --h2-color: #e76f51;
+    --h3-color: #e9c46a;
+    --h4-color: #2a9d8f;
     
     --accent-primary: #f4a261;
     --accent-secondary: #e76f51;
@@ -63,7 +63,6 @@ h2 {
     font-size: 1.7rem; 
     color: var(--h2-color);
 }
-/* The decorative bar for H2 */
 h2::before {
     content: '';
     position: absolute;
@@ -85,15 +84,19 @@ p { font-size: 1.05rem; color: var(--text-main); }
 /* Header Styling */
 header {
     border-bottom: 1px solid var(--border);
-    background: var(--bg-card);
-    backdrop-filter: blur(10px);
-    border-radius: 8px;
-    border: 1px solid var(--border);
+    /* OPAQUE BACKGROUND */
+    background-color: var(--bg-body); 
+    
+    /* Removed border-radius so it looks like a full bar */
+    border-radius: 0; 
+    
+    /* Optional: Subtle shadow for depth */
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4); 
 }
 
 .site-title {
     font-weight: 700;
-    font-size: 1.3rem;
+    font-size: 0.95rem; /* SMALLER TEXT */
     background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -101,14 +104,14 @@ header {
     letter-spacing: 0.5px;
     text-transform: uppercase;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 4px;
     background-color: var(--bg-code);
     transition: all 0.3s ease;
 }
 .site-title:hover {
     border-color: var(--accent-primary);
-    box-shadow: 0 0 20px rgba(244, 162, 97, 0.2);
-    transform: translateY(-2px);
+    box-shadow: 0 0 10px rgba(244, 162, 97, 0.2);
+    transform: translateY(-1px);
 }
 .site-logo {
     filter: drop-shadow(0 0 4px rgba(244, 162, 97, 0.3));
@@ -116,13 +119,20 @@ header {
 
 nav a { 
     color: var(--text-muted); 
-    font-size: 0.95rem; 
+    font-size: 0.85rem; /* SMALLER LINKS */
     font-weight: 500;
     border-radius: 4px;
 }
 nav a:hover { 
     background: rgba(244, 162, 97, 0.1);
     color: var(--accent-primary);
+}
+
+/* Footer Styling */
+footer {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-top: 1px solid var(--border);
 }
 
 /* Cards Styling */
@@ -148,7 +158,7 @@ nav a:hover {
     background: #1f1f1f;
 }
 .pinned-card h2 { color: var(--text-main); }
-.pinned-card h2::before { display: none; } /* Remove default H2 decoration inside cards */
+.pinned-card h2::before { display: none; }
 .pinned-card:hover h2 { color: var(--accent-primary); }
 
 .post-list li { 

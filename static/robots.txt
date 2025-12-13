@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kush-singh-26.github.io/blogs/sitemap.xml

@@ -20,20 +20,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required for git-restore-mtime to read history
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
 
-      # --- NEW: Cache the Public Folder ---
+      # Restore timestamps so incremental build works
+      - name: Restore Timestamps
+        uses: chetan/git-restore-mtime-action@v2
+
       - name: Restore Cache
         id: cache-public
         uses: actions/cache@v3
         with:
           path: public
-          # Use a key that updates when assets change, but allow restore from older keys
           key: public-cache-${{ github.sha }}
+          # Restore the latest cache available
           restore-keys: |
             public-cache-
 
