@@ -157,6 +157,8 @@ Other operations :
 - **Padding** : Adds `PAD` tokens to ensure all sequences in a batch have same length.
 - **Attention Mask** : Generates binary masks that tell the model which tokens are real data and which are padding.
 
+![Tokenization Pipeline](/static/images/Token.png)
+
 # Byte Pair Encoding (BPE)
 
 It is the most influential algorithm in the current generation of LLMs.
@@ -463,7 +465,7 @@ So, new vocab is :
 papa, pa, p, a
 ```
 
-Stop, since target size is achieved, other wisw would have kept on going on.
+Stop, since target size is achieved, otherwise would have kept on going on.
 </details>
 
 

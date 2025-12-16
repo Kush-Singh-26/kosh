@@ -30,3 +30,6 @@ main  # In case you name your binary 'main'
 # 6. Go Modules (Optional)
 # Usually you commit go.sum, but if you have a vendor folder you might ignore it
 # vendor/
+
+.content/embeddings.md
+.content/Maths-Vector-Basis-Span.md

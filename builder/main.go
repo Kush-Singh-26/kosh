@@ -38,7 +38,7 @@ var (
 
 // --- Data Structures ---
 type PostMetadata struct {
-	Title, Link, Description string
+	Title, TabTile, Link, Description string
 	Tags                     []string
 	ReadingTime              int
 	Pinned                   bool
@@ -52,7 +52,7 @@ type TagData struct {
 }
 
 type PageData struct {
-	Title, Description, BaseURL string
+	Title, TabTitle, Description, BaseURL string
 	Content                     template.HTML
 	Meta                        map[string]interface{}
 	IsIndex, IsTagsIndex        bool
@@ -297,6 +297,7 @@ func main() {
 			renderPage(tmpl, destPath, PageData{
 				Title: post.Title, Description: post.Description, Content: template.HTML(buf.String()), Meta: metaData, BaseURL: BaseURL,
 				BuildVersion: currentBuildVersion,
+				TabTitle: post.Title + " | Kush Blogs",
 				Permalink:    fullLink,  // <--- Pass Link
 				Image:        imagePath, // <--- Pass Image
 				HasMath:      post.HasMath,
@@ -342,6 +343,7 @@ func main() {
 	renderPage(tmpl, "public/index.html", PageData{
 		Title: "Kush Blogs", Content: homeContent, IsIndex: true, Posts: allPosts, PinnedPosts: pinnedPosts, BaseURL: BaseURL,
 		BuildVersion: currentBuildVersion,
+		TabTitle: "Kush Blogs",
 		Description:  "My personal blog documenting my learning journey in ML, NLP, and Deep Learning.",
 		Permalink:    BaseURL + "/",                        // <--- Home Link
 		Image:        BaseURL + "/static/images/favicon.ico", // <--- Home Image
@@ -361,6 +363,7 @@ func main() {
 		BuildVersion: currentBuildVersion,
 		Permalink:    BaseURL + "/tags/index.html",         // <--- Tags Index Link
 		Image:        BaseURL + "/static/images/favicon.ico", // <--- Default Image
+		TabTitle: "Kush Blogs",
 		LayoutCSS:    layoutCSS,
     	ThemeCSS:     themeCSS,
 	})
@@ -372,6 +375,7 @@ func main() {
 			Permalink:    fmt.Sprintf("%s/tags/%s.html", BaseURL, t), // <--- Specific Tag Link
 			Image:        BaseURL + "/static/images/favicon.ico",     // <--- Default Image
 			LayoutCSS:    layoutCSS,
+			TabTitle: "Kush Blogs",
     		ThemeCSS:     themeCSS,
 		})
 	}
@@ -381,9 +385,6 @@ func main() {
 	generateSitemap(allContent, tagMap)
 	generateRSS(allContent) // <--- NEW: Generate RSS
 
-	// --- Google Verification File (Optional) ---
-	// Uncomment if you need to upload a file for Google Search Console
-	// copyFileStandard("googleXXXXXXXXXXXXXXXX.html", "public/googleXXXXXXXXXXXXXXXX.html")
 
 	fmt.Println("✅ Build Complete.")
 }

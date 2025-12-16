@@ -4,12 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ .Title }}</title>
+    <title>{{ .TabTitle }}</title>
     <meta name="description" content="{{ .Description }}">
     
     <meta name="google-site-verification" content="Xr0Ov0Imhz_enNxV6fyMfzSrJyICO_V5PZV49w4b2DM" />
 
     <link rel="canonical" href="{{ .Permalink }}">
+    <link rel="alternate" type="application/rss+xml" title="{{ .Title }} RSS Feed" href="{{ .BaseURL }}/rss.xml" />
 
     <meta property="og:type" content="article">
     <meta property="og:url" content="{{ .Permalink }}">
