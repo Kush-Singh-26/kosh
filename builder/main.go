@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"encoding/xml"
 	"flag"
 	"fmt"
@@ -39,11 +40,11 @@ var (
 // --- Data Structures ---
 type PostMetadata struct {
 	Title, TabTile, Link, Description string
-	Tags                     []string
-	ReadingTime              int
-	Pinned                   bool
-	DateObj                  time.Time
-	HasMath                  bool
+	Tags                              []string
+	ReadingTime                       int
+	Pinned                            bool
+	DateObj                           time.Time
+	HasMath                           bool
 }
 
 type TagData struct {
@@ -53,16 +54,16 @@ type TagData struct {
 
 type PageData struct {
 	Title, TabTitle, Description, BaseURL string
-	Content                     template.HTML
-	Meta                        map[string]interface{}
-	IsIndex, IsTagsIndex        bool
-	Posts                       []PostMetadata
-	PinnedPosts                 []PostMetadata
-	AllTags                     []TagData
-	BuildVersion                int64
-	HasMath                     bool
-	LayoutCSS                   template.CSS
-	ThemeCSS                    template.CSS
+	Content                               template.HTML
+	Meta                                  map[string]interface{}
+	IsIndex, IsTagsIndex                  bool
+	Posts                                 []PostMetadata
+	PinnedPosts                           []PostMetadata
+	AllTags                               []TagData
+	BuildVersion                          int64
+	HasMath                               bool
+	LayoutCSS                             template.CSS
+	ThemeCSS                              template.CSS
 	// SEO Fields
 	Permalink string
 	Image     string
@@ -77,7 +78,7 @@ type Url struct {
 	Loc, LastMod string
 }
 
-// --- RSS Structs (NEW) ---
+// --- RSS Structs ---
 type Rss struct {
 	XMLName xml.Name `xml:"rss"`
 	Version string   `xml:"version,attr"`
@@ -97,6 +98,25 @@ type Item struct {
 	Description string `xml:"description"`
 	PubDate     string `xml:"pubDate"` // Format: Mon, 02 Jan 2006 15:04:05 GMT
 	Guid        string `xml:"guid"`
+}
+
+// --- Graph Data Structs (NEW) ---
+type GraphNode struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Group int    `json:"group"` // 1 for Posts, 2 for Tags
+	Value int    `json:"val"`   // Size of the node
+	URL   string `json:"url,omitempty"`
+}
+
+type GraphLink struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+}
+
+type GraphData struct {
+	Nodes []GraphNode `json:"nodes"`
+	Links []GraphLink `json:"links"`
 }
 
 // --- AST Transformer ---
@@ -126,16 +146,16 @@ func processDestination(n ast.Node, dest []byte) {
 		}
 	}
 	if strings.HasSuffix(href, ".md") && !strings.HasPrefix(href, "http") {
-        href = strings.Replace(href, ".md", ".html", 1)
-        href = strings.ToLower(href)
-        // Update the destination buffer
-        switch t := n.(type) {
+		href = strings.Replace(href, ".md", ".html", 1)
+		href = strings.ToLower(href)
+		// Update the destination buffer
+		switch t := n.(type) {
 		case *ast.Link:
 			t.Destination = []byte(href)
 		case *ast.Image:
 			t.Destination = []byte(href)
 		}
-    }
+	}
 	if _, isImage := n.(*ast.Image); isImage {
 		n.SetAttribute([]byte("loading"), []byte("lazy"))
 	}
@@ -169,7 +189,6 @@ func main() {
 		"static/css/theme.css",
 	}
 
-	
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
 		lastBuildTime := indexInfo.ModTime()
 
@@ -240,14 +259,13 @@ func main() {
 		// Determine paths
 		relPath, _ := filepath.Rel("content", path)
 
-		// --- NEW: Force Lowercase URLs ---
-		// Replaces .md with .html AND converts the whole string to lowercase
+		// Force Lowercase URLs
 		htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 
 		destPath := filepath.Join("public", htmlRelPath)
 		fullLink := BaseURL + "/" + htmlRelPath
 
-		// --- INCREMENTAL CHECK ---
+		// Incremental Check
 		skipRendering := false
 		if !ForceRebuild {
 			if destInfo, err := os.Stat(destPath); err == nil {
@@ -286,7 +304,7 @@ func main() {
 			HasMath: hasMath,
 		}
 
-		// --- SEO: Calculate Image Path ---
+		// SEO: Calculate Image Path
 		imagePath := BaseURL + "/static/images/favicon.ico" // Default fallback
 		if img, ok := metaData["image"].(string); ok {
 			imagePath = BaseURL + img
@@ -295,18 +313,22 @@ func main() {
 		if !skipRendering {
 			fmt.Printf("   Rendering: %s\n", htmlRelPath)
 			renderPage(tmpl, destPath, PageData{
-				Title: post.Title, Description: post.Description, Content: template.HTML(buf.String()), Meta: metaData, BaseURL: BaseURL,
+				Title:        post.Title,
+				Description:  post.Description,
+				Content:      template.HTML(buf.String()),
+				Meta:         metaData,
+				BaseURL:      BaseURL,
 				BuildVersion: currentBuildVersion,
-				TabTitle: post.Title + " | Kush Blogs",
-				Permalink:    fullLink,  // <--- Pass Link
-				Image:        imagePath, // <--- Pass Image
+				TabTitle:     post.Title + " | Kush Blogs",
+				Permalink:    fullLink,
+				Image:        imagePath,
 				HasMath:      post.HasMath,
 				LayoutCSS:    layoutCSS,
-        		ThemeCSS:     themeCSS,
+				ThemeCSS:     themeCSS,
 			})
 		}
 
-		// --- FIX: Check for 404 AFTER rendering, but BEFORE adding to lists ---
+		// FIX: Check for 404 AFTER rendering, but BEFORE adding to lists
 		if strings.Contains(path, "404.md") {
 			return nil
 		}
@@ -341,12 +363,17 @@ func main() {
 		homeContent = template.HTML(buf.String())
 	}
 	renderPage(tmpl, "public/index.html", PageData{
-		Title: "Kush Blogs", Content: homeContent, IsIndex: true, Posts: allPosts, PinnedPosts: pinnedPosts, BaseURL: BaseURL,
+		Title:        "Kush Blogs",
+		Content:      homeContent,
+		IsIndex:      true,
+		Posts:        allPosts,
+		PinnedPosts:  pinnedPosts,
+		BaseURL:      BaseURL,
 		BuildVersion: currentBuildVersion,
-		TabTitle: "Kush Blogs",
+		TabTitle:     "Kush Blogs",
 		Description:  "My personal blog documenting my learning journey in ML, NLP, and Deep Learning.",
-		Permalink:    BaseURL + "/",                        // <--- Home Link
-		Image:        BaseURL + "/static/images/favicon.ico", // <--- Home Image
+		Permalink:    BaseURL + "/",                          // Home Link
+		Image:        BaseURL + "/static/images/favicon.ico", // Home Image
 		LayoutCSS:    layoutCSS,
 		ThemeCSS:     themeCSS,
 	})
@@ -359,32 +386,38 @@ func main() {
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 
 	renderPage(tmpl, "public/tags/index.html", PageData{
-		Title: "All Tags", IsTagsIndex: true, AllTags: allTags, BaseURL: BaseURL,
+		Title:        "All Tags",
+		IsTagsIndex:  true,
+		AllTags:      allTags,
+		BaseURL:      BaseURL,
 		BuildVersion: currentBuildVersion,
-		Permalink:    BaseURL + "/tags/index.html",         // <--- Tags Index Link
-		Image:        BaseURL + "/static/images/favicon.ico", // <--- Default Image
-		TabTitle: "Kush Blogs",
+		Permalink:    BaseURL + "/tags/index.html",           // Tags Index Link
+		Image:        BaseURL + "/static/images/favicon.ico", // Default Image
+		TabTitle:     "Kush Blogs",
 		LayoutCSS:    layoutCSS,
-    	ThemeCSS:     themeCSS,
+		ThemeCSS:     themeCSS,
 	})
 
 	for t, posts := range tagMap {
 		renderPage(tmpl, fmt.Sprintf("public/tags/%s.html", t), PageData{
-			Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: BaseURL,
+			Title:        "#" + t,
+			IsIndex:      true,
+			Posts:        posts,
+			BaseURL:      BaseURL,
 			BuildVersion: currentBuildVersion,
-			Permalink:    fmt.Sprintf("%s/tags/%s.html", BaseURL, t), // <--- Specific Tag Link
-			Image:        BaseURL + "/static/images/favicon.ico",     // <--- Default Image
+			Permalink:    fmt.Sprintf("%s/tags/%s.html", BaseURL, t), // Specific Tag Link
+			Image:        BaseURL + "/static/images/favicon.ico",     // Default Image
 			LayoutCSS:    layoutCSS,
-			TabTitle: "Kush Blogs",
-    		ThemeCSS:     themeCSS,
+			TabTitle:     "Kush Blogs",
+			ThemeCSS:     themeCSS,
 		})
 	}
 
 	// --- GENERATORS ---
 	allContent := append(allPosts, pinnedPosts...)
 	generateSitemap(allContent, tagMap)
-	generateRSS(allContent) // <--- NEW: Generate RSS
-
+	generateRSS(allContent)
+	generateGraph(allContent) // <--- NEW: Graph Generation
 
 	fmt.Println("✅ Build Complete.")
 }
@@ -402,14 +435,14 @@ func renderPage(tmpl *template.Template, path string, data PageData) {
 	tmpl.Execute(f, data)
 }
 
-// Updated Sitemap Generator with LastMod
+// Sitemap Generator
 func generateSitemap(posts []PostMetadata, tags map[string][]PostMetadata) {
 	var urls []Url
 	urls = append(urls, Url{Loc: BaseURL + "/", LastMod: time.Now().Format("2006-01-02")})
 	for _, p := range posts {
 		urls = append(urls, Url{
 			Loc:     p.Link,
-			LastMod: p.DateObj.Format("2006-01-02"), // <--- Now includes Date
+			LastMod: p.DateObj.Format("2006-01-02"),
 		})
 	}
 	for t := range tags {
@@ -419,7 +452,7 @@ func generateSitemap(posts []PostMetadata, tags map[string][]PostMetadata) {
 	os.WriteFile("public/sitemap.xml", []byte(xml.Header+string(output)), 0644)
 }
 
-// NEW: RSS Generator
+// RSS Generator
 func generateRSS(posts []PostMetadata) {
 	var items []Item
 	for _, p := range posts {
@@ -446,6 +479,56 @@ func generateRSS(posts []PostMetadata) {
 	fullXML := []byte(xml.Header + string(output))
 	os.WriteFile("public/rss.xml", fullXML, 0644)
 	fmt.Println("📡 RSS Feed generated.")
+}
+
+// Graph Generator (NEW)
+func generateGraph(posts []PostMetadata) {
+	nodes := []GraphNode{}
+	links := []GraphLink{}
+
+	// Track unique IDs to prevent duplicates
+	nodeExists := make(map[string]bool)
+
+	for _, p := range posts {
+		// 1. Add Post Node
+		if !nodeExists[p.Link] {
+			nodes = append(nodes, GraphNode{
+				ID:    p.Link,
+				Label: p.Title,
+				Group: 1, // Group 1 = Blog Post
+				Value: 10,
+				URL:   p.Link,
+			})
+			nodeExists[p.Link] = true
+		}
+
+		// 2. Process Tags
+		for _, t := range p.Tags {
+			tagID := "tag-" + strings.ToLower(strings.TrimSpace(t))
+
+			// Add Tag Node if not exists
+			if !nodeExists[tagID] {
+				nodes = append(nodes, GraphNode{
+					ID:    tagID,
+					Label: "#" + strings.TrimSpace(t),
+					Group: 2, // Group 2 = Tag
+					Value: 5,
+				})
+				nodeExists[tagID] = true
+			}
+
+			// 3. Create Link (Post <-> Tag)
+			links = append(links, GraphLink{
+				Source: p.Link,
+				Target: tagID,
+			})
+		}
+	}
+
+	data := GraphData{Nodes: nodes, Links: links}
+	output, _ := json.Marshal(data)
+	os.WriteFile("public/graph.json", output, 0644)
+	fmt.Println("🕸️  Graph JSON generated.")
 }
 
 func getString(m map[string]interface{}, k string) string {
