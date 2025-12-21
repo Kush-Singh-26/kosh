@@ -197,7 +197,7 @@ Toggle the variance mode to see how statistics changes geometry.
         src="distance_shape" 
         controls='[
             {"id": "p", "label": "Minkowski p", "min": 1, "max": 20, "val": 2, "step": 0.1},
-            {"id": "varianceMode", "label": "Enable Variance (Mahalanobis)", "min": 0, "max": 1, "val": 0, "step": 1}
+            {"id": "varianceMode", "label": "Enable Variance (Mahalanobis)", "type": "checkbox", "val": 0}
         ]'>
 </wasm-sim>
 

@@ -9,14 +9,14 @@
         {{ .LayoutCSS }}
         {{ .ThemeCSS }}
 
-        /* Overrides for Graph Page */
+        /* Graph Page - Vampire City Theme */
         body { 
             margin: 0 !important; 
-            padding: 0 !important; /* Ensure no inherited padding shifts the canvas */
+            padding: 0 !important;
             overflow: hidden; 
-            background-color: #2e3440; 
-            color: #eceff4;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a0a14 100%);
+            color: #e5e5e5;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
             user-select: none;
         }
         
@@ -29,77 +29,213 @@
         }
         canvas:active { cursor: grabbing; }
 
+        /* Animated gradient background overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at top, rgba(251, 113, 133, 0.05) 0%, transparent 50%),
+                        radial-gradient(ellipse at bottom, rgba(167, 139, 250, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
         #controls { 
             position: absolute; 
-            top: 20px; 
-            left: 20px; 
+            top: 24px; 
+            left: 24px; 
             z-index: 10; 
-            pointer-events: none; 
+            pointer-events: none;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
         }
         
         .control-panel {
-            background: rgba(46, 52, 64, 0.9);
-            backdrop-filter: blur(4px);
-            padding: 1.5rem;
-            border-radius: 8px;
-            border: 1px solid #4c566a;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            max-width: 300px;
+            background: rgba(26, 26, 26, 0.95);
+            backdrop-filter: blur(12px);
+            padding: 1.75rem;
+            border-radius: 12px;
+            border: 1px solid #333333;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
+                        0 0 0 1px rgba(251, 113, 133, 0.1);
+            max-width: 320px;
             pointer-events: auto;
+            transition: all 0.3s ease;
+        }
+
+        .control-panel:hover {
+            border-color: rgba(251, 113, 133, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
+                        0 0 20px rgba(251, 113, 133, 0.15);
         }
 
         .control-panel h1 { 
-            margin: 0 0 10px 0; 
-            font-size: 1.5rem; 
-            color: #88c0d0; 
+            margin: 0 0 12px 0; 
+            font-size: 1.6rem; 
+            font-weight: 700;
+            background: linear-gradient(135deg, #fb7185 0%, #be185d 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
         }
         
         .control-panel p { 
-            margin: 5px 0; 
+            margin: 8px 0; 
             font-size: 0.9rem; 
-            color: #d8dee9; 
-            line-height: 1.4;
+            color: #737373;
+            line-height: 1.5;
+        }
+
+        .control-panel p:first-of-type {
+            color: #e5e5e5;
+            margin-bottom: 16px;
+        }
+
+        .instructions {
+            background: rgba(8, 8, 8, 0.6);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #333333;
+            margin: 12px 0;
+        }
+
+        .instructions p {
+            margin: 4px 0;
+            font-size: 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: #737373;
+        }
+
+        .instructions span {
+            color: #fb7185;
+            font-weight: 600;
         }
 
         .btn-home {
             display: inline-block;
-            margin-top: 15px;
-            padding: 8px 12px;
-            background: #4c566a;
-            color: #eceff4;
+            margin-top: 16px;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #fb7185 0%, #be185d 100%);
+            color: #0f0f0f;
             text-decoration: none;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            transition: background 0.2s, transform 0.1s;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(251, 113, 133, 0.2);
         }
-        .btn-home:hover { background: #5e81ac; transform: translateY(-1px); }
+        .btn-home:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(251, 113, 133, 0.4);
+            filter: brightness(1.1);
+        }
 
         .label { 
             position: absolute; 
-            background: rgba(46, 52, 64, 0.95); 
-            color: #eceff4;
-            padding: 6px 10px; 
-            border-radius: 4px; 
-            font-size: 12px; 
+            background: rgba(26, 26, 26, 0.98); 
+            color: #e5e5e5;
+            padding: 8px 14px; 
+            border-radius: 6px; 
+            font-size: 13px;
+            font-weight: 500;
             pointer-events: none; 
-            border: 1px solid #88c0d0;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            border: 1px solid rgba(251, 113, 133, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5),
+                        0 0 20px rgba(251, 113, 133, 0.2);
             white-space: nowrap;
             z-index: 100;
             display: none;
-            transform: translate(-50%, -150%);
+            transform: translate(-50%, -120%);
+            animation: labelFade 0.2s ease-out;
+        }
+
+        @keyframes labelFade {
+            from { opacity: 0; transform: translate(-50%, -110%); }
+            to { opacity: 1; transform: translate(-50%, -120%); }
+        }
+
+        .stats-panel {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(26, 26, 26, 0.95);
+            backdrop-filter: blur(12px);
+            padding: 16px 20px;
+            border-radius: 12px;
+            border: 1px solid #333333;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: #737373;
+            pointer-events: none;
+            animation: slideIn 0.5s ease-out 0.2s both;
+        }
+
+        .stats-panel div {
+            margin: 4px 0;
+        }
+
+        .stats-panel .value {
+            color: #fb7185;
+            font-weight: 600;
+        }
+
+        /* Loading animation */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .loading::after {
+            content: 'Loading Graph...';
+            color: #fb7185;
+            font-size: 1.2rem;
+            font-weight: 600;
+            animation: pulse 1.5s ease-in-out infinite;
         }
     </style>
 </head>
 <body>
 
+<div id="loading" class="loading"></div>
+
 <div id="controls">
     <div class="control-panel">
-        <h1>Graph View</h1>
-        <p>Interactive knowledge graph.</p>
-        <p style="font-size: 0.8rem; opacity: 0.8;">• Scroll to Zoom<br>• Drag canvas to Pan<br>• Drag nodes to Move<br>• Click to Visit</p>
+        <h1>🕸️ Knowledge Graph</h1>
+        <p>Explore the interconnected web of posts and tags</p>
+        
+        <div class="instructions">
+            <p><span>•</span> Scroll to Zoom</p>
+            <p><span>•</span> Drag canvas to Pan</p>
+            <p><span>•</span> Drag nodes to Move</p>
+            <p><span>•</span> Click nodes to Visit</p>
+        </div>
+        
         <a href="{{ .BaseURL }}/" class="btn-home">← Back to Home</a>
     </div>
+</div>
+
+<div class="stats-panel" id="stats" style="display: none;">
+    <div>Posts: <span class="value" id="postCount">0</span></div>
+    <div>Tags: <span class="value" id="tagCount">0</span></div>
+    <div>Links: <span class="value" id="linkCount">0</span></div>
 </div>
 
 <div id="node-label" class="label"></div>
@@ -109,13 +245,15 @@
     const canvas = document.getElementById('graphCanvas');
     const ctx = canvas.getContext('2d');
     const label = document.getElementById('node-label');
+    const loading = document.getElementById('loading');
+    const stats = document.getElementById('stats');
 
     let width, height;
     let nodes = [];
     let links = [];
     
     // Camera State
-    let transform = { x: 0, y: 0, k: 0.8 }; 
+    let transform = { x: 0, y: 0, k: 0.75 }; 
     
     // Interaction State
     let draggedNode = null;
@@ -129,17 +267,19 @@
     let alpha = 1.0; 
 
     const CONFIG = {
-        repulsion: 2500,
-        stiffness: 0.04,
-        friction: 0.85,
-        nodeRadius: 6,
-        linkDistance: 100,
+        repulsion: 3000,
+        stiffness: 0.05,
+        friction: 0.88,
+        nodeRadius: 7,
+        linkDistance: 120,
         colors: {
-            post: '#88c0d0',      // Nord8
-            tag: '#bf616a',       // Nord11
-            link: '#4c566a',      // Nord3
-            highlight: '#ebcb8b', // Nord13
-            text: '#eceff4'       // Nord6
+            post: '#fb7185',        // Rose Pink (matching h1)
+            tag: '#a78bfa',         // Soft Violet (matching h3)
+            link: '#333333',        // Border color
+            linkHover: '#fb7185',   // Accent on hover
+            highlight: '#be185d',   // Wine Red (matching h2)
+            text: '#e5e5e5',
+            glow: 'rgba(251, 113, 133, 0.3)'
         }
     };
 
@@ -150,6 +290,7 @@
             init(data);
         } catch (err) {
             console.error("Could not load graph:", err);
+            loading.innerHTML = '<span style="color: #be185d;">Failed to load graph</span>';
         }
     }
 
@@ -158,8 +299,8 @@
         
         nodes = data.nodes.map(n => ({
             ...n,
-            x: (Math.random() - 0.5) * 500, 
-            y: (Math.random() - 0.5) * 500,
+            x: (Math.random() - 0.5) * 600, 
+            y: (Math.random() - 0.5) * 600,
             vx: 0, vy: 0,
             fx: null, fy: null 
         }));
@@ -168,6 +309,17 @@
             source: nodes.find(n => n.id === l.source),
             target: nodes.find(n => n.id === l.target)
         })).filter(l => l.source && l.target);
+
+        // Update stats
+        const postCount = nodes.filter(n => n.group === 1).length;
+        const tagCount = nodes.filter(n => n.group === 2).length;
+        document.getElementById('postCount').textContent = postCount;
+        document.getElementById('tagCount').textContent = tagCount;
+        document.getElementById('linkCount').textContent = links.length;
+        
+        // Hide loading, show stats
+        loading.style.display = 'none';
+        stats.style.display = 'block';
 
         requestAnimationFrame(loop);
     }
@@ -215,8 +367,8 @@
                 return;
             }
 
-            n.vx -= n.x * 0.0005 * alpha;
-            n.vy -= n.y * 0.0005 * alpha;
+            n.vx -= n.x * 0.0008 * alpha;
+            n.vy -= n.y * 0.0008 * alpha;
 
             n.x += n.vx;
             n.y += n.vy;
@@ -236,39 +388,64 @@
         ctx.scale(transform.k, transform.k);
 
         // Draw Links
-        ctx.strokeStyle = CONFIG.colors.link;
-        ctx.lineWidth = 1 / transform.k; 
-        ctx.beginPath();
         links.forEach(l => {
+            const isConnected = (l.source === hoveredNode || l.target === hoveredNode || 
+                                l.source === draggedNode || l.target === draggedNode);
+            
+            ctx.strokeStyle = isConnected ? CONFIG.colors.linkHover : CONFIG.colors.link;
+            ctx.lineWidth = (isConnected ? 2 : 1) / transform.k;
+            ctx.globalAlpha = isConnected ? 0.8 : 0.4;
+            
+            ctx.beginPath();
             ctx.moveTo(l.source.x, l.source.y);
             ctx.lineTo(l.target.x, l.target.y);
+            ctx.stroke();
         });
-        ctx.stroke();
+        ctx.globalAlpha = 1;
 
         // Draw Nodes
         nodes.forEach(n => {
+            const isActive = n === hoveredNode || n.fx !== null;
             let color = n.group === 2 ? CONFIG.colors.tag : CONFIG.colors.post;
-            if (n === hoveredNode || n.fx !== null) color = CONFIG.colors.highlight;
+            const r = (n.val || CONFIG.nodeRadius) * (isActive ? 1.3 : 1);
 
+            // Glow effect for active nodes
+            if (isActive) {
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = CONFIG.colors.glow;
+            }
+
+            // Node circle
             ctx.fillStyle = color;
             ctx.beginPath();
-            const r = n.val ? n.val : CONFIG.nodeRadius;
             ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
             ctx.fill();
 
-            if (transform.k > 1.2 || n === hoveredNode || n.fx !== null) {
+            // Inner highlight
+            if (isActive) {
+                ctx.fillStyle = CONFIG.colors.highlight;
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, r * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.shadowBlur = 0;
+
+            // Labels
+            if (transform.k > 1.0 || isActive) {
                 ctx.fillStyle = CONFIG.colors.text;
-                ctx.font = '12px sans-serif';
-                ctx.fillText(n.label, n.x + r + 4, n.y + 4);
+                ctx.font = `${isActive ? 'bold ' : ''}13px Inter, sans-serif`;
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                const textWidth = ctx.measureText(n.label).width;
+                ctx.fillText(n.label, n.x - textWidth / 2, n.y - r - 8);
+                ctx.shadowBlur = 0;
             }
         });
 
         ctx.restore();
     }
 
-    // --- Helpers ---
-    
-    // FIX: Account for canvas bounding box (padding/margins)
     function toWorld(sx, sy) {
         const rect = canvas.getBoundingClientRect();
         return {
@@ -277,13 +454,11 @@
         };
     }
 
-    // --- Interaction Handlers ---
-
     canvas.addEventListener('pointerdown', e => {
         const wPos = toWorld(e.clientX, e.clientY);
         
         const hitNode = nodes.find(n => {
-            const r = (n.val ? n.val : CONFIG.nodeRadius) + 4; 
+            const r = (n.val || CONFIG.nodeRadius) * 1.5;
             return Math.hypot(n.x - wPos.x, n.y - wPos.y) < r;
         });
 
@@ -324,12 +499,12 @@
 
         const prevHover = hoveredNode;
         hoveredNode = nodes.find(n => {
-            const r = (n.val ? n.val : CONFIG.nodeRadius) + 4;
+            const r = (n.val || CONFIG.nodeRadius) * 1.5;
             return Math.hypot(n.x - wPos.x, n.y - wPos.y) < r;
         });
 
         if (hoveredNode !== prevHover) {
-            canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
+            canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
         }
 
         if (hoveredNode) {
@@ -358,14 +533,14 @@
         }
 
         isPanning = false;
-        canvas.style.cursor = 'default';
+        canvas.style.cursor = 'grab';
     });
 
     canvas.addEventListener('wheel', e => {
         e.preventDefault();
         const zoomIntensity = 0.001;
         const delta = 1 - e.deltaY * zoomIntensity;
-        const newK = Math.max(0.1, Math.min(5, transform.k * delta));
+        const newK = Math.max(0.2, Math.min(4, transform.k * delta));
         transform.k = newK;
     }, { passive: false });
 

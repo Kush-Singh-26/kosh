@@ -14,17 +14,8 @@ class WasmSim extends HTMLElement {
                     <div id="${prefix}_label_a" class="sim-label" style="color: white; opacity: 0;">A</div>
                     <div id="${prefix}_label_b" class="sim-label" style="color: #4ade80; opacity: 0;">B</div>
                     <div id="${prefix}_label_c" class="sim-label" style="color: #f87171; opacity: 0;">C</div>
-                    <div id="${prefix}_label_proj" class="sim-label" style="color: #facc15; opacity: 0;">Proj</div>
-                    <div id="${prefix}_label_i" class="sim-label" style="color: #4ade80; opacity: 0;">î</div>
-                    <div id="${prefix}_label_j" class="sim-label" style="color: #f87171; opacity: 0;">ĵ</div>
-                    <div id="${prefix}_label_v" class="sim-label" style="color: #facc15; opacity: 0;">v</div>
-
-                    <div id="${prefix}_target" class="sim-label" style="color: #facc15; opacity: 0;">Target</div>
-                    <div id="${prefix}_result" class="sim-label" style="color: #4ade80; opacity: 0;">Result</div>
-                    <div id="${prefix}_v" class="sim-label" style="color: #f87171; opacity: 0;">v</div>
-                    <div id="${prefix}_w" class="sim-label" style="color: #38bdf8; opacity: 0;">w</div>
                 </div>
-                <div id="ui_${simName}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;"></div>
+                <div id="ui_${simName}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: end;"></div>
             </div>
             <style>
                 .sim-label {
@@ -34,6 +25,11 @@ class WasmSim extends HTMLElement {
                     transition: opacity 0.1s;
                     z-index: 10;
                 }
+                .sim-btn {
+                    padding: 8px 16px; background: #238636; color: white; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: 600;
+                }
+                .sim-btn:hover { background: #2ea043; }
+                .sim-btn:active { background: #238636; opacity: 0.8; }
             </style>
         `;
 
@@ -42,7 +38,6 @@ class WasmSim extends HTMLElement {
 
     async initWasm(name, controls) {
         const canvas = this.querySelector('canvas');
-        
         if (!document.getElementById(`script_${name}`)) {
             const script = document.createElement('script');
             script.id = `script_${name}`;
@@ -58,28 +53,11 @@ class WasmSim extends HTMLElement {
         const factory = window[`create_${name}`];
         if (!factory) { console.error(`Factory create_${name} not found`); return; }
 
-        // [FIX 1] Capture the correct title before the sim runs
-        // We use a static property or fallback to ensure we don't capture "DotProduct" if a previous sim ran.
-        const correctTitle = window.originalPageTitle || document.title;
-        if (!window.originalPageTitle) window.originalPageTitle = correctTitle;
-
-        const config = {
+        factory({
             canvas: canvas,
             print: (text) => console.log(name + ": " + text),
             printErr: (text) => console.error(name + ": " + text),
-            
-            // [FIX 2] Intercept Raylib's request to change the title
-            setWindowTitle: (text) => {
-                // console.log(`Blocked ${name} from changing title to: ${text}`);
-            }
-        };
-
-        factory(config).then(module => {
-            // [FIX 3] Force restore the title just in case Fix 2 failed
-            if (document.title !== correctTitle) {
-                document.title = correctTitle;
-            }
-
+        }).then(module => {
             let simInstance = module.getInstance ? module.getInstance() : null;
 
             if (simInstance && simInstance.initHelper) {
@@ -89,23 +67,57 @@ class WasmSim extends HTMLElement {
             }
 
             const ui = this.querySelector(`#ui_${name}`);
-            const updateSimValue = (id, val) => {
+            
+            // Helper to safely set C++ properties
+            const setSimProp = (id, val) => {
                 if (simInstance && simInstance[id] !== undefined) simInstance[id] = val;
             };
 
             controls.forEach(c => {
-                updateSimValue(c.id, c.val);
-                const wrap = document.createElement('div');
-                wrap.innerHTML = `
-                    <div style="color: #8b949e; font-size: 13px; margin-bottom: 6px;">${c.label}: <span id="val_${name}_${c.id}">${c.val}</span></div>
-                    <input type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.val}" style="width: 100%;">
-                `;
-                wrap.querySelector('input').addEventListener('input', (e) => {
-                    const val = parseFloat(e.target.value);
-                    updateSimValue(c.id, val);
-                    wrap.querySelector(`#val_${name}_${c.id}`).textContent = val.toFixed(2);
-                });
-                ui.appendChild(wrap);
+                const type = c.type || 'slider'; // Default to slider if not specified
+                const wrapper = document.createElement('div');
+                
+                if (type === 'button') {
+                    // --- BUTTON ---
+                    wrapper.innerHTML = `<button class="sim-btn">${c.label}</button>`;
+                    wrapper.querySelector('button').onclick = () => {
+                        // Call the C++ function binding
+                        if (simInstance && typeof simInstance[c.id] === 'function') {
+                            simInstance[c.id]();
+                        }
+                    };
+                
+                } else if (type === 'checkbox') {
+                    // --- CHECKBOX ---
+                    // Initialize C++ value
+                    setSimProp(c.id, !!c.val);
+                    
+                    wrapper.style.display = "flex";
+                    wrapper.style.alignItems = "center";
+                    wrapper.style.height = "100%";
+                    wrapper.innerHTML = `
+                        <input type="checkbox" id="chk_${name}_${c.id}" ${c.val ? 'checked' : ''} style="margin-right: 10px; transform: scale(1.2);">
+                        <label for="chk_${name}_${c.id}" style="color: #c9d1d9; cursor: pointer;">${c.label}</label>
+                    `;
+                    wrapper.querySelector('input').onchange = (e) => {
+                        setSimProp(c.id, e.target.checked);
+                    };
+
+                } else {
+                    // --- SLIDER (Default) ---
+                    setSimProp(c.id, c.val);
+                    
+                    wrapper.innerHTML = `
+                        <div style="color: #8b949e; font-size: 13px; margin-bottom: 6px;">${c.label}: <span id="val_${name}_${c.id}">${c.val}</span></div>
+                        <input type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.val}" style="width: 100%;">
+                    `;
+                    wrapper.querySelector('input').addEventListener('input', (e) => {
+                        const val = parseFloat(e.target.value);
+                        setSimProp(c.id, val);
+                        wrapper.querySelector(`#val_${name}_${c.id}`).textContent = val.toFixed(2);
+                    });
+                }
+                ui.appendChild(wrapper);
             });
         });
     }
