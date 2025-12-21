@@ -225,6 +225,7 @@ canvas.addEventListener('pointerdown', e => {
         draggedNode.fx = draggedNode.x;
         draggedNode.fy = draggedNode.y;
         alpha = 1.0; 
+        requestAnimationFrame(loop);
         
         dragStartTime = Date.now();
         dragStartPos = { x: e.clientX, y: e.clientY };
@@ -314,7 +315,9 @@ window.addEventListener('resize', resize);
 function loop() {
     updatePhysics();
     draw();
-    requestAnimationFrame(loop);
+    if (alpha > 0.01 || draggedNode || isPanning) {
+        requestAnimationFrame(loop);
+    }
 }
 
 loadGraph();
