@@ -1,0 +1,201 @@
+/* Graph Page - Vampire City Theme */
+body { 
+    margin: 0 !important; 
+    padding: 0 !important;
+    overflow: hidden; 
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a0a14 100%);
+    color: #e5e5e5;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    user-select: none;
+}
+
+canvas { 
+    display: block; 
+    width: 100vw; 
+    height: 100vh;
+    cursor: grab;
+    touch-action: none;
+}
+canvas:active { cursor: grabbing; }
+
+/* Animated gradient background overlay */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at top, rgba(251, 113, 133, 0.05) 0%, transparent 50%),
+                radial-gradient(ellipse at bottom, rgba(167, 139, 250, 0.05) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+#controls { 
+    position: absolute; 
+    top: 24px; 
+    left: 24px; 
+    z-index: 10; 
+    pointer-events: none;
+    animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.control-panel {
+    background: rgba(26, 26, 26, 0.95);
+    backdrop-filter: blur(12px);
+    padding: 1.75rem;
+    border-radius: 12px;
+    border: 1px solid #333333;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(251, 113, 133, 0.1);
+    max-width: 320px;
+    pointer-events: auto;
+    transition: all 0.3s ease;
+}
+
+.control-panel:hover {
+    border-color: rgba(251, 113, 133, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
+                0 0 20px rgba(251, 113, 133, 0.15);
+}
+
+.control-panel h1 { 
+    margin: 0 0 12px 0; 
+    font-size: 1.6rem; 
+    font-weight: 700;
+    background: linear-gradient(135deg, #fb7185 0%, #be185d 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.02em;
+}
+
+.control-panel p { 
+    margin: 8px 0; 
+    font-size: 0.9rem; 
+    color: #737373;
+    line-height: 1.5;
+}
+
+.control-panel p:first-of-type {
+    color: #e5e5e5;
+    margin-bottom: 16px;
+}
+
+.instructions {
+    background: rgba(8, 8, 8, 0.6);
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #333333;
+    margin: 12px 0;
+}
+
+.instructions p {
+    margin: 4px 0;
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: #737373;
+}
+
+.instructions span {
+    color: #fb7185;
+    font-weight: 600;
+}
+
+.btn-home {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #fb7185 0%, #be185d 100%);
+    color: #0f0f0f;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(251, 113, 133, 0.2);
+}
+.btn-home:hover { 
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(251, 113, 133, 0.4);
+    filter: brightness(1.1);
+}
+
+.label { 
+    position: absolute; 
+    background: rgba(26, 26, 26, 0.98); 
+    color: #e5e5e5;
+    padding: 8px 14px; 
+    border-radius: 6px; 
+    font-size: 13px;
+    font-weight: 500;
+    pointer-events: none; 
+    border: 1px solid rgba(251, 113, 133, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5),
+                0 0 20px rgba(251, 113, 133, 0.2);
+    white-space: nowrap;
+    z-index: 100;
+    display: none;
+    transform: translate(-50%, -120%);
+    animation: labelFade 0.2s ease-out;
+}
+
+@keyframes labelFade {
+    from { opacity: 0; transform: translate(-50%, -110%); }
+    to { opacity: 1; transform: translate(-50%, -120%); }
+}
+
+.stats-panel {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    background: rgba(26, 26, 26, 0.95);
+    backdrop-filter: blur(12px);
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid #333333;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: #737373;
+    pointer-events: none;
+    animation: slideIn 0.5s ease-out 0.2s both;
+}
+
+.stats-panel div {
+    margin: 4px 0;
+}
+
+.stats-panel .value {
+    color: #fb7185;
+    font-weight: 600;
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 1000;
+}
+
+.loading::after {
+    content: 'Loading Graph...';
+    color: #fb7185;
+    font-size: 1.2rem;
+    font-weight: 600;
+    animation: pulse 1.5s ease-in-out infinite;
+}
