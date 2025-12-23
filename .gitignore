@@ -21,7 +21,7 @@ Desktop.ini
 test
 bin/
 main  # In case you name your binary 'main'
-
+tmp/
 # 5. Editor/IDE Configs
 .vscode/
 .idea/

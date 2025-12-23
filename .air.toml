@@ -1,5 +1,5 @@
 [build]
-  cmd = "go build -o ./bin/builder.exe ./builder/main.go"
+  cmd = "go build -o ./bin/builder.exe ./builder"
   
   bin = "./bin/builder.exe"
   

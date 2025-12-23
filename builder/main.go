@@ -2,13 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
-	"encoding/xml"
-	"flag"
 	"fmt"
 	"html/template"
-	"image/png"
-	"io"
 	"io/fs"
 	"log"
 	"math"
@@ -18,166 +13,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/disintegration/imaging"
-	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/renderer/html"
-	"github.com/yuin/goldmark/text"
-	"github.com/yuin/goldmark/util"
-	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	meta "github.com/yuin/goldmark-meta"
+
+	"my-ssg/builder/config"
+	"my-ssg/builder/generators"
+	"my-ssg/builder/models"
+	mdParser "my-ssg/builder/parser"
+	"my-ssg/builder/renderer"
+	"my-ssg/builder/utils"
 )
 
-var (
-	BaseURL        string
-	CompressImages bool
-	ForceRebuild   bool
-)
-
-// --- Data Structures ---
-type PostMetadata struct {
-	Title, TabTile, Link, Description string
-	Tags                              []string
-	ReadingTime                       int
-	Pinned                            bool
-	DateObj                           time.Time
-	HasMath                           bool
-}
-
-type TagData struct {
-	Name, Link string
-	Count      int
-}
-
-type PageData struct {
-	Title, TabTitle, Description, BaseURL string
-	Content                               template.HTML
-	Meta                                  map[string]interface{}
-	IsIndex, IsTagsIndex                  bool
-	Posts                                 []PostMetadata
-	PinnedPosts                           []PostMetadata
-	AllTags                               []TagData
-	BuildVersion                          int64
-	HasMath                               bool
-	LayoutCSS                             template.CSS
-	ThemeCSS                              template.CSS
-	Permalink                             string
-	Image                                 string
-}
-
-// --- Sitemap & RSS Structs ---
-type UrlSet struct {
-	XMLName xml.Name `xml:"http://www.sitemaps.org/schemas/sitemap/0.9 urlset"`
-	Urls    []Url    `xml:"url"`
-}
-type Url struct {
-	Loc, LastMod string
-}
-
-type Rss struct {
-	XMLName xml.Name `xml:"rss"`
-	Version string   `xml:"version,attr"`
-	Channel Channel  `xml:"channel"`
-}
-
-type Channel struct {
-	Title       string `xml:"title"`
-	Link        string `xml:"link"`
-	Description string `xml:"description"`
-	Items       []Item `xml:"item"`
-}
-
-type Item struct {
-	Title       string `xml:"title"`
-	Link        string `xml:"link"`
-	Description string `xml:"description"`
-	PubDate     string `xml:"pubDate"`
-	Guid        string `xml:"guid"`
-}
-
-// --- Graph Data Structs ---
-type GraphNode struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	Group int    `json:"group"` // 1 for Posts, 2 for Tags
-	Value int    `json:"val"`   // Size of the node
-	URL   string `json:"url,omitempty"`
-}
-
-type GraphLink struct {
-	Source string `json:"source"`
-	Target string `json:"target"`
-}
-
-type GraphData struct {
-	Nodes []GraphNode `json:"nodes"`
-	Links []GraphLink `json:"links"`
-}
-
-// --- AST Transformer ---
-type URLTransformer struct{}
-
-func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
-	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		switch target := n.(type) {
-		case *ast.Link:
-			processDestination(target, target.Destination)
-		case *ast.Image:
-			processDestination(target, target.Destination)
-		}
-		return ast.WalkContinue, nil
-	})
-}
-
-func processDestination(n ast.Node, dest []byte) {
-	href := string(dest)
-	if strings.HasPrefix(href, "http") {
-		if _, isLink := n.(*ast.Link); isLink {
-			n.SetAttribute([]byte("target"), []byte("_blank"))
-			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
-		}
-	}
-	if strings.HasSuffix(href, ".md") && !strings.HasPrefix(href, "http") {
-		href = strings.Replace(href, ".md", ".html", 1)
-		href = strings.ToLower(href)
-		switch t := n.(type) {
-		case *ast.Link:
-			t.Destination = []byte(href)
-		case *ast.Image:
-			t.Destination = []byte(href)
-		}
-	}
-	if _, isImage := n.(*ast.Image); isImage {
-		n.SetAttribute([]byte("loading"), []byte("lazy"))
-	}
-	if strings.HasPrefix(href, "/") && BaseURL != "" {
-		newDest := []byte(BaseURL + href)
-		switch t := n.(type) {
-		case *ast.Link:
-			t.Destination = newDest
-		case *ast.Image:
-			t.Destination = newDest
-		}
-	}
-}
-
-// --- Main Execution ---
 func main() {
-	baseUrlFlag := flag.String("baseurl", "", "Base URL")
-	compressFlag := flag.Bool("compress", false, "Enable image compression")
-	flag.Parse()
-	BaseURL = strings.TrimSuffix(*baseUrlFlag, "/")
-	CompressImages = *compressFlag
-	currentBuildVersion := time.Now().Unix()
+	cfg := config.Load()
 
-	fmt.Printf("🔨 Building site... (Version: %d)\n", currentBuildVersion)
+	fmt.Printf("🔨 Building site... (Version: %d)\n", cfg.BuildVersion)
 
+	// Check dependencies for force rebuild
 	globalDependencies := []string{"templates/layout.html", "static/css/layout.css", "static/css/theme.css"}
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
 		lastBuildTime := indexInfo.ModTime()
@@ -188,64 +40,40 @@ func main() {
 			}
 			if info.ModTime().After(lastBuildTime) {
 				fmt.Printf("⚡ Global change detected in [%s]. Forcing full rebuild.\n", dep)
-				ForceRebuild = true
+				cfg.ForceRebuild = true
 				break
 			}
 		}
 	} else {
-		ForceRebuild = true
+		cfg.ForceRebuild = true
 	}
 
-	md := goldmark.New(
-		goldmark.WithExtensions(extension.GFM, meta.Meta, highlighting.NewHighlighting(highlighting.WithStyle("nord")), passthrough.New(passthrough.Config{
-			InlineDelimiters: []passthrough.Delimiters{{Open: "$", Close: "$"}, {Open: "\\(", Close: "\\)"}},
-			BlockDelimiters:  []passthrough.Delimiters{{Open: "$$", Close: "$$"}, {Open: "\\[", Close: "\\]"}},
-		})),
-		goldmark.WithParserOptions(parser.WithASTTransformers(util.Prioritized(&URLTransformer{}, 100))),
-		goldmark.WithRendererOptions(html.WithUnsafe()),
-	)
+	// Initialize components
+	md := mdParser.New(cfg.BaseURL)
+	rnd := renderer.New()
 
+	// Prepare directories
 	os.MkdirAll("public/tags", 0755)
 	if _, err := os.Stat("static"); err == nil {
-		copyDir("static", "public/static")
+		utils.CopyDir("static", "public/static", cfg.CompressImages)
 	}
 
-	// Load Templates
-	funcMap := template.FuncMap{"lower": strings.ToLower}
-	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles("templates/layout.html")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Load Graph Template
-	graphTmpl, err := template.ParseFiles("templates/graph.html")
-	if err != nil {
-		log.Printf("⚠️  Graph template not found, skipping graph page. (%v)\n", err)
-		// We don't fatal here to allow building without graph if needed, 
-		// but since we provided the file, it should work.
-	}
-
-	layoutBytes, _ := os.ReadFile("static/css/layout.css")
-	themeBytes, _ := os.ReadFile("static/css/theme.css")
-	layoutCSS := template.CSS(layoutBytes)
-	themeCSS := template.CSS(themeBytes)
-
-	var allPosts []PostMetadata
-	var pinnedPosts []PostMetadata
-	tagMap := make(map[string][]PostMetadata)
+	var allPosts []models.PostMetadata
+	var pinnedPosts []models.PostMetadata
+	tagMap := make(map[string][]models.PostMetadata)
 
 	// Walk Content
-	err = filepath.Walk("content", func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk("content", func(path string, info fs.FileInfo, err error) error {
 		if !strings.HasSuffix(path, ".md") || strings.Contains(path, "_index.md") {
 			return nil
 		}
 		relPath, _ := filepath.Rel("content", path)
 		htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 		destPath := filepath.Join("public", htmlRelPath)
-		fullLink := BaseURL + "/" + htmlRelPath
+		fullLink := cfg.BaseURL + "/" + htmlRelPath
 
 		skipRendering := false
-		if !ForceRebuild {
+		if !cfg.ForceRebuild {
 			if destInfo, err := os.Stat(destPath); err == nil {
 				if destInfo.ModTime().After(info.ModTime()) {
 					skipRendering = true
@@ -264,28 +92,28 @@ func main() {
 		wordCount := len(strings.Fields(string(source)))
 		readTime := int(math.Ceil(float64(wordCount) / 120.0))
 		isPinned, _ := metaData["pinned"].(bool)
-		dateStr := getString(metaData, "date")
+		dateStr := utils.GetString(metaData, "date")
 		dateObj, _ := time.Parse("2006-01-02", dateStr)
 		hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
 
-		post := PostMetadata{
-			Title: getString(metaData, "title"), Link: fullLink,
-			Description: getString(metaData, "description"), Tags: getSlice(metaData, "tags"),
+		post := models.PostMetadata{
+			Title: utils.GetString(metaData, "title"), Link: fullLink,
+			Description: utils.GetString(metaData, "description"), Tags: utils.GetSlice(metaData, "tags"),
 			ReadingTime: readTime, Pinned: isPinned, DateObj: dateObj, HasMath: hasMath,
 		}
 
-		imagePath := BaseURL + "/static/images/favicon.ico"
+		imagePath := cfg.BaseURL + "/static/images/favicon.ico"
 		if img, ok := metaData["image"].(string); ok {
-			imagePath = BaseURL + img
+			imagePath = cfg.BaseURL + img
 		}
 
 		if !skipRendering {
 			fmt.Printf("   Rendering: %s\n", htmlRelPath)
-			renderPage(tmpl, destPath, PageData{
+			rnd.RenderPage(destPath, models.PageData{
 				Title: post.Title, Description: post.Description, Content: template.HTML(buf.String()),
-				Meta: metaData, BaseURL: BaseURL, BuildVersion: currentBuildVersion,
+				Meta: metaData, BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 				TabTitle: post.Title + " | Kush Blogs", Permalink: fullLink, Image: imagePath,
-				HasMath: post.HasMath, LayoutCSS: layoutCSS, ThemeCSS: themeCSS,
+				HasMath: post.HasMath,
 			})
 		}
 
@@ -299,7 +127,8 @@ func main() {
 			allPosts = append(allPosts, post)
 		}
 		for _, t := range post.Tags {
-			tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], post)
+			key := strings.ToLower(strings.TrimSpace(t))
+			tagMap[key] = append(tagMap[key], post)
 		}
 		return nil
 	})
@@ -307,194 +136,61 @@ func main() {
 		log.Fatal(err)
 	}
 
-	sortPosts(allPosts)
-	sortPosts(pinnedPosts)
+	utils.SortPosts(allPosts)
+	utils.SortPosts(pinnedPosts)
 
-	// Home
+	// Render Home
 	homeContent := template.HTML("")
 	if homeSrc, err := os.ReadFile("content/_index.md"); err == nil {
 		var buf bytes.Buffer
 		md.Convert(homeSrc, &buf, parser.WithContext(parser.NewContext()))
 		homeContent = template.HTML(buf.String())
 	}
-	renderPage(tmpl, "public/index.html", PageData{
+	rnd.RenderPage("public/index.html", models.PageData{
 		Title: "Kush Blogs", Content: homeContent, IsIndex: true, Posts: allPosts, PinnedPosts: pinnedPosts,
-		BaseURL: BaseURL, BuildVersion: currentBuildVersion, TabTitle: "Kush Blogs",
-		Description: "My personal blog.", Permalink: BaseURL + "/", Image: BaseURL + "/static/images/favicon.ico",
-		LayoutCSS: layoutCSS, ThemeCSS: themeCSS,
+		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: "Kush Blogs",
+		Description: "My personal blog.", Permalink: cfg.BaseURL + "/", Image: cfg.BaseURL + "/static/images/favicon.ico",
 	})
 
-	// Tags
-	var allTags []TagData
+	// Render Tags Index
+	var allTags []models.TagData
 	for t, posts := range tagMap {
-		allTags = append(allTags, TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("%s/tags/%s.html", BaseURL, t)})
+		allTags = append(allTags, models.TagData{
+			Name: t, Count: len(posts), Link: fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
+		})
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 
-	renderPage(tmpl, "public/tags/index.html", PageData{
-		Title: "All Tags", IsTagsIndex: true, AllTags: allTags, BaseURL: BaseURL,
-		BuildVersion: currentBuildVersion, Permalink: BaseURL + "/tags/index.html",
-		Image: BaseURL + "/static/images/favicon.ico", TabTitle: "Kush Blogs", LayoutCSS: layoutCSS, ThemeCSS: themeCSS,
+	rnd.RenderPage("public/tags/index.html", models.PageData{
+		Title: "All Tags", IsTagsIndex: true, AllTags: allTags, BaseURL: cfg.BaseURL,
+		BuildVersion: cfg.BuildVersion, Permalink: cfg.BaseURL + "/tags/index.html",
+		Image: cfg.BaseURL + "/static/images/favicon.ico", TabTitle: "Kush Blogs",
 	})
 
+	// Render Individual Tags
 	for t, posts := range tagMap {
-		sortPosts(posts)
-		renderPage(tmpl, fmt.Sprintf("public/tags/%s.html", t), PageData{
-			Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: BaseURL,
-			BuildVersion: currentBuildVersion, Permalink: fmt.Sprintf("%s/tags/%s.html", BaseURL, t),
-			Image: BaseURL + "/static/images/favicon.ico", LayoutCSS: layoutCSS, TabTitle: "Kush Blogs", ThemeCSS: themeCSS,
+		utils.SortPosts(posts)
+		rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{
+			Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: cfg.BaseURL,
+			BuildVersion: cfg.BuildVersion, Permalink: fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
+			Image: cfg.BaseURL + "/static/images/favicon.ico", TabTitle: "Kush Blogs",
 		})
 	}
 
-	// --- RENDER GRAPH PAGE ---
-	if graphTmpl != nil {
-		fGraph, _ := os.Create("public/graph.html")
-		defer fGraph.Close()
-		graphTmpl.Execute(fGraph, PageData{
-			Title:        "Graph View",
-			TabTitle:     "Knowledge Graph | Kush Blogs",
-			BaseURL:      BaseURL,
-			BuildVersion: currentBuildVersion,
-			LayoutCSS:    layoutCSS,
-			ThemeCSS:     themeCSS,
-		})
-		fmt.Println("🕸️  Graph HTML rendered.")
-	}
+	// Render Graph Page
+	rnd.RenderGraph("public/graph.html", models.PageData{
+		Title:        "Graph View",
+		TabTitle:     "Knowledge Graph | Kush Blogs",
+		BaseURL:      cfg.BaseURL,
+		BuildVersion: cfg.BuildVersion,
+	})
+	fmt.Println("🕸️  Graph HTML rendered.")
 
 	// Generators
 	allContent := append(allPosts, pinnedPosts...)
-	generateSitemap(allContent, tagMap)
-	generateRSS(allContent)
-	generateGraph(allContent)
+	generators.GenerateSitemap(cfg.BaseURL, allContent, tagMap)
+	generators.GenerateRSS(cfg.BaseURL, allContent)
+	generators.GenerateGraph(cfg.BaseURL, allContent)
 
 	fmt.Println("✅ Build Complete.")
-}
-
-func sortPosts(posts []PostMetadata) {
-	sort.Slice(posts, func(i, j int) bool { return posts[i].DateObj.After(posts[j].DateObj) })
-}
-
-func renderPage(tmpl *template.Template, path string, data PageData) {
-	os.MkdirAll(filepath.Dir(path), 0755)
-	f, _ := os.Create(path)
-	defer f.Close()
-	tmpl.Execute(f, data)
-}
-
-func generateSitemap(posts []PostMetadata, tags map[string][]PostMetadata) {
-	var urls []Url
-	urls = append(urls, Url{Loc: BaseURL + "/", LastMod: time.Now().Format("2006-01-02")})
-	for _, p := range posts {
-		urls = append(urls, Url{Loc: p.Link, LastMod: p.DateObj.Format("2006-01-02")})
-	}
-	for t := range tags {
-		urls = append(urls, Url{Loc: fmt.Sprintf("%s/tags/%s.html", BaseURL, t)})
-	}
-	output, _ := xml.MarshalIndent(UrlSet{Urls: urls}, "  ", "    ")
-	os.WriteFile("public/sitemap.xml", []byte(xml.Header+string(output)), 0644)
-}
-
-func generateRSS(posts []PostMetadata) {
-	var items []Item
-	for _, p := range posts {
-		items = append(items, Item{Title: p.Title, Link: p.Link, Description: p.Description, PubDate: p.DateObj.Format(time.RFC1123), Guid: p.Link})
-	}
-	rss := Rss{Version: "2.0", Channel: Channel{Title: "Kush Blogs", Link: BaseURL, Description: "ML & Deep Learning Blog", Items: items}}
-	output, _ := xml.MarshalIndent(rss, "", "  ")
-	os.WriteFile("public/rss.xml", []byte(xml.Header+string(output)), 0644)
-}
-
-func generateGraph(posts []PostMetadata) {
-	nodes := []GraphNode{}
-	links := []GraphLink{}
-	nodeExists := make(map[string]bool)
-
-	for _, p := range posts {
-		if !nodeExists[p.Link] {
-			nodes = append(nodes, GraphNode{
-				ID: p.Link, Label: p.Title, Group: 1, Value: 10, URL: p.Link,
-			})
-			nodeExists[p.Link] = true
-		}
-		for _, t := range p.Tags {
-			tagID := "tag-" + strings.ToLower(strings.TrimSpace(t))
-			if !nodeExists[tagID] {
-				nodes = append(nodes, GraphNode{
-					ID: tagID, Label: "#" + strings.TrimSpace(t), Group: 2, Value: 5,
-					URL: fmt.Sprintf("%s/tags/%s.html", BaseURL, strings.ToLower(strings.TrimSpace(t))),
-				})
-				nodeExists[tagID] = true
-			}
-			links = append(links, GraphLink{Source: p.Link, Target: tagID})
-		}
-	}
-	output, _ := json.Marshal(GraphData{Nodes: nodes, Links: links})
-	os.WriteFile("public/graph.json", output, 0644)
-}
-
-func getString(m map[string]interface{}, k string) string {
-	if v, ok := m[k]; ok {
-		return fmt.Sprintf("%v", v)
-	}
-	return ""
-}
-func getSlice(m map[string]interface{}, k string) []string {
-	var res []string
-	if v, ok := m[k]; ok {
-		if l, ok := v.([]interface{}); ok {
-			for _, i := range l {
-				res = append(res, fmt.Sprintf("%v", i))
-			}
-		}
-	}
-	return res
-}
-func copyDir(src, dst string) error {
-	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		relPath, _ := filepath.Rel(src, path)
-		destPath := filepath.Join(dst, relPath)
-		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode())
-		}
-		if destInfo, err := os.Stat(destPath); err == nil {
-			if destInfo.ModTime().After(info.ModTime()) {
-				return nil
-			}
-		}
-		ext := strings.ToLower(filepath.Ext(path))
-		if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") && CompressImages {
-			return processImage(path, destPath, ext)
-		}
-		return copyFileStandard(path, destPath)
-	})
-}
-func processImage(srcPath, dstPath, ext string) error {
-	src, err := imaging.Open(srcPath)
-	if err != nil {
-		return copyFileStandard(srcPath, dstPath)
-	}
-	if src.Bounds().Dx() > 1200 {
-		src = imaging.Resize(src, 1200, 0, imaging.Lanczos)
-	}
-	if ext == ".png" {
-		return imaging.Save(src, dstPath, imaging.PNGCompressionLevel(png.BestCompression))
-	}
-	return imaging.Save(src, dstPath, imaging.JPEGQuality(75))
-}
-func copyFileStandard(src, dst string) error {
-	s, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-	d, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	_, err = io.Copy(d, s)
-	return err
 }

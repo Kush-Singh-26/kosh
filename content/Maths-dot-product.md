@@ -63,6 +63,12 @@ $$ \text{Projection Length} = |a| \cos(\theta) $$
 
 It is saying, how much of **a** exists in the direction of **b**.
 
+$$\mathbf{a} \cdot \mathbf{b} = \underbrace{|\mathbf{a}| \cos(\theta)}_{\text{Shadow}} \times |\mathbf{b}|$$
+
+$$\mathbf{a} \cdot \mathbf{b} = (\text{Length of Shadow}) \times (\text{Length of Ground})$$
+
+> So, Dot Product is designed to measure the total impact of one vector moving along another.
+
 ## Cosine Similarity
 
 $$ \text{Cosine Similarity} = \cos(\theta) = \frac{\mathbf{a}\cdot \mathbf{b}}{|a||b|} $$

@@ -6,6 +6,20 @@ class WasmSim extends HTMLElement {
 
         const prefix = `canvas_${simName}`;
 
+        // FIX: Prevent title changes by C++ (GLFW) or Emscripten
+        // We capture the title once and use a MutationObserver to revert unwanted changes.
+        if (!window.fixedTitle) {
+             window.fixedTitle = document.title;
+             const titleEl = document.querySelector('title');
+             if (titleEl) {
+                 new MutationObserver(() => {
+                     if (document.title !== window.fixedTitle) {
+                         document.title = window.fixedTitle;
+                     }
+                 }).observe(titleEl, { childList: true, subtree: true, characterData: true });
+             }
+        }
+
         this.innerHTML = `
             <div style="background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; max-width: 900px; margin: 20px 0;">
                 <div style="position: relative; width: 100%; height: 500px; background: #0d1117; border: 1px solid #30363d; margin-bottom: 20px; overflow: hidden;">
@@ -68,6 +82,8 @@ class WasmSim extends HTMLElement {
             canvas: canvas,
             print: (text) => console.log(name + ": " + text),
             printErr: (text) => console.error(name + ": " + text),
+            // We also provide an empty setStatus to prevent the "Running..." message
+            setStatus: (text) => {},
         }).then(module => {
             let simInstance = module.getInstance ? module.getInstance() : null;
 
