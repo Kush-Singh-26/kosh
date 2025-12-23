@@ -338,6 +338,7 @@ func main() {
 	})
 
 	for t, posts := range tagMap {
+		sortPosts(posts)
 		renderPage(tmpl, fmt.Sprintf("public/tags/%s.html", t), PageData{
 			Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: BaseURL,
 			BuildVersion: currentBuildVersion, Permalink: fmt.Sprintf("%s/tags/%s.html", BaseURL, t),

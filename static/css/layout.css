@@ -194,3 +194,15 @@ th, td { padding: 10px 14px; text-align: left; }
 hr { height: 2px; margin: 2.5rem 0; border: 0; }
 .intro-content { margin-bottom: 2.5rem; }
 .article-meta { margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+
+#progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-cool));
+    z-index: 2000;
+    transition: width 0.1s ease-out;
+    box-shadow: 0 0 10px var(--accent-primary);
+}

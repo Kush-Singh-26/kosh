@@ -33,6 +33,17 @@ class WasmSim extends HTMLElement {
             </style>
         `;
 
+        // GLOBAL HELPER: Allow C++ to update UI
+        window.updateSimControl = (simName, id, val) => {
+            // 1. Update the Slider (Input)
+            const input = document.getElementById(`input_${simName}_${id}`);
+            if (input) input.value = val;
+            
+            // 2. Update the Text Label
+            const label = document.getElementById(`val_${simName}_${id}`);
+            if (label) label.textContent = val.toFixed(2);
+        };
+
         this.initWasm(simName, controls);
     }
 
@@ -67,31 +78,23 @@ class WasmSim extends HTMLElement {
             }
 
             const ui = this.querySelector(`#ui_${name}`);
-            
-            // Helper to safely set C++ properties
             const setSimProp = (id, val) => {
                 if (simInstance && simInstance[id] !== undefined) simInstance[id] = val;
             };
 
             controls.forEach(c => {
-                const type = c.type || 'slider'; // Default to slider if not specified
+                const type = c.type || 'slider';
                 const wrapper = document.createElement('div');
                 
                 if (type === 'button') {
-                    // --- BUTTON ---
                     wrapper.innerHTML = `<button class="sim-btn">${c.label}</button>`;
                     wrapper.querySelector('button').onclick = () => {
-                        // Call the C++ function binding
                         if (simInstance && typeof simInstance[c.id] === 'function') {
                             simInstance[c.id]();
                         }
                     };
-                
                 } else if (type === 'checkbox') {
-                    // --- CHECKBOX ---
-                    // Initialize C++ value
                     setSimProp(c.id, !!c.val);
-                    
                     wrapper.style.display = "flex";
                     wrapper.style.alignItems = "center";
                     wrapper.style.height = "100%";
@@ -99,17 +102,12 @@ class WasmSim extends HTMLElement {
                         <input type="checkbox" id="chk_${name}_${c.id}" ${c.val ? 'checked' : ''} style="margin-right: 10px; transform: scale(1.2);">
                         <label for="chk_${name}_${c.id}" style="color: #c9d1d9; cursor: pointer;">${c.label}</label>
                     `;
-                    wrapper.querySelector('input').onchange = (e) => {
-                        setSimProp(c.id, e.target.checked);
-                    };
-
+                    wrapper.querySelector('input').onchange = (e) => setSimProp(c.id, e.target.checked);
                 } else {
-                    // --- SLIDER (Default) ---
                     setSimProp(c.id, c.val);
-                    
                     wrapper.innerHTML = `
                         <div style="color: #8b949e; font-size: 13px; margin-bottom: 6px;">${c.label}: <span id="val_${name}_${c.id}">${c.val}</span></div>
-                        <input type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.val}" style="width: 100%;">
+                        <input id="input_${name}_${c.id}" type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.val}" style="width: 100%;">
                     `;
                     wrapper.querySelector('input').addEventListener('input', (e) => {
                         const val = parseFloat(e.target.value);

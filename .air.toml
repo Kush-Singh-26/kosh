@@ -1,0 +1,12 @@
+[build]
+  cmd = "go build -o ./bin/builder.exe ./builder/main.go"
+  
+  bin = "./bin/builder.exe"
+  
+  args_bin = ["--compress"]
+  
+
+  # Watch config
+  include_ext = ["go", "md", "html", "css", "js"]
+  exclude_dir = ["public", "bin", "tmp", ".git"]
+  delay = 500

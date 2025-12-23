@@ -19,6 +19,7 @@ Desktop.ini
 *.so
 *.dylib
 test
+bin/
 main  # In case you name your binary 'main'
 
 # 5. Editor/IDE Configs
