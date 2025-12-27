@@ -350,7 +350,7 @@ hr { background: linear-gradient(90deg, transparent, var(--border), transparent)
     background: var(--accent-primary); 
 }
 
-/* --- FUN: Sliding Arrow --- */
+/* --- Sliding Arrow --- */
 .post-title {
     position: relative;
     padding-left: 0;
@@ -375,4 +375,47 @@ hr { background: linear-gradient(90deg, transparent, var(--border), transparent)
 .post-title:hover::before {
     left: 0;
     opacity: 1;
+}
+
+/* --- Details & Summary Styling --- */
+details {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+details[open] {
+    border-color: var(--accent-primary);
+    box-shadow: 0 4px 12px rgba(251, 113, 133, 0.15);
+}
+
+summary {
+    padding: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--h3-color); 
+    list-style: none; 
+    transition: color 0.3s ease;
+}
+
+summary:hover {
+    color: var(--accent-primary);
+}
+
+summary::before {
+    content: '▶';
+    display: inline-block;
+    margin-right: 0.8rem;
+    font-size: 0.8rem;
+    transition: transform 0.3s ease;
+    color: var(--accent-primary);
+}
+
+details[open] summary::before {
+    transform: rotate(90deg);
+}
+
+summary::-webkit-details-marker {
+    display: none;
 }

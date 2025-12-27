@@ -46,7 +46,7 @@ jobs:
         run: touch templates/layout.html
 
       - name: Build Static Site
-        run: go run builder/main.go --baseurl="https://kush-singh-26.github.io/blogs" --compress
+        run: go run ./builder --baseurl="https://kush-singh-26.github.io/blogs" --compress
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
