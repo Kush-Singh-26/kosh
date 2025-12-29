@@ -13,6 +13,9 @@ go build -o bin/builder.exe ./builder
 
 # Compile the server
 go build -o bin/server.exe ./server/main.go
+
+# Create new file
+go build -o bin/new.exe new.go
 ```
 
 - To build the site
@@ -46,7 +49,7 @@ air
 - To create a new file
 
 ```bash
-go run new.go "<title>"
+.\bin\new.exe "<title>"
 ```
 
 ---

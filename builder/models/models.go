@@ -56,8 +56,8 @@ type UrlSet struct {
 }
 
 type Url struct {
-	Loc     string
-	LastMod string
+    Loc     string `xml:"loc"` 
+    LastMod string `xml:"lastmod,omitempty"` 
 }
 
 // --- RSS Structures ---

@@ -9,4 +9,4 @@
   # Watch config
   include_ext = ["go", "md", "html", "css", "js"]
   exclude_dir = ["public", "bin", "tmp", ".git"]
-  delay = 500
+  delay = 250

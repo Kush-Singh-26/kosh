@@ -1,5 +1,5 @@
 ---
-title: "3. Maths4ML: Kernel Trick"
+title: "4. Maths4ML: Kernel Trick"
 date: "2025-12-23"
 description: "The Kernel Trick - Folding Space. Why struggle to bend the line when you can just fold the space?"
 tags: ["Maths for ML"]
@@ -231,7 +231,7 @@ When a lift is applied, data points (red & blue dots) rise based on ($z = x^2 + 
 <wasm-sim 
         src="kernel_trick" 
         controls='[
-            {"id": "lift", "label": "Lift (Polynomial Degree)", "min": 0, "max": 2, "val": 0, "step": 0.05},
+            {"id": "lift", "label": "Lift", "min": 0, "max": 2, "val": 0, "step": 0.05},
             {"id": "cut", "label": "Cut (Plane Height)", "min": -1, "max": 15, "val": -1, "step": 0.5}
         ]'>
 </wasm-sim>
