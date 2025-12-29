@@ -29,6 +29,9 @@ func main() {
 
 	fmt.Printf("🔨 Building site... (Version: %d)\n", cfg.BuildVersion)
 
+	// Initialize Minifier
+	utils.InitMinifier()
+
 	// Check dependencies for force rebuild
 	globalDependencies := []string{"templates/layout.html", "static/css/layout.css", "static/css/theme.css"}
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
@@ -50,7 +53,7 @@ func main() {
 
 	// Initialize components
 	md := mdParser.New(cfg.BaseURL)
-	rnd := renderer.New()
+	rnd := renderer.New(cfg.CompressImages) // Pass compression flag
 
 	// Prepare directories
 	os.MkdirAll("public/tags", 0755)
@@ -88,7 +91,19 @@ func main() {
 			return err
 		}
 
+		htmlContent := buf.String()
+		if cfg.CompressImages {
+			htmlContent = utils.ReplaceToWebP(htmlContent)
+		}
+
 		metaData := meta.Get(context)
+
+		isDraft, _ := metaData["draft"].(bool)
+        if isDraft {
+            fmt.Printf("⏩ Skipping draft: %s\n", relPath)
+            return nil
+        }
+
 		wordCount := len(strings.Fields(string(source)))
 		readTime := int(math.Ceil(float64(wordCount) / 120.0))
 		isPinned, _ := metaData["pinned"].(bool)
@@ -102,15 +117,21 @@ func main() {
 			ReadingTime: readTime, Pinned: isPinned, DateObj: dateObj, HasMath: hasMath,
 		}
 
-		imagePath := cfg.BaseURL + "/static/images/favicon.ico"
+		imagePath := cfg.BaseURL + "/static/images/favicon.webp"
 		if img, ok := metaData["image"].(string); ok {
+			if cfg.CompressImages && !strings.HasPrefix(img, "http") {
+				ext := filepath.Ext(img)
+				if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+					img = img[:len(img)-len(ext)] + ".webp"
+				}
+			}
 			imagePath = cfg.BaseURL + img
 		}
 
 		if !skipRendering {
 			fmt.Printf("   Rendering: %s\n", htmlRelPath)
 			rnd.RenderPage(destPath, models.PageData{
-				Title: post.Title, Description: post.Description, Content: template.HTML(buf.String()),
+				Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
 				Meta: metaData, BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 				TabTitle: post.Title + " | Kush Blogs", Permalink: fullLink, Image: imagePath,
 				HasMath: post.HasMath,
@@ -144,12 +165,16 @@ func main() {
 	if homeSrc, err := os.ReadFile("content/_index.md"); err == nil {
 		var buf bytes.Buffer
 		md.Convert(homeSrc, &buf, parser.WithContext(parser.NewContext()))
-		homeContent = template.HTML(buf.String())
+		htmlStr := buf.String()
+		if cfg.CompressImages {
+			htmlStr = utils.ReplaceToWebP(htmlStr)
+		}
+		homeContent = template.HTML(htmlStr)
 	}
 	rnd.RenderPage("public/index.html", models.PageData{
 		Title: "Kush Blogs", Content: homeContent, IsIndex: true, Posts: allPosts, PinnedPosts: pinnedPosts,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: "Kush Blogs",
-		Description: "My personal blog.", Permalink: cfg.BaseURL + "/", Image: cfg.BaseURL + "/static/images/favicon.ico",
+		Description: "My personal blog.", Permalink: cfg.BaseURL + "/", Image: cfg.BaseURL + "/static/images/favicon.webp",
 	})
 
 	// Render Tags Index
@@ -164,7 +189,7 @@ func main() {
 	rnd.RenderPage("public/tags/index.html", models.PageData{
 		Title: "All Tags", IsTagsIndex: true, AllTags: allTags, BaseURL: cfg.BaseURL,
 		BuildVersion: cfg.BuildVersion, Permalink: cfg.BaseURL + "/tags/index.html",
-		Image: cfg.BaseURL + "/static/images/favicon.ico", TabTitle: "Kush Blogs",
+		Image: cfg.BaseURL + "/static/images/favicon.webp", TabTitle: "Kush Blogs",
 	})
 
 	// Render Individual Tags
@@ -173,7 +198,7 @@ func main() {
 		rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{
 			Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: cfg.BaseURL,
 			BuildVersion: cfg.BuildVersion, Permalink: fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
-			Image: cfg.BaseURL + "/static/images/favicon.ico", TabTitle: "Kush Blogs",
+			Image: cfg.BaseURL + "/static/images/favicon.webp", TabTitle: "Kush Blogs",
 		})
 	}
 

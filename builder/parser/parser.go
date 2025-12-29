@@ -2,6 +2,7 @@
 package parser
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
@@ -38,12 +39,30 @@ func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 
 func (t *URLTransformer) processDestination(n ast.Node, dest []byte) {
 	href := string(dest)
+	
+	// Handle External Links
 	if strings.HasPrefix(href, "http") {
 		if _, isLink := n.(*ast.Link); isLink {
 			n.SetAttribute([]byte("target"), []byte("_blank"))
 			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
 		}
+	} else {
+		// Handle Local Image Conversion (Markdown images)
+		// We do this BEFORE appending BaseURL so we catch relative local paths
+		ext := strings.ToLower(filepath.Ext(href))
+		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
+			// Replace extension with .webp
+			href = href[:len(href)-len(ext)] + ".webp"
+			switch node := n.(type) {
+			case *ast.Link:
+				node.Destination = []byte(href)
+			case *ast.Image:
+				node.Destination = []byte(href)
+			}
+		}
 	}
+
+	// Handle .md -> .html
 	if strings.HasSuffix(href, ".md") && !strings.HasPrefix(href, "http") {
 		href = strings.Replace(href, ".md", ".html", 1)
 		href = strings.ToLower(href)
@@ -54,9 +73,12 @@ func (t *URLTransformer) processDestination(n ast.Node, dest []byte) {
 			node.Destination = []byte(href)
 		}
 	}
+
 	if _, isImage := n.(*ast.Image); isImage {
 		n.SetAttribute([]byte("loading"), []byte("lazy"))
 	}
+
+	// Append BaseURL
 	if strings.HasPrefix(href, "/") && t.BaseURL != "" {
 		newDest := []byte(t.BaseURL + href)
 		switch node := n.(type) {

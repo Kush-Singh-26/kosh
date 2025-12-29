@@ -3,57 +3,113 @@ package utils
 
 import (
 	"fmt"
-	"image/png"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
+	"github.com/tdewolff/minify/v2"
+	"github.com/tdewolff/minify/v2/css"
+	"github.com/tdewolff/minify/v2/html"
+	"github.com/tdewolff/minify/v2/js"
 	"my-ssg/builder/models"
 )
 
-// CopyDir copies a directory recursively.
-func CopyDir(src, dst string, compressImages bool) error {
+// Global Minifier Instance
+var Minifier *minify.M
+
+func InitMinifier() {
+	Minifier = minify.New()
+	Minifier.AddFunc("text/html", html.Minify)
+	Minifier.AddFunc("text/css", css.Minify)
+	Minifier.AddFunc("text/javascript", js.Minify)
+}
+
+// CopyDir copies a directory recursively with incremental build support.
+func CopyDir(src, dst string, compress bool) error {
 	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		relPath, _ := filepath.Rel(src, path)
 		destPath := filepath.Join(dst, relPath)
+		
 		if info.IsDir() {
 			return os.MkdirAll(destPath, info.Mode())
 		}
-		
-		// Check for modifications to skip copy if possible
+
+		ext := strings.ToLower(filepath.Ext(path))
+		isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
+
+		// 1. Determine the Final Destination Path
+		if compress && isImage {
+			extLen := len(filepath.Ext(destPath))
+			destPath = destPath[:len(destPath)-extLen] + ".webp"
+		}
+
+		// 2. Incremental Build Check
 		if destInfo, err := os.Stat(destPath); err == nil {
 			if destInfo.ModTime().After(info.ModTime()) {
 				return nil
 			}
 		}
 
-		ext := strings.ToLower(filepath.Ext(path))
-		if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") && compressImages {
-			return processImage(path, destPath, ext)
+		// 3. Process Files (Minify or Convert)
+		if compress {
+			if ext == ".css" {
+				return minifyFile("text/css", path, destPath)
+			}
+			if ext == ".js" {
+				return minifyFile("text/javascript", path, destPath)
+			}
+			if isImage {
+				return processImage(path, destPath)
+			}
 		}
+
+		// Fallback: Standard Copy
 		return CopyFileStandard(path, destPath)
 	})
 }
 
-func processImage(srcPath, dstPath, ext string) error {
+func minifyFile(mediaType, srcPath, dstPath string) error {
+	src, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	return Minifier.Minify(mediaType, dst, src)
+}
+
+func processImage(srcPath, dstPath string) error {
 	src, err := imaging.Open(srcPath)
 	if err != nil {
-		return CopyFileStandard(srcPath, dstPath)
+		return err
 	}
+	
 	if src.Bounds().Dx() > 1200 {
 		src = imaging.Resize(src, 1200, 0, imaging.Lanczos)
 	}
-	if ext == ".png" {
-		return imaging.Save(src, dstPath, imaging.PNGCompressionLevel(png.BestCompression))
+
+	f, err := os.Create(dstPath)
+	if err != nil {
+		return err
 	}
-	return imaging.Save(src, dstPath, imaging.JPEGQuality(75))
+	defer f.Close()
+
+	return webp.Encode(f, src, &webp.Options{Lossless: false, Quality: 80})
 }
 
 func CopyFileStandard(src, dst string) error {
@@ -69,6 +125,18 @@ func CopyFileStandard(src, dst string) error {
 	defer d.Close()
 	_, err = io.Copy(d, s)
 	return err
+}
+
+var imgRe = regexp.MustCompile(`(?i)(<img[^>]+src=["'])([^"']+)((?:\.jpg|\.jpeg|\.png))(["'])`)
+
+func ReplaceToWebP(html string) string {
+	return imgRe.ReplaceAllStringFunc(html, func(m string) string {
+		parts := imgRe.FindStringSubmatch(m)
+		if strings.HasPrefix(parts[2], "http") || strings.HasPrefix(parts[2], "//") {
+			return m
+		}
+		return parts[1] + parts[2] + ".webp" + parts[4]
+	})
 }
 
 func SortPosts(posts []models.PostMetadata) {

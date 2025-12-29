@@ -18,13 +18,19 @@ go build -o bin/server.exe ./server/main.go
 go build -o bin/new.exe new.go
 ```
 
-- To build the site
+- To build the site without compression
 
 ```bash
 .\bin\builder.exe
 ```
 
-- To start the server
+- To build the site with compression (Minifies HTML/CSS/JS and converts images to WebP)
+
+```bash
+.\bin\builder.exe -compress
+```
+
+- To run the local server
 
 ```bash
 .\bin\server.exe
@@ -46,34 +52,37 @@ air
 
 ---
 
+## Content Management
+
 - To create a new file
 
 ```bash
 .\bin\new.exe "<title>"
 ```
 
+- Draft System
+
+```yaml
+title: "draft post"
+date: "2025-04-26"
+draft: true
+```
+
+Drafts are automatically skipped during the build process.
+
 ---
 
-## `builder` structure
+## Features
 
-```txt
-builder/
-├── config/
-│   └── config.go          # Configuration & Flags
-├── generators/
-│   ├── graph.go           # JSON Graph generation
-│   ├── rss.go             # RSS Feed generation
-│   └── sitemap.go         # XML Sitemap generation
-├── models/
-│   └── models.go          # Shared Data Structures (Structs)
-├── parser/
-│   └── parser.go          # Markdown parsing & URL transforming
-├── renderer/
-│   └── renderer.go        # HTML Templates & Rendering
-├── utils/
-│   └── utils.go           # File copying & Image processing
-└── main.go                # Main Entry Point (Orchestrator)
-```
+- **Image Optimization** : Automatically converts local images (PNG/JPG) to WebP and resizes images larger than 1200px when using the -compress flag.
+
+- **Minification** : Minifies HTML, CSS, and JavaScript files during production builds.
+
+- **Incremental Builds** : intelligently skips processing files that haven't changed to speed up build times.
+
+- **Math Support** : Renders LaTeX equations using KaTeX.
+
+- **Knowledge Graph** : Generates an interactive graph of connected tags and posts.
 
 ## SSG Structure
 
@@ -85,26 +94,24 @@ builder/
 │       └── deploy.yml     # GitHub Actions CI/CD pipeline
 ├── .gitignore             # Git ignore rules
 ├── README.md              
-├── builder/               # SSG logic
+├── builder/               # SSG Core Logic
+│   ├── config/            # Configuration & Flags
+│   ├── generators/        # RSS, Sitemap, & Graph generation
+│   ├── models/            # Shared Data Structures
+│   ├── parser/            # Markdown parsing & URL transforming
+│   ├── renderer/          # HTML Templates & Rendering
+│   ├── utils/             # Minification, Image Processing, & File Ops
+│   └── main.go            # Main Entry Point
 ├── content/               # Markdown Source Files
-│   ├── _index.md          # Homepage content
-│   ├── 404.md             # 404 Error page content
-│   ├── CV-*.md            # Computer Vision blog posts
-│   ├── NLP-*.md           # NLP blog posts
-│   ├── NN-*.md            # Neural Network blog posts
-│   └── ...                # Other posts
 ├── go.mod                 # Go module definition
-├── go.sum                 # Go dependencies checksums
-├── new.go                 # Helper script to make new posts
+├── new.go                 # Helper script to create posts
 ├── server/                # Local Development Server
-│   └── main.go            # HTTP server for previewing 'public/'
-├── static/                # Static Assets (copied to public/)
-│   ├── css/               # Stylesheets (layout, theme, fonts)
-│   ├── images/            # Blog images and diagrams
-│   ├── js/                # Scripts (math rendering, graph, latex)
-│   ├── robots.txt         # Search engine instructions
-│   └── wasm/              # WebAssembly binaries and glue code
+├── static/                # Static Assets
+│   ├── css/               # Stylesheets (layout, theme variables)
+│   ├── images/            # Source images
+│   ├── js/                # Scripts (graph, math)
+│   └── wasm/              # WebAssembly binaries
 └── templates/             # HTML Templates
-    ├── graph.html         # Template for the Knowledge Graph page
-    └── layout.html        # Main master template for all pages
+    ├── graph.html         # Knowledge Graph page template
+    └── layout.html        # Master layout template
 ```

@@ -16,6 +16,7 @@ type PostMetadata struct {
 	Tags        []string
 	ReadingTime int
 	Pinned      bool
+	Draft		bool
 	DateObj     time.Time
 	HasMath     bool
 }
@@ -56,7 +57,7 @@ type UrlSet struct {
 }
 
 type Url struct {
-    Loc     string `xml:"loc"` 
+    Loc     string `xml:"loc"`
     LastMod string `xml:"lastmod,omitempty"` 
 }
 
