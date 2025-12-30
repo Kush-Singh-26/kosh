@@ -90,14 +90,15 @@ Drag the white arrow (vector A) or adjust the sliders to change its length and d
 - When the white arrow is straight up, shodow is gone and cosine similarity is 0, signifying **orthogonality** or independence.
 - An obtuse angle or ($\gt 90\degree$) represents negative correlation
 
-<wasm-sim 
-        src="shadow_caster" 
-        controls='[
-            {"id": "ax", "label": "Vector A (x)", "min": -5, "max": 5, "val": 3, "step": 0.1},
-            {"id": "ay", "label": "Vector A (y)", "min": -5, "max": 5, "val": 3, "step": 0.1},
-            {"id": "reset", "label": "Reset Simulation", "type": "button"}
-        ]'>
-</wasm-sim>
+<wasm-sim src="shadow_caster">
+            <script type="application/json">
+            [
+                {"id": "ax", "label": "Vector A (x)", "min": -5, "max": 5, "val": 3, "step": 0.1},
+                {"id": "ay", "label": "Vector A (y)", "min": -5, "max": 5, "val": 3, "step": 0.1},
+                {"id": "reset", "label": "Reset Simulation", "type": "button"}
+            ]
+            </script>
+        </wasm-sim>
 
 ---
 

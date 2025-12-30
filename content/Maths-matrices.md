@@ -8,7 +8,7 @@ pinned: false
 
 ## Matrices are Space Warpers
 
-A matrix is not just a spreadsheet or a container for data. It is a function or a machine. A equation like $y = Ax$ (in a Neural Network or linear regression, etc.), the matrix $A$ is a function or an agent that grabs the data vector ($x$) and physically moves it, warps it and transforms it into a new position ($y$).
+A matrix is not just a spreadsheet or a container for data. It is a function or a machine. Ab equation like $y = Ax$ (in a Neural Network or linear regression, etc.), the matrix $A$ is a function or an agent that grabs the data vector ($x$) and physically moves it, warps it and transforms it into a new position ($y$).
 
 Matrices can stretch space and collapse dimensions.
 
@@ -222,7 +222,7 @@ In a matrix $A = \begin{bmatrix} a & b \\ c & d\end{bmatrix} $ :
 - Diagonal elements :
     - $a$ : tells how much $\hat i$ stretches while staying along the x-axis.
     - $d$ : tells how much $\hat j$ stretches while staying along the y-axis.
-> THey describe the direct stretching.
+> They describe the direct stretching.
 
 So $\text{Tr}(A) = a+d$ tells how much the matrix pushing outward along the original grid lines.
 
@@ -274,6 +274,32 @@ Thus,
 
 > The **Columns** of the matrix generate a **Span**. When viewed as a function, this Span is called the **Range**. The smallest set of vectors needed to describe this Range is the **Basis**, and the count of vectors in that Basis is the **Rank**.
 
+## Space Warper
+
+Modify the transformation matrix by dragging the basis vectors ($\hat{i}$ and $\hat{j}$) or by changing the sliders values representing :
+
+$$ \text{Transformation Matrix} = \begin{bmatrix} a&b \\ c&d\end{bmatrix} = \begin{bmatrix} 1&0 \\ 0&1 \end{bmatrix} $$
+
+- Vector $\begin{bmatrix} a\\c \end{bmatrix}$ represents $\hat{i}$.
+- Vector $\begin{bmatrix} b\\d \end{bmatrix}$ represents $\hat{j}$.
+
+When the <span class="green">green</span> arrow aligns with <span class="red">red</span> arrow, it signifies a dimension loss.
+
+<wasm-sim src="space_warper">
+        <script type="application/json">
+        [
+            {"id": "ix", "label": "Matrix a (i.x)", "min": -3, "max": 3, "val": 1, "step": 0.1},
+            {"id": "iy", "label": "Matrix c (i.y)", "min": -3, "max": 3, "val": 0, "step": 0.1},
+            {"id": "jx", "label": "Matrix b (j.x)", "min": -3, "max": 3, "val": 0, "step": 0.1},
+            {"id": "jy", "label": "Matrix d (j.y)", "min": -3, "max": 3, "val": 1, "step": 0.1},
+            {"id": "reset", "label": "Reset Matrix", "type": "button"}
+        ]
+        </script>
+</wasm-sim>
+
+
 ---
 
 With this this post on matrices and their geometric implementation, types of matrices and different operations using matrices is completed.
+
+<script src="static/js/wasm_engine.js"></script>

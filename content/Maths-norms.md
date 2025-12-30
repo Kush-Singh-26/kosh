@@ -193,13 +193,14 @@ Toggle the variance mode to see how statistics changes geometry.
 
 - Every point on the ellipse at a time is equidistant with respect to Mahalanobis Distance.
 
-<wasm-sim 
-        src="distance_shape" 
-        controls='[
-            {"id": "p", "label": "Minkowski p", "min": 1, "max": 20, "val": 2, "step": 0.1},
-            {"id": "varianceMode", "label": "Enable Variance (Mahalanobis)", "type": "checkbox", "val": 0}
-        ]'>
-</wasm-sim>
+<wasm-sim src="distance_shape">
+            <script type="application/json">
+            [
+                {"id": "p", "label": "Minkowski p", "min": 1, "max": 20, "val": 2, "step": 0.1},
+                {"id": "varianceMode", "label": "Enable Variance (Mahalanobis)", "type": "checkbox", "val": 0}
+            ]
+            </script>
+        </wasm-sim>
 
 ---
 

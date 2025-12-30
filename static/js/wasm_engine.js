@@ -1,28 +1,56 @@
 class WasmSim extends HTMLElement {
     connectedCallback() {
+        // Use setTimeout to ensure child elements (like the config script) are fully parsed by the browser
+        setTimeout(() => this.init(), 0);
+    }
+
+    init() {
         const simName = this.getAttribute('src');
+        if (!simName) return;
+
         let controls = [];
-        try { controls = JSON.parse(this.getAttribute('controls') || "[]"); } catch (e) {}
+
+        // STRATEGY 1: Try reading from child script tag (Recommended/Robust)
+        const scriptEl = this.querySelector('script[type="application/json"]');
+        if (scriptEl) {
+            try {
+                controls = JSON.parse(scriptEl.textContent);
+            } catch (e) {
+                console.error(`WasmSim [${simName}]: Error parsing JSON from script tag:`, e);
+            }
+        }
+
+        // STRATEGY 2: Fallback to attribute (Legacy)
+        if (controls.length === 0) {
+            const attrControls = this.getAttribute('controls');
+            if (attrControls) {
+                try {
+                    controls = JSON.parse(attrControls);
+                } catch (e) {
+                    console.error(`WasmSim [${simName}]: Error parsing 'controls' attribute. Check quotes and escaping.`, e);
+                }
+            }
+        }
 
         const prefix = `canvas_${simName}`;
 
         // FIX: Prevent title changes by C++ (GLFW) or Emscripten
-        // We capture the title once and use a MutationObserver to revert unwanted changes.
         if (!window.fixedTitle) {
-             window.fixedTitle = document.title;
-             const titleEl = document.querySelector('title');
-             if (titleEl) {
-                 new MutationObserver(() => {
-                     if (document.title !== window.fixedTitle) {
-                         document.title = window.fixedTitle;
-                     }
-                 }).observe(titleEl, { childList: true, subtree: true, characterData: true });
-             }
+            window.fixedTitle = document.title;
+            const titleEl = document.querySelector('title');
+            if (titleEl) {
+                new MutationObserver(() => {
+                    if (document.title !== window.fixedTitle) {
+                        document.title = window.fixedTitle;
+                    }
+                }).observe(titleEl, { childList: true, subtree: true, characterData: true });
+            }
         }
 
+        // [PRESERVED] Fixed 800x600 size to avoid centering issues
         this.innerHTML = `
-            <div style="background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; max-width: 900px; margin: 20px 0;">
-                <div style="position: relative; width: 100%; height: 500px; background: #0d1117; border: 1px solid #30363d; margin-bottom: 20px; overflow: hidden;">
+            <div style="background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; display: inline-block; margin: 20px 0;">
+                <div style="position: relative; width: 800px; height: 600px; background: #0d1117; border: 1px solid #30363d; margin-bottom: 20px; overflow: hidden;">
                     <canvas id="${prefix}" oncontextmenu="event.preventDefault()" style="width: 100%; height: 100%; display: block;"></canvas>
                     
                     <div id="${prefix}_label_a" class="sim-label" style="color: white; opacity: 0;">A</div>
@@ -52,7 +80,7 @@ class WasmSim extends HTMLElement {
             // 1. Update the Slider (Input)
             const input = document.getElementById(`input_${simName}_${id}`);
             if (input) input.value = val;
-            
+
             // 2. Update the Text Label
             const label = document.getElementById(`val_${simName}_${id}`);
             if (label) label.textContent = val.toFixed(2);
@@ -63,51 +91,76 @@ class WasmSim extends HTMLElement {
 
     async initWasm(name, controls) {
         const canvas = this.querySelector('canvas');
-        if (!document.getElementById(`script_${name}`)) {
+        // We only need to load the engine script ONCE.
+        if (!document.getElementById(`script_engine`)) {
             const script = document.createElement('script');
-            script.id = `script_${name}`;
-            script.src = `static/wasm/${name}.js`;
-            script.onload = () => { this.startSim(name, canvas, controls); };
+            script.id = `script_engine`;
+            script.src = `static/wasm/engine.js`;
+            script.onload = () => { this.waitForEngine(name, canvas, controls); };
             document.body.appendChild(script);
         } else {
-            setTimeout(() => this.startSim(name, canvas, controls), 100);
+            this.waitForEngine(name, canvas, controls);
+        }
+    }
+
+    waitForEngine(name, canvas, controls) {
+        // Poll for the factory function
+        if (window[`create_engine`]) {
+            this.startSim(name, canvas, controls);
+        } else {
+            setTimeout(() => this.waitForEngine(name, canvas, controls), 50);
         }
     }
 
     startSim(name, canvas, controls) {
-        const factory = window[`create_${name}`];
-        if (!factory) { console.error(`Factory create_${name} not found`); return; }
+        // [PRESERVED] Use unified engine factory
+        const factory = window[`create_engine`];
+        if (!factory) { console.error(`Factory create_engine not found`); return; }
 
         factory({
             canvas: canvas,
             print: (text) => console.log(name + ": " + text),
             printErr: (text) => console.error(name + ": " + text),
-            // We also provide an empty setStatus to prevent the "Running..." message
-            setStatus: (text) => {},
+            setStatus: (text) => { },
         }).then(module => {
-            let simInstance = module.getInstance ? module.getInstance() : null;
+            // [PRESERVED] Load the specific simulation via unified API
+            const success = module.loadSim(name);
+            if (!success) {
+                console.error(`Failed to load simulation: ${name}`);
+                return;
+            }
 
+            // [PRESERVED] Init Helper with fixed resolution
+            const simInstance = module.getCurrentSim();
             if (simInstance && simInstance.initHelper) {
-                const rect = canvas.getBoundingClientRect();
-                const dpr = window.devicePixelRatio || 1;
-                simInstance.initHelper(rect.width * dpr, rect.height * dpr, "#" + canvas.id);
+                // FORCE 800x600 to match original fixed behavior and avoid centering issues
+                simInstance.initHelper(800, 600, "#" + canvas.id);
             }
 
             const ui = this.querySelector(`#ui_${name}`);
+
+            // [PRESERVED] Generic setter helper using Module exports
             const setSimProp = (id, val) => {
-                if (simInstance && simInstance[id] !== undefined) simInstance[id] = val;
+                if (typeof val === 'boolean') {
+                    module.setSimBool(id, val);
+                } else if (typeof val === 'number') {
+                    module.setSimFloat(id, val);
+                }
+            };
+
+            // [PRESERVED] Action helper
+            const callSimAction = (id) => {
+                module.callSimAction(id);
             };
 
             controls.forEach(c => {
                 const type = c.type || 'slider';
                 const wrapper = document.createElement('div');
-                
+
                 if (type === 'button') {
                     wrapper.innerHTML = `<button class="sim-btn">${c.label}</button>`;
                     wrapper.querySelector('button').onclick = () => {
-                        if (simInstance && typeof simInstance[c.id] === 'function') {
-                            simInstance[c.id]();
-                        }
+                        callSimAction(c.id);
                     };
                 } else if (type === 'checkbox') {
                     setSimProp(c.id, !!c.val);

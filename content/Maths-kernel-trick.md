@@ -228,13 +228,14 @@ On left is the 2D input space which is being unsuccessfully trying to be separat
 
 When a lift is applied, data points (red & blue dots) rise based on ($z = x^2 + y^2$). Making the cut slider move will divide / classify the space. The shadow of the 3D plane can be observed as the circle on left side.
 
-<wasm-sim 
-        src="kernel_trick" 
-        controls='[
-            {"id": "lift", "label": "Lift", "min": 0, "max": 2, "val": 0, "step": 0.05},
-            {"id": "cut", "label": "Cut (Plane Height)", "min": -1, "max": 15, "val": -1, "step": 0.5}
-        ]'>
-</wasm-sim>
+<wasm-sim src="kernel_trick">
+            <script type="application/json">
+            [
+                {"id": "lift", "label": "Lift (Polynomial Degree)", "min": 0, "max": 2, "val": 0, "step": 0.05},
+                {"id": "cut", "label": "Cut (Plane Height)", "min": -1, "max": 15, "val": -1, "step": 0.5}
+            ]
+            </script>
+        </wasm-sim>
 
 > The green sheet never bends. The problem of classification is not solved by curving the decision boundary, but by warping the space so that a flat boundary **looks** curved in 2D.
 

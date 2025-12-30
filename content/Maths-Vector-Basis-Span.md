@@ -138,12 +138,13 @@ A vector subspace (or linear subspace) is a vector space that lies within a larg
 
 > Drag the red and blue arrows and make the green arrow touch the target.
 
-<wasm-sim 
-    src="span_explorer" 
-    controls='[
+<wasm-sim src="span_explorer">
+  <script type="application/json">
+    [
         {"id": "c_red", "label": "Red Scale", "min": -3, "max": 3, "step": 0.1, "val": 1.0},
         {"id": "c_blue", "label": "Blue Scale", "min": -3, "max": 3, "step": 0.1, "val": 1.0}
-    ]'>
+    ]
+  </script>
 </wasm-sim>
 
 Under the standard basis vectors ($\hat i$ and $\hat j$), the graph will have perfect squares as these basis vectors are orthogonal and unit legth.
