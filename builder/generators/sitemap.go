@@ -3,6 +3,7 @@ package generators
 import (
     "encoding/xml"
     "fmt"
+    "net/url" // <--- 1. Add this import
     "os"
     "time"
 
@@ -28,8 +29,9 @@ func GenerateSitemap(baseURL string, posts []models.PostMetadata, tags map[strin
 
     // 3. Add Tag Pages
     for t := range tags {
+        // <--- 2. Use url.PathEscape(t) to fix spaces (e.g., "computer vision" -> "computer%20vision")
         urls = append(urls, models.Url{
-            Loc: fmt.Sprintf("%s/tags/%s.html", baseURL, t),
+            Loc: fmt.Sprintf("%s/tags/%s.html", baseURL, url.PathEscape(t)),
         })
     }
 
