@@ -24,14 +24,14 @@ header {
     z-index: 1000; /* Ensures it stays above blog images/code */
     
     /* COMPACT SIZING */
-    padding: 0.5rem 0; /* Very slim vertical padding */
+    padding: 0.5rem 0.5rem; /* Very slim vertical padding */
     margin-bottom: 2.5rem;
     margin-top: 0;
     
     display: flex;
     justify-content: space-between;
     align-items: center;
-    
+    border-radius: 10px;
     /* BACKGROUND (Set in theme.css, but layout ensures structure) */
     width: 100%;
 }
@@ -222,3 +222,35 @@ details .details-content {
 details p:first-child {
     margin-top: 1rem;
 }
+
+/* Theme Toggle Button */
+#theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    margin-left: 0.8rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+#theme-toggle:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-card-hover);
+    transform: translateY(-1px);
+}
+
+/* Icon Switching Logic */
+/* Default (Dark Mode): Show Sun (to switch to light), Hide Moon */
+#theme-toggle .theme-icon-dark { display: none; }
+#theme-toggle .theme-icon-light { display: inline; }
+
+/* Light Mode: Show Moon (to switch to dark), Hide Sun */
+[data-theme="light"] #theme-toggle .theme-icon-dark { display: inline; }
+[data-theme="light"] #theme-toggle .theme-icon-light { display: none; }

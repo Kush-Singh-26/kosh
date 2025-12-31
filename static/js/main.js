@@ -63,5 +63,33 @@ document.addEventListener("DOMContentLoaded", function() {
         const scrolled = (scrollTop / scrollHeight) * 100;
         progressBar.style.width = scrolled + "%";
     });
+
+
+    // 5. Theme Toggle Logic
+    const toggleBtn = document.getElementById('theme-toggle');
+    const htmlEl = document.documentElement;
+    const currentTheme = localStorage.getItem('theme');
+
+    // Apply saved theme on load (if set)
+    if (currentTheme) {
+        htmlEl.setAttribute('data-theme', currentTheme);
+    }
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            // Check if currently light
+            const isLight = htmlEl.getAttribute('data-theme') === 'light';
+            
+            if (isLight) {
+                // Switch to Dark (Default)
+                htmlEl.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                // Switch to Light
+                htmlEl.setAttribute('data-theme', 'light');
+                localStorage.setItem('theme', 'light');
+            }
+        });
+    }
 });
 

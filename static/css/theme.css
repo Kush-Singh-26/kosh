@@ -1,19 +1,22 @@
-/* --- THEME: Vampire City --- */
+/* --- THEME: Vampire City (Default Dark) --- */
 :root {
-    /* Backgrounds: Neutral Dark Grey (No tint) */
+    /* Backgrounds */
     --bg-body: #0f0f0f;
     --bg-card: #1a1a1a;
     --bg-code: #080808;
+    --bg-quote: rgba(233, 196, 106, 0.05);
+    --bg-card-hover: #1f1f1f; 
+    --bg-tint: rgba(244, 162, 97, 0.1); 
     
-    /* Typography: Silver */
+    /* Typography */
     --text-main: #e5e5e5;
     --text-muted: #737373;
     
-    /* Headings: Rose, Wine, and Amethyst */
-    --h1-color: #fb7185; /* Rose Pink */
-    --h2-color: #be185d; /* Dark Pink/Red */
-    --h3-color: #a78bfa; /* Soft Violet */
-    --h4-color: #9f1239; /* Wine Red */
+    /* Headings */
+    --h1-color: #fb7185; 
+    --h2-color: #be185d; 
+    --h3-color: #a78bfa; 
+    --h4-color: #9f1239; 
     
     --accent-primary: #fb7185;
     --accent-secondary: #be185d;
@@ -26,6 +29,39 @@
     /* Fonts */
     --font-main: 'Inter', sans-serif;
     --font-mono: "JetBrains Mono", monospace;
+}
+
+/* --- THEME: Vintage Parchment (Light Mode) --- */
+[data-theme="light"] {
+    /* Backgrounds */
+    --bg-body: #e3d5ca;       
+    --bg-card: #f5ebe0;       
+    --bg-card-hover: #faedcd; 
+    
+    /* DARKER code background for better contrast */
+    --bg-code: #d4c4b0;        
+    --bg-quote: #e8dccb;
+
+    --bg-tint: rgba(154, 3, 30, 0.08);
+
+    /* Typography */
+    --text-main: #2b2a29;     /* Almost Black */
+    --text-muted: #5e503f;    
+
+    /* Headings */
+    --h1-color: #9a031e;      
+    --h2-color: #cc7e55;      
+    --h3-color: #8c2f39;      
+    --h4-color: #bb3e03;      
+
+    /* Accents */
+    --accent-primary: #9a031e;
+    --accent-secondary: #e36414;
+    --accent-cool: #5f0f40;
+
+    /* Borders */
+    --border: #b08968;
+    --border-hover: #9a031e;
 }
 
 body {
@@ -94,11 +130,7 @@ p { font-size: 1.05rem; color: var(--text-main); }
 header {
     border-bottom: 1px solid var(--border);
     /* OPAQUE BACKGROUND */
-    background-color: var(--bg-body); 
-    
-    /* Removed border-radius so it looks like a full bar */
-    border-radius: 0; 
-    
+    background-color: var(--bg-body);     
     /* Optional: Subtle shadow for depth */
     box-shadow: 0 4px 20px rgba(0,0,0,0.4); 
 }
@@ -133,7 +165,7 @@ nav a {
     border-radius: 4px;
 }
 nav a:hover { 
-    background: rgba(244, 162, 97, 0.1);
+    background: var(--bg-tint);
     color: var(--accent-primary);
 }
 
@@ -171,7 +203,7 @@ footer {
     transform: translateY(-4px); 
     border-color: var(--accent-primary);
     box-shadow: 0 8px 24px rgba(251, 113, 133, 0.25); 
-    background: #1f1f1f;
+    background: var(--bg-card-hover); 
 }
 .pinned-card h2 { color: var(--text-main); }
 .pinned-card h2::before { display: none; }
@@ -186,7 +218,7 @@ footer {
 .post-list li:hover { 
     transform: translateX(8px);
     border-color: var(--border-hover);
-    background: #1f1f1f;
+    background: var(--bg-card-hover);
     box-shadow: -4px 0 0 var(--accent-primary);
 }
 
@@ -197,7 +229,7 @@ footer {
 /* Blockquote */
 blockquote {
     border-left: 4px solid var(--h3-color);
-    background: rgba(233, 196, 106, 0.05);
+    background: var(--bg-quote);
     border-radius: 0 6px 6px 0;
     font-style: italic; 
     color: var(--text-main);
@@ -240,18 +272,146 @@ code {
     color: var(--text-main);
 }
 p code, li code, td code, th code {
-    background: rgba(244, 162, 97, 0.1);
-    color: #ffc299;
+    background: var(--bg-tint); 
+    color: var(--accent-primary); 
     padding: 0.15rem 0.4rem;
     border-radius: 4px;
     font-size: 0.9em;
     font-family: var(--font-mono);
-    border: 1px solid rgba(244, 162, 97, 0.2);
+    border: 1px solid var(--border); 
 }
+
+/* ======================================
+   LIGHT MODE CODE SYNTAX HIGHLIGHTING
+   ====================================== */
+
+/* Force ALL code text to be darker in Light Mode - including punctuation */
+[data-theme="light"] pre code,
+[data-theme="light"] pre code *,
+[data-theme="light"] pre code span {
+    color: #1a1510 !important; /* Almost black - default for everything */
+}
+
+[data-theme="light"] pre {
+    border-color: #8b5a3c; /* Darker border for the code box */
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Punctuation, brackets, operators - MUST BE DARK */
+[data-theme="light"] .hljs-punctuation,
+[data-theme="light"] .hljs-operator {
+    color: #1a1510 !important; /* Almost black for commas, brackets, colons */
+    font-weight: 500;
+}
+
+/* Keywords (if, for, function, const, let, var, class, def, return, etc.) */
+[data-theme="light"] .hljs-keyword,
+[data-theme="light"] .hljs-selector-tag,
+[data-theme="light"] .hljs-section,
+[data-theme="light"] .hljs-link {
+    color: #7d0a1a !important; /* Darker deep red */
+    font-weight: 700;
+}
+
+/* Strings */
+[data-theme="light"] .hljs-string,
+[data-theme="light"] .hljs-meta-string {
+    color: #1e5738 !important; /* Darker forest green */
+    font-weight: 500;
+}
+
+/* Numbers and boolean literals */
+[data-theme="light"] .hljs-number,
+[data-theme="light"] .hljs-literal {
+    color: #8b3103 !important; /* Darker burnt orange */
+    font-weight: 600;
+}
+
+/* Functions and method names */
+[data-theme="light"] .hljs-function,
+[data-theme="light"] .hljs-title,
+[data-theme="light"] .hljs-built_in {
+    color: #4a0d33 !important; /* Darker deep purple */
+    font-weight: 700;
+}
+
+/* Comments */
+[data-theme="light"] .hljs-comment,
+[data-theme="light"] .hljs-quote {
+    color: #5a4a3d !important; /* Darker muted brown */
+    font-style: italic;
+    font-weight: 400;
+}
+
+/* Variables and parameters */
+[data-theme="light"] .hljs-variable,
+[data-theme="light"] .hljs-params {
+    color: #6b1f2a !important; /* Darker maroon */
+    font-weight: 500;
+}
+
+/* Classes and types */
+[data-theme="light"] .hljs-class,
+[data-theme="light"] .hljs-type,
+[data-theme="light"] .hljs-name {
+    color: #5b3a8f !important; /* Darker purple */
+    font-weight: 700;
+}
+
+/* Attributes and properties */
+[data-theme="light"] .hljs-attribute,
+[data-theme="light"] .hljs-property,
+[data-theme="light"] .hljs-attr {
+    color: #b54610 !important; /* Darker orange accent */
+    font-weight: 500;
+}
+
+/* Tags (HTML/XML) */
+[data-theme="light"] .hljs-tag {
+    color: #7d0a1a !important; /* Darker deep red */
+}
+
+/* Regular expressions */
+[data-theme="light"] .hljs-regexp {
+    color: #1e5738 !important; /* Darker forest green */
+}
+
+/* Meta and preprocessor */
+[data-theme="light"] .hljs-meta,
+[data-theme="light"] .hljs-meta-keyword {
+    color: #6b1f2a !important; /* Darker maroon */
+}
+
+/* Built-in constants (True, False, None, null, undefined) */
+[data-theme="light"] .hljs-built_in,
+[data-theme="light"] .hljs-builtin-name {
+    color: #8b3103 !important; /* Darker burnt orange */
+    font-weight: 700;
+}
+
+/* Symbols */
+[data-theme="light"] .hljs-symbol,
+[data-theme="light"] .hljs-bullet {
+    color: #b54610 !important; /* Darker orange */
+}
+
+/* Additions (in diffs) */
+[data-theme="light"] .hljs-addition {
+    color: #1e5738 !important;
+    background-color: rgba(30, 87, 56, 0.15);
+}
+
+/* Deletions (in diffs) */
+[data-theme="light"] .hljs-deletion {
+    color: #7d0a1a !important;
+    background-color: rgba(125, 10, 26, 0.15);
+}
+
+/* ====================================== */
 
 /* Tags */
 .tag-pill {
-    background: rgba(244, 162, 97, 0.1);
+    background: var(--bg-tint);
     border-radius: 6px;
     border: 1px solid var(--border);
     color: var(--accent-primary);
