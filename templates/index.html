@@ -53,63 +53,68 @@
     </header>
 
     <main>
-        <!-- Hero Section - Customize this as you like -->
-        <div class="intro-content">
-            <h1>Hello there! 👋</h1>
-            <p>This is my personal blog where I document my learning journey. Feel free to explore the tags or the featured posts below.</p>
+        <div class="hero-section">
+            <h1>Exploration & <br><span class="gradient-text">Engineering</span></h1>
+            <p>A personal archive of learning, coding, and building. <br>Documenting the journey through Mathematics and AI.</p>
         </div>
 
-        <!-- Pinned/Featured Posts Section -->
         {{ if .PinnedPosts }}
-        <div class="pinned-section">
-            <div class="section-header">★ Featured</div>
+        <div class="section-label">Featured Collections</div>
+        <div class="bento-grid">
             {{ range .PinnedPosts }}
-            <a href="{{ .Link }}" class="pinned-card">
-                <h2>{{ .Title }}</h2>
-                <div class="meta-info mb-small">
-                    <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
-                    <span>•</span>
-                    <span>{{ .ReadingTime }} min read</span>
-                </div>
-                <div class="card-desc">{{ .Description }}</div>
-                
-                {{ if .Tags }}
-                    <div class="tag-row">
-                        {{ range .Tags }}
-                        <span class="mini-tag">#{{ . }}</span>
+            <a href="{{ .Link }}" class="bento-card">
+                <div class="card-content">
+                    <div class="card-top">
+                        <span class="meta-badge">Featured</span>
+                        {{ if .Tags }}
+                        {{ $firstTag := index .Tags 0 }}
+                        <object>
+                            <a href="{{ $.BaseURL }}/tags/{{ $firstTag | lower }}.html" class="bento-tag">#{{ $firstTag }}</a>
+                        </object>
                         {{ end }}
                     </div>
-                {{ end }}
+                    <h2>{{ .Title }}</h2>
+                    <p class="card-desc">{{ .Description }}</p>
+                    <div class="card-footer">
+                        <span>Read article</span>
+                        <span class="arrow-icon">→</span>
+                    </div>
+                </div>
             </a>
             {{ end }}
         </div>
         {{ end }}
 
-        <!-- Latest Posts Section -->
-        <div class="section-header divider-bottom">Latest Writings</div>
-        <ul class="post-list">
+        <div class="section-label divider-top">Latest Updates</div>
+        <div class="latest-list">
             {{ range .Posts }}
-            <li>
-                <a href="{{ .Link }}" class="post-title">{{ .Title }}</a>
-                
-                <div class="meta-info mb-small">
-                    <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
-                    <span>•</span>
-                    <span>{{ .ReadingTime }} min read</span>
+            <a href="{{ .Link }}" class="list-item">
+                <div class="list-date">
+                    <span class="month">{{ .DateObj.Format "Jan" }}</span>
+                    <span class="day">{{ .DateObj.Format "02" }}</span>
+                    <span class="year">{{ .DateObj.Format "2006" }}</span>
                 </div>
-
-                <div class="post-desc">{{ .Description }}</div>
-                
-                {{ if .Tags }}
-                    <div class="tag-row">
+                <div class="list-content">
+                    <h3 class="list-title">{{ .Title }}</h3>
+                    <p class="list-desc">{{ .Description }}</p>
+                    <div class="list-meta">
+                        <span>{{ .ReadingTime }} min read</span>
+                        {{ if .Tags }}
+                        <span class="separator">•</span>
                         {{ range .Tags }}
-                        <span class="mini-tag">#{{ . }}</span>
+                        <object>
+                            <a href="{{ $.BaseURL }}/tags/{{ . | lower }}.html" class="list-tag">#{{ . }}</a>
+                        </object>
+                        {{ end }}
                         {{ end }}
                     </div>
-                {{ end }}
-            </li>
+                </div>
+                <div class="list-action">
+                    <span class="chevron">›</span>
+                </div>
+            </a>
             {{ end }}
-        </ul>
+        </div>
     </main>
 
     <footer>

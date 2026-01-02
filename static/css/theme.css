@@ -89,6 +89,7 @@ h1 {
     color: var(--h1-color);
     border-bottom: 1px solid var(--border);
     font-weight: 700;
+    margin-bottom: 0.5rem;
 }
 
 h2 { 
