@@ -22,6 +22,12 @@ let dragStartPos = {x:0, y:0};
 // Simulation State
 let alpha = 1.0; 
 
+// Helper to grab CSS variables
+const getStyle = (name) => {
+    return getComputedStyle(document.body).getPropertyValue(name).trim();
+};
+
+// Config object - Colors are now dynamic placeholders
 const CONFIG = {
     repulsion: 3000,
     stiffness: 0.05,
@@ -29,15 +35,26 @@ const CONFIG = {
     nodeRadius: 7,
     linkDistance: 120,
     colors: {
-        post: '#fb7185',        // Rose Pink (matching h1)
-        tag: '#a78bfa',         // Soft Violet (matching h3)
-        link: '#333333',        // Border color
-        linkHover: '#fb7185',   // Accent on hover
-        highlight: '#be185d',   // Wine Red (matching h2)
-        text: '#e5e5e5',
-        glow: 'rgba(251, 113, 133, 0.3)'
+        post: '',       // Will map to --accent-primary
+        tag: '',        // Will map to --accent-cool
+        link: '',       // Will map to --border
+        linkHover: '',  // Will map to --accent-primary
+        highlight: '',  // Will map to --h1-color
+        text: '',       // Will map to --text-main
+        glow: ''        // Will map to --accent-primary
     }
 };
+
+// Function to update colors based on current CSS variables
+function updateThemeColors() {
+    CONFIG.colors.post = getStyle('--accent-primary') || '#2997ff';
+    CONFIG.colors.tag = getStyle('--accent-cool') || '#64d2ff';
+    CONFIG.colors.link = 'rgba(255,255,255,0.6)';
+    CONFIG.colors.linkHover = getStyle('--accent-primary') || '#2997ff';
+    CONFIG.colors.highlight = getStyle('--h1-color') || '#ffffff';
+    CONFIG.colors.text = getStyle('--text-main') || '#f5f5f7';
+    CONFIG.colors.glow = getStyle('--accent-primary') || '#2997ff';
+}
 
 async function loadGraph() {
     try {
@@ -48,11 +65,12 @@ async function loadGraph() {
         init(data);
     } catch (err) {
         console.error("Could not load graph:", err);
-        loading.innerHTML = '<span style="color: #be185d;">Failed to load graph</span>';
+        loading.innerHTML = '<span style="color: var(--accent-primary);">Failed to load graph</span>';
     }
 }
 
 function init(data) {
+    updateThemeColors(); // Initial color fetch
     resize();
     
     nodes = data.nodes.map(n => ({
@@ -148,11 +166,11 @@ function draw() {
     // Draw Links
     links.forEach(l => {
         const isConnected = (l.source === hoveredNode || l.target === hoveredNode || 
-                            l.source === draggedNode || l.target === draggedNode);
+                             l.source === draggedNode || l.target === draggedNode);
         
         ctx.strokeStyle = isConnected ? CONFIG.colors.linkHover : CONFIG.colors.link;
         ctx.lineWidth = (isConnected ? 2 : 1) / transform.k;
-        ctx.globalAlpha = isConnected ? 0.8 : 0.4;
+        ctx.globalAlpha = isConnected ? 0.8 : 0.6; // Increased base opacity slightly for visibility
         
         ctx.beginPath();
         ctx.moveTo(l.source.x, l.source.y);
@@ -164,6 +182,7 @@ function draw() {
     // Draw Nodes
     nodes.forEach(n => {
         const isActive = n === hoveredNode || n.fx !== null;
+        // Group 1: Posts (Primary), Group 2: Tags (Secondary/Cool)
         let color = n.group === 2 ? CONFIG.colors.tag : CONFIG.colors.post;
         const r = (n.val || CONFIG.nodeRadius) * (isActive ? 1.3 : 1);
 
@@ -183,7 +202,7 @@ function draw() {
         if (isActive) {
             ctx.fillStyle = CONFIG.colors.highlight;
             ctx.beginPath();
-            ctx.arc(n.x, n.y, r * 0.6, 0, Math.PI * 2);
+            ctx.arc(n.x, n.y, r * 0.5, 0, Math.PI * 2);
             ctx.fill();
         }
 
@@ -193,8 +212,11 @@ function draw() {
         if (transform.k > 1.0 || isActive) {
             ctx.fillStyle = CONFIG.colors.text;
             ctx.font = `${isActive ? 'bold ' : ''}13px Inter, sans-serif`;
+            
+            // Subtle shadow for text legibility
             ctx.shadowBlur = 4;
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            ctx.shadowColor = getStyle('--bg-body'); 
+            
             const textWidth = ctx.measureText(n.label).width;
             ctx.fillText(n.label, n.x - textWidth / 2, n.y - r - 8);
             ctx.shadowBlur = 0;
@@ -308,9 +330,25 @@ function resize() {
     canvas.height = window.innerHeight;
     width = canvas.width;
     height = canvas.height;
+    updateThemeColors(); // Update colors on resize (helps with layout shifts)
 }
 
 window.addEventListener('resize', resize);
+
+// MutationObserver to detect Theme Switch (Light/Dark mode)
+// Watches the <body> for class or attribute changes
+const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && 
+           (mutation.attributeName === 'data-theme' || mutation.attributeName === 'class')) {
+            updateThemeColors();
+            // Wake up simulation briefly to redraw with new colors
+            if (alpha < 0.1) alpha = 0.1; 
+            requestAnimationFrame(loop);
+        }
+    });
+});
+observer.observe(document.body, { attributes: true });
 
 function loop() {
     updatePhysics();

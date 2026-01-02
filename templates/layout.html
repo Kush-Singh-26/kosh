@@ -82,6 +82,32 @@
                 {{ end }}
             </div>
 
+        {{ else if .Posts }}
+            <h1 class="center-text">{{ .Title }}</h1>
+            <ul class="post-list">
+                {{ range .Posts }}
+                <li>
+                    <a href="{{ .Link }}" class="post-title">{{ .Title }}</a>
+                    
+                    <div class="meta-info mb-small">
+                        <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
+                        <span>•</span>
+                        <span>{{ .ReadingTime }} min read</span>
+                    </div>
+
+                    <div class="post-desc">{{ .Description }}</div>
+                    
+                    {{ if .Tags }}
+                        <div class="tag-row">
+                            {{ range .Tags }}
+                            <span class="mini-tag">#{{ . }}</span>
+                            {{ end }}
+                        </div>
+                    {{ end }}
+                </li>
+                {{ end }}
+            </ul>
+
         {{ else }}
             <article>
                 <h1>{{ .Title }}</h1>
