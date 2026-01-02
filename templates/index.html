@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .TabTitle }}</title>
+    <meta name="description" content="{{ .Description }}">
+    
+    <meta name="google-site-verification" content="Xr0Ov0Imhz_enNxV6fyMfzSrJyICO_V5PZV49w4b2DM" />
+
+    <link rel="canonical" href="{{ .Permalink }}">
+    <link rel="alternate" type="application/rss+xml" title="{{ .Title }} RSS Feed" href="{{ .BaseURL }}/rss.xml" />
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ .Permalink }}">
+    <meta property="og:title" content="{{ .Title }}">
+    <meta property="og:description" content="{{ .Description }}">
+    <meta property="og:image" content="{{ .Image }}">
+
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self';">
+    
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ .Permalink }}">
+    <meta name="twitter:title" content="{{ .Title }}">
+    <meta name="twitter:description" content="{{ .Description }}">
+    <meta name="twitter:image" content="{{ .Image }}"> 
+
+    <style>
+        {{ .LayoutCSS }}
+        {{ .ThemeCSS }}
+    </style>
+    
+    <script>window.siteBaseURL = "{{ .BaseURL }}";</script>
+    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
+</head>
+
+<body>
+    <header>
+        <a href="{{ .BaseURL }}/" class="site-title">
+            <img src="{{ .BaseURL }}/static/images/favicon.webp" alt="" class="site-logo" width="35" height="35">
+            Kush Blogs
+        </a>
+        <nav>
+            <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
+            <a href="{{ .BaseURL }}/graph.html">Graph</a>
+            <a href="https://kush-singh-26.github.io/" target="_blank">Portfolio</a>
+            <a href="https://github.com/kush-singh-26" target="_blank">GitHub</a>
+            <button id="theme-toggle" aria-label="Toggle Theme">
+                <span class="theme-icon-light">☀️</span> <span class="theme-icon-dark">🌙</span>
+            </button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Hero Section - Customize this as you like -->
+        <div class="intro-content">
+            <h1>Hello there! 👋</h1>
+            <p>This is my personal blog where I document my learning journey. Feel free to explore the tags or the featured posts below.</p>
+        </div>
+
+        <!-- Pinned/Featured Posts Section -->
+        {{ if .PinnedPosts }}
+        <div class="pinned-section">
+            <div class="section-header">★ Featured</div>
+            {{ range .PinnedPosts }}
+            <a href="{{ .Link }}" class="pinned-card">
+                <h2>{{ .Title }}</h2>
+                <div class="meta-info mb-small">
+                    <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
+                    <span>•</span>
+                    <span>{{ .ReadingTime }} min read</span>
+                </div>
+                <div class="card-desc">{{ .Description }}</div>
+                
+                {{ if .Tags }}
+                    <div class="tag-row">
+                        {{ range .Tags }}
+                        <span class="mini-tag">#{{ . }}</span>
+                        {{ end }}
+                    </div>
+                {{ end }}
+            </a>
+            {{ end }}
+        </div>
+        {{ end }}
+
+        <!-- Latest Posts Section -->
+        <div class="section-header divider-bottom">Latest Writings</div>
+        <ul class="post-list">
+            {{ range .Posts }}
+            <li>
+                <a href="{{ .Link }}" class="post-title">{{ .Title }}</a>
+                
+                <div class="meta-info mb-small">
+                    <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
+                    <span>•</span>
+                    <span>{{ .ReadingTime }} min read</span>
+                </div>
+
+                <div class="post-desc">{{ .Description }}</div>
+                
+                {{ if .Tags }}
+                    <div class="tag-row">
+                        {{ range .Tags }}
+                        <span class="mini-tag">#{{ . }}</span>
+                        {{ end }}
+                    </div>
+                {{ end }}
+            </li>
+            {{ end }}
+        </ul>
+    </main>
+
+    <footer>
+        <p style="text-align: center; margin: 0 auto;">&copy; 2026 Kush Singh</p>
+    </footer>
+    
+    <script defer src="{{ .BaseURL }}/static/js/main.js?v={{ .BuildVersion }}"></script>
+</body>
+</html>

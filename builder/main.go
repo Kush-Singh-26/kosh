@@ -33,13 +33,13 @@ func main() {
 	utils.InitMinifier()
 
 	// Check dependencies for force rebuild
-	globalDependencies := []string{"templates/layout.html", "static/css/layout.css", "static/css/theme.css"}
+	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css"}
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
 		lastBuildTime := indexInfo.ModTime()
 		for _, dep := range globalDependencies {
 			info, err := os.Stat(dep)
 			if err != nil {
-				log.Fatalf("❌ Could not find global dependency: %s", dep)
+				continue
 			}
 			if info.ModTime().After(lastBuildTime) {
 				fmt.Printf("⚡ Global change detected in [%s]. Forcing full rebuild.\n", dep)
@@ -53,7 +53,7 @@ func main() {
 
 	// Initialize components
 	md := mdParser.New(cfg.BaseURL)
-	rnd := renderer.New(cfg.CompressImages) // Pass compression flag
+	rnd := renderer.New(cfg.CompressImages)
 
 	// Prepare directories
 	os.MkdirAll("public/tags", 0755)
@@ -64,12 +64,20 @@ func main() {
 	var allPosts []models.PostMetadata
 	var pinnedPosts []models.PostMetadata
 	tagMap := make(map[string][]models.PostMetadata)
+	var has404 bool
 
-	// Walk Content
+	// Walk Content - Skip _index.md as it's no longer used
 	err := filepath.Walk("content", func(path string, info fs.FileInfo, err error) error {
 		if !strings.HasSuffix(path, ".md") || strings.Contains(path, "_index.md") {
 			return nil
 		}
+		
+		// Check if this is the 404 page
+		if strings.Contains(path, "404.md") {
+			has404 = true
+			return nil
+		}
+		
 		relPath, _ := filepath.Rel("content", path)
 		htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 		destPath := filepath.Join("public", htmlRelPath)
@@ -99,10 +107,10 @@ func main() {
 		metaData := meta.Get(context)
 
 		isDraft, _ := metaData["draft"].(bool)
-        if isDraft {
-            fmt.Printf("⏩ Skipping draft: %s\n", relPath)
-            return nil
-        }
+		if isDraft {
+			fmt.Printf("⏩ Skipping draft: %s\n", relPath)
+			return nil
+		}
 
 		wordCount := len(strings.Fields(string(source)))
 		readTime := int(math.Ceil(float64(wordCount) / 120.0))
@@ -112,9 +120,14 @@ func main() {
 		hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
 
 		post := models.PostMetadata{
-			Title: utils.GetString(metaData, "title"), Link: fullLink,
-			Description: utils.GetString(metaData, "description"), Tags: utils.GetSlice(metaData, "tags"),
-			ReadingTime: readTime, Pinned: isPinned, DateObj: dateObj, HasMath: hasMath,
+			Title:       utils.GetString(metaData, "title"),
+			Link:        fullLink,
+			Description: utils.GetString(metaData, "description"),
+			Tags:        utils.GetSlice(metaData, "tags"),
+			ReadingTime: readTime,
+			Pinned:      isPinned,
+			DateObj:     dateObj,
+			HasMath:     hasMath,
 		}
 
 		imagePath := cfg.BaseURL + "/static/images/favicon.webp"
@@ -131,15 +144,17 @@ func main() {
 		if !skipRendering {
 			fmt.Printf("   Rendering: %s\n", htmlRelPath)
 			rnd.RenderPage(destPath, models.PageData{
-				Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
-				Meta: metaData, BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
-				TabTitle: post.Title + " | Kush Blogs", Permalink: fullLink, Image: imagePath,
-				HasMath: post.HasMath,
+				Title:        post.Title,
+				Description:  post.Description,
+				Content:      template.HTML(htmlContent),
+				Meta:         metaData,
+				BaseURL:      cfg.BaseURL,
+				BuildVersion: cfg.BuildVersion,
+				TabTitle:     post.Title + " | Kush Blogs",
+				Permalink:    fullLink,
+				Image:        imagePath,
+				HasMath:      post.HasMath,
 			})
-		}
-
-		if strings.Contains(path, "404.md") {
-			return nil
 		}
 
 		if isPinned {
@@ -160,45 +175,62 @@ func main() {
 	utils.SortPosts(allPosts)
 	utils.SortPosts(pinnedPosts)
 
-	// Render Home
-	homeContent := template.HTML("")
-	if homeSrc, err := os.ReadFile("content/_index.md"); err == nil {
-		var buf bytes.Buffer
-		md.Convert(homeSrc, &buf, parser.WithContext(parser.NewContext()))
-		htmlStr := buf.String()
-		if cfg.CompressImages {
-			htmlStr = utils.ReplaceToWebP(htmlStr)
-		}
-		homeContent = template.HTML(htmlStr)
-	}
-	rnd.RenderPage("public/index.html", models.PageData{
-		Title: "Kush Blogs", Content: homeContent, IsIndex: true, Posts: allPosts, PinnedPosts: pinnedPosts,
-		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: "Kush Blogs",
-		Description: "My personal blog.", Permalink: cfg.BaseURL + "/", Image: cfg.BaseURL + "/static/images/favicon.webp",
+	// Render Home using dedicated index template
+	rnd.RenderIndex("public/index.html", models.PageData{
+		Title:        "Kush Blogs",
+		Posts:        allPosts,
+		PinnedPosts:  pinnedPosts,
+		BaseURL:      cfg.BaseURL,
+		BuildVersion: cfg.BuildVersion,
+		TabTitle:     "Kush Blogs",
+		Description:  "I write about machine learning, deep learning and lately more about NLP.",
+		Permalink:    cfg.BaseURL + "/",
+		Image:        cfg.BaseURL + "/static/images/favicon.webp",
 	})
+
+	// Render 404 page using dedicated template (if 404.md doesn't exist)
+	if !has404 {
+		rnd.Render404("public/404.html", models.PageData{
+			BaseURL:      cfg.BaseURL,
+			BuildVersion: cfg.BuildVersion,
+		})
+		fmt.Println("📄 404 page rendered.")
+	}
 
 	// Render Tags Index
 	var allTags []models.TagData
 	for t, posts := range tagMap {
 		allTags = append(allTags, models.TagData{
-			Name: t, Count: len(posts), Link: fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
+			Name:  t,
+			Count: len(posts),
+			Link:  fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
 		})
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 
 	rnd.RenderPage("public/tags/index.html", models.PageData{
-		Title: "All Tags", IsTagsIndex: true, AllTags: allTags, BaseURL: cfg.BaseURL,
-		BuildVersion: cfg.BuildVersion, Permalink: cfg.BaseURL + "/tags/index.html",
-		Image: cfg.BaseURL + "/static/images/favicon.webp", TabTitle: "Kush Blogs",
+		Title:        "All Tags",
+		IsTagsIndex:  true,
+		AllTags:      allTags,
+		BaseURL:      cfg.BaseURL,
+		BuildVersion: cfg.BuildVersion,
+		Permalink:    cfg.BaseURL + "/tags/index.html",
+		Image:        cfg.BaseURL + "/static/images/favicon.webp",
+		TabTitle:     "Kush Blogs",
 	})
 
 	// Render Individual Tags
 	for t, posts := range tagMap {
 		utils.SortPosts(posts)
 		rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{
-			Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: cfg.BaseURL,
-			BuildVersion: cfg.BuildVersion, Permalink: fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
-			Image: cfg.BaseURL + "/static/images/favicon.webp", TabTitle: "Kush Blogs",
+			Title:        "#" + t,
+			IsIndex:      true,
+			Posts:        posts,
+			BaseURL:      cfg.BaseURL,
+			BuildVersion: cfg.BuildVersion,
+			Permalink:    fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
+			Image:        cfg.BaseURL + "/static/images/favicon.webp",
+			TabTitle:     "Kush Blogs",
 		})
 	}
 

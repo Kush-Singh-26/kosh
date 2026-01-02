@@ -82,55 +82,6 @@
                 {{ end }}
             </div>
 
-        {{ else if .IsIndex }}
-            {{ if .Content }}
-                <div class="intro-content">
-                    {{ .Content }}
-                </div>
-            {{ end }}
-
-            {{ if .PinnedPosts }}
-            <div class="pinned-section">
-                <div class="section-header">★ Featured</div>
-                {{ range .PinnedPosts }}
-                <a href="{{ .Link }}" class="pinned-card">
-                    <h2>{{ .Title }}</h2>
-                    <div class="meta-info">
-                        <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
-                        <span>•</span>
-                        <span>{{ .ReadingTime }} min read</span>
-                    </div>
-                    <div class="card-desc">{{ .Description }}</div>
-                </a>
-                {{ end }}
-            </div>
-            {{ end }}
-
-            <div class="section-header divider-bottom">Latest Writings</div>
-            <ul class="post-list">
-                {{ range .Posts }}
-                <li>
-                    <a href="{{ .Link }}" class="post-title">{{ .Title }}</a>
-                    
-                    <div class="meta-info mb-small">
-                        <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
-                        <span>•</span>
-                        <span>{{ .ReadingTime }} min read</span>
-                    </div>
-
-                    <div class="post-desc">{{ .Description }}</div>
-                    
-                    {{ if .Tags }}
-                        <div class="tag-row">
-                            {{ range .Tags }}
-                            <span class="mini-tag">#{{ . }}</span>
-                            {{ end }}
-                        </div>
-                    {{ end }}
-                </li>
-                {{ end }}
-            </ul>
-
         {{ else }}
             <article>
                 <h1>{{ .Title }}</h1>
