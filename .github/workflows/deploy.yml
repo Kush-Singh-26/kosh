@@ -42,9 +42,6 @@ jobs:
           restore-keys: |
             public-cache-
               
-      - name: Force Layout Update
-        run: touch templates/layout.html
-
       - name: Build Static Site
         run: go run ./builder --baseurl="https://kush-singh-26.github.io/blogs" --compress
 

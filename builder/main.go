@@ -33,7 +33,7 @@ func main() {
 	utils.InitMinifier()
 
 	// Check dependencies for force rebuild
-	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css"}
+	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css", "builder/generators/social.go"}
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
 		lastBuildTime := indexInfo.ModTime()
 		for _, dep := range globalDependencies {
@@ -57,22 +57,26 @@ func main() {
 
 	// Prepare directories
 	os.MkdirAll("public/tags", 0755)
+	os.MkdirAll("public/static/images/cards", 0755) 
+
 	if _, err := os.Stat("static"); err == nil {
 		utils.CopyDir("static", "public/static", cfg.CompressImages)
 	}
+
+	// Social Card Config
+	fontsDir := "builder/assets/fonts"
+	faviconPath := "static/images/favicon.png" 
 
 	var allPosts []models.PostMetadata
 	var pinnedPosts []models.PostMetadata
 	tagMap := make(map[string][]models.PostMetadata)
 	var has404 bool
 
-	// Walk Content - Skip _index.md as it's no longer used
 	err := filepath.Walk("content", func(path string, info fs.FileInfo, err error) error {
 		if !strings.HasSuffix(path, ".md") || strings.Contains(path, "_index.md") {
 			return nil
 		}
 		
-		// Check if this is the 404 page
 		if strings.Contains(path, "404.md") {
 			has404 = true
 			return nil
@@ -80,6 +84,8 @@ func main() {
 		
 		relPath, _ := filepath.Rel("content", path)
 		htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
+		relPathNoExt := strings.TrimSuffix(htmlRelPath, ".html")
+
 		destPath := filepath.Join("public", htmlRelPath)
 		fullLink := cfg.BaseURL + "/" + htmlRelPath
 
@@ -119,6 +125,54 @@ func main() {
 		dateObj, _ := time.Parse("2006-01-02", dateStr)
 		hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
 
+		// --- SOCIAL CARD GENERATION START ---
+		// CHANGE: Use .webp extension
+		cardRelPath := relPathNoExt + ".webp"
+		cardDestPath := filepath.Join("public", "static", "images", "cards", cardRelPath)
+
+		os.MkdirAll(filepath.Dir(cardDestPath), 0755)
+
+		genCard := false
+		if cfg.ForceRebuild {
+			genCard = true
+		} else {
+			if cardInfo, err := os.Stat(cardDestPath); os.IsNotExist(err) {
+				genCard = true
+			} else if cardInfo.ModTime().Before(info.ModTime()) {
+				genCard = true
+			}
+		}
+
+		if genCard {
+			fmt.Printf("   🖼️  Generating Social Card: %s\n", cardRelPath)
+			err := generators.GenerateSocialCard(
+				utils.GetString(metaData, "title"),
+				utils.GetString(metaData, "description"),
+				dateStr,
+				cardDestPath,
+				faviconPath,
+				fontsDir,
+			)
+			if err != nil {
+				fmt.Printf("      ⚠️ Failed to generate card: %v\n", err)
+			}
+		}
+		// --- SOCIAL CARD GENERATION END ---
+
+		// Logic for Post Image
+		// Default to the generated social card (WebP)
+		imagePath := cfg.BaseURL + "/static/images/cards/" + cardRelPath
+		
+		if img, ok := metaData["image"].(string); ok {
+			if cfg.CompressImages && !strings.HasPrefix(img, "http") {
+				ext := filepath.Ext(img)
+				if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+					img = img[:len(img)-len(ext)] + ".webp"
+				}
+			}
+			imagePath = cfg.BaseURL + img
+		}
+
 		post := models.PostMetadata{
 			Title:       utils.GetString(metaData, "title"),
 			Link:        fullLink,
@@ -128,17 +182,6 @@ func main() {
 			Pinned:      isPinned,
 			DateObj:     dateObj,
 			HasMath:     hasMath,
-		}
-
-		imagePath := cfg.BaseURL + "/static/images/favicon.webp"
-		if img, ok := metaData["image"].(string); ok {
-			if cfg.CompressImages && !strings.HasPrefix(img, "http") {
-				ext := filepath.Ext(img)
-				if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
-					img = img[:len(img)-len(ext)] + ".webp"
-				}
-			}
-			imagePath = cfg.BaseURL + img
 		}
 
 		if !skipRendering {
@@ -175,7 +218,7 @@ func main() {
 	utils.SortPosts(allPosts)
 	utils.SortPosts(pinnedPosts)
 
-	// Render Home using dedicated index template
+	// Render Home
 	rnd.RenderIndex("public/index.html", models.PageData{
 		Title:        "Kush Blogs",
 		Posts:        allPosts,
@@ -188,13 +231,34 @@ func main() {
 		Image:        cfg.BaseURL + "/static/images/favicon.webp",
 	})
 
-	// Render 404 page using dedicated template (if 404.md doesn't exist)
+	// Render 404 page (only if needed)
 	if !has404 {
-		rnd.Render404("public/404.html", models.PageData{
-			BaseURL:      cfg.BaseURL,
-			BuildVersion: cfg.BuildVersion,
-		})
-		fmt.Println("📄 404 page rendered.")
+		dest404 := "public/404.html"
+		src404 := "templates/404.html"
+		
+		shouldBuild404 := false
+		if cfg.ForceRebuild {
+			shouldBuild404 = true
+		} else {
+			// Check if output exists
+			infoDest, errDest := os.Stat(dest404)
+			infoSrc, errSrc := os.Stat(src404)
+			
+			if os.IsNotExist(errDest) {
+				shouldBuild404 = true
+			} else if errSrc == nil && infoSrc.ModTime().After(infoDest.ModTime()) {
+				// Template is newer than output
+				shouldBuild404 = true
+			}
+		}
+
+		if shouldBuild404 {
+			rnd.Render404(dest404, models.PageData{
+				BaseURL:      cfg.BaseURL,
+				BuildVersion: cfg.BuildVersion,
+			})
+			fmt.Println("📄 404 page rendered.")
+		}
 	}
 
 	// Render Tags Index

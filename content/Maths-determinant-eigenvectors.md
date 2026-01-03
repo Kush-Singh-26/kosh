@@ -1,5 +1,5 @@
 ---
-title: "6. Maths4ML: Determinants & Eigenvectos"
+title: "6. Maths4ML: Determinants & Eigenvectors"
 date: "2025-12-27"
 description: "Finding the stillness inside the transformation."
 tags: ["Maths for ML"]
