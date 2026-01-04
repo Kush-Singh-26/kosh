@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/graph.css">
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
 
-
     <style>
         /* Inject Main Site CSS - These are dynamic and must remain in HTML */
         {{ .LayoutCSS }}
@@ -21,24 +20,30 @@
 
 <div id="controls">
     <div class="control-panel">
-        <h1>🕸️ Knowledge Graph</h1>
-        <p>Explore the interconnected web of posts and tags</p>
-        
-        <div class="instructions">
-            <p><span>•</span> Scroll to Zoom</p>
-            <p><span>•</span> Drag canvas to Pan</p>
-            <p><span>•</span> Drag nodes to Move</p>
-            <p><span>•</span> Click nodes to Visit</p>
+        <div class="panel-header">
+            <span class="graph-icon">🕸️</span>
+            <h1>Knowledge Graph</h1>
         </div>
-        
-        <a href="{{ .BaseURL }}/" class="btn-home">← Back to Home</a>
+        <a href="{{ .BaseURL }}/" class="btn-home">
+            <span>←</span>
+            <span>Home</span>
+        </a>
     </div>
 </div>
 
 <div class="stats-panel" id="stats" style="display: none;">
-    <div>Posts: <span class="value" id="postCount">0</span></div>
-    <div>Tags: <span class="value" id="tagCount">0</span></div>
-    <div>Links: <span class="value" id="linkCount">0</span></div>
+    <div class="stat-item">
+        <span class="stat-label">Posts</span>
+        <span class="stat-value" id="postCount">0</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-label">Tags</span>
+        <span class="stat-value" id="tagCount">0</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-label">Links</span>
+        <span class="stat-value" id="linkCount">0</span>
+    </div>
 </div>
 
 <div id="node-label" class="label"></div>

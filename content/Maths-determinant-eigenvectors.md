@@ -166,7 +166,7 @@ $$\det(A - \lambda I) = 0$$
 
 $$A = \begin{bmatrix} 4 & 1 \\ 2 & 3 \end{bmatrix}$$
 
-  Solving the Characteristic equation using the above matrix $\det(A - \lambda I) = 0$.
+  Solving the Characteristic equation using the above matrix : $\det(A - \lambda I) = 0$.
 
 $$\det \left( \begin{bmatrix} 4 & 1 \\ 2 & 3 \end{bmatrix} - \begin{bmatrix} \lambda & 0 \\ 0 & \lambda \end{bmatrix} \right) = 0$$
 
@@ -180,7 +180,7 @@ $$(\lambda - 5)(\lambda - 2) = 0$$
 
 So the 2 eigenvalues are : $\lambda_1 = 5$ and $\lambda_2 = 2$.
 
-Plugging these values into $\det(A - \lambda I) = 0$.
+Solving the linear system $(A - \lambda I)u = 0$ for the vector $v = \begin{bmatrix} x \\ y \end{bmatrix}$ will give the eigen vectors.
 
 - $\lambda = 5$ : It will give $x=y$. So any vector where $x$ equals $y$ is an eigenvector. 
     - **Eigenvector 1** : $\vec{v}_1 = \begin{bmatrix} 1 \\ 1 \end{bmatrix}$

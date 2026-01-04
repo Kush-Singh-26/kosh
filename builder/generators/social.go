@@ -9,9 +9,7 @@ import (
 	"github.com/fogleman/gg"
 )
 
-// GenerateSocialCard creates an Open Graph image for a blog post.
-// destPath: where to save the webp (e.g., public/static/images/cards/posts/hello.webp)
-// fontsDir: path to directory containing .ttf files (e.g., builder/assets/fonts)
+// GenerateSocialCard creates an Apple Dark Mode aesthetic Open Graph image.
 func GenerateSocialCard(title, description, dateStr, destPath, faviconPath, fontsDir string) error {
 	const (
 		W = 1200
@@ -20,96 +18,116 @@ func GenerateSocialCard(title, description, dateStr, destPath, faviconPath, font
 
 	dc := gg.NewContext(W, H)
 
-	// 1. Background (Very Light Cool Gray)
-	dc.SetColor(color.RGBA{248, 249, 250, 255})
+	// --- 1. Canvas & Background (Dark Mode) ---
+	// Apple "Midnight" Black
+	dc.SetColor(color.RGBA{10, 10, 10, 255})
 	dc.Clear()
 
-	// 2. Add "Interesting" Visual Elements (Background Shapes)
-	dc.SetColor(color.RGBA{230, 230, 235, 255}) // Slightly darker than BG
-	
-	// Circle 1: Top Right (bleeding out)
-	dc.DrawCircle(W, 0, 300)
-	dc.Fill()
+	// --- 2. Ambient Lighting (The "Aurora" Effect) ---
+	// Electric Indigo Glow (Top Left)
+	drawDiffuseOrb(dc, 0, 0, 700, color.RGBA{94, 92, 230, 15})
 
-	// Circle 2: Bottom Right (large)
-	dc.DrawCircle(W-200, H, 400)
-	dc.Fill()
+	// Cyan/Teal Glow (Bottom Right)
+	drawDiffuseOrb(dc, W, H, 800, color.RGBA{48, 176, 199, 12})
 
-	// Circle 3: Center Left (small accent)
-	dc.DrawCircle(100, 300, 50)
-	dc.Fill()
-
-	// 3. Accent Strip (Left Side)
-	dc.SetColor(color.RGBA{40, 40, 40, 255}) // Almost Black
-	dc.DrawRectangle(0, 0, 20, H)
-	dc.Fill()
-
-	// 4. Load Fonts
+	// --- 3. Typography Setup ---
 	boldFont := fontsDir + "/Inter-Bold.ttf"
+	mediumFont := fontsDir + "/Inter-Medium.ttf" 
 	regFont := fontsDir + "/Inter-Regular.ttf"
 
-	// Margins
-	marginLeft := 80.0
-	marginRight := 60.0
-	maxWidth := float64(W) - marginLeft - marginRight
+	// Layout Grid
+	marginX := 80.0
+	headerY := 90.0
+	maxWidth := float64(W) - (marginX * 2)
 
-	// 5. Draw Date (Top Left)
-	if err := dc.LoadFontFace(boldFont, 32); err == nil {
-		dc.SetColor(color.RGBA{100, 100, 100, 255}) // Dark Gray
-		dc.DrawString(dateStr, marginLeft, 80)
-	}
+	// --- 4. Header: Logo + Brand (Top Left) ---
+	currentX := marginX
 
-	// 6. Draw Brand/Favicon (Top Right)
 	if faviconPath != "" {
 		im, err := gg.LoadImage(faviconPath)
 		if err == nil {
-			// Resize favicon to 64x64
-			iconSize := 64.0
+			iconSize := 48.0
 			w := im.Bounds().Dx()
 			scale := iconSize / float64(w)
-			
-			// Position: Top Right corner
-			iconX := float64(W) - marginRight - iconSize
-			iconY := 40.0 
 
 			dc.Push()
 			dc.Scale(scale, scale)
-			dc.DrawImage(im, int(iconX/scale), int(iconY/scale))
+			dc.DrawImage(im, int(currentX/scale), int((headerY-35)/scale))
 			dc.Pop()
 
-			// Draw "Kush Blogs" text
-			if err := dc.LoadFontFace(boldFont, 32); err == nil {
-				dc.SetColor(color.RGBA{50, 50, 50, 255})
-				text := "Kush Blogs"
-				w, _ := dc.MeasureString(text)
-				dc.DrawString(text, iconX-w-20, 80) 
-			}
+			currentX += iconSize + 20
 		}
 	}
 
-	// 7. Draw Title (Center-ish)
-	if err := dc.LoadFontFace(boldFont, 80); err != nil {
+	// Brand Name "Kush Blogs"
+	if err := dc.LoadFontFace(boldFont, 28); err == nil {
+		dc.SetColor(color.RGBA{255, 255, 255, 255})
+		dc.DrawString("Kush Blogs", currentX, headerY)
+	}
+
+	// --- 5. Header: Date (Top Right) ---
+	if err := dc.LoadFontFace(mediumFont, 24); err == nil {
+		dc.SetColor(color.RGBA{245, 245, 247, 255})
+
+		// Measure width to align right
+		w, _ := dc.MeasureString(dateStr)
+		dc.DrawString(dateStr, float64(W)-marginX-w, headerY)
+	}
+
+	// --- 6. The Title (Center-Left) ---
+	titleFontSize := 80.0
+	titleLineSpacing := 1.1
+
+	if err := dc.LoadFontFace(boldFont, titleFontSize); err != nil {
 		return fmt.Errorf("failed to load bold font: %w", err)
 	}
-	dc.SetColor(color.RGBA{20, 20, 20, 255}) 
-	
-	titleY := 250.0
-	dc.DrawStringWrapped(title, marginLeft, titleY, 0, 0, maxWidth, 1.2, gg.AlignLeft)
 
-	// 8. Draw Description
+	// High Contrast White for Title
+	dc.SetColor(color.RGBA{245, 245, 247, 255})
+
+	titleY := 280.0
+	dc.DrawStringWrapped(title, marginX, titleY, 0, 0, maxWidth, titleLineSpacing, gg.AlignLeft)
+
+	// Calculate title height for description positioning
+	titleLines := dc.WordWrap(title, maxWidth)
+	titleHeight := float64(len(titleLines)) * titleFontSize * titleLineSpacing
+
+	// --- 7. The Description ---
 	if err := dc.LoadFontFace(regFont, 40); err == nil {
-		dc.SetColor(color.RGBA{80, 80, 85, 255}) 
-		descY := 480.0
-		dc.DrawStringWrapped(description, marginLeft, descY, 0, 0, maxWidth, 1.5, gg.AlignLeft)
+		// Secondary Text Color (Light Gray)
+		dc.SetColor(color.RGBA{174, 174, 178, 255})
+
+		descY := titleY + titleHeight + 25
+		dc.DrawStringWrapped(description, marginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
 	}
 
-	// 9. Save as WebP
+	// --- 8. Save ---
 	f, err := os.Create(destPath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	// Use Lossless for sharp text/graphics
 	return webp.Encode(f, dc.Image(), &webp.Options{Lossless: true})
+}
+
+// drawDiffuseOrb simulates a gradient mesh/blur
+func drawDiffuseOrb(dc *gg.Context, x, y, maxRadius float64, baseColor color.RGBA) {
+	dc.Push()
+
+	steps := 100
+	r, g, b := int(baseColor.R), int(baseColor.G), int(baseColor.B)
+
+	for i := 0; i < steps; i++ {
+		progress := float64(i) / float64(steps)
+		radius := maxRadius * (1.0 - progress)
+
+		alpha := float64(baseColor.A) * (1.0 - progress)
+
+		dc.SetRGBA255(r, g, b, int(alpha))
+		dc.DrawCircle(x, y, radius)
+		dc.Fill()
+	}
+
+	dc.Pop()
 }

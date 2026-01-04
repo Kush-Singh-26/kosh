@@ -31,3 +31,8 @@ tmp/
 # 6. Go Modules (Optional)
 # Usually you commit go.sum, but if you have a vendor folder you might ignore it
 # vendor/
+
+# 7. Social Card Cache
+# Cache file for tracking frontmatter changes
+public/.social-card-cache.json
+

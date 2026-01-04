@@ -1,7 +1,7 @@
 ---
 title: "10. NLP: Mixture of Experts (MOE)"
-description: "A guide on Mixture of Experts with their history and implementation in transformers along with the losses associated with it."
-tags: ["NLP"]
+description: "A guide on MoEs, their history and implementation in transformers along with the losses associated with it."
+tags: ["NLP", "Transformers"]
 date: 2025-09-22
 pinned: false
 ---

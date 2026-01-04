@@ -1,5 +1,5 @@
 ---
-title: "2. NLP: Long Short Term Memory [LSTM] & Gated Recurrent Unit [GRU]"
+title: "2. NLP: LSTM & GRU"
 description: "A guide on LSTM and GRU models and how they overcome limitations of RNNs."
 tags: ["NLP"]
 date: 2025-05-08

@@ -1,7 +1,7 @@
 ---
 title: "9. NLP: Optimizing Attention"
 description: "A guide on KV-Caching along with Sliding Window Attention. Ending with MQA and GQA."
-tags: ["NLP"]
+tags: ["NLP", "Transformers"]
 date: 2025-08-05
 pinned: false
 ---

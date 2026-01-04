@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yuin/goldmark/parser"
 	meta "github.com/yuin/goldmark-meta"
+	"github.com/yuin/goldmark/parser"
 
 	"my-ssg/builder/config"
 	"my-ssg/builder/generators"
@@ -28,6 +28,17 @@ func main() {
 	cfg := config.Load()
 
 	fmt.Printf("🔨 Building site... (Version: %d)\n", cfg.BuildVersion)
+
+	socialCardCache, cacheErr := utils.LoadSocialCardCache("public/.social-card-cache.json")
+	if cacheErr != nil {
+		fmt.Printf("Warning: Failed to load social card cache: %v\n", cacheErr)
+		socialCardCache = utils.NewSocialCardCache()
+	}
+	defer func() {
+		if saveErr := utils.SaveSocialCardCache("public/.social-card-cache.json", socialCardCache); saveErr != nil {
+			fmt.Printf("Warning: Failed to save social card cache: %v\n", saveErr)
+		}
+	}()
 
 	// Initialize Minifier
 	utils.InitMinifier()
@@ -57,7 +68,7 @@ func main() {
 
 	// Prepare directories
 	os.MkdirAll("public/tags", 0755)
-	os.MkdirAll("public/static/images/cards", 0755) 
+	os.MkdirAll("public/static/images/cards", 0755)
 
 	if _, err := os.Stat("static"); err == nil {
 		utils.CopyDir("static", "public/static", cfg.CompressImages)
@@ -65,7 +76,7 @@ func main() {
 
 	// Social Card Config
 	fontsDir := "builder/assets/fonts"
-	faviconPath := "static/images/favicon.png" 
+	faviconPath := "static/images/favicon.png"
 
 	var allPosts []models.PostMetadata
 	var pinnedPosts []models.PostMetadata
@@ -76,12 +87,12 @@ func main() {
 		if !strings.HasSuffix(path, ".md") || strings.Contains(path, "_index.md") {
 			return nil
 		}
-		
+
 		if strings.Contains(path, "404.md") {
 			has404 = true
 			return nil
 		}
-		
+
 		relPath, _ := filepath.Rel("content", path)
 		htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 		relPathNoExt := strings.TrimSuffix(htmlRelPath, ".html")
@@ -136,10 +147,19 @@ func main() {
 		if cfg.ForceRebuild {
 			genCard = true
 		} else {
-			if cardInfo, err := os.Stat(cardDestPath); os.IsNotExist(err) {
+			_, cardExists := os.Stat(cardDestPath)
+			if os.IsNotExist(cardExists) {
 				genCard = true
-			} else if cardInfo.ModTime().Before(info.ModTime()) {
-				genCard = true
+			} else {
+				frontmatterHash, hashErr := utils.GetFrontmatterHash(metaData)
+				if hashErr != nil {
+					genCard = true
+				} else {
+					cachedHash := socialCardCache.Hashes[relPath]
+					if cachedHash != frontmatterHash {
+						genCard = true
+					}
+				}
 			}
 		}
 
@@ -155,6 +175,14 @@ func main() {
 			)
 			if err != nil {
 				fmt.Printf("      ⚠️ Failed to generate card: %v\n", err)
+			} else {
+				if frontmatterHash, hashErr := utils.GetFrontmatterHash(metaData); hashErr == nil {
+					socialCardCache.Hashes[relPath] = frontmatterHash
+				}
+			}
+		} else {
+			if frontmatterHash, hashErr := utils.GetFrontmatterHash(metaData); hashErr == nil {
+				socialCardCache.Hashes[relPath] = frontmatterHash
 			}
 		}
 		// --- SOCIAL CARD GENERATION END ---
@@ -162,7 +190,7 @@ func main() {
 		// Logic for Post Image
 		// Default to the generated social card (WebP)
 		imagePath := cfg.BaseURL + "/static/images/cards/" + cardRelPath
-		
+
 		if img, ok := metaData["image"].(string); ok {
 			if cfg.CompressImages && !strings.HasPrefix(img, "http") {
 				ext := filepath.Ext(img)
@@ -218,6 +246,35 @@ func main() {
 	utils.SortPosts(allPosts)
 	utils.SortPosts(pinnedPosts)
 
+	// --- HOME CARD GENERATION START ---
+	homeCardPath := "public/static/images/cards/home.webp"
+
+	// Check if we need to generate the home card
+	genHomeCard := false
+	if cfg.ForceRebuild {
+		genHomeCard = true
+	} else {
+		if _, err := os.Stat(homeCardPath); os.IsNotExist(err) {
+			genHomeCard = true
+		}
+	}
+
+	if genHomeCard {
+		fmt.Println("   🖼️  Generating Home Social Card...")
+		err := generators.GenerateSocialCard(
+			"Kush Blogs",
+			"A personal archive of learning, coding, and building. Documenting the journey through Mathematics and AI.",
+			"",
+			homeCardPath,
+			faviconPath,
+			fontsDir,
+		)
+		if err != nil {
+			fmt.Printf("      ⚠️ Failed to generate home card: %v\n", err)
+		}
+	}
+	// --- HOME CARD GENERATION END ---
+
 	// Render Home
 	rnd.RenderIndex("public/index.html", models.PageData{
 		Title:        "Kush Blogs",
@@ -228,14 +285,14 @@ func main() {
 		TabTitle:     "Kush Blogs",
 		Description:  "I write about machine learning, deep learning and lately more about NLP.",
 		Permalink:    cfg.BaseURL + "/",
-		Image:        cfg.BaseURL + "/static/images/favicon.webp",
+		Image:        cfg.BaseURL + "/static/images/cards/home.webp",
 	})
 
 	// Render 404 page (only if needed)
 	if !has404 {
 		dest404 := "public/404.html"
 		src404 := "templates/404.html"
-		
+
 		shouldBuild404 := false
 		if cfg.ForceRebuild {
 			shouldBuild404 = true
@@ -243,7 +300,7 @@ func main() {
 			// Check if output exists
 			infoDest, errDest := os.Stat(dest404)
 			infoSrc, errSrc := os.Stat(src404)
-			
+
 			if os.IsNotExist(errDest) {
 				shouldBuild404 = true
 			} else if errSrc == nil && infoSrc.ModTime().After(infoDest.ModTime()) {
@@ -305,13 +362,27 @@ func main() {
 		BaseURL:      cfg.BaseURL,
 		BuildVersion: cfg.BuildVersion,
 	})
-	fmt.Println("🕸️  Graph HTML rendered.")
 
 	// Generators
 	allContent := append(allPosts, pinnedPosts...)
 	generators.GenerateSitemap(cfg.BaseURL, allContent, tagMap)
 	generators.GenerateRSS(cfg.BaseURL, allContent)
-	generators.GenerateGraph(cfg.BaseURL, allContent)
 
+	// Graph Generation with Hash Check
+	graphHash, graphHashErr := utils.GetGraphHash(allContent)
+	genGraph := cfg.ForceRebuild
+	if !genGraph && graphHashErr == nil {
+		if socialCardCache.GraphHash != graphHash {
+			genGraph = true
+		}
+	}
+
+	if genGraph {
+		generators.GenerateGraph(cfg.BaseURL, allContent)
+		if graphHashErr == nil {
+			socialCardCache.GraphHash = graphHash
+		}
+		fmt.Println("🕸️  Knowledge Graph regenerated.")
+	} 
 	fmt.Println("✅ Build Complete.")
 }

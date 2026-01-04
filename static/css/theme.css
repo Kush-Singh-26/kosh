@@ -12,15 +12,19 @@
     --text-main: #f5f5f7;
     --text-muted: #86868b;
     
-    /* Headings */
+    /* Headings - Now with vibrant colors */
     --h1-color: #ffffff;
-    --h2-color: #f5f5f7;
-    --h3-color: #f5f5f7;
+    --h2-color: #2997ff;
+    --h3-color: #64d2ff;
     --h4-color: #f5f5f7;
     
     --accent-primary: #2997ff;
     --accent-secondary: #0a84ff;
     --accent-cool: #64d2ff;
+    --accent-warm: #ff9f0a;
+    --accent-pink: #ff375f;
+    --accent-green: #30d158;
+    --accent-purple: #bf5af2;
     
     /* Borders */
     --border: rgba(255, 255, 255, 0.1);
@@ -45,16 +49,20 @@
     --text-main: #1d1d1f;
     --text-muted: #6e6e73;
 
-    /* Headings */
+    /* Headings - Vibrant in light mode too */
     --h1-color: #1d1d1f;
-    --h2-color: #1d1d1f;
-    --h3-color: #1d1d1f;
+    --h2-color: #0071e3;
+    --h3-color: #006edb;
     --h4-color: #1d1d1f;
 
     /* Accents */
     --accent-primary: #0071e3;
     --accent-secondary: #0077ed;
     --accent-cool: #006edb;
+    --accent-warm: #ff9500;
+    --accent-pink: #ff2d55;
+    --accent-green: #28cd41;
+    --accent-purple: #af52de;
 
     /* Borders */
     --border: rgba(0, 0, 0, 0.1);
@@ -78,7 +86,7 @@ a:hover {
     color: var(--accent-secondary); 
 }
 
-/* Typography Styling */
+/* Typography Styling with Colorful Headings */
 h1, h2, h3, h4 { 
     font-weight: 600; 
     letter-spacing: -0.02em;
@@ -87,15 +95,23 @@ h1, h2, h3, h4 {
 h1 {
     font-size: 2.5rem;
     color: var(--h1-color);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--accent-primary);
     font-weight: 700;
     margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--h1-color) 0%, var(--accent-cool) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 h2 { 
     font-size: 1.8rem; 
     color: var(--h2-color);
     font-weight: 600;
+    position: relative;
+    padding-left: 1.2rem;
+    margin: 2rem 0 1rem 0;
 }
 h2::before {
     content: '';
@@ -103,14 +119,25 @@ h2::before {
     left: 0;
     top: 50%;
     transform: translateY(-50%);
-    width: 3px;
+    width: 4px;
     height: 70%;
-    background: var(--accent-primary);
+    background: linear-gradient(180deg, var(--accent-primary), var(--accent-cool));
     border-radius: 2px;
 }
 
-h3 { font-size: 1.5rem; color: var(--h3-color); font-weight: 600; }
-h4 { font-size: 1.25rem; color: var(--h4-color); font-weight: 600; }
+h3 { 
+    font-size: 1.5rem; 
+    color: var(--h3-color); 
+    font-weight: 600;
+    margin: 1.5rem 0 0.8rem 0;
+}
+
+h4 { 
+    font-size: 1.25rem; 
+    color: var(--h4-color); 
+    font-weight: 600;
+    margin: 1.2rem 0 0.6rem 0;
+}
 
 p { font-size: 1.05rem; color: var(--text-main); }
 .meta-info { font-size: 0.85rem; color: var(--text-muted); font-family: var(--font-mono); }
@@ -166,7 +193,7 @@ footer {
     border-top: 1px solid var(--border);
 }
 
-/* Cards Styling */
+/* Cards Styling with Color Accents */
 .section-header {
     font-size: 0.85rem; 
     text-transform: uppercase; 
@@ -180,43 +207,85 @@ footer {
     border-radius: 12px; 
     border: 1px solid var(--border); 
     transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.pinned-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--accent-primary), var(--accent-cool));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.pinned-card:hover::before {
+    opacity: 1;
 }
 
 .pinned-card:hover { 
     transform: translateY(-2px); 
     border-color: var(--border-hover);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); 
+    box-shadow: 0 8px 24px rgba(41, 151, 255, 0.2); 
     background: var(--bg-card-hover); 
 }
-.pinned-card h2 { color: var(--text-main); }
+.pinned-card h2 { color: var(--h2-color); }
 .pinned-card h2::before { display: none; }
-.pinned-card:hover h2 { color: var(--accent-primary); }
+.pinned-card:hover h2 { color: var(--accent-cool); }
 
 .post-list li { 
     border-radius: 12px;
     border: 1px solid var(--border);
     transition: all 0.3s ease;
     background: var(--bg-card);
+    position: relative;
+    overflow: hidden;
 }
+
+.post-list li::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--accent-primary), var(--accent-purple));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.post-list li:hover::before {
+    opacity: 1;
+}
+
 .post-list li:hover { 
     transform: translateX(6px);
     border-color: var(--border-hover);
     background: var(--bg-card-hover);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px rgba(41, 151, 255, 0.15);
 }
 
-.post-title { font-size: 1.4rem; font-weight: 600; color: var(--text-main); }
-.post-title:hover { color: var(--accent-primary); }
+.post-title { 
+    font-size: 1.4rem; 
+    font-weight: 600; 
+    color: var(--h2-color);
+}
+.post-title:hover { color: var(--accent-cool); }
 .post-desc, .card-desc { color: var(--text-muted); font-size: 0.98rem; }
 
-/* Blockquote */
+/* Blockquote with Color */
 blockquote {
-    border-left: 3px solid var(--accent-primary);
+    border-left: 4px solid var(--accent-primary);
     background: var(--bg-quote);
     border-radius: 0 8px 8px 0;
     font-style: italic; 
     color: var(--text-main);
     font-size: 0.98em;
+    position: relative;
 }
 
 /* Code & Pre */
@@ -244,9 +313,9 @@ pre:hover .copy-btn { opacity: 1; }
     transform: scale(1.05);
 }
 .copy-btn.copied { 
-    background: var(--accent-primary); 
+    background: var(--accent-green); 
     color: var(--bg-body); 
-    border-color: var(--accent-primary);
+    border-color: var(--accent-green);
 }
 
 code { 
@@ -296,7 +365,7 @@ p code, li code, td code, th code {
     font-style: italic;
 }
 
-/* Tags */
+/* Tags with Multiple Colors */
 .tag-pill {
     background: var(--bg-tint);
     border-radius: 999px;
@@ -306,12 +375,43 @@ p code, li code, td code, th code {
     font-weight: 500;
     transition: all 0.3s ease;
 }
-.tag-pill:hover { 
-    border-color: var(--accent-primary);
-    background: rgba(41, 151, 255, 0.2);
-    color: var(--accent-secondary);
-    transform: translateY(-2px);
+
+.tag-pill:nth-child(3n) { 
+    color: var(--accent-cool); 
+    border-color: var(--accent-cool);
 }
+.tag-pill:nth-child(3n+1) { 
+    color: var(--accent-pink); 
+    border-color: var(--accent-pink);
+}
+.tag-pill:nth-child(3n+2) { 
+    color: var(--accent-purple); 
+    border-color: var(--accent-purple);
+}
+
+.tag-pill:hover { 
+    border-color: currentColor;
+    background: rgba(41, 151, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(41, 151, 255, 0.3);
+}
+
+/* Specific hover colors for different tag types */
+.tag-pill:nth-child(3n):hover {
+    background: rgba(100, 210, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(100, 210, 255, 0.3);
+}
+
+.tag-pill:nth-child(3n+1):hover {
+    background: rgba(255, 55, 95, 0.2);
+    box-shadow: 0 4px 12px rgba(255, 55, 95, 0.3);
+}
+
+.tag-pill:nth-child(3n+2):hover {
+    background: rgba(191, 90, 242, 0.2);
+    box-shadow: 0 4px 12px rgba(191, 90, 242, 0.3);
+}
+
 .tag-count { 
     background: var(--bg-code);
     color: var(--text-main);
@@ -347,13 +447,20 @@ tr:hover { background: var(--bg-card-hover); }
 
 /* Utilities */
 .divider-bottom { border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
-.mini-tag { font-size:0.85rem; font-family:monospace; color:var(--accent-primary); }
-.katex { color: var(--text-main) !important; font-size: 1.05em; }
-hr { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent); }
+.mini-tag { 
+    font-size: 0.85rem; 
+    font-family: monospace; 
+    color: var(--accent-primary);
+}
+.mini-tag:nth-child(3n) { color: var(--accent-cool); }
+.mini-tag:nth-child(3n+1) { color: var(--accent-pink); }
+.mini-tag:nth-child(3n+2) { color: var(--accent-purple); }
 
-/* Light mode HR - darker */
+.katex { color: var(--text-main) !important; font-size: 1.05em; }
+hr { background: linear-gradient(90deg, transparent, var(--accent-primary), transparent); height: 2px; }
+
 [data-theme="light"] hr { 
-    background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.2), transparent); 
+    background: linear-gradient(90deg, transparent, var(--accent-primary), transparent); 
 }
 .no-border { border: none !important; }
 .small-pill { font-size: 0.8em; }
@@ -380,16 +487,16 @@ hr { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), t
     background: var(--bg-body); 
 }
 ::-webkit-scrollbar-thumb {
-    background: var(--border); 
+    background: var(--accent-primary); 
     border-radius: 5px;
     border: 2px solid var(--bg-body); 
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-primary); 
+    background: var(--accent-secondary); 
 }
 
-/* Sliding Arrow */
+/* Animated Arrow with Color */
 .post-title {
     position: relative;
     padding-left: 0;
@@ -401,14 +508,13 @@ hr { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), t
     position: absolute;
     left: -20px;
     opacity: 0;
-    color: var(--accent-primary);
+    color: var(--accent-cool);
     font-weight: 600;
     transition: all 0.3s ease;
 }
 
 .post-title:hover {
     padding-left: 25px;
-    color: var(--accent-primary);
 }
 
 .post-title:hover::before {
@@ -416,7 +522,7 @@ hr { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), t
     opacity: 1;
 }
 
-/* Details & Summary */
+/* Details & Summary with Color */
 details {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -459,8 +565,10 @@ summary::-webkit-details-marker {
     display: none;
 }
 
+/* Utility Color Classes */
 .red { color: #ff3b30; }
-.blue { color: #0a84ff; }
-.green { color: #30d158; }
-.yellow { color: #ffd60a; }
-.pink { color: #ff375f; }
+.blue { color: var(--accent-primary); }
+.green { color: var(--accent-green); }
+.yellow { color: var(--accent-warm); }
+.pink { color: var(--accent-pink); }
+.purple { color: var(--accent-purple); }

@@ -2,6 +2,9 @@
 package utils
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -38,7 +41,7 @@ func CopyDir(src, dst string, compress bool) error {
 		}
 		relPath, _ := filepath.Rel(src, path)
 		destPath := filepath.Join(dst, relPath)
-		
+
 		if info.IsDir() {
 			return os.MkdirAll(destPath, info.Mode())
 		}
@@ -98,7 +101,7 @@ func processImage(srcPath, dstPath string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if src.Bounds().Dx() > 1200 {
 		src = imaging.Resize(src, 1200, 0, imaging.Lanczos)
 	}
@@ -160,4 +163,88 @@ func GetSlice(m map[string]interface{}, k string) []string {
 		}
 	}
 	return res
+}
+
+type SocialCardCache struct {
+	Hashes    map[string]string `json:"hashes"`
+	GraphHash string            `json:"graph_hash"`
+}
+
+func NewSocialCardCache() *SocialCardCache {
+	return &SocialCardCache{
+		Hashes: make(map[string]string),
+	}
+}
+
+func LoadSocialCardCache(path string) (*SocialCardCache, error) {
+	cache := NewSocialCardCache()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return cache, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(data, cache); err != nil {
+		return nil, err
+	}
+
+	return cache, nil
+}
+
+func SaveSocialCardCache(path string, cache *SocialCardCache) error {
+	os.MkdirAll(filepath.Dir(path), 0755)
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0644)
+}
+
+func GetFrontmatterHash(metaData map[string]interface{}) (string, error) {
+	socialMeta := map[string]interface{}{
+		"title":       metaData["title"],
+		"description": metaData["description"],
+		"date":        metaData["date"],
+		"tags":        metaData["tags"],
+		"pinned":      metaData["pinned"],
+	}
+
+	data, err := json.Marshal(socialMeta)
+	if err != nil {
+		return "", err
+	}
+
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
+}
+
+type GraphHashData struct {
+	Posts []PostGraphInfo `json:"posts"`
+}
+
+type PostGraphInfo struct {
+	Link string   `json:"link"`
+	Tags []string `json:"tags"`
+}
+
+func GetGraphHash(posts []models.PostMetadata) (string, error) {
+	graphInfo := make([]PostGraphInfo, 0, len(posts))
+	for _, p := range posts {
+		graphInfo = append(graphInfo, PostGraphInfo{
+			Link: p.Link,
+			Tags: p.Tags,
+		})
+	}
+
+	data, err := json.Marshal(graphInfo)
+	if err != nil {
+		return "", err
+	}
+
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
 }
