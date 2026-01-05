@@ -9,10 +9,12 @@
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
 
     <style>
-        /* Inject Main Site CSS - These are dynamic and must remain in HTML */
+        /* Inject Main Site CSS */
         {{ .LayoutCSS }}
         {{ .ThemeCSS }}
     </style>
+
+    <script src="{{ .BaseURL }}/static/js/force-graph.js"></script>
 </head>
 <body>
 
@@ -46,8 +48,7 @@
     </div>
 </div>
 
-<div id="node-label" class="label"></div>
-<canvas id="graphCanvas"></canvas>
+<div id="graph-container"></div>
 
 <script>
     window.GRAPH_BASE_URL = '{{ .BaseURL }}';
