@@ -406,6 +406,11 @@ blockquote p {
     margin-bottom: 0;
 }
 
+blockquote ul:last-child,
+blockquote ol:last-child {
+    margin-bottom: 0;
+}
+
 article ul,
 article ol {
     padding-left: 1.5rem;

@@ -198,7 +198,40 @@ Word2Vec aimed to create **Dense Distributed Representations** (Embedding) :
 - **Dense** : Short vectors (smaller dimensions, eg. 300 dimension) full of non-zero real numbers.
 - **Distributed** : Meaning of the words are *smeared* across all the 300 dimensions.
 
-> 
+> Its objective is to have the words appering in similar context to have similar vectors too.
+
+Both of these architectures use shallow networks, i.e., they have only 1 hidden layer. And this hidden layer has **no non-linear actiavtion function**. Hence, it is also called *Projection Layer*. It is effectively just a lookup table. The inputs are **one-hot vector**, at lets say the index `5` of vector $x$ is 1. Then multiplying $x$ with weight matrix $W$, will simply select the 5th row of the matrix. It speeds up the training.
+
+#### A. Continuous Bag-of-Words (CBOW)
+
+> Predict the **target word** based on the context words (surrounding words) $w_{t-c}, \dots, w_{t+c}$.
+
+- **Input** : Context words within a window (eg. 3 words before and 3 words after).
+- Process :
+    1. One-hot vectors of the context words are projected via a weight matrix $W$ (**embedding matrix**).
+    2. These vectors are averaged.
+    3. The averaged vector is projected to the output layer.
+
+>- **Pros** : Faster to train. Better accuracy for frequent words.
+>- **Cons** : Averaging context loses specific word order and information (**smears** the context).
+
+#### B. Skip-Gram
+
+> Predict the **context words** $w_{t-c}, \dots, w_{t+c}$ based on the target word.
+
+- **Input** : A single *target* word.
+- Process :
+    1. Model uses the target word to predict the probability distribution of words likely to appear in its window (before and after).
+    2. For a given target word, pairs of `(target, context)` are treated as training samples.
+
+>- **Pros** : Works well with small amounts of training data; represents rare words and phrases well.
+>- **Cons** : Slower to train (more training pairs created per window).
+
+
+
+
+
+
 
 
 

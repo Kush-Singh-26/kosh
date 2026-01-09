@@ -1,18 +1,18 @@
 /* --- THEME: Titanium Dark (Apple Aesthetic) --- */
 :root {
-    /* Backgrounds */
-    --bg-body: #0d0d0f;
-    --bg-card: #161618;
-    --bg-code: #121214;
+    /* Backgrounds - Made slightly richer */
+    --bg-body: #111113; /* Was #0d0d0f */
+    --bg-card: #1c1c1e; /* Slightly lighter card for better contrast */
+    --bg-code: #161618;
     --bg-quote: rgba(255, 255, 255, 0.03);
-    --bg-card-hover: #1c1c1e;
-    --bg-tint: rgba(41, 151, 255, 0.08);
-
+    --bg-card-hover: #252528;
+    --bg-tint: rgba(41, 151, 255, 0.1);
+    --bg-gradient: radial-gradient(circle at 50% 0%, #1f1f24 0%, var(--bg-body) 75%);
     /* Typography */
     --text-main: #f5f5f7;
     --text-muted: #a1a1a6;
 
-    /* Headings - Distinct vibrant colors */
+    /* Headings */
     --h1-color: #ffffff;
     --h2-color: #2997ff;
     --h3-color: #bf5af2;
@@ -44,6 +44,7 @@
     --bg-code: #ddd8d2;
     --bg-quote: #ddd8d2;
     --bg-tint: rgba(0, 113, 227, 0.08);
+    --bg-gradient: none;
 
     /* Typography */
     --text-main: #1d1d1f;
@@ -70,11 +71,15 @@
 }
 
 body {
-    background: var(--bg-body);
+    background-color: var(--bg-body);
+    background-image: var(--bg-gradient);
+    background-attachment: fixed; 
+    
     color: var(--text-main);
     font-family: var(--font-main);
     -webkit-font-smoothing: antialiased;
     transition: background-color 0.4s ease, color 0.4s ease;
+    min-height: 100vh; /* Ensure gradient covers full height */
 }
 
 /* Links & Interactivity */

@@ -147,5 +147,22 @@
     {{ end }}
     
     <script defer src="{{ .BaseURL }}/static/js/main.js?v={{ .BuildVersion }}"></script>
+    <script>
+        (function() {
+            const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+            if (hosts.includes(window.location.hostname)) {
+                const source = new EventSource("/events");
+                source.onmessage = function(event) {
+                    if (event.data === "reload") {
+                        console.log("♻️ File change detected. Reloading...");
+                        window.location.reload();
+                    }
+                };
+                source.onerror = function() {
+                    source.close();
+                };
+            }
+        })();
+    </script>
 </body>
 </html>
