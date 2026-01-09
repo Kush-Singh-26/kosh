@@ -15,7 +15,7 @@ func main() {
 	// Default is localhost (private), user can set 0.0.0.0 (public) via CLI
 	host := flag.String("host", "localhost", "The host/IP to bind to (use 0.0.0.0 to allow external access)")
 	port := flag.String("port", "8080", "The port to listen on")
-	
+
 	// Parse the flags provided in the terminal
 	flag.Parse()
 
@@ -41,9 +41,21 @@ func main() {
 		_, err := os.Stat(fullPath)
 
 		if os.IsNotExist(err) {
-			// FILE DOES NOT EXIST: Serve 404.html
+			// FILE DOES NOT EXIST: Serve 404.html manually
+			// We set the header first
 			w.WriteHeader(http.StatusNotFound)
-			http.ServeFile(w, r, filepath.Join(staticDir, "404.html"))
+
+			// Then read and write the file content manually
+			// This avoids http.ServeFile trying to write a 200 OK header afterwards
+			notFoundPath := filepath.Join(staticDir, "404.html")
+			content, readErr := os.ReadFile(notFoundPath)
+
+			if readErr != nil {
+				// Fallback if 404.html is missing
+				w.Write([]byte("404 - Page Not Found"))
+			} else {
+				w.Write(content)
+			}
 			return
 		}
 

@@ -1,23 +1,23 @@
 /* --- THEME: Titanium Dark (Apple Aesthetic) --- */
 :root {
     /* Backgrounds */
-    --bg-body: #000000;
-    --bg-card: #1d1d1f;
-    --bg-code: #161617;
-    --bg-quote: rgba(255, 255, 255, 0.05);
-    --bg-card-hover: #2d2d2f;
-    --bg-tint: rgba(41, 151, 255, 0.1);
-    
+    --bg-body: #0d0d0f;
+    --bg-card: #161618;
+    --bg-code: #121214;
+    --bg-quote: rgba(255, 255, 255, 0.03);
+    --bg-card-hover: #1c1c1e;
+    --bg-tint: rgba(41, 151, 255, 0.08);
+
     /* Typography */
     --text-main: #f5f5f7;
-    --text-muted: #86868b;
-    
-    /* Headings - Now with vibrant colors */
+    --text-muted: #a1a1a6;
+
+    /* Headings - Distinct vibrant colors */
     --h1-color: #ffffff;
     --h2-color: #2997ff;
-    --h3-color: #64d2ff;
-    --h4-color: #f5f5f7;
-    
+    --h3-color: #bf5af2;
+    --h4-color: #30d158;
+
     --accent-primary: #2997ff;
     --accent-secondary: #0a84ff;
     --accent-cool: #64d2ff;
@@ -25,9 +25,9 @@
     --accent-pink: #ff375f;
     --accent-green: #30d158;
     --accent-purple: #bf5af2;
-    
+
     /* Borders */
-    --border: rgba(255, 255, 255, 0.1);
+    --border: rgba(255, 255, 255, 0.08);
     --border-hover: #2997ff;
 
     /* Fonts */
@@ -49,11 +49,11 @@
     --text-main: #1d1d1f;
     --text-muted: #6e6e73;
 
-    /* Headings - Vibrant in light mode too */
+    /* Headings - Vibrant and distinct */
     --h1-color: #1d1d1f;
     --h2-color: #0071e3;
-    --h3-color: #006edb;
-    --h4-color: #1d1d1f;
+    --h3-color: #af52de;
+    --h4-color: #28cd41;
 
     /* Accents */
     --accent-primary: #0071e3;
@@ -74,21 +74,26 @@ body {
     color: var(--text-main);
     font-family: var(--font-main);
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 /* Links & Interactivity */
-a { 
-    color: var(--accent-primary); 
-    text-decoration: none; 
+a {
+    color: var(--accent-primary);
+    text-decoration: none;
     transition: all 0.3s ease;
 }
-a:hover { 
-    color: var(--accent-secondary); 
+
+a:hover {
+    color: var(--accent-secondary);
 }
 
 /* Typography Styling with Colorful Headings */
-h1, h2, h3, h4 { 
-    font-weight: 600; 
+h1,
+h2,
+h3,
+h4 {
+    font-weight: 600;
     letter-spacing: -0.02em;
 }
 
@@ -105,14 +110,15 @@ h1 {
     background-clip: text;
 }
 
-h2 { 
-    font-size: 1.8rem; 
+h2 {
+    font-size: 1.8rem;
     color: var(--h2-color);
     font-weight: 600;
     position: relative;
     padding-left: 1.2rem;
     margin: 2rem 0 1rem 0;
 }
+
 h2::before {
     content: '';
     position: absolute;
@@ -125,27 +131,35 @@ h2::before {
     border-radius: 2px;
 }
 
-h3 { 
-    font-size: 1.5rem; 
-    color: var(--h3-color); 
+h3 {
+    font-size: 1.5rem;
+    color: var(--h3-color);
     font-weight: 600;
     margin: 1.5rem 0 0.8rem 0;
 }
 
-h4 { 
-    font-size: 1.25rem; 
-    color: var(--h4-color); 
+h4 {
+    font-size: 1.25rem;
+    color: var(--h4-color);
     font-weight: 600;
     margin: 1.2rem 0 0.6rem 0;
 }
 
-p { font-size: 1.05rem; color: var(--text-main); }
-.meta-info { font-size: 0.85rem; color: var(--text-muted); font-family: var(--font-mono); }
+p {
+    font-size: 1.05rem;
+    color: var(--text-main);
+}
+
+.meta-info {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
 
 /* Header Styling */
 header {
     border-bottom: 1px solid var(--border);
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(13, 13, 15, 0.7);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     box-shadow: 0 1px 0 var(--border);
@@ -166,22 +180,25 @@ header {
     background-color: var(--bg-code);
     transition: all 0.3s ease;
 }
+
 .site-title:hover {
     border-color: var(--accent-primary);
     box-shadow: 0 0 20px rgba(41, 151, 255, 0.2);
     transform: translateY(-1px);
 }
+
 .site-logo {
     filter: drop-shadow(0 0 4px rgba(41, 151, 255, 0.3));
 }
 
-nav a { 
-    color: var(--text-muted); 
+nav a {
+    color: var(--text-muted);
     font-size: 0.85rem;
     font-weight: 500;
     border-radius: 6px;
 }
-nav a:hover { 
+
+nav a:hover {
     background: var(--bg-tint);
     color: var(--accent-primary);
 }
@@ -195,17 +212,17 @@ footer {
 
 /* Cards Styling with Color Accents */
 .section-header {
-    font-size: 0.85rem; 
-    text-transform: uppercase; 
+    font-size: 0.85rem;
+    text-transform: uppercase;
     letter-spacing: 0.15em;
-    color: var(--text-muted); 
+    color: var(--text-muted);
     font-weight: 600;
 }
 
 .pinned-card {
     background: var(--bg-card);
-    border-radius: 12px; 
-    border: 1px solid var(--border); 
+    border-radius: 12px;
+    border: 1px solid var(--border);
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
@@ -227,17 +244,26 @@ footer {
     opacity: 1;
 }
 
-.pinned-card:hover { 
-    transform: translateY(-2px); 
+.pinned-card:hover {
+    transform: translateY(-4px);
     border-color: var(--border-hover);
-    box-shadow: 0 8px 24px rgba(41, 151, 255, 0.2); 
-    background: var(--bg-card-hover); 
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(41, 151, 255, 0.1);
+    background: var(--bg-card-hover);
 }
-.pinned-card h2 { color: var(--h2-color); }
-.pinned-card h2::before { display: none; }
-.pinned-card:hover h2 { color: var(--accent-cool); }
 
-.post-list li { 
+.pinned-card h2 {
+    color: var(--h2-color);
+}
+
+.pinned-card h2::before {
+    display: none;
+}
+
+.pinned-card:hover h2 {
+    color: var(--accent-cool);
+}
+
+.post-list li {
     border-radius: 12px;
     border: 1px solid var(--border);
     transition: all 0.3s ease;
@@ -262,27 +288,35 @@ footer {
     opacity: 1;
 }
 
-.post-list li:hover { 
+.post-list li:hover {
     transform: translateX(6px);
     border-color: var(--border-hover);
     background: var(--bg-card-hover);
-    box-shadow: 0 4px 12px rgba(41, 151, 255, 0.15);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
-.post-title { 
-    font-size: 1.4rem; 
-    font-weight: 600; 
+.post-title {
+    font-size: 1.4rem;
+    font-weight: 600;
     color: var(--h2-color);
 }
-.post-title:hover { color: var(--accent-cool); }
-.post-desc, .card-desc { color: var(--text-muted); font-size: 0.98rem; }
+
+.post-title:hover {
+    color: var(--accent-cool);
+}
+
+.post-desc,
+.card-desc {
+    color: var(--text-muted);
+    font-size: 0.98rem;
+}
 
 /* Blockquote with Color */
 blockquote {
     border-left: 4px solid var(--accent-primary);
     background: var(--bg-quote);
     border-radius: 0 8px 8px 0;
-    font-style: italic; 
+    font-style: italic;
     color: var(--text-main);
     font-size: 0.98em;
     position: relative;
@@ -291,10 +325,11 @@ blockquote {
 /* Code & Pre */
 pre {
     background: var(--bg-code) !important;
-    border-radius: 12px; 
-    border: 1px solid var(--border); 
+    border-radius: 12px;
+    border: 1px solid var(--border);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
+
 .copy-btn {
     background: var(--bg-card);
     color: var(--text-muted);
@@ -306,31 +341,40 @@ pre {
     opacity: 0;
     transition: all 0.3s ease;
 }
-pre:hover .copy-btn { opacity: 1; }
-.copy-btn:hover { 
-    background: var(--accent-primary); 
+
+pre:hover .copy-btn {
+    opacity: 1;
+}
+
+.copy-btn:hover {
+    background: var(--accent-primary);
     color: var(--bg-body);
     transform: scale(1.05);
 }
-.copy-btn.copied { 
-    background: var(--accent-green); 
-    color: var(--bg-body); 
+
+.copy-btn.copied {
+    background: var(--accent-green);
+    color: var(--bg-body);
     border-color: var(--accent-green);
 }
 
-code { 
-    font-family: var(--font-mono); 
-    font-size: 0.9em; 
+code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
     color: var(--text-main);
 }
-p code, li code, td code, th code {
-    background: var(--bg-tint); 
-    color: var(--accent-primary); 
+
+p code,
+li code,
+td code,
+th code {
+    background: var(--bg-tint);
+    color: var(--accent-primary);
     padding: 0.2rem 0.4rem;
     border-radius: 6px;
     font-size: 0.9em;
     font-family: var(--font-mono);
-    border: 1px solid var(--border); 
+    border: 1px solid var(--border);
 }
 
 /* Light Mode Code Syntax */
@@ -376,20 +420,22 @@ p code, li code, td code, th code {
     transition: all 0.3s ease;
 }
 
-.tag-pill:nth-child(3n) { 
-    color: var(--accent-cool); 
+.tag-pill:nth-child(3n) {
+    color: var(--accent-cool);
     border-color: var(--accent-cool);
 }
-.tag-pill:nth-child(3n+1) { 
-    color: var(--accent-pink); 
+
+.tag-pill:nth-child(3n+1) {
+    color: var(--accent-pink);
     border-color: var(--accent-pink);
 }
-.tag-pill:nth-child(3n+2) { 
-    color: var(--accent-purple); 
+
+.tag-pill:nth-child(3n+2) {
+    color: var(--accent-purple);
     border-color: var(--accent-purple);
 }
 
-.tag-pill:hover { 
+.tag-pill:hover {
     border-color: currentColor;
     background: rgba(41, 151, 255, 0.2);
     transform: translateY(-2px);
@@ -412,7 +458,7 @@ p code, li code, td code, th code {
     box-shadow: 0 4px 12px rgba(191, 90, 242, 0.3);
 }
 
-.tag-count { 
+.tag-count {
     background: var(--bg-code);
     color: var(--text-main);
     border-radius: 999px;
@@ -420,21 +466,25 @@ p code, li code, td code, th code {
 }
 
 /* Images & Tables */
-img { 
-    border-radius: 12px; 
+img {
+    border-radius: 12px;
     border: 1px solid var(--border);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     transition: transform 0.3s ease;
 }
-img:hover { transform: scale(1.01); }
 
-table { 
-    border: 1px solid var(--border); 
-    border-radius: 12px; 
+img:hover {
+    transform: scale(1.01);
+}
+
+table {
+    border: 1px solid var(--border);
+    border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
-th { 
+
+th {
     background: var(--bg-card);
     color: var(--accent-primary);
     font-weight: 600;
@@ -442,28 +492,61 @@ th {
     font-size: 0.8rem;
     letter-spacing: 0.05em;
 }
-td { border-bottom: 1px solid var(--border); }
-tr:hover { background: var(--bg-card-hover); }
+
+td {
+    border-bottom: 1px solid var(--border);
+}
+
+tr:hover {
+    background: var(--bg-card-hover);
+}
 
 /* Utilities */
-.divider-bottom { border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
-.mini-tag { 
-    font-size: 0.85rem; 
-    font-family: monospace; 
+.divider-bottom {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.mini-tag {
+    font-size: 0.85rem;
+    font-family: monospace;
     color: var(--accent-primary);
 }
-.mini-tag:nth-child(3n) { color: var(--accent-cool); }
-.mini-tag:nth-child(3n+1) { color: var(--accent-pink); }
-.mini-tag:nth-child(3n+2) { color: var(--accent-purple); }
 
-.katex { color: var(--text-main) !important; font-size: 1.05em; }
-hr { background: linear-gradient(90deg, transparent, var(--accent-primary), transparent); height: 2px; }
-
-[data-theme="light"] hr { 
-    background: linear-gradient(90deg, transparent, var(--accent-primary), transparent); 
+.mini-tag:nth-child(3n) {
+    color: var(--accent-cool);
 }
-.no-border { border: none !important; }
-.small-pill { font-size: 0.8em; }
+
+.mini-tag:nth-child(3n+1) {
+    color: var(--accent-pink);
+}
+
+.mini-tag:nth-child(3n+2) {
+    color: var(--accent-purple);
+}
+
+.katex {
+    color: var(--text-main) !important;
+    font-size: 1.05em;
+}
+
+hr {
+    background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+    height: 2px;
+}
+
+[data-theme="light"] hr {
+    background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+}
+
+.no-border {
+    border: none !important;
+}
+
+.small-pill {
+    font-size: 0.8em;
+}
 
 ::selection {
     background: var(--accent-primary);
@@ -474,6 +557,7 @@ hr { background: linear-gradient(90deg, transparent, var(--accent-primary), tran
 .site-logo {
     transition: transform 0.3s ease;
 }
+
 .site-logo:hover {
     transform: scale(1.05);
     cursor: pointer;
@@ -483,17 +567,19 @@ hr { background: linear-gradient(90deg, transparent, var(--accent-primary), tran
     width: 10px;
     height: 10px;
 }
+
 ::-webkit-scrollbar-track {
-    background: var(--bg-body); 
+    background: var(--bg-body);
 }
+
 ::-webkit-scrollbar-thumb {
-    background: var(--accent-primary); 
+    background: var(--accent-primary);
     border-radius: 5px;
-    border: 2px solid var(--bg-body); 
+    border: 2px solid var(--bg-body);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-secondary); 
+    background: var(--accent-secondary);
 }
 
 /* Animated Arrow with Color */
@@ -539,8 +625,8 @@ summary {
     padding: 1rem;
     font-weight: 600;
     cursor: pointer;
-    color: var(--h3-color); 
-    list-style: none; 
+    color: var(--h3-color);
+    list-style: none;
     transition: color 0.3s ease;
 }
 
@@ -566,9 +652,41 @@ summary::-webkit-details-marker {
 }
 
 /* Utility Color Classes */
-.red { color: #ff3b30; }
-.blue { color: var(--accent-primary); }
-.green { color: var(--accent-green); }
-.yellow { color: var(--accent-warm); }
-.pink { color: var(--accent-pink); }
-.purple { color: var(--accent-purple); }
+.red {
+    color: #ff3b30 !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    background-clip: unset !important;
+}
+
+.blue {
+    color: #007aff !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    background-clip: unset !important;
+}
+
+.green {
+    color: #34c759 !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    background-clip: unset !important;
+}
+
+.yellow {
+    color: #ffcc00 !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    background-clip: unset !important;
+}
+
+.pink {
+    color: #ff2d55 !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    background-clip: unset !important;
+}
+
+.purple {
+    color: var(--accent-purple);
+}

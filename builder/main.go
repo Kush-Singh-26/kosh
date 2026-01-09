@@ -44,22 +44,29 @@ func main() {
 	utils.InitMinifier()
 
 	// Check dependencies for force rebuild
-	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css", "builder/generators/social.go"}
+	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css"}
+	forceSocialRebuild := false
+
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
 		lastBuildTime := indexInfo.ModTime()
+
+		// Global site dependencies (HTML/CSS)
 		for _, dep := range globalDependencies {
-			info, err := os.Stat(dep)
-			if err != nil {
-				continue
-			}
-			if info.ModTime().After(lastBuildTime) {
+			if info, err := os.Stat(dep); err == nil && info.ModTime().After(lastBuildTime) {
 				fmt.Printf("⚡ Global change detected in [%s]. Forcing full rebuild.\n", dep)
 				cfg.ForceRebuild = true
 				break
 			}
 		}
+
+		// Social card specific dependency
+		if info, err := os.Stat("builder/generators/social.go"); err == nil && info.ModTime().After(lastBuildTime) {
+			fmt.Println("⚡ Social generator change detected. Forcing social card rebuild.")
+			forceSocialRebuild = true
+		}
 	} else {
 		cfg.ForceRebuild = true
+		forceSocialRebuild = true
 	}
 
 	// Initialize components
@@ -144,7 +151,7 @@ func main() {
 		os.MkdirAll(filepath.Dir(cardDestPath), 0755)
 
 		genCard := false
-		if cfg.ForceRebuild {
+		if forceSocialRebuild {
 			genCard = true
 		} else {
 			_, cardExists := os.Stat(cardDestPath)
@@ -251,7 +258,7 @@ func main() {
 
 	// Check if we need to generate the home card
 	genHomeCard := false
-	if cfg.ForceRebuild {
+	if forceSocialRebuild {
 		genHomeCard = true
 	} else {
 		if _, err := os.Stat(homeCardPath); os.IsNotExist(err) {
@@ -383,6 +390,6 @@ func main() {
 			socialCardCache.GraphHash = graphHash
 		}
 		fmt.Println("🕸️  Knowledge Graph regenerated.")
-	} 
+	}
 	fmt.Println("✅ Build Complete.")
 }
