@@ -35,6 +35,18 @@ type TagData struct {
 	Count int
 }
 
+// Paginator holds state for pagination
+type Paginator struct {
+	CurrentPage int
+	TotalPages  int
+	PrevURL     string
+	NextURL     string
+	FirstURL    string
+	LastURL     string
+	HasPrev     bool
+	HasNext     bool
+}
+
 // PageData is the context passed to HTML templates.
 type PageData struct {
 	Title        string
@@ -55,6 +67,7 @@ type PageData struct {
 	Permalink    string
 	Image        string
 	TOC          []TOCEntry
+	Paginator    Paginator
 }
 
 // --- Sitemap Structures ---

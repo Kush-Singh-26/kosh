@@ -12,6 +12,7 @@ type Config struct {
 	CompressImages bool
 	ForceRebuild   bool
 	BuildVersion   int64
+	PostsPerPage   int
 }
 
 func Load() *Config {
@@ -22,7 +23,8 @@ func Load() *Config {
 	return &Config{
 		BaseURL:        strings.TrimSuffix(*baseUrlFlag, "/"),
 		CompressImages: *compressFlag,
-		ForceRebuild:   false, 
+		ForceRebuild:   false,
 		BuildVersion:   time.Now().Unix(),
+		PostsPerPage:   10,
 	}
 }

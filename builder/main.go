@@ -344,17 +344,70 @@ func main() {
 	}
 	// --- HOME CARD GENERATION END ---
 
-	rnd.RenderIndex("public/index.html", models.PageData{
-		Title:        "Kush Blogs",
-		Posts:        allPosts,
-		PinnedPosts:  pinnedPosts,
-		BaseURL:      cfg.BaseURL,
-		BuildVersion: cfg.BuildVersion,
-		TabTitle:     "Kush Blogs",
-		Description:  "I write about machine learning, deep learning and lately more about NLP.",
-		Permalink:    cfg.BaseURL + "/",
-		Image:        cfg.BaseURL + "/static/images/cards/home.webp",
-	})
+	// --- PAGINATION START ---
+	postsPerPage := cfg.PostsPerPage
+	totalPages := int(math.Ceil(float64(len(allPosts)) / float64(postsPerPage)))
+
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	for i := 1; i <= totalPages; i++ {
+		start := (i - 1) * postsPerPage
+		end := start + postsPerPage
+		if end > len(allPosts) {
+			end = len(allPosts)
+		}
+
+		pagePosts := allPosts[start:end]
+
+		destPath := "public/index.html"
+		permalink := cfg.BaseURL + "/"
+		if i > 1 {
+			destPath = fmt.Sprintf("public/page/%d/index.html", i)
+			permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, i)
+			os.MkdirAll(filepath.Dir(destPath), 0755)
+		}
+
+		paginator := models.Paginator{
+			CurrentPage: i,
+			TotalPages:  totalPages,
+			HasPrev:     i > 1,
+			HasNext:     i < totalPages,
+			FirstURL:    cfg.BaseURL + "/#latest",
+			LastURL:     fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, totalPages),
+		}
+
+		if i > 2 {
+			paginator.PrevURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, i-1)
+		} else if i == 2 {
+			paginator.PrevURL = cfg.BaseURL + "/#latest"
+		}
+
+		if i < totalPages {
+			paginator.NextURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, i+1)
+		}
+
+		// Only show pinned posts on the first page
+		var currentPinnedPosts []models.PostMetadata
+		if i == 1 {
+			currentPinnedPosts = pinnedPosts
+		}
+
+		rnd.RenderIndex(destPath, models.PageData{
+			Title:        "Kush Blogs",
+			Posts:        pagePosts,
+			PinnedPosts:  currentPinnedPosts,
+			BaseURL:      cfg.BaseURL,
+			BuildVersion: cfg.BuildVersion,
+			TabTitle:     "Kush Blogs",
+			Description:  "I write about machine learning, deep learning and lately more about NLP.",
+			Permalink:    permalink,
+			Image:        cfg.BaseURL + "/static/images/cards/home.webp",
+			Paginator:    paginator,
+		})
+	}
+	// --- PAGINATION END ---
 
 	if !has404 {
 		dest404 := "public/404.html"
