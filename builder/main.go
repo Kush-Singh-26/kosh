@@ -17,6 +17,7 @@ import (
 
 	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
 
 	"my-ssg/builder/config"
 	"my-ssg/builder/generators"
@@ -81,6 +82,10 @@ func main() {
 		utils.CopyDir("static", "public/static", cfg.CompressImages)
 	}
 
+	if err := os.WriteFile("public/.nojekyll", []byte(""), 0644); err != nil {
+		fmt.Printf("⚠️ Failed to create .nojekyll: %v\n", err)
+	}
+
 	fontsDir := "builder/assets/fonts"
 	faviconPath := "static/images/favicon.png"
 
@@ -88,11 +93,12 @@ func main() {
 
 	// 1. Shared State & Mutex
 	var (
-		allPosts    []models.PostMetadata
-		pinnedPosts []models.PostMetadata
-		tagMap      = make(map[string][]models.PostMetadata)
-		has404      bool
-		mu          sync.Mutex // Protects allPosts, pinnedPosts, tagMap, socialCardCache, has404
+		allPosts      []models.PostMetadata
+		pinnedPosts   []models.PostMetadata
+		searchRecords []models.PostRecord
+		tagMap        = make(map[string][]models.PostMetadata)
+		has404        bool
+		mu            sync.Mutex // Protects allPosts, pinnedPosts, tagMap, socialCardCache, has404, searchRecords
 	)
 
 	// 2. Collect all files first
@@ -151,9 +157,15 @@ func main() {
 			source, _ := os.ReadFile(path)
 			var buf bytes.Buffer
 			context := parser.NewContext()
-			// md.Convert is safe for concurrent use if context is new
-			if err := md.Convert(source, &buf, parser.WithContext(context)); err != nil {
-				log.Printf("Error converting %s: %v", path, err)
+
+			// To extract plain text, we need the AST
+			reader := text.NewReader(source)
+			docNode := md.Parser().Parse(reader, parser.WithContext(context))
+			plainText := mdParser.ExtractPlainText(docNode, source)
+
+			// Reset reader for conversion (or we could just use the docNode with renderer)
+			if err := md.Renderer().Render(&buf, source, docNode); err != nil {
+				log.Printf("Error rendering %s: %v", path, err)
 				return
 			}
 
@@ -176,14 +188,14 @@ func main() {
 			dateStr := utils.GetString(metaData, "date")
 			dateObj, _ := time.Parse("2006-01-02", dateStr)
 			hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
-
+			toc := mdParser.GetTOC(context)
 			// Social Card Logic
 			cardRelPath := relPathNoExt + ".webp"
 			cardDestPath := filepath.Join("public", "static", "images", "cards", cardRelPath)
 			os.MkdirAll(filepath.Dir(cardDestPath), 0755)
 
 			genCard := false
-			
+
 			// Lock for Cache Read
 			mu.Lock()
 			cachedHash := socialCardCache.Hashes[relPath]
@@ -271,6 +283,7 @@ func main() {
 					Permalink:    fullLink,
 					Image:        imagePath,
 					HasMath:      post.HasMath,
+					TOC:          toc,
 				})
 			}
 
@@ -285,6 +298,14 @@ func main() {
 				key := strings.ToLower(strings.TrimSpace(t))
 				tagMap[key] = append(tagMap[key], post)
 			}
+			searchRecords = append(searchRecords, models.PostRecord{
+				ID:          len(searchRecords),
+				Title:       post.Title,
+				Link:        htmlRelPath,
+				Description: post.Description,
+				Tags:        post.Tags,
+				Content:     plainText,
+			})
 			mu.Unlock()
 
 		}(path)
@@ -407,6 +428,9 @@ func main() {
 	allContent := append(allPosts, pinnedPosts...)
 	generators.GenerateSitemap(cfg.BaseURL, allContent, tagMap)
 	generators.GenerateRSS(cfg.BaseURL, allContent)
+	if err := generators.GenerateSearchIndex("public", searchRecords); err != nil {
+		fmt.Printf("⚠️ Failed to generate search index: %v\n", err)
+	}
 
 	graphHash, graphHashErr := utils.GetGraphHash(allContent)
 	genGraph := cfg.ForceRebuild

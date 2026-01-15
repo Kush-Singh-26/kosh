@@ -62,11 +62,13 @@
             Kush Blogs
         </a>
         <nav>
+            <button id="search-btn" class="nav-btn" aria-label="Search">Search</button>
             <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
             <a href="{{ .BaseURL }}/graph.html">Graph</a>
             <a href="https://kush-singh-26.github.io/" target="_blank">Portfolio</a>
             <a href="https://github.com/kush-singh-26" target="_blank">GitHub</a>
             <button id="theme-toggle" aria-label="Toggle Theme">
+
                 <span class="theme-icon-light">☀️</span> <span class="theme-icon-dark">🌙</span>  </button>
         </nav>
     </header>
@@ -129,7 +131,24 @@
                         {{ end }}
                     {{ end }}
                 </div>
-
+                {{ if .TOC }}
+                <aside class="toc-container" id="toc-sidebar">
+                    <div class="toc-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span>Table of Contents</span>
+                        <span class="toc-icon"></span>
+                    </div>
+                    
+                    <nav>
+                        <ul>
+                            {{ range .TOC }}
+                            <li class="toc-level-{{ .Level }}">
+                                <a href="#{{ .ID }}">{{ .Text }}</a>
+                            </li>
+                            {{ end }}
+                        </ul>
+                    </nav>
+                </aside>
+                {{ end }}
                 <div class="content-body">
                     {{ .Content }}
                 </div>
@@ -141,12 +160,30 @@
         <p style="text-align: center; margin: 0 auto;">&copy; 2026 Kush Singh</p>
     </footer>
 
+    <!-- Search Modal -->
+    <div id="search-modal" class="modal">
+        <div class="modal-content">
+            <div class="search-header">
+                <input type="text" id="search-input" placeholder="Search posts... (use tag:name for filtering)" autocomplete="off">
+                <span class="close-search">&times;</span>
+            </div>
+            <div id="search-results"></div>
+            <div class="search-footer">
+                Search articles | <kbd>Esc</kbd> to close | <kbd>↑↓</kbd> to navigate
+            </div>
+        </div>
+    </div>
+
     {{ if .HasMath }}
+
     <script defer src="{{ .BaseURL }}/static/js/katex.min.js"></script>
     <script defer src="{{ .BaseURL }}/static/js/auto-render.min.js"></script>
     {{ end }}
     
     <script defer src="{{ .BaseURL }}/static/js/main.js?v={{ .BuildVersion }}"></script>
+    <script defer src="{{ .BaseURL }}/static/js/wasm_exec.js?v={{ .BuildVersion }}"></script>
+    <script defer src="{{ .BaseURL }}/static/js/search.js?v={{ .BuildVersion }}"></script>
+
     <script>
         (function() {
             const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];

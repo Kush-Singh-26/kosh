@@ -8,8 +8,12 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **Live Reloading**: Built-in development server with Server-Sent Events (SSE) to instantly reload the browser when files change.
 - **Incremental Builds**: Intelligently skips processing files that haven't changed to speed up build times.
 - **Frontmatter Caching**: Uses a hash-based caching system to detect frontmatter changes, preventing unnecessary regeneration of social cards and graph data during incremental builds.
+- **Pinned Posts**: Highlight important content by setting `pinned: true` in the frontmatter.
+- **Reading Time Estimation**: Automatically calculates and displays estimated reading time for each article.
+- **Table of Content Generation**: Automatically generates the TOC based on the heading tags like `#` (`<h1>`), `##` (`<h2>`), etc.
 - **Image Optimization**: Automatically converts local images to WebP and generates social sharing cards.
 - **Knowledge Graph**: Generates an interactive force-directed graph visualizing connections between posts and tags.
+- **WASM Search Engine**: Fast, full-text search powered by Go and WebAssembly with BM25 ranking and tag filtering.
 - **Math Support**: LaTeX support using KaTeX for rendering complex mathematical equations.
 - **SEO Ready**: Auto-generates `sitemap.xml` (in `/sitemap/`), `rss.xml`, and fully optimized meta tags.
 
@@ -26,17 +30,15 @@ cd blogs
 ```
 
 2. **Build the Binaries**
+
 ```bash
-# Create a 'bin' directory
-mkdir bin
+# Build the site builder and search engine (conditional build)
+go run build.go
 
-# Compile the core builder
-go build -o bin/builder.exe ./builder
-
-# Compile the development server
+# Build the development server 
 go build -o bin/server.exe ./server/main.go
 
-# Compile the content helper
+# Build the content helper 
 go build -o bin/new.exe new.go
 ```
 
@@ -59,7 +61,7 @@ air
 
 ```bash
 .\bin\server.exe
-# Serving on http://localhost:8080 (Auto-reload enabled)
+# Serving on http://localhost:2604 (Auto-reload enabled)
 ```
 
 ### 2. Production Build
@@ -76,6 +78,17 @@ Create a new markdown post with frontmatter automatically populated:
 
 ```bash
 .\bin\new.exe "<Title of new blog>"
+```
+
+**Post Metadata (Frontmatter):**
+
+```yaml
+title: "Modern AI Architectures"
+description: "Exploring Transformers and MoE"
+date: "2026-01-14"
+tags: ["AI", "Architecture"]
+pinned: true
+draft: false
 ```
 
 **Draft System:**
@@ -142,7 +155,7 @@ The `server` accepts:
 | Flag | Description | Default |
 | --- | --- | --- |
 | `-host` | Host to bind to (use `0.0.0.0` for LAN) | `localhost` |
-| `-port` | Port to listen on | `8080` |
+| `-port` | Port to listen on | `2604` |
 
 ## Dependencies
 
@@ -151,5 +164,7 @@ The `server` accepts:
 - **Syntax Highlighting**: `github.com/yuin/goldmark-highlighting/v2`
 - **LaTeX Passthrough**: `github.com/gohugoio/hugo-goldmark-extensions/passthrough`
 - **Minification**: `github.com/tdewolff/minify/v2`
+- **Image Processing**: `github.com/disintegration/imaging`
+- **WebP Encoding**: `github.com/chai2010/webp`fication**: `github.com/tdewolff/minify/v2`
 - **Image Processing**: `github.com/disintegration/imaging`
 - **WebP Encoding**: `github.com/chai2010/webp`

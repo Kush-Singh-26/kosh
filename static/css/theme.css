@@ -8,6 +8,7 @@
     --bg-card-hover: #252528;
     --bg-tint: rgba(41, 151, 255, 0.1);
     --bg-gradient: radial-gradient(circle at 50% 0%, #1f1f24 0%, var(--bg-body) 75%);
+    --bg-glass: rgba(22, 22, 24, 0.75);
     /* Typography */
     --text-main: #f5f5f7;
     --text-muted: #a1a1a6;
@@ -17,6 +18,8 @@
     --h2-color: #2997ff;
     --h3-color: #bf5af2;
     --h4-color: #30d158;
+    --h5-color: #ff9f0a; 
+    --h6-color: #a1a1a6;
 
     --accent-primary: #2997ff;
     --accent-secondary: #0a84ff;
@@ -45,6 +48,7 @@
     --bg-quote: #ddd8d2;
     --bg-tint: rgba(0, 113, 227, 0.08);
     --bg-gradient: none;
+    --bg-glass: rgba(235, 230, 224, 0.75);
 
     /* Typography */
     --text-main: #1d1d1f;
@@ -55,6 +59,8 @@
     --h2-color: #0071e3;
     --h3-color: #af52de;
     --h4-color: #28cd41;
+    --h5-color: #ff9500;
+    --h6-color: #6e6e73;
 
     /* Accents */
     --accent-primary: #0071e3;
@@ -148,6 +154,22 @@ h4 {
     color: var(--h4-color);
     font-weight: 600;
     margin: 1.2rem 0 0.6rem 0;
+}
+
+h5 {
+    font-size: 1.1rem;
+    color: var(--h5-color);
+    font-weight: 600;
+    margin: 1rem 0 0.5rem 0;
+}
+
+h6 {
+    font-size: 1rem;
+    color: var(--h6-color);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 1rem 0 0.5rem 0;
 }
 
 p {

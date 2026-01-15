@@ -43,6 +43,7 @@
             Kush Blogs
         </a>
         <nav>
+            <button id="search-btn" class="nav-btn" aria-label="Search">Search</button>
             <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
             <a href="{{ .BaseURL }}/graph.html">Graph</a>
             <a href="https://kush-singh-26.github.io/" target="_blank">Portfolio</a>
@@ -54,10 +55,18 @@
     </header>
 
     <main>
+
         <div class="hero-section">
             <h1>Exploration & <br><span class="gradient-text">Engineering</span></h1>
             <p>A personal archive of learning, coding, and building. <br>Documenting the journey through Mathematics and AI.</p>
+            <div class="hero-search-container">
+                <div class="hero-search" id="hero-search-trigger">
+                    <span>Search articles...</span>
+                    <kbd>/</kbd>
+                </div>
+            </div>
         </div>
+
 
         {{ if .PinnedPosts }}
         <div class="section-label">Featured Collections</div>
@@ -121,7 +130,24 @@
     <footer>
         <p style="text-align: center; margin: 0 auto;">&copy; 2026 Kush Singh</p>
     </footer>
+
+    <!-- Search Modal -->
+    <div id="search-modal" class="modal">
+        <div class="modal-content">
+            <div class="search-header">
+                <input type="text" id="search-input" placeholder="Search posts... (use tag:name for filtering)" autocomplete="off">
+                <span class="close-search">&times;</span>
+            </div>
+            <div id="search-results"></div>
+            <div class="search-footer">
+                Search articles | <kbd>Esc</kbd> to close | <kbd>↑↓</kbd> to navigate
+            </div>
+        </div>
+    </div>
     
     <script defer src="{{ .BaseURL }}/static/js/main.js?v={{ .BuildVersion }}"></script>
+    <script defer src="{{ .BaseURL }}/static/js/wasm_exec.js?v={{ .BuildVersion }}"></script>
+    <script defer src="{{ .BaseURL }}/static/js/search.js?v={{ .BuildVersion }}"></script>
 </body>
+
 </html>

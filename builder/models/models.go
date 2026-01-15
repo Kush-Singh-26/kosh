@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// --- TOC Structure ---
+type TOCEntry struct {
+	ID    string
+	Text  string
+	Level int
+}
+
 // PostMetadata represents the frontmatter and derived data of a markdown post.
 type PostMetadata struct {
 	Title       string
@@ -16,7 +23,7 @@ type PostMetadata struct {
 	Tags        []string
 	ReadingTime int
 	Pinned      bool
-	Draft		bool
+	Draft       bool
 	DateObj     time.Time
 	HasMath     bool
 }
@@ -47,6 +54,7 @@ type PageData struct {
 	ThemeCSS     template.CSS
 	Permalink    string
 	Image        string
+	TOC          []TOCEntry
 }
 
 // --- Sitemap Structures ---
@@ -57,8 +65,8 @@ type UrlSet struct {
 }
 
 type Url struct {
-    Loc     string `xml:"loc"`
-    LastMod string `xml:"lastmod,omitempty"` 
+	Loc     string `xml:"loc"`
+	LastMod string `xml:"lastmod,omitempty"`
 }
 
 // --- RSS Structures ---
@@ -102,4 +110,23 @@ type GraphLink struct {
 type GraphData struct {
 	Nodes []GraphNode `json:"nodes"`
 	Links []GraphLink `json:"links"`
+}
+
+// --- Search Structures ---
+
+type PostRecord struct {
+	ID          int
+	Title       string
+	Link        string
+	Description string
+	Tags        []string
+	Content     string // Raw plain text for snippet extraction
+}
+
+type SearchIndex struct {
+	Posts     []PostRecord
+	Inverted  map[string]map[int]int // word -> postID -> frequency
+	DocLens   map[int]int            // postID -> word count
+	AvgDocLen float64
+	TotalDocs int
 }

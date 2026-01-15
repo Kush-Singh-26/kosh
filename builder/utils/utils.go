@@ -143,7 +143,12 @@ func ReplaceToWebP(html string) string {
 }
 
 func SortPosts(posts []models.PostMetadata) {
-	sort.Slice(posts, func(i, j int) bool { return posts[i].DateObj.After(posts[j].DateObj) })
+	sort.Slice(posts, func(i, j int) bool {
+		if posts[i].DateObj.Equal(posts[j].DateObj) {
+			return posts[i].Title > posts[j].Title
+		}
+		return posts[i].DateObj.After(posts[j].DateObj)
+	})
 }
 
 func GetString(m map[string]interface{}, k string) string {

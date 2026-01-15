@@ -1,7 +1,8 @@
 [build]
-  cmd = "go build -o ./bin/builder.exe ./builder"
+  cmd = "go run build.go"
   
   bin = "./bin/builder.exe"
+
   
   args_bin = ["--compress"]
   

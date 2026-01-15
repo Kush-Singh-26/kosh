@@ -4,7 +4,6 @@ date: "2026-01-05"
 description: "The Geometry of Meaning : Turning meaning into maths."
 tags: ["NLP"]
 pinned: false
-draft: true
 ---
 
 **Embeddings** are the mapping of discrete symbols into high-dimensional vector spaces. It is the translation of discrete, symbolic and combinatorial nature of human language (words, chars, syntax) into continuous mathematical substrate that computational models can manipulate.
@@ -227,9 +226,109 @@ Both of these architectures use shallow networks, i.e., they have only 1 hidden 
 >- **Pros** : Works well with small amounts of training data; represents rare words and phrases well.
 >- **Cons** : Slower to train (more training pairs created per window).
 
+#### Objective Function (Skip Gram)
 
+Maximize the average log probability of context words given center words across the entire corpus of size $T$.
 
+$$ J(\theta) = \frac{1}{T} \sum_{t=1}^T \sum_{-c\le j\le c, j\ne 0} \log{P(w_{t+j}|w_t)} $$
 
+- Standard *Softmax* defines this probability as :
+
+$$P(w_O | w_I) = \frac{\exp(\mathbf{v}'_{w_O}{}^\top \mathbf{v}_{w_I})}{\sum_{w=1}^{|V|} \exp(\mathbf{v}'_w{}^\top \mathbf{v}_{w_I})}$$
+
+- $\mathbf{v}_{w_I}$: Vector representation of the input (center) word.
+- $\mathbf{v}'_{w_O}$: Vector representation of the output (context) word.
+
+> **The Bottleneck** : The denominator requires summing over the entire vocabulary ($100,000+$ words) for every single training example. This is computationally infeasible.
+
+---
+
+#### Optimization
+
+##### A. Hierarchical Softmax
+
+Instead of a flat array, the vocabulary is arranged in a **Huffman Tree** (frequent words are present closer to the root). The probability of a word $w$ is the product of probabilities of the decisions of turning left or right while traversing the tree from root to $w$.
+- Complexity reduces from $O(|V|)$ to $O(\log_2 |V|)$.
+- This uses sigmoid functions at branch points rather than one giant softmax.
+
+##### B. Negative Sampling (Standard Approach)
+
+Instead of calculating the probability over the whole vocabulary, the problem is reframed as a **Binary Classification Task**. So the corpus is divided into :
+- **Positive Examples**
+    - $(w,c)$ (real data) 
+- **Negative Examples**
+    - $(w,w_i)$, $w_i \sim P_n(w)$ (fake data)
+    - Noise pairs constructed by pairing $w$ with randomly sampled words that are not true in its context. 
+
+The loss function is :
+
+$$J = \log \sigma({v'_{w_O}}^\top v_{w_I}) + \sum_{i=1}^{k} \mathbb{E}_{w_i \sim P_n(w)} [\log \sigma(-{v'_{w_i}}^\top v_{w_I})]$$
+
+- $v_{w_I}$ : **Input Embedding** of the center word $w$.
+- ${v'_{w_O}}$ : **Output embedding** of the context word $c$.
+
+- $\log \sigma({v'_{w_O}}^\top v_{w_I})$
+    - ${v'_{w_O}}^\top v_{w_I}$ : this dot product measures similarity between word and context
+    - So, the sigmoid gives the **probability that $(w,c)$** is a true pair.
+    - log is used for numerix stability and easier optimization.
+    - So, it encourages ${v'_{w_O}}$ $v_{w_I}$ to have a large dot product.
+    - Makes the model confident that ($w,c$) is a real pair.
+
+- $\sum_{i=1}^{k} \mathbb{E}_{w_i \sim P_n(w)} [\log \sigma(-{v'_{w_i}}^\top v_{w_I})]$
+    - Because, $\sigma(-x) = 1 - \sigma(x)$, it maximizes probability that the pair ($w,c$)is not real.
+    - $\mathbb{E}_{w_i \sim P_n(w)}[\cdot]$
+        - The average value over words sampled from $P_n$.
+
+> $P_n{w} \propto U(w)^{0.75} $ is the noise distribution from which $w_i$ is drawn randomly.
+
+---
+
+This paper discovery that the learned vector space preserved linear semantic relationships.
+
+$$\text{vector(King)} - \text{vector(Man)} + \text{vector(Woman)} \approx \text{vector(Queen)}$$
+
+---
+
+### GloVe (Global Vector)
+
+So till now 2 dominant approaches to word representation have been presented :
+
+- **Matrix Factorization**
+    - eg. LSA
+    - These methods rely on Global Statistics. 
+    - They look at the entire corpus at once and decompose a massive document-term matrix
+    - > Efficiently captures global statistical information (frequency) but are computationally expensive and often fail to capture local semantic nuances.
+
+- **Local Context Window**
+    - eg. Word2Vec
+    - These methods learn by sliding a small widow over the text.
+    - > They capture complex linguistic patterns and analogies well but fail to explicitly utilize global co-occurence count of the corpus.
+
+So, GloVe model was created which used the best of both worlds.
+
+> Create a model that uses **Global** matrix factorization methods to optimize a loss function derived from **Local** context window observations.
+
+---
+
+GloVe paper showed that while the raw probabilities ($P_{ik}$) are noisy, but the **ratio of proababilities** is *precise*.
+
+- Let $i = \text{ice}$
+- Let $j = \text{steam}$
+
+Analyzing the relationship of these words with various *probe* words :
+
+|Probe Word ($k$)|$P(k∣\text{ice})$|$P(k∣\text{steam})$|Ratio $\frac{P_{jk}}{​P_{ik}}​​$|Interpretation|
+|---|---|---|---|---|
+|solid|High (Ice is solid)|Low (Steam is not)|Large (>1)|The ratio distinguishes ice from steam.|
+|gas|Low (Ice is not gas)|High (Steam is gas)|Small (<1)|The ratio distinguishes steam from ice.|
+|water|High (Ice is water)|High (Steam is water)|$\approx$1|The word is relevant to both, so it doesn't help distinguish them.|
+|fashion|Low (Irrelevant)|Low (Irrelevant)|$\approx$|The word is relevant to neither, so it doesn't help distinguish them.|
+
+This proves that the meaninig is embedded in the ratio. Very large or small ratio means the probe word $k$ is discriminative. If the word is unrelated or equally related to both the ratio is closer to 1.
+
+---
+
+#### Deriving the model
 
 
 

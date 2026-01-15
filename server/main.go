@@ -1,20 +1,47 @@
 package main
 
 import (
+	"compress/gzip"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+// gzipResponseWriter wraps the underlying ResponseWriter to enable Gzip compression
+type gzipResponseWriter struct {
+	io.Writer
+	http.ResponseWriter
+}
+
+func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
+}
+
+func gzipHandler(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next(w, r)
+			return
+		}
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		gzw := &gzipResponseWriter{Writer: gz, ResponseWriter: w}
+		next(gzw, r)
+	}
+}
 
 func main() {
 	// 1. Define flags for Host and Port
 	host := flag.String("host", "localhost", "The host/IP to bind to")
-	port := flag.String("port", "8080", "The port to listen on")
+	port := flag.String("port", "2604", "The port to listen on")
 
 	flag.Parse()
 	addr := fmt.Sprintf("%s:%s", *host, *port)
@@ -64,7 +91,7 @@ func main() {
 	// ---------------------------------------
 
 	// 3. Main File Handler
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	fileHandler := func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Clean(r.URL.Path)
 		fullPath := filepath.Join(staticDir, path)
 
@@ -83,7 +110,9 @@ func main() {
 		}
 
 		fs.ServeHTTP(w, r)
-	})
+	}
+
+	http.HandleFunc("/", gzipHandler(fileHandler))
 
 	fmt.Printf("🌍 Serving on http://%s\n", addr)
 	if *host == "0.0.0.0" {
