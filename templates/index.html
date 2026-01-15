@@ -46,8 +46,8 @@
             <button id="search-btn" class="nav-btn" aria-label="Search">Search</button>
             <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
             <a href="{{ .BaseURL }}/graph.html">Graph</a>
-            <a href="https://kush-singh-26.github.io/" target="_blank">Portfolio</a>
-            <a href="https://github.com/kush-singh-26" target="_blank">GitHub</a>
+            <a href="https://kush-singh-26.github.io/" target="_blank">Home</a>
+            <a href="https://github.com/Kush-Singh-26/blogs" target="_blank">GitHub</a>
             <button id="theme-toggle" aria-label="Toggle Theme">
                 <span class="theme-icon-light">☀️</span> <span class="theme-icon-dark">🌙</span>
             </button>
@@ -129,25 +129,25 @@
         {{ if gt .Paginator.TotalPages 1 }}
         <div class="pagination">
             {{ if gt .Paginator.CurrentPage 1 }}
-            <a href="{{ .Paginator.FirstURL }}" class="pagination-btn" title="First Page">« First</a>
+            <a href="{{ .Paginator.FirstURL }}" class="pagination-btn" title="First Page">«</a>
             {{ end }}
 
             {{ if .Paginator.HasPrev }}
-            <a href="{{ .Paginator.PrevURL }}" class="pagination-btn">← Previous</a>
+            <a href="{{ .Paginator.PrevURL }}" class="pagination-btn">← </a>
             {{ else }}
-            <span class="pagination-btn disabled">← Previous</span>
+            <span class="pagination-btn disabled">←</span>
             {{ end }}
 
             <span class="pagination-info">Page {{ .Paginator.CurrentPage }} of {{ .Paginator.TotalPages }}</span>
 
             {{ if .Paginator.HasNext }}
-            <a href="{{ .Paginator.NextURL }}" class="pagination-btn">Next →</a>
+            <a href="{{ .Paginator.NextURL }}" class="pagination-btn"> →</a>
             {{ else }}
-            <span class="pagination-btn disabled">Next →</span>
+            <span class="pagination-btn disabled"> →</span>
             {{ end }}
 
             {{ if lt .Paginator.CurrentPage .Paginator.TotalPages }}
-            <a href="{{ .Paginator.LastURL }}" class="pagination-btn" title="Last Page">Last »</a>
+            <a href="{{ .Paginator.LastURL }}" class="pagination-btn" title="Last Page"> »</a>
             {{ end }}
         </div>
         {{ end }}

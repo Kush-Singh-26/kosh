@@ -13,12 +13,12 @@ func main() {
 	os.MkdirAll("bin", 0755)
 
 	// 1. Conditional Site Builder Build
-	builderSrc := []string{"builder"}
+	builderSrc := []string{"builder", "cmd/builder"}
 	builderOut := "./bin/builder.exe"
 
 	if needsRebuild(builderSrc, builderOut) {
 		fmt.Println("🔨 Building site builder...")
-		if err := run("go", "build", "-o", builderOut, "./builder"); err != nil {
+		if err := run("go", "build", "-o", builderOut, "./cmd/builder"); err != nil {
 			fmt.Printf("❌ Builder build failed: %v\n", err)
 			os.Exit(1)
 		}

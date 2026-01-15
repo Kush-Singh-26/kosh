@@ -9,6 +9,7 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **Incremental Builds**: Intelligently skips processing files that haven't changed to speed up build times.
 - **Frontmatter Caching**: Uses a hash-based caching system to detect frontmatter changes, preventing unnecessary regeneration of social cards and graph data during incremental builds.
 - **Pinned Posts**: Highlight important content by setting `pinned: true` in the frontmatter.
+- **Pagination**: Automatically splits the post list into manageable pages with navigation controls.
 - **Reading Time Estimation**: Automatically calculates and displays estimated reading time for each article.
 - **Table of Content Generation**: Automatically generates the TOC based on the heading tags like `#` (`<h1>`), `##` (`<h2>`), etc.
 - **Image Optimization**: Automatically converts local images to WebP and generates social sharing cards.
@@ -16,6 +17,7 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **WASM Search Engine**: Fast, full-text search powered by Go and WebAssembly with BM25 ranking and tag filtering.
 - **Math Support**: LaTeX support using KaTeX for rendering complex mathematical equations.
 - **SEO Ready**: Auto-generates `sitemap.xml` (in `/sitemap/`), `rss.xml`, and fully optimized meta tags.
+- **PWA Support**: Supports Progressive Web App (PWA) allowing offline use.
 
 ---
 
@@ -33,13 +35,13 @@ cd blogs
 
 ```bash
 # Build the site builder and search engine (conditional build)
-go run build.go
+go run cmd/build/main.go
 
 # Build the development server 
-go build -o bin/server.exe ./server/main.go
+go build -o bin/server.exe ./cmd/server/main.go
 
 # Build the content helper 
-go build -o bin/new.exe new.go
+go build -o bin/new.exe ./cmd/new/main.go
 ```
 
 ---
@@ -112,7 +114,7 @@ draft: true
 │       └── deploy.yml     # CI/CD Pipeline
 ├── .gitignore
 ├── bin/                   # Compiled executables (ignored by git)
-├── builder/               # Core SSG Logic
+├── builder/               # Core SSG Logic (Packages)
 │   ├── assets/
 │   │   └── fonts/         # Fonts (Inter) for generating social cards
 │   ├── config/            # Configuration loading & CLI flags
@@ -120,12 +122,16 @@ draft: true
 │   ├── models/            # Shared Go structs (PostMetadata, PageData)
 │   ├── parser/            # Markdown parsing & context handling
 │   ├── renderer/          # HTML template rendering logic
-│   ├── utils/             # Utilities (Minification, Hashing, File Ops)
-│   └── main.go            # Main entry point (Parallel worker pool)
+│   ├── search/            # Search engine logic
+│   └── utils/             # Utilities (Minification, Hashing, File Ops)
+├── cmd/                   # CLI Entry Points
+│   ├── build/             # Build orchestrator
+│   ├── builder/           # Site builder CLI
+│   ├── new/               # Content helper CLI
+│   ├── search/            # WASM search engine
+│   └── server/            # Local development server
 ├── content/               # Markdown content files (.md)
 ├── public/                # Output directory (Generated site)
-├── server/                # Local development server
-│   └── main.go            # Server with SSE auto-reload support
 ├── static/                # Static assets
 │   ├── css/               # Stylesheets (theme, layout, graph, katex)
 │   ├── images/            # Images, icons, & generated social cards
@@ -137,8 +143,7 @@ draft: true
 │   ├── index.html         # Home page 
 │   └── layout.html        # Master layout wrapper
 ├── go.mod                 # Go module definition
-├── go.sum                 # Go module checksums
-└── new.go                 # CLI script to create new posts
+└── go.sum                 # Go module checksums
 ```
 
 ## Configuration

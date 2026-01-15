@@ -9,16 +9,16 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run new.go \"My New Post Title\"")
+		fmt.Println("Usage: go run cmd/new/main.go \"My New Post Title\"")
 		return
 	}
 
 	title := os.Args[1]
 	// Create a filename like: content/my-new-post-title.md
 	slug := strings.ToLower(strings.ReplaceAll(title, " ", "-"))
-    // Remove special chars to be safe
-    slug = strings.ReplaceAll(slug, "?", "")
-    slug = strings.ReplaceAll(slug, ":", "")
+	// Remove special chars to be safe
+	slug = strings.ReplaceAll(slug, "?", "")
+	slug = strings.ReplaceAll(slug, ":", "")
 	filename := fmt.Sprintf("content/%s.md", slug)
 
 	// Basic Frontmatter template

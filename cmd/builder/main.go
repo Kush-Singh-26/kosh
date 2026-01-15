@@ -500,5 +500,16 @@ func main() {
 		}
 		fmt.Println("🕸️  Knowledge Graph regenerated.")
 	}
+
+	// --- PWA GENERATION START ---
+	if err := generators.GenerateSW("public", cfg.BuildVersion, cfg.ForceRebuild); err != nil {
+		fmt.Printf("⚠️ Failed to generate Service Worker: %v\n", err)
+	}
+
+	if err := generators.GeneratePWAIcons(faviconPath, "public/static/images"); err != nil {
+		fmt.Printf("⚠️ Failed to generate PWA icons: %v\n", err)
+	}
+	// --- PWA GENERATION END ---
+
 	fmt.Println("✅ Build Complete.")
 }

@@ -34,6 +34,7 @@
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
     {{ end }}
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
+    <link rel="manifest" href="{{ .BaseURL }}/static/manifest.json">
 
      
     {{ if not .IsIndex }}
@@ -65,8 +66,8 @@
             <button id="search-btn" class="nav-btn" aria-label="Search">Search</button>
             <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
             <a href="{{ .BaseURL }}/graph.html">Graph</a>
-            <a href="https://kush-singh-26.github.io/" target="_blank">Portfolio</a>
-            <a href="https://github.com/kush-singh-26" target="_blank">GitHub</a>
+            <a href="https://kush-singh-26.github.io/" target="_blank">Home</a>
+            <a href="https://github.com/Kush-Singh-26/blogs" target="_blank">GitHub</a>
             <button id="theme-toggle" aria-label="Toggle Theme">
 
                 <span class="theme-icon-light">☀️</span> <span class="theme-icon-dark">🌙</span>  </button>
@@ -198,6 +199,19 @@
                 source.onerror = function() {
                     source.close();
                 };
+            }
+
+            // PWA Service Worker Registration
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('{{ .BaseURL }}/sw.js')
+                        .then(registration => {
+                            console.log('SW registered:', registration.scope);
+                        })
+                        .catch(err => {
+                            console.log('SW registration failed:', err);
+                        });
+                });
             }
         })();
     </script>

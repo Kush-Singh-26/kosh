@@ -1,5 +1,5 @@
 [build]
-  cmd = "go run build.go"
+  cmd = "go run cmd/build/main.go"
   
   bin = "./bin/builder.exe"
 
