@@ -14,18 +14,17 @@ import (
 )
 
 type Renderer struct {
-	Layout      *template.Template
-	Index       *template.Template
-	Graph       *template.Template
-	NotFound    *template.Template
-	LayoutCSS   template.CSS
-	ThemeCSS    template.CSS
-	Compress    bool
+	Layout   *template.Template
+	Index    *template.Template
+	Graph    *template.Template
+	NotFound *template.Template
+	Assets   map[string]string
+	Compress bool
 }
 
 func New(compress bool) *Renderer {
 	funcMap := template.FuncMap{"lower": strings.ToLower}
-	
+
 	// Load layout template
 	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles("templates/layout.html")
 	if err != nil {
@@ -52,31 +51,30 @@ func New(compress bool) *Renderer {
 		notFoundTmpl = nil
 	}
 
-	layoutBytes, _ := os.ReadFile("static/css/layout.css")
-	themeBytes, _ := os.ReadFile("static/css/theme.css")
-
 	return &Renderer{
-		Layout:    tmpl,
-		Index:     indexTmpl,
-		Graph:     graphTmpl,
-		NotFound:  notFoundTmpl,
-		LayoutCSS: template.CSS(layoutBytes),
-		ThemeCSS:  template.CSS(themeBytes),
-		Compress:  compress,
+		Layout:   tmpl,
+		Index:    indexTmpl,
+		Graph:    graphTmpl,
+		NotFound: notFoundTmpl,
+		Compress: compress,
 	}
 }
 
+func (r *Renderer) SetAssets(assets map[string]string) {
+	r.Assets = assets
+}
+
 func (r *Renderer) RenderPage(path string, data models.PageData) {
-	// Inject CSS
-	data.LayoutCSS = r.LayoutCSS
-	data.ThemeCSS = r.ThemeCSS
+	// Inject Assets
+	data.Assets = r.Assets
 
 	os.MkdirAll(filepath.Dir(path), 0755)
+
 	f, _ := os.Create(path)
 	defer f.Close()
 
 	var w io.Writer = f
-	
+
 	// Minify HTML if enabled
 	if r.Compress {
 		mw := utils.Minifier.Writer("text/html", f)
@@ -88,16 +86,15 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 }
 
 func (r *Renderer) RenderIndex(path string, data models.PageData) {
-	// Inject CSS
-	data.LayoutCSS = r.LayoutCSS
-	data.ThemeCSS = r.ThemeCSS
+	// Inject Assets
+	data.Assets = r.Assets
 
 	os.MkdirAll(filepath.Dir(path), 0755)
 	f, _ := os.Create(path)
 	defer f.Close()
 
 	var w io.Writer = f
-	
+
 	// Minify HTML if enabled
 	if r.Compress {
 		mw := utils.Minifier.Writer("text/html", f)
@@ -117,8 +114,7 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 	if r.Graph == nil {
 		return
 	}
-	data.LayoutCSS = r.LayoutCSS
-	data.ThemeCSS = r.ThemeCSS
+	data.Assets = r.Assets
 
 	f, _ := os.Create(path)
 	defer f.Close()
@@ -134,16 +130,15 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 }
 
 func (r *Renderer) Render404(path string, data models.PageData) {
-	// Inject CSS
-	data.LayoutCSS = r.LayoutCSS
-	data.ThemeCSS = r.ThemeCSS
+	// Inject Assets
+	data.Assets = r.Assets
 
 	os.MkdirAll(filepath.Dir(path), 0755)
 	f, _ := os.Create(path)
 	defer f.Close()
 
 	var w io.Writer = f
-	
+
 	// Minify HTML if enabled
 	if r.Compress {
 		mw := utils.Minifier.Writer("text/html", f)

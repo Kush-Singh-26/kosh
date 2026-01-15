@@ -5,17 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .TabTitle }}</title>
     
+    {{ if .Assets }}
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/graph.css" }}">
+    {{ else }}
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/graph.css">
+    {{ end }}
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
 
+    {{ if .Assets }}
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/layout.css" }}">
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/theme.css" }}">
+    <script src="{{ .BaseURL }}{{ index .Assets "/static/js/force-graph.js" }}"></script>
+    {{ else }}
     <style>
         /* Inject Main Site CSS */
         {{ .LayoutCSS }}
         {{ .ThemeCSS }}
     </style>
-
     <script src="{{ .BaseURL }}/static/js/force-graph.js"></script>
+    {{ end }}
 </head>
+
 <body>
 
 <div id="loading" class="loading"></div>
@@ -54,7 +64,12 @@
     window.GRAPH_BASE_URL = '{{ .BaseURL }}';
 </script>
 
+{{ if .Assets }}
+<script src="{{ .BaseURL }}{{ index .Assets "/static/js/graph.js" }}"></script>
+{{ else }}
 <script src="{{ .BaseURL }}/static/js/graph.js"></script>
+{{ end }}
 
 </body>
+
 </html>

@@ -15,10 +15,13 @@ type Config struct {
 	PostsPerPage   int
 }
 
-func Load() *Config {
-	baseUrlFlag := flag.String("baseurl", "", "Base URL")
-	compressFlag := flag.Bool("compress", false, "Enable image compression")
-	flag.Parse()
+func Load(args []string) *Config {
+	fs := flag.NewFlagSet("config", flag.ContinueOnError)
+	baseUrlFlag := fs.String("baseurl", "", "Base URL")
+	compressFlag := fs.Bool("compress", false, "Enable image compression")
+
+	// Parse the provided arguments instead of os.Args
+	fs.Parse(args)
 
 	return &Config{
 		BaseURL:        strings.TrimSuffix(*baseUrlFlag, "/"),

@@ -1,11 +1,10 @@
 [build]
-  cmd = "go run cmd/build/main.go"
+  # 1. Compile the kosh tool
+  cmd = "go build -o kosh.exe cmd/kosh/main.go"
   
-  bin = "./bin/builder.exe"
-
-  
-  args_bin = ["--compress"]
-  
+  # 2. Run the tool to build the site
+  bin = "kosh.exe"
+  args_bin = ["build", "-compress"]
 
   # Watch config
   include_ext = ["go", "md", "html", "css", "js"]

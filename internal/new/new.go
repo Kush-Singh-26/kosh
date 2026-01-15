@@ -1,4 +1,4 @@
-package main
+package new
 
 import (
 	"fmt"
@@ -7,13 +7,14 @@ import (
 	"time"
 )
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run cmd/new/main.go \"My New Post Title\"")
+// Run creates a new blog post file
+func Run(args []string) {
+	if len(args) < 1 {
+		fmt.Println("Usage: kosh new \"My New Post Title\"")
 		return
 	}
 
-	title := os.Args[1]
+	title := args[0]
 	// Create a filename like: content/my-new-post-title.md
 	slug := strings.ToLower(strings.ReplaceAll(title, " ", "-"))
 	// Remove special chars to be safe
@@ -28,6 +29,7 @@ date: "%s"
 description: "Enter a short description here..."
 tags: []
 pinned: false
+draft: true
 ---
 
 ## Introduction

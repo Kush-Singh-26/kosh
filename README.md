@@ -7,6 +7,8 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **Parallel Build System**: Uses Go routines to process files concurrently, maximizing CPU usage for fast builds.
 - **Live Reloading**: Built-in development server with Server-Sent Events (SSE) to instantly reload the browser when files change.
 - **Incremental Builds**: Intelligently skips processing files that haven't changed to speed up build times.
+- **Asset Pipeline**: Automatic minification and content-hash fingerprinting for CSS & JS files (e.g., `style.a1b2.css`) for optimal caching.
+- **Safe Clean Command**: Dedicated tool to safely clear the build output directory.
 - **Frontmatter Caching**: Uses a hash-based caching system to detect frontmatter changes, preventing unnecessary regeneration of social cards and graph data during incremental builds.
 - **Pinned Posts**: Highlight important content by setting `pinned: true` in the frontmatter.
 - **Pagination**: Automatically splits the post list into manageable pages with navigation controls.
@@ -18,6 +20,7 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **Math Support**: LaTeX support using KaTeX for rendering complex mathematical equations.
 - **SEO Ready**: Auto-generates `sitemap.xml` (in `/sitemap/`), `rss.xml`, and fully optimized meta tags.
 - **PWA Support**: Supports Progressive Web App (PWA) allowing offline use.
+- **Unified Tooling (Kosh)**: Comes with a custom CLI tool, `kosh` (Hindi/Sanskrit for "Repository" or "Treasury"), which handles everything from creating posts to building the site and serving it locally.
 
 ---
 
@@ -31,17 +34,11 @@ git clone "https://github.com/kush-singh-26/blogs.git"
 cd blogs
 ```
 
-2. **Build the Binaries**
+2. **Build the CLI Tool**
 
 ```bash
-# Build the site builder and search engine (conditional build)
-go run cmd/build/main.go
-
-# Build the development server 
-go build -o bin/server.exe ./cmd/server/main.go
-
-# Build the content helper 
-go build -o bin/new.exe ./cmd/new/main.go
+# Build the unified tool 'kosh'
+go build -o kosh.exe cmd/kosh/main.go
 ```
 
 ---
@@ -50,19 +47,19 @@ go build -o bin/new.exe ./cmd/new/main.go
 
 ### 1. Development (Live Reload)
 
-For the best experience, run the server and let `air` handle rebuilding.
+For the best experience, use `air` to watch for file changes (which rebuilds the site) and `kosh` to serve it.
 
 **Terminal 1 (File Watcher/Builder):**
 
 ```bash
-# Using Air, build compressed version
+# Watches files and rebuilds instantly
 air
 ```
 
 **Terminal 2 (Server):**
 
 ```bash
-.\bin\server.exe
+.\kosh serve
 # Serving on http://localhost:2604 (Auto-reload enabled)
 ```
 
@@ -71,7 +68,7 @@ air
 To build the site for deployment (minifies HTML/CSS/JS and compresses images):
 
 ```bash
-.\bin\builder.exe -compress
+.\kosh build -compress
 ```
 
 ### 3. Content Management
@@ -79,7 +76,7 @@ To build the site for deployment (minifies HTML/CSS/JS and compresses images):
 Create a new markdown post with frontmatter automatically populated:
 
 ```bash
-.\bin\new.exe "<Title of new blog>"
+.\kosh new "Title of new blog"
 ```
 
 **Post Metadata (Frontmatter):**
@@ -125,11 +122,9 @@ draft: true
 │   ├── search/            # Search engine logic
 │   └── utils/             # Utilities (Minification, Hashing, File Ops)
 ├── cmd/                   # CLI Entry Points
-│   ├── build/             # Build orchestrator
-│   ├── builder/           # Site builder CLI
-│   ├── new/               # Content helper CLI
-│   ├── search/            # WASM search engine
-│   └── server/            # Local development server
+│   ├── kosh/              # Unified CLI tool
+│   └── search/            # WASM search engine
+├── internal/              # Internal Logic (Clean, New, Server)
 ├── content/               # Markdown content files (.md)
 ├── public/                # Output directory (Generated site)
 ├── static/                # Static assets
@@ -148,19 +143,20 @@ draft: true
 
 ## Configuration
 
-The `builder` accepts the following flags:
+The `kosh build` command accepts the following flags:
 
 | Flag | Description | Default |
 | --- | --- | --- |
 | `-compress` | Enables minification and WebP conversion | `false` |
 | `-output` | Custom output directory | `public` |
 
-The `server` accepts:
+The `kosh serve` command accepts:
 
 | Flag | Description | Default |
 | --- | --- | --- |
 | `-host` | Host to bind to (use `0.0.0.0` for LAN) | `localhost` |
 | `-port` | Port to listen on | `2604` |
+
 
 ## Dependencies
 

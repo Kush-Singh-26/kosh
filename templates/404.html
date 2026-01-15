@@ -11,11 +11,18 @@
     <meta property="og:title" content="404 - Page Not Found">
     <meta property="og:description" content="The page you're looking for doesn't exist.">
 
+    {{ if .Assets }}
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/layout.css" }}">
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/theme.css" }}">
+    {{ else }}
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/layout.css">
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/theme.css">
+    {{ end }}
+
     <style>
-        {{ .LayoutCSS }}
-        {{ .ThemeCSS }}
         
         /* Custom 404 Styles */
+
         .error-container {
             display: flex;
             flex-direction: column;
@@ -223,6 +230,11 @@
         <p style="text-align: center; margin: 0 auto;">&copy; 2026 Kush Singh</p>
     </footer>
     
+    {{ if .Assets }}
+    <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/main.js" }}"></script>
+    {{ else }}
     <script defer src="{{ .BaseURL }}/static/js/main.js?v={{ .BuildVersion }}"></script>
+    {{ end }}
 </body>
+
 </html>

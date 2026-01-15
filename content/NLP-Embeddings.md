@@ -330,6 +330,3 @@ This proves that the meaninig is embedded in the ratio. Very large or small rati
 
 #### Deriving the model
 
-`
-
-

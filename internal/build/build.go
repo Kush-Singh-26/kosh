@@ -1,5 +1,4 @@
-// build.go handles conditional building of WASM and regular binaries
-package main
+package build
 
 import (
 	"fmt"
@@ -8,25 +7,11 @@ import (
 	"path/filepath"
 )
 
-func main() {
-	// Ensure bin directory exists
+// CheckWASM checks if the search engine WASM needs to be rebuilt and builds it if necessary.
+func CheckWASM() {
+	// Ensure bin directory exists (though not strictly needed for WASM)
 	os.MkdirAll("bin", 0755)
 
-	// 1. Conditional Site Builder Build
-	builderSrc := []string{"builder", "cmd/builder"}
-	builderOut := "./bin/builder.exe"
-
-	if needsRebuild(builderSrc, builderOut) {
-		fmt.Println("🔨 Building site builder...")
-		if err := run("go", "build", "-o", builderOut, "./cmd/builder"); err != nil {
-			fmt.Printf("❌ Builder build failed: %v\n", err)
-			os.Exit(1)
-		}
-	} else {
-		fmt.Println("⏭️  Builder source unchanged. Skipping build.")
-	}
-
-	// 2. Conditional WASM Build
 	wasmSrc := []string{
 		"cmd/search",
 		"builder/search",
@@ -47,7 +32,8 @@ func main() {
 		}
 		fmt.Println("✅ WASM build complete.")
 	} else {
-		fmt.Println("⏭️  WASM source unchanged. Skipping build.")
+		// Silent check usually, but let's be verbose for now
+		// fmt.Println("⏭️  WASM source unchanged.")
 	}
 }
 
@@ -73,11 +59,4 @@ func needsRebuild(srcs []string, out string) bool {
 		}
 	}
 	return false
-}
-
-func run(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }

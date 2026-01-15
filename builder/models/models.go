@@ -68,6 +68,7 @@ type PageData struct {
 	Image        string
 	TOC          []TOCEntry
 	Paginator    Paginator
+	Assets       map[string]string
 }
 
 // --- Sitemap Structures ---

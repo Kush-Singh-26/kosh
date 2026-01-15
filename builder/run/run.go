@@ -1,4 +1,4 @@
-package main
+package run
 
 import (
 	"bytes"
@@ -27,8 +27,10 @@ import (
 	"my-ssg/builder/utils"
 )
 
-func main() {
-	cfg := config.Load()
+// Run executes the main build logic
+func Run(args []string) {
+	// Pass the arguments to the config loader so flags like -compress work correctly
+	cfg := config.Load(args)
 
 	// Use all available CPU cores
 	numWorkers := runtime.NumCPU()
@@ -81,6 +83,15 @@ func main() {
 	if _, err := os.Stat("static"); err == nil {
 		utils.CopyDir("static", "public/static", cfg.CompressImages)
 	}
+
+	// Process Assets (CSS/JS minification & hashing)
+	assets, assetErr := utils.ProcessAssets("static", "public/static")
+	if assetErr != nil {
+		fmt.Printf("⚠️ Failed to process assets: %v\n", assetErr)
+	} else {
+		fmt.Printf("🎨 Processed %d assets\n", len(assets))
+	}
+	rnd.SetAssets(assets)
 
 	if err := os.WriteFile("public/.nojekyll", []byte(""), 0644); err != nil {
 		fmt.Printf("⚠️ Failed to create .nojekyll: %v\n", err)

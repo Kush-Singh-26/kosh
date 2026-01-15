@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"compress/gzip"
@@ -38,21 +38,24 @@ func gzipHandler(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func main() {
-	// 1. Define flags for Host and Port
-	host := flag.String("host", "localhost", "The host/IP to bind to")
-	port := flag.String("port", "2604", "The port to listen on")
+// Run starts the preview server
+func Run(args []string) {
+	// Parse flags manually from args to avoid conflicts with main CLI flags
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	host := fs.String("host", "localhost", "The host/IP to bind to")
+	port := fs.String("port", "2604", "The port to listen on")
 
-	flag.Parse()
+	fs.Parse(args)
+
 	addr := fmt.Sprintf("%s:%s", *host, *port)
 
-	// 2. Force register the WASM mime type
+	// Force register the WASM mime type
 	mime.AddExtensionType(".wasm", "application/wasm")
 
 	staticDir := "./public"
-	fs := http.FileServer(http.Dir(staticDir))
+	fileServer := http.FileServer(http.Dir(staticDir))
 
-	// --- NEW: Auto-Reload Endpoint (SSE) ---
+	// --- Auto-Reload Endpoint (SSE) ---
 	http.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		// Set headers for Server-Sent Events
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -90,7 +93,7 @@ func main() {
 	})
 	// ---------------------------------------
 
-	// 3. Main File Handler
+	// Main File Handler
 	fileHandler := func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Clean(r.URL.Path)
 		fullPath := filepath.Join(staticDir, path)
@@ -109,7 +112,7 @@ func main() {
 			return
 		}
 
-		fs.ServeHTTP(w, r)
+		fileServer.ServeHTTP(w, r)
 	}
 
 	http.HandleFunc("/", gzipHandler(fileHandler))

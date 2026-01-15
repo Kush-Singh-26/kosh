@@ -25,15 +25,23 @@
     <meta name="twitter:description" content="{{ .Description }}">
     <meta name="twitter:image" content="{{ .Image }}"> 
 
-    <style>
-        {{ .LayoutCSS }}
-        {{ .ThemeCSS }}
-    </style>
+    {{ if .Assets }}
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/layout.css" }}">
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/theme.css" }}">
+    {{ else }}
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/layout.css">
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/theme.css">
+    {{ end }}
     <script>window.siteBaseURL = "{{ .BaseURL }}";</script>
     {{ if .HasMath }}
-    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
+        {{ if .Assets }}
+        <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/katex.min.css" }}">
+        {{ else }}
+        <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
+        {{ end }}
     {{ end }}
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
+
     <link rel="manifest" href="{{ .BaseURL }}/static/manifest.json">
 
      
@@ -176,16 +184,27 @@
     </div>
 
     {{ if .HasMath }}
-
-    <script defer src="{{ .BaseURL }}/static/js/katex.min.js"></script>
-    <script defer src="{{ .BaseURL }}/static/js/auto-render.min.js"></script>
+        {{ if .Assets }}
+        <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/katex.min.js" }}"></script>
+        <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/auto-render.min.js" }}"></script>
+        {{ else }}
+        <script defer src="{{ .BaseURL }}/static/js/katex.min.js"></script>
+        <script defer src="{{ .BaseURL }}/static/js/auto-render.min.js"></script>
+        {{ end }}
     {{ end }}
     
+    {{ if .Assets }}
+    <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/main.js" }}"></script>
+    <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/wasm_exec.js" }}"></script>
+    <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/search.js" }}"></script>
+    {{ else }}
     <script defer src="{{ .BaseURL }}/static/js/main.js?v={{ .BuildVersion }}"></script>
     <script defer src="{{ .BaseURL }}/static/js/wasm_exec.js?v={{ .BuildVersion }}"></script>
     <script defer src="{{ .BaseURL }}/static/js/search.js?v={{ .BuildVersion }}"></script>
+    {{ end }}
 
     <script>
+
         (function() {
             const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
             if (hosts.includes(window.location.hostname)) {

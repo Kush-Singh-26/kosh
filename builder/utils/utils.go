@@ -33,6 +33,80 @@ func InitMinifier() {
 	Minifier.AddFunc("text/javascript", js.Minify)
 }
 
+// ProcessAssets handles minification and fingerprinting of CSS and JS files.
+// It returns a map of original filenames to their hashed counterparts.
+func ProcessAssets(srcDir, destDir string) (map[string]string, error) {
+	assets := make(map[string]string)
+
+	err := filepath.Walk(srcDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".css" && ext != ".js" {
+			return nil
+		}
+
+		// Read original content
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		// Minify
+		var minifiedContent []byte
+		var mediaType string
+		if ext == ".css" {
+			mediaType = "text/css"
+		} else {
+			mediaType = "text/javascript"
+		}
+
+		// Use minifier if initialized, otherwise use raw
+		if Minifier != nil {
+			b := &strings.Builder{}
+			if err := Minifier.Minify(mediaType, b, strings.NewReader(string(content))); err == nil {
+				minifiedContent = []byte(b.String())
+			} else {
+				// Fallback to original if minification fails
+				fmt.Printf("⚠️ Minification failed for %s: %v\n", path, err)
+				minifiedContent = content
+			}
+		} else {
+			minifiedContent = content
+		}
+
+		// Generate Hash
+		hash := sha256.Sum256(minifiedContent)
+		shortHash := hex.EncodeToString(hash[:])[:8]
+
+		// Construct new filename
+		relPath, _ := filepath.Rel(srcDir, path)
+		dir := filepath.Dir(relPath)
+		filename := strings.TrimSuffix(filepath.Base(path), ext)
+		hashedFilename := fmt.Sprintf("%s.%s%s", filename, shortHash, ext)
+
+		// Map creation: normalized keys (e.g., /static/css/theme.css)
+		key := filepath.ToSlash(filepath.Join("/static", relPath))
+		val := filepath.ToSlash(filepath.Join("/static", dir, hashedFilename))
+		assets[key] = val
+
+		// Write to destination
+		destFile := filepath.Join(destDir, dir, hashedFilename)
+		if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
+			return err
+		}
+
+		return os.WriteFile(destFile, minifiedContent, 0644)
+	})
+
+	return assets, err
+}
+
 // CopyDir copies a directory recursively with incremental build support.
 func CopyDir(src, dst string, compress bool) error {
 	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
