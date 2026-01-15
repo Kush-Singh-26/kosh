@@ -2,6 +2,7 @@ package generators
 
 import (
 	"encoding/xml"
+	"fmt"
 	"os"
 	"time"
 
@@ -29,5 +30,7 @@ func GenerateRSS(baseURL string, posts []models.PostMetadata) {
 		},
 	}
 	output, _ := xml.MarshalIndent(rss, "", "  ")
-	os.WriteFile("public/rss.xml", []byte(xml.Header+string(output)), 0644)
+	if err := os.WriteFile("public/rss.xml", []byte(xml.Header+string(output)), 0644); err != nil {
+		fmt.Printf("⚠️ Failed to write rss.xml: %v\n", err)
+	}
 }

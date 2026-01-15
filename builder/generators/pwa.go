@@ -80,7 +80,7 @@ self.addEventListener('fetch', (event) => {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	data := struct {
 		Version int64
@@ -96,7 +96,7 @@ func GeneratePWAIcons(srcPath, destDir string) error {
 	// Source must exist
 	srcInfo, err := os.Stat(srcPath)
 	if err != nil {
-		return fmt.Errorf("source icon not found: %v", err)
+		return fmt.Errorf("source icon not found: %w", err)
 	}
 
 	// Create dest dir if needed

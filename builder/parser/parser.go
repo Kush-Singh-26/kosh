@@ -32,7 +32,7 @@ func GetTOC(pc parser.Context) []models.TOCEntry {
 // ExtractPlainText walks the AST and returns a clean string of all text content
 func ExtractPlainText(node ast.Node, source []byte) string {
 	var out strings.Builder
-	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
@@ -64,7 +64,7 @@ type TOCTransformer struct{}
 func (t *TOCTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	var toc []models.TOCEntry
 
-	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
@@ -88,7 +88,7 @@ func (t *TOCTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 				}
 				return ast.WalkContinue, nil
 			}
-			ast.Walk(heading, walker)
+			_ = ast.Walk(heading, walker)
 
 			id, _ := heading.AttributeString("id")
 			if id != nil {
@@ -113,7 +113,7 @@ type URLTransformer struct {
 }
 
 func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
-	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}

@@ -1,0 +1,29 @@
+version: 2
+
+linters-settings:
+  misspell:
+    locale: US
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - misspell
+    - errorlint
+
+issues:
+  exclude-dirs:
+    - public
+    - bin
+    - tmp
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errorlint
+
+run:
+  timeout: 5m
+  tests: true

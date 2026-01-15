@@ -23,6 +23,10 @@ func main() {
 	switch command {
 	case "clean":
 		clean.Run()
+		// Auto-rebuild after clean (compressed)
+		fmt.Println("\n🔄 Rebuilding site (compressed)...")
+		build.CheckWASM()
+		run.Run([]string{"-compress"})
 	case "new":
 		new.Run(args)
 	case "serve":
@@ -45,7 +49,7 @@ func printUsage() {
 	fmt.Println("Usage: kosh <command> [arguments]")
 	fmt.Println("\nCommands:")
 	fmt.Println("  new <title>    Create a new blog post")
-	fmt.Println("  clean          Clean the public directory")
+	fmt.Println("  clean          Clean public directory & rebuild compressed")
 	fmt.Println("  serve          Start the preview server")
 	fmt.Println("  build          Build the static site (and WASM)")
 	fmt.Println("  help           Show this help message")

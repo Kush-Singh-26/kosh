@@ -32,7 +32,7 @@ func gzipHandler(next http.HandlerFunc) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Encoding", "gzip")
 		gz := gzip.NewWriter(w)
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		gzw := &gzipResponseWriter{Writer: gz, ResponseWriter: w}
 		next(gzw, r)
 	}
@@ -45,12 +45,12 @@ func Run(args []string) {
 	host := fs.String("host", "localhost", "The host/IP to bind to")
 	port := fs.String("port", "2604", "The port to listen on")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	addr := fmt.Sprintf("%s:%s", *host, *port)
 
 	// Force register the WASM mime type
-	mime.AddExtensionType(".wasm", "application/wasm")
+	_ = mime.AddExtensionType(".wasm", "application/wasm")
 
 	staticDir := "./public"
 	fileServer := http.FileServer(http.Dir(staticDir))
@@ -85,7 +85,7 @@ func Run(args []string) {
 				if currentMod.After(lastMod) {
 					lastMod = currentMod
 					// Send reload signal
-					fmt.Fprintf(w, "data: reload\n\n")
+					_, _ = fmt.Fprintf(w, "data: reload\n\n")
 					w.(http.Flusher).Flush()
 				}
 			}
@@ -96,6 +96,13 @@ func Run(args []string) {
 	// Main File Handler
 	fileHandler := func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Clean(r.URL.Path)
+		// If path starts with /blogs/, strip it for local development
+		if strings.HasPrefix(path, "/blogs/") {
+			path = strings.TrimPrefix(path, "/blogs/")
+		} else if strings.HasPrefix(path, "\\blogs\\") {
+			path = strings.TrimPrefix(path, "\\blogs\\")
+		}
+
 		fullPath := filepath.Join(staticDir, path)
 
 		// Check if file exists
@@ -105,9 +112,9 @@ func Run(args []string) {
 			notFoundPath := filepath.Join(staticDir, "404.html")
 			content, readErr := os.ReadFile(notFoundPath)
 			if readErr != nil {
-				w.Write([]byte("404 - Page Not Found"))
+				_, _ = w.Write([]byte("404 - Page Not Found"))
 			} else {
-				w.Write(content)
+				_, _ = w.Write(content)
 			}
 			return
 		}

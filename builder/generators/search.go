@@ -44,12 +44,12 @@ func GenerateSearchIndex(outputDir string, posts []models.PostRecord) error {
 	}
 
 	// Save to binary file
-	os.MkdirAll(outputDir, 0755)
+	_ = os.MkdirAll(outputDir, 0755)
 	file, err := os.Create(filepath.Join(outputDir, "search.bin"))
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	enc := gob.NewEncoder(file)
 	return enc.Encode(index)

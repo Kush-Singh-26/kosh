@@ -159,13 +159,13 @@ func minifyFile(mediaType, srcPath, dstPath string) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	dst, err := os.Create(dstPath)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer func() { _ = dst.Close() }()
 
 	return Minifier.Minify(mediaType, dst, src)
 }
@@ -184,7 +184,7 @@ func processImage(srcPath, dstPath string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return webp.Encode(f, src, &webp.Options{Lossless: false, Quality: 80})
 }
@@ -194,12 +194,12 @@ func CopyFileStandard(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	d, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	_, err = io.Copy(d, s)
 	return err
 }
@@ -274,7 +274,7 @@ func LoadSocialCardCache(path string) (*SocialCardCache, error) {
 }
 
 func SaveSocialCardCache(path string, cache *SocialCardCache) error {
-	os.MkdirAll(filepath.Dir(path), 0755)
+	_ = os.MkdirAll(filepath.Dir(path), 0755)
 	data, err := json.MarshalIndent(cache, "", "  ")
 	if err != nil {
 		return err

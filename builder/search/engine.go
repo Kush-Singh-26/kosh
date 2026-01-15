@@ -6,6 +6,9 @@ import (
 	"strings"
 	"unicode"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"my-ssg/builder/models"
 )
 
@@ -113,7 +116,7 @@ func Tokenize(text string) []string {
 
 func HasTag(tags []string, target string) bool {
 	for _, t := range tags {
-		if strings.ToLower(t) == strings.ToLower(target) {
+		if strings.EqualFold(t, target) {
 			return true
 		}
 	}
@@ -155,8 +158,9 @@ func ExtractSnippet(content string, terms []string) string {
 
 	snippet := content[start:end]
 
+	caser := cases.Title(language.English)
 	for _, term := range terms {
-		re := strings.NewReplacer(term, "<b>"+term+"</b>", strings.Title(term), "<b>"+strings.Title(term)+"</b>")
+		re := strings.NewReplacer(term, "<b>"+term+"</b>", caser.String(term), "<b>"+caser.String(term)+"</b>")
 		snippet = re.Replace(snippet)
 	}
 

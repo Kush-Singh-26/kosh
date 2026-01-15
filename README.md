@@ -21,7 +21,9 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **SEO Ready**: Auto-generates `sitemap.xml` (in `/sitemap/`), `rss.xml`, and fully optimized meta tags.
 - **PWA Support**: Supports Progressive Web App (PWA) allowing offline use.
 - **Unified Tooling (Kosh)**: Comes with a custom CLI tool, `kosh` (Hindi/Sanskrit for "Repository" or "Treasury"), which handles everything from creating posts to building the site and serving it locally.
+- **Automated Linting**: Pre-configured `golangci-lint` setup to maintain high code quality and consistency across the project.
 
+****
 ---
 
 ## Installation & Setup
@@ -79,7 +81,17 @@ Create a new markdown post with frontmatter automatically populated:
 .\kosh new "Title of new blog"
 ```
 
+### 4. Linting & Code Quality
+
+To ensure code consistency and safety, a pre-configured `golangci-lint` setup is provided.
+
+```bash
+# Run the linter
+golangci-lint run
+```
+
 **Post Metadata (Frontmatter):**
+
 
 ```yaml
 title: "Modern AI Architectures"
@@ -166,6 +178,5 @@ The `kosh serve` command accepts:
 - **LaTeX Passthrough**: `github.com/gohugoio/hugo-goldmark-extensions/passthrough`
 - **Minification**: `github.com/tdewolff/minify/v2`
 - **Image Processing**: `github.com/disintegration/imaging`
-- **WebP Encoding**: `github.com/chai2010/webp`fication**: `github.com/tdewolff/minify/v2`
-- **Image Processing**: `github.com/disintegration/imaging`
 - **WebP Encoding**: `github.com/chai2010/webp`
+- **Text Casing**: `golang.org/x/text` (for modern string transformations)

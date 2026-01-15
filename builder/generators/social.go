@@ -32,7 +32,7 @@ func GenerateSocialCard(title, description, dateStr, destPath, faviconPath, font
 
 	// --- 3. Typography Setup ---
 	boldFont := fontsDir + "/Inter-Bold.ttf"
-	mediumFont := fontsDir + "/Inter-Medium.ttf" 
+	mediumFont := fontsDir + "/Inter-Medium.ttf"
 	regFont := fontsDir + "/Inter-Regular.ttf"
 
 	// Layout Grid
@@ -106,9 +106,10 @@ func GenerateSocialCard(title, description, dateStr, destPath, faviconPath, font
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return webp.Encode(f, dc.Image(), &webp.Options{Lossless: true})
+
 }
 
 // drawDiffuseOrb simulates a gradient mesh/blur

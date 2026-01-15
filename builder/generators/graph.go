@@ -34,5 +34,7 @@ func GenerateGraph(baseURL string, posts []models.PostMetadata) {
 		}
 	}
 	output, _ := json.Marshal(models.GraphData{Nodes: nodes, Links: links})
-	os.WriteFile("public/graph.json", output, 0644)
+	if err := os.WriteFile("public/graph.json", output, 0644); err != nil {
+		fmt.Printf("⚠️ Failed to write graph.json: %v\n", err)
+	}
 }

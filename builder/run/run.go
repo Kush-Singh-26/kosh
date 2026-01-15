@@ -33,6 +33,7 @@ func Run(args []string) {
 	cfg := config.Load(args)
 
 	// Use all available CPU cores
+
 	numWorkers := runtime.NumCPU()
 	fmt.Printf("🔨 Building site... (Version: %d) | Parallel Workers: %d\n", cfg.BuildVersion, numWorkers)
 
@@ -50,7 +51,7 @@ func Run(args []string) {
 	utils.InitMinifier()
 
 	// Check dependencies for force rebuild
-	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css"}
+	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css", "kosh.yaml"}
 	forceSocialRebuild := false
 
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
@@ -76,12 +77,12 @@ func Run(args []string) {
 	md := mdParser.New(cfg.BaseURL)
 	rnd := renderer.New(cfg.CompressImages)
 
-	os.MkdirAll("public/tags", 0755)
-	os.MkdirAll("public/static/images/cards", 0755)
-	os.MkdirAll("public/sitemap", 0755)
+	_ = os.MkdirAll("public/tags", 0755)
+	_ = os.MkdirAll("public/static/images/cards", 0755)
+	_ = os.MkdirAll("public/sitemap", 0755)
 
 	if _, err := os.Stat("static"); err == nil {
-		utils.CopyDir("static", "public/static", cfg.CompressImages)
+		_ = utils.CopyDir("static", "public/static", cfg.CompressImages)
 	}
 
 	// Process Assets (CSS/JS minification & hashing)
@@ -203,7 +204,7 @@ func Run(args []string) {
 			// Social Card Logic
 			cardRelPath := relPathNoExt + ".webp"
 			cardDestPath := filepath.Join("public", "static", "images", "cards", cardRelPath)
-			os.MkdirAll(filepath.Dir(cardDestPath), 0755)
+			_ = os.MkdirAll(filepath.Dir(cardDestPath), 0755)
 
 			genCard := false
 
@@ -377,7 +378,7 @@ func Run(args []string) {
 		if i > 1 {
 			destPath = fmt.Sprintf("public/page/%d/index.html", i)
 			permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, i)
-			os.MkdirAll(filepath.Dir(destPath), 0755)
+			_ = os.MkdirAll(filepath.Dir(destPath), 0755)
 		}
 
 		paginator := models.Paginator{

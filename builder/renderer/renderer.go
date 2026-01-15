@@ -68,45 +68,65 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 	// Inject Assets
 	data.Assets = r.Assets
 
-	os.MkdirAll(filepath.Dir(path), 0755)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
+		return
+	}
 
-	f, _ := os.Create(path)
-	defer f.Close()
+	f, err := os.Create(path)
+	if err != nil {
+		log.Printf("❌ Failed to create file %s: %v\n", path, err)
+		return
+	}
+	defer func() { _ = f.Close() }()
 
 	var w io.Writer = f
 
 	// Minify HTML if enabled
 	if r.Compress {
 		mw := utils.Minifier.Writer("text/html", f)
-		defer mw.Close() // Flush the minifier buffer
+		defer func() { _ = mw.Close() }() // Flush the minifier buffer
 		w = mw
 	}
 
-	r.Layout.Execute(w, data)
+	if err := r.Layout.Execute(w, data); err != nil {
+		log.Printf("❌ Failed to render layout for %s: %v\n", path, err)
+	}
 }
 
 func (r *Renderer) RenderIndex(path string, data models.PageData) {
 	// Inject Assets
 	data.Assets = r.Assets
 
-	os.MkdirAll(filepath.Dir(path), 0755)
-	f, _ := os.Create(path)
-	defer f.Close()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
+		return
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		log.Printf("❌ Failed to create file %s: %v\n", path, err)
+		return
+	}
+	defer func() { _ = f.Close() }()
 
 	var w io.Writer = f
 
 	// Minify HTML if enabled
 	if r.Compress {
 		mw := utils.Minifier.Writer("text/html", f)
-		defer mw.Close()
+		defer func() { _ = mw.Close() }()
 		w = mw
 	}
 
 	// Use dedicated index template if available, otherwise fall back to layout
+	var errExec error
 	if r.Index != nil {
-		r.Index.Execute(w, data)
+		errExec = r.Index.Execute(w, data)
 	} else {
-		r.Layout.Execute(w, data)
+		errExec = r.Layout.Execute(w, data)
+	}
+	if errExec != nil {
+		log.Printf("❌ Failed to render index for %s: %v\n", path, errExec)
 	}
 }
 
@@ -116,40 +136,57 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 	}
 	data.Assets = r.Assets
 
-	f, _ := os.Create(path)
-	defer f.Close()
+	f, err := os.Create(path)
+	if err != nil {
+		log.Printf("❌ Failed to create file %s: %v\n", path, err)
+		return
+	}
+	defer func() { _ = f.Close() }()
 
 	var w io.Writer = f
 	if r.Compress {
 		mw := utils.Minifier.Writer("text/html", f)
-		defer mw.Close()
+		defer func() { _ = mw.Close() }()
 		w = mw
 	}
 
-	r.Graph.Execute(w, data)
+	if err := r.Graph.Execute(w, data); err != nil {
+		log.Printf("❌ Failed to render graph for %s: %v\n", path, err)
+	}
 }
 
 func (r *Renderer) Render404(path string, data models.PageData) {
 	// Inject Assets
 	data.Assets = r.Assets
 
-	os.MkdirAll(filepath.Dir(path), 0755)
-	f, _ := os.Create(path)
-	defer f.Close()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
+		return
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		log.Printf("❌ Failed to create file %s: %v\n", path, err)
+		return
+	}
+	defer func() { _ = f.Close() }()
 
 	var w io.Writer = f
 
 	// Minify HTML if enabled
 	if r.Compress {
 		mw := utils.Minifier.Writer("text/html", f)
-		defer mw.Close()
+		defer func() { _ = mw.Close() }()
 		w = mw
 	}
 
 	// Use dedicated 404 template if available, otherwise fall back to layout
+	var errExec error
 	if r.NotFound != nil {
-		r.NotFound.Execute(w, data)
+		errExec = r.NotFound.Execute(w, data)
 	} else {
-		r.Layout.Execute(w, data)
+		errExec = r.Layout.Execute(w, data)
+	}
+	if errExec != nil {
+		log.Printf("❌ Failed to render 404 for %s: %v\n", path, errExec)
 	}
 }

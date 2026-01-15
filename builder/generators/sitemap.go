@@ -52,5 +52,7 @@ func GenerateSitemap(baseURL string, posts []models.PostMetadata, tags map[strin
 
 	finalOutput := []byte(xml.Header + string(output))
 
-	os.WriteFile("public/sitemap/sitemap.xml", finalOutput, 0644)
+	if err := os.WriteFile("public/sitemap/sitemap.xml", finalOutput, 0644); err != nil {
+		fmt.Printf("⚠️ Failed to write sitemap.xml: %v\n", err)
+	}
 }

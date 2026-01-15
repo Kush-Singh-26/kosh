@@ -19,6 +19,7 @@ require (
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/tdewolff/parse/v2 v2.7.5 // indirect
 	golang.org/x/image v0.10.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

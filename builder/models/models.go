@@ -69,6 +69,9 @@ type PageData struct {
 	TOC          []TOCEntry
 	Paginator    Paginator
 	Assets       map[string]string
+
+	// Config-driven fields
+	Config interface{} // To access Config fields in templates (Menu, Author, etc.)
 }
 
 // --- Sitemap Structures ---

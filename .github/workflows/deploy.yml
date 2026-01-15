@@ -43,7 +43,8 @@ jobs:
             public-cache-
               
       - name: Build Static Site
-        run: go run ./builder --baseurl="https://kush-singh-26.github.io/blogs" --compress
+        run: go run cmd/kosh/main.go build --compress
+
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
