@@ -43,14 +43,21 @@
     <header>
         <a href="{{ .BaseURL }}/" class="site-title">
             <img src="{{ .BaseURL }}/static/images/favicon.webp" alt="" class="site-logo" width="35" height="35">
-            Kush Blogs
+            {{ .Config.Title }}
         </a>
         <nav>
-            <button id="search-btn" class="nav-btn" aria-label="Search">Search</button>
-            <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
-            <a href="{{ .BaseURL }}/graph.html">Graph</a>
-            <a href="https://kush-singh-26.github.io/" target="_blank">Home</a>
-            <a href="https://github.com/Kush-Singh-26/blogs" target="_blank">GitHub</a>
+            {{ range .Config.Menu }}
+                {{ if .URL }}
+                    <a href="{{ if hasPrefix .URL "http" }}{{ .URL }}{{ else }}{{ $.BaseURL }}{{ .URL }}{{ end }}" 
+                       {{ if .Target }}target="{{ .Target }}"{{ end }}
+                       {{ if .ID }}id="{{ .ID }}"{{ end }}
+                       {{ if .Class }}class="{{ .Class }}"{{ end }}>{{ .Name }}</a>
+                {{ else }}
+                    <button {{ if .ID }}id="{{ .ID }}"{{ end }} 
+                            {{ if .Class }}class="{{ .Class }}"{{ end }} 
+                            aria-label="{{ .Name }}">{{ .Name }}</button>
+                {{ end }}
+            {{ end }}
             <button id="theme-toggle" aria-label="Toggle Theme">
                 <span class="theme-icon-light">☀️</span> <span class="theme-icon-dark">🌙</span>
             </button>
@@ -61,7 +68,7 @@
 
         <div class="hero-section">
             <h1>Exploration & <br><span class="gradient-text">Engineering</span></h1>
-            <p>A personal archive of learning, coding, and building. <br>Documenting the journey through Mathematics and AI.</p>
+            <p>{{ .Config.Description }}</p>
             <div class="hero-search-container">
                 <div class="hero-search" id="hero-search-trigger">
                     <span>Search articles...</span>
@@ -157,7 +164,7 @@
     </main>
 
     <footer>
-        <p style="text-align: center; margin: 0 auto;">&copy; 2026 Kush Singh</p>
+        <p style="text-align: center; margin: 0 auto;">&copy; {{ now.Year }} {{ .Config.Author.Name }}</p>
     </footer>
 
     <!-- Search Modal -->

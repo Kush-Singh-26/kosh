@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yuin/goldmark"
 	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
@@ -27,28 +28,64 @@ import (
 	"my-ssg/builder/utils"
 )
 
-// Run executes the main build logic
-func Run(args []string) {
-	// Pass the arguments to the config loader so flags like -compress work correctly
+// Builder maintains the state for site builds
+type Builder struct {
+	cfg             *config.Config
+	socialCardCache *utils.SocialCardCache
+	buildCache      *models.MetadataCache
+	md              goldmark.Markdown
+	rnd             *renderer.Renderer
+	mu              sync.Mutex
+}
+
+// NewBuilder initializes a new site builder
+func NewBuilder(args []string) *Builder {
 	cfg := config.Load(args)
-
-	// Use all available CPU cores
-
-	numWorkers := runtime.NumCPU()
-	fmt.Printf("🔨 Building site... (Version: %d) | Parallel Workers: %d\n", cfg.BuildVersion, numWorkers)
+	utils.InitMinifier()
 
 	socialCardCache, cacheErr := utils.LoadSocialCardCache("public/.social-card-cache.json")
 	if cacheErr != nil {
 		fmt.Printf("Warning: Failed to load social card cache: %v\n", cacheErr)
 		socialCardCache = utils.NewSocialCardCache()
 	}
-	defer func() {
-		if saveErr := utils.SaveSocialCardCache("public/.social-card-cache.json", socialCardCache); saveErr != nil {
-			fmt.Printf("Warning: Failed to save social card cache: %v\n", saveErr)
-		}
-	}()
 
-	utils.InitMinifier()
+	buildCache, cacheErr := utils.LoadBuildCache("public/.kosh-build-cache.json")
+	if cacheErr != nil {
+		fmt.Printf("Warning: Failed to load build cache: %v\n", cacheErr)
+		buildCache = &models.MetadataCache{Posts: make(map[string]models.CachedPost)}
+	}
+
+	return &Builder{
+		cfg:             cfg,
+		socialCardCache: socialCardCache,
+		buildCache:      buildCache,
+		md:              mdParser.New(cfg.BaseURL),
+		rnd:             renderer.New(cfg.CompressImages),
+	}
+}
+
+// SaveCaches persists the build and social card caches to disk
+func (b *Builder) SaveCaches() {
+	if saveErr := utils.SaveSocialCardCache("public/.social-card-cache.json", b.socialCardCache); saveErr != nil {
+		fmt.Printf("Warning: Failed to save social card cache: %v\n", saveErr)
+	}
+	if saveErr := utils.SaveBuildCache("public/.kosh-build-cache.json", b.buildCache); saveErr != nil {
+		fmt.Printf("Warning: Failed to save build cache: %v\n", saveErr)
+	}
+}
+
+// Run executes the main build logic
+func Run(args []string) {
+	b := NewBuilder(args)
+	defer b.SaveCaches()
+	b.Build()
+}
+
+// Build executes a single build pass
+func (b *Builder) Build() {
+	cfg := b.cfg
+	numWorkers := runtime.NumCPU()
+	fmt.Printf("🔨 Building site... (Version: %d) | Parallel Workers: %d\n", cfg.BuildVersion, numWorkers)
 
 	// Check dependencies for force rebuild
 	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css", "kosh.yaml"}
@@ -74,8 +111,8 @@ func Run(args []string) {
 		forceSocialRebuild = true
 	}
 
-	md := mdParser.New(cfg.BaseURL)
-	rnd := renderer.New(cfg.CompressImages)
+	b.md = mdParser.New(cfg.BaseURL)
+	b.rnd = renderer.New(cfg.CompressImages)
 
 	_ = os.MkdirAll("public/tags", 0755)
 	_ = os.MkdirAll("public/static/images/cards", 0755)
@@ -92,7 +129,7 @@ func Run(args []string) {
 	} else {
 		fmt.Printf("🎨 Processed %d assets\n", len(assets))
 	}
-	rnd.SetAssets(assets)
+	b.rnd.SetAssets(assets)
 
 	if err := os.WriteFile("public/.nojekyll", []byte(""), 0644); err != nil {
 		fmt.Printf("⚠️ Failed to create .nojekyll: %v\n", err)
@@ -103,14 +140,13 @@ func Run(args []string) {
 
 	// --- PARALLELIZATION START ---
 
-	// 1. Shared State & Mutex
+	// 1. Shared State
 	var (
 		allPosts      []models.PostMetadata
 		pinnedPosts   []models.PostMetadata
 		searchRecords []models.PostRecord
 		tagMap        = make(map[string][]models.PostMetadata)
 		has404        bool
-		mu            sync.Mutex // Protects allPosts, pinnedPosts, tagMap, socialCardCache, has404, searchRecords
 	)
 
 	// 2. Collect all files first
@@ -123,10 +159,9 @@ func Run(args []string) {
 			return nil
 		}
 		if strings.Contains(path, "404.md") {
-			// Quick lock to update bool
-			mu.Lock()
+			b.mu.Lock()
 			has404 = true
-			mu.Unlock()
+			b.mu.Unlock()
 			return nil
 		}
 		filesToProcess = append(filesToProcess, path)
@@ -148,70 +183,111 @@ func Run(args []string) {
 			defer wg.Done()
 			defer func() { <-sem }() // Release token
 
-			// --- File Processing Logic (Moved inside goroutine) ---
+			// 1. Basic info
 			info, _ := os.Stat(path)
 			relPath, _ := filepath.Rel("content", path)
 			htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 			relPathNoExt := strings.TrimSuffix(htmlRelPath, ".html")
-
 			destPath := filepath.Join("public", htmlRelPath)
 			fullLink := cfg.BaseURL + "/" + htmlRelPath
 
-			skipRendering := false
-			if !cfg.ForceRebuild {
-				if destInfo, err := os.Stat(destPath); err == nil {
-					if destInfo.ModTime().After(info.ModTime()) {
-						skipRendering = true
-					}
+			// 2. Cache Check
+			b.mu.Lock()
+			cached, exists := b.buildCache.Posts[path]
+			b.mu.Unlock()
+
+			useCache := false
+			if exists && !cfg.ForceRebuild && (info.ModTime().Equal(cached.ModTime) || info.ModTime().Before(cached.ModTime)) {
+				useCache = true
+			}
+
+			var htmlContent string
+			var metaData map[string]interface{}
+			var post models.PostMetadata
+			var searchRecord models.PostRecord
+			var toc []models.TOCEntry
+
+			if useCache {
+				htmlContent = cached.HTMLContent
+				metaData = cached.Meta
+				post = cached.Metadata
+				searchRecord = cached.SearchRecord
+				toc = cached.TOC
+			} else {
+				// 3. Full Parse
+				source, _ := os.ReadFile(path)
+				var buf bytes.Buffer
+				context := parser.NewContext()
+				reader := text.NewReader(source)
+				docNode := b.md.Parser().Parse(reader, parser.WithContext(context))
+				plainText := mdParser.ExtractPlainText(docNode, source)
+
+				if err := b.md.Renderer().Render(&buf, source, docNode); err != nil {
+					log.Printf("Error rendering %s: %v", path, err)
+					return
 				}
+				htmlContent = buf.String()
+				if cfg.CompressImages {
+					htmlContent = utils.ReplaceToWebP(htmlContent)
+				}
+				metaData = meta.Get(context)
+
+				wordCount := len(strings.Fields(string(source)))
+				readTime := int(math.Ceil(float64(wordCount) / 120.0))
+				isPinned, _ := metaData["pinned"].(bool)
+				dateStr := utils.GetString(metaData, "date")
+				dateObj, _ := time.Parse("2006-01-02", dateStr)
+				hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
+				toc = mdParser.GetTOC(context)
+
+				post = models.PostMetadata{
+					Title:       utils.GetString(metaData, "title"),
+					Link:        fullLink,
+					Description: utils.GetString(metaData, "description"),
+					Tags:        utils.GetSlice(metaData, "tags"),
+					ReadingTime: readTime,
+					Pinned:      isPinned,
+					DateObj:     dateObj,
+					HasMath:     hasMath,
+				}
+
+				searchRecord = models.PostRecord{
+					Title:       post.Title,
+					Link:        htmlRelPath,
+					Description: post.Description,
+					Tags:        post.Tags,
+					Content:     plainText,
+				}
+
+				// Update Cache
+				b.mu.Lock()
+				b.buildCache.Posts[path] = models.CachedPost{
+					ModTime:      info.ModTime(),
+					Metadata:     post,
+					SearchRecord: searchRecord,
+					HTMLContent:  htmlContent,
+					TOC:          toc,
+					Meta:         metaData,
+				}
+				b.mu.Unlock()
 			}
 
-			source, _ := os.ReadFile(path)
-			var buf bytes.Buffer
-			context := parser.NewContext()
-
-			// To extract plain text, we need the AST
-			reader := text.NewReader(source)
-			docNode := md.Parser().Parse(reader, parser.WithContext(context))
-			plainText := mdParser.ExtractPlainText(docNode, source)
-
-			// Reset reader for conversion (or we could just use the docNode with renderer)
-			if err := md.Renderer().Render(&buf, source, docNode); err != nil {
-				log.Printf("Error rendering %s: %v", path, err)
-				return
-			}
-
-			htmlContent := buf.String()
-			if cfg.CompressImages {
-				htmlContent = utils.ReplaceToWebP(htmlContent)
-			}
-
-			metaData := meta.Get(context)
-
+			// 4. Draft Check
 			isDraft, _ := metaData["draft"].(bool)
 			if isDraft {
 				fmt.Printf("⏩ Skipping draft: %s\n", relPath)
 				return
 			}
 
-			wordCount := len(strings.Fields(string(source)))
-			readTime := int(math.Ceil(float64(wordCount) / 120.0))
-			isPinned, _ := metaData["pinned"].(bool)
-			dateStr := utils.GetString(metaData, "date")
-			dateObj, _ := time.Parse("2006-01-02", dateStr)
-			hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
-			toc := mdParser.GetTOC(context)
-			// Social Card Logic
+			// 5. Social Card Logic
 			cardRelPath := relPathNoExt + ".webp"
 			cardDestPath := filepath.Join("public", "static", "images", "cards", cardRelPath)
 			_ = os.MkdirAll(filepath.Dir(cardDestPath), 0755)
 
 			genCard := false
-
-			// Lock for Cache Read
-			mu.Lock()
-			cachedHash := socialCardCache.Hashes[relPath]
-			mu.Unlock()
+			b.mu.Lock()
+			cachedHash := b.socialCardCache.Hashes[relPath]
+			b.mu.Unlock()
 
 			if forceSocialRebuild {
 				genCard = true
@@ -223,10 +299,8 @@ func Run(args []string) {
 					frontmatterHash, hashErr := utils.GetFrontmatterHash(metaData)
 					if hashErr != nil {
 						genCard = true
-					} else {
-						if cachedHash != frontmatterHash {
-							genCard = true
-						}
+					} else if cachedHash != frontmatterHash {
+						genCard = true
 					}
 				}
 			}
@@ -236,28 +310,22 @@ func Run(args []string) {
 				err := generators.GenerateSocialCard(
 					utils.GetString(metaData, "title"),
 					utils.GetString(metaData, "description"),
-					dateStr,
+					utils.GetString(metaData, "date"),
 					cardDestPath,
 					faviconPath,
 					fontsDir,
 				)
 				if err != nil {
 					fmt.Printf("      ⚠️ Failed to generate card: %v\n", err)
-				} else {
-					if frontmatterHash, hashErr := utils.GetFrontmatterHash(metaData); hashErr == nil {
-						// Lock for Cache Write
-						mu.Lock()
-						socialCardCache.Hashes[relPath] = frontmatterHash
-						mu.Unlock()
-					}
+				} else if frontmatterHash, hashErr := utils.GetFrontmatterHash(metaData); hashErr == nil {
+					b.mu.Lock()
+					b.socialCardCache.Hashes[relPath] = frontmatterHash
+					b.mu.Unlock()
 				}
-			} else {
-				if frontmatterHash, hashErr := utils.GetFrontmatterHash(metaData); hashErr == nil {
-					// Lock for Cache Write
-					mu.Lock()
-					socialCardCache.Hashes[relPath] = frontmatterHash
-					mu.Unlock()
-				}
+			} else if frontmatterHash, hashErr := utils.GetFrontmatterHash(metaData); hashErr == nil {
+				b.mu.Lock()
+				b.socialCardCache.Hashes[relPath] = frontmatterHash
+				b.mu.Unlock()
 			}
 
 			imagePath := cfg.BaseURL + "/static/images/cards/" + cardRelPath
@@ -271,37 +339,37 @@ func Run(args []string) {
 				imagePath = cfg.BaseURL + img
 			}
 
-			post := models.PostMetadata{
-				Title:       utils.GetString(metaData, "title"),
-				Link:        fullLink,
-				Description: utils.GetString(metaData, "description"),
-				Tags:        utils.GetSlice(metaData, "tags"),
-				ReadingTime: readTime,
-				Pinned:      isPinned,
-				DateObj:     dateObj,
-				HasMath:     hasMath,
+			// 6. Rendering
+			skipRendering := false
+			if !cfg.ForceRebuild {
+				if destInfo, err := os.Stat(destPath); err == nil {
+					if destInfo.ModTime().After(info.ModTime()) {
+						skipRendering = true
+					}
+				}
 			}
 
 			if !skipRendering {
 				fmt.Printf("   Rendering: %s\n", htmlRelPath)
-				rnd.RenderPage(destPath, models.PageData{
+				b.rnd.RenderPage(destPath, models.PageData{
 					Title:        post.Title,
 					Description:  post.Description,
 					Content:      template.HTML(htmlContent),
 					Meta:         metaData,
 					BaseURL:      cfg.BaseURL,
 					BuildVersion: cfg.BuildVersion,
-					TabTitle:     post.Title + " | Kush Blogs",
+					TabTitle:     post.Title + " | " + cfg.Title,
 					Permalink:    fullLink,
 					Image:        imagePath,
 					HasMath:      post.HasMath,
 					TOC:          toc,
+					Config:       cfg,
 				})
 			}
 
-			// Lock for Shared Data Write
-			mu.Lock()
-			if isPinned {
+			// 7. Shared Data Update
+			b.mu.Lock()
+			if post.Pinned {
 				pinnedPosts = append(pinnedPosts, post)
 			} else {
 				allPosts = append(allPosts, post)
@@ -310,15 +378,9 @@ func Run(args []string) {
 				key := strings.ToLower(strings.TrimSpace(t))
 				tagMap[key] = append(tagMap[key], post)
 			}
-			searchRecords = append(searchRecords, models.PostRecord{
-				ID:          len(searchRecords),
-				Title:       post.Title,
-				Link:        htmlRelPath,
-				Description: post.Description,
-				Tags:        post.Tags,
-				Content:     plainText,
-			})
-			mu.Unlock()
+			searchRecord.ID = len(searchRecords)
+			searchRecords = append(searchRecords, searchRecord)
+			b.mu.Unlock()
 
 		}(path)
 	}
@@ -343,8 +405,8 @@ func Run(args []string) {
 	if genHomeCard {
 		fmt.Println("   🖼️  Generating Home Social Card...")
 		err := generators.GenerateSocialCard(
-			"Kush Blogs",
-			"A personal archive of learning, coding, and building. Documenting the journey through Mathematics and AI.",
+			cfg.Title,
+			cfg.Description,
 			"",
 			homeCardPath,
 			faviconPath,
@@ -406,17 +468,18 @@ func Run(args []string) {
 			currentPinnedPosts = pinnedPosts
 		}
 
-		rnd.RenderIndex(destPath, models.PageData{
-			Title:        "Kush Blogs",
+		b.rnd.RenderIndex(destPath, models.PageData{
+			Title:        cfg.Title,
 			Posts:        pagePosts,
 			PinnedPosts:  currentPinnedPosts,
 			BaseURL:      cfg.BaseURL,
 			BuildVersion: cfg.BuildVersion,
-			TabTitle:     "Kush Blogs",
-			Description:  "I write about machine learning, deep learning and lately more about NLP.",
+			TabTitle:     cfg.Title,
+			Description:  cfg.Description,
 			Permalink:    permalink,
 			Image:        cfg.BaseURL + "/static/images/cards/home.webp",
 			Paginator:    paginator,
+			Config:       cfg,
 		})
 	}
 	// --- PAGINATION END ---
@@ -440,9 +503,11 @@ func Run(args []string) {
 		}
 
 		if shouldBuild404 {
-			rnd.Render404(dest404, models.PageData{
+			b.rnd.Render404(dest404, models.PageData{
 				BaseURL:      cfg.BaseURL,
 				BuildVersion: cfg.BuildVersion,
+				Config:       cfg,
+				TabTitle:     "404 - Page Not Found | " + cfg.Title,
 			})
 			fmt.Println("📄 404 page rendered.")
 		}
@@ -458,7 +523,7 @@ func Run(args []string) {
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 
-	rnd.RenderPage("public/tags/index.html", models.PageData{
+	b.rnd.RenderPage("public/tags/index.html", models.PageData{
 		Title:        "All Tags",
 		IsTagsIndex:  true,
 		AllTags:      allTags,
@@ -466,12 +531,13 @@ func Run(args []string) {
 		BuildVersion: cfg.BuildVersion,
 		Permalink:    cfg.BaseURL + "/tags/index.html",
 		Image:        cfg.BaseURL + "/static/images/favicon.webp",
-		TabTitle:     "Kush Blogs",
+		TabTitle:     "All Topics | " + cfg.Title,
+		Config:       cfg,
 	})
 
 	for t, posts := range tagMap {
 		utils.SortPosts(posts)
-		rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{
+		b.rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{
 			Title:        "#" + t,
 			IsIndex:      true,
 			Posts:        posts,
@@ -479,15 +545,17 @@ func Run(args []string) {
 			BuildVersion: cfg.BuildVersion,
 			Permalink:    fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
 			Image:        cfg.BaseURL + "/static/images/favicon.webp",
-			TabTitle:     "Kush Blogs",
+			TabTitle:     "#" + t + " | " + cfg.Title,
+			Config:       cfg,
 		})
 	}
 
-	rnd.RenderGraph("public/graph.html", models.PageData{
+	b.rnd.RenderGraph("public/graph.html", models.PageData{
 		Title:        "Graph View",
-		TabTitle:     "Knowledge Graph | Kush Blogs",
+		TabTitle:     "Knowledge Graph | " + cfg.Title,
 		BaseURL:      cfg.BaseURL,
 		BuildVersion: cfg.BuildVersion,
+		Config:       cfg,
 	})
 
 	allContent := append(allPosts, pinnedPosts...)
@@ -500,7 +568,7 @@ func Run(args []string) {
 	graphHash, graphHashErr := utils.GetGraphHash(allContent)
 	genGraph := cfg.ForceRebuild
 	if !genGraph && graphHashErr == nil {
-		if socialCardCache.GraphHash != graphHash {
+		if b.socialCardCache.GraphHash != graphHash {
 			genGraph = true
 		}
 	}
@@ -508,7 +576,7 @@ func Run(args []string) {
 	if genGraph {
 		generators.GenerateGraph(cfg.BaseURL, allContent)
 		if graphHashErr == nil {
-			socialCardCache.GraphHash = graphHash
+			b.socialCardCache.GraphHash = graphHash
 		}
 		fmt.Println("🕸️  Knowledge Graph regenerated.")
 	}

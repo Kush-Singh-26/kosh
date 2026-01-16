@@ -294,13 +294,13 @@ $$\text{vector(King)} - \text{vector(Man)} + \text{vector(Woman)} \approx \text{
 So till now 2 dominant approaches to word representation have been presented :
 
 - **Matrix Factorization**
-    - eg. LSA
+    - eg. [LSA](#latent-semantic-analysis-svd)
     - These methods rely on Global Statistics. 
     - They look at the entire corpus at once and decompose a massive document-term matrix
     - > Efficiently captures global statistical information (frequency) but are computationally expensive and often fail to capture local semantic nuances.
 
 - **Local Context Window**
-    - eg. Word2Vec
+    - eg. [Word2Vec](#word2vec-family)
     - These methods learn by sliding a small widow over the text.
     - > They capture complex linguistic patterns and analogies well but fail to explicitly utilize global co-occurence count of the corpus.
 
@@ -329,5 +329,10 @@ This proves that the meaninig is embedded in the ratio. Very large or small rati
 ---
 
 #### Deriving the model
+
+
+
+
+
 
 

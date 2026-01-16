@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Page Not Found | Kush Blogs</title>
+    <title>{{ .TabTitle }}</title>
     <meta name="description" content="Page not found">
     
     <meta property="og:type" content="website">
@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/layout.css">
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/theme.css">
     {{ end }}
+
 
     <style>
         
@@ -180,18 +181,27 @@
     <header>
         <a href="{{ .BaseURL }}/" class="site-title">
             <img src="{{ .BaseURL }}/static/images/favicon.webp" alt="" class="site-logo" width="35" height="35">
-            Kush Blogs
+            {{ .Config.Title }}
         </a>
         <nav>
-            <a href="{{ .BaseURL }}/tags/index.html">Tags</a>
-            <a href="{{ .BaseURL }}/graph.html">Graph</a>
-            <a href="https://kush-singh-26.github.io/" target="_blank">Portfolio</a>
-            <a href="https://github.com/kush-singh-26" target="_blank">GitHub</a>
+            {{ range .Config.Menu }}
+                {{ if .URL }}
+                    <a href="{{ if hasPrefix .URL "http" }}{{ .URL }}{{ else }}{{ $.BaseURL }}{{ .URL }}{{ end }}" 
+                       {{ if .Target }}target="{{ .Target }}"{{ end }}
+                       {{ if .ID }}id="{{ .ID }}"{{ end }}
+                       {{ if .Class }}class="{{ .Class }}"{{ end }}>{{ .Name }}</a>
+                {{ else }}
+                    <button {{ if .ID }}id="{{ .ID }}"{{ end }} 
+                            {{ if .Class }}class="{{ .Class }}"{{ end }} 
+                            aria-label="{{ .Name }}">{{ .Name }}</button>
+                {{ end }}
+            {{ end }}
             <button id="theme-toggle" aria-label="Toggle Theme">
                 <span class="theme-icon-light">☀️</span> <span class="theme-icon-dark">🌙</span>
             </button>
         </nav>
     </header>
+
 
     <main>
         <div class="error-container">
@@ -220,15 +230,16 @@
                 <h3> You might be interested in:</h3>
                 <ul>
                     <li><a href="{{ .BaseURL }}/graph.html">Knowledge Graph</a></li>
-                    <li><a href="https://github.com/kush-singh-26" target="_blank">GitHub Profile</a></li>
+                    <li><a href="{{ .Config.Author.URL }}" target="_blank">{{ .Config.Author.Name }}'s Profile</a></li>
                 </ul>
             </div>
         </div>
     </main>
 
     <footer>
-        <p style="text-align: center; margin: 0 auto;">&copy; 2026 Kush Singh</p>
+        <p style="text-align: center; margin: 0 auto;">&copy; {{ now.Year }} {{ .Config.Author.Name }}</p>
     </footer>
+
     
     {{ if .Assets }}
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/main.js" }}"></script>

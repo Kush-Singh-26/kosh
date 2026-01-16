@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"my-ssg/builder/models"
 	"my-ssg/builder/utils"
@@ -23,7 +24,11 @@ type Renderer struct {
 }
 
 func New(compress bool) *Renderer {
-	funcMap := template.FuncMap{"lower": strings.ToLower}
+	funcMap := template.FuncMap{
+		"lower":     strings.ToLower,
+		"hasPrefix": strings.HasPrefix,
+		"now":       time.Now,
+	}
 
 	// Load layout template
 	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles("templates/layout.html")

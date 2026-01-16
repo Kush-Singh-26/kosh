@@ -4,12 +4,12 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 
 ## Features
 
+- **Blazing Fast Incremental Builds**: Persistent metadata caching system that intelligently skips re-parsing and re-reading unchanged Markdown files, leading to reduced rebuild times.
 - **Parallel Build System**: Uses Go routines to process files concurrently, maximizing CPU usage for fast builds.
 - **Live Reloading**: Built-in development server with Server-Sent Events (SSE) to instantly reload the browser when files change.
-- **Incremental Builds**: Intelligently skips processing files that haven't changed to speed up build times.
 - **Asset Pipeline**: Automatic minification and content-hash fingerprinting for CSS & JS files (e.g., `style.a1b2.css`) for optimal caching.
 - **Safe Clean Command**: Dedicated tool to safely clear the build output directory.
-- **Frontmatter Caching**: Uses a hash-based caching system to detect frontmatter changes, preventing unnecessary regeneration of social cards and graph data during incremental builds.
+- **Frontmatter & Metadata Caching**: Uses a persistent JSON-based caching system (`.kosh-build-cache.json`) to store parsed metadata, search records, and rendered HTML snippets, preventing redundant processing.
 - **Pinned Posts**: Highlight important content by setting `pinned: true` in the frontmatter.
 - **Pagination**: Automatically splits the post list into manageable pages with navigation controls.
 - **Reading Time Estimation**: Automatically calculates and displays estimated reading time for each article.
@@ -49,23 +49,33 @@ go build -o kosh.exe cmd/kosh/main.go
 
 ### 1. Development (Live Reload)
 
-For the best experience, use `air` to watch for file changes (which rebuilds the site) and `kosh` to serve it.
+`kosh` includes a high-performance internal watcher that provides near-instantaneous rebuilds (< 50ms) using in-memory caching.
 
-**Terminal 1 (File Watcher/Builder):**
-
-```bash
-# Watches files and rebuilds instantly
-air
-```
-
-**Terminal 2 (Server):**
+**Recommended Development Command:**
 
 ```bash
-.\kosh serve
-# Serving on http://localhost:2604 (Auto-reload enabled)
+.\kosh serve --dev
+# Serving on http://localhost:2604 (Auto-reload & Internal Watcher enabled)
 ```
+
+**Alternative (Watch only):**
+
+```bash
+.\kosh build --watch
+# Rebuilds the site instantly as you save files
+```
+
+> [!IMPORTANT]
+> **When to Rebuild the Binary?**
+> - **Content & Design**: You **do not** need to rebuild if you are changing Markdown files, CSS, HTML templates, or `kosh.yaml`. The watcher handles these instantly.
+> - **Core Logic**: If you modify any **Go source files** (in `builder/`, `internal/`, or `cmd/`), you must stop the process, run the following build command and , and restart the tool.
+>
+>```bash
+>(`go build -o kosh.exe cmd/kosh/main.go`)
+>```
 
 ### 2. Production Build
+
 
 To build the site for deployment (minifies HTML/CSS/JS and compresses images):
 
@@ -117,9 +127,9 @@ draft: true
 
 ```txt
 .
-├── .air.toml              # Live-reloading configuration
 ├── .github/
 │   └── workflows/
+
 │       └── deploy.yml     # CI/CD Pipeline
 ├── .gitignore
 ├── bin/                   # Compiled executables (ignored by git)
@@ -160,14 +170,17 @@ The `kosh build` command accepts the following flags:
 | Flag | Description | Default |
 | --- | --- | --- |
 | `-compress` | Enables minification and WebP conversion | `false` |
+| `--watch` | Enables watch mode (continuous rebuild) | `false` |
 | `-output` | Custom output directory | `public` |
 
 The `kosh serve` command accepts:
 
 | Flag | Description | Default |
 | --- | --- | --- |
+| `--dev` | Enables development mode (serve + watch) | `false` |
 | `-host` | Host to bind to (use `0.0.0.0` for LAN) | `localhost` |
 | `-port` | Port to listen on | `2604` |
+
 
 
 ## Dependencies

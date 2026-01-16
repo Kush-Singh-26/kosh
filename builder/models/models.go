@@ -140,6 +140,23 @@ type PostRecord struct {
 	Content     string // Raw plain text for snippet extraction
 }
 
+// --- Cache Structures ---
+
+// CachedPost stores the results of parsing a single markdown file
+type CachedPost struct {
+	ModTime      time.Time
+	Metadata     PostMetadata
+	SearchRecord PostRecord
+	HTMLContent  string
+	TOC          []TOCEntry
+	Meta         map[string]interface{}
+}
+
+// MetadataCache is the structure for our persistent build cache
+type MetadataCache struct {
+	Posts map[string]CachedPost `json:"posts"`
+}
+
 type SearchIndex struct {
 	Posts     []PostRecord
 	Inverted  map[string]map[int]int // word -> postID -> frequency
