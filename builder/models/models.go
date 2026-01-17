@@ -45,6 +45,8 @@ type Paginator struct {
 	LastURL     string
 	HasPrev     bool
 	HasNext     bool
+	HasPrevPage bool // Added for template logic consistency if needed
+	HasNextPage bool
 }
 
 // PageData is the context passed to HTML templates.
@@ -154,7 +156,8 @@ type CachedPost struct {
 
 // MetadataCache is the structure for our persistent build cache
 type MetadataCache struct {
-	Posts map[string]CachedPost `json:"posts"`
+	BaseURL string                `json:"base_url"`
+	Posts   map[string]CachedPost `json:"posts"`
 }
 
 type SearchIndex struct {

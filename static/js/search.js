@@ -15,6 +15,14 @@
     // Ensure siteBaseURL is set
     const baseURL = window.siteBaseURL || '';
 
+    // Construct paths safely (avoiding double slashes except after protocol)
+    const joinPath = (base, path) => {
+        if (!base) return path;
+        const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+        const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+        return cleanBase + '/' + cleanPath;
+    };
+
     // Load WASM when needed
     async function loadWasm() {
         if (wasmLoaded) return;
@@ -28,13 +36,6 @@
                 }
                 const go = new Go();
                 
-                // Construct paths safely (avoiding double slashes except after protocol)
-                const joinPath = (base, path) => {
-                    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-                    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-                    return cleanBase + '/' + cleanPath;
-                };
-
                 const wasmPath = joinPath(baseURL, '/static/wasm/search.wasm');
                 const response = await fetch(wasmPath);
                 if (!response.ok) throw new Error(`Failed to fetch WASM: ${response.statusText}`);
@@ -165,12 +166,6 @@
             searchResults.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--text-muted);">No results found.</div>';
             return;
         }
-
-        const joinPath = (base, path) => {
-            const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-            const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-            return cleanBase + '/' + cleanPath;
-        };
 
         const fragment = document.createDocumentFragment();
         results.forEach(res => {

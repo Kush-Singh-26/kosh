@@ -52,7 +52,16 @@ func NewBuilder(args []string) *Builder {
 	buildCache, cacheErr := utils.LoadBuildCache("public/.kosh-build-cache.json")
 	if cacheErr != nil {
 		fmt.Printf("Warning: Failed to load build cache: %v\n", cacheErr)
-		buildCache = &models.MetadataCache{Posts: make(map[string]models.CachedPost)}
+		buildCache = &models.MetadataCache{
+			Posts: make(map[string]models.CachedPost),
+		}
+	}
+
+	// Smart Cache Invalidation: If BaseURL changed, force rebuild everything
+	if buildCache.BaseURL != cfg.BaseURL {
+		fmt.Printf("🔄 BaseURL changed (%s -> %s). Forcing full rebuild to update asset paths.\n", buildCache.BaseURL, cfg.BaseURL)
+		cfg.ForceRebuild = true
+		buildCache.BaseURL = cfg.BaseURL
 	}
 
 	return &Builder{
