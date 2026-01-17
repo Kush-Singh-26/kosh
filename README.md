@@ -71,7 +71,7 @@ go build -o kosh.exe cmd/kosh/main.go
 > - **Core Logic**: If you modify any **Go source files** (in `builder/`, `internal/`, or `cmd/`), you must stop the process, run the following build command and , and restart the tool.
 >
 >```bash
->(`go build -o kosh.exe cmd/kosh/main.go`)
+>go build -o kosh.exe cmd/kosh/main.go
 >```
 
 ### 2. Production Build
@@ -170,8 +170,10 @@ The `kosh build` command accepts the following flags:
 | Flag | Description | Default |
 | --- | --- | --- |
 | `-compress` | Enables minification and WebP conversion | `false` |
+| `-baseurl` | Base URL for the site (e.g., `https://example.com/blog`) | `""` |
 | `--watch` | Enables watch mode (continuous rebuild) | `false` |
 | `-output` | Custom output directory | `public` |
+
 
 The `kosh serve` command accepts:
 

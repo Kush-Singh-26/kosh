@@ -9,7 +9,7 @@ import (
 	"my-ssg/builder/models"
 )
 
-func GenerateRSS(baseURL string, posts []models.PostMetadata) {
+func GenerateRSS(baseURL string, posts []models.PostMetadata, title, description string) {
 	var items []models.Item
 	for _, p := range posts {
 		items = append(items, models.Item{
@@ -23,9 +23,9 @@ func GenerateRSS(baseURL string, posts []models.PostMetadata) {
 	rss := models.Rss{
 		Version: "2.0",
 		Channel: models.Channel{
-			Title:       "Kush Blogs",
+			Title:       title,
 			Link:        baseURL,
-			Description: "ML & Deep Learning Blog",
+			Description: description,
 			Items:       items,
 		},
 	}

@@ -560,7 +560,7 @@ func (b *Builder) Build() {
 
 	allContent := append(allPosts, pinnedPosts...)
 	generators.GenerateSitemap(cfg.BaseURL, allContent, tagMap)
-	generators.GenerateRSS(cfg.BaseURL, allContent)
+	generators.GenerateRSS(cfg.BaseURL, allContent, cfg.Title, cfg.Description)
 	if err := generators.GenerateSearchIndex("public", searchRecords); err != nil {
 		fmt.Printf("⚠️ Failed to generate search index: %v\n", err)
 	}
@@ -582,7 +582,7 @@ func (b *Builder) Build() {
 	}
 
 	// --- PWA GENERATION START ---
-	if err := generators.GenerateSW("public", cfg.BuildVersion, cfg.ForceRebuild); err != nil {
+	if err := generators.GenerateSW("public", cfg.BuildVersion, cfg.ForceRebuild, cfg.BaseURL); err != nil {
 		fmt.Printf("⚠️ Failed to generate Service Worker: %v\n", err)
 	}
 

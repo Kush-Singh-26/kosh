@@ -10,7 +10,7 @@ import (
 )
 
 // GenerateSW creates the service worker only if needed (smart build)
-func GenerateSW(destDir string, buildVersion int64, forceRebuild bool) error {
+func GenerateSW(destDir string, buildVersion int64, forceRebuild bool, baseURL string) error {
 	swPath := filepath.Join(destDir, "sw.js")
 
 	// 1. Smart Check: If not forcing rebuild and SW exists, skip
@@ -25,50 +25,15 @@ func GenerateSW(destDir string, buildVersion int64, forceRebuild bool) error {
 	swTemplate := `
 const CACHE_NAME = 'kush-blog-cache-v{{ .Version }}';
 const ASSETS = [
-    '/',
-    '/index.html',
-    '/404.html',
-    '/static/css/layout.css',
-    '/static/css/theme.css',
-    '/static/js/main.js',
-    '/static/images/favicon.webp',
-    '/static/manifest.json'
+    '{{ .BaseURL }}/',
+    '{{ .BaseURL }}/index.html',
+    '{{ .BaseURL }}/404.html',
+    '{{ .BaseURL }}/static/css/layout.css',
+    '{{ .BaseURL }}/static/css/theme.css',
+    '{{ .BaseURL }}/static/js/main.js',
+    '{{ .BaseURL }}/static/images/favicon.webp',
+    '{{ .BaseURL }}/static/manifest.json'
 ];
-
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => cache.addAll(ASSETS))
-    );
-});
-
-self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cache) => {
-                    if (cache !== CACHE_NAME) {
-                        return caches.delete(cache);
-                    }
-                })
-            );
-        })
-    );
-});
-
-self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                // Return cached response if found
-                if (response) {
-                    return response;
-                }
-                // Otherwise fetch from network
-                return fetch(event.request);
-            })
-    );
-});
 `
 
 	tmpl, err := template.New("sw").Parse(swTemplate)
@@ -84,8 +49,10 @@ self.addEventListener('fetch', (event) => {
 
 	data := struct {
 		Version int64
+		BaseURL string
 	}{
 		Version: buildVersion,
+		BaseURL: baseURL,
 	}
 
 	return tmpl.Execute(f, data)
