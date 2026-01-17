@@ -27,7 +27,15 @@
                     throw new Error("wasm_exec.js not loaded");
                 }
                 const go = new Go();
-                const wasmPath = `${baseURL}/static/wasm/search.wasm`.replace(/\/+/g, '/');
+                
+                // Construct paths safely (avoiding double slashes except after protocol)
+                const joinPath = (base, path) => {
+                    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+                    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+                    return cleanBase + '/' + cleanPath;
+                };
+
+                const wasmPath = joinPath(baseURL, '/static/wasm/search.wasm');
                 const response = await fetch(wasmPath);
                 if (!response.ok) throw new Error(`Failed to fetch WASM: ${response.statusText}`);
                 
@@ -35,7 +43,7 @@
                 go.run(result.instance);
                 
                 // Initialize with the data index
-                const binPath = `${baseURL}/search.bin`.replace(/\/+/g, '/');
+                const binPath = joinPath(baseURL, '/search.bin');
                 await window.initSearch(binPath);
                 wasmLoaded = true;
                 console.log("Search WASM Loaded and Initialized");
@@ -158,10 +166,16 @@
             return;
         }
 
+        const joinPath = (base, path) => {
+            const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+            const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+            return cleanBase + '/' + cleanPath;
+        };
+
         const fragment = document.createDocumentFragment();
         results.forEach(res => {
             const item = document.createElement('a');
-            const link = `${baseURL}/${res.link}`.replace(/\/+/g, '/');
+            const link = joinPath(baseURL, res.link);
             item.href = link;
             item.className = 'search-result-item';
             item.innerHTML = `

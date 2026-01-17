@@ -213,6 +213,9 @@ func (b *Builder) Build() {
 				post = cached.Metadata
 				searchRecord = cached.SearchRecord
 				toc = cached.TOC
+
+				// Update the link to use the current BaseURL (prevents cache portability issues)
+				post.Link = cfg.BaseURL + "/" + htmlRelPath
 			} else {
 				// 3. Full Parse
 				source, _ := os.ReadFile(path)
@@ -369,6 +372,9 @@ func (b *Builder) Build() {
 
 			// 7. Shared Data Update
 			b.mu.Lock()
+			// Ensure the link is correct for the current build (even if from cache)
+			post.Link = cfg.BaseURL + "/" + htmlRelPath
+
 			if post.Pinned {
 				pinnedPosts = append(pinnedPosts, post)
 			} else {
