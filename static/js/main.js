@@ -68,12 +68,6 @@ document.addEventListener("DOMContentLoaded", function() {
     // 5. Theme Toggle Logic
     const toggleBtn = document.getElementById('theme-toggle');
     const htmlEl = document.documentElement;
-    const currentTheme = localStorage.getItem('theme');
-
-    // Apply saved theme on load (if set)
-    if (currentTheme) {
-        htmlEl.setAttribute('data-theme', currentTheme);
-    }
 
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
@@ -91,5 +85,6 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
     }
+
 });
 

@@ -4,6 +4,7 @@ date: "2026-01-05"
 description: "The Geometry of Meaning : Turning meaning into maths."
 tags: ["NLP"]
 pinned: false
+draft: true
 ---
 
 **Embeddings** are the mapping of discrete symbols into high-dimensional vector spaces. It is the translation of discrete, symbolic and combinatorial nature of human language (words, chars, syntax) into continuous mathematical substrate that computational models can manipulate.
@@ -328,8 +329,77 @@ This proves that the meaninig is embedded in the ratio. Very large or small rati
 
 ---
 
-#### Deriving the model
+#### Deriving the GloVe model
 
+So a function is needed which gives ratio of the probabilities, given the vector of the words. In the vector space, the meaning of the words is encoded as the offset between words as observed in Word2Vec. Therefore, the relationship between words should use the difference betweeen their vectors :
+
+$$ F(\mathbf{w}_i - \mathbf{w}_j, \tilde{\mathbf{w}_k}) = \frac{P_{ik}}{P_{jk}} $$
+
+Convert the vectors in left side to scalar using dot product.
+
+$$ F((\mathbf{w}_i - \mathbf{w}_j)^\top \tilde{\mathbf{w}_k}) = \frac{P_{ik}}{P_{jk}} $$
+
+Now the subtraction needs to be converted to division. Assuming the function $F$ is an exponential fucntion (so, $e^{A-B} = e^A / e^B$), taking log on both sides will give a logic connection or bridge between both sides of equation.
+
+$$ (\mathbf{w}_i - \mathbf{w}_j)^\top \tilde{\mathbf{w}_k} = \log(\frac{P_{ik}}{P_{jk}}) $$
+
+Using the log rules $\log(a/b) = \log(a) - \log(b)$ :
+
+$$ \mathbf{w}_i^\top \tilde{\mathbf{w}_k} - \mathbf{w}_j^\top \tilde{\mathbf{w}_k} = \log(P_{ik}) - \log(P_{jk}) $$
+
+Looking at matching terms on both sides, we get :
+
+$$ \mathbf{w}_i^\top \tilde{\mathbf{w}_k}  = \log(P_{ik}) $$
+
+---
+
+The probability $P_{ik} = P(i|k)$ is conditional probability. It is equal to $P_{ik} = \frac{X_{ik}}{X_i} $. 
+- $X_{ik}$ : co-occurence count of $i$ and $k$.
+- $X_i$ : total count of word $i$.
+
+Thus,
+
+$$\mathbf{w}_i^\top \tilde{\mathbf{w}}_k = \log(\frac{X_{ik}}{X_i}) = \log(X_{ik}) - \log(X_i)$$
+
+$$\mathbf{w}_i^\top \tilde{\mathbf{w}}_k + \log(X_i) = \log(X_{ik})$$
+
+This equation is not symmetric. In a co-occurence matrix, the relationship is symmetric. The number of times *ice* appears with *steam* is same as *steam* appearing with *ice* ($X_{ik}=X_{ki}$). Thus, in the eqaution if $i$ and $k$ are swapped, it should look the same.
+
+But because $log(X_i)$ depends only on $i$, there is a need for a term representing $k$. Thus, bias terms are added to restore symmetry for the other word. 
+> $k$ is replaced with $j$ in the final notation.
+
+$$ \mathbf{w}_i^\top \mathbf{w}_j + b_i + b_j = \log(X_{ij}) $$
+
+> Mathematically, $\log(X_{ij})$ depends on the frequency of word $i$ and word $j$ individually. The bias terms absorb these independent frequencies so that the dot product $\mathbf{w}_i^\top \mathbf{w}_j$ only has to capture the interaction between the words, not their raw popularity.
+
+---
+
+#### Loss Funtion of GloVe
+
+The goal is to minimize the difference between the learned relation (LHS) and the actual values or statistics (RHS). Weighted Least Square is used :
+
+$$J = \sum_{i,j=1}^V f(X_{ij}) (\underbrace{\mathbf{w}_i^T \mathbf{w}_j + b_i + b_j}_{\text{Prediction}} - \underbrace{\log X_{ij}}_{\text{Target}})^2$$
+
+##### The weighting factor in GloVe
+
+- Stopwords like ("the", "and", "is") can co-occur with almost everything millions of times. So their domination on the loss funtion must be controlled.
+- Many pairs might appear just 1-2 times. So the contribution of these noisy pairs must be controlled.
+
+So, the weighting factor ($f(X_{ij})$) is used :
+
+- If $X_{ij} = 0$, $f(0) = 0$ (The pair is ignored; avoids $\log 0$ error).
+- It increases as co-occurrence count increases (trust frequent data more).
+- It caps at a maximum value (usually 1.0) so that extremely frequent words don't dominate.
+
+---
+
+So to summarize, GloVe explicitly factorizes the logarithm of the co-occurence matrix. It ensures that the **dot product of 2 words equals the log of their probabilities of co-occurence**. It captures the global corpus statistics in a linear vector space.
+
+---
+
+### FastText (Sub-Word Information)
+
+#### Issues with GloVe and Word2Vec
 
 
 
