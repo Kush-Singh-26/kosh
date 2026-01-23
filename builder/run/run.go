@@ -100,6 +100,7 @@ func (b *Builder) Build() {
 	// Check dependencies for force rebuild
 	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css", "kosh.yaml"}
 	forceSocialRebuild := false
+	shouldForce := b.cfg.ForceRebuild
 
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
 		lastBuildTime := indexInfo.ModTime()
@@ -107,7 +108,7 @@ func (b *Builder) Build() {
 		for _, dep := range globalDependencies {
 			if info, err := os.Stat(dep); err == nil && info.ModTime().After(lastBuildTime) {
 				fmt.Printf("⚡ Global change detected in [%s]. Forcing full rebuild.\n", dep)
-				cfg.ForceRebuild = true
+				shouldForce = true
 				break
 			}
 		}
@@ -117,9 +118,12 @@ func (b *Builder) Build() {
 			forceSocialRebuild = true
 		}
 	} else {
-		cfg.ForceRebuild = true
+		shouldForce = true
 		forceSocialRebuild = true
 	}
+
+	// Reset global ForceRebuild so it doesn't stick in watch mode
+	b.cfg.ForceRebuild = false
 
 	b.md = mdParser.New(cfg.BaseURL)
 	b.rnd = renderer.New(cfg.CompressImages)
@@ -137,7 +141,9 @@ func (b *Builder) Build() {
 	if assetErr != nil {
 		fmt.Printf("⚠️ Failed to process assets: %v\n", assetErr)
 	} else {
-		fmt.Printf("🎨 Processed %d assets\n", len(assets))
+		if len(assets) > 0 {
+			fmt.Printf("🎨 Processed %d assets\n", len(assets))
+		}
 	}
 	b.rnd.SetAssets(assets)
 
@@ -152,11 +158,12 @@ func (b *Builder) Build() {
 
 	// 1. Shared State
 	var (
-		allPosts     []models.PostMetadata
-		pinnedPosts  []models.PostMetadata
-		indexedPosts []models.IndexedPost
-		tagMap       = make(map[string][]models.PostMetadata)
-		has404       bool
+		allPosts       []models.PostMetadata
+		pinnedPosts    []models.PostMetadata
+		indexedPosts   []models.IndexedPost
+		tagMap         = make(map[string][]models.PostMetadata)
+		has404         bool
+		anyPostChanged bool
 	)
 
 	// 2. Collect all files first
@@ -207,7 +214,7 @@ func (b *Builder) Build() {
 			b.mu.Unlock()
 
 			useCache := false
-			if exists && !cfg.ForceRebuild && (info.ModTime().Equal(cached.ModTime) || info.ModTime().Before(cached.ModTime)) {
+			if exists && !shouldForce && (info.ModTime().Equal(cached.ModTime) || info.ModTime().Before(cached.ModTime)) {
 				useCache = true
 			}
 
@@ -375,7 +382,7 @@ func (b *Builder) Build() {
 
 			// 6. Rendering
 			skipRendering := false
-			if !cfg.ForceRebuild {
+			if !shouldForce {
 				if destInfo, err := os.Stat(destPath); err == nil {
 					if destInfo.ModTime().After(info.ModTime()) {
 						skipRendering = true
@@ -385,6 +392,9 @@ func (b *Builder) Build() {
 
 			if !skipRendering {
 				fmt.Printf("   Rendering: %s\n", htmlRelPath)
+				b.mu.Lock()
+				anyPostChanged = true
+				b.mu.Unlock()
 				b.rnd.RenderPage(destPath, models.PageData{
 					Title:        post.Title,
 					Description:  post.Description,
@@ -429,6 +439,27 @@ func (b *Builder) Build() {
 	wg.Wait()
 	// --- PARALLELIZATION END ---
 
+	// Check if any posts were deleted or if we have a mismatch
+	if !anyPostChanged {
+		if len(filesToProcess) != len(allPosts)+len(pinnedPosts) {
+			anyPostChanged = true
+		}
+		// If cache has more entries than current files, something was deleted
+		if len(b.buildCache.Posts) > len(filesToProcess) {
+			anyPostChanged = true
+			// Clean up stale cache entries
+			activeFiles := make(map[string]bool)
+			for _, f := range filesToProcess {
+				activeFiles[f] = true
+			}
+			for path := range b.buildCache.Posts {
+				if !activeFiles[path] {
+					delete(b.buildCache.Posts, path)
+				}
+			}
+		}
+	}
+
 	utils.SortPosts(allPosts)
 	utils.SortPosts(pinnedPosts)
 
@@ -460,68 +491,70 @@ func (b *Builder) Build() {
 	// --- HOME CARD GENERATION END ---
 
 	// --- PAGINATION START ---
-	postsPerPage := cfg.PostsPerPage
-	totalPages := int(math.Ceil(float64(len(allPosts)) / float64(postsPerPage)))
+	if shouldForce || anyPostChanged {
+		postsPerPage := cfg.PostsPerPage
+		totalPages := int(math.Ceil(float64(len(allPosts)) / float64(postsPerPage)))
 
-	if totalPages == 0 {
-		totalPages = 1
-	}
-
-	for i := 1; i <= totalPages; i++ {
-		start := (i - 1) * postsPerPage
-		end := start + postsPerPage
-		if end > len(allPosts) {
-			end = len(allPosts)
+		if totalPages == 0 {
+			totalPages = 1
 		}
 
-		pagePosts := allPosts[start:end]
+		for i := 1; i <= totalPages; i++ {
+			start := (i - 1) * postsPerPage
+			end := start + postsPerPage
+			if end > len(allPosts) {
+				end = len(allPosts)
+			}
 
-		destPath := "public/index.html"
-		permalink := cfg.BaseURL + "/"
-		if i > 1 {
-			destPath = fmt.Sprintf("public/page/%d/index.html", i)
-			permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, i)
-			_ = os.MkdirAll(filepath.Dir(destPath), 0755)
+			pagePosts := allPosts[start:end]
+
+			destPath := "public/index.html"
+			permalink := cfg.BaseURL + "/"
+			if i > 1 {
+				destPath = fmt.Sprintf("public/page/%d/index.html", i)
+				permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, i)
+				_ = os.MkdirAll(filepath.Dir(destPath), 0755)
+			}
+
+			paginator := models.Paginator{
+				CurrentPage: i,
+				TotalPages:  totalPages,
+				HasPrev:     i > 1,
+				HasNext:     i < totalPages,
+				FirstURL:    cfg.BaseURL + "/#latest",
+				LastURL:     fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, totalPages),
+			}
+
+			if i > 2 {
+				paginator.PrevURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, i-1)
+			} else if i == 2 {
+				paginator.PrevURL = cfg.BaseURL + "/#latest"
+			}
+
+			if i < totalPages {
+				paginator.NextURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, i+1)
+			}
+
+			// Only show pinned posts on the first page
+			var currentPinnedPosts []models.PostMetadata
+			if i == 1 {
+				currentPinnedPosts = pinnedPosts
+			}
+
+			b.rnd.RenderIndex(destPath, models.PageData{
+				Title:        cfg.Title,
+				Posts:        pagePosts,
+				PinnedPosts:  currentPinnedPosts,
+				BaseURL:      cfg.BaseURL,
+				BuildVersion: cfg.BuildVersion,
+				TabTitle:     cfg.Title,
+				Description:  cfg.Description,
+				Permalink:    permalink,
+				Image:        cfg.BaseURL + "/static/images/cards/home.webp",
+				Paginator:    paginator,
+				Config:       cfg,
+			})
 		}
-
-		paginator := models.Paginator{
-			CurrentPage: i,
-			TotalPages:  totalPages,
-			HasPrev:     i > 1,
-			HasNext:     i < totalPages,
-			FirstURL:    cfg.BaseURL + "/#latest",
-			LastURL:     fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, totalPages),
-		}
-
-		if i > 2 {
-			paginator.PrevURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, i-1)
-		} else if i == 2 {
-			paginator.PrevURL = cfg.BaseURL + "/#latest"
-		}
-
-		if i < totalPages {
-			paginator.NextURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, i+1)
-		}
-
-		// Only show pinned posts on the first page
-		var currentPinnedPosts []models.PostMetadata
-		if i == 1 {
-			currentPinnedPosts = pinnedPosts
-		}
-
-		b.rnd.RenderIndex(destPath, models.PageData{
-			Title:        cfg.Title,
-			Posts:        pagePosts,
-			PinnedPosts:  currentPinnedPosts,
-			BaseURL:      cfg.BaseURL,
-			BuildVersion: cfg.BuildVersion,
-			TabTitle:     cfg.Title,
-			Description:  cfg.Description,
-			Permalink:    permalink,
-			Image:        cfg.BaseURL + "/static/images/cards/home.webp",
-			Paginator:    paginator,
-			Config:       cfg,
-		})
 	}
 	// --- PAGINATION END ---
 
@@ -530,7 +563,7 @@ func (b *Builder) Build() {
 		src404 := "templates/404.html"
 
 		shouldBuild404 := false
-		if cfg.ForceRebuild {
+		if shouldForce {
 			shouldBuild404 = true
 		} else {
 			infoDest, errDest := os.Stat(dest404)
@@ -554,72 +587,95 @@ func (b *Builder) Build() {
 		}
 	}
 
-	var allTags []models.TagData
-	for t, posts := range tagMap {
-		allTags = append(allTags, models.TagData{
-			Name:  t,
-			Count: len(posts),
-			Link:  fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
-		})
-	}
-	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
+	if shouldForce || anyPostChanged {
+		var allTags []models.TagData
+		for t, posts := range tagMap {
+			allTags = append(allTags, models.TagData{
+				Name:  t,
+				Count: len(posts),
+				Link:  fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
+			})
+		}
+		sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 
-	b.rnd.RenderPage("public/tags/index.html", models.PageData{
-		Title:        "All Tags",
-		IsTagsIndex:  true,
-		AllTags:      allTags,
-		BaseURL:      cfg.BaseURL,
-		BuildVersion: cfg.BuildVersion,
-		Permalink:    cfg.BaseURL + "/tags/index.html",
-		Image:        cfg.BaseURL + "/static/images/favicon.webp",
-		TabTitle:     "All Topics | " + cfg.Title,
-		Config:       cfg,
-	})
-
-	for t, posts := range tagMap {
-		utils.SortPosts(posts)
-		b.rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{
-			Title:        "#" + t,
-			IsIndex:      true,
-			Posts:        posts,
+		b.rnd.RenderPage("public/tags/index.html", models.PageData{
+			Title:        "All Tags",
+			IsTagsIndex:  true,
+			AllTags:      allTags,
 			BaseURL:      cfg.BaseURL,
 			BuildVersion: cfg.BuildVersion,
-			Permalink:    fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
+			Permalink:    cfg.BaseURL + "/tags/index.html",
 			Image:        cfg.BaseURL + "/static/images/favicon.webp",
-			TabTitle:     "#" + t + " | " + cfg.Title,
+			TabTitle:     "All Topics | " + cfg.Title,
+			Config:       cfg,
+		})
+
+		for t, posts := range tagMap {
+			utils.SortPosts(posts)
+			b.rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{
+				Title:        "#" + t,
+				IsIndex:      true,
+				Posts:        posts,
+				BaseURL:      cfg.BaseURL,
+				BuildVersion: cfg.BuildVersion,
+				Permalink:    fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
+				Image:        cfg.BaseURL + "/static/images/favicon.webp",
+				TabTitle:     "#" + t + " | " + cfg.Title,
+				Config:       cfg,
+			})
+		}
+	}
+
+	// Graph rendering logic
+	renderGraph := false
+	if shouldForce || anyPostChanged {
+		renderGraph = true
+	} else {
+		// Also check if graph template changed
+		if info, err := os.Stat("templates/graph.html"); err == nil {
+			if destInfo, err := os.Stat("public/graph.html"); err == nil {
+				if info.ModTime().After(destInfo.ModTime()) {
+					renderGraph = true
+				}
+			} else {
+				renderGraph = true
+			}
+		}
+	}
+
+	if renderGraph {
+		b.rnd.RenderGraph("public/graph.html", models.PageData{
+			Title:        "Graph View",
+			TabTitle:     "Knowledge Graph | " + cfg.Title,
+			BaseURL:      cfg.BaseURL,
+			BuildVersion: cfg.BuildVersion,
 			Config:       cfg,
 		})
 	}
 
-	b.rnd.RenderGraph("public/graph.html", models.PageData{
-		Title:        "Graph View",
-		TabTitle:     "Knowledge Graph | " + cfg.Title,
-		BaseURL:      cfg.BaseURL,
-		BuildVersion: cfg.BuildVersion,
-		Config:       cfg,
-	})
-
-	allContent := append(allPosts, pinnedPosts...)
-	generators.GenerateSitemap(cfg.BaseURL, allContent, tagMap)
-	generators.GenerateRSS(cfg.BaseURL, allContent, cfg.Title, cfg.Description)
-	if err := generators.GenerateSearchIndex("public", indexedPosts); err != nil {
-		fmt.Printf("⚠️ Failed to generate search index: %v\n", err)
-	}
-
-	graphHash, graphHashErr := utils.GetGraphHash(allContent)
-	genGraph := cfg.ForceRebuild
-	if !genGraph && graphHashErr == nil {
-		if b.socialCardCache.GraphHash != graphHash {
-			genGraph = true
+	if shouldForce || anyPostChanged {
+		allContent := append(allPosts, pinnedPosts...)
+		generators.GenerateSitemap(cfg.BaseURL, allContent, tagMap)
+		generators.GenerateRSS(cfg.BaseURL, allContent, cfg.Title, cfg.Description)
+		if err := generators.GenerateSearchIndex("public", indexedPosts); err != nil {
+			fmt.Printf("⚠️ Failed to generate search index: %v\n", err)
 		}
-	}
 
-	if genGraph {
-		generators.GenerateGraph(cfg.BaseURL, allContent)
-		if graphHashErr == nil {
-			b.socialCardCache.GraphHash = graphHash
+		graphHash, graphHashErr := utils.GetGraphHash(allContent)
+		genGraphJSON := shouldForce
+		if !genGraphJSON && graphHashErr == nil {
+			if b.socialCardCache.GraphHash != graphHash {
+				genGraphJSON = true
+			}
 		}
-		fmt.Println("🕸️  Knowledge Graph regenerated.")
+
+		if genGraphJSON {
+			generators.GenerateGraph(cfg.BaseURL, allContent)
+			if graphHashErr == nil {
+				b.socialCardCache.GraphHash = graphHash
+			}
+			fmt.Println("🕸️  Knowledge Graph regenerated.")
+		}
 	}
 
 	// --- PWA GENERATION START ---

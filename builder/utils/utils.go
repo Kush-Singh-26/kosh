@@ -314,12 +314,13 @@ func SaveBuildCache(path string, cache *models.MetadataCache) error {
 }
 
 func GetFrontmatterHash(metaData map[string]interface{}) (string, error) {
+	isPinned, _ := metaData["pinned"].(bool)
 	socialMeta := map[string]interface{}{
-		"title":       metaData["title"],
-		"description": metaData["description"],
-		"date":        metaData["date"],
-		"tags":        metaData["tags"],
-		"pinned":      metaData["pinned"],
+		"title":       GetString(metaData, "title"),
+		"description": GetString(metaData, "description"),
+		"date":        GetString(metaData, "date"),
+		"tags":        GetSlice(metaData, "tags"),
+		"pinned":      isPinned,
 	}
 
 	data, err := json.Marshal(socialMeta)
