@@ -125,6 +125,8 @@ func printUsage() {
 	fmt.Println("\nFlags for build:")
 	fmt.Println("  -compress      Enable minification")
 	fmt.Println("  --watch        Enable watch mode (continuous rebuild)")
+	fmt.Println("  -drafts        Include draft posts in the build")
 	fmt.Println("\nFlags for serve:")
 	fmt.Println("  --dev          Enable development mode (serve + watch)")
+	fmt.Println("  -drafts        Include draft posts in development mode")
 }

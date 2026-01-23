@@ -149,9 +149,18 @@ type CachedPost struct {
 	ModTime      time.Time
 	Metadata     PostMetadata
 	SearchRecord PostRecord
+	WordFreqs    map[string]int // Pre-computed word frequencies for BM25
+	DocLen       int            // Total word count for BM25
 	HTMLContent  string
 	TOC          []TOCEntry
 	Meta         map[string]interface{}
+}
+
+// IndexedPost bundles a search record with its pre-computed word frequencies
+type IndexedPost struct {
+	Record    PostRecord
+	WordFreqs map[string]int
+	DocLen    int
 }
 
 // MetadataCache is the structure for our persistent build cache

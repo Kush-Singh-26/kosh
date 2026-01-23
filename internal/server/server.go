@@ -45,6 +45,11 @@ func Run(args []string) {
 	host := fs.String("host", "localhost", "The host/IP to bind to")
 	port := fs.String("port", "2604", "The port to listen on")
 
+	// Define flags used by the builder so they don't cause errors here
+	_ = fs.Bool("drafts", false, "Include drafts (handled by builder)")
+	_ = fs.String("baseurl", "", "Base URL (handled by builder)")
+	_ = fs.Bool("compress", false, "Enable compression (handled by builder)")
+
 	_ = fs.Parse(args)
 
 	addr := fmt.Sprintf("%s:%s", *host, *port)

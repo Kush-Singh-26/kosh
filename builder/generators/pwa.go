@@ -32,8 +32,43 @@ const ASSETS = [
     '{{ .BaseURL }}/static/css/theme.css',
     '{{ .BaseURL }}/static/js/main.js',
     '{{ .BaseURL }}/static/images/favicon.webp',
-    '{{ .BaseURL }}/static/manifest.json'
+    '{{ .BaseURL }}/manifest.json',
+    '{{ .BaseURL }}/static/images/icon-192.png',
+    '{{ .BaseURL }}/static/images/icon-512.png'
 ];
+
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then((cache) => cache.addAll(ASSETS))
+    );
+});
+
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cache) => {
+                    if (cache !== CACHE_NAME) {
+                        return caches.delete(cache);
+                    }
+                })
+            );
+        })
+    );
+});
+
+self.addEventListener('fetch', (event) => {
+    event.respondWith(
+        caches.match(event.request)
+            .then((response) => {
+                if (response) {
+                    return response;
+                }
+                return fetch(event.request);
+            })
+    );
+});
 `
 
 	tmpl, err := template.New("sw").Parse(swTemplate)
@@ -53,6 +88,69 @@ const ASSETS = [
 	}{
 		Version: buildVersion,
 		BaseURL: baseURL,
+	}
+
+	return tmpl.Execute(f, data)
+}
+
+// GenerateManifest creates the manifest.json dynamically with a smart build check
+func GenerateManifest(destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool) error {
+	manifestPath := filepath.Join(destDir, "manifest.json")
+
+	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
+	if !forceRebuild {
+		if _, err := os.Stat(manifestPath); err == nil {
+			return nil
+		}
+	}
+
+	fmt.Println("   📱 Generating Web Manifest...")
+
+	manifestTemplate := `{
+    "name": "{{ .Title }}",
+    "short_name": "{{ .Title }}",
+    "start_url": "{{ .BaseURL }}/",
+    "display": "standalone",
+    "background_color": "#111113",
+    "theme_color": "#111113",
+    "description": "{{ .Description }}",
+    "icons": [
+        {
+            "src": "{{ .BaseURL }}/static/images/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "{{ .BaseURL }}/static/images/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "id": "{{ .BaseURL }}/",
+    "scope": "{{ .BaseURL }}/"
+}
+`
+	tmpl, err := template.New("manifest").Parse(manifestTemplate)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Create(manifestPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	data := struct {
+		Title       string
+		Description string
+		BaseURL     string
+	}{
+		Title:       siteTitle,
+		Description: siteDescription,
+		BaseURL:     baseURL,
 	}
 
 	return tmpl.Execute(f, data)

@@ -25,6 +25,7 @@ import (
 	"my-ssg/builder/models"
 	mdParser "my-ssg/builder/parser"
 	"my-ssg/builder/renderer"
+	"my-ssg/builder/search"
 	"my-ssg/builder/utils"
 )
 
@@ -151,11 +152,11 @@ func (b *Builder) Build() {
 
 	// 1. Shared State
 	var (
-		allPosts      []models.PostMetadata
-		pinnedPosts   []models.PostMetadata
-		searchRecords []models.PostRecord
-		tagMap        = make(map[string][]models.PostMetadata)
-		has404        bool
+		allPosts     []models.PostMetadata
+		pinnedPosts  []models.PostMetadata
+		indexedPosts []models.IndexedPost
+		tagMap       = make(map[string][]models.PostMetadata)
+		has404       bool
 	)
 
 	// 2. Collect all files first
@@ -214,6 +215,8 @@ func (b *Builder) Build() {
 			var metaData map[string]interface{}
 			var post models.PostMetadata
 			var searchRecord models.PostRecord
+			var wordFreqs map[string]int
+			var docLen int
 			var toc []models.TOCEntry
 
 			if useCache {
@@ -221,6 +224,8 @@ func (b *Builder) Build() {
 				metaData = cached.Meta
 				post = cached.Metadata
 				searchRecord = cached.SearchRecord
+				wordFreqs = cached.WordFreqs
+				docLen = cached.DocLen
 				toc = cached.TOC
 
 				// Update the link to use the current BaseURL (prevents cache portability issues)
@@ -271,12 +276,26 @@ func (b *Builder) Build() {
 					Content:     plainText,
 				}
 
+				// Pre-compute word frequencies for incremental search indexing
+				fullText := strings.ToLower(searchRecord.Title + " " + searchRecord.Description + " " + strings.Join(searchRecord.Tags, " ") + " " + searchRecord.Content)
+				words := search.Tokenize(fullText)
+				docLen = len(words)
+				wordFreqs = make(map[string]int)
+				for _, word := range words {
+					if len(word) < 2 {
+						continue
+					}
+					wordFreqs[word]++
+				}
+
 				// Update Cache
 				b.mu.Lock()
 				b.buildCache.Posts[path] = models.CachedPost{
 					ModTime:      info.ModTime(),
 					Metadata:     post,
 					SearchRecord: searchRecord,
+					WordFreqs:    wordFreqs,
+					DocLen:       docLen,
 					HTMLContent:  htmlContent,
 					TOC:          toc,
 					Meta:         metaData,
@@ -286,9 +305,12 @@ func (b *Builder) Build() {
 
 			// 4. Draft Check
 			isDraft, _ := metaData["draft"].(bool)
-			if isDraft {
+			if isDraft && !cfg.IncludeDrafts {
 				fmt.Printf("⏩ Skipping draft: %s\n", relPath)
 				return
+			}
+			if isDraft {
+				fmt.Printf("📝 Including draft: %s\n", relPath)
 			}
 
 			// 5. Social Card Logic
@@ -393,8 +415,12 @@ func (b *Builder) Build() {
 				key := strings.ToLower(strings.TrimSpace(t))
 				tagMap[key] = append(tagMap[key], post)
 			}
-			searchRecord.ID = len(searchRecords)
-			searchRecords = append(searchRecords, searchRecord)
+			searchRecord.ID = len(indexedPosts)
+			indexedPosts = append(indexedPosts, models.IndexedPost{
+				Record:    searchRecord,
+				WordFreqs: wordFreqs,
+				DocLen:    docLen,
+			})
 			b.mu.Unlock()
 
 		}(path)
@@ -576,7 +602,7 @@ func (b *Builder) Build() {
 	allContent := append(allPosts, pinnedPosts...)
 	generators.GenerateSitemap(cfg.BaseURL, allContent, tagMap)
 	generators.GenerateRSS(cfg.BaseURL, allContent, cfg.Title, cfg.Description)
-	if err := generators.GenerateSearchIndex("public", searchRecords); err != nil {
+	if err := generators.GenerateSearchIndex("public", indexedPosts); err != nil {
 		fmt.Printf("⚠️ Failed to generate search index: %v\n", err)
 	}
 
@@ -599,6 +625,10 @@ func (b *Builder) Build() {
 	// --- PWA GENERATION START ---
 	if err := generators.GenerateSW("public", cfg.BuildVersion, cfg.ForceRebuild, cfg.BaseURL); err != nil {
 		fmt.Printf("⚠️ Failed to generate Service Worker: %v\n", err)
+	}
+
+	if err := generators.GenerateManifest("public", cfg.BaseURL, cfg.Title, cfg.Description, cfg.ForceRebuild); err != nil {
+		fmt.Printf("⚠️ Failed to generate Web Manifest: %v\n", err)
 	}
 
 	if err := generators.GeneratePWAIcons(faviconPath, "public/static/images"); err != nil {

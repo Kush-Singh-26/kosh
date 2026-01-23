@@ -4,41 +4,32 @@ import (
 	"encoding/gob"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"my-ssg/builder/models"
-	"my-ssg/builder/search"
 )
 
-func GenerateSearchIndex(outputDir string, posts []models.PostRecord) error {
+func GenerateSearchIndex(outputDir string, indexedPosts []models.IndexedPost) error {
 	index := models.SearchIndex{
-		Posts:    posts,
+		Posts:    make([]models.PostRecord, len(indexedPosts)),
 		Inverted: make(map[string]map[int]int),
 		DocLens:  make(map[int]int),
 	}
 
 	totalLen := 0
-	for i, post := range posts {
-		// Combine Title, Description, Tags, and Content for indexing
-		fullText := strings.ToLower(post.Title + " " + post.Description + " " + strings.Join(post.Tags, " ") + " " + post.Content)
-		words := search.Tokenize(fullText)
+	for i, ip := range indexedPosts {
+		index.Posts[i] = ip.Record
+		index.DocLens[i] = ip.DocLen
+		totalLen += ip.DocLen
 
-		docLen := len(words)
-		index.DocLens[i] = docLen
-		totalLen += docLen
-
-		for _, word := range words {
-			if len(word) < 2 {
-				continue
-			}
+		for word, freq := range ip.WordFreqs {
 			if index.Inverted[word] == nil {
 				index.Inverted[word] = make(map[int]int)
 			}
-			index.Inverted[word][i]++
+			index.Inverted[word][i] = freq
 		}
 	}
 
-	index.TotalDocs = len(posts)
+	index.TotalDocs = len(indexedPosts)
 	if index.TotalDocs > 0 {
 		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
 	}

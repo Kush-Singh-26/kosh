@@ -1,0 +1,33 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  shell = "cmd.exe"
+  # 1. Compile kosh to a separate location to avoid file locking on Windows
+  cmd = "go build -o bin/kosh.exe cmd/kosh/main.go"
+
+  # 2. Run kosh in watch mode for content changes
+  bin = "bin/kosh.exe"
+  args_bin = ["build", "--watch"]
+
+  # 3. Only watch Go source and configuration files
+  include_ext = ["go", "mod", "sum", "yaml"]
+  
+  # 4. Exclude directories kosh watches internally to prevent redundant restarts
+  exclude_dir = ["public", "bin", "tmp", ".git", "content", "static", "templates"]
+  
+  delay = 500
+  stop_on_error = true
+  log = "air.log"
+
+[log]
+  time = true
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  clean_on_exit = true

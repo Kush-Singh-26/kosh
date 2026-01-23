@@ -4,7 +4,6 @@ date: "2026-01-05"
 description: "The Geometry of Meaning : Turning meaning into maths."
 tags: ["NLP"]
 pinned: false
-draft: true
 ---
 
 **Embeddings** are the mapping of discrete symbols into high-dimensional vector spaces. It is the translation of discrete, symbolic and combinatorial nature of human language (words, chars, syntax) into continuous mathematical substrate that computational models can manipulate.
@@ -188,7 +187,7 @@ To summarize till now,
 
 ---
 
-## 2. Neural Shift (Static Embeddings)
+## 2. Neural Shift : Static Embeddings
 
 ### Word2Vec Family
 
@@ -401,8 +400,215 @@ So to summarize, GloVe explicitly factorizes the logarithm of the co-occurence m
 
 #### Issues with GloVe and Word2Vec
 
+- **Atomic Unit** : In Word2Vec the vectors for `Apple` and `Apples` are completely independent of each other. It can't infer that they share a root meaning just by looking at their spelling.
+- **OOV Problem** : If the model sees a word it didn't encounter in traning data, it would assign it a generic `<UNK>` token to it, loosing all its meaning.
+- **Morphologically Rich Language** : Languages like German, Turkish, or Finnish use heavy compounding (combining words). So, a single root word might have hundreds of variations. Storing a unique vector for every single variation is computationally inefficient and sparse.
+
+---
+
+> **FastText** proposes that a word is actually a **bag if character n-grams**.
+
+#### N-grams
+
+It is simply a sliding window of $n$ characters. Also special boundary chars `<` and `>` are added at beginning and end respectively of a word.
+
+Eg. `Apple` with $n=3$ (trigrams) will split into : `<ap` (prefix), `app`, `ppl`, `ple` and `le>` (suffix).
+
+Along with these trigrams, the original word `apple` is also included to capture the specific meaning.
+
+Instead of learning one vector for `apple`, the model learns a vector for **every unique n-gram** in the vocab.
+
+The final representation for a word $\mathbf{w}$ is the sum (or average) of all its n-gram vectors $\mathbf{z}_g$ :
+
+$$ \mathbf{w} = \sum_{g\in G_w} \mathbf{z}_g $$
+
+- $G_w$ is the set of n-grams appearing in word $w$.
+- $\mathbf{z}_g$ is the learned vector for a specific n-gram $g$.
+
+The scoring function tells that the similarity between a target word and a context word is the sum of the similarities between all the target's parts (n-grams) and the context word.
+
+$$ s(w,c) = \sum_{g\in G_w} \mathbf{z}_g ^\top \mathbf{v}_c $$
+
+---
+
+Thus, this models handles the OOV Problem and Morphologicaly Rich Language issues by constructing the vector for the words by summing the vectors of its n-grams.
+
+---
+
+To summarize till now :
+
+- **Word2Vec** stripped the hidden layer to make it efficient, introducing Negative Sampling to approximate the Softmax.
+
+- **GloVe** combined local context windows with global count statistics.
+
+- **FastText** broke the atomic word assumption to handle morphology.
+
+---
+
+## 3. The Modern Pre-Processing : Tokenization
+
+This next phase addresses the bridge between human language (strings) and machine language (integers). 
+
+In Word2Vec, the atomic unit was the word itself which led to various problems like OOV, Explosion of Vocabulary & Morphological blindness.
+
+> Thus, instead of mapping whole words, sub-words are mapped.
+
+Tokenizers are already covered in [this post](./NLP-Tokenization.md).
+
+### How `nn.Embedding` works.
+
+The next step after creating the tokens (`["The", "##mbed", "##ding"]`) is to convert them to Integers (ID) using the vocabulary map `[101, 3923, 8321]`.
+
+The `nn.Embedding` layer is just a **look-up table**. Let $V$ be the vocabulary size and $d$ be the embedding dimension. Thus, the Embedding layer is a learnable matrix $E \in \mathbb{R}^{|V|\times d}$. If the input is a token ID $k$ (an integer), then it is like multiplying an one-hot vector $\mathbf{x}_k$ is 1 in position $k$ and 0 elsewhere with matrix $E$.
+
+$$\mathbf{v} = \mathbf{x}_k^T E$$
+
+> Since $\mathbf{x}_k$ is all zeros except at index $k$, this matrix multiplication simplifies to just selecting the $k$-th row of $E$. It directly indexes the array and thus avoids multiplication.
+
+If a layer is intialized like : `nn.Embedding(num_embeddings=10000, embedding_dim=300)`, it would typically use Normal Distribution ($\mathcal{N}(0, 1)$) to initialize :
+
+$$E_{initial} = \begin{bmatrix} 0.01 & -0.42 & \dots \\ -1.2 & 0.05 & \dots \\ \vdots & \vdots & \ddots \end{bmatrix}$$
+
+A **dense matrix** is initialized but the gradients (updates) for this embedding matrix will be sparse. If the vocabulary will have 50,000 words and batch size is 64 and the max sentence length is 10, then total tokens in one batch $64 \times 10 = 640$ tokens. So when error is backpropagated, the gradient $\nabla E$ (which tells how much should the embedding matrix change) is calculated. Only 640 rows will be active out of the 50,000 rows. 49,360 rows gradient will be exactly 0. Thus, the gradient matrix for this batch will be **98.7% sparse**.
+
+---
+
+## 4. Contextual Embeddings : Transformer Era
+
+### Failure of Static Embeddings
+
+A word can have multiple meanings depending on the context it is being used in.
+- Sentence A : "I sat on the **bank** of the river."
+- Sentence B : "I went to **bank** to withdraw money."
+
+In static embedding models, like Word2Vec, $\mathbf{v}_{bank}$ is a single point in space. Mathematically, this vector is the weighted average of all its contexts. This vector will end up somewhere between money and water, not satisfying any of the context properly. 
+
+> It effectively **smears** the meaning.
+
+Thus, a function $f$ is needed such that :
+
+$$ f(\text{bank}, \text{Context}_A) \ne f(\text{bank}, \text{Context}_B) $$
+
+This is where the **transformer** architecture comes in. In a modern LLM, this is the most basic sequence of tasks performed on an input sequence :
+1. *Tokenize* : `["The", "bank", "is", "open"]` $\to$ `[101, 2943, 831, 442]`
+2. *Static Lookup* :  Fetch static vectors from nn.Embedding. Let this sequence be $X$.
+    - $X = [\mathbf{x}_1, \mathbf{x}_2, \mathbf{x}_3, \mathbf{x}_4]$
+3. *Contextualization (The Transformer Layers)* : When these vectors pass through self-attention layers, the information from `open` flows into `bank`.
+4. *Output* : A new sequence of vectors $Z$ is received.
+    - $Z = [\mathbf{z}_1, \mathbf{z}_2, \mathbf{z}_3, \mathbf{z}_4]$
+
+> Here, $\mathbf{z}_2$ is a "contextualized embedding." It is no longer just `bank`; it is **bank-associated-with-opening.**
+
+---
+
+### How Self-Attention physically changes the vectors
+
+As discussed in the [Transformers Post](./NLP-transformer.md), every input vector $\mathbf{x}_i$ is projected into three distinct subspaces using learnable weight matrices $W_Q, W_K, W_V$:
+- **Query** : ($\mathbf{q}_i = \mathbf{x}_i W_Q$)
+    - What this token is looking for.
+- **Key** : ($\mathbf{k}_i = \mathbf{x}_i W_K$)
+    - What this token contains (content/identity)
+- **Value** : ($\mathbf{v}_i = \mathbf{x}_i W_V$)
+    - The actual information this token will pass along.
+
+Let `bank` be the current token. To know which definition to use it will :
+1. **Query** : `bank` broadcasts a query: "Are there any words here related to water or finance?"
+2. **Keys** : 
+    - `The` says: "I am a determiner." (Low match)
+    - `River` says: "I am a body of water." (High match!)
+    - `Deposit` says: "I am a financial action." (Low match in Sentence A, High in B).
+3. **Score** : Calculate the dot product between query of `bank` and keys of every other word.
+
+$$ \text{Score}_{i,j} = \mathbf{q}_i \cdot \mathbf{k}_j $$
+
+Then these scores are normalized using Softmax to get Attention Weights ($\alpha$) which will sum up to 1.
+
+$$\alpha_{i,j} = \text{Softmax}\left(\frac{\mathbf{q}_i \cdot \mathbf{k}_j^T}{\sqrt{d_k}}\right)$$
+
+- $\alpha_{\text{bank, river}} \approx 0.8$  (High Attention)
+- Other 2 will be $\approx 0.1$ (Low Attention)
+
+The new vector for `bank` ($\mathbf{z}_{\text{bank}}$) is the weighted sum of the Values of all context words : 
+
+$$\mathbf{z}_{\text{bank}} = 0.8 \mathbf{v}_{\text{river}} + 0.1 \mathbf{v}_{\text{the}} + 0.1 \mathbf{v}_{\text{bank}}$$
+
+> The vector for `bank` has physically moved in vector space. It has been pulled towards the `river` vector. It is now a **river-bank** vector.
+
+#### During Training
+
+When initialized, `nn.Embedding` is a matrix of size `[Vocabulary Size x Dimension]` filled with random noise.
+- As the model learns or reads training data, it will come across a word like `bank` many times each appearing in a different context.
+    - If the context is "fish in the bank", the error signal will pull the `bank` vector towards *nature*.
+    - If the context is "deposit in the bank", the error signal will pull the `bank` vector towards *finance*.
+
+> By the end of training, the vector of `bank` will settle in the **mathematical center** of all its meanings.
+
+Once the training is done, the matrix is **frozen**. It becomes a read-only lookup table.
+
+#### During Inference
+
+During inference, irrespective of the input sequence ("The bank of the river" or "The bank of America"), the same exact prototype vector for the `bank` is retrieved.
+
+Now based on the context, the self-attention mechanism will create a new vector for the word `bank` which will be added to the original vector of `bank` as **residual connections** are used in transformers.
+
+---
+
+### Positional Encoding
+
+Dot product is permutation invariant. $(a\cdot b) = (b \cdot a)$. This means the set `{"man", "bites", "dog"}` produces the exact same attention scores as `{"dog", "bites", "man"}`. The model has no concept of order.
+
+So, some position information is injected before the first Transformer layer :
+
+$$X_{\text{input}} = \text{Embedding}(X) + \text{PositionalEncoding}(Position)$$
+
+These embeddings can be absolute like in original transformer or rotational/relative like in modern models like LLaMA models.
+
+---
+
+### Embeddings in RAGs
+
+**Retrieval-Augmented Generation** (RAG) is an AI framework that boosts Large Language Models (LLMs) by connecting them to external, up-to-date knowledge bases, allowing them to retrieve relevant information before generating an answer, making responses more accurate, factual, and context-aware, without needing costly model retraining.  
+
+In RAGs embeddings are the engine that powers the **retrieval step**. In RAG instead of caring about individual words like `bank`, we start calculating vectors for the *entire sentence or paragraphs*. To seach in a massive library of documents and the exact words used in the documents are unknown, then RAGs are useful as they provide **semantic search**.
+
+#### Embedding Models
+
+Instead of using a decoder only transformer, embedding models typically consist of **Encoder-only** models. These models can be **BERT / Sentence BERT** or OpenAI's **text-embedding-3**, etc. It uses Bi-directional Attention. So token for `bank` can see both `river` (future) and `bank` (past) simultaneously to understand the *entire* sentence structure at once.
 
 
+So is a 10-word sentence is fed into the transformer, output of 10 vectors is received. So a **Pooling Layer** is added to get 1 vector which replaces the prediction head of decoder-only transformers.
 
+There are 2 mains strategies for pooling :
 
+##### A. `[CLS]` Token Strategy
 
+This is like [BERT Models](./NLP-BERT.md) where a special token `[CLS]` (Classification) is prepended to start of every sentence.
+
+After going through the self-attention layers of the transformer, `[CLS]` will have absorbed the entire context of the sentence and this token will be treated as the representation of the whole sentence.
+
+##### B. Mean Pooling Strategy
+
+We take the output vectors for all tokens and calculate their mathematical average.
+
+$$\mathbf{V}_{\text{sentence}} = \frac{1}{N} \sum_{i=1}^{N} \mathbf{z}_i$$
+
+This is often more effective than strategy A.
+
+---
+
+The goal of embedding models is to **organize the vector space**.
+- **Anchor** : "The dog is happy."
+- **Positive** : "The puppy is joyful." (We want this close).
+- **Negative** : "The cat is sleeping." (We want this far away).
+
+The model will adjust its weights till :
+
+$$\text{Sim}(\text{Anchor}, \text{Positive}) \gg \text{Sim}(\text{Anchor}, \text{Negative})$$
+
+---
+
+All documents are initially processed, sentence vectors are produced and stored in *Vector Database*. When a user wants to retrieve some text, the user's query is vectorised and compared with all the stored vectors in the vector database using metrics like **Cosine Similarity** and the mathematically most closest document to the query is returned.   
+
+---
+
+With this journey about the embeddings from theoretical foundations to staic embeddings, tokenization and how `nn.Embeddings` work and finally encountering contextual embeddings and how they are used by RAGs is completed.

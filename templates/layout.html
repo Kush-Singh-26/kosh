@@ -28,7 +28,8 @@
     <meta property="og:image" content="{{ .Image }}">
     <meta name="image" property="og:image" content="{{ .Image }}">
 
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self';">    <meta name="twitter:card" content="summary_large_image">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self';">    <meta name="twitter:card" content="summary_large_image">
+
     <meta name="twitter:url" content="{{ .Permalink }}">
     <meta name="twitter:title" content="{{ .Title }}">
     <meta name="twitter:description" content="{{ .Description }}">
@@ -51,7 +52,8 @@
     {{ end }}
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
 
-    <link rel="manifest" href="{{ .BaseURL }}/static/manifest.json">
+    <link rel="manifest" href="{{ .BaseURL }}/manifest.json">
+
 
      
     {{ if not .IsIndex }}
@@ -241,15 +243,20 @@
             // PWA Service Worker Registration
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('{{ .BaseURL }}/sw.js')
+                    const swPath = '{{ .BaseURL }}/sw.js';
+                    navigator.serviceWorker.register(swPath)
                         .then(registration => {
-                            console.log('SW registered:', registration.scope);
+                            console.log('✅ ServiceWorker registration successful with scope: ', registration.scope);
                         })
                         .catch(err => {
-                            console.log('SW registration failed:', err);
+                            console.error('❌ ServiceWorker registration failed: ', err);
+                            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                                console.warn('⚠️ PWA requires HTTPS or localhost to work. Detected origin:', window.location.origin);
+                            }
                         });
                 });
             }
+
         })();
     </script>
 </body>

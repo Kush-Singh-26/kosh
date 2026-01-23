@@ -47,32 +47,42 @@ go build -o kosh.exe cmd/kosh/main.go
 
 ## Usage
 
-### 1. Development (Live Reload)
+### 1. Development Workflows
 
-`kosh` includes a high-performance internal watcher that provides near-instantaneous rebuilds (< 50ms) using in-memory caching.
+Choose the workflow that fits your current task:
 
-**Recommended Development Command:**
+#### **Workflow A: Content & Design** (Markdown, CSS, HTML, Config)
+*Use this when writing posts or tweaking your theme.*
 
+**Terminal 1:**
 ```bash
 .\kosh serve --dev
 # Serving on http://localhost:2604 (Auto-reload & Internal Watcher enabled)
 ```
+*   **Speed:** Instant rebuilds (< 50ms) using in-memory caching.
+*   **Limitation:** If you change `.go` files, you must restart this process.
+*   **Drafts:** Use `-drafts` to preview WIP posts: `.\kosh serve --dev -drafts`
 
-**Alternative (Watch only):**
+---
 
+#### **Workflow B: Go Core Development** (Changing Go source code)
+*Use this when you are modifying the SSG engine itself (Go files).*
+
+**Terminal 1 (The Rebuilder):**
 ```bash
-.\kosh build --watch
-# Rebuilds the site instantly as you save files
+air
 ```
+*   **Action:** Watches Go files $\rightarrow$ Rebuilds `kosh` $\rightarrow$ Runs `kosh build --watch`.
+*   **Why:** Automatically handles binary recompilation.
 
-> [!IMPORTANT]
-> **When to Rebuild the Binary?**
-> - **Content & Design**: You **do not** need to rebuild if you are changing Markdown files, CSS, HTML templates, or `kosh.yaml`. The watcher handles these instantly.
-> - **Core Logic**: If you modify any **Go source files** (in `builder/`, `internal/`, or `cmd/`), you must stop the process, run the following build command and , and restart the tool.
->
->```bash
->go build -o kosh.exe cmd/kosh/main.go
->```
+**Terminal 2 (The Preview Server):**
+```bash
+go run cmd/kosh/main.go serve
+```
+*   **Action:** Provides the live preview and browser auto-reload.
+*   **Tip:** Using `go run` here prevents file-locking issues on Windows while `air` tries to rebuild the binary.
+
+---
 
 ### 2. Production Build
 
@@ -173,6 +183,7 @@ The `kosh build` command accepts the following flags:
 | `-baseurl` | Base URL for the site (e.g., `https://example.com/blog`) | `""` |
 | `--watch` | Enables watch mode (continuous rebuild) | `false` |
 | `-output` | Custom output directory | `public` |
+| `-drafts` | Include draft posts in the build | `false` |
 
 
 The `kosh serve` command accepts:
@@ -182,6 +193,7 @@ The `kosh serve` command accepts:
 | `--dev` | Enables development mode (serve + watch) | `false` |
 | `-host` | Host to bind to (use `0.0.0.0` for LAN) | `localhost` |
 | `-port` | Port to listen on | `2604` |
+| `-drafts` | Include draft posts in dev mode | `false` |
 
 
 

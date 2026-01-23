@@ -35,8 +35,9 @@ type Config struct {
 	CompressImages bool         `yaml:"compressImages"`
 
 	// Internal / Runtime fields
-	ForceRebuild bool  `yaml:"-"`
-	BuildVersion int64 `yaml:"-"`
+	ForceRebuild  bool  `yaml:"-"`
+	IncludeDrafts bool  `yaml:"-"`
+	BuildVersion  int64 `yaml:"-"`
 }
 
 func Load(args []string) *Config {
@@ -66,6 +67,7 @@ func Load(args []string) *Config {
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 	baseUrlFlag := fs.String("baseurl", "", "Base URL (overrides config file)")
 	compressFlag := fs.Bool("compress", false, "Enable image compression (overrides config file)")
+	draftsFlag := fs.Bool("drafts", false, "Include draft posts in the build")
 
 	_ = fs.Parse(args)
 
@@ -75,6 +77,9 @@ func Load(args []string) *Config {
 	}
 	if *compressFlag {
 		cfg.CompressImages = true
+	}
+	if *draftsFlag {
+		cfg.IncludeDrafts = true
 	}
 
 	return cfg
