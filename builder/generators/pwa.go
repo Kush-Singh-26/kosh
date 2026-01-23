@@ -28,11 +28,8 @@ const ASSETS = [
     '{{ .BaseURL }}/',
     '{{ .BaseURL }}/index.html',
     '{{ .BaseURL }}/404.html',
-    '{{ .BaseURL }}/static/css/layout.css',
-    '{{ .BaseURL }}/static/css/theme.css',
-    '{{ .BaseURL }}/static/js/main.js',
-    '{{ .BaseURL }}/static/images/favicon.webp',
     '{{ .BaseURL }}/manifest.json',
+    '{{ .BaseURL }}/static/images/favicon.webp',
     '{{ .BaseURL }}/static/images/icon-192.png',
     '{{ .BaseURL }}/static/images/icon-512.png'
 ];
@@ -109,29 +106,42 @@ func GenerateManifest(destDir string, baseURL string, siteTitle string, siteDesc
 	manifestTemplate := `{
     "name": "{{ .Title }}",
     "short_name": "{{ .Title }}",
-    "start_url": "{{ .BaseURL }}/",
+    "start_url": "./",
     "display": "standalone",
     "background_color": "#111113",
     "theme_color": "#111113",
     "description": "{{ .Description }}",
     "icons": [
         {
-            "src": "{{ .BaseURL }}/static/images/icon-192.png",
+            "src": "static/images/icon-192.png",
             "sizes": "192x192",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
         },
         {
-            "src": "{{ .BaseURL }}/static/images/icon-512.png",
+            "src": "static/images/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "static/images/icon-512.png",
             "sizes": "512x512",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
+        },
+        {
+            "src": "static/images/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
         }
     ],
-    "id": "{{ .BaseURL }}/",
-    "scope": "{{ .BaseURL }}/"
+    "id": "./",
+    "scope": "./"
 }
 `
+
 	tmpl, err := template.New("manifest").Parse(manifestTemplate)
 	if err != nil {
 		return err

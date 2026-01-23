@@ -14,6 +14,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .TabTitle }}</title>
     <meta name="description" content="Page not found">
+    <meta name="theme-color" content="#111113">
+    <link rel="apple-touch-icon" href="{{ .BaseURL }}/static/images/icon-192.png">
+    <link rel="manifest" href="{{ .BaseURL }}/manifest.json">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self';">
     
     <meta property="og:type" content="website">
     <meta property="og:title" content="404 - Page Not Found">
@@ -254,6 +258,23 @@
     {{ else }}
     <script defer src="{{ .BaseURL }}/static/js/main.js?v={{ .BuildVersion }}"></script>
     {{ end }}
+    <script>
+        (function() {
+            // PWA Service Worker Registration
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    const swPath = '{{ .BaseURL }}/sw.js';
+                    navigator.serviceWorker.register(swPath)
+                        .then(registration => {
+                            console.log('✅ ServiceWorker registration successful with scope: ', registration.scope);
+                        })
+                        .catch(err => {
+                            console.error('❌ ServiceWorker registration failed: ', err);
+                        });
+                });
+            }
+        })();
+    </script>
 </body>
 
 </html>

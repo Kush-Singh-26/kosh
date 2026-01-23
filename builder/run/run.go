@@ -679,11 +679,11 @@ func (b *Builder) Build() {
 	}
 
 	// --- PWA GENERATION START ---
-	if err := generators.GenerateSW("public", cfg.BuildVersion, cfg.ForceRebuild, cfg.BaseURL); err != nil {
+	if err := generators.GenerateSW("public", cfg.BuildVersion, shouldForce, cfg.BaseURL); err != nil {
 		fmt.Printf("⚠️ Failed to generate Service Worker: %v\n", err)
 	}
 
-	if err := generators.GenerateManifest("public", cfg.BaseURL, cfg.Title, cfg.Description, cfg.ForceRebuild); err != nil {
+	if err := generators.GenerateManifest("public", cfg.BaseURL, cfg.Title, cfg.Description, shouldForce); err != nil {
 		fmt.Printf("⚠️ Failed to generate Web Manifest: %v\n", err)
 	}
 
