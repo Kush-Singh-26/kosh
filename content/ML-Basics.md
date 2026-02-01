@@ -288,3 +288,7 @@ flowchart TB
 
     style G stroke:#2ecc71,stroke-width:3px
 ```
+
+---
+
+With this, the basics are over.
