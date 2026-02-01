@@ -24,46 +24,91 @@ func GenerateSW(destDir string, buildVersion int64, forceRebuild bool, baseURL s
 
 	swTemplate := `
 const CACHE_NAME = 'kush-blog-cache-v{{ .Version }}';
-const ASSETS = [
+const STATIC_CACHE = 'kush-blog-static-v{{ .Version }}';
+
+// Core app shell assets
+const CORE_ASSETS = [
     '{{ .BaseURL }}/',
     '{{ .BaseURL }}/index.html',
     '{{ .BaseURL }}/404.html',
-    '{{ .BaseURL }}/manifest.json',
-    '{{ .BaseURL }}/static/images/favicon.webp',
-    '{{ .BaseURL }}/static/images/icon-192.png',
-    '{{ .BaseURL }}/static/images/icon-512.png'
+    '{{ .BaseURL }}/manifest.json'
 ];
 
+// Install: Cache core assets
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then((cache) => cache.addAll(ASSETS))
+            .then((cache) => cache.addAll(CORE_ASSETS))
+            .then(() => self.skipWaiting())
     );
 });
 
+// Activate: Clean up old caches
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cache) => {
-                    if (cache !== CACHE_NAME) {
+                    if (cache !== CACHE_NAME && cache !== STATIC_CACHE) {
                         return caches.delete(cache);
                     }
                 })
             );
-        })
+        }).then(() => self.clients.claim())
     );
 });
 
+// Stale-while-revalidate strategy for better performance
 self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                if (response) {
+    const { request } = event;
+    const url = new URL(request.url);
+    
+    // Skip non-GET requests
+    if (request.method !== 'GET') {
+        event.respondWith(fetch(request));
+        return;
+    }
+    
+    // Strategy for HTML pages: Network first, fallback to cache
+    if (request.mode === 'navigate' || request.headers.get('accept').includes('text/html')) {
+        event.respondWith(
+            fetch(request)
+                .then((response) => {
+                    // Update cache with fresh version
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(request, clone);
+                    });
                     return response;
+                })
+                .catch(() => {
+                    // Fallback to cache if network fails
+                    return caches.match(request);
+                })
+        );
+        return;
+    }
+    
+    // Strategy for static assets: Cache first, revalidate in background
+    event.respondWith(
+        caches.match(request).then((cachedResponse) => {
+            // Return cached version immediately (fast!)
+            const fetchPromise = fetch(request).then((networkResponse) => {
+                // Update cache in background for next visit
+                if (networkResponse.ok) {
+                    const clone = networkResponse.clone();
+                    caches.open(STATIC_CACHE).then((cache) => {
+                        cache.put(request, clone);
+                    });
                 }
-                return fetch(event.request);
-            })
+                return networkResponse;
+            }).catch(() => {
+                // Network failed, but we already returned cached version
+                return cachedResponse;
+            });
+            
+            return cachedResponse || fetchPromise;
+        })
     );
 });
 `

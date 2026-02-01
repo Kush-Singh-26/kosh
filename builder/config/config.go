@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+// Global flag to track if we're in development mode
+var isDevMode = atomic.Bool{}
 
 type MenuEntry struct {
 	Name   string `yaml:"name"`
@@ -33,11 +37,11 @@ type Config struct {
 	Menu           []MenuEntry  `yaml:"menu"`
 	PostsPerPage   int          `yaml:"postsPerPage"`
 	CompressImages bool         `yaml:"compressImages"`
-
 	// Internal / Runtime fields
 	ForceRebuild  bool  `yaml:"-"`
 	IncludeDrafts bool  `yaml:"-"`
 	BuildVersion  int64 `yaml:"-"`
+	IsDev         bool  `yaml:"-"`
 }
 
 func Load(args []string) *Config {
@@ -83,4 +87,15 @@ func Load(args []string) *Config {
 	}
 
 	return cfg
+}
+
+// SetDevMode is a helper to set development mode on a config pointer
+func SetDevMode(cfg *Config, isDev bool) {
+	cfg.IsDev = isDev
+	isDevMode.Store(isDev)
+}
+
+// IsDevMode returns true if currently in development mode
+func IsDevMode() bool {
+	return isDevMode.Load()
 }

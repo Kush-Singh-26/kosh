@@ -28,22 +28,42 @@ jobs:
         with:
           go-version: '1.21'
 
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
       # Restore timestamps so incremental build works
       - name: Restore Timestamps
         uses: chetan/git-restore-mtime-action@v2
 
-      - name: Restore Cache
-        id: cache-public
+      # Restore build cache (separate from deployment)
+      - name: Restore Build Cache
+        id: cache-build
         uses: actions/cache@v3
         with:
-          path: public
-          key: public-cache-${{ github.sha }}
-          # Restore the latest cache available
+          path: .kosh-cache
+          key: kosh-cache-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            public-cache-
-              
+            kosh-cache-${{ runner.os }}-
+            kosh-cache-
+
+      - name: Create Cache Directory
+        run: mkdir -p .kosh-cache
+
       - name: Build Static Site
-        run: go run cmd/kosh/main.go build --compress -baseurl https://kush-singh-26.github.io/blogs
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+        run: |
+          # Copy cache files to public if they exist
+          if [ -d ".kosh-cache" ]; then
+            cp -r .kosh-cache/* public/ 2>/dev/null || true
+          fi
+          go run cmd/kosh/main.go build --compress -baseurl https://kush-singh-26.github.io/blogs
+          # Copy cache files back for next run
+          mkdir -p .kosh-cache
+          cp public/.kosh-build-cache.json .kosh-cache/ 2>/dev/null || true
+          cp public/.social-card-cache.json .kosh-cache/ 2>/dev/null || true
 
 
       - name: Setup Pages

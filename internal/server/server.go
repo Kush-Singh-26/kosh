@@ -89,6 +89,15 @@ func Run(args []string) {
 				// If files have been modified since we last checked
 				if currentMod.After(lastMod) {
 					lastMod = currentMod
+					// Wait for build to complete (files may still be writing)
+					time.Sleep(300 * time.Millisecond)
+					// Verify files are still newer (build completed)
+					verifyMod, err := getLatestModTime(staticDir)
+					if err == nil && verifyMod.After(lastMod) {
+						// Build still in progress, wait more
+						time.Sleep(500 * time.Millisecond)
+						lastMod = verifyMod
+					}
 					// Send reload signal
 					_, _ = fmt.Fprintf(w, "data: reload\n\n")
 					w.(http.Flusher).Flush()
@@ -111,7 +120,7 @@ func Run(args []string) {
 		fullPath := filepath.Join(staticDir, path)
 
 		// Check if file exists
-		_, err := os.Stat(fullPath)
+		fileInfo, err := os.Stat(fullPath)
 		if os.IsNotExist(err) {
 			w.WriteHeader(http.StatusNotFound)
 			notFoundPath := filepath.Join(staticDir, "404.html")
@@ -122,6 +131,21 @@ func Run(args []string) {
 				_, _ = w.Write(content)
 			}
 			return
+		}
+
+		// Add cache headers for hashed assets (files with content hash in filename)
+		filename := filepath.Base(path)
+		if isHashedAsset(filename) {
+			// Content-addressable assets can be cached forever
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else if fileInfo.IsDir() || strings.HasSuffix(filename, ".html") {
+			// HTML files - disable all caching in development to prevent stale content
+			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		} else {
+			// Regular assets - short caching for development
+			w.Header().Set("Cache-Control", "public, max-age=60")
 		}
 
 		fileServer.ServeHTTP(w, r)
@@ -139,6 +163,29 @@ func Run(args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// isHashedAsset checks if filename contains a content hash (e.g., layout.a1b2c3.css)
+func isHashedAsset(filename string) bool {
+	// Check for pattern: name.8-12chars.hash.ext
+	// Examples: layout.a1b2c3d4.css, main.1234567890ab.js
+	parts := strings.Split(filename, ".")
+	if len(parts) >= 3 {
+		// Middle part should be 8-12 hex characters
+		hashPart := parts[len(parts)-2]
+		if len(hashPart) >= 8 && len(hashPart) <= 12 {
+			// Check if it looks like a hex hash
+			isHex := true
+			for _, c := range hashPart {
+				if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+					isHex = false
+					break
+				}
+			}
+			return isHex
+		}
+	}
+	return false
 }
 
 // Helper: recursive walk to find the latest modification time in the directory

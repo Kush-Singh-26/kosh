@@ -3,15 +3,19 @@
 # The GitHub Action will generate this on the fly.
 public/
 
-# 2. Mac OS System Files
+# 2. Build Cache Directory
+# Cache files for incremental builds (not deployed to production)
+.kosh-cache/
+
+# 3. Mac OS System Files
 .DS_Store
 
-# 3. Windows System Files
+# 4. Windows System Files
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# 4. Go Build Binaries
+# 5. Go Build Binaries
 # If you run 'go build', it creates binaries. We don't want those.
 *.exe
 *.exe~
@@ -22,17 +26,14 @@ test
 bin/
 main  # In case you name your binary 'main'
 tmp/
-# 5. Editor/IDE Configs
+
+# 6. Editor/IDE Configs
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# 6. Go Modules (Optional)
+# 7. Go Modules (Optional)
 # Usually you commit go.sum, but if you have a vendor folder you might ignore it
 # vendor/
-
-# 7. Social Card Cache
-# Cache file for tracking frontmatter changes
-public/.social-card-cache.json
 

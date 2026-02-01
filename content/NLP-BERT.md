@@ -1,7 +1,8 @@
 ---
 title: "8. NLP: BERT"
 date: 2025-07-25
-
+description: "A guide on BERT models and how their architecture."
+tags: ["NLP", "Transformers"]
 pinned: false
 ---
 

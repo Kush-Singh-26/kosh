@@ -1,8 +1,10 @@
 /* --- THEME: Titanium Dark (Apple Aesthetic) --- */
 :root {
     /* Backgrounds - Made slightly richer */
-    --bg-body: #111113; /* Was #0d0d0f */
-    --bg-card: #1c1c1e; /* Slightly lighter card for better contrast */
+    --bg-body: #111113;
+    /* Was #0d0d0f */
+    --bg-card: #1c1c1e;
+    /* Slightly lighter card for better contrast */
     --bg-code: #161618;
     --bg-quote: rgba(255, 255, 255, 0.03);
     --bg-card-hover: #252528;
@@ -18,7 +20,7 @@
     --h2-color: #2997ff;
     --h3-color: #bf5af2;
     --h4-color: #30d158;
-    --h5-color: #ff9f0a; 
+    --h5-color: #ff9f0a;
     --h6-color: #a1a1a6;
 
     --accent-primary: #2997ff;
@@ -79,13 +81,14 @@
 body {
     background-color: var(--bg-body);
     background-image: var(--bg-gradient);
-    background-attachment: fixed; 
-    
+    background-attachment: fixed;
+
     color: var(--text-main);
     font-family: var(--font-main);
     -webkit-font-smoothing: antialiased;
     transition: background-color 0.4s ease, color 0.4s ease;
-    min-height: 100vh; /* Ensure gradient covers full height */
+    min-height: 100vh;
+    /* Ensure gradient covers full height */
 }
 
 /* Links & Interactivity */
@@ -729,4 +732,159 @@ summary::-webkit-details-marker {
 
 .purple {
     color: var(--accent-purple);
+}
+
+/* --- Mermaid Diagram Overrides --- */
+pre.mermaid {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+.mermaid-container {
+    overflow-x: auto;
+    width: 100%;
+    margin: 2rem 0;
+}
+
+/* Fix Mermaid text clipping by ensuring foreignObject content has room */
+.mermaid-container svg .nodeLabel {
+    overflow: visible !important;
+}
+
+/* Target foreignObject which contains the actual text content in Mermaid */
+.mermaid-container svg foreignObject {
+    overflow: visible !important;
+}
+
+/* Vertically center text within foreignObject using flexbox */
+.mermaid-container svg foreignObject>div {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 100% !important;
+    padding: 0 !important;
+    /* Let Mermaid handle padding via config */
+}
+
+/* Ensure node containers don't clip content */
+.mermaid-container svg .node {
+    overflow: visible !important;
+}
+
+.mermaid-container svg .node rect {
+    overflow: visible !important;
+}
+
+/* --- Mermaid Theme-Specific Color Overrides --- */
+/* These ensure proper contrast against the site's theme backgrounds */
+
+/* Light Mode Mermaid Diagrams */
+.mermaid-light svg {
+    background: transparent !important;
+}
+
+.mermaid-light svg text {
+    fill: #1d1d1f;
+    color: #1d1d1f;
+}
+
+.mermaid-light svg .node rect,
+.mermaid-light svg .node circle,
+.mermaid-light svg .node ellipse,
+.mermaid-light svg .node polygon,
+.mermaid-light svg .node path {
+    fill: #ffffff;
+    stroke: #1d1d1f;
+    stroke-width: 2px;
+}
+
+.mermaid-light svg g.edgePaths path,
+.mermaid-light svg .edgePath path,
+.mermaid-light svg path[class*="edge"] {
+    stroke: #1d1d1f;
+    stroke-width: 2px;
+    fill: none;
+}
+
+.mermaid-light svg .edgeLabel {
+    background-color: #ffffff;
+    color: #1d1d1f;
+    fill: #1d1d1f;
+}
+
+.mermaid-light svg marker path {
+    fill: #1d1d1f;
+}
+
+.mermaid-light svg .cluster rect {
+    fill: #f5f5f7;
+    stroke: #1d1d1f;
+}
+
+/* Dark Mode Mermaid Diagrams */
+.mermaid-dark svg {
+    background: transparent !important;
+}
+
+.mermaid-dark svg text {
+    fill: #f5f5f7;
+    color: #f5f5f7;
+}
+
+.mermaid-dark svg .node rect,
+.mermaid-dark svg .node circle,
+.mermaid-dark svg .node ellipse,
+.mermaid-dark svg .node polygon,
+.mermaid-dark svg .node path {
+    fill: #1c1c1e;
+    stroke: #f5f5f7;
+    stroke-width: 2px;
+}
+
+.mermaid-dark svg g.edgePaths path,
+.mermaid-dark svg .edgePath path,
+.mermaid-dark svg path[class*="edge"] {
+    stroke: #a1a1a6;
+    stroke-width: 2px;
+    fill: none;
+}
+
+.mermaid-dark svg .edgeLabel {
+    background-color: #1c1c1e;
+    color: #f5f5f7;
+    fill: #f5f5f7;
+}
+
+.mermaid-dark svg marker path {
+    fill: #a1a1a6;
+}
+
+.mermaid-dark svg .cluster rect {
+    fill: #2c2c2e;
+    stroke: #f5f5f7;
+}
+
+/* Theme-based Mermaid diagram switching */
+/* Default (dark mode - no data-theme attribute) - show dark diagrams, hide light */
+.mermaid-light {
+    display: none !important;
+}
+
+.mermaid-dark {
+    display: block !important;
+}
+
+/* Light mode - show light diagrams, hide dark */
+[data-theme="light"] .mermaid-light,
+html[data-theme="light"] .mermaid-light,
+body[data-theme="light"] .mermaid-light {
+    display: block !important;
+}
+
+[data-theme="light"] .mermaid-dark,
+html[data-theme="light"] .mermaid-dark,
+body[data-theme="light"] .mermaid-dark {
+    display: none !important;
 }

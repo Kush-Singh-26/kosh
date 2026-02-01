@@ -4,21 +4,28 @@
 <head>
     <meta charset="UTF-8">
     <script>
-        (function() {
+        (function () {
             const savedTheme = localStorage.getItem('theme');
             if (savedTheme === 'light') {
                 document.documentElement.setAttribute('data-theme', 'light');
             }
         })();
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="preconnect" href="{{ .BaseURL }}">
+    <link rel="dns-prefetch" href="{{ .BaseURL }}">
 
     <title>{{ .TabTitle }}</title>
     <meta name="description" content="{{ .Description }}">
-    
+
     <meta name="google-site-verification" content="Xr0Ov0Imhz_enNxV6fyMfzSrJyICO_V5PZV49w4b2DM" />
 
     <link rel="canonical" href="{{ .Permalink }}">
+    <link rel="preload" href="{{ .BaseURL }}/static/css/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2"
+        crossorigin>
+    <link rel="preload" href="{{ .BaseURL }}/static/css/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2"
+        crossorigin>
     <link rel="alternate" type="application/rss+xml" title="{{ .Title }} RSS Feed" href="{{ .BaseURL }}/rss.xml" />
     <meta name="theme-color" content="#111113">
     <link rel="apple-touch-icon" href="{{ .BaseURL }}/static/images/icon-192.png">
@@ -31,14 +38,16 @@
     <meta property="og:image" content="{{ .Image }}">
     <meta name="image" property="og:image" content="{{ .Image }}">
 
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self';">    <meta name="twitter:card" content="summary_large_image">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self';">
+    <meta name="twitter:card" content="summary_large_image">
 
     <meta name="twitter:url" content="{{ .Permalink }}">
     <meta name="twitter:title" content="{{ .Title }}">
     <meta name="twitter:description" content="{{ .Description }}">
-    <meta name="twitter:image" content="{{ .Image }}"> 
+    <meta name="twitter:image" content="{{ .Image }}">
 
-    {{ if .Assets }}
+    {{ if len .Assets }}
     <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/layout.css" }}">
     <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/theme.css" }}">
     {{ else }}
@@ -47,18 +56,18 @@
     {{ end }}
     <script>window.siteBaseURL = "{{ .BaseURL }}";</script>
     {{ if .HasMath }}
-        {{ if .Assets }}
-        <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/katex.min.css" }}">
-        {{ else }}
-        <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
-        {{ end }}
+    {{ if len .Assets }}
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/katex.min.css" }}">
+    {{ else }}
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/katex.min.css">
+    {{ end }}
     {{ end }}
     <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
 
     <link rel="manifest" href="{{ .BaseURL }}/manifest.json">
 
 
-     
+
     {{ if not .IsIndex }}
     <script type="application/ld+json">
     {
@@ -86,16 +95,14 @@
         </a>
         <nav>
             {{ range .Config.Menu }}
-                {{ if .URL }}
-                    <a href="{{ if hasPrefix .URL "http" }}{{ .URL }}{{ else }}{{ $.BaseURL }}{{ .URL }}{{ end }}" 
-                       {{ if .Target }}target="{{ .Target }}"{{ end }}
-                       {{ if .ID }}id="{{ .ID }}"{{ end }}
-                       {{ if .Class }}class="{{ .Class }}"{{ end }}>{{ .Name }}</a>
-                {{ else }}
-                    <button {{ if .ID }}id="{{ .ID }}"{{ end }} 
-                            {{ if .Class }}class="{{ .Class }}"{{ end }} 
-                            aria-label="{{ .Name }}">{{ .Name }}</button>
-                {{ end }}
+            {{ if .URL }}
+            <a href="{{ if hasPrefix .URL " http" }}{{ .URL }}{{ else }}{{ $.BaseURL }}{{ .URL }}{{ end }}" {{ if
+                .Target }}target="{{ .Target }}" {{ end }} {{ if .ID }}id="{{ .ID }}" {{ end }} {{ if .Class
+                }}class="{{ .Class }}" {{ end }}>{{ .Name }}</a>
+            {{ else }}
+            <button {{ if .ID }}id="{{ .ID }}" {{ end }} {{ if .Class }}class="{{ .Class }}" {{ end }}
+                aria-label="{{ .Name }}">{{ .Name }}</button>
+            {{ end }}
             {{ end }}
             <button id="theme-toggle" aria-label="Toggle Theme">
                 <span class="theme-icon-light">☀️</span> <span class="theme-icon-dark">🌙</span>
@@ -106,84 +113,84 @@
 
     <main>
         {{ if .IsTagsIndex }}
-            <h1 class="center-text no-border">Topics</h1>
-            <div class="tag-cloud center-flex">
-                {{ range .AllTags }}
-                <a href="{{ .Link }}" class="tag-pill">
-                    #{{ .Name }}
-                    <span class="tag-count">{{ .Count }}</span>
-                </a>
-                {{ end }}
-            </div>
+        <h1 class="center-text no-border">Topics</h1>
+        <div class="tag-cloud center-flex">
+            {{ range .AllTags }}
+            <a href="{{ .Link }}" class="tag-pill">
+                #{{ .Name }}
+                <span class="tag-count">{{ .Count }}</span>
+            </a>
+            {{ end }}
+        </div>
 
         {{ else if .Posts }}
-            <h1 class="center-text">{{ .Title }}</h1>
-            <ul class="post-list">
-                {{ range .Posts }}
-                <li>
-                    <a href="{{ .Link }}" class="post-title">{{ .Title }}</a>
-                    
-                    <div class="meta-info mb-small">
-                        <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
-                        <span>•</span>
-                        <span>{{ .ReadingTime }} min read</span>
-                    </div>
+        <h1 class="center-text">{{ .Title }}</h1>
+        <ul class="post-list">
+            {{ range .Posts }}
+            <li>
+                <a href="{{ .Link }}" class="post-title">{{ .Title }}</a>
 
-                    <div class="post-desc">{{ .Description }}</div>
-                    
-                    {{ if .Tags }}
-                        <div class="tag-row">
-                            {{ range .Tags }}
-                            <span class="mini-tag">#{{ . }}</span>
-                            {{ end }}
-                        </div>
+                <div class="meta-info mb-small">
+                    <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
+                    <span>•</span>
+                    <span>{{ .ReadingTime }} min read</span>
+                </div>
+
+                <div class="post-desc">{{ .Description }}</div>
+
+                {{ if .Tags }}
+                <div class="tag-row">
+                    {{ range .Tags }}
+                    <span class="mini-tag">#{{ . }}</span>
                     {{ end }}
-                </li>
+                </div>
                 {{ end }}
-            </ul>
+            </li>
+            {{ end }}
+        </ul>
 
         {{ else }}
-            <article>
-                <h1>{{ .Title }}</h1>
-                
-                <div class="meta-info article-meta">
-                    {{ if .Meta.date }}
-                        <time datetime="{{ .Meta.date }}">📅 {{ .Meta.date }}</time>
-                    {{ end }}
-                    
-                    {{ if .Meta.readingTime }}
-                        <span>⏱️ {{ .Meta.readingTime }} min read</span>
-                    {{ end }}
+        <article>
+            <h1>{{ .Title }}</h1>
 
-                    {{ if .Meta.tags }}
-                        <span class="meta-divider">|</span>
-                        {{ range .Meta.tags }}
-                        <a href="{{ $.BaseURL }}/tags/{{ . | lower }}.html" class="tag-pill small-pill">#{{ . }}</a>
-                        {{ end }}
-                    {{ end }}
-                </div>
-                {{ if .TOC }}
-                <aside class="toc-container" id="toc-sidebar">
-                    <div class="toc-toggle" onclick="this.parentElement.classList.toggle('expanded')">
-                        <span>Table of Contents</span>
-                        <span class="toc-icon"></span>
-                    </div>
-                    
-                    <nav>
-                        <ul>
-                            {{ range .TOC }}
-                            <li class="toc-level-{{ .Level }}">
-                                <a href="#{{ .ID }}">{{ .Text }}</a>
-                            </li>
-                            {{ end }}
-                        </ul>
-                    </nav>
-                </aside>
+            <div class="meta-info article-meta">
+                {{ if .Meta.date }}
+                <time datetime="{{ .Meta.date }}">📅 {{ .Meta.date }}</time>
                 {{ end }}
-                <div class="content-body">
-                    {{ .Content }}
+
+                {{ if .Meta.readingTime }}
+                <span>⏱️ {{ .Meta.readingTime }} min read</span>
+                {{ end }}
+
+                {{ if .Meta.tags }}
+                <span class="meta-divider">|</span>
+                {{ range .Meta.tags }}
+                <a href="{{ $.BaseURL }}/tags/{{ . | lower }}.html" class="tag-pill small-pill">#{{ . }}</a>
+                {{ end }}
+                {{ end }}
+            </div>
+            {{ if .TOC }}
+            <aside class="toc-container" id="toc-sidebar">
+                <div class="toc-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                    <span>Table of Contents</span>
+                    <span class="toc-icon"></span>
                 </div>
-            </article>
+
+                <nav>
+                    <ul>
+                        {{ range .TOC }}
+                        <li class="toc-level-{{ .Level }}">
+                            <a href="#{{ .ID }}">{{ .Text }}</a>
+                        </li>
+                        {{ end }}
+                    </ul>
+                </nav>
+            </aside>
+            {{ end }}
+            <div class="content-body">
+                {{ .Content }}
+            </div>
+        </article>
         {{ end }}
     </main>
 
@@ -197,7 +204,8 @@
     <div id="search-modal" class="modal">
         <div class="modal-content">
             <div class="search-header">
-                <input type="text" id="search-input" placeholder="Search posts... (use tag:name for filtering)" autocomplete="off">
+                <input type="text" id="search-input" placeholder="Search posts... (use tag:name for filtering)"
+                    autocomplete="off">
                 <span class="close-search">&times;</span>
             </div>
             <div id="search-results"></div>
@@ -207,17 +215,9 @@
         </div>
     </div>
 
-    {{ if .HasMath }}
-        {{ if .Assets }}
-        <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/katex.min.js" }}"></script>
-        <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/auto-render.min.js" }}"></script>
-        {{ else }}
-        <script defer src="{{ .BaseURL }}/static/js/katex.min.js"></script>
-        <script defer src="{{ .BaseURL }}/static/js/auto-render.min.js"></script>
-        {{ end }}
-    {{ end }}
-    
-    {{ if .Assets }}
+    {{/* KaTeX JS is no longer needed - using Server-Side Rendering (SSR) */}}
+
+    {{ if len .Assets }}
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/main.js" }}"></script>
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/wasm_exec.js" }}"></script>
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/search.js" }}"></script>
@@ -227,41 +227,74 @@
     <script defer src="{{ .BaseURL }}/static/js/search.js?v={{ .BuildVersion }}"></script>
     {{ end }}
 
+    {{/* Mermaid diagrams are now rendered at build-time via chromedp */}}
+
     <script>
 
-        (function() {
+        (function () {
             const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+            
+            // DEV MODE: Aggressive cache clearing and SW nuking
             if (hosts.includes(window.location.hostname)) {
+                // Immediately unregister any Service Workers
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(registration => {
+                            registration.unregister();
+                            console.log('🚧 Service Worker unregistered');
+                        });
+                    });
+                }
+                
+                // Clear caches
+                if ('caches' in window) {
+                    caches.keys().then(cacheNames => {
+                        cacheNames.forEach(cacheName => {
+                            caches.delete(cacheName);
+                            console.log('🗑️ Cache cleared:', cacheName);
+                        });
+                    });
+                }
+                
+                // SSE with debounced reload to ensure build completion
+                let reloadTimeout;
                 const source = new EventSource("/events");
-                source.onmessage = function(event) {
+                source.onmessage = function (event) {
                     if (event.data === "reload") {
-                        console.log("♻️ File change detected. Reloading...");
-                        window.location.reload();
+                        console.log("♻️ File change detected. Waiting for build to complete...");
+                        // Clear any pending reload
+                        if (reloadTimeout) clearTimeout(reloadTimeout);
+                        // Wait 500ms for build to complete, then reload
+                        reloadTimeout = setTimeout(() => {
+                            console.log("🔄 Reloading now...");
+                            window.location.reload(true); // true = force reload from server
+                        }, 500);
                     }
                 };
-                source.onerror = function() {
+                source.onerror = function () {
                     source.close();
                 };
-            }
-
-            // PWA Service Worker Registration
-            if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                    const swPath = '{{ .BaseURL }}/sw.js';
-                    navigator.serviceWorker.register(swPath)
-                        .then(registration => {
-                            console.log('✅ ServiceWorker registration successful with scope: ', registration.scope);
-                        })
-                        .catch(err => {
-                            console.error('❌ ServiceWorker registration failed: ', err);
-                            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                                console.warn('⚠️ PWA requires HTTPS or localhost to work. Detected origin:', window.location.origin);
-                            }
-                        });
-                });
+            } else {
+                // Production: PWA Service Worker Registration
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => {
+                        const swPath = '{{ .BaseURL }}/sw.js';
+                        navigator.serviceWorker.register(swPath)
+                            .then(registration => {
+                                console.log('✅ ServiceWorker registration successful with scope: ', registration.scope);
+                            })
+                            .catch(err => {
+                                console.error('❌ ServiceWorker registration failed: ', err);
+                                if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                                    console.warn('⚠️ PWA requires HTTPS or localhost to work. Detected origin:', window.location.origin);
+                                }
+                            });
+                    });
+                }
             }
 
         })();
     </script>
 </body>
+
 </html>

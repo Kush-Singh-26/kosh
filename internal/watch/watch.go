@@ -38,7 +38,7 @@ func New(dirs []string, onEvent func(Event)) (*Watcher, error) {
 
 // Start begins watching for events
 func (w *Watcher) Start() {
-	defer w.watcher.Close()
+	defer func() { _ = w.watcher.Close() }()
 
 	// Add directories recursively
 	for _, dir := range w.Dirs {

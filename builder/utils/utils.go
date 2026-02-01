@@ -8,11 +8,19 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"my-ssg/builder/config"
+	"my-ssg/builder/models"
 
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
@@ -20,7 +28,6 @@ import (
 	"github.com/tdewolff/minify/v2/css"
 	"github.com/tdewolff/minify/v2/html"
 	"github.com/tdewolff/minify/v2/js"
-	"my-ssg/builder/models"
 )
 
 // Global Minifier Instance
@@ -35,123 +42,398 @@ func InitMinifier() {
 
 // ProcessAssets handles minification and fingerprinting of CSS and JS files.
 // It returns a map of original filenames to their hashed counterparts.
-func ProcessAssets(srcDir, destDir string) (map[string]string, error) {
-	assets := make(map[string]string)
-
-	err := filepath.Walk(srcDir, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-
-		ext := strings.ToLower(filepath.Ext(path))
-		if ext != ".css" && ext != ".js" {
-			return nil
-		}
-
-		// Read original content
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		// Minify
-		var minifiedContent []byte
-		var mediaType string
-		if ext == ".css" {
-			mediaType = "text/css"
-		} else {
-			mediaType = "text/javascript"
-		}
-
-		// Use minifier if initialized, otherwise use raw
-		if Minifier != nil {
-			b := &strings.Builder{}
-			if err := Minifier.Minify(mediaType, b, strings.NewReader(string(content))); err == nil {
-				minifiedContent = []byte(b.String())
-			} else {
-				// Fallback to original if minification fails
-				fmt.Printf("⚠️ Minification failed for %s: %v\n", path, err)
-				minifiedContent = content
-			}
-		} else {
-			minifiedContent = content
-		}
-
-		// Generate Hash
-		hash := sha256.Sum256(minifiedContent)
-		shortHash := hex.EncodeToString(hash[:])[:8]
-
-		// Construct new filename
-		relPath, _ := filepath.Rel(srcDir, path)
-		dir := filepath.Dir(relPath)
-		filename := strings.TrimSuffix(filepath.Base(path), ext)
-		hashedFilename := fmt.Sprintf("%s.%s%s", filename, shortHash, ext)
-
-		// Map creation: normalized keys (e.g., /static/css/theme.css)
-		key := filepath.ToSlash(filepath.Join("/static", relPath))
-		val := filepath.ToSlash(filepath.Join("/static", dir, hashedFilename))
-		assets[key] = val
-
-		// Write to destination
-		destFile := filepath.Join(destDir, dir, hashedFilename)
-		if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
-			return err
-		}
-
-		return os.WriteFile(destFile, minifiedContent, 0644)
-	})
-
-	return assets, err
+// AssetTask represents a CSS/JS file to process
+type AssetTask struct {
+	srcPath string
+	destDir string
+	srcDir  string
 }
 
-// CopyDir copies a directory recursively with incremental build support.
-func CopyDir(src, dst string, compress bool) error {
-	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		relPath, _ := filepath.Rel(src, path)
-		destPath := filepath.Join(dst, relPath)
+// AssetResult contains the processed asset info
+type AssetResult struct {
+	key   string
+	value string
+	err   error
+}
 
-		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode())
-		}
+func ProcessAssets(srcDir, destDir string) (map[string]string, error) {
+	assets := make(map[string]string)
+	tasks := make(chan AssetTask, 50)
+	results := make(chan AssetResult, 50)
+	var wg sync.WaitGroup
 
-		ext := strings.ToLower(filepath.Ext(path))
-		isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
+	// Start 8 workers for parallel processing
+	numWorkers := 8
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for task := range tasks {
+				key, val, err := processAssetFile(task.srcPath, task.destDir, task.srcDir)
+				results <- AssetResult{key, val, err}
+			}
+		}()
+	}
 
-		// 1. Determine the Final Destination Path
-		if compress && isImage {
-			extLen := len(filepath.Ext(destPath))
-			destPath = destPath[:len(destPath)-extLen] + ".webp"
-		}
+	// Close results channel when all workers done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
 
-		// 2. Incremental Build Check
-		if destInfo, err := os.Stat(destPath); err == nil {
-			if destInfo.ModTime().After(info.ModTime()) {
+	// Walk directory and queue tasks
+	var walkErr error
+	go func() {
+		defer close(tasks)
+		walkErr = filepath.Walk(srcDir, func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
 				return nil
 			}
-		}
 
-		// 3. Process Files (Minify or Convert)
-		if compress {
-			if ext == ".css" {
-				return minifyFile("text/css", path, destPath)
+			ext := strings.ToLower(filepath.Ext(path))
+			if ext != ".css" && ext != ".js" {
+				return nil
 			}
-			if ext == ".js" {
-				return minifyFile("text/javascript", path, destPath)
-			}
-			if isImage {
-				return processImage(path, destPath)
+
+			tasks <- AssetTask{srcPath: path, destDir: destDir, srcDir: srcDir}
+			return nil
+		})
+	}()
+
+	// Collect results
+	for result := range results {
+		if result.err != nil {
+			return nil, result.err
+		}
+		assets[result.key] = result.value
+	}
+
+	if walkErr != nil {
+		return nil, walkErr
+	}
+
+	return assets, nil
+}
+
+func processAssetFile(path, destDir, srcDir string) (string, string, error) {
+	ext := strings.ToLower(filepath.Ext(path))
+
+	// Get file info for caching
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Construct new filename base
+	relPath, _ := filepath.Rel(srcDir, path)
+	dir := filepath.Dir(relPath)
+	filename := strings.TrimSuffix(filepath.Base(path), ext)
+
+	// Read original content
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Minify
+	var minifiedContent []byte
+	var mediaType string
+	if ext == ".css" {
+		mediaType = "text/css"
+	} else {
+		mediaType = "text/javascript"
+	}
+
+	// Use minifier if initialized, otherwise use raw
+	if Minifier != nil {
+		b := &strings.Builder{}
+		if err := Minifier.Minify(mediaType, b, strings.NewReader(string(content))); err == nil {
+			minifiedContent = []byte(b.String())
+		} else {
+			// Fallback to original if minification fails
+			fmt.Printf("⚠️ Minification failed for %s: %v\n", path, err)
+			minifiedContent = content
+		}
+	} else {
+		minifiedContent = content
+	}
+
+	// Generate Hash (skip in dev mode for CSS/JS to enable hot-reload)
+	var hashedFilename string
+	var shortHash string
+	if config.IsDevMode() && (ext == ".css" || ext == ".js") {
+		// In dev mode, use unhashed filenames for CSS/JS
+		// This allows browsers to cache the file and update on edit
+		hashedFilename = fmt.Sprintf("%s%s", filename, ext)
+	} else {
+		// In production, use hashed filenames for cache busting
+		hash := sha256.Sum256(minifiedContent)
+		shortHash = hex.EncodeToString(hash[:])[:8]
+		hashedFilename = fmt.Sprintf("%s.%s%s", filename, shortHash, ext)
+	}
+
+	// Map creation: normalized keys (e.g., /static/css/theme.css)
+	relKeyPath := filepath.Join("/", "static", relPath)
+	key := filepath.ToSlash(relKeyPath)
+	val := filepath.ToSlash(filepath.Join("/static", dir, hashedFilename))
+
+	// Check if destination already exists and is up-to-date
+	destFile := filepath.Join(destDir, dir, hashedFilename)
+	if destInfo, err := os.Stat(destFile); err == nil {
+		// File exists - check if source is older (means we can skip writing)
+		if info.ModTime().Before(destInfo.ModTime()) || info.ModTime().Equal(destInfo.ModTime()) {
+			// Source hasn't changed, destination exists with correct hash
+			return key, val, nil
+		}
+	}
+
+	// Write to destination
+	if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
+		return "", "", err
+	}
+
+	if err := os.WriteFile(destFile, minifiedContent, 0644); err != nil {
+		return "", "", err
+	}
+
+	return key, val, nil
+}
+
+// CopyDir copies a directory recursively with parallel directory walking and async image processing.
+// This version walks directories in parallel using 8 workers and processes images immediately as they're discovered.
+func CopyDir(src, dst string, compress bool) error {
+	if _, err := os.Stat(src); os.IsNotExist(err) {
+		return fmt.Errorf("source directory does not exist: %s", src)
+	}
+
+	_ = os.MkdirAll(dst, 0755)
+
+	// Channels for parallel processing
+	type fileTask struct {
+		srcPath  string
+		dstPath  string
+		isImage  bool
+		fileInfo os.FileInfo
+	}
+
+	dirQueue := make(chan string, 100)    // Directories to walk
+	fileQueue := make(chan fileTask, 100) // Files to process (images and non-images)
+	imageQueue := make(chan fileTask, 50) // Images for parallel conversion
+	errChan := make(chan error, 100)
+
+	var wg sync.WaitGroup
+	var dirWg sync.WaitGroup
+
+	// Count images and processed images for progress
+	var totalImages int32
+	var processedImages int32
+	var mu sync.Mutex
+
+	// Track when all images are done processing so we can close imageQueue early
+	var imagesDone int32
+	var imageQueueCloseOnce sync.Once
+	go func() {
+		for {
+			time.Sleep(100 * time.Millisecond)
+			total := atomic.LoadInt32(&totalImages)
+			processed := atomic.LoadInt32(&processedImages)
+			if total > 0 && total == processed {
+				// All images found and processed, mark as done and close imageQueue
+				atomic.StoreInt32(&imagesDone, 1)
+				imageQueueCloseOnce.Do(func() {
+					close(imageQueue)
+				})
+				return
 			}
 		}
+	}()
 
-		// Fallback: Standard Copy
-		return CopyFileStandard(path, destPath)
-	})
+	// Start directory walkers (parallel) - 8 workers max to avoid filesystem contention
+	numDirWorkers := runtime.NumCPU()
+	if numDirWorkers > 8 {
+		numDirWorkers = 8
+	}
+
+	for i := 0; i < numDirWorkers; i++ {
+		go func() {
+			for dir := range dirQueue {
+				entries, err := os.ReadDir(dir)
+				if err != nil {
+					errChan <- err
+					dirWg.Done()
+					continue
+				}
+
+				for _, entry := range entries {
+					srcPath := filepath.Join(dir, entry.Name())
+					relPath, _ := filepath.Rel(src, srcPath)
+					dstPath := filepath.Join(dst, relPath)
+
+					if entry.IsDir() {
+						// Create directory and queue for walking
+						if err := os.MkdirAll(dstPath, 0755); err != nil {
+							errChan <- err
+							continue
+						}
+						dirWg.Add(1)
+						select {
+						case dirQueue <- srcPath:
+						default:
+							// Queue full, process synchronously
+							entries2, _ := os.ReadDir(srcPath)
+							for _, e2 := range entries2 {
+								srcPath2 := filepath.Join(srcPath, e2.Name())
+								relPath2, _ := filepath.Rel(src, srcPath2)
+								dstPath2 := filepath.Join(dst, relPath2)
+								if e2.IsDir() {
+									os.MkdirAll(dstPath2, 0755)
+									dirWg.Add(1)
+									dirQueue <- srcPath2
+								} else {
+									info, _ := e2.Info()
+									fileQueue <- fileTask{srcPath2, dstPath2, false, info}
+								}
+							}
+							dirWg.Done()
+						}
+					} else {
+						// Check file type
+						info, err := entry.Info()
+						if err != nil {
+							continue
+						}
+
+						ext := strings.ToLower(filepath.Ext(srcPath))
+						isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
+
+						if compress && isImage {
+							extLen := len(filepath.Ext(dstPath))
+							dstPath = dstPath[:len(dstPath)-extLen] + ".webp"
+						}
+
+						// Check if needs processing (incremental build)
+						if destInfo, err := os.Stat(dstPath); err == nil {
+							if destInfo.ModTime().After(info.ModTime()) {
+								continue // Skip up-to-date files
+							}
+						}
+
+						// Queue for processing
+						if compress && isImage {
+							// Only queue if images aren't already done processing
+							if atomic.LoadInt32(&imagesDone) == 0 {
+								atomic.AddInt32(&totalImages, 1)
+								imageQueue <- fileTask{srcPath, dstPath, true, info}
+							}
+						} else {
+							fileQueue <- fileTask{srcPath, dstPath, false, info}
+						}
+					}
+				}
+				dirWg.Done()
+			}
+		}()
+	}
+
+	// Start file processors (non-image files) - 8 workers for parallel processing
+	numFileWorkers := 8
+	var fileWg sync.WaitGroup
+
+	for i := 0; i < numFileWorkers; i++ {
+		fileWg.Add(1)
+		go func() {
+			defer fileWg.Done()
+			for task := range fileQueue {
+				srcPath := task.srcPath
+				dstPath := task.dstPath
+				ext := strings.ToLower(filepath.Ext(srcPath))
+
+				if compress {
+					if ext == ".css" {
+						if err := minifyFile("text/css", srcPath, dstPath); err != nil {
+							errChan <- err
+						}
+						continue
+					}
+					if ext == ".js" {
+						if err := minifyFile("text/javascript", srcPath, dstPath); err != nil {
+							errChan <- err
+						}
+						continue
+					}
+				}
+
+				// Standard copy for other files
+				if err := CopyFileStandard(srcPath, dstPath); err != nil {
+					errChan <- err
+				}
+			}
+		}()
+	}
+
+	// Start image processors (24 workers)
+	numImageWorkers := 24
+	fmt.Printf("🖼️  Starting parallel image processing with %d workers...\n", numImageWorkers)
+
+	for i := 0; i < numImageWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for task := range imageQueue {
+				if err := processImage(task.srcPath, task.dstPath); err != nil {
+					errChan <- fmt.Errorf("failed to process %s: %w", task.srcPath, err)
+				}
+
+				count := atomic.AddInt32(&processedImages, 1)
+				total := atomic.LoadInt32(&totalImages)
+				if count%5 == 0 || count == total {
+					mu.Lock()
+					fmt.Printf("   📊 Images: %d/%d converted\n", count, total)
+					mu.Unlock()
+				}
+			}
+		}()
+	}
+
+	// Start the walk with immediate feedback
+	fmt.Printf("📂 Scanning static directory with %d parallel walkers...\n", numDirWorkers)
+	dirWg.Add(1)
+	dirQueue <- src
+
+	// Wait for directory walking to complete
+	go func() {
+		dirWg.Wait()
+		fmt.Printf("   📂 Directory scanning complete\n")
+		close(dirQueue)
+		close(fileQueue)
+		// Close imageQueue only if not already closed by image completion tracker
+		imageQueueCloseOnce.Do(func() {
+			close(imageQueue)
+		})
+	}()
+
+	// Wait for all processing to complete
+	fileWg.Wait()
+	wg.Wait()
+	close(errChan)
+
+	// Check for errors
+	var hasError bool
+	for err := range errChan {
+		if err != nil {
+			hasError = true
+			log.Printf("⚠️ %v", err)
+		}
+	}
+
+	if hasError {
+		return fmt.Errorf("some files failed to process")
+	}
+
+	return nil
 }
 
 func minifyFile(mediaType, srcPath, dstPath string) error {
@@ -202,6 +484,13 @@ func CopyFileStandard(src, dst string) error {
 	defer func() { _ = d.Close() }()
 	_, err = io.Copy(d, s)
 	return err
+}
+
+// NormalizeCacheKey converts a file path to a normalized cache key
+// Uses forward slashes for cross-platform compatibility
+func NormalizeCacheKey(path string) string {
+	// Convert Windows backslashes to forward slashes
+	return strings.ReplaceAll(path, "\\", "/")
 }
 
 var imgRe = regexp.MustCompile(`(?i)(<img[^>]+src=["'])([^"']+)((?:\.jpg|\.jpeg|\.png))(["'])`)

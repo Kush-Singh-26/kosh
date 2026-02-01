@@ -26,6 +26,7 @@ type PostMetadata struct {
 	Draft       bool
 	DateObj     time.Time
 	HasMath     bool
+	HasMermaid  bool
 }
 
 // TagData represents a tag and its frequency.
@@ -64,6 +65,7 @@ type PageData struct {
 	AllTags      []TagData
 	BuildVersion int64
 	HasMath      bool
+	HasMermaid   bool
 	LayoutCSS    template.CSS
 	ThemeCSS     template.CSS
 	Permalink    string
@@ -146,14 +148,17 @@ type PostRecord struct {
 
 // CachedPost stores the results of parsing a single markdown file
 type CachedPost struct {
-	ModTime      time.Time
-	Metadata     PostMetadata
-	SearchRecord PostRecord
-	WordFreqs    map[string]int // Pre-computed word frequencies for BM25
-	DocLen       int            // Total word count for BM25
-	HTMLContent  string
-	TOC          []TOCEntry
-	Meta         map[string]interface{}
+	ModTime         time.Time
+	FrontmatterHash string // Hash of frontmatter fields for detecting metadata changes
+	Metadata        PostMetadata
+	SearchRecord    PostRecord
+	WordFreqs       map[string]int // Pre-computed word frequencies for BM25
+	DocLen          int            // Total word count for BM25
+	HTMLContent     string
+	TOC             []TOCEntry
+	Meta            map[string]interface{}
+	HasMath         bool
+	HasMermaid      bool
 }
 
 // IndexedPost bundles a search record with its pre-computed word frequencies
@@ -165,8 +170,10 @@ type IndexedPost struct {
 
 // MetadataCache is the structure for our persistent build cache
 type MetadataCache struct {
-	BaseURL string                `json:"base_url"`
-	Posts   map[string]CachedPost `json:"posts"`
+	BaseURL          string                `json:"base_url"`
+	Posts            map[string]CachedPost `json:"posts"`
+	DiagramCache     map[string]string     `json:"diagram_cache"`      // hash -> rendered SVG/HTML
+	TemplateModTimes map[string]time.Time  `json:"template_mod_times"` // Track template changes for granular invalidation
 }
 
 type SearchIndex struct {

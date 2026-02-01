@@ -5,7 +5,7 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 ## Features
 
 - **Blazing Fast Incremental Builds**: Persistent metadata caching system that intelligently skips re-parsing and re-reading unchanged Markdown files, leading to reduced rebuild times.
-- **Parallel Build System**: Uses Go routines to process files concurrently, maximizing CPU usage for fast builds.
+- **Parallel Build System**: Adaptive worker pools (8 directory scanners, 24 image processors) maximize throughput.
 - **Live Reloading**: Built-in development server with Server-Sent Events (SSE) to instantly reload the browser when files change.
 - **Asset Pipeline**: Automatic minification and content-hash fingerprinting for CSS & JS files (e.g., `style.a1b2.css`) for optimal caching.
 - **Safe Clean Command**: Dedicated tool to safely clear the build output directory.
@@ -14,21 +14,31 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **Pagination**: Automatically splits the post list into manageable pages with navigation controls.
 - **Reading Time Estimation**: Automatically calculates and displays estimated reading time for each article.
 - **Table of Content Generation**: Automatically generates the TOC based on the heading tags like `#` (`<h1>`), `##` (`<h2>`), etc.
-- **Image Optimization**: Automatically converts local images to WebP and generates social sharing cards.
+- **Image Optimization**: 24 parallel workers convert to WebP with real-time progress tracking.
 - **Knowledge Graph**: Generates an interactive force-directed graph visualizing connections between posts and tags.
 - **WASM Search Engine**: Fast, full-text search powered by Go and WebAssembly with BM25 ranking and tag filtering.
-- **Math Support**: LaTeX support using KaTeX for rendering complex mathematical equations.
+- **Math & Diagram Support**: Server-side rendering of LaTeX equations (KaTeX) and Mermaid diagrams (flowcharts, sequences) as inline SVG.
+- **Smart Caching**: Chrome only starts when needed; template changes only invalidate affected posts.
+- **Real-time Progress**: Live counters showing posts processed and images converted.
 - **SEO Ready**: Auto-generates `sitemap.xml` (in `/sitemap/`), `rss.xml`, and fully optimized meta tags.
-- **PWA Support**: Supports Progressive Web App (PWA) allowing offline use.
+- **PWA Support**: Stale-while-revalidate caching for instant repeat visits.
 - **Unified Tooling (Kosh)**: Comes with a custom CLI tool, `kosh` (Hindi/Sanskrit for "Repository" or "Treasury"), which handles everything from creating posts to building the site and serving it locally.
 - **Automated Linting**: Pre-configured `golangci-lint` setup to maintain high code quality and consistency across the project.
+
+### Recent Optimizations
+
+- **Async Static Processing**: Static asset copying (images, CSS, JS) now runs in parallel with post processing, eliminating the 12+ second wait.
+- **LaTeX Batching**: All LaTeX expressions from all posts are collected and rendered in a single Chrome session, reducing Chrome tabs from ~15 to 1.
+- **Content-Only Fast Rebuilds**: Editing post content (not frontmatter) triggers a lightweight rebuild that skips global page regeneration.
+- **Separate Cache Directory**: Build caches stored in `.kosh-cache/` (not deployed), keeping deployments clean and cache restores fast.
+- **Cross-Platform Path Normalization**: Cache keys use forward slashes for compatibility between Windows (local) and Linux (CI) builds.
 
 ****
 ---
 
 ## Installation & Setup
 
-Ensure you have **Go 1.25+** installed.
+Ensure you have **Go 1.21+** installed.
 
 1. **Clone the repository**
 ```bash
@@ -72,7 +82,7 @@ Choose the workflow that fits your current task:
 ```bash
 air
 ```
-*   **Action:** Watches Go files $\rightarrow$ Rebuilds `kosh` $\rightarrow$ Runs `kosh build --watch`.
+*   **Action:** Watches Go files → Rebuilds `kosh` → Runs `kosh build --watch`.
 *   **Why:** Automatically handles binary recompilation.
 
 **Terminal 2 (The Preview Server):**
@@ -139,7 +149,6 @@ draft: true
 .
 ├── .github/
 │   └── workflows/
-
 │       └── deploy.yml     # CI/CD Pipeline
 ├── .gitignore
 ├── bin/                   # Compiled executables (ignored by git)
@@ -184,7 +193,7 @@ The `kosh build` command accepts the following flags:
 | `--watch` | Enables watch mode (continuous rebuild) | `false` |
 | `-output` | Custom output directory | `public` |
 | `-drafts` | Include draft posts in the build | `false` |
-
+| `--force` | Force full rebuild ignoring cache | `false` |
 
 The `kosh serve` command accepts:
 
@@ -195,7 +204,11 @@ The `kosh serve` command accepts:
 | `-port` | Port to listen on | `2604` |
 | `-drafts` | Include draft posts in dev mode | `false` |
 
+The `kosh clean` command accepts:
 
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--cache` | Also clean `.kosh-cache/` directory | `false` |
 
 ## Dependencies
 
@@ -206,4 +219,58 @@ The `kosh serve` command accepts:
 - **Minification**: `github.com/tdewolff/minify/v2`
 - **Image Processing**: `github.com/disintegration/imaging`
 - **WebP Encoding**: `github.com/chai2010/webp`
+- **Headless Rendering**: `github.com/chromedp/chromedp` (server-side LaTeX and Mermaid)
 - **Text Casing**: `golang.org/x/text` (for modern string transformations)
+
+## Deployment
+
+Kosh is configured for deployment to **GitHub Pages** via GitHub Actions.
+
+### Prerequisites
+
+1. **Chrome for CI**: The workflow installs Chrome automatically for server-side LaTeX and Mermaid rendering
+2. **Cache Setup**: Build caches are stored in `.kosh-cache/` and restored between builds for incremental processing
+3. **GitHub Pages**: Enable GitHub Pages in your repository settings
+
+### Deployment Process
+
+1. Push to the `main` branch or trigger manual workflow dispatch
+2. GitHub Actions will:
+   - Install Chrome
+   - Restore build cache from previous runs
+   - Build the site with compression
+   - Deploy to GitHub Pages
+
+### Configuration
+
+Update the base URL in `.github/workflows/deploy.yml`:
+
+```yaml
+.\kosh build -compress -baseurl https://yourusername.github.io/yourrepo
+```
+
+### Cross-Platform Development
+
+The cache system automatically normalizes paths (Windows `\` → Linux `/`) so you can:
+- Develop locally on Windows
+- Build and deploy from Linux CI
+- Share caches between platforms without issues
+
+---
+
+## Performance
+
+With all optimizations applied:
+
+- **Clean Build**: ~21 seconds (was ~40s) - 47% improvement
+- **Content Edit**: ~1-2 seconds (incremental)
+- **Frontmatter Edit**: Full rebuild (~21s)
+- **Image Processing**: Parallel with 24 workers
+- **LaTeX Rendering**: Batched in single Chrome session
+- **Static Assets**: Processed async with posts
+
+---
+
+## License
+
+MIT License - See [LICENSE](LICENSE) for details.

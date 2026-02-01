@@ -692,7 +692,8 @@ hr {
 
 /* Navigation List */
 .toc-container nav {
-    display: none; /* Hidden by default */
+    display: none;
+    /* Hidden by default */
     padding: 1rem 1.2rem;
     background: var(--bg-code);
 }
@@ -727,13 +728,33 @@ hr {
 }
 
 /* Indentation levels */
-.toc-level-3 { padding-left: 0.8rem; font-size: 0.85rem; }
-.toc-level-4 { padding-left: 1.6rem; font-size: 0.8rem; }
-.toc-level-5, .toc-level-6 { padding-left: 2.4rem; font-size: 0.8rem; opacity: 0.8; }
+.toc-level-3 {
+    padding-left: 0.8rem;
+    font-size: 0.85rem;
+}
+
+.toc-level-4 {
+    padding-left: 1.6rem;
+    font-size: 0.8rem;
+}
+
+.toc-level-5,
+.toc-level-6 {
+    padding-left: 2.4rem;
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* --- DESKTOP: Minimal Toggle + Notion Sidebar --- */
@@ -742,14 +763,14 @@ hr {
         position: fixed;
         top: 100px;
         right: max(2rem, calc(50% - 680px));
-        
+
         /* Start minimal (just the icon) */
         width: auto;
         margin: 0;
         z-index: 10;
         background: var(--bg-glass);
         border: none;
-        
+
         /* Align content to the right so it expands leftward visually if needed */
         display: flex;
         flex-direction: column;
@@ -760,7 +781,8 @@ hr {
     /* When expanded, give it full width for the list */
     .toc-container.expanded {
         width: 260px;
-        align-items: stretch; /* Stretch list to width */
+        align-items: stretch;
+        /* Stretch list to width */
     }
 
     /* Toggle Button: Visible on Desktop now */
@@ -802,18 +824,19 @@ hr {
 
     /* List Container: Hidden by default */
     .toc-container nav {
-        display: none; /* Collapsed initially */
-        
+        display: none;
+        /* Collapsed initially */
+
         /* Notion Style: Clean list, no background */
         background: transparent;
         padding: 0;
         max-height: calc(100vh - 180px);
         overflow-y: auto;
-        
+
         /* Thin left border track */
         border-left: 2px solid var(--border);
-        margin-left: 1rem; 
-        
+        margin-left: 1rem;
+
         scrollbar-width: thin;
         scrollbar-color: var(--border) transparent;
     }
@@ -832,20 +855,29 @@ hr {
         color: var(--text-muted);
         font-size: 0.85rem;
         border-left: 2px solid transparent;
-        margin-left: -2px; 
+        margin-left: -2px;
         transition: all 0.2s ease;
     }
 
     .toc-container a:hover {
         color: var(--text-main);
-        background: rgba(255, 255, 255, 0.05); /* Subtle highlight inside glass */
+        background: rgba(255, 255, 255, 0.05);
+        /* Subtle highlight inside glass */
         text-decoration: none;
     }
 
-/* Indentation */
-    .toc-level-3 a { padding-left: 20px; }
-    .toc-level-4 a { padding-left: 32px; }
-    .toc-level-5 a { padding-left: 44px; }
+    /* Indentation */
+    .toc-level-3 a {
+        padding-left: 20px;
+    }
+
+    .toc-level-4 a {
+        padding-left: 32px;
+    }
+
+    .toc-level-5 a {
+        padding-left: 44px;
+    }
 }
 
 /* Pagination */
@@ -959,7 +991,8 @@ hr {
     transition: background 0.2s;
 }
 
-.search-result-item:hover, .search-result-item.selected {
+.search-result-item:hover,
+.search-result-item.selected {
     background: var(--bg-card-hover);
 }
 
@@ -1020,4 +1053,266 @@ kbd {
     color: var(--accent-primary);
 }
 
+/* --- Mermaid Diagram Styling --- */
+.mermaid {
+    text-align: center;
+    margin: 2rem 0;
+    padding: 1rem 0;
+}
+
+.mermaid svg {
+    display: inline-block;
+    max-width: 100%;
+}
+
+.mermaid-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 2rem 0;
+    padding: 1rem 0;
+    width: 100%;
+    overflow-x: auto; /* Enable horizontal scroll for wide diagrams */
+}
+
+.mermaid-container svg {
+    max-width: 100%;
+    height: auto;
+    overflow: visible; /* Prevent SVG content clipping */
+}
+
+/* --- Image Lightbox --- */
+#lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    cursor: zoom-out;
+}
+
+#lightbox.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+#lightbox img {
+    max-width: 90%;
+    max-height: 90%;
+    border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+
+/* --- NEW FEATURES --- */
+
+/* 1. Back to Top Button */
+#back-to-top {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--accent-primary);
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 900;
+}
+
+#back-to-top:hover {
+    background: var(--bg-card-hover);
+    transform: translateY(-5px);
+    box-shadow: 0 8px 24px rgba(41, 151, 255, 0.25);
+    border-color: var(--accent-primary);
+}
+
+#back-to-top.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+/* 2. Code Block Badges & Wrapper */
+.code-wrapper {
+    position: relative;
+    margin: 2rem 0;
+}
+
+.code-wrapper pre {
+    margin: 0 !important; /* Override default pre margin */
+}
+
+.code-wrapper .code-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: var(--bg-tint);
+    color: var(--accent-primary);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-bottom-left-radius: 8px;
+    border-top-right-radius: 8px; /* Matches container radius if set */
+    font-family: var(--font-mono);
+    border-left: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+    pointer-events: none; /* Let clicks pass through if needed */
+    z-index: 5;
+}
+
+/* Adjust Copy Btn position to avoid overlap if badge exists */
+.copy-btn {
+    top: 36px; /* Push it down below the badge */
+}
+
+/* 3. Active TOC Link */
+.toc-container a.active {
+    color: var(--accent-primary);
+    border-left-color: var(--accent-primary);
+    background: rgba(41, 151, 255, 0.1);
+    font-weight: 500;
+}
+
+/* 4. Smart Admonitions / Colored Quotes */
+blockquote.colored-quote {
+    /* Fallback for browsers not supporting color-mix in JS */
+    /* JS sets --quote-color variable */
+    /* border-left-color is set inline by JS */
+}
+
+/* 5. Print Styles */
+@media print {
+    header, 
+    footer, 
+    #theme-toggle, 
+    .toc-container, 
+    #back-to-top,
+    .copy-btn,
+    .pagination,
+    .hero-search-container,
+    .tag-cloud {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+        color: #000 !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+
+    article {
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    a {
+        text-decoration: underline;
+        color: #000 !important;
+    }
+
+    pre, code {
+        border: 1px solid #ccc;
+        background: #f5f5f5 !important;
+        color: #000 !important; 
+        /* Force light theme code colors for print usually requires more specific overrides or a light-theme class, 
+           but basic contrast fix is good enough for now */
+    }
+
+    blockquote {
+        border-left: 4px solid #000;
+        background: transparent !important;
+    }
+}
+
+/* --- Syntax Highlighting (Nord) --- */
+/* Background */ .bg { color: #d8dee9; background-color: #2e3440; }
+/* PreWrapper */ .chroma { color: #d8dee9; background-color: #2e3440; }
+/* Error */ .chroma .err { color: #bf616a }
+/* LineTableTD */ .chroma .lntd { vertical-align: top; padding: 0; margin: 0; border: 0; }
+/* LineTable */ .chroma .lntable { border-spacing: 0; padding: 0; margin: 0; border: 0; }
+/* LineHighlight */ .chroma .hl { background-color: #424853 }
+/* LineNumbersTable */ .chroma .lnt { white-space: pre; user-select: none; margin-right: 0.4em; padding: 0 0.4em 0 0.4em;color: #6c6f74 }
+/* LineNumbers */ .chroma .ln { white-space: pre; user-select: none; margin-right: 0.4em; padding: 0 0.4em 0 0.4em;color: #6c6f74 }
+/* Line */ .chroma .line { display: flex; }
+/* Keyword */ .chroma .k { color: #81a1c1; font-weight: bold }
+/* KeywordConstant */ .chroma .kc { color: #81a1c1; font-weight: bold }
+/* KeywordDeclaration */ .chroma .kd { color: #81a1c1; font-weight: bold }
+/* KeywordNamespace */ .chroma .kn { color: #81a1c1; font-weight: bold }
+/* KeywordPseudo */ .chroma .kp { color: #81a1c1 }
+/* KeywordReserved */ .chroma .kr { color: #81a1c1; font-weight: bold }
+/* KeywordType */ .chroma .kt { color: #81a1c1 }
+/* NameAttribute */ .chroma .na { color: #8fbcbb }
+/* NameBuiltin */ .chroma .nb { color: #81a1c1 }
+/* NameClass */ .chroma .nc { color: #8fbcbb }
+/* NameConstant */ .chroma .no { color: #8fbcbb }
+/* NameDecorator */ .chroma .nd { color: #d08770 }
+/* NameEntity */ .chroma .ni { color: #d08770 }
+/* NameException */ .chroma .ne { color: #bf616a }
+/* NameFunction */ .chroma .nf { color: #88c0d0 }
+/* NameLabel */ .chroma .nl { color: #8fbcbb }
+/* NameNamespace */ .chroma .nn { color: #8fbcbb }
+/* NameTag */ .chroma .nt { color: #81a1c1 }
+/* LiteralString */ .chroma .s { color: #a3be8c }
+/* LiteralStringAffix */ .chroma .sa { color: #a3be8c }
+/* LiteralStringBacktick */ .chroma .sb { color: #a3be8c }
+/* LiteralStringChar */ .chroma .sc { color: #a3be8c }
+/* LiteralStringDelimiter */ .chroma .dl { color: #a3be8c }
+/* LiteralStringDoc */ .chroma .sd { color: #616e87 }
+/* LiteralStringDouble */ .chroma .s2 { color: #a3be8c }
+/* LiteralStringEscape */ .chroma .se { color: #ebcb8b }
+/* LiteralStringHeredoc */ .chroma .sh { color: #a3be8c }
+/* LiteralStringInterpol */ .chroma .si { color: #a3be8c }
+/* LiteralStringOther */ .chroma .sx { color: #a3be8c }
+/* LiteralStringRegex */ .chroma .sr { color: #ebcb8b }
+/* LiteralStringSingle */ .chroma .s1 { color: #a3be8c }
+/* LiteralStringSymbol */ .chroma .ss { color: #a3be8c }
+/* LiteralNumber */ .chroma .m { color: #b48ead }
+/* LiteralNumberBin */ .chroma .mb { color: #b48ead }
+/* LiteralNumberFloat */ .chroma .mf { color: #b48ead }
+/* LiteralNumberHex */ .chroma .mh { color: #b48ead }
+/* LiteralNumberInteger */ .chroma .mi { color: #b48ead }
+/* LiteralNumberIntegerLong */ .chroma .il { color: #b48ead }
+/* LiteralNumberOct */ .chroma .mo { color: #b48ead }
+/* Operator */ .chroma .o { color: #81a1c1 }
+/* OperatorWord */ .chroma .ow { color: #81a1c1; font-weight: bold }
+/* Punctuation */ .chroma .p { color: #eceff4 }
+/* Comment */ .chroma .c { color: #616e87; font-style: italic }
+/* CommentHashbang */ .chroma .ch { color: #616e87; font-style: italic }
+/* CommentMultiline */ .chroma .cm { color: #616e87; font-style: italic }
+/* CommentSingle */ .chroma .c1 { color: #616e87; font-style: italic }
+/* CommentSpecial */ .chroma .cs { color: #616e87; font-style: italic }
+/* CommentPreproc */ .chroma .cp { color: #5e81ac; font-style: italic }
+/* CommentPreprocFile */ .chroma .cpf { color: #5e81ac; font-style: italic }
+/* GenericDeleted */ .chroma .gd { color: #bf616a }
+/* GenericEmph */ .chroma .ge { font-style: italic }
+/* GenericError */ .chroma .gr { color: #bf616a }
+/* GenericHeading */ .chroma .gh { color: #88c0d0; font-weight: bold }
+/* GenericInserted */ .chroma .gi { color: #a3be8c }
+/* GenericPrompt */ .chroma .gp { color: #4c566a; font-weight: bold }
+/* GenericStrong */ .chroma .gs { font-weight: bold }
+/* GenericSubheading */ .chroma .gu { color: #88c0d0; font-weight: bold }
+/* GenericTraceback */ .chroma .gt { color: #bf616a }
 

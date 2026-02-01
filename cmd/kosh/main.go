@@ -23,7 +23,19 @@ func main() {
 
 	switch command {
 	case "clean":
-		clean.Run()
+		// Check for --cache flag
+		cleanCache := false
+		var filteredArgs []string
+		for _, arg := range args {
+			if arg == "--cache" || arg == "-cache" {
+				cleanCache = true
+			} else {
+				filteredArgs = append(filteredArgs, arg)
+			}
+		}
+		args = filteredArgs
+
+		clean.Run(cleanCache)
 		// Auto-rebuild after clean (compressed)
 		fmt.Println("\n🔄 Rebuilding site (compressed)...")
 		build.CheckWASM()
@@ -50,13 +62,14 @@ func main() {
 			// 1. Initial Build
 			build.CheckWASM()
 			b := run.NewBuilder(args)
+			b.SetDevMode(true)
 			b.Build()
 
 			// 2. Start Watcher in background
 			go func() {
 				w, err := watch.New([]string{"content", "templates", "static", "kosh.yaml"}, func(event watch.Event) {
 					fmt.Printf("\n⚡ Change detected: %s | Rebuilding...\n", event.Name)
-					b.Build()
+					b.BuildChanged(event.Name)
 				})
 				if err != nil {
 					fmt.Printf("❌ Watcher failed: %v\n", err)
@@ -93,7 +106,7 @@ func main() {
 
 			w, err := watch.New([]string{"content", "templates", "static", "kosh.yaml"}, func(event watch.Event) {
 				fmt.Printf("\n⚡ Change detected: %s | Rebuilding...\n", event.Name)
-				b.Build()
+				b.BuildChanged(event.Name)
 			})
 			if err != nil {
 				fmt.Printf("❌ Watcher failed: %v\n", err)
@@ -122,6 +135,8 @@ func printUsage() {
 	fmt.Println("  serve          Start the preview server")
 	fmt.Println("  build          Build the static site (and WASM)")
 	fmt.Println("  help           Show this help message")
+	fmt.Println("\nFlags for clean:")
+	fmt.Println("  --cache        Also clean .kosh-cache directory (force full re-render)")
 	fmt.Println("\nFlags for build:")
 	fmt.Println("  -compress      Enable minification")
 	fmt.Println("  --watch        Enable watch mode (continuous rebuild)")
