@@ -85,18 +85,43 @@
 
 <script>
     (function() {
-        // PWA Service Worker Registration
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                const swPath = '{{ .BaseURL }}/sw.js';
-                navigator.serviceWorker.register(swPath)
-                    .then(registration => {
-                        console.log('✅ ServiceWorker registration successful with scope: ', registration.scope);
-                    })
-                    .catch(err => {
-                        console.error('❌ ServiceWorker registration failed: ', err);
+        const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+        
+        // DEV MODE: Aggressive cache clearing and SW nuking
+        if (hosts.includes(window.location.hostname)) {
+            // Immediately unregister any Service Workers
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    registrations.forEach(registration => {
+                        registration.unregister();
+                        console.log('🚧 Service Worker unregistered');
                     });
-            });
+                });
+            }
+            
+            // Clear caches
+            if ('caches' in window) {
+                caches.keys().then(cacheNames => {
+                    cacheNames.forEach(cacheName => {
+                        caches.delete(cacheName);
+                        console.log('🗑️ Cache cleared:', cacheName);
+                    });
+                });
+            }
+        } else {
+            // Production: PWA Service Worker Registration
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    const swPath = '{{ .BaseURL }}/sw.js';
+                    navigator.serviceWorker.register(swPath)
+                        .then(registration => {
+                            console.log('✅ ServiceWorker registration successful with scope: ', registration.scope);
+                        })
+                        .catch(err => {
+                            console.error('❌ ServiceWorker registration failed: ', err);
+                        });
+                });
+            }
         }
     })();
 </script>

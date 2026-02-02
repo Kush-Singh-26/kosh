@@ -245,6 +245,9 @@ func (b *Builder) invalidateForTemplate(templatePath string) []string {
 	case "kosh.yaml":
 		// Config changes might affect all posts - return nil
 		return nil
+	case "builder/generators/pwa.go":
+		// SW generator changes - need to regenerate SW
+		return []string{}
 	default:
 		// Unknown dependency - return nil to be safe
 		return nil
@@ -265,6 +268,7 @@ func (b *Builder) BuildChanged(changedPath string) {
 	// For templates, static files, or config - do full rebuild
 	fmt.Printf("⚡ Full rebuild needed for: %s\n", changedPath)
 	b.Build()
+	b.SaveCaches()
 }
 
 // buildSinglePost rebuilds only the changed post with smart change detection
@@ -294,6 +298,7 @@ func (b *Builder) buildSinglePost(path string) {
 		// Only content changed (not frontmatter) - do lightweight rebuild
 		fmt.Printf("   📝 Content-only change detected. Fast rebuild...\n")
 		b.buildContentOnly(path)
+		b.SaveCaches()
 	} else {
 		// Frontmatter changed (or no cache) - need full rebuild for global pages
 		if exists {
@@ -301,10 +306,11 @@ func (b *Builder) buildSinglePost(path string) {
 		}
 		// Invalidate cache for this post
 		b.mu.Lock()
-		delete(b.buildCache.Posts, path)
+		delete(b.buildCache.Posts, cacheKey)
 		b.mu.Unlock()
 		// Full rebuild
 		b.Build()
+		b.SaveCaches()
 	}
 }
 
@@ -470,7 +476,7 @@ func (b *Builder) Build() {
 	}
 
 	// Check dependencies for force rebuild
-	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "static/css/layout.css", "static/css/theme.css", "kosh.yaml"}
+	globalDependencies := []string{"templates/layout.html", "templates/index.html", "templates/404.html", "templates/graph.html", "static/css/layout.css", "static/css/theme.css", "kosh.yaml", "builder/generators/pwa.go"}
 	forceSocialRebuild := false
 	shouldForce := b.cfg.ForceRebuild
 	var affectedPosts []string
@@ -507,6 +513,16 @@ func (b *Builder) Build() {
 	for _, dep := range globalDependencies {
 		if info, err := os.Stat(dep); err == nil {
 			b.buildCache.TemplateModTimes[dep] = info.ModTime()
+		}
+	}
+
+	// Check if Service Worker needs regeneration
+	swPath := "public/sw.js"
+	if swInfo, err := os.Stat(swPath); err == nil {
+		// Regenerate SW if pwa.go template is newer
+		if pwaInfo, pwaErr := os.Stat("builder/generators/pwa.go"); pwaErr == nil && pwaInfo.ModTime().After(swInfo.ModTime()) {
+			fmt.Printf("⚡ Service Worker template updated. Regenerating...\n")
+			shouldForce = true
 		}
 	}
 

@@ -26,6 +26,9 @@ func GenerateSW(destDir string, buildVersion int64, forceRebuild bool, baseURL s
 const CACHE_NAME = 'kush-blog-cache-v{{ .Version }}';
 const STATIC_CACHE = 'kush-blog-static-v{{ .Version }}';
 
+// Dev hostnames to disable caching
+const DEV_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0'];
+
 // Core app shell assets
 const CORE_ASSETS = [
     '{{ .BaseURL }}/',
@@ -62,6 +65,18 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
+    
+    // Skip caching for dev hosts (disable SW in development mode)
+    if (DEV_HOSTS.includes(url.hostname)) {
+        event.respondWith(fetch(request));
+        return;
+    }
+    
+    // Skip caching for unsupported schemes (chrome-extension://, moz-extension://, about:, data:, etc.)
+    if (!['http:', 'https:'].includes(url.protocol)) {
+        event.respondWith(fetch(request));
+        return;
+    }
     
     // Skip non-GET requests
     if (request.method !== 'GET') {
