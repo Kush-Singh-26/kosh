@@ -38,6 +38,8 @@ The fitted values or the *prediction* is :
 
 $$ \hat y_i = \hat \beta_0 + \hat \beta_1 x_i $$
 
+![Residuals in linear regression](/static/images/Ml-4.png)
+
 ---
 
 ## Ordinary Least Square (OLS)
@@ -308,6 +310,8 @@ $$\boxed{ w = (X^T X)^{-1}X^T y }$$
 
 When the normal equation becomes too computationally expensive, we use *Gradient Descent* : an iterative optimization algorithm.
 
+![Convex Bowl](/static/images/Ml-5.png)
+
 ### Cost Funtion (Mean Squared Error Form) 
 
 $$ J(w) = \frac{1}{2n} \sum_{i=1}^n (y^{(i)} - w^T x^{(i)})^2 $$
@@ -345,6 +349,8 @@ It is a critical hyperparameter that controls the step size taken towards a mini
 - $\alpha$ too small: Convergence is guaranteed but very slow; requires many updates.
 - $\alpha$ too large: The steps may overshoot the minimum, causing the algorithm to oscillate or diverge (cost increases).
 - Optimal $\alpha$: Smoothly reaches the minima.
+
+![Learning Rate Trajectories](/static/images/Ml-6.png)
 
 ---
 
