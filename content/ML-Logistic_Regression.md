@@ -1,5 +1,5 @@
 ---
-title: "2. ML: Logistic Regression"
+title: "3. ML: Logistic Regression"
 date: "2026-02-02"
 description: "Probabilistic power of Logistic Regression: A deep dive into its linear roots and sigmoid derivation."
 tags: ["ML"]

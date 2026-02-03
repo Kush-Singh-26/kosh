@@ -344,11 +344,15 @@ $$\frac{\partial J(w)}{\partial w_j} = \frac{1}{n} \sum_{i=1}^{n} (w^T x^{(i)} -
 
 ### Learning Rate ($\alpha$)
 
+![Different Alpha values result](/static/images/Ml-11.png)
+
 It is a critical hyperparameter that controls the step size taken towards a minimum of a loss function during optimization
 
 - $\alpha$ too small: Convergence is guaranteed but very slow; requires many updates.
 - $\alpha$ too large: The steps may overshoot the minimum, causing the algorithm to oscillate or diverge (cost increases).
 - Optimal $\alpha$: Smoothly reaches the minima.
+
+![Learning rate in bowl](/static/images/Ml-12.png)
 
 ![Learning Rate Trajectories](/static/images/Ml-6.png)
 
