@@ -1086,7 +1086,10 @@ func (b *Builder) Build() {
 		}
 	}
 
-	if shouldForce || anyPostChanged {
+	if shouldForce || anyPostChanged || forceSocialRebuild {
+		_ = os.MkdirAll("public/tags", 0755)
+		_ = os.MkdirAll("public/static/images/cards/tags", 0755)
+
 		var allTags []models.TagData
 		for t, posts := range tagMap {
 			allTags = append(allTags, models.TagData{
@@ -1097,6 +1100,47 @@ func (b *Builder) Build() {
 		}
 		sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 
+		// Generate "All Tags" Index Card
+		tagsIndexCardPath := "public/static/images/cards/tags/index.webp"
+		tagsIndexImgURL := cfg.BaseURL + "/static/images/cards/tags/index.webp"
+
+		genTagsIndexCard := false
+		if forceSocialRebuild {
+			genTagsIndexCard = true
+		} else {
+			if _, err := os.Stat(tagsIndexCardPath); os.IsNotExist(err) {
+				genTagsIndexCard = true
+			} else {
+				// Use total tags count as hash for index card
+				idxHash := fmt.Sprintf("%d", len(allTags))
+				b.mu.Lock()
+				cachedIdxHash := b.socialCardCache.Hashes["tags/index"]
+				b.mu.Unlock()
+				if cachedIdxHash != idxHash {
+					genTagsIndexCard = true
+				}
+			}
+		}
+
+		if genTagsIndexCard {
+			fmt.Println("   🖼️  Generating Tags Index Card...")
+			err := generators.GenerateSocialCard(
+				"All Topics",
+				fmt.Sprintf("%d total tags", len(allTags)),
+				"",
+				tagsIndexCardPath,
+				faviconPath,
+				fontsDir,
+			)
+			if err != nil {
+				fmt.Printf("      ⚠️ Failed to generate tags index card: %v\n", err)
+			} else {
+				b.mu.Lock()
+				b.socialCardCache.Hashes["tags/index"] = fmt.Sprintf("%d", len(allTags))
+				b.mu.Unlock()
+			}
+		}
+
 		b.rnd.RenderPage("public/tags/index.html", models.PageData{
 			Title:        "All Tags",
 			IsTagsIndex:  true,
@@ -1104,13 +1148,56 @@ func (b *Builder) Build() {
 			BaseURL:      cfg.BaseURL,
 			BuildVersion: cfg.BuildVersion,
 			Permalink:    cfg.BaseURL + "/tags/index.html",
-			Image:        cfg.BaseURL + "/static/images/favicon.webp",
+			Image:        tagsIndexImgURL,
 			TabTitle:     "All Topics | " + cfg.Title,
 			Config:       cfg,
 		})
 
 		for t, posts := range tagMap {
 			utils.SortPosts(posts)
+
+			// Tag Card Logic
+			tagNameClean := strings.ToLower(t) // Assuming simple tag names for filenames
+			tagCardPath := fmt.Sprintf("public/static/images/cards/tags/%s.webp", tagNameClean)
+			tagImgURL := fmt.Sprintf("%s/static/images/cards/tags/%s.webp", cfg.BaseURL, tagNameClean)
+
+			genTagCard := false
+			tagHash := fmt.Sprintf("%d", len(posts)) // Hash is just post count
+
+			if forceSocialRebuild {
+				genTagCard = true
+			} else {
+				if _, err := os.Stat(tagCardPath); os.IsNotExist(err) {
+					genTagCard = true
+				} else {
+					b.mu.Lock()
+					cachedTagHash := b.socialCardCache.Hashes["tags/"+t]
+					b.mu.Unlock()
+					if cachedTagHash != tagHash {
+						genTagCard = true
+					}
+				}
+			}
+
+			if genTagCard {
+				fmt.Printf("   🖼️  Generating Tag Card: #%s\n", t)
+				err := generators.GenerateSocialCard(
+					"#"+t,
+					fmt.Sprintf("%d posts", len(posts)),
+					"",
+					tagCardPath,
+					faviconPath,
+					fontsDir,
+				)
+				if err != nil {
+					fmt.Printf("      ⚠️ Failed to generate card for tag %s: %v\n", t, err)
+				} else {
+					b.mu.Lock()
+					b.socialCardCache.Hashes["tags/"+t] = tagHash
+					b.mu.Unlock()
+				}
+			}
+
 			b.rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{
 				Title:        "#" + t,
 				IsIndex:      true,
@@ -1118,7 +1205,7 @@ func (b *Builder) Build() {
 				BaseURL:      cfg.BaseURL,
 				BuildVersion: cfg.BuildVersion,
 				Permalink:    fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, t),
-				Image:        cfg.BaseURL + "/static/images/favicon.webp",
+				Image:        tagImgURL,
 				TabTitle:     "#" + t + " | " + cfg.Title,
 				Config:       cfg,
 			})
