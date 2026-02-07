@@ -307,6 +307,24 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 						return err
 					}
 				}
+
+				// Update template indexes
+				depsTemplatesBucket := tx.Bucket([]byte(BucketDepsTemplates))
+				for _, tmpl := range d.Templates {
+					tmplKey := []byte(tmpl + "/" + post.PostID)
+					if err := depsTemplatesBucket.Put(tmplKey, nil); err != nil {
+						return err
+					}
+				}
+
+				// Update include indexes
+				depsIncludesBucket := tx.Bucket([]byte(BucketDepsIncludes))
+				for _, inc := range d.Includes {
+					incKey := []byte(inc + "/" + post.PostID)
+					if err := depsIncludesBucket.Put(incKey, nil); err != nil {
+						return err
+					}
+				}
 			}
 		}
 
@@ -540,4 +558,26 @@ func normalizePath(path string) string {
 	path = filepath.ToSlash(path)
 	path = strings.TrimPrefix(path, "content/")
 	return strings.ToLower(path)
+}
+
+// GetWasmHash retrieves the stored WASM source hash
+func (m *Manager) GetWasmHash() (string, error) {
+	var hash string
+	err := m.db.View(func(tx *bolt.Tx) error {
+		meta := tx.Bucket([]byte(BucketMeta))
+		data := meta.Get([]byte(KeyWasmHash))
+		if data != nil {
+			hash = string(data)
+		}
+		return nil
+	})
+	return hash, err
+}
+
+// SetWasmHash stores the WASM source hash
+func (m *Manager) SetWasmHash(hash string) error {
+	return m.db.Update(func(tx *bolt.Tx) error {
+		meta := tx.Bucket([]byte(BucketMeta))
+		return meta.Put([]byte(KeyWasmHash), []byte(hash))
+	})
 }

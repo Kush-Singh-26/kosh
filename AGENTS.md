@@ -39,10 +39,10 @@ We use `golangci-lint` for static analysis.
 
 ### Project Structure
 *   **`builder/`**: Core SSG logic (rendering, parsing, caching).
-    *   **`run/`**: **Modularized.** Contains build orchestration logic split into `builder.go`, `build.go`, `incremental.go`, and specialized pipelines: `pipeline_assets.go`, `pipeline_posts.go`, `pipeline_meta.go`, `pipeline_pwa.go`, and `pipeline_pagination.go`.
+    *   **`run/`**: **Modularized.** Contains build orchestration logic split into `builder.go`, `build.go`, `incremental.go`, and specialized pipelines: `pipeline_assets.go`, `pipeline_posts.go`, `pipeline_meta.go`, `pipeline_pwa.go`, and `pipeline_pagination.go`. All pipelines now interact directly with `cache.Manager` (BoltDB), replacing the legacy in-memory `buildCache`.
     *   **`renderer/native/`**: Contains native D2 and LaTeX rendering logic, split into `renderer.go` (core), `math.go`, and `d2.go`.
-    *   **`parser/`**: Markdown parsing logic (Goldmark extensions and modular AST transformers: `trans_url.go`, `trans_d2.go`, `trans_ssr.go`).
-    *   **`cache/`**: BoltDB-based cache system with content-addressed storage, compression, and garbage collection.
+    *   **`parser/`**: Markdown parsing logic (Goldmark extensions and modular AST transformers: `trans_url.go`, `trans_d2.go`, `trans_ssr.go`, `math.go`, `toc.go`).
+    *   **`cache/`**: BoltDB-based cache system with content-addressed storage, compression, and garbage collection. Now also handles WASM source hashing and dependency tracking.
 *   **`cmd/kosh/`**: Main entry point for the CLI.
 *   **`content/`**: Markdown source files.
 *   **`themes/`**: **Themed Assets.**
@@ -71,10 +71,11 @@ Group imports into three blocks separated by newlines:
     *   **Worker Pool:** A pool of `runtime.NumCPU()` workers handles rendering tasks in parallel.
     *   **Map Safety:** All shared map access is protected by `sync.Mutex`.
 *   **Caching & Incremental Builds:**
-    *   **BoltDB Cache:** Metadata stored in `.kosh-cache/meta.db` (BoltDB). Content-addressed artifacts in `.kosh-cache/store/`.
-    *   **SSR Artifacts:** D2 diagrams and KaTeX math rendered once, stored with BLAKE3 hashes, reused across builds.
-    *   **Fast Rebuilds:** If only templates or CSS change, `kosh` skips Markdown parsing and re-renders pages using cached HTML fragments.
-    *   **WASM Hashing:** The search engine WASM is only rebuilt if its source code changes.
+    *   **BoltDB Cache:** All metadata (Posts, Dependencies, Template Hashes) stored in `.kosh-cache/meta.db`. The legacy `buildCache` struct has been removed.
+    *   **Content-Addressed Storage:** SSR artifacts (D2, KaTeX) stored in `.kosh-cache/store/` with BLAKE3 hashes.
+    *   **Fast Rebuilds:** `incremental.go` queries BoltDB to determine invalidation. If only templates change, pages are reconstructed from cached PostMeta and HTML content.
+    *   **WASM Hashing:** The search engine WASM source hash is persisted in BoltDB (`meta` bucket), enabling lazy compilation across restarts.
+    *   **Search Index:** `SearchRecord` in BoltDB includes full text content to regenerate the search index without re-parsing Markdown.
     *   **Watcher:** Automatically tracks changes in `content/` and the active theme's template/static directories.
     *   **Cache Commands:** `kosh cache stats`, `kosh cache gc`, `kosh cache verify`, `kosh cache inspect <path>`.
 

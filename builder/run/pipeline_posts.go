@@ -19,6 +19,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
+	"my-ssg/builder/cache"
 	"my-ssg/builder/generators"
 	"my-ssg/builder/models"
 	mdParser "my-ssg/builder/parser"
@@ -37,6 +38,14 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 		processedCount int32
 		mu             sync.Mutex
 		wg             sync.WaitGroup
+	)
+
+	// Batch storage for BoltDB commit
+	var (
+		batchMu          sync.Mutex
+		newPostsMeta     []*cache.PostMeta
+		newSearchRecords = make(map[string]*cache.SearchRecord)
+		newDeps          = make(map[string]*cache.Dependencies)
 	)
 
 	type socialCardTask struct {
@@ -75,10 +84,24 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 			htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 			destPath := filepath.Join("public", htmlRelPath)
 
-			cacheKey := utils.NormalizeCacheKey(path)
-			b.mu.Lock()
-			cached, exists := b.buildCache.Posts[cacheKey]
-			b.mu.Unlock()
+			// 1. Try to load from BoltDB Cache
+			var cachedMeta *cache.PostMeta
+			var cachedSearch *cache.SearchRecord
+			var cachedHTML []byte
+			var err error
+			exists := false
+
+			if b.cacheManager != nil {
+				cachedMeta, err = b.cacheManager.GetPostByPath(relPath)
+				if err == nil && cachedMeta != nil {
+					exists = true
+					// Check freshness
+					if info.ModTime().Unix() > cachedMeta.ModTime {
+						exists = false // Stale
+					}
+					// Check content hash or other validity if needed in future
+				}
+			}
 
 			// Get cached social card hash from BoltDB
 			var cachedHash string
@@ -86,7 +109,7 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 				cachedHash, _ = b.cacheManager.GetSocialCardHash(relPath)
 			}
 
-			useCache := exists && !shouldForce && !info.ModTime().After(cached.ModTime)
+			useCache := exists && !shouldForce
 
 			var htmlContent string
 			var metaData map[string]interface{}
@@ -96,23 +119,86 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 			var docLen int
 			var toc []models.TOCEntry
 			var frontmatterHash string
+			var dependencies cache.Dependencies
+			var plainText string
+
+			// Load content from cache if valid
+			if useCache {
+				cachedHTML, err = b.cacheManager.GetHTMLContent(cachedMeta)
+				if err != nil || cachedHTML == nil {
+					useCache = false
+				} else {
+					cachedSearch, err = b.cacheManager.GetSearchRecord(cachedMeta.PostID)
+					if err != nil || cachedSearch == nil {
+						useCache = false
+					}
+				}
+			}
 
 			if useCache {
-				htmlContent, metaData, post, searchRecord, wordFreqs, docLen, toc, frontmatterHash = cached.HTMLContent, cached.Meta, cached.Metadata, cached.SearchRecord, cached.WordFreqs, cached.DocLen, cached.TOC, cached.FrontmatterHash
-				post.Link = b.cfg.BaseURL + "/" + htmlRelPath
+				htmlContent = string(cachedHTML)
+				metaData = cachedMeta.Meta
+				metaData = cachedMeta.Meta
+				frontmatterHash = cachedMeta.ContentHash // Using ContentHash as FrontmatterHash per migration plan
+
+				// Reconstruct PostMetadata
+				post = models.PostMetadata{
+					Title:       cachedMeta.Title,
+					Link:        cachedMeta.Link,
+					Description: cachedMeta.Description,
+					Tags:        cachedMeta.Tags,
+					ReadingTime: cachedMeta.ReadingTime,
+					Pinned:      cachedMeta.Pinned,
+					Draft:       cachedMeta.Draft,
+					DateObj:     cachedMeta.Date,
+					HasMath:     cachedMeta.HasMath,
+					HasMermaid:  cachedMeta.HasMermaid,
+				}
+
+				// Convert TOC
+				for _, t := range cachedMeta.TOC {
+					toc = append(toc, models.TOCEntry{
+						ID:    t.ID,
+						Text:  t.Text,
+						Level: t.Level,
+					})
+				}
+
+				// Reconstruct Search/Index Data
+				searchRecord = models.PostRecord{
+					Title: cachedSearch.Title, Link: cachedMeta.Link, Description: cachedMeta.Description, Tags: cachedMeta.Tags,
+					Content: cachedSearch.Content,
+				}
+
+				docLen = cachedSearch.DocLen
+				wordFreqs = cachedSearch.BM25Data
 			} else {
+				// Parse and Render
 				source, _ := afero.ReadFile(b.SourceFs, path)
 				ctx := parser.NewContext()
 				docNode := b.md.Parser().Parse(text.NewReader(source), parser.WithContext(ctx))
 				var buf bytes.Buffer
+
+				// Handle diagrams
+				if pairs := mdParser.GetD2SVGPairSlice(ctx); pairs != nil {
+					// Pre-calc replacements? Render writes to buf
+				}
+
 				_ = b.md.Renderer().Render(&buf, source, docNode)
 				htmlContent = buf.String()
 
 				if pairs := mdParser.GetD2SVGPairSlice(ctx); pairs != nil {
 					htmlContent = mdParser.ReplaceD2BlocksWithThemeSupport(htmlContent, pairs)
 				}
+
+				// Use DiagramAdapter map equivalent
+				var diagramCache map[string]string
+				if b.diagramAdapter != nil {
+					diagramCache = b.diagramAdapter.AsMap()
+				}
+
 				if strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(") {
-					htmlContent = mdParser.RenderMathForHTML(htmlContent, b.native, b.buildCache.DiagramCache, &b.mu)
+					htmlContent = mdParser.RenderMathForHTML(htmlContent, b.native, diagramCache, &b.mu)
 				}
 				if b.cfg.CompressImages {
 					htmlContent = utils.ReplaceToWebP(htmlContent)
@@ -124,13 +210,18 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 				isPinned, _ := metaData["pinned"].(bool)
 				wordCount := len(strings.Fields(string(source)))
 
+				toc = mdParser.GetTOC(ctx)
+
 				post = models.PostMetadata{
 					Title: utils.GetString(metaData, "title"), Link: b.cfg.BaseURL + "/" + htmlRelPath,
 					Description: utils.GetString(metaData, "description"), Tags: utils.GetSlice(metaData, "tags"),
 					ReadingTime: int(math.Ceil(float64(wordCount) / 120.0)), Pinned: isPinned,
 					DateObj: dateObj, HasMath: strings.Contains(string(source), "$"), HasMermaid: mdParser.HasD2(ctx),
+					Draft: utils.GetBool(metaData, "draft"),
 				}
-				searchRecord = models.PostRecord{Title: post.Title, Link: htmlRelPath, Description: post.Description, Tags: post.Tags, Content: mdParser.ExtractPlainText(docNode, source)}
+
+				plainText = mdParser.ExtractPlainText(docNode, source)
+				searchRecord = models.PostRecord{Title: post.Title, Link: htmlRelPath, Description: post.Description, Tags: post.Tags, Content: plainText}
 				words := search.Tokenize(strings.ToLower(searchRecord.Title + " " + searchRecord.Description + " " + strings.Join(searchRecord.Tags, " ") + " " + searchRecord.Content))
 				docLen = len(words)
 				wordFreqs = make(map[string]int)
@@ -140,9 +231,12 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 					}
 				}
 				frontmatterHash, _ = utils.GetFrontmatterHash(metaData)
+
+				// Collect Dependencies
+				dependencies.Tags = post.Tags
 			}
 
-			if isDraft, _ := metaData["draft"].(bool); isDraft && !b.cfg.IncludeDrafts {
+			if post.Draft && !b.cfg.IncludeDrafts {
 				return
 			}
 
@@ -189,12 +283,11 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 				mu.Unlock()
 			}
 
+			// Prepare data for BatchCommit and Memory Accumulation
 			mu.Lock()
-			if !useCache {
-				b.buildCache.Posts[cacheKey] = models.CachedPost{ModTime: info.ModTime(), FrontmatterHash: frontmatterHash, Metadata: post, SearchRecord: searchRecord, WordFreqs: wordFreqs, DocLen: docLen, HTMLContent: htmlContent, TOC: toc, Meta: metaData, HasMermaid: post.HasMermaid}
-			}
+
+			// Accumulate for return
 			for _, t := range post.Tags {
-				b.buildCache.Dependencies.Tags["tag:"+strings.ToLower(strings.TrimSpace(t))] = append(b.buildCache.Dependencies.Tags["tag:"+strings.ToLower(strings.TrimSpace(t))], path)
 				tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], post)
 			}
 			if post.Pinned {
@@ -206,12 +299,75 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 			indexedPosts = append(indexedPosts, models.IndexedPost{Record: searchRecord, WordFreqs: wordFreqs, DocLen: docLen})
 			mu.Unlock()
 
+			// Cache Store Logic
+			if !useCache && b.cacheManager != nil {
+				// Store HTML
+				htmlHash, _ := b.cacheManager.StoreHTML([]byte(htmlContent))
+
+				postID := cache.GeneratePostID("", relPath)
+
+				// Convert TOC for cache
+				var cacheTOC []cache.TOCEntry
+				for _, t := range toc {
+					cacheTOC = append(cacheTOC, cache.TOCEntry{
+						ID:    t.ID,
+						Text:  t.Text,
+						Level: t.Level,
+					})
+				}
+
+				newMeta := &cache.PostMeta{
+					PostID:      postID,
+					Path:        relPath,
+					ModTime:     info.ModTime().Unix(),
+					ContentHash: frontmatterHash,
+					HTMLHash:    htmlHash,
+					Title:       post.Title,
+					Date:        post.DateObj,
+					Tags:        post.Tags,
+					ReadingTime: post.ReadingTime,
+					Description: post.Description,
+					Link:        post.Link,
+					Pinned:      post.Pinned,
+					Draft:       post.Draft,
+					HasMath:     post.HasMath,
+					HasMermaid:  post.HasMermaid,
+					Meta:        metaData,
+					TOC:         cacheTOC,
+				}
+
+				newSearch := &cache.SearchRecord{
+					Title:    post.Title,
+					Tokens:   search.Tokenize(post.Description),
+					BM25Data: wordFreqs,
+					DocLen:   docLen,
+					Content:  plainText,
+				}
+
+				newDep := &cache.Dependencies{
+					Tags: post.Tags,
+				}
+
+				batchMu.Lock()
+				newPostsMeta = append(newPostsMeta, newMeta)
+				newSearchRecords[postID] = newSearch
+				newDeps[postID] = newDep
+				batchMu.Unlock()
+			}
+
 			if c := atomic.AddInt32(&processedCount, 1); c%10 == 0 || int(c) == len(files) {
 				fmt.Printf("   📊 Progress: %d/%d posts processed\n", c, len(files))
 			}
 		}(path)
 	}
 	wg.Wait()
+
+	// Commit Batch to BoltDB
+	if b.cacheManager != nil && len(newPostsMeta) > 0 {
+		if err := b.cacheManager.BatchCommit(newPostsMeta, newSearchRecords, newDeps); err != nil {
+			fmt.Printf("⚠️ Failed to commit cache batch: %v\n", err)
+		}
+	}
 
 	if len(socialCardTasks) > 0 {
 		fmt.Printf("🖼️  Generating %d social cards...\n", len(socialCardTasks))
@@ -238,23 +394,40 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 
 // renderCachedPosts re-renders posts using cached HTML content (skips parsing)
 func (b *Builder) renderCachedPosts() {
-	b.mu.Lock()
-	posts := b.buildCache.Posts
-	b.mu.Unlock()
+	if b.cacheManager == nil {
+		fmt.Println("⚠️ Cache manager not available, skipping fast render.")
+		return
+	}
 
-	fmt.Printf("⚡ Fast-rendering %d posts from cache...\n", len(posts))
+	ids, err := b.cacheManager.ListAllPosts()
+	if err != nil {
+		fmt.Printf("⚠️ Failed to list posts from cache: %v\n", err)
+		return
+	}
+
+	fmt.Printf("⚡ Fast-rendering %d posts from cache...\n", len(ids))
 	numWorkers := runtime.NumCPU()
 	sem := make(chan struct{}, numWorkers)
 	var wg sync.WaitGroup
 
-	for key, cached := range posts {
+	for _, id := range ids {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(k string, cp models.CachedPost) {
+		go func(postID string) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			relPath, _ := filepath.Rel("content", k)
+			cp, err := b.cacheManager.GetPostByID(postID)
+			if err != nil || cp == nil {
+				return
+			}
+
+			htmlBytes, err := b.cacheManager.GetHTMLContent(cp)
+			if err != nil || htmlBytes == nil {
+				return
+			}
+
+			relPath := cp.Path
 			htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 			destPath := filepath.Join("public", htmlRelPath)
 
@@ -270,13 +443,23 @@ func (b *Builder) renderCachedPosts() {
 				imagePath = b.cfg.BaseURL + img
 			}
 
+			// Convert TOC for PageData
+			var toc []models.TOCEntry
+			for _, t := range cp.TOC {
+				toc = append(toc, models.TOCEntry{
+					ID:    t.ID,
+					Text:  t.Text,
+					Level: t.Level,
+				})
+			}
+
 			b.rnd.RenderPage(destPath, models.PageData{
-				Title: cp.Metadata.Title, Description: cp.Metadata.Description, Content: template.HTML(cp.HTMLContent),
+				Title: cp.Title, Description: cp.Description, Content: template.HTML(string(htmlBytes)),
 				Meta: cp.Meta, BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
-				TabTitle: cp.Metadata.Title + " | " + b.cfg.Title, Permalink: cp.Metadata.Link, Image: imagePath,
-				HasMath: cp.Metadata.HasMath, HasMermaid: cp.Metadata.HasMermaid, TOC: cp.TOC, Config: b.cfg,
+				TabTitle: cp.Title + " | " + b.cfg.Title, Permalink: cp.Link, Image: imagePath,
+				HasMath: cp.HasMath, HasMermaid: cp.HasMermaid, TOC: toc, Config: b.cfg,
 			})
-		}(key, cached)
+		}(id)
 	}
 	wg.Wait()
 }

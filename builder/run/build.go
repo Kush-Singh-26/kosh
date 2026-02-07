@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"my-ssg/builder/cache"
 	"my-ssg/builder/models"
 	mdParser "my-ssg/builder/parser"
 	"my-ssg/builder/utils"
@@ -22,18 +23,6 @@ func (b *Builder) Build() {
 
 	// 1. Setup & Cache Invalidation
 	b.checkWasmUpdate()
-
-	b.mu.Lock()
-	b.buildCache.Dependencies = models.DependencyGraph{
-		Tags:      make(map[string][]string),
-		Templates: make(map[string][]string),
-		Assets:    make(map[string][]string),
-	}
-	b.mu.Unlock()
-
-	if b.buildCache.TemplateModTimes == nil {
-		b.buildCache.TemplateModTimes = make(map[string]time.Time)
-	}
 
 	globalDependencies := []string{
 		filepath.Join(cfg.TemplateDir, "layout.html"),
@@ -71,14 +60,15 @@ func (b *Builder) Build() {
 		forceSocialRebuild = true
 	}
 
-	for _, dep := range globalDependencies {
-		if info, err := os.Stat(dep); err == nil {
-			b.buildCache.TemplateModTimes[dep] = info.ModTime()
-		}
-	}
-
 	b.cfg.ForceRebuild = false
-	b.md = mdParser.New(cfg.BaseURL, b.native, b.buildCache.DiagramCache, &b.mu)
+
+	var diagramCache map[string]string
+	if b.diagramAdapter != nil {
+		diagramCache = b.diagramAdapter.AsMap()
+	} else {
+		diagramCache = make(map[string]string)
+	}
+	b.md = mdParser.New(cfg.BaseURL, b.native, diagramCache, &b.mu)
 
 	b.DestFs.MkdirAll("public/tags", 0755)
 	b.DestFs.MkdirAll("public/static/images/cards", 0755)
@@ -94,12 +84,15 @@ func (b *Builder) Build() {
 	utils.WriteFileVFS(b.DestFs, "public/.nojekyll", []byte(""))
 	staticWg.Wait()
 
-	if len(affectedPosts) > 0 {
-		b.mu.Lock()
+	if len(affectedPosts) > 0 && b.cacheManager != nil {
 		for _, postPath := range affectedPosts {
-			delete(b.buildCache.Posts, utils.NormalizeCacheKey(postPath))
+			relPath, _ := filepath.Rel("content", postPath)
+			// Need PostID to delete.
+			// invalidateForTemplate returns paths.
+			// We can generate ID from path (empty UUID).
+			postID := cache.GeneratePostID("", relPath)
+			b.cacheManager.DeletePost(postID)
 		}
-		b.mu.Unlock()
 	}
 
 	// 3. Process Content (Posts)
@@ -111,9 +104,11 @@ func (b *Builder) Build() {
 		has404                bool
 	)
 
-	if !shouldForce && len(affectedPosts) == 0 && len(globalDependencies) > 0 {
-		// Template-only change detection logic
-		isTemplateOnly := true
+	// Template-only change detection logic
+	isTemplateOnly := true
+	if shouldForce || len(affectedPosts) > 0 {
+		isTemplateOnly = false
+	} else if len(globalDependencies) > 0 {
 		for _, dep := range globalDependencies {
 			if info, err := os.Stat(dep); err == nil {
 				if info.ModTime().After(lastBuildTime) {
@@ -125,30 +120,78 @@ func (b *Builder) Build() {
 				}
 			}
 		}
+	} else {
+		isTemplateOnly = false
+	}
 
-		if isTemplateOnly && lastBuildTime.Unix() > 0 && len(b.buildCache.Posts) > 0 {
-			fmt.Println("🚀 Template-only change detected. Fast-tracking rebuild...")
-			b.renderCachedPosts()
-
-			// Hydrate data for global pages from cache
-			tagMap = make(map[string][]models.PostMetadata)
-			for _, cp := range b.buildCache.Posts {
-				if cp.Metadata.Pinned {
-					pinnedPosts = append(pinnedPosts, cp.Metadata)
-				} else {
-					allPosts = append(allPosts, cp.Metadata)
-				}
-				for _, t := range cp.Metadata.Tags {
-					tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], cp.Metadata)
-				}
-				indexedPosts = append(indexedPosts, models.IndexedPost{Record: cp.SearchRecord, WordFreqs: cp.WordFreqs, DocLen: cp.DocLen})
-			}
-			utils.SortPosts(allPosts)
-			utils.SortPosts(pinnedPosts)
-			anyPostChanged = true // Trigger global page re-render
-		} else {
-			allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(shouldForce, forceSocialRebuild)
+	cachedCount := 0
+	if b.cacheManager != nil {
+		if stats, err := b.cacheManager.Stats(); err == nil {
+			cachedCount = stats.TotalPosts
 		}
+	}
+
+	if isTemplateOnly && lastBuildTime.Unix() > 0 && cachedCount > 0 {
+		fmt.Println("🚀 Template-only change detected. Fast-tracking rebuild...")
+		b.renderCachedPosts()
+
+		// Hydrate data for global pages from cache
+		tagMap = make(map[string][]models.PostMetadata)
+		ids, _ := b.cacheManager.ListAllPosts()
+
+		for _, id := range ids {
+			cached, err := b.cacheManager.GetPostByID(id)
+			if err != nil || cached == nil {
+				continue
+			}
+
+			// Reconstruct models.PostMetadata
+			post := models.PostMetadata{
+				Title:       cached.Title,
+				Link:        cached.Link,
+				Description: cached.Description,
+				Tags:        cached.Tags,
+				ReadingTime: cached.ReadingTime,
+				Pinned:      cached.Pinned,
+				Draft:       cached.Draft,
+				DateObj:     cached.Date,
+				HasMath:     cached.HasMath,
+				HasMermaid:  cached.HasMermaid,
+			}
+
+			if post.Pinned {
+				pinnedPosts = append(pinnedPosts, post)
+			} else {
+				allPosts = append(allPosts, post)
+			}
+			for _, t := range post.Tags {
+				tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], post)
+			}
+
+			// Indexed Posts
+			searchMeta, err := b.cacheManager.GetSearchRecord(id)
+			if err == nil && searchMeta != nil {
+				// Reconstruct PostRecord
+				rec := models.PostRecord{
+					Title:       searchMeta.Title,
+					Link:        cached.Link, // From PostMeta
+					Description: cached.Description,
+					Tags:        cached.Tags,
+					Content:     searchMeta.Content, // Needs Content field added earlier
+				}
+				rec.ID = len(indexedPosts) // Assign ID sequentially
+
+				indexedPosts = append(indexedPosts, models.IndexedPost{
+					Record:    rec,
+					WordFreqs: searchMeta.BM25Data,
+					DocLen:    searchMeta.DocLen,
+				})
+			}
+		}
+
+		utils.SortPosts(allPosts)
+		utils.SortPosts(pinnedPosts)
+		anyPostChanged = true
 	} else {
 		allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(shouldForce, forceSocialRebuild)
 	}

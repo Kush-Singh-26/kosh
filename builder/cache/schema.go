@@ -25,6 +25,7 @@ const (
 	KeyLastGC        = "last_gc"
 	KeyBuildCount    = "build_count"
 	KeyGraphHash     = "graph_hash"
+	KeyWasmHash      = "wasm_hash"
 )
 
 // AllBuckets returns all bucket names for initialization

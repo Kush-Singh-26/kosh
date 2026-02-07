@@ -34,3 +34,12 @@ func GetSlice(m map[string]interface{}, k string) []string {
 	}
 	return res
 }
+
+func GetBool(m map[string]interface{}, k string) bool {
+	if v, ok := m[k]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return false
+}

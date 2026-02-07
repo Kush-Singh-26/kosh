@@ -25,10 +25,17 @@
     transition: all 0.2s;
 }
 
-.toc-toggle:hover { color: var(--accent-primary); }
+.toc-toggle:hover {
+    color: var(--accent-primary);
+}
 
-.toc-icon::after { content: "+"; }
-.toc-container.expanded .toc-icon { transform: rotate(45deg); }
+.toc-icon::after {
+    content: "+";
+}
+
+.toc-container.expanded .toc-icon {
+    transform: rotate(45deg);
+}
 
 .toc-container nav {
     display: none;
@@ -41,10 +48,29 @@
     animation: fadeIn 0.3s ease;
 }
 
-.toc-container ul { list-style: none; padding: 0; margin: 0; }
-.toc-container li { margin-bottom: 0.6rem; line-height: 1.4; }
-.toc-container a { color: var(--text-muted); font-size: 0.9rem; text-decoration: none; transition: color 0.2s; display: block; }
-.toc-container a:hover { color: var(--accent-primary); transform: translateX(4px); }
+.toc-container ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.toc-container li {
+    margin-bottom: 0.6rem;
+    line-height: 1.4;
+}
+
+.toc-container a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: color 0.2s;
+    display: block;
+}
+
+.toc-container a:hover {
+    color: var(--accent-primary);
+    transform: translateX(4px);
+}
 
 /* Desktop Sidebar TOC */
 @media (min-width: 1100px) {
@@ -59,18 +85,38 @@
         align-items: flex-end;
     }
 
-    .toc-container.expanded { width: 260px; align-items: stretch; }
-    .toc-toggle span:first-child { display: none; }
-    .toc-icon::after { content: "TOC"; }
+    .toc-container.expanded {
+        width: 260px;
+        align-items: stretch;
+    }
+
+    .toc-toggle span:first-child {
+        display: none;
+    }
+
+    .toc-icon::after {
+        content: "TOC";
+    }
 
     .toc-container nav {
         background: transparent;
         border-left: 2px solid var(--border);
         margin-left: 1rem;
+        max-height: calc(100vh - 140px);
+        overflow-y: auto;
+        scrollbar-width: thin;
     }
+}
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

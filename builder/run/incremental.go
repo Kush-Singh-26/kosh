@@ -14,6 +14,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
+	"my-ssg/builder/cache"
 	"my-ssg/builder/models"
 	mdParser "my-ssg/builder/parser"
 	"my-ssg/builder/search"
@@ -21,11 +22,28 @@ import (
 )
 
 // invalidateForTemplate determines which posts to invalidate based on changed template
+// invalidateForTemplate determines which posts to invalidate based on changed template
 func (b *Builder) invalidateForTemplate(templatePath string) []string {
 	tp := filepath.ToSlash(templatePath)
 	if strings.HasPrefix(tp, filepath.ToSlash(b.cfg.TemplateDir)) {
-		if strings.HasSuffix(tp, "layout.html") {
-			return nil
+		relTmpl, _ := filepath.Rel(b.cfg.TemplateDir, tp)
+		relTmpl = filepath.ToSlash(relTmpl)
+
+		if relTmpl == "layout.html" {
+			return nil // Layout changes affect everything
+		}
+
+		if b.cacheManager != nil {
+			ids, err := b.cacheManager.GetPostsByTemplate(relTmpl)
+			if err == nil && len(ids) > 0 {
+				var paths []string
+				for _, id := range ids {
+					if meta, err := b.cacheManager.GetPostByID(id); err == nil && meta != nil {
+						paths = append(paths, meta.Path)
+					}
+				}
+				return paths
+			}
 		}
 		return []string{}
 	}
@@ -76,12 +94,20 @@ func (b *Builder) buildSinglePost(path string) {
 	metaData := meta.Get(context)
 	newFrontmatterHash, _ := utils.GetFrontmatterHash(metaData)
 
-	cacheKey := utils.NormalizeCacheKey(path)
-	b.mu.Lock()
-	cached, exists := b.buildCache.Posts[cacheKey]
-	b.mu.Unlock()
+	relPath, _ := filepath.Rel("content", path)
 
-	if exists && cached.FrontmatterHash == newFrontmatterHash {
+	// Check Cache
+	var exists bool
+	var cachedHash string
+
+	if b.cacheManager != nil {
+		if meta, err := b.cacheManager.GetPostByPath(relPath); err == nil && meta != nil {
+			exists = true
+			cachedHash = meta.ContentHash
+		}
+	}
+
+	if exists && cachedHash == newFrontmatterHash {
 		fmt.Printf("   📝 Content-only change detected. Fast rebuild...\n")
 		b.buildContentOnly(path)
 		b.SaveCaches()
@@ -89,9 +115,7 @@ func (b *Builder) buildSinglePost(path string) {
 		if exists {
 			fmt.Printf("   🔄 Frontmatter changed. Full rebuild needed...\n")
 		}
-		b.mu.Lock()
-		delete(b.buildCache.Posts, cacheKey)
-		b.mu.Unlock()
+		// Full rebuild handles cache update
 		b.Build()
 		b.SaveCaches()
 	}
@@ -118,19 +142,23 @@ func (b *Builder) buildContentOnly(path string) {
 	docNode := b.md.Parser().Parse(reader, parser.WithContext(context))
 
 	var buf bytes.Buffer
-	if err := b.md.Renderer().Render(&buf, source, docNode); err != nil {
-		fmt.Printf("   ❌ Error rendering %s: %v\n", path, err)
-		return
-	}
+	// Handle diagrams (simplified for partial build)
+	_ = b.md.Renderer().Render(&buf, source, docNode)
 	htmlContent := buf.String()
 
-	if orderedPairs := mdParser.GetD2SVGPairSlice(context); orderedPairs != nil {
-		htmlContent = mdParser.ReplaceD2BlocksWithThemeSupport(htmlContent, orderedPairs)
+	if pairs := mdParser.GetD2SVGPairSlice(context); pairs != nil {
+		htmlContent = mdParser.ReplaceD2BlocksWithThemeSupport(htmlContent, pairs)
+	}
+
+	// Use DiagramAdapter map equivalent
+	var diagramCache map[string]string
+	if b.diagramAdapter != nil {
+		diagramCache = b.diagramAdapter.AsMap()
 	}
 
 	hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
 	if hasMath {
-		htmlContent = mdParser.RenderMathForHTML(htmlContent, b.native, b.buildCache.DiagramCache, &b.mu)
+		htmlContent = mdParser.RenderMathForHTML(htmlContent, b.native, diagramCache, &b.mu)
 	}
 
 	if cfg.CompressImages {
@@ -144,7 +172,7 @@ func (b *Builder) buildContentOnly(path string) {
 	isPinned, _ := metaData["pinned"].(bool)
 	dateStr := utils.GetString(metaData, "date")
 	dateObj, _ := time.Parse("2006-01-02", dateStr)
-	isDraft, _ := metaData["draft"].(bool)
+	isDraft := utils.GetBool(metaData, "draft")
 
 	toc := mdParser.GetTOC(context)
 	hasD2 := mdParser.HasD2(context)
@@ -162,46 +190,77 @@ func (b *Builder) buildContentOnly(path string) {
 		HasMermaid:  hasD2,
 	}
 
-	searchRecord := models.PostRecord{
-		Title:       post.Title,
-		Link:        htmlRelPath,
-		Description: post.Description,
-		Tags:        post.Tags,
-		Content:     plainText,
-	}
-
-	fullText := strings.ToLower(searchRecord.Title + " " + searchRecord.Description + " " + strings.Join(searchRecord.Tags, " ") + " " + searchRecord.Content)
-	words := search.Tokenize(fullText)
-	docLen := len(words)
-	wordFreqs := make(map[string]int)
-	for _, word := range words {
-		if len(word) < 2 {
-			continue
-		}
-		wordFreqs[word]++
+	// Convert TOC for cache
+	var cacheTOC []cache.TOCEntry
+	for _, t := range toc {
+		cacheTOC = append(cacheTOC, cache.TOCEntry{
+			ID:    t.ID,
+			Text:  t.Text,
+			Level: t.Level,
+		})
 	}
 
 	frontmatterHash, _ := utils.GetFrontmatterHash(metaData)
 
-	cacheKey := utils.NormalizeCacheKey(path)
-	b.mu.Lock()
-	b.buildCache.Posts[cacheKey] = models.CachedPost{
-		ModTime:         info.ModTime(),
-		FrontmatterHash: frontmatterHash,
-		Metadata:        post,
-		SearchRecord:    searchRecord,
-		WordFreqs:       wordFreqs,
-		DocLen:          docLen,
-		HTMLContent:     htmlContent,
-		TOC:             toc,
-		Meta:            metaData,
-		HasMermaid:      hasD2,
-	}
-	b.mu.Unlock()
-
 	if isDraft && !cfg.IncludeDrafts {
 		fmt.Printf("   ⏩ Skipping draft: %s\n", relPath)
 		return
+	}
+
+	// Update Cache in BoltDB
+	if b.cacheManager != nil {
+		htmlHash, _ := b.cacheManager.StoreHTML([]byte(htmlContent))
+		postID := cache.GeneratePostID("", relPath)
+
+		newMeta := &cache.PostMeta{
+			PostID:      postID,
+			Path:        relPath,
+			ModTime:     info.ModTime().Unix(),
+			ContentHash: frontmatterHash,
+			HTMLHash:    htmlHash,
+			Title:       post.Title,
+			Date:        post.DateObj,
+			Tags:        post.Tags,
+			ReadingTime: post.ReadingTime,
+			Description: post.Description,
+			Link:        post.Link,
+			Pinned:      post.Pinned,
+			Draft:       post.Draft,
+			HasMath:     post.HasMath,
+			HasMermaid:  post.HasMermaid,
+			Meta:        metaData,
+			TOC:         cacheTOC,
+		}
+
+		// Search Record update (needed for partial build?)
+		searchRecord := models.PostRecord{
+			Title:       post.Title,
+			Link:        htmlRelPath,
+			Description: post.Description,
+			Tags:        post.Tags,
+			Content:     plainText,
+		}
+		fullText := strings.ToLower(searchRecord.Title + " " + searchRecord.Description + " " + strings.Join(searchRecord.Tags, " ") + " " + searchRecord.Content)
+		words := search.Tokenize(fullText)
+		docLen := len(words)
+		wordFreqs := make(map[string]int)
+		for _, w := range words {
+			if len(w) >= 2 {
+				wordFreqs[w]++
+			}
+		}
+
+		newSearch := &cache.SearchRecord{
+			Title:    post.Title,
+			Tokens:   search.Tokenize(post.Description),
+			BM25Data: wordFreqs,
+			DocLen:   docLen,
+		}
+
+		newDep := &cache.Dependencies{Tags: post.Tags}
+
+		// Single Commit
+		_ = b.cacheManager.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*cache.Dependencies{postID: newDep})
 	}
 
 	cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"

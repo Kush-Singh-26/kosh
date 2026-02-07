@@ -10,7 +10,6 @@ import (
 
 	"my-ssg/builder/cache"
 	"my-ssg/builder/config"
-	"my-ssg/builder/models"
 	mdParser "my-ssg/builder/parser"
 	"my-ssg/builder/renderer"
 	"my-ssg/builder/renderer/native"
@@ -26,8 +25,7 @@ type Builder struct {
 	cacheManager   *cache.Manager
 	diagramAdapter *cache.DiagramCacheAdapter
 
-	// In-memory build cache (used by processPosts pipeline)
-	buildCache *models.MetadataCache
+	// In-memory build cache (legacy field removed)
 
 	md       goldmark.Markdown
 	rnd      *renderer.Renderer
@@ -67,18 +65,6 @@ func NewBuilder(args []string) *Builder {
 		diagramAdapter = cache.NewDiagramCacheAdapter(cacheManager)
 	}
 
-	// In-memory build cache (used by processPosts pipeline)
-	buildCache := &models.MetadataCache{
-		Posts:        make(map[string]models.CachedPost),
-		DiagramCache: make(map[string]string),
-		Dependencies: models.DependencyGraph{
-			Tags:      make(map[string][]string),
-			Templates: make(map[string][]string),
-			Assets:    make(map[string][]string),
-		},
-		BaseURL: cfg.BaseURL,
-	}
-
 	// Create native renderer (Worker Pool)
 	nativeRenderer := native.New()
 
@@ -91,14 +77,13 @@ func NewBuilder(args []string) *Builder {
 	if diagramAdapter != nil {
 		diagramCache = diagramAdapter.AsMap()
 	} else {
-		diagramCache = buildCache.DiagramCache
+		diagramCache = make(map[string]string)
 	}
 
 	builder := &Builder{
 		cfg:            cfg,
 		cacheManager:   cacheManager,
 		diagramAdapter: diagramAdapter,
-		buildCache:     buildCache,
 		md:             mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache, &sync.Mutex{}),
 		rnd:            renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir),
 		native:         nativeRenderer,
@@ -150,11 +135,19 @@ func (b *Builder) checkWasmUpdate() {
 		return
 	}
 
-	if currentHash != b.buildCache.WasmHash {
+	// Use BoltDB if available
+	var storedHash string
+	if b.cacheManager != nil {
+		storedHash, _ = b.cacheManager.GetWasmHash()
+	}
+
+	if currentHash != storedHash {
 		if build.CheckWASM("") {
-			b.mu.Lock()
-			b.buildCache.WasmHash = currentHash
-			b.mu.Unlock()
+			if b.cacheManager != nil {
+				if err := b.cacheManager.SetWasmHash(currentHash); err != nil {
+					fmt.Printf("⚠️ Failed to store WASM hash: %v\n", err)
+				}
+			}
 		}
 	}
 }

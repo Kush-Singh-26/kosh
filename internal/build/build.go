@@ -1,7 +1,9 @@
 package build
 
 import (
+	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,5 +34,41 @@ func CheckWASM(currentHash string) bool {
 		os.Exit(1)
 	}
 	fmt.Println("✅ WASM build complete.")
+
+	// Compress WASM
+	fmt.Println("📦 Compressing WASM...")
+	if err := compressGzip(wasmOut, wasmOut+".gz"); err != nil {
+		fmt.Printf("⚠️ Failed to compress WASM: %v\n", err)
+	} else {
+		fmt.Printf("✅ WASM compressed size: %s\n", getFileSize(wasmOut+".gz"))
+	}
 	return true
+}
+
+func compressGzip(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	gw := gzip.NewWriter(out)
+	defer gw.Close()
+
+	_, err = io.Copy(gw, in)
+	return err
+}
+
+func getFileSize(path string) string {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "unknown"
+	}
+	return fmt.Sprintf("%.2f KB", float64(fi.Size())/1024)
 }

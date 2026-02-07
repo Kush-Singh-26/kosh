@@ -19,7 +19,7 @@ import (
 )
 
 // CopyDirVFS copies a directory from srcFs to destFs with parallel image processing.
-func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, onWrite func(string)) error {
+func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string)) error {
 	// Create destination directory
 	if err := destFs.MkdirAll(dstDir, 0755); err != nil {
 		return err
@@ -65,6 +65,14 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 		destPath := filepath.Join(dstDir, relPath)
 
 		ext := strings.ToLower(filepath.Ext(path))
+
+		// Check exclusions
+		for _, exclude := range excludeExts {
+			if ext == exclude {
+				return nil
+			}
+		}
+
 		isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
 
 		if compress && isImage {

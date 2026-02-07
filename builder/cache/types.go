@@ -12,25 +12,26 @@ import (
 
 // PostMeta stores metadata about a cached post
 type PostMeta struct {
-	PostID         string            `msgpack:"post_id"`
-	Path           string            `msgpack:"path"`
-	ModTime        int64             `msgpack:"mod_time"`
-	ContentHash    string            `msgpack:"content_hash"`
-	HTMLHash       string            `msgpack:"html_hash"`
-	TemplateHash   string            `msgpack:"template_hash"`
-	SSRInputHashes []string          `msgpack:"ssr_input_hashes"`
-	Title          string            `msgpack:"title"`
-	Date           time.Time         `msgpack:"date"`
-	Tags           []string          `msgpack:"tags"`
-	WordCount      int               `msgpack:"word_count"`
-	ReadingTime    int               `msgpack:"reading_time"`
-	Description    string            `msgpack:"description"`
-	Link           string            `msgpack:"link"`
-	Pinned         bool              `msgpack:"pinned"`
-	Draft          bool              `msgpack:"draft"`
-	HasMath        bool              `msgpack:"has_math"`
-	HasMermaid     bool              `msgpack:"has_mermaid"`
-	Meta           map[string]string `msgpack:"meta"`
+	PostID         string                 `msgpack:"post_id"`
+	Path           string                 `msgpack:"path"`
+	ModTime        int64                  `msgpack:"mod_time"`
+	ContentHash    string                 `msgpack:"content_hash"`
+	HTMLHash       string                 `msgpack:"html_hash"`
+	TemplateHash   string                 `msgpack:"template_hash"`
+	SSRInputHashes []string               `msgpack:"ssr_input_hashes"`
+	Title          string                 `msgpack:"title"`
+	Date           time.Time              `msgpack:"date"`
+	Tags           []string               `msgpack:"tags"`
+	WordCount      int                    `msgpack:"word_count"`
+	ReadingTime    int                    `msgpack:"reading_time"`
+	Description    string                 `msgpack:"description"`
+	Link           string                 `msgpack:"link"`
+	Pinned         bool                   `msgpack:"pinned"`
+	Draft          bool                   `msgpack:"draft"`
+	HasMath        bool                   `msgpack:"has_math"`
+	HasMermaid     bool                   `msgpack:"has_mermaid"`
+	Meta           map[string]interface{} `msgpack:"meta"`
+	TOC            []TOCEntry             `msgpack:"toc"`
 }
 
 // SSRArtifact stores server-side rendered content (D2 diagrams, KaTeX math)
@@ -50,6 +51,7 @@ type SearchRecord struct {
 	Tokens   []string       `msgpack:"tokens"`
 	BM25Data map[string]int `msgpack:"bm25_data"` // word -> frequency
 	DocLen   int            `msgpack:"doc_len"`
+	Content  string         `msgpack:"content"`
 }
 
 // Dependencies tracks what a post depends on
