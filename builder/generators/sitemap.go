@@ -4,13 +4,15 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/url"
-	"os"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"my-ssg/builder/models"
+	"my-ssg/builder/utils"
 )
 
-func GenerateSitemap(baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata) {
+func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata) {
 	var urls []models.Url
 
 	// 1. Add Home Page
@@ -52,7 +54,7 @@ func GenerateSitemap(baseURL string, posts []models.PostMetadata, tags map[strin
 
 	finalOutput := []byte(xml.Header + string(output))
 
-	if err := os.WriteFile("public/sitemap/sitemap.xml", finalOutput, 0644); err != nil {
+	if err := utils.WriteFileVFS(destFs, "public/sitemap/sitemap.xml", finalOutput); err != nil {
 		fmt.Printf("⚠️ Failed to write sitemap.xml: %v\n", err)
 	}
 }

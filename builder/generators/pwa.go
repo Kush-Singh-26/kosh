@@ -2,20 +2,20 @@ package generators
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"text/template"
 
 	"github.com/disintegration/imaging"
+	"github.com/spf13/afero"
 )
 
 // GenerateSW creates the service worker only if needed (smart build)
-func GenerateSW(destDir string, buildVersion int64, forceRebuild bool, baseURL string) error {
+func GenerateSW(destFs afero.Fs, destDir string, buildVersion int64, forceRebuild bool, baseURL string, assets map[string]string) error {
 	swPath := filepath.Join(destDir, "sw.js")
 
 	// 1. Smart Check: If not forcing rebuild and SW exists, skip
 	if !forceRebuild {
-		if _, err := os.Stat(swPath); err == nil {
+		if exists, _ := afero.Exists(destFs, swPath); exists {
 			return nil
 		}
 	}
@@ -34,98 +34,9 @@ const CORE_ASSETS = [
     '{{ .BaseURL }}/',
     '{{ .BaseURL }}/index.html',
     '{{ .BaseURL }}/404.html',
-    '{{ .BaseURL }}/manifest.json'
+    '{{ .BaseURL }}/manifest.json'{{ range .CriticalAssets }},
+    '{{ $.BaseURL }}{{ . }}'{{ end }}
 ];
-
-// Install: Cache core assets
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => cache.addAll(CORE_ASSETS))
-            .then(() => self.skipWaiting())
-    );
-});
-
-// Activate: Clean up old caches
-self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cache) => {
-                    if (cache !== CACHE_NAME && cache !== STATIC_CACHE) {
-                        return caches.delete(cache);
-                    }
-                })
-            );
-        }).then(() => self.clients.claim())
-    );
-});
-
-// Stale-while-revalidate strategy for better performance
-self.addEventListener('fetch', (event) => {
-    const { request } = event;
-    const url = new URL(request.url);
-    
-    // Skip caching for dev hosts (disable SW in development mode)
-    if (DEV_HOSTS.includes(url.hostname)) {
-        event.respondWith(fetch(request));
-        return;
-    }
-    
-    // Skip caching for unsupported schemes (chrome-extension://, moz-extension://, about:, data:, etc.)
-    if (!['http:', 'https:'].includes(url.protocol)) {
-        event.respondWith(fetch(request));
-        return;
-    }
-    
-    // Skip non-GET requests
-    if (request.method !== 'GET') {
-        event.respondWith(fetch(request));
-        return;
-    }
-    
-    // Strategy for HTML pages: Network first, fallback to cache
-    if (request.mode === 'navigate' || request.headers.get('accept').includes('text/html')) {
-        event.respondWith(
-            fetch(request)
-                .then((response) => {
-                    // Update cache with fresh version
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(request, clone);
-                    });
-                    return response;
-                })
-                .catch(() => {
-                    // Fallback to cache if network fails
-                    return caches.match(request);
-                })
-        );
-        return;
-    }
-    
-    // Strategy for static assets: Cache first, revalidate in background
-    event.respondWith(
-        caches.match(request).then((cachedResponse) => {
-            // Return cached version immediately (fast!)
-            const fetchPromise = fetch(request).then((networkResponse) => {
-                // Update cache in background for next visit
-                if (networkResponse.ok) {
-                    const clone = networkResponse.clone();
-                    caches.open(STATIC_CACHE).then((cache) => {
-                        cache.put(request, clone);
-                    });
-                }
-                return networkResponse;
-            }).catch(() => {
-                // Network failed, but we already returned cached version
-                return cachedResponse;
-            });
-            
-            return cachedResponse || fetchPromise;
-        })
-    );
-});
 `
 
 	tmpl, err := template.New("sw").Parse(swTemplate)
@@ -133,30 +44,52 @@ self.addEventListener('fetch', (event) => {
 		return err
 	}
 
-	f, err := os.Create(swPath)
+	if err := destFs.MkdirAll(filepath.Dir(swPath), 0755); err != nil {
+		return err
+	}
+	f, err := destFs.Create(swPath)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = f.Close() }()
 
 	data := struct {
-		Version int64
-		BaseURL string
+		Version        int64
+		BaseURL        string
+		CriticalAssets []string
 	}{
 		Version: buildVersion,
 		BaseURL: baseURL,
+	}
+
+	// Identify critical assets to pre-cache
+	criticalKeys := []string{
+		"/static/css/layout.css",
+		"/static/css/theme.css",
+		"/static/js/main.js",
+		"/static/js/search.js",
+		"/static/js/wasm_exec.js",
+	}
+
+	for _, key := range criticalKeys {
+		if val, ok := assets[key]; ok {
+			data.CriticalAssets = append(data.CriticalAssets, val)
+		} else {
+			// Fallback if assets map is empty (e.g. dev mode without hashing)
+			data.CriticalAssets = append(data.CriticalAssets, key)
+		}
 	}
 
 	return tmpl.Execute(f, data)
 }
 
 // GenerateManifest creates the manifest.json dynamically with a smart build check
-func GenerateManifest(destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool) error {
+func GenerateManifest(destFs afero.Fs, destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool) error {
 	manifestPath := filepath.Join(destDir, "manifest.json")
 
 	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
 	if !forceRebuild {
-		if _, err := os.Stat(manifestPath); err == nil {
+		if exists, _ := afero.Exists(destFs, manifestPath); exists {
 			return nil
 		}
 	}
@@ -207,7 +140,10 @@ func GenerateManifest(destDir string, baseURL string, siteTitle string, siteDesc
 		return err
 	}
 
-	f, err := os.Create(manifestPath)
+	if err := destFs.MkdirAll(filepath.Dir(manifestPath), 0755); err != nil {
+		return err
+	}
+	f, err := destFs.Create(manifestPath)
 	if err != nil {
 		return err
 	}
@@ -227,15 +163,22 @@ func GenerateManifest(destDir string, baseURL string, siteTitle string, siteDesc
 }
 
 // GeneratePWAIcons generates 192x192 and 512x512 icons from favicon.png
-func GeneratePWAIcons(srcPath, destDir string) error {
+func GeneratePWAIcons(srcFs afero.Fs, destFs afero.Fs, srcPath, destDir string) error {
 	// Source must exist
-	srcInfo, err := os.Stat(srcPath)
+	srcFile, err := srcFs.Open(srcPath)
 	if err != nil {
 		return fmt.Errorf("source icon not found: %w", err)
 	}
+	defer srcFile.Close()
+
+	// Open source image
+	src, err := imaging.Decode(srcFile)
+	if err != nil {
+		return err
+	}
 
 	// Create dest dir if needed
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	if err := destFs.MkdirAll(destDir, 0755); err != nil {
 		return err
 	}
 
@@ -244,26 +187,25 @@ func GeneratePWAIcons(srcPath, destDir string) error {
 	for _, size := range sizes {
 		destFile := filepath.Join(destDir, fmt.Sprintf("icon-%d.png", size))
 
-		// Smart Check: Skip if destination exists and is newer than source
-		if destInfo, err := os.Stat(destFile); err == nil {
-			if destInfo.ModTime().After(srcInfo.ModTime()) {
-				continue
-			}
-		}
+		// Check if destination exists in VFS.
+		// Note: We don't check modtime here easily against source stream without Stat'ing source path again.
+		// For simplicity in VFS build (which might be fresh), just generate.
+		// If we want incremental, we rely on checking if file exists in VFS (it won't if VFS is fresh).
 
 		fmt.Printf("   🎨 Generating PWA Icon: %dx%d\n", size, size)
-
-		// Open source image
-		src, err := imaging.Open(srcPath)
-		if err != nil {
-			return err
-		}
 
 		// Resize
 		dst := imaging.Resize(src, size, size, imaging.Lanczos)
 
-		// Save
-		err = imaging.Save(dst, destFile)
+		// Save to VFS
+		f, err := destFs.Create(destFile)
+		if err != nil {
+			return err
+		}
+
+		// Encode as PNG
+		err = imaging.Encode(f, dst, imaging.PNG)
+		f.Close()
 		if err != nil {
 			return err
 		}

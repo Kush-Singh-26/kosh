@@ -28,4 +28,7 @@ menu:
 # Features
 postsPerPage: 10
 compressImages: true
+theme: "blog"
+templateDir: "themes/blog/templates"
+staticDir: "themes/blog/static"
 buildVersion: 0 # Automatically updated

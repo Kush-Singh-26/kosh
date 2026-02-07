@@ -3,13 +3,15 @@ package generators
 import (
 	"encoding/xml"
 	"fmt"
-	"os"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"my-ssg/builder/models"
+	"my-ssg/builder/utils"
 )
 
-func GenerateRSS(baseURL string, posts []models.PostMetadata, title, description string) {
+func GenerateRSS(destFs afero.Fs, baseURL string, posts []models.PostMetadata, title, description string) {
 	var items []models.Item
 	for _, p := range posts {
 		items = append(items, models.Item{
@@ -30,7 +32,7 @@ func GenerateRSS(baseURL string, posts []models.PostMetadata, title, description
 		},
 	}
 	output, _ := xml.MarshalIndent(rss, "", "  ")
-	if err := os.WriteFile("public/rss.xml", []byte(xml.Header+string(output)), 0644); err != nil {
+	if err := utils.WriteFileVFS(destFs, "public/rss.xml", []byte(xml.Header+string(output))); err != nil {
 		fmt.Printf("⚠️ Failed to write rss.xml: %v\n", err)
 	}
 }

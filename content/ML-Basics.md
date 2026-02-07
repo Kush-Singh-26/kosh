@@ -262,31 +262,44 @@ $$\mathbf{R} =
 7. It is evaluated on the test set, producing an unbiased estimate of the performance.
 
 
-```mermaid
-flowchart TB
-    A[Labeled Dataset]
+```d2
+direction: down
 
-    A --> B[Training Set]
-    A --> C[Test Set]
+A: "Labeled Dataset"
 
-    subgraph G[Model Development]
-        direction TB
-        B1[Training Set]
-        B2[Validation Set]
+A -> B: " "
+A -> C: " "
 
-        B1 --> D[Learned models]
-        B2 --> E[Select model]
-        D --> E
-    end
+B: "Training Set"
+C: "Test Set"
 
-    B --> B1
-    B --> B2
+G: {
+  label: "Model Development"
+  direction: down
+  style.stroke: "#2ecc71"
+  style.stroke-width: 3
 
-    E --> F[Supervised Learned Model]
-    C --> F
-    F --> H[Accuracy Estimate]
+  B1: "Training Set"
+  B2: "Validation Set"
 
-    style G stroke:#2ecc71,stroke-width:3px
+  B1 -> D
+  B2 -> E
+  D -> E
+
+  D: "Learned models"
+  E: "Select model"
+}
+
+B -> G.B1
+B -> G.B2
+
+G.E -> F
+C -> F
+
+F: "Supervised Learned Model"
+F -> H
+
+H: "Accuracy Estimate"
 ```
 
 ---

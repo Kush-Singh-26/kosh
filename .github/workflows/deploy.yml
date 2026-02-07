@@ -28,11 +28,6 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Setup Chrome
-        uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-
       # Restore timestamps so incremental build works
       - name: Restore Timestamps
         uses: chetan/git-restore-mtime-action@v2
@@ -52,18 +47,9 @@ jobs:
         run: mkdir -p .kosh-cache
 
       - name: Build Static Site
-        env:
-          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
         run: |
-          # Copy cache files to public if they exist
-          if [ -d ".kosh-cache" ]; then
-            cp -r .kosh-cache/* public/ 2>/dev/null || true
-          fi
-          go run cmd/kosh/main.go build --compress -baseurl https://kush-singh-26.github.io/blogs
-          # Copy cache files back for next run
-          mkdir -p .kosh-cache
-          cp public/.kosh-build-cache.json .kosh-cache/ 2>/dev/null || true
-          cp public/.social-card-cache.json .kosh-cache/ 2>/dev/null || true
+          go run cmd/kosh/main.go build -compress -baseurl https://kush-singh-26.github.io/blogs
+
 
 
       - name: Setup Pages

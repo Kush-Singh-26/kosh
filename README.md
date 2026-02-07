@@ -17,8 +17,8 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **Image Optimization**: 24 parallel workers convert to WebP with real-time progress tracking.
 - **Knowledge Graph**: Generates an interactive force-directed graph visualizing connections between posts and tags.
 - **WASM Search Engine**: Fast, full-text search powered by Go and WebAssembly with BM25 ranking and tag filtering.
-- **Math & Diagram Support**: Server-side rendering of LaTeX equations (KaTeX) and Mermaid diagrams (flowcharts, sequences) as inline SVG.
-- **Smart Caching**: Chrome only starts when needed; template changes only invalidate affected posts.
+- **Math & Diagram Support**: Native server-side rendering of LaTeX equations (via `treeblood`) and D2 diagrams (via `d2lib`) as inline SVG. No browser dependency.
+- **Smart Caching**: Template changes only invalidate affected posts; native rendering is fast and cached.
 - **Real-time Progress**: Live counters showing posts processed and images converted.
 - **SEO Ready**: Auto-generates `sitemap.xml` (in `/sitemap/`), `rss.xml`, and fully optimized meta tags.
 - **PWA Support**: Stale-while-revalidate caching for instant repeat visits.
@@ -28,7 +28,7 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 ### Recent Optimizations
 
 - **Async Static Processing**: Static asset copying (images, CSS, JS) now runs in parallel with post processing, eliminating the 12+ second wait.
-- **LaTeX Batching**: All LaTeX expressions from all posts are collected and rendered in a single Chrome session, reducing Chrome tabs from ~15 to 1.
+- **Native Rendering**: LaTeX and D2 diagrams are rendered natively in Go, removing the need for Headless Chrome and significantly simplifying the build chain.
 - **Content-Only Fast Rebuilds**: Editing post content (not frontmatter) triggers a lightweight rebuild that skips global page regeneration.
 - **Separate Cache Directory**: Build caches stored in `.kosh-cache/` (not deployed), keeping deployments clean and cache restores fast.
 - **Cross-Platform Path Normalization**: Cache keys use forward slashes for compatibility between Windows (local) and Linux (CI) builds.
@@ -219,7 +219,8 @@ The `kosh clean` command accepts:
 - **Minification**: `github.com/tdewolff/minify/v2`
 - **Image Processing**: `github.com/disintegration/imaging`
 - **WebP Encoding**: `github.com/chai2010/webp`
-- **Headless Rendering**: `github.com/chromedp/chromedp` (server-side LaTeX and Mermaid)
+- **Native D2 Rendering**: `oss.terrastruct.com/d2`
+- **Native LaTeX Rendering**: `github.com/wyatt915/treeblood`
 - **Text Casing**: `golang.org/x/text` (for modern string transformations)
 
 ## Deployment
@@ -228,15 +229,13 @@ Kosh is configured for deployment to **GitHub Pages** via GitHub Actions.
 
 ### Prerequisites
 
-1. **Chrome for CI**: The workflow installs Chrome automatically for server-side LaTeX and Mermaid rendering
-2. **Cache Setup**: Build caches are stored in `.kosh-cache/` and restored between builds for incremental processing
-3. **GitHub Pages**: Enable GitHub Pages in your repository settings
+1. **Cache Setup**: Build caches are stored in `.kosh-cache/` and restored between builds for incremental processing
+2. **GitHub Pages**: Enable GitHub Pages in your repository settings
 
 ### Deployment Process
 
 1. Push to the `main` branch or trigger manual workflow dispatch
 2. GitHub Actions will:
-   - Install Chrome
    - Restore build cache from previous runs
    - Build the site with compression
    - Deploy to GitHub Pages
@@ -266,7 +265,7 @@ With all optimizations applied:
 - **Content Edit**: ~1-2 seconds (incremental)
 - **Frontmatter Edit**: Full rebuild (~21s)
 - **Image Processing**: Parallel with 24 workers
-- **LaTeX Rendering**: Batched in single Chrome session
+- **Native Rendering**: LaTeX and D2 diagrams rendered directly in Go
 - **Static Assets**: Processed async with posts
 
 ---

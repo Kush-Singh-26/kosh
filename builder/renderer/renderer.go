@@ -5,10 +5,11 @@ import (
 	"html/template"
 	"io"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/spf13/afero"
 
 	"my-ssg/builder/models"
 	"my-ssg/builder/utils"
@@ -21,36 +22,41 @@ type Renderer struct {
 	NotFound *template.Template
 	Assets   map[string]string
 	Compress bool
+	DestFs   afero.Fs
 }
 
-func New(compress bool) *Renderer {
+func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 	funcMap := template.FuncMap{
 		"lower":     strings.ToLower,
 		"hasPrefix": strings.HasPrefix,
 		"now":       time.Now,
 	}
 
+	// Templates are read from OS filesystem (Source code)
+	// We could abstract this too, but templates are usually static source.
+	// Assuming running from root.
+
 	// Load layout template
-	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles("templates/layout.html")
+	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles(filepath.Join(templateDir, "layout.html"))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Load index template
-	indexTmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles("templates/index.html")
+	indexTmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles(filepath.Join(templateDir, "index.html"))
 	if err != nil {
-		log.Printf("⚠️  Index template not found, will use layout.html for index. (%v)\n", err)
+		log.Printf("⚠️  Index template not found in %s, will use layout.html for index. (%v)\n", templateDir, err)
 		indexTmpl = nil
 	}
 
 	// Load graph template
-	graphTmpl, err := template.ParseFiles("templates/graph.html")
+	graphTmpl, err := template.ParseFiles(filepath.Join(templateDir, "graph.html"))
 	if err != nil {
-		log.Printf("⚠️  Graph template not found, skipping graph page. (%v)\n", err)
+		log.Printf("⚠️  Graph template not found in %s, skipping graph page. (%v)\n", templateDir, err)
 	}
 
 	// Load 404 template
-	notFoundTmpl, err := template.New("404.html").Funcs(funcMap).ParseFiles("templates/404.html")
+	notFoundTmpl, err := template.New("404.html").Funcs(funcMap).ParseFiles(filepath.Join(templateDir, "404.html"))
 	if err != nil {
 		log.Printf("⚠️  404 template not found, will use layout.html for 404 page. (%v)\n", err)
 		notFoundTmpl = nil
@@ -62,6 +68,7 @@ func New(compress bool) *Renderer {
 		Graph:    graphTmpl,
 		NotFound: notFoundTmpl,
 		Compress: compress,
+		DestFs:   destFs,
 	}
 }
 
@@ -73,12 +80,12 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 	// Inject Assets
 	data.Assets = r.Assets
 
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
 		return
 	}
 
-	f, err := os.Create(path)
+	f, err := r.DestFs.Create(path)
 	if err != nil {
 		log.Printf("❌ Failed to create file %s: %v\n", path, err)
 		return
@@ -103,11 +110,11 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 	// Inject Assets
 	data.Assets = r.Assets
 
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
 		return
 	}
-	f, err := os.Create(path)
+	f, err := r.DestFs.Create(path)
 	if err != nil {
 		log.Printf("❌ Failed to create file %s: %v\n", path, err)
 		return
@@ -141,7 +148,12 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 	}
 	data.Assets = r.Assets
 
-	f, err := os.Create(path)
+	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
+		return
+	}
+
+	f, err := r.DestFs.Create(path)
 	if err != nil {
 		log.Printf("❌ Failed to create file %s: %v\n", path, err)
 		return
@@ -164,11 +176,11 @@ func (r *Renderer) Render404(path string, data models.PageData) {
 	// Inject Assets
 	data.Assets = r.Assets
 
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
 		return
 	}
-	f, err := os.Create(path)
+	f, err := r.DestFs.Create(path)
 	if err != nil {
 		log.Printf("❌ Failed to create file %s: %v\n", path, err)
 		return

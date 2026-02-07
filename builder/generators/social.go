@@ -2,15 +2,16 @@ package generators
 
 import (
 	"fmt"
+	"image"
 	"image/color"
-	"os"
 
 	"github.com/chai2010/webp"
 	"github.com/fogleman/gg"
+	"github.com/spf13/afero"
 )
 
 // GenerateSocialCard creates an Apple Dark Mode aesthetic Open Graph image.
-func GenerateSocialCard(title, description, dateStr, destPath, faviconPath, fontsDir string) error {
+func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, title, description, dateStr, destPath, faviconPath, fontsDir string) error {
 	const (
 		W = 1200
 		H = 630
@@ -31,6 +32,10 @@ func GenerateSocialCard(title, description, dateStr, destPath, faviconPath, font
 	drawDiffuseOrb(dc, W, H, 800, color.RGBA{48, 176, 199, 12})
 
 	// --- 3. Typography Setup ---
+	// Fonts are read from OS filesystem directly as gg/freetype requires paths usually,
+	// or we can assume fontsDir is accessible via OS.
+	// If VFS is used for source, we might need to read fonts into bytes if they are virtual.
+	// But in this setup, source fonts are real files.
 	boldFont := fontsDir + "/Inter-Bold.ttf"
 	mediumFont := fontsDir + "/Inter-Medium.ttf"
 	regFont := fontsDir + "/Inter-Regular.ttf"
@@ -44,18 +49,23 @@ func GenerateSocialCard(title, description, dateStr, destPath, faviconPath, font
 	currentX := marginX
 
 	if faviconPath != "" {
-		im, err := gg.LoadImage(faviconPath)
+		// Load image from SourceFs
+		f, err := srcFs.Open(faviconPath)
 		if err == nil {
-			iconSize := 48.0
-			w := im.Bounds().Dx()
-			scale := iconSize / float64(w)
+			defer f.Close()
+			im, _, err := image.Decode(f)
+			if err == nil {
+				iconSize := 48.0
+				w := im.Bounds().Dx()
+				scale := iconSize / float64(w)
 
-			dc.Push()
-			dc.Scale(scale, scale)
-			dc.DrawImage(im, int(currentX/scale), int((headerY-35)/scale))
-			dc.Pop()
+				dc.Push()
+				dc.Scale(scale, scale)
+				dc.DrawImage(im, int(currentX/scale), int((headerY-35)/scale))
+				dc.Pop()
 
-			currentX += iconSize + 20
+				currentX += iconSize + 20
+			}
 		}
 	}
 
@@ -101,8 +111,37 @@ func GenerateSocialCard(title, description, dateStr, destPath, faviconPath, font
 		dc.DrawStringWrapped(description, marginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
 	}
 
-	// --- 8. Save ---
-	f, err := os.Create(destPath)
+	// --- 8. Save to DestFs ---
+	// Ensure directory exists
+	// filepath.Dir might be "." or "public/..."
+	// We need to use destFs.MkdirAll
+	// destPath is passed as relative path usually.
+
+	// Create parent dir
+	// We assume destPath is clean.
+	// But filepath.Dir on "foo.webp" is "."
+	// MkdirAll on "." is fine.
+
+	// Issue: "public/static/..." - we need to make sure we strip public/ if destFs is rooted at public,
+	// BUT DestFs is likely MemMapFs mounted at root. The path passed in run.go includes "public/".
+	// If SyncVFS syncs root of MemFs to current dir, then "public" in MemFs maps to "public" on disk.
+	// So we should keep "public/" in the path.
+
+	// filepath.Dir(destPath)
+
+	// We can't use os.MkdirAll. Use destFs.MkdirAll.
+	// But gg doesn't have a "SaveToWriter".
+	// Wait, gg doesn't have SaveToWriter??
+	// dc.SavePNG(path) uses EncodePNG.
+	// We can manually encode.
+
+	// Create file in VFS
+	// Need to import path/filepath if not imported? (It is not imported in original file)
+	// I'll add it.
+
+	// Wait, I can just use webp.Encode as before, passing the writer.
+
+	f, err := destFs.Create(destPath)
 	if err != nil {
 		return err
 	}

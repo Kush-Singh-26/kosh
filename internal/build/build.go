@@ -9,15 +9,17 @@ import (
 
 // CheckWASM checks if the search engine WASM needs to be rebuilt and builds it if necessary.
 func CheckWASM() {
-	// Ensure bin directory exists (though not strictly needed for WASM)
-	_ = os.MkdirAll("bin", 0755)
+	wasmOut := "static/wasm/search.wasm"
+	// Ensure output directory exists
+	if err := os.MkdirAll(filepath.Dir(wasmOut), 0755); err != nil {
+		fmt.Printf("⚠️ Failed to create WASM directory: %v\n", err)
+	}
 
 	wasmSrc := []string{
 		"cmd/search",
 		"builder/search",
 		"builder/models",
 	}
-	wasmOut := "static/wasm/search.wasm"
 
 	if needsRebuild(wasmSrc, wasmOut) {
 		fmt.Println("🚀 WASM source changes detected. Building Search WASM...")

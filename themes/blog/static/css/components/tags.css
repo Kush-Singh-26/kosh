@@ -1,0 +1,60 @@
+/* Tags & Topics Structural Styles */
+.tag-cloud {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+}
+
+.tag-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 1.2rem;
+    border-radius: 99px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.tag-pill:hover {
+    transform: translateY(-2px);
+}
+
+.tag-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    border-radius: 99px;
+    padding: 2px 8px;
+}
+
+.mini-tag {
+    font-family: var(--font-mono);
+    text-decoration: none;
+}
+
+.tag-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Individual Tag Pages List */
+.post-list {
+    list-style: none;
+    margin-top: 2rem;
+}
+
+.post-list li {
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+}
+
+.post-title {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.post-desc {
+    margin-bottom: 1rem;
+}

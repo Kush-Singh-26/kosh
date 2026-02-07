@@ -38,9 +38,9 @@ func initSearch(this js.Value, args []js.Value) interface{} {
 		reject := args[1]
 
 		go func() {
-			data, err := fetchBytes(url)
+			data, err := fetchAndDecompress(url)
 			if err != nil {
-				reject.Invoke(fmt.Sprintf("Fetch error: %v", err))
+				reject.Invoke(fmt.Sprintf("Fetch/Decompress error: %v", err))
 				return
 			}
 
@@ -60,7 +60,7 @@ func initSearch(this js.Value, args []js.Value) interface{} {
 	return promiseConstructor.New(handler)
 }
 
-func fetchBytes(url string) ([]byte, error) {
+func fetchAndDecompress(url string) ([]byte, error) {
 	ch := make(chan interface{}, 1)
 
 	window := js.Global()
@@ -73,10 +73,30 @@ func fetchBytes(url string) ([]byte, error) {
 			return nil
 		}
 
-		bufPromise := resp.Call("arrayBuffer")
+		// Check if DecompressionStream exists (browser support)
+		dsCtor := window.Get("DecompressionStream")
+		if dsCtor.IsUndefined() {
+			// Fallback or error? Most modern browsers support it.
+			// Assuming gzip content, we must decompress.
+			ch <- fmt.Errorf("DecompressionStream not supported in this browser")
+			return nil
+		}
+
+		// Create DecompressionStream
+		ds := dsCtor.New("gzip")
+
+		// Pipe the response body through the decompressor
+		body := resp.Get("body")
+		decompressedStream := body.Call("pipeThrough", ds)
+
+		// Read the stream using Response object trick
+		newRespCtor := window.Get("Response")
+		newResp := newRespCtor.New(decompressedStream)
+
+		bufPromise := newResp.Call("arrayBuffer")
 		bufSuccess := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			buf := args[0]
-			uint8Array := js.Global().Get("Uint8Array").New(buf)
+			uint8Array := window.Get("Uint8Array").New(buf)
 			dst := make([]byte, uint8Array.Length())
 			js.CopyBytesToGo(dst, uint8Array)
 			ch <- dst

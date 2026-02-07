@@ -37,6 +37,9 @@ type Config struct {
 	Menu           []MenuEntry  `yaml:"menu"`
 	PostsPerPage   int          `yaml:"postsPerPage"`
 	CompressImages bool         `yaml:"compressImages"`
+	Theme          string       `yaml:"theme"`
+	TemplateDir    string       `yaml:"templateDir"`
+	StaticDir      string       `yaml:"staticDir"`
 	// Internal / Runtime fields
 	ForceRebuild  bool  `yaml:"-"`
 	IncludeDrafts bool  `yaml:"-"`
@@ -51,6 +54,9 @@ func Load(args []string) *Config {
 		BaseURL:      "",
 		PostsPerPage: 10,
 		BuildVersion: time.Now().Unix(),
+		Theme:        "blog",
+		TemplateDir:  "templates",
+		StaticDir:    "static",
 	}
 
 	// 2. Load from YAML file if exists

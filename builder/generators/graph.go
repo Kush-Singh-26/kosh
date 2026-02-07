@@ -3,13 +3,15 @@ package generators
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/spf13/afero"
+
 	"my-ssg/builder/models"
+	"my-ssg/builder/utils"
 )
 
-func GenerateGraph(baseURL string, posts []models.PostMetadata) {
+func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata) {
 	nodes := []models.GraphNode{}
 	links := []models.GraphLink{}
 	nodeExists := make(map[string]bool)
@@ -34,7 +36,7 @@ func GenerateGraph(baseURL string, posts []models.PostMetadata) {
 		}
 	}
 	output, _ := json.Marshal(models.GraphData{Nodes: nodes, Links: links})
-	if err := os.WriteFile("public/graph.json", output, 0644); err != nil {
+	if err := utils.WriteFileVFS(destFs, "public/graph.json", output); err != nil {
 		fmt.Printf("⚠️ Failed to write graph.json: %v\n", err)
 	}
 }

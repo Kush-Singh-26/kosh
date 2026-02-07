@@ -168,12 +168,20 @@ type IndexedPost struct {
 	DocLen    int
 }
 
+// DependencyGraph tracks relationships between files for incremental builds
+type DependencyGraph struct {
+	Templates map[string][]string `json:"templates"` // Template -> [PostPaths]
+	Tags      map[string][]string `json:"tags"`      // Tag -> [PostPaths]
+	Assets    map[string][]string `json:"assets"`    // Asset -> [PostPaths]
+}
+
 // MetadataCache is the structure for our persistent build cache
 type MetadataCache struct {
 	BaseURL          string                `json:"base_url"`
 	Posts            map[string]CachedPost `json:"posts"`
 	DiagramCache     map[string]string     `json:"diagram_cache"`      // hash -> rendered SVG/HTML
 	TemplateModTimes map[string]time.Time  `json:"template_mod_times"` // Track template changes for granular invalidation
+	Dependencies     DependencyGraph       `json:"dependencies"`
 }
 
 type SearchIndex struct {
