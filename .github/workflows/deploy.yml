@@ -48,7 +48,7 @@ jobs:
 
       - name: Build Static Site
         run: |
-          go run cmd/kosh/main.go build -compress -baseurl https://kush-singh-26.github.io/blogs
+          go run cmd/kosh/main.go build -baseurl https://kush-singh-26.github.io/blogs
 
 
 

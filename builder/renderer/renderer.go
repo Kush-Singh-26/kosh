@@ -7,6 +7,7 @@ import (
 	"log"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/afero"
@@ -16,13 +17,15 @@ import (
 )
 
 type Renderer struct {
-	Layout   *template.Template
-	Index    *template.Template
-	Graph    *template.Template
-	NotFound *template.Template
-	Assets   map[string]string
-	Compress bool
-	DestFs   afero.Fs
+	Layout      *template.Template
+	Index       *template.Template
+	Graph       *template.Template
+	NotFound    *template.Template
+	Assets      map[string]string
+	Compress    bool
+	DestFs      afero.Fs
+	RenderedMu  sync.Mutex
+	RenderedSet map[string]bool
 }
 
 func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
@@ -58,21 +61,42 @@ func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 	// Load 404 template
 	notFoundTmpl, err := template.New("404.html").Funcs(funcMap).ParseFiles(filepath.Join(templateDir, "404.html"))
 	if err != nil {
-		log.Printf("⚠️  404 template not found, will use layout.html for 404 page. (%v)\n", err)
+		log.Printf("⚠️  404 template not found, will use layout.html for 404 page. (%v)\n", templateDir, err)
 		notFoundTmpl = nil
 	}
 
 	return &Renderer{
-		Layout:   tmpl,
-		Index:    indexTmpl,
-		Graph:    graphTmpl,
-		NotFound: notFoundTmpl,
-		Compress: compress,
-		DestFs:   destFs,
+		Layout:      tmpl,
+		Index:       indexTmpl,
+		Graph:       graphTmpl,
+		NotFound:    notFoundTmpl,
+		Compress:    compress,
+		DestFs:      destFs,
+		RenderedSet: make(map[string]bool),
 	}
 }
 
+func (r *Renderer) RegisterFile(path string) {
+	r.RenderedMu.Lock()
+	defer r.RenderedMu.Unlock()
+	// Normalize path to forward slashes for consistency
+	r.RenderedSet[filepath.ToSlash(path)] = true
+}
+
+func (r *Renderer) GetRenderedFiles() map[string]bool {
+	r.RenderedMu.Lock()
+	defer r.RenderedMu.Unlock()
+	return r.RenderedSet
+}
+
+func (r *Renderer) ClearRenderedFiles() {
+	r.RenderedMu.Lock()
+	defer r.RenderedMu.Unlock()
+	r.RenderedSet = make(map[string]bool)
+}
+
 func (r *Renderer) SetAssets(assets map[string]string) {
+
 	r.Assets = assets
 }
 
@@ -103,6 +127,8 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 
 	if err := r.Layout.Execute(w, data); err != nil {
 		log.Printf("❌ Failed to render layout for %s: %v\n", path, err)
+	} else {
+		r.RegisterFile(path)
 	}
 }
 
@@ -139,6 +165,8 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 	}
 	if errExec != nil {
 		log.Printf("❌ Failed to render index for %s: %v\n", path, errExec)
+	} else {
+		r.RegisterFile(path)
 	}
 }
 
@@ -169,6 +197,8 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 
 	if err := r.Graph.Execute(w, data); err != nil {
 		log.Printf("❌ Failed to render graph for %s: %v\n", path, err)
+	} else {
+		r.RegisterFile(path)
 	}
 }
 
@@ -205,5 +235,7 @@ func (r *Renderer) Render404(path string, data models.PageData) {
 	}
 	if errExec != nil {
 		log.Printf("❌ Failed to render 404 for %s: %v\n", path, errExec)
+	} else {
+		r.RegisterFile(path)
 	}
 }

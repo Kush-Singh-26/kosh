@@ -78,8 +78,13 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 			cacheKey := utils.NormalizeCacheKey(path)
 			b.mu.Lock()
 			cached, exists := b.buildCache.Posts[cacheKey]
-			cachedHash := b.socialCardCache.Hashes[relPath]
 			b.mu.Unlock()
+
+			// Get cached social card hash from BoltDB
+			var cachedHash string
+			if b.cacheManager != nil {
+				cachedHash, _ = b.cacheManager.GetSocialCardHash(relPath)
+			}
 
 			useCache := exists && !shouldForce && !info.ModTime().After(cached.ModTime)
 
@@ -218,9 +223,9 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 				defer wg.Done()
 				defer func() { <-cardSem }()
 				_ = generators.GenerateSocialCard(b.DestFs, b.SourceFs, utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"), utils.GetString(t.metaData, "date"), t.cardDestPath, "static/images/favicon.png", "builder/assets/fonts")
-				b.mu.Lock()
-				b.socialCardCache.Hashes[t.path] = t.frontmatterHash
-				b.mu.Unlock()
+				if b.cacheManager != nil {
+					b.cacheManager.SetSocialCardHash(t.path, t.frontmatterHash)
+				}
 			}(t)
 		}
 		wg.Wait()
@@ -229,4 +234,49 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 	utils.SortPosts(allPosts)
 	utils.SortPosts(pinnedPosts)
 	return allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404
+}
+
+// renderCachedPosts re-renders posts using cached HTML content (skips parsing)
+func (b *Builder) renderCachedPosts() {
+	b.mu.Lock()
+	posts := b.buildCache.Posts
+	b.mu.Unlock()
+
+	fmt.Printf("⚡ Fast-rendering %d posts from cache...\n", len(posts))
+	numWorkers := runtime.NumCPU()
+	sem := make(chan struct{}, numWorkers)
+	var wg sync.WaitGroup
+
+	for key, cached := range posts {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(k string, cp models.CachedPost) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			relPath, _ := filepath.Rel("content", k)
+			htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
+			destPath := filepath.Join("public", htmlRelPath)
+
+			// Determine image path (logic duplicated from processPosts for now)
+			imagePath := b.cfg.BaseURL + "/static/images/cards/" + strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
+			if img, ok := cp.Meta["image"].(string); ok {
+				if b.cfg.CompressImages && !strings.HasPrefix(img, "http") {
+					ext := filepath.Ext(img)
+					if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+						img = img[:len(img)-len(ext)] + ".webp"
+					}
+				}
+				imagePath = b.cfg.BaseURL + img
+			}
+
+			b.rnd.RenderPage(destPath, models.PageData{
+				Title: cp.Metadata.Title, Description: cp.Metadata.Description, Content: template.HTML(cp.HTMLContent),
+				Meta: cp.Meta, BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
+				TabTitle: cp.Metadata.Title + " | " + b.cfg.Title, Permalink: cp.Metadata.Link, Image: imagePath,
+				HasMath: cp.Metadata.HasMath, HasMermaid: cp.Metadata.HasMermaid, TOC: cp.TOC, Config: b.cfg,
+			})
+		}(key, cached)
+	}
+	wg.Wait()
 }

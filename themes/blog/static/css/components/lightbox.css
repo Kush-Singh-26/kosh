@@ -20,10 +20,28 @@
     visibility: visible;
 }
 
-#lightbox img {
+#lightbox.active img,
+#lightbox.active .lightbox-svg-container {
+    transform: scale(1);
+}
+
+#lightbox img,
+.lightbox-svg-container {
     max-width: 90%;
     max-height: 90%;
     border-radius: 8px;
     transform: scale(0.9);
     transition: transform 0.3s ease;
+}
+
+.lightbox-svg-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+}
+
+.lightbox-svg-container svg {
+    max-width: 100%;
+    height: auto !important;
 }

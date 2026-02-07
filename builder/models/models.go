@@ -182,6 +182,7 @@ type MetadataCache struct {
 	DiagramCache     map[string]string     `json:"diagram_cache"`      // hash -> rendered SVG/HTML
 	TemplateModTimes map[string]time.Time  `json:"template_mod_times"` // Track template changes for granular invalidation
 	Dependencies     DependencyGraph       `json:"dependencies"`
+	WasmHash         string                `json:"wasm_hash"`
 }
 
 type SearchIndex struct {

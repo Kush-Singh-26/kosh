@@ -550,33 +550,33 @@ $$ softmax(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}} $$
 > ***Example*** :
 > - Let the **scaled score matrix** ($ \frac{QK^T}{\sqrt{d_k}} $) be :
 > $$
-> S = \begin{pmatrix}
-> 1.2 & 0.5 & -1.0 & 0.0 \\
-> 0.3 & 2.0 & 0.1 & -0.5 \\
-> -0.8 & 0.7 & 1.5 & 0.2 \\
-> 1.0 & -1.2 & 0.3 & 0.8
-> \end{pmatrix}
+ S = \begin{pmatrix}
+ 1.2 & 0.5 & -1.0 & 0.0 \\
+ 0.3 & 2.0 & 0.1 & -0.5 \\
+ -0.8 & 0.7 & 1.5 & 0.2 \\
+ 1.0 & -1.2 & 0.3 & 0.8
+ \end{pmatrix}
 > $$
 >
 > - Let the **mask matrix** be :
 > $$
-> M = \begin{pmatrix}
-> 0 & -\infty & -\infty & -\infty \\
-> 0 & 0 & -\infty & -\infty \\
-> 0 & 0 & 0 & -\infty \\
-> 0 & 0 & 0 & 0
-> \end{pmatrix}
-> $$
+ M = \begin{pmatrix}
+ 0 & -\infty & -\infty & -\infty \\
+ 0 & 0 & -\infty & -\infty \\
+ 0 & 0 & 0 & -\infty \\
+ 0 & 0 & 0 & 0
+ \end{pmatrix}
+ $$
 >
 > - Adding them will give the masked scaled score matrix :
 > $$
-> S' = \begin{pmatrix}
-> 1.2 & -\infty & -\infty & -\infty \\
-> 0.3 & 2.0 & -\infty & -\infty \\
-> -0.8 & 0.7 & 1.5 & -\infty \\
-> 1.0 & -1.2 & 0.3 & 0.8
-> \end{pmatrix}
-> $$
+ S' = \begin{pmatrix}
+ 1.2 & -\infty & -\infty & -\infty \\
+ 0.3 & 2.0 & -\infty & -\infty \\
+ -0.8 & 0.7 & 1.5 & -\infty \\
+ 1.0 & -1.2 & 0.3 & 0.8
+ \end{pmatrix}
+ $$
 >
 > - Now softmax is applied to each row of $S'$.
 > - For row 0 : $ softmax([1.2, -\infty, -\infty, -\infty]) $ = [1, 0, 0, 0].
@@ -585,13 +585,13 @@ $$ softmax(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}} $$
 >
 > - Final $A$ matrix is :
 > $$
-> A = \begin{pmatrix}
-> 1.000 & 0.000 & 0.000 & 0.000 \\
-> 0.154 & 0.845 & 0.000 & 0.000 \\
-> 0.065 & 0.290 & 0.645 & 0.000 \\
-> 0.412 & 0.046 & 0.205 & 0.337
-> \end{pmatrix}
-> $$
+ A = \begin{pmatrix}
+ 1.000 & 0.000 & 0.000 & 0.000 \\
+ 0.154 & 0.845 & 0.000 & 0.000 \\
+ 0.065 & 0.290 & 0.645 & 0.000 \\
+ 0.412 & 0.046 & 0.205 & 0.337
+ \end{pmatrix}
+ $$
 >
 > - This can be interpreted as :
 >     - In Row 0 (token 0), it can only attend to itself.
@@ -599,33 +599,33 @@ $$ softmax(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}} $$
 > ***Example*** :
 > - Let the **scaled score matrix** ($ \frac{QK^T}{\sqrt{d_k}} $) be :
 > $$
-> S = \begin{pmatrix}
-> 1.2 & 0.5 & -1.0 & 0.0 \\
-> 0.3 & 2.0 & 0.1 & -0.5 \\
-> -0.8 & 0.7 & 1.5 & 0.2 \\
-> 1.0 & -1.2 & 0.3 & 0.8
-> \end{pmatrix}
-> $$
+ S = \begin{pmatrix}
+ 1.2 & 0.5 & -1.0 & 0.0 \\
+ 0.3 & 2.0 & 0.1 & -0.5 \\
+ -0.8 & 0.7 & 1.5 & 0.2 \\
+ 1.0 & -1.2 & 0.3 & 0.8
+ \end{pmatrix}
+ $$
 >
 > - Let the **mask matrix** be :
 > $$
-> M = \begin{pmatrix}
-> 0 & -\infty & -\infty & -\infty \\
-> 0 & 0 & -\infty & -\infty \\
-> 0 & 0 & 0 & -\infty \\
-> 0 & 0 & 0 & 0
-> \end{pmatrix}
-> $$
+ M = \begin{pmatrix}
+ 0 & -\infty & -\infty & -\infty \\
+ 0 & 0 & -\infty & -\infty \\
+ 0 & 0 & 0 & -\infty \\
+ 0 & 0 & 0 & 0
+ \end{pmatrix}
+ $$
 >
 > - Adding them will give the masked scaled score matrix :
 > $$
-> S' = \begin{pmatrix}
-> 1.2 & -\infty & -\infty & -\infty \\
-> 0.3 & 2.0 & -\infty & -\infty \\
-> -0.8 & 0.7 & 1.5 & -\infty \\
-> 1.0 & -1.2 & 0.3 & 0.8
-> \end{pmatrix}
-> $$
+ S' = \begin{pmatrix}
+ 1.2 & -\infty & -\infty & -\infty \\
+ 0.3 & 2.0 & -\infty & -\infty \\
+ -0.8 & 0.7 & 1.5 & -\infty \\
+ 1.0 & -1.2 & 0.3 & 0.8
+ \end{pmatrix}
+ $$
 >
 > - Now softmax is applied to each row of $S'$.
 > - For row 0 : $ softmax([1.2, -\infty, -\infty, -\infty]) $ = [1, 0, 0, 0].
@@ -634,13 +634,13 @@ $$ softmax(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}} $$
 >
 > - Final $A$ matrix is :
 > $$
-> A = \begin{pmatrix}
-> 1.000 & 0.000 & 0.000 & 0.000 \\
-> 0.154 & 0.845 & 0.000 & 0.000 \\
-> 0.065 & 0.290 & 0.645 & 0.000 \\
-> 0.412 & 0.046 & 0.205 & 0.337
-> \end{pmatrix}
-> $$
+ A = \begin{pmatrix}
+ 1.000 & 0.000 & 0.000 & 0.000 \\
+ 0.154 & 0.845 & 0.000 & 0.000 \\
+ 0.065 & 0.290 & 0.645 & 0.000 \\
+ 0.412 & 0.046 & 0.205 & 0.337
+ \end{pmatrix}
+ $$
 >
 > - This can be interpreted as :
 >     - In Row 0 (token 0), it can only attend to itself.

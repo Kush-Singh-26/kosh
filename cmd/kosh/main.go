@@ -7,7 +7,6 @@ import (
 	"runtime/pprof"
 
 	"my-ssg/builder/run"
-	"my-ssg/internal/build"
 	"my-ssg/internal/clean"
 	"my-ssg/internal/new"
 	"my-ssg/internal/server"
@@ -38,10 +37,9 @@ func main() {
 		args = filteredArgs
 
 		clean.Run(cleanCache)
-		// Auto-rebuild after clean (compressed)
-		fmt.Println("\n🔄 Rebuilding site (compressed)...")
-		build.CheckWASM()
-		run.Run([]string{"-compress"})
+		// Auto-rebuild after clean
+		fmt.Println("\n🔄 Rebuilding site...")
+		run.Run([]string{})
 
 	case "new":
 		new.Run(args)
@@ -124,7 +122,6 @@ func main() {
 
 			// Let's add hydration logic to `NewBuilder` or `Run`.
 
-			build.CheckWASM()
 			b := run.NewBuilder(args)
 
 			b.SetDevMode(true)
@@ -185,9 +182,6 @@ func main() {
 			defer pprof.StopCPUProfile()
 		}
 
-		// 1. Check/Build WASM first
-		build.CheckWASM()
-
 		if isWatch {
 			b := run.NewBuilder(args)
 			b.Build() // Initial build
@@ -220,6 +214,9 @@ func main() {
 			}
 		}
 
+	case "cache":
+		handleCacheCommand(args)
+
 	case "help", "-help", "--help":
 		printUsage()
 	default:
@@ -233,15 +230,15 @@ func printUsage() {
 	fmt.Println("Usage: kosh <command> [arguments]")
 	fmt.Println("\nCommands:")
 	fmt.Println("  new <title>    Create a new blog post")
-	fmt.Println("  clean          Clean public directory & rebuild compressed")
+	fmt.Println("  clean          Clean public directory & rebuild")
 	fmt.Println("  serve          Start the preview server")
 	fmt.Println("  build          Build the static site (and WASM)")
+	fmt.Println("  cache          Cache management commands")
 	fmt.Println("  help           Show this help message")
 	fmt.Println("\nFlags for clean:")
 	fmt.Println("  --cache        Also clean .kosh-cache directory (force full re-render)")
 	fmt.Println("\nFlags for build:")
-	fmt.Println("  -compress      Enable minification")
-	fmt.Println("  --watch        Enable watch mode (continuous rebuild)")
+	fmt.Println("  -baseurl       Base URL for the site")
 	fmt.Println("  -drafts        Include draft posts in the build")
 	fmt.Println("  --cpuprofile <file>  Write CPU profile to file")
 	fmt.Println("  --memprofile <file>  Write memory profile to file")

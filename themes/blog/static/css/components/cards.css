@@ -35,7 +35,51 @@
     margin-bottom: 1.2rem;
 }
 
-.meta-badge, .bento-tag, .list-tag {
+/* Pinned Cards (Special Bento Items) */
+.pinned-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.pinned-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--accent-primary), var(--accent-cool));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.pinned-card:hover::before {
+    opacity: 1;
+}
+
+.pinned-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-hover);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(41, 151, 255, 0.1);
+    background: var(--bg-card-hover);
+}
+
+.pinned-card h2 {
+    color: var(--h2-color);
+}
+
+.pinned-card:hover h2 {
+    color: var(--accent-cool);
+}
+
+/* Badge & Tag Base Styles */
+.meta-badge,
+.bento-tag,
+.list-tag {
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -89,6 +133,87 @@
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+/* Post Lists (General) */
+.post-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 2rem;
+}
+
+.post-list li {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    background: var(--bg-card);
+    position: relative;
+    overflow: hidden;
+    list-style: none;
+}
+
+.post-list li::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--accent-primary), var(--accent-purple));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.post-list li:hover::before {
+    opacity: 1;
+}
+
+.post-list li:hover {
+    transform: translateX(6px);
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.post-title {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--h2-color);
+    position: relative;
+    padding-left: 0;
+    transition: padding-left 0.3s ease;
+}
+
+.post-title::before {
+    content: '→';
+    position: absolute;
+    left: -20px;
+    opacity: 0;
+    color: var(--accent-cool);
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.post-title:hover {
+    color: var(--accent-cool);
+    padding-left: 25px;
+}
+
+.post-title:hover::before {
+    left: 0;
+    opacity: 1;
+}
+
+.post-desc,
+.card-desc {
+    display: block;
+    margin-bottom: 1rem;
+    color: var(--text-muted);
+    font-size: 0.98rem;
 }
 
 /* Latest List Layout */

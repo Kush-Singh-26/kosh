@@ -7,55 +7,30 @@ import (
 	"path/filepath"
 )
 
-// CheckWASM checks if the search engine WASM needs to be rebuilt and builds it if necessary.
-func CheckWASM() {
+// CheckWASM checks if the search engine WASM needs to be rebuilt based on source hash.
+func CheckWASM(currentHash string) bool {
 	wasmOut := "static/wasm/search.wasm"
 	// Ensure output directory exists
 	if err := os.MkdirAll(filepath.Dir(wasmOut), 0755); err != nil {
 		fmt.Printf("⚠️ Failed to create WASM directory: %v\n", err)
 	}
 
-	wasmSrc := []string{
-		"cmd/search",
-		"builder/search",
-		"builder/models",
+	_, err := os.Stat(wasmOut)
+	if err == nil && currentHash != "" {
+		// We have a hash and the file exists, we can trust the hash check done by the caller
+		return false
 	}
 
-	if needsRebuild(wasmSrc, wasmOut) {
-		fmt.Println("🚀 WASM source changes detected. Building Search WASM...")
-		cmd := exec.Command("go", "build", "-ldflags=-s -w", "-o", wasmOut, "./cmd/search/main.go")
-		cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+	fmt.Println("🚀 Building Search WASM...")
+	cmd := exec.Command("go", "build", "-ldflags=-s -w", "-o", wasmOut, "./cmd/search/main.go")
+	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("❌ WASM build failed: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println("✅ WASM build complete.")
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("❌ WASM build failed: %v\n", err)
+		os.Exit(1)
 	}
-}
-
-func needsRebuild(srcs []string, out string) bool {
-	outInfo, err := os.Stat(out)
-	if err != nil {
-		return true // Output file doesn't exist
-	}
-	outTime := outInfo.ModTime()
-
-	for _, src := range srcs {
-		err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if !info.IsDir() && info.ModTime().After(outTime) {
-				return fmt.Errorf("rebuild needed")
-			}
-			return nil
-		})
-		if err != nil {
-			return true
-		}
-	}
-	return false
+	fmt.Println("✅ WASM build complete.")
+	return true
 }

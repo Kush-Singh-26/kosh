@@ -193,7 +193,7 @@ Elastic Net combines both $L_1$ and $L_2$ penalties to get the best of both worl
 
 $$\text{Objective} = \text{RSS} + \lambda_1 \sum |\beta_j| + \lambda_2 \sum \beta_j^2$$
 
-- Use Case: Ideal when we have high-dimensional data ($p > n$) or highly correlated groups of features.
+- Use Case: Ideal when we have high-dimensional data $ (p \gt n) $ or highly correlated groups of features.
 
 ---
 

@@ -18,7 +18,7 @@ var (
 	blockMathRegex = regexp.MustCompile(`(?s)\$\$(.+?)\$\$`)
 
 	// Inline math: $...$ (non-greedy, no newlines usually, but we allow strict matching)
-	inlineMathRegex = regexp.MustCompile(`(?s)(?:^|[^$])\$((?:\\.|[^$])+?)\$(?:[^$]|$)`)
+	inlineMathRegex = regexp.MustCompile(`\$((?:\\.|[^$\n<>])+?)\$`)
 
 	// Display Math: \[ ... \]
 	displayMathRegex = regexp.MustCompile(`(?s)\\\[(.*?)\\\]`)
@@ -158,15 +158,8 @@ func ReplaceMathExpressions(html string, rendered map[string]string, cache map[s
 			return match
 		}
 		hash := native.HashContent("math-inline", latex)
-		prefix, suffix := "", ""
-		if len(match) > 0 && match[0] != '$' {
-			prefix = string(match[0])
-		}
-		if len(match) > 0 && match[len(match)-1] != '$' {
-			suffix = string(match[len(match)-1])
-		}
 		if html, ok := getRendered(hash); ok {
-			return prefix + fmt.Sprintf(`<span class="katex-inline">%s</span>`, html) + suffix
+			return fmt.Sprintf(`<span class="katex-inline">%s</span>`, html)
 		}
 		return match
 	})

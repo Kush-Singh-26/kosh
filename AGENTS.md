@@ -7,8 +7,7 @@ This repository contains a custom Static Site Generator (SSG) built in Go, desig
 ### Build Commands
 The unified CLI tool `kosh` handles all operations.
 *   **Build CLI:** `go build -o kosh.exe cmd/kosh/main.go`
-*   **Build Site (Prod):** `./kosh.exe build -compress` (Minifies HTML/CSS/JS, compresses images)
-*   **Build Site (Dev):** `./kosh.exe build` (Faster, no compression)
+*   **Build Site:** `./kosh.exe build` (Minifies HTML/CSS/JS, compresses images)
 *   **Serve (Dev Mode):** `./kosh.exe serve --dev` (Starts server with live reload & watcher)
 *   **Clean Output:** `./kosh.exe clean` (Cleans `public/`)
 *   **Clean All:** `./kosh.exe clean --cache` (Cleans `public/` and `.kosh-cache/`)
@@ -43,6 +42,7 @@ We use `golangci-lint` for static analysis.
     *   **`run/`**: **Modularized.** Contains build orchestration logic split into `builder.go`, `build.go`, `incremental.go`, and specialized pipelines: `pipeline_assets.go`, `pipeline_posts.go`, `pipeline_meta.go`, `pipeline_pwa.go`, and `pipeline_pagination.go`.
     *   **`renderer/native/`**: Contains native D2 and LaTeX rendering logic, split into `renderer.go` (core), `math.go`, and `d2.go`.
     *   **`parser/`**: Markdown parsing logic (Goldmark extensions and modular AST transformers: `trans_url.go`, `trans_d2.go`, `trans_ssr.go`).
+    *   **`cache/`**: BoltDB-based cache system with content-addressed storage, compression, and garbage collection.
 *   **`cmd/kosh/`**: Main entry point for the CLI.
 *   **`content/`**: Markdown source files.
 *   **`themes/`**: **Themed Assets.**
@@ -57,20 +57,26 @@ Group imports into three blocks separated by newlines:
 3.  **Internal:** `my-ssg/builder/...`
 
 ### Specific Logic Guidelines
-*   **VFS Architecture:** All build operations write to a high-performance in-memory filesystem (`afero.MemMapFs`) first. The state is then synced atomically to the physical `public/` directory via `utils.SyncVFS`.
+*   **VFS Architecture:** All build operations write to a high-performance in-memory filesystem (`afero.MemMapFs`) first.
+    *   **Differential Sync:** The state is synced atomically to the physical `public/` directory via `utils.SyncVFS`. It uses a "dirty file" tracking system (`Renderer.RegisterFile`) to only write modified files to disk.
 *   **Theme Engine:** The builder is designed to be theme-agnostic. Paths for templates and static assets are configurable via `kosh.yaml` (`templateDir`, `staticDir`).
 *   **Asset Pipeline:** Uses `esbuild` Go API.
     *   **JS:** Processed with `Bundle: false` to preserve global library exports.
     *   **CSS:** Modular entry point `static/css/layout.css` bundles `core.css`, `theme.css`, and various components from `static/css/components/` via `@import`.
 *   **Native Rendering (SSR):**
+    *   **Lazy Initialization:** Rendering workers (Goja/KaTeX) are initialized lazily only when math or diagrams are detected in a build pass.
     *   **LaTeX:** Uses `github.com/dop251/goja` to run KaTeX JS server-side. Pre-rendered HTML is injected into the site.
-    *   **D2 Diagrams:** Uses `oss.terrastruct.com/d2/d2lib`. Renders both light and dark themes as SVGs, toggled via CSS `[data-theme]`.
+    *   **D2 Diagrams:** Uses `oss.terrastruct.com/d2/d2lib`. Renders both light and dark themes as SVGs. Zoom logic in `main.js` handles theme-aware lightbox display.
 *   **Concurrency:**
     *   **Worker Pool:** A pool of `runtime.NumCPU()` workers handles rendering tasks in parallel.
     *   **Map Safety:** All shared map access is protected by `sync.Mutex`.
 *   **Caching & Incremental Builds:**
-    *   **Build Cache:** Tracks post metadata, rendered HTML, and dependencies in `.kosh-cache/`.
+    *   **BoltDB Cache:** Metadata stored in `.kosh-cache/meta.db` (BoltDB). Content-addressed artifacts in `.kosh-cache/store/`.
+    *   **SSR Artifacts:** D2 diagrams and KaTeX math rendered once, stored with BLAKE3 hashes, reused across builds.
+    *   **Fast Rebuilds:** If only templates or CSS change, `kosh` skips Markdown parsing and re-renders pages using cached HTML fragments.
+    *   **WASM Hashing:** The search engine WASM is only rebuilt if its source code changes.
     *   **Watcher:** Automatically tracks changes in `content/` and the active theme's template/static directories.
+    *   **Cache Commands:** `kosh cache stats`, `kosh cache gc`, `kosh cache verify`, `kosh cache inspect <path>`.
 
 ## 3. Cursor/Agent Rules
 

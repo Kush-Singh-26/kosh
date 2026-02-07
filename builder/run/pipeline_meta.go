@@ -25,15 +25,21 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 		defer genWg.Done()
 		_ = generators.GenerateSearchIndex(b.DestFs, "public", indexedPosts)
 	}()
+
 	graphHash, _ := utils.GetGraphHash(allContent)
-	if shouldForce || b.socialCardCache.GraphHash != graphHash {
+	cachedGraphHash := ""
+	if b.cacheManager != nil {
+		cachedGraphHash, _ = b.cacheManager.GetGraphHash()
+	}
+
+	if shouldForce || cachedGraphHash != graphHash {
 		genWg.Add(1)
 		go func() {
 			defer genWg.Done()
 			generators.GenerateGraph(b.DestFs, cfg.BaseURL, allContent)
-			b.mu.Lock()
-			b.socialCardCache.GraphHash = graphHash
-			b.mu.Unlock()
+			if b.cacheManager != nil {
+				b.cacheManager.SetGraphHash(graphHash)
+			}
 		}()
 	}
 	genWg.Wait()

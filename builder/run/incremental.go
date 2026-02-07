@@ -48,10 +48,11 @@ func (b *Builder) BuildChanged(changedPath string) {
 	if strings.HasSuffix(changedPath, ".md") && strings.HasPrefix(changedPath, "content") {
 		fmt.Printf("⚡ Quick rebuild for: %s\n", changedPath)
 		b.buildSinglePost(changedPath)
-		// Sync VFS changes to disk
-		if err := utils.SyncVFS(b.DestFs, "public"); err != nil {
+		// Sync VFS changes to disk (differential)
+		if err := utils.SyncVFS(b.DestFs, "public", b.rnd.GetRenderedFiles()); err != nil {
 			fmt.Printf("❌ Sync failed: %v\n", err)
 		}
+		b.rnd.ClearRenderedFiles()
 		return
 	}
 

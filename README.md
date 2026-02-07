@@ -9,7 +9,7 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **Live Reloading**: Built-in development server with Server-Sent Events (SSE) to instantly reload the browser when files change.
 - **Asset Pipeline**: Automatic minification and content-hash fingerprinting for CSS & JS files (e.g., `style.a1b2.css`) for optimal caching.
 - **Safe Clean Command**: Dedicated tool to safely clear the build output directory.
-- **Frontmatter & Metadata Caching**: Uses a persistent JSON-based caching system (`.kosh-build-cache.json`) to store parsed metadata, search records, and rendered HTML snippets, preventing redundant processing.
+- **BoltDB Cache System**: High-performance metadata cache using BoltDB with content-addressed artifact storage and BLAKE3 hashing.
 - **Pinned Posts**: Highlight important content by setting `pinned: true` in the frontmatter.
 - **Pagination**: Automatically splits the post list into manageable pages with navigation controls.
 - **Reading Time Estimation**: Automatically calculates and displays estimated reading time for each article.
@@ -100,7 +100,7 @@ go run cmd/kosh/main.go serve
 To build the site for deployment (minifies HTML/CSS/JS and compresses images):
 
 ```bash
-.\kosh build -compress
+.\kosh build
 ```
 
 ### 3. Content Management
@@ -188,7 +188,6 @@ The `kosh build` command accepts the following flags:
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| `-compress` | Enables minification and WebP conversion | `false` |
 | `-baseurl` | Base URL for the site (e.g., `https://example.com/blog`) | `""` |
 | `--watch` | Enables watch mode (continuous rebuild) | `false` |
 | `-output` | Custom output directory | `public` |
@@ -210,6 +209,17 @@ The `kosh clean` command accepts:
 | --- | --- | --- |
 | `--cache` | Also clean `.kosh-cache/` directory | `false` |
 
+The `kosh cache` subcommands:
+
+| Command | Description |
+| --- | --- |
+| `kosh cache stats` | Show cache statistics (posts, SSR artifacts, size) |
+| `kosh cache gc` | Run garbage collection to remove orphaned blobs |
+| `kosh cache verify` | Check cache integrity |
+| `kosh cache rebuild` | Clear cache and trigger full rebuild |
+| `kosh cache clear` | Delete all cache data |
+| `kosh cache inspect <path>` | Show cache entry for a specific file |
+
 ## Dependencies
 
 - **Markdown Engine**: `github.com/yuin/goldmark`
@@ -220,8 +230,11 @@ The `kosh clean` command accepts:
 - **Image Processing**: `github.com/disintegration/imaging`
 - **WebP Encoding**: `github.com/chai2010/webp`
 - **Native D2 Rendering**: `oss.terrastruct.com/d2`
-- **Native LaTeX Rendering**: `github.com/wyatt915/treeblood`
+- **Native LaTeX Rendering**: `github.com/dop251/goja` (KaTeX via JS runtime)
 - **Text Casing**: `golang.org/x/text` (for modern string transformations)
+- **Cache Database**: `go.etcd.io/bbolt` (BoltDB for metadata)
+- **Hashing**: `github.com/zeebo/blake3` (content-addressed storage)
+- **Compression**: `github.com/klauspost/compress` (zstd for artifacts)
 
 ## Deployment
 

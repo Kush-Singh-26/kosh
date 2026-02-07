@@ -10,15 +10,38 @@ header {
     align-items: center;
     border-radius: 99px;
     width: 100%;
+    background: rgba(13, 13, 15, 0.7);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] header {
+    background: rgba(235, 230, 224, 0.8);
 }
 
 .site-title {
-    padding: 4px 12px 4px 4px;
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    font-size: 0.95rem;
+    padding: 4px 12px 4px 4px;
     border-radius: 99px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    background-color: var(--bg-code);
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.site-title:hover {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 20px rgba(41, 151, 255, 0.2);
+    transform: translateY(-1px);
 }
 
 .site-logo {
@@ -26,6 +49,13 @@ header {
     width: auto;
     margin: 0;
     border-radius: 50%;
+    filter: drop-shadow(0 0 4px rgba(41, 151, 255, 0.3));
+    transition: transform 0.3s ease;
+}
+
+.site-logo:hover {
+    transform: scale(1.05);
+    cursor: pointer;
 }
 
 nav a,

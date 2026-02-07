@@ -1,12 +1,15 @@
 package utils
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 
@@ -16,7 +19,7 @@ import (
 )
 
 // CopyDirVFS copies a directory from srcFs to destFs with parallel image processing.
-func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool) error {
+func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, onWrite func(string)) error {
 	// Create destination directory
 	if err := destFs.MkdirAll(dstDir, 0755); err != nil {
 		return err
@@ -39,8 +42,11 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 		go func() {
 			defer wg.Done()
 			for task := range imageQueue {
-				if err := processImageVFS(srcFs, destFs, task.path, filepath.Join(dstDir, task.relPath)); err != nil {
+				target := filepath.Join(dstDir, task.relPath)
+				if err := processImageVFS(srcFs, destFs, task.path, target); err != nil {
 					errChan <- fmt.Errorf("failed to process image %s: %w", task.path, err)
+				} else if onWrite != nil {
+					onWrite(target)
 				}
 			}
 		}()
@@ -92,6 +98,9 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 			if _, err := io.Copy(out, in); err != nil {
 				return err
 			}
+			if onWrite != nil {
+				onWrite(destPath)
+			}
 		}
 		return nil
 	})
@@ -114,6 +123,21 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 }
 
 func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string) error {
+	// Skip if destination exists and is newer than source
+	srcInfo, err := srcFs.Stat(srcPath)
+	if err == nil {
+		if dstInfo, err := os.Stat(dstPath); err == nil {
+			if !srcInfo.ModTime().After(dstInfo.ModTime()) {
+				// Optimization: Read existing from disk into VFS to keep it consistent
+				// though SyncVFS might skip it later anyway if it sees it on disk.
+				data, err := os.ReadFile(dstPath)
+				if err == nil {
+					return afero.WriteFile(destFs, dstPath, data, 0644)
+				}
+			}
+		}
+	}
+
 	// Read
 	file, err := srcFs.Open(srcPath)
 	if err != nil {
@@ -170,4 +194,55 @@ func HydrateVFS(vfs afero.Fs, diskDir string) error {
 
 		return afero.WriteFile(vfs, path, data, 0644)
 	})
+}
+
+// HashDirs generates a deterministic MD5 hash of multiple directories' contents.
+func HashDirs(dirs []string) (string, error) {
+	h := md5.New()
+	for _, dir := range dirs {
+		err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			// Use path and modtime for speed, or full content for accuracy.
+			// Content is safer for WASM source hashing.
+			f, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			if _, err := io.Copy(h, f); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// HashFiles generates a deterministic MD5 hash of multiple files.
+func HashFiles(files []string) (string, error) {
+	sort.Strings(files)
+	h := md5.New()
+	for _, path := range files {
+		f, err := os.Open(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return "", err
+		}
+		if _, err := io.Copy(h, f); err != nil {
+			f.Close()
+			return "", err
+		}
+		f.Close()
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

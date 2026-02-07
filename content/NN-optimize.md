@@ -14,53 +14,53 @@ import torch.nn as nn
 - measure how well a model’s predictions align with the actual outputs.
 - the choice of loss function depends on the task :
 
-    - ## Loss Functions for Regression
-        - ### Mean Squared Error (MSE) 
-            - $$ MSE = \frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2 $$
-            
-            - mean of squares of differences of predicted and actual values
-            - Penalizes large errors more than small errors.
-            - Sensitive to outliers.
+## Loss Functions for Regression
 
-            -   Pytorch Implementation
+### Mean Squared Error (MSE) 
+- $$ MSE = \frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2 $$
+- mean of squares of differences of predicted and actual values
+- Penalizes large errors more than small errors.
+- Sensitive to outliers.
 
-            ```python
-            loss_fn = nn.MSELoss()
-            ```
+- Pytorch Implementation
 
-            - `L2 Loss` is the same as MSE but without the mean part
-        
-        - ### Mean Absolute Error (MAE)
-            - $$ MAE = \frac{1}{n} \sum_{i=1}^{n} | y_i - \hat{y}_i | $$
+```python
+loss_fn = nn.MSELoss()
+```
 
-            - more robust to outliers
+- `L2 Loss` is the same as MSE but without the mean part
 
-            -   Pytorch Implementation
+### Mean Absolute Error (MAE)
+- $$ MAE = \frac{1}{n} \sum_{i=1}^{n} | y_i - \hat{y}_i | $$
+- more robust to outliers
 
-            ```python
-            loss_fn = nn.L1Loss()
-            ```
-        
-    - ## Loss Functions for Classification
-        - ### Cross-Entropy Loss (Softmax + Log Loss)
-            - $$ L = - \sum_{i=1}^{n} y_i log(\hat{y}_i) $$
-            - for multiclass classification
-            
-            -   Pytorch Implementation
+- Pytorch Implementation
 
-            ```python
-            loss_fn = nn.CrossEntropyLoss()
-            ```
-        
-        - ### Binary Cross-Entropy Loss (Sigmoid + Log Loss)
-            - $$ BCE = - \frac{1}{n} \sum_{i=1}^{n} [  y_i log(\hat{y}_i) + (1 - y_i) log(1-\hat{y}_i) ] $$
-            - for binary classification
+```python
+loss_fn = nn.L1Loss()
+```
 
-            -   Pytorch Implementation
+## Loss Functions for Classification
 
-            ```python
-            loss_fn = nn.BCELoss()
-            ```
+### Cross-Entropy Loss (Softmax + Log Loss)
+- $$ L = - \sum_{i=1}^{n} y_i log(\hat{y}_i) $$
+- for multiclass classification
+
+- Pytorch Implementation
+
+```python
+loss_fn = nn.CrossEntropyLoss()
+```
+
+### Binary Cross-Entropy Loss (Sigmoid + Log Loss)
+- $$ BCE = - \frac{1}{n} \sum_{i=1}^{n} [  y_i log(\hat{y}_i) + (1 - y_i) log(1-\hat{y}_i) ] $$
+- for binary classification
+
+- Pytorch Implementation
+
+```python
+loss_fn = nn.BCELoss()
+```
 
 # Optimizers
 
@@ -74,6 +74,7 @@ import torch.nn as nn
 - Accuracy : 15.5% (1000 tries)
 
 ### 2. Numeric Gradient / Finite Difference Approximation
+
 - **Gradient**
     - It is the collection of partial derivatives / slopes, organized into a vector, that tells you how a multi-variable function changes.
 - $$ \frac{df(x)}{dx} = \lim_{h\to 0} \frac{f(x+h) - f(x)}{h} $$
@@ -87,6 +88,7 @@ import torch.nn as nn
     - Requires function evaluation multiple times
 
 ### 3. Analytic Gradient 
+
 - Uses calculus to derive exact gradients.
 - Loss is a function of `W`
 - $$  L_i=\sum_{j\neq y_i} max(0,s_j-{s_y}_i+1)\space and\space s=Wx $$
@@ -100,6 +102,7 @@ import torch.nn as nn
 >After doing analytic gradient, check the results with your results from numeric gradient.
 
 ### 4. Gradient Descent / Vanilla Gradient Descent / Batch Gradient Descent
+
 - Uses the entire batch / dataset to train.
 - Process of repeatedly evaluating the gradient and then performng a parameter update
 - $$ \theta = \theta - \alpha \nabla J(\theta) $$
@@ -127,7 +130,7 @@ import torch.nn as nn
 >
 > **Step 1**  
 > $ W^{(1)} = 1.6 $
-> $ \nabla_W L(W^{(1)}) = 2(1.6) = 3.2 $$
+> $ \nabla_W L(W^{(1)}) = 2(1.6) = 3.2 $
 > $ W^{(2)} = 1.6 - 0.3 \times 3.2 = 1.6 - 0.96 = 0.64 $
 >
 > **Step 2**  
@@ -135,10 +138,10 @@ import torch.nn as nn
 > $ \nabla_W L(W^{(2)}) = 2(0.64) = 1.28 $
 > $ W^{(3)} = 0.64 - 0.3 \times 1.28 = 0.64 - 0.384 = 0.256 $
 >
-> **Step 3**  
-> $ W^{(3)} = 0.256 $
-> $ \nabla_W L(W^{(3)}) = 2(0.256) = 0.512 $
-> $ W^{(4)} = 0.256 - 0.3 \times 0.512 = 0.256 - 0.1536 = 0.1024 $
+>**Step 3**  
+>$ W^{(3)} = 0.256 $
+>$ \nabla_W L(W^{(3)}) = 2(0.256) = 0.512 $
+>$ W^{(4)} = 0.256 - 0.3 \times 0.512 = 0.256 - 0.1536 = 0.1024 $
 
 Python implementation :
 
@@ -152,6 +155,7 @@ for epoch in range(no_steps):
     W_grad = grad_eval(loss)
     W = W - lr * W_grad
 ```
+
 - **Learning Rate ($\alpha$)** :
     - it decides how many steps or how far to go 
     - _Large LR_ : 
@@ -164,7 +168,10 @@ for epoch in range(no_steps):
     - For a large dataset (millions of data), loss function will be computed over the whole dataset, for just one parameter update
     - It will become computationally expensive
 
+---
+
 ### 5. Stochastic Gradient Descent (SGD)
+
 - Training data is divided into sets of batches
 - SGD uses only one random data point (or a small batch of data points) at each iteration. 
 - This makes the computation much faster.
@@ -183,7 +190,9 @@ for input_data, labels in train_dataloader:
     optimizer.step() #updates the weights by taking step
     optimizer.zero_grad() #reset the gradients to avoid adding up
 ```
+
 ### 6. Mini-Batch Gradient Descent
+
 - Instead of using a single sample (SGD) or the entire dataset (Batch GD), Mini-Batch GD updates the weights using a small random subset (batch) of the data.
 - It updates the models parameter after computing the gradient on a **small batch** of training data.
 
@@ -213,6 +222,7 @@ for epoch in range(100):
     if (epoch+1) % 20 == 0:
         print(f'Epoch [{epoch+1}/100], Loss: {loss.item():.4f}')
 ```
+
 - It balances speed and stability.
 
 
@@ -392,19 +402,20 @@ PyTorch Implementation
     - This means it dynamically adjusts the learning rate for each individual parameter within a model, rather than using a single global learning rate. 
 - It combines ideas from both momentum and RMSprop
 
-- #### Momentum (First Moment Estimate) (m<sub>t</sub>)
-    - Computes an exponentially decaying average of past gradients (similar to momentum).
-    - Helps in accelerating convergence and overcoming noisy gradients.
-    - $ m_t = \beta_1 * m_{t-1} + (1-\beta_1) * g_t \rightarrow $  from Momentum
-- #### Adaptive Learning Rate (Second Moment Estimate) (v<sub>t</sub>)
-    -   - Computes an exponentially decaying average of past squared gradients (similar to RMSprop).
-Helps in scaling learning rates appropriately for each parameter.
-    - $ v_t = \beta_2 * v_{t-1} + (1-\beta_2) * g_t^2 \rightarrow $ from RMSProp
+#### Momentum (First Moment Estimate) (m<sub>t</sub>)
+- Computes an exponentially decaying average of past gradients (similar to momentum).
+- Helps in accelerating convergence and overcoming noisy gradients.
+- $ m_t = \beta_1 * m_{t-1} + (1-\beta_1) * g_t \rightarrow $  from Momentum
 
-- #### Bias Correction
-    - Since both $$ m_{t-1} \quad and \quad v_{t-1} $$ are initialized as zero vectors, Adam applies bias correction to compensate for initial estimates.
-    - $$ \hat{m}_{t+1} = \hat{m_t}-\alpha m_t $$
-    - $$ \hat{v}_{t+1}=\hat{v}_t-\frac{\alpha}{\sqrt{\hat{v}_t+\epsilon}}g(v_t) $$
+#### Adaptive Learning Rate (Second Moment Estimate) (v<sub>t</sub>)
+- Computes an exponentially decaying average of past squared gradients (similar to RMSprop).
+- Helps in scaling learning rates appropriately for each parameter.
+- $ v_t = \beta_2 * v_{t-1} + (1-\beta_2) * g_t^2 \rightarrow $ from RMSProp
+
+#### Bias Correction
+- Since both $$ m_{t-1} \quad and \quad v_{t-1} $$ are initialized as zero vectors, Adam applies bias correction to compensate for initial estimates.
+- $$ \hat{m}_{t+1} = \hat{m_t}-\alpha m_t $$
+- $$ \hat{v}_{t+1}=\hat{v}_t-\frac{\alpha}{\sqrt{\hat{v}_t+\epsilon}}g(v_t) $$
 
 - Update rule for Adam
     - $$ x_{t+1}= x_t- \frac{(\alpha * \hat{m}_t)}{\sqrt{(\hat{v}_t + \varepsilon)}} $$
@@ -448,6 +459,7 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 ```
 
 ---
+
 ## **Summary** 
 
 | Optimizer  | Key Feature                      |
@@ -460,5 +472,5 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
 
 - In practice, Adam is a default choice.
-- SGD+Momentum might beat Adam but might require extra fine tuning.
 
+- SGD+Momentum might beat Adam but might require extra fine tuning.

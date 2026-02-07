@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string, minify bool) (map[string]string, error) {
+func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string, minify bool, onWrite func(string)) (map[string]string, error) {
 	fmt.Println("🎨 Building assets with Esbuild...")
 	assets := make(map[string]string)
 
@@ -93,6 +93,9 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 			}
 			if err := afero.WriteFile(destFs, path, outFile.Contents, 0644); err != nil {
 				return err
+			}
+			if onWrite != nil {
+				onWrite(path)
 			}
 		}
 

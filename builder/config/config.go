@@ -50,13 +50,14 @@ type Config struct {
 func Load(args []string) *Config {
 	// 1. Default Configuration
 	cfg := &Config{
-		Title:        "Kosh Blog",
-		BaseURL:      "",
-		PostsPerPage: 10,
-		BuildVersion: time.Now().Unix(),
-		Theme:        "blog",
-		TemplateDir:  "templates",
-		StaticDir:    "static",
+		Title:          "Kosh Blog",
+		BaseURL:        "",
+		PostsPerPage:   10,
+		CompressImages: true, // Always compress for performance
+		BuildVersion:   time.Now().Unix(),
+		Theme:          "blog",
+		TemplateDir:    "templates",
+		StaticDir:      "static",
 	}
 
 	// 2. Load from YAML file if exists
@@ -76,17 +77,12 @@ func Load(args []string) *Config {
 	// 3. Override with CLI Flags
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 	baseUrlFlag := fs.String("baseurl", "", "Base URL (overrides config file)")
-	compressFlag := fs.Bool("compress", false, "Enable image compression (overrides config file)")
 	draftsFlag := fs.Bool("drafts", false, "Include draft posts in the build")
 
 	_ = fs.Parse(args)
 
 	if *baseUrlFlag != "" {
-
 		cfg.BaseURL = strings.TrimSuffix(*baseUrlFlag, "/")
-	}
-	if *compressFlag {
-		cfg.CompressImages = true
 	}
 	if *draftsFlag {
 		cfg.IncludeDrafts = true

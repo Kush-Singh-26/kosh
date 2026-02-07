@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,8 @@ func (b *Builder) Build() {
 	fmt.Printf("🔨 Building site... (Version: %d) | Parallel Workers: %d\n", cfg.BuildVersion, numWorkers)
 
 	// 1. Setup & Cache Invalidation
+	b.checkWasmUpdate()
+
 	b.mu.Lock()
 	b.buildCache.Dependencies = models.DependencyGraph{
 		Tags:      make(map[string][]string),
@@ -45,9 +48,10 @@ func (b *Builder) Build() {
 	forceSocialRebuild := false
 	shouldForce := b.cfg.ForceRebuild
 	var affectedPosts []string
+	var lastBuildTime time.Time
 
 	if indexInfo, err := os.Stat("public/index.html"); err == nil {
-		lastBuildTime := indexInfo.ModTime()
+		lastBuildTime = indexInfo.ModTime()
 		for _, dep := range globalDependencies {
 			if info, err := os.Stat(dep); err == nil && info.ModTime().After(lastBuildTime) {
 				fmt.Printf("⚡ Global change detected in [%s].\n", dep)
@@ -99,7 +103,55 @@ func (b *Builder) Build() {
 	}
 
 	// 3. Process Content (Posts)
-	allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 := b.processPosts(shouldForce, forceSocialRebuild)
+	var (
+		allPosts, pinnedPosts []models.PostMetadata
+		tagMap                map[string][]models.PostMetadata
+		indexedPosts          []models.IndexedPost
+		anyPostChanged        bool
+		has404                bool
+	)
+
+	if !shouldForce && len(affectedPosts) == 0 && len(globalDependencies) > 0 {
+		// Template-only change detection logic
+		isTemplateOnly := true
+		for _, dep := range globalDependencies {
+			if info, err := os.Stat(dep); err == nil {
+				if info.ModTime().After(lastBuildTime) {
+					// Check if it's a template
+					if !strings.HasSuffix(dep, ".html") && !strings.HasSuffix(dep, ".css") {
+						isTemplateOnly = false
+						break
+					}
+				}
+			}
+		}
+
+		if isTemplateOnly && lastBuildTime.Unix() > 0 && len(b.buildCache.Posts) > 0 {
+			fmt.Println("🚀 Template-only change detected. Fast-tracking rebuild...")
+			b.renderCachedPosts()
+
+			// Hydrate data for global pages from cache
+			tagMap = make(map[string][]models.PostMetadata)
+			for _, cp := range b.buildCache.Posts {
+				if cp.Metadata.Pinned {
+					pinnedPosts = append(pinnedPosts, cp.Metadata)
+				} else {
+					allPosts = append(allPosts, cp.Metadata)
+				}
+				for _, t := range cp.Metadata.Tags {
+					tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], cp.Metadata)
+				}
+				indexedPosts = append(indexedPosts, models.IndexedPost{Record: cp.SearchRecord, WordFreqs: cp.WordFreqs, DocLen: cp.DocLen})
+			}
+			utils.SortPosts(allPosts)
+			utils.SortPosts(pinnedPosts)
+			anyPostChanged = true // Trigger global page re-render
+		} else {
+			allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(shouldForce, forceSocialRebuild)
+		}
+	} else {
+		allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(shouldForce, forceSocialRebuild)
+	}
 
 	// 4. Generate Global Pages
 	if shouldForce || anyPostChanged {
@@ -134,9 +186,10 @@ func (b *Builder) Build() {
 	// 5. PWA & Sync
 	b.generatePWA(shouldForce)
 
-	if err := utils.SyncVFS(b.DestFs, "public"); err != nil {
+	if err := utils.SyncVFS(b.DestFs, "public", b.rnd.GetRenderedFiles()); err != nil {
 		fmt.Printf("❌ Failed to sync VFS to disk: %v\n", err)
 	}
+	b.rnd.ClearRenderedFiles()
 
 	fmt.Println("✅ Build Complete.")
 }

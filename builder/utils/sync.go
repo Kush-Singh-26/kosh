@@ -7,13 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/spf13/afero"
 )
 
 // SyncVFS synchronizes the `targetDir` directory from VFS to disk using parallel workers.
-func SyncVFS(srcFs afero.Fs, targetDir string) error {
+// If dirtyFiles is not nil, it only syncs files present in the map.
+func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error {
 	fmt.Println("💾 Syncing in-memory filesystem to disk...")
 
 	targetDirClean := filepath.Clean(targetDir)
@@ -27,15 +29,38 @@ func SyncVFS(srcFs afero.Fs, targetDir string) error {
 			}
 			return err
 		}
-		if !info.IsDir() {
-			filesToSync = append(filesToSync, path)
-		} else {
-			if err := os.MkdirAll(path, 0755); err != nil {
-				return err
+		if info.IsDir() {
+			return os.MkdirAll(path, 0755)
+		}
+
+		// Differential Sync: Only sync if dirtyFiles is nil (full sync)
+		// or if the specific file is in the dirty map.
+		// Always sync .nojekyll, sitemap, rss, search_index, manifest, sw.js, graph.json
+		alwaysSync := map[string]bool{
+			"public/.nojekyll":               true,
+			"public/sitemap.xml":             true,
+			"public/rss.xml":                 true,
+			"public/search_index.json":       true,
+			"public/manifest.json":           true,
+			"public/sw.js":                   true,
+			"public/graph.json":              true,
+			"public/static/search.wasm":      true,
+			"public/static/wasm/search.wasm": true,
+		}
+
+		if dirtyFiles != nil {
+			pathNormalized := filepath.ToSlash(path)
+			// Always sync static assets and specific global files
+			isStatic := strings.HasPrefix(pathNormalized, "public/static/")
+			if !dirtyFiles[pathNormalized] && !alwaysSync[pathNormalized] && !isStatic {
+				return nil
 			}
 		}
+
+		filesToSync = append(filesToSync, path)
 		return nil
 	})
+
 	if err != nil {
 		return fmt.Errorf("failed to scan VFS: %w", err)
 	}

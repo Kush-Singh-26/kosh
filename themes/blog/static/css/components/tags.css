@@ -6,6 +6,7 @@
     margin-top: 1.5rem;
 }
 
+/* Tags with Multiple Colors */
 .tag-pill {
     display: inline-flex;
     align-items: center;
@@ -13,10 +14,49 @@
     border-radius: 99px;
     text-decoration: none;
     transition: all 0.3s ease;
+    background: var(--bg-tint);
+    color: var(--accent-primary);
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.tag-pill:nth-child(3n) {
+    color: var(--accent-cool);
+    border-color: var(--accent-cool);
+}
+
+.tag-pill:nth-child(3n+1) {
+    color: var(--accent-pink);
+    border-color: var(--accent-pink);
+}
+
+.tag-pill:nth-child(3n+2) {
+    color: var(--accent-purple);
+    border-color: var(--accent-purple);
 }
 
 .tag-pill:hover {
+    border-color: currentColor;
+    background: rgba(41, 151, 255, 0.2);
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(41, 151, 255, 0.3);
+}
+
+/* Specific hover colors for different tag types */
+.tag-pill:nth-child(3n):hover {
+    background: rgba(100, 210, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(100, 210, 255, 0.3);
+}
+
+.tag-pill:nth-child(3n+1):hover {
+    background: rgba(255, 55, 95, 0.2);
+    box-shadow: 0 4px 12px rgba(255, 55, 95, 0.3);
+}
+
+.tag-pill:nth-child(3n+2):hover {
+    background: rgba(191, 90, 242, 0.2);
+    box-shadow: 0 4px 12px rgba(191, 90, 242, 0.3);
 }
 
 .tag-count {
@@ -26,35 +66,32 @@
     margin-left: 8px;
     border-radius: 99px;
     padding: 2px 8px;
+    background: var(--bg-code);
+    color: var(--text-main);
+    font-size: 0.75em;
 }
 
 .mini-tag {
+    font-size: 0.85rem;
     font-family: var(--font-mono);
+    color: var(--accent-primary);
     text-decoration: none;
+}
+
+.mini-tag:nth-child(3n) {
+    color: var(--accent-cool);
+}
+
+.mini-tag:nth-child(3n+1) {
+    color: var(--accent-pink);
+}
+
+.mini-tag:nth-child(3n+2) {
+    color: var(--accent-purple);
 }
 
 .tag-row {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
-}
-
-/* Individual Tag Pages List */
-.post-list {
-    list-style: none;
-    margin-top: 2rem;
-}
-
-.post-list li {
-    margin-bottom: 1.5rem;
-    padding: 1.5rem;
-}
-
-.post-title {
-    display: block;
-    margin-bottom: 0.5rem;
-}
-
-.post-desc {
-    margin-bottom: 1rem;
 }

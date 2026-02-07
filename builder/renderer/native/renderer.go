@@ -22,6 +22,7 @@ type Instance struct {
 	vm       *goja.Runtime
 	katex    goja.Value
 	renderFn goja.Callable
+	initOnce sync.Once
 }
 
 // Renderer manages a pool of native rendering instances for concurrency
@@ -66,52 +67,58 @@ func newInstance() *Instance {
 		log.Printf("⚠️ Failed to initialize text ruler: %v", err)
 	}
 
-	// Initialize goja VM with KaTeX
-	vm := goja.New()
-
-	// Provide minimal console
-	console := vm.NewObject()
-	console.Set("log", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
-	console.Set("warn", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
-	console.Set("error", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
-	vm.Set("console", console)
-
-	// Document stub
-	document := vm.NewObject()
-	document.Set("createElement", func(call goja.FunctionCall) goja.Value {
-		elem := vm.NewObject()
-		elem.Set("setAttribute", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
-		return elem
-	})
-	vm.Set("document", document)
-
-	// Load KaTeX
-	_, err = vm.RunString(katexJS)
-	if err != nil {
-		log.Printf("⚠️ Failed to load KaTeX: %v", err)
-		return &Instance{ruler: ruler}
-	}
-
-	katex := vm.Get("katex")
-	if katex == nil || goja.IsUndefined(katex) {
-		log.Printf("⚠️ KaTeX not found in VM")
-		return &Instance{ruler: ruler}
-	}
-
-	katexObj := katex.ToObject(vm)
-	renderToString := katexObj.Get("renderToString")
-	renderFn, ok := goja.AssertFunction(renderToString)
-	if !ok {
-		log.Printf("⚠️ katex.renderToString is not a function")
-		return &Instance{ruler: ruler}
-	}
-
 	return &Instance{
-		ruler:    ruler,
-		vm:       vm,
-		katex:    katex,
-		renderFn: renderFn,
+		ruler: ruler,
 	}
+}
+
+// ensureInitialized performs lazy initialization of the JS engine
+func (i *Instance) ensureInitialized() {
+	i.initOnce.Do(func() {
+		// Initialize goja VM with KaTeX
+		vm := goja.New()
+
+		// Provide minimal console
+		console := vm.NewObject()
+		console.Set("log", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
+		console.Set("warn", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
+		console.Set("error", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
+		vm.Set("console", console)
+
+		// Document stub
+		document := vm.NewObject()
+		document.Set("createElement", func(call goja.FunctionCall) goja.Value {
+			elem := vm.NewObject()
+			elem.Set("setAttribute", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
+			return elem
+		})
+		vm.Set("document", document)
+
+		// Load KaTeX
+		_, err := vm.RunString(katexJS)
+		if err != nil {
+			log.Printf("⚠️ Failed to load KaTeX: %v", err)
+			return
+		}
+
+		katex := vm.Get("katex")
+		if katex == nil || goja.IsUndefined(katex) {
+			log.Printf("⚠️ KaTeX not found in VM")
+			return
+		}
+
+		katexObj := katex.ToObject(vm)
+		renderToString := katexObj.Get("renderToString")
+		renderFn, ok := goja.AssertFunction(renderToString)
+		if !ok {
+			log.Printf("⚠️ katex.renderToString is not a function")
+			return
+		}
+
+		i.vm = vm
+		i.katex = katex
+		i.renderFn = renderFn
+	})
 }
 
 // HashContent generates an MD5 hash for cache keys

@@ -6,6 +6,7 @@ public/
 # 2. Build Cache Directory
 # Cache files for incremental builds (not deployed to production)
 .kosh-cache/
+.ruff_cache/
 
 # 3. Mac OS System Files
 .DS_Store

@@ -35,7 +35,11 @@
                 });
             });
 
-            pre.appendChild(btn);
+            if (pre.parentElement && pre.parentElement.classList.contains('code-wrapper')) {
+                pre.parentElement.appendChild(btn);
+            } else {
+                pre.appendChild(btn);
+            }
         });
 
         // 4. Reading Progress Bar
@@ -99,7 +103,7 @@
                 lightboxSvgContainer.innerHTML = content;
                 lightboxImg.style.display = 'none';
                 lightboxSvgContainer.style.display = 'block';
-                
+
                 const svg = lightboxSvgContainer.querySelector('svg');
                 if (svg) {
                     svg.removeAttribute('width');
@@ -136,7 +140,10 @@
             // Handle D2 Diagrams (click on SVG or its container)
             const d2Container = e.target.closest('.d2-container');
             if (d2Container) {
-                const activeSvg = d2Container.querySelector('div:not([style*="display: none"]) svg') || d2Container.querySelector('svg');
+                const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+                const selector = isLight ? '.d2-light svg' : '.d2-dark svg';
+                const activeSvg = d2Container.querySelector(selector);
+
                 if (activeSvg) {
                     openLightbox('svg', activeSvg.outerHTML);
                 }
@@ -178,6 +185,7 @@
                 badge.className = 'code-badge';
                 badge.textContent = lang.toUpperCase();
                 wrapper.appendChild(badge);
+                wrapper.classList.add('has-badge');
             }
         });
 
@@ -219,12 +227,12 @@
                                 if (link.getAttribute('href') === `#${id}`) {
                                     link.classList.add('active');
                                     const tocNav = link.closest('nav');
-                                    if(tocNav) {
-                                         const navRect = tocNav.getBoundingClientRect();
-                                         const linkRect = link.getBoundingClientRect();
-                                         if (linkRect.top < navRect.top || linkRect.bottom > navRect.bottom) {
-                                             link.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                                         }
+                                    if (tocNav) {
+                                        const navRect = tocNav.getBoundingClientRect();
+                                        const linkRect = link.getBoundingClientRect();
+                                        if (linkRect.top < navRect.top || linkRect.bottom > navRect.bottom) {
+                                            link.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                                        }
                                     }
                                 }
                             });
