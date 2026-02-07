@@ -72,7 +72,7 @@ func openCache() *cache.Manager {
 
 func cacheStats() {
 	cm := openCache()
-	defer cm.Close()
+	defer func() { _ = cm.Close() }()
 
 	stats, err := cm.Stats()
 	if err != nil {
@@ -97,7 +97,7 @@ func cacheStats() {
 
 func cacheGC(dryRun bool) {
 	cm := openCache()
-	defer cm.Close()
+	defer func() { _ = cm.Close() }()
 
 	cfg := cache.DefaultGCConfig()
 	cfg.DryRun = dryRun
@@ -130,7 +130,7 @@ func cacheGC(dryRun bool) {
 
 func cacheVerify() {
 	cm := openCache()
-	defer cm.Close()
+	defer func() { _ = cm.Close() }()
 
 	fmt.Println("🔍 Verifying cache integrity...")
 
@@ -159,7 +159,7 @@ func cacheRebuild() {
 		fmt.Printf("❌ Failed to clear cache: %v\n", err)
 		os.Exit(1)
 	}
-	cm.Close()
+	_ = cm.Close()
 
 	fmt.Println("✅ Cache cleared. Run 'kosh build' to rebuild.")
 }
@@ -173,14 +173,14 @@ func cacheClear() {
 		fmt.Printf("❌ Failed to clear cache: %v\n", err)
 		os.Exit(1)
 	}
-	cm.Close()
+	_ = cm.Close()
 
 	fmt.Println("✅ Cache cleared")
 }
 
 func cacheInspect(path string) {
 	cm := openCache()
-	defer cm.Close()
+	defer func() { _ = cm.Close() }()
 
 	post, err := cm.GetPostByPath(path)
 	if err != nil {

@@ -38,7 +38,7 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 			defer genWg.Done()
 			generators.GenerateGraph(b.DestFs, cfg.BaseURL, allContent)
 			if b.cacheManager != nil {
-				b.cacheManager.SetGraphHash(graphHash)
+				_ = b.cacheManager.SetGraphHash(graphHash)
 			}
 		}()
 	}

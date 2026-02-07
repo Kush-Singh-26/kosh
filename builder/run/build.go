@@ -70,9 +70,9 @@ func (b *Builder) Build() {
 	}
 	b.md = mdParser.New(cfg.BaseURL, b.native, diagramCache, &b.mu)
 
-	b.DestFs.MkdirAll("public/tags", 0755)
-	b.DestFs.MkdirAll("public/static/images/cards", 0755)
-	b.DestFs.MkdirAll("public/sitemap", 0755)
+	_ = b.DestFs.MkdirAll("public/tags", 0755)
+	_ = b.DestFs.MkdirAll("public/static/images/cards", 0755)
+	_ = b.DestFs.MkdirAll("public/sitemap", 0755)
 
 	// 2. Static Assets
 	var staticWg sync.WaitGroup
@@ -81,7 +81,7 @@ func (b *Builder) Build() {
 		defer staticWg.Done()
 		b.copyStaticAndBuildAssets()
 	}()
-	utils.WriteFileVFS(b.DestFs, "public/.nojekyll", []byte(""))
+	_ = utils.WriteFileVFS(b.DestFs, "public/.nojekyll", []byte(""))
 	staticWg.Wait()
 
 	if len(affectedPosts) > 0 && b.cacheManager != nil {
@@ -91,7 +91,7 @@ func (b *Builder) Build() {
 			// invalidateForTemplate returns paths.
 			// We can generate ID from path (empty UUID).
 			postID := cache.GeneratePostID("", relPath)
-			b.cacheManager.DeletePost(postID)
+			_ = b.cacheManager.DeletePost(postID)
 		}
 	}
 

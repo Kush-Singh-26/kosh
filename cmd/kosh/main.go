@@ -26,15 +26,11 @@ func main() {
 	case "clean":
 		// Check for --cache flag
 		cleanCache := false
-		var filteredArgs []string
 		for _, arg := range args {
 			if arg == "--cache" || arg == "-cache" {
 				cleanCache = true
-			} else {
-				filteredArgs = append(filteredArgs, arg)
 			}
 		}
-		args = filteredArgs
 
 		clean.Run(cleanCache)
 		// Auto-rebuild after clean
@@ -43,6 +39,9 @@ func main() {
 
 	case "new":
 		new.Run(args)
+		// Auto-rebuild after creating a new post
+		fmt.Println("\n🔄 Building site with new post...")
+		run.Run([]string{})
 
 	case "serve":
 		// Check for --dev flag
@@ -174,7 +173,7 @@ func main() {
 				fmt.Printf("could not create CPU profile: %v\n", err)
 				os.Exit(1)
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			if err := pprof.StartCPUProfile(f); err != nil {
 				fmt.Printf("could not start CPU profile: %v\n", err)
 				os.Exit(1)
@@ -205,7 +204,7 @@ func main() {
 					fmt.Printf("could not create memory profile: %v\n", err)
 					os.Exit(1)
 				}
-				defer f.Close()
+				defer func() { _ = f.Close() }()
 				runtime.GC() // get up-to-date statistics
 				if err := pprof.WriteHeapProfile(f); err != nil {
 					fmt.Printf("could not write memory profile: %v\n", err)

@@ -66,7 +66,7 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 	defer func() { _ = file.Close() }()
 
 	gw := gzip.NewWriter(file)
-	defer gw.Close()
+	defer func() { _ = gw.Close() }()
 
 	enc := gob.NewEncoder(gw)
 	return enc.Encode(index)

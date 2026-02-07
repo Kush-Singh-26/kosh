@@ -80,19 +80,19 @@ func (i *Instance) ensureInitialized() {
 
 		// Provide minimal console
 		console := vm.NewObject()
-		console.Set("log", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
-		console.Set("warn", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
-		console.Set("error", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
-		vm.Set("console", console)
+		_ = console.Set("log", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
+		_ = console.Set("warn", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
+		_ = console.Set("error", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
+		_ = vm.Set("console", console)
 
 		// Document stub
 		document := vm.NewObject()
-		document.Set("createElement", func(call goja.FunctionCall) goja.Value {
+		_ = document.Set("createElement", func(call goja.FunctionCall) goja.Value {
 			elem := vm.NewObject()
-			elem.Set("setAttribute", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
+			_ = elem.Set("setAttribute", func(call goja.FunctionCall) goja.Value { return goja.Undefined() })
 			return elem
 		})
-		vm.Set("document", document)
+		_ = vm.Set("document", document)
 
 		// Load KaTeX
 		_, err := vm.RunString(katexJS)

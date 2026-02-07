@@ -57,7 +57,7 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 	var socialTasksMu sync.Mutex
 
 	var files []string
-	afero.Walk(b.SourceFs, "content", func(path string, info fs.FileInfo, err error) error {
+	_ = afero.Walk(b.SourceFs, "content", func(path string, info fs.FileInfo, err error) error {
 		if err == nil && strings.HasSuffix(path, ".md") && !strings.Contains(path, "_index.md") {
 			if strings.Contains(path, "404.md") {
 				has404 = true
@@ -138,7 +138,6 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 			if useCache {
 				htmlContent = string(cachedHTML)
 				metaData = cachedMeta.Meta
-				metaData = cachedMeta.Meta
 				frontmatterHash = cachedMeta.ContentHash // Using ContentHash as FrontmatterHash per migration plan
 
 				// Reconstruct PostMetadata
@@ -178,11 +177,6 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 				ctx := parser.NewContext()
 				docNode := b.md.Parser().Parse(text.NewReader(source), parser.WithContext(ctx))
 				var buf bytes.Buffer
-
-				// Handle diagrams
-				if pairs := mdParser.GetD2SVGPairSlice(ctx); pairs != nil {
-					// Pre-calc replacements? Render writes to buf
-				}
 
 				_ = b.md.Renderer().Render(&buf, source, docNode)
 				htmlContent = buf.String()
@@ -241,7 +235,7 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 			}
 
 			cardDestPath := filepath.Join("public", "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp")
-			b.DestFs.MkdirAll(filepath.Dir(cardDestPath), 0755)
+			_ = b.DestFs.MkdirAll(filepath.Dir(cardDestPath), 0755)
 
 			if forceSocialRebuild || cachedHash != frontmatterHash {
 				socialTasksMu.Lock()
@@ -380,7 +374,7 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 				defer func() { <-cardSem }()
 				_ = generators.GenerateSocialCard(b.DestFs, b.SourceFs, utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"), utils.GetString(t.metaData, "date"), t.cardDestPath, "static/images/favicon.png", "builder/assets/fonts")
 				if b.cacheManager != nil {
-					b.cacheManager.SetSocialCardHash(t.path, t.frontmatterHash)
+					_ = b.cacheManager.SetSocialCardHash(t.path, t.frontmatterHash)
 				}
 			}(t)
 		}

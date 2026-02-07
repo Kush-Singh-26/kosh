@@ -35,7 +35,7 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata) 
 			if i > 1 {
 				destPath = fmt.Sprintf("public/page/%d/index.html", i)
 				permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, i)
-				b.DestFs.MkdirAll(filepath.Dir(destPath), 0755)
+				_ = b.DestFs.MkdirAll(filepath.Dir(destPath), 0755)
 			}
 			paginator := models.Paginator{CurrentPage: i, TotalPages: totalPages, HasPrev: i > 1, HasNext: i < totalPages, FirstURL: cfg.BaseURL + "/#latest", LastURL: fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, totalPages)}
 			if i > 2 {

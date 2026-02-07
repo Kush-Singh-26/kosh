@@ -46,7 +46,7 @@ func (m *Manager) ShouldRunGC(cfg GCConfig) (bool, string) {
 
 	// Check builds since last GC
 	var buildsSinceGC int
-	m.db.View(func(tx *bolt.Tx) error {
+	_ = m.db.View(func(tx *bolt.Tx) error {
 		statsBucket := tx.Bucket([]byte(BucketStats))
 		if data := statsBucket.Get([]byte("builds_since_gc")); data != nil {
 			buildsSinceGC = int(binary.BigEndian.Uint32(data))
@@ -176,7 +176,7 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 
 	// Step 4: Reconcile SSR RefCounts
 	if !cfg.DryRun {
-		m.db.Update(func(tx *bolt.Tx) error {
+		_ = m.db.Update(func(tx *bolt.Tx) error {
 			ssrBucket := tx.Bucket([]byte(BucketSSR))
 
 			// First pass: reset all ref counts
@@ -184,7 +184,7 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 
 			// Count references from posts
 			postsBucket := tx.Bucket([]byte(BucketPosts))
-			postsBucket.ForEach(func(_, v []byte) error {
+			_ = postsBucket.ForEach(func(_, v []byte) error {
 				var post PostMeta
 				if err := Decode(v, &post); err != nil {
 					return nil
@@ -209,7 +209,7 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 					if err != nil {
 						return nil
 					}
-					ssrBucket.Put(k, data)
+					_ = ssrBucket.Put(k, data)
 				}
 				return nil
 			})
@@ -218,18 +218,18 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 
 	// Step 5: Update GC stats
 	if !cfg.DryRun {
-		m.db.Update(func(tx *bolt.Tx) error {
+		_ = m.db.Update(func(tx *bolt.Tx) error {
 			statsBucket := tx.Bucket([]byte(BucketStats))
 
 			// Reset builds since GC
 			countData := make([]byte, 4)
 			binary.BigEndian.PutUint32(countData, 0)
-			statsBucket.Put([]byte("builds_since_gc"), countData)
+			_ = statsBucket.Put([]byte("builds_since_gc"), countData)
 
 			// Update last GC time
 			gcTime := make([]byte, 8)
 			binary.BigEndian.PutUint64(gcTime, uint64(time.Now().Unix()))
-			statsBucket.Put([]byte(KeyLastGC), gcTime)
+			_ = statsBucket.Put([]byte(KeyLastGC), gcTime)
 
 			return nil
 		})
@@ -302,10 +302,10 @@ func (m *Manager) Verify() ([]string, error) {
 // Clear removes all cache data
 func (m *Manager) Clear() error {
 	// Close the database first
-	m.db.Close()
+	_ = m.db.Close()
 
 	// Remove all files
-	os.RemoveAll(m.basePath)
+	_ = os.RemoveAll(m.basePath)
 
 	// Recreate
 	newManager, err := Open(m.basePath)

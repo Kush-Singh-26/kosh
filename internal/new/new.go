@@ -29,7 +29,7 @@ date: "%s"
 description: "Enter a short description here..."
 tags: []
 pinned: false
-draft: true
+draft: false
 ---
 
 ## Introduction

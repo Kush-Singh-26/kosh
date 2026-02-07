@@ -59,7 +59,7 @@ func NewBuilder(args []string) *Builder {
 		if needsRebuild {
 			fmt.Printf("🔄 Cache fingerprint changed. Triggering rebuild.\n")
 			cfg.ForceRebuild = true
-			cacheManager.SetCacheID(cacheID)
+			_ = cacheManager.SetCacheID(cacheID)
 		}
 
 		diagramAdapter = cache.NewDiagramCacheAdapter(cacheManager)
@@ -168,7 +168,7 @@ func (b *Builder) SaveCaches() {
 
 	// Increment build count
 	if b.cacheManager != nil {
-		b.cacheManager.IncrementBuildCount()
+		_ = b.cacheManager.IncrementBuildCount()
 	}
 
 	fmt.Printf("   💾 Saved caches to .kosh-cache/\n")
@@ -177,7 +177,7 @@ func (b *Builder) SaveCaches() {
 // Close cleans up resources
 func (b *Builder) Close() {
 	if b.cacheManager != nil {
-		b.cacheManager.Close()
+		_ = b.cacheManager.Close()
 	}
 }
 

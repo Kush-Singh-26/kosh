@@ -38,3 +38,5 @@ tmp/
 # Usually you commit go.sum, but if you have a vendor folder you might ignore it
 # vendor/
 
+ant.md
+*.prof

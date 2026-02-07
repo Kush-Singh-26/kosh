@@ -27,10 +27,10 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 		if info.IsDir() {
 			return nil
 		}
-		ext := strings.ToLower(filepath.Ext(path))
-		if ext == ".js" {
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".js":
 			jsEntryPoints = append(jsEntryPoints, path)
-		} else if ext == ".css" {
+		case ".css":
 			cssEntryPoints = append(cssEntryPoints, path)
 		}
 		return nil
@@ -83,9 +83,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 			if strings.HasPrefix(fullPath, cwd) {
 				path = strings.TrimPrefix(fullPath, cwd)
 			}
-			if strings.HasPrefix(path, "/") {
-				path = path[1:]
-			}
+			path = strings.TrimPrefix(path, "/")
 
 			dir := filepath.Dir(path)
 			if err := destFs.MkdirAll(dir, 0755); err != nil {
@@ -121,9 +119,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 			// We want the key to be "/static/js/main.js" for compatibility
 
 			relEntryPoint := outInfo.EntryPoint
-			if strings.HasPrefix(relEntryPoint, srcDir) {
-				relEntryPoint = strings.TrimPrefix(relEntryPoint, srcDir)
-			}
+			relEntryPoint = strings.TrimPrefix(relEntryPoint, srcDir)
 			if !strings.HasPrefix(relEntryPoint, "/") {
 				relEntryPoint = "/" + relEntryPoint
 			}

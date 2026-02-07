@@ -52,7 +52,7 @@ func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, title, description, dat
 		// Load image from SourceFs
 		f, err := srcFs.Open(faviconPath)
 		if err == nil {
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			im, _, err := image.Decode(f)
 			if err == nil {
 				iconSize := 48.0

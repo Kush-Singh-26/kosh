@@ -76,10 +76,6 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 		isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
 
 		if compress && isImage {
-			// Change extension to webp
-			extLen := len(filepath.Ext(destPath))
-			destPath = destPath[:len(destPath)-extLen] + ".webp"
-
 			// Queue for processing
 			// Adjust relPath for the task to match the webp destination
 			relPathWebP := relPath[:len(relPath)-len(filepath.Ext(relPath))] + ".webp"
@@ -95,13 +91,13 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 			if err != nil {
 				return err
 			}
-			defer in.Close()
+			defer func() { _ = in.Close() }()
 
 			out, err := destFs.Create(destPath)
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 
 			if _, err := io.Copy(out, in); err != nil {
 				return err
@@ -151,7 +147,7 @@ func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string) e
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	img, err := imaging.Decode(file)
 	if err != nil {
@@ -172,7 +168,7 @@ func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string) e
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	return webp.Encode(out, img, &webp.Options{Lossless: false, Quality: 80})
 }
@@ -221,7 +217,7 @@ func HashDirs(dirs []string) (string, error) {
 			if err != nil {
 				return err
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			if _, err := io.Copy(h, f); err != nil {
 				return err
 			}
@@ -247,10 +243,10 @@ func HashFiles(files []string) (string, error) {
 			return "", err
 		}
 		if _, err := io.Copy(h, f); err != nil {
-			f.Close()
+			_ = f.Close()
 			return "", err
 		}
-		f.Close()
+		_ = f.Close()
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }

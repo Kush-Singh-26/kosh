@@ -26,7 +26,7 @@ func NewStore(basePath string) (*Store, error) {
 
 	decoder, err := zstd.NewReader(nil)
 	if err != nil {
-		encoder.Close()
+		_ = encoder.Close()
 		return nil, fmt.Errorf("failed to create zstd decoder: %w", err)
 	}
 
@@ -39,7 +39,7 @@ func NewStore(basePath string) (*Store, error) {
 
 // Close releases resources
 func (s *Store) Close() error {
-	s.encoder.Close()
+	_ = s.encoder.Close()
 	s.decoder.Close()
 	return nil
 }
@@ -99,7 +99,7 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 				return "", 0, err
 			}
 			data = enc.EncodeAll(content, nil)
-			enc.Close()
+			_ = enc.Close()
 		} else {
 			data = s.encoder.EncodeAll(content, nil)
 		}
@@ -115,24 +115,24 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 	}
 
 	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(tmpPath)
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("failed to write content: %w", err)
 	}
 
 	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmpPath)
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("failed to sync file: %w", err)
 	}
 
 	if err := f.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("failed to close file: %w", err)
 	}
 
 	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("failed to rename file: %w", err)
 	}
 
@@ -189,8 +189,8 @@ func (s *Store) Delete(category string, hash string) error {
 	rawPath := s.shardPath(category, hash) + ".raw"
 	zstPath := s.shardPath(category, hash) + ".zst"
 
-	os.Remove(rawPath)
-	os.Remove(zstPath)
+	_ = os.Remove(rawPath)
+	_ = os.Remove(zstPath)
 	return nil
 }
 

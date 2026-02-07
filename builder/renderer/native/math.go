@@ -19,9 +19,9 @@ func (r *Renderer) RenderMath(latex string, displayMode bool) (string, error) {
 	}
 
 	opts := instance.vm.NewObject()
-	opts.Set("displayMode", displayMode)
-	opts.Set("throwOnError", false)
-	opts.Set("output", "html")
+	_ = opts.Set("displayMode", displayMode)
+	_ = opts.Set("throwOnError", false)
+	_ = opts.Set("output", "html")
 
 	result, err := instance.renderFn(instance.katex, instance.vm.ToValue(latex), opts)
 	if err != nil {
@@ -64,9 +64,9 @@ func (r *Renderer) RenderAllMath(expressions []MathExpression, cache map[string]
 			}
 
 			opts := instance.vm.NewObject()
-			opts.Set("displayMode", e.DisplayMode)
-			opts.Set("throwOnError", false)
-			opts.Set("output", "html")
+			_ = opts.Set("displayMode", e.DisplayMode)
+			_ = opts.Set("throwOnError", false)
+			_ = opts.Set("output", "html")
 
 			res, err := instance.renderFn(instance.katex, instance.vm.ToValue(e.LaTeX), opts)
 			if err != nil {

@@ -61,7 +61,7 @@ func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 	// Load 404 template
 	notFoundTmpl, err := template.New("404.html").Funcs(funcMap).ParseFiles(filepath.Join(templateDir, "404.html"))
 	if err != nil {
-		log.Printf("⚠️  404 template not found, will use layout.html for 404 page. (%v)\n", templateDir, err)
+		log.Printf("⚠️  404 template not found in %s, will use layout.html for 404 page. (%v)\n", templateDir, err)
 		notFoundTmpl = nil
 	}
 

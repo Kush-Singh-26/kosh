@@ -45,7 +45,7 @@ func Open(basePath string) (*Manager, error) {
 	storePath := filepath.Join(basePath, "store")
 	store, err := NewStore(storePath)
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to create store: %w", err)
 	}
 
@@ -58,7 +58,7 @@ func Open(basePath string) (*Manager, error) {
 
 	// Initialize schema
 	if err := m.initSchema(); err != nil {
-		m.Close()
+		_ = m.Close()
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
@@ -68,7 +68,7 @@ func Open(basePath string) (*Manager, error) {
 // Close closes the cache
 func (m *Manager) Close() error {
 	if m.store != nil {
-		m.store.Close()
+		_ = m.store.Close()
 	}
 	if m.db != nil {
 		return m.db.Close()
@@ -399,20 +399,20 @@ func (m *Manager) DeletePost(postID string) error {
 			var post PostMeta
 			if err := Decode(data, &post); err == nil {
 				// Remove path mapping
-				pathsBucket.Delete([]byte(normalizePath(post.Path)))
+				_ = pathsBucket.Delete([]byte(normalizePath(post.Path)))
 
 				// Remove tag indexes
 				for _, tag := range post.Tags {
 					tagKey := []byte(tag + "/" + postID)
-					tagsBucket.Delete(tagKey)
+					_ = tagsBucket.Delete(tagKey)
 				}
 			}
 		}
 
 		// Delete from all buckets
-		postsBucket.Delete(postIDBytes)
-		searchBucket.Delete(postIDBytes)
-		depsBucket.Delete(postIDBytes)
+		_ = postsBucket.Delete(postIDBytes)
+		_ = searchBucket.Delete(postIDBytes)
+		_ = depsBucket.Delete(postIDBytes)
 
 		return nil
 	})

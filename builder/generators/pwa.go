@@ -169,7 +169,7 @@ func GeneratePWAIcons(srcFs afero.Fs, destFs afero.Fs, srcPath, destDir string) 
 	if err != nil {
 		return fmt.Errorf("source icon not found: %w", err)
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	// Open source image
 	src, err := imaging.Decode(srcFile)
@@ -205,7 +205,7 @@ func GeneratePWAIcons(srcFs afero.Fs, destFs afero.Fs, srcPath, destDir string) 
 
 		// Encode as PNG
 		err = imaging.Encode(f, dst, imaging.PNG)
-		f.Close()
+		_ = f.Close()
 		if err != nil {
 			return err
 		}
