@@ -41,6 +41,7 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 			"public/sitemap.xml":             true,
 			"public/rss.xml":                 true,
 			"public/search_index.json":       true,
+			"public/search.bin":              true,
 			"public/manifest.json":           true,
 			"public/sw.js":                   true,
 			"public/graph.json":              true,
@@ -102,19 +103,46 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 }
 
 func syncSingleFile(srcFs afero.Fs, path string) error {
-	srcContent, err := afero.ReadFile(srcFs, path)
+	// Get source file info first
+	srcInfo, err := srcFs.Stat(path)
 	if err != nil {
 		return err
 	}
 
+	srcSize := srcInfo.Size()
+
 	// Check if destination exists and matches
 	if destInfo, err := os.Stat(path); err == nil {
-		if destInfo.Size() == int64(len(srcContent)) {
+		// Quick check: different sizes mean different content
+		if destInfo.Size() != srcSize {
+			goto writeFile
+		}
+
+		// For small files (< 64KB), compare content directly
+		const smallFileThreshold = 64 * 1024
+		if srcSize < smallFileThreshold {
+			srcContent, err := afero.ReadFile(srcFs, path)
+			if err != nil {
+				return err
+			}
 			destContent, err := os.ReadFile(path)
 			if err == nil && bytes.Equal(destContent, srcContent) {
 				return nil // Identical
 			}
+		} else {
+			// For large files, compare modification times first
+			// This avoids reading large files into memory
+			if destInfo.ModTime().Equal(srcInfo.ModTime()) || destInfo.ModTime().After(srcInfo.ModTime()) {
+				return nil // Destination is same age or newer
+			}
 		}
+	}
+
+writeFile:
+	// Read and write the file
+	srcContent, err := afero.ReadFile(srcFs, path)
+	if err != nil {
+		return err
 	}
 
 	return os.WriteFile(path, srcContent, 0644)

@@ -8,6 +8,8 @@ import (
 
 	"github.com/vmihailenco/msgpack/v5"
 	"github.com/zeebo/blake3"
+
+	"my-ssg/builder/models"
 )
 
 // PostMeta stores metadata about a cached post
@@ -16,7 +18,8 @@ type PostMeta struct {
 	Path           string                 `msgpack:"path"`
 	ModTime        int64                  `msgpack:"mod_time"`
 	ContentHash    string                 `msgpack:"content_hash"`
-	HTMLHash       string                 `msgpack:"html_hash"`
+	HTMLHash       string                 `msgpack:"html_hash,omitempty"`   // Only for large posts
+	InlineHTML     []byte                 `msgpack:"inline_html,omitempty"` // < 32KB posts stored inline
 	TemplateHash   string                 `msgpack:"template_hash"`
 	SSRInputHashes []string               `msgpack:"ssr_input_hashes"`
 	Title          string                 `msgpack:"title"`
@@ -31,8 +34,13 @@ type PostMeta struct {
 	HasMath        bool                   `msgpack:"has_math"`
 	HasMermaid     bool                   `msgpack:"has_mermaid"`
 	Meta           map[string]interface{} `msgpack:"meta"`
-	TOC            []TOCEntry             `msgpack:"toc"`
+	TOC            []models.TOCEntry      `msgpack:"toc"`
 }
+
+// Constants for inline HTML threshold
+const (
+	InlineHTMLThreshold = 32 * 1024 // 32KB - posts smaller than this are stored inline
+)
 
 // SSRArtifact stores server-side rendered content (D2 diagrams, KaTeX math)
 type SSRArtifact struct {
@@ -52,6 +60,8 @@ type SearchRecord struct {
 	BM25Data map[string]int `msgpack:"bm25_data"` // word -> frequency
 	DocLen   int            `msgpack:"doc_len"`
 	Content  string         `msgpack:"content"`
+	// Cached tokenization to avoid re-tokenizing unchanged content
+	Words []string `msgpack:"words,omitempty"` // Cached tokenized words
 }
 
 // Dependencies tracks what a post depends on
@@ -59,13 +69,6 @@ type Dependencies struct {
 	Templates []string `msgpack:"templates"`
 	Includes  []string `msgpack:"includes"`
 	Tags      []string `msgpack:"tags"`
-}
-
-// TOCEntry represents a table of contents entry
-type TOCEntry struct {
-	ID    string `msgpack:"id"`
-	Text  string `msgpack:"text"`
-	Level int    `msgpack:"level"`
 }
 
 // CacheStats holds runtime statistics
@@ -78,6 +81,13 @@ type CacheStats struct {
 	BuildCount    int   `msgpack:"build_count"`
 	SchemaVersion int   `msgpack:"schema_version"`
 	LastBuildTime int64 `msgpack:"last_build_time"`
+	// Performance metrics for optimization monitoring
+	LastReadTime  time.Duration `msgpack:"last_read_time"`
+	LastWriteTime time.Duration `msgpack:"last_write_time"`
+	ReadCount     int64         `msgpack:"read_count"`
+	WriteCount    int64         `msgpack:"write_count"`
+	InlinePosts   int           `msgpack:"inline_posts"` // Posts with inlined HTML
+	HashedPosts   int           `msgpack:"hashed_posts"` // Posts using content-addressed storage
 }
 
 // CompressionType indicates how an artifact is stored

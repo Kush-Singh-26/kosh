@@ -1,6 +1,7 @@
 package run
 
 import (
+	"fmt"
 	"my-ssg/builder/generators"
 	"my-ssg/builder/models"
 	"my-ssg/builder/utils"
@@ -23,7 +24,9 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 	genWg.Add(1)
 	go func() {
 		defer genWg.Done()
-		_ = generators.GenerateSearchIndex(b.DestFs, "public", indexedPosts)
+		if err := generators.GenerateSearchIndex(b.DestFs, "public", indexedPosts); err != nil {
+			fmt.Printf("❌ Failed to generate search index: %v\n", err)
+		}
 	}()
 
 	graphHash, _ := utils.GetGraphHash(allContent)

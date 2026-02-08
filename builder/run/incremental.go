@@ -36,13 +36,15 @@ func (b *Builder) invalidateForTemplate(templatePath string) []string {
 		if b.cacheManager != nil {
 			ids, err := b.cacheManager.GetPostsByTemplate(relTmpl)
 			if err == nil && len(ids) > 0 {
-				var paths []string
-				for _, id := range ids {
-					if meta, err := b.cacheManager.GetPostByID(id); err == nil && meta != nil {
-						paths = append(paths, meta.Path)
+				// Batch fetch all posts in a single transaction (avoids N+1 query)
+				posts, err := b.cacheManager.GetPostsByIDs(ids)
+				if err == nil && len(posts) > 0 {
+					paths := make([]string, 0, len(posts))
+					for _, post := range posts {
+						paths = append(paths, post.Path)
 					}
+					return paths
 				}
-				return paths
 			}
 		}
 		return []string{}
@@ -64,7 +66,6 @@ func (b *Builder) invalidateForTemplate(templatePath string) []string {
 // BuildChanged rebuilds only the changed file (for watch mode)
 func (b *Builder) BuildChanged(changedPath string) {
 	if strings.HasSuffix(changedPath, ".md") && strings.HasPrefix(changedPath, "content") {
-		fmt.Printf("⚡ Quick rebuild for: %s\n", changedPath)
 		b.buildSinglePost(changedPath)
 		// Sync VFS changes to disk (differential)
 		if err := utils.SyncVFS(b.DestFs, "public", b.rnd.GetRenderedFiles()); err != nil {
@@ -74,7 +75,6 @@ func (b *Builder) BuildChanged(changedPath string) {
 		return
 	}
 
-	fmt.Printf("⚡ Full rebuild needed for: %s\n", changedPath)
 	b.Build()
 	b.SaveCaches()
 }
@@ -108,13 +108,9 @@ func (b *Builder) buildSinglePost(path string) {
 	}
 
 	if exists && cachedHash == newFrontmatterHash {
-		fmt.Printf("   📝 Content-only change detected. Fast rebuild...\n")
 		b.buildContentOnly(path)
 		b.SaveCaches()
 	} else {
-		if exists {
-			fmt.Printf("   🔄 Frontmatter changed. Full rebuild needed...\n")
-		}
 		// Full rebuild handles cache update
 		b.Build()
 		b.SaveCaches()
@@ -190,20 +186,19 @@ func (b *Builder) buildContentOnly(path string) {
 		HasMermaid:  hasD2,
 	}
 
-	// Convert TOC for cache
-	var cacheTOC []cache.TOCEntry
-	for _, t := range toc {
-		cacheTOC = append(cacheTOC, cache.TOCEntry{
+	// Convert TOC for cache (uses unified models.TOCEntry type)
+	cacheTOC := make([]models.TOCEntry, len(toc))
+	for i, t := range toc {
+		cacheTOC[i] = models.TOCEntry{
 			ID:    t.ID,
 			Text:  t.Text,
 			Level: t.Level,
-		})
+		}
 	}
 
 	frontmatterHash, _ := utils.GetFrontmatterHash(metaData)
 
 	if isDraft && !cfg.IncludeDrafts {
-		fmt.Printf("   ⏩ Skipping draft: %s\n", relPath)
 		return
 	}
 
@@ -275,7 +270,6 @@ func (b *Builder) buildContentOnly(path string) {
 		imagePath = cfg.BaseURL + img
 	}
 
-	fmt.Printf("   Rendering: %s\n", htmlRelPath)
 	b.rnd.RenderPage(destPath, models.PageData{
 		Title:        post.Title,
 		Description:  post.Description,
@@ -291,6 +285,4 @@ func (b *Builder) buildContentOnly(path string) {
 		TOC:          toc,
 		Config:       cfg,
 	})
-
-	fmt.Printf("   ✅ Content-only rebuild complete for: %s\n", htmlRelPath)
 }

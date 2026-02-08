@@ -20,8 +20,6 @@ func GenerateSW(destFs afero.Fs, destDir string, buildVersion int64, forceRebuil
 		}
 	}
 
-	fmt.Println("   📱 Generating Service Worker...")
-
 	swTemplate := `
 const CACHE_NAME = 'kush-blog-cache-v{{ .Version }}';
 const STATIC_CACHE = 'kush-blog-static-v{{ .Version }}';
@@ -93,8 +91,6 @@ func GenerateManifest(destFs afero.Fs, destDir string, baseURL string, siteTitle
 			return nil
 		}
 	}
-
-	fmt.Println("   📱 Generating Web Manifest...")
 
 	manifestTemplate := `{
     "name": "{{ .Title }}",

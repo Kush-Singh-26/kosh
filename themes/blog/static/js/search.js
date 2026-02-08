@@ -16,11 +16,15 @@
     const baseURL = window.siteBaseURL || '';
 
     // Construct paths safely (avoiding double slashes except after protocol)
+    // Optimized to reduce intermediate string allocations
     const joinPath = (base, path) => {
         if (!base) return path;
-        const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-        const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-        return cleanBase + '/' + cleanPath;
+        const needsSlash = !base.endsWith('/') && !path.startsWith('/');
+        const hasDoubleSlash = base.endsWith('/') && path.startsWith('/');
+        
+        if (hasDoubleSlash) return base + path.slice(1);
+        if (needsSlash) return base + '/' + path;
+        return base + path;
     };
 
     // Load WASM when needed
@@ -36,35 +40,57 @@
                     console.log("Loading wasm_exec.js dynamically...");
                     const script = document.createElement('script');
                     script.src = joinPath(baseURL, '/static/js/wasm_exec.js');
+                    console.log("Loading wasm_exec.js from:", script.src);
                     const scriptPromise = new Promise((resolve, reject) => {
                         script.onload = resolve;
-                        script.onerror = reject;
+                        script.onerror = (e) => reject(new Error(`Failed to load wasm_exec.js: ${e}`));
                     });
                     document.head.appendChild(script);
                     await scriptPromise;
+                    console.log("wasm_exec.js loaded successfully");
                 }
 
                 if (typeof Go === 'undefined') {
-                    throw new Error("wasm_exec.js failed to load");
+                    throw new Error("wasm_exec.js failed to load - Go is still undefined");
                 }
+                console.log("Creating Go instance...");
                 const go = new Go();
                 
                 const wasmPath = joinPath(baseURL, '/static/wasm/search.wasm');
+                console.log("Fetching WASM from:", wasmPath);
                 const response = await fetch(wasmPath);
-                if (!response.ok) throw new Error(`Failed to fetch WASM: ${response.statusText}`);
+                if (!response.ok) throw new Error(`Failed to fetch WASM: ${response.status} ${response.statusText}`);
+                console.log("WASM fetched successfully");
                 
+                console.log("Instantiating WASM...");
                 const result = await WebAssembly.instantiateStreaming(response, go.importObject);
+                console.log("WASM instantiated, running Go...");
                 go.run(result.instance);
+                console.log("Go runtime started");
+                
+                // Check if initSearch is available
+                if (typeof window.initSearch !== 'function') {
+                    throw new Error("window.initSearch is not available after WASM load");
+                }
                 
                 // Initialize with the data index
                 const binPath = joinPath(baseURL, '/search.bin');
-                await window.initSearch(binPath);
-                wasmLoaded = true;
-                console.log("Search WASM Loaded and Initialized");
+                console.log("Initializing search with index from:", binPath);
+                
+                try {
+                    const initResult = await window.initSearch(binPath);
+                    console.log("Search initialized successfully with", initResult, "posts");
+                    wasmLoaded = true;
+                    console.log("Search WASM Loaded and Initialized");
+                } catch (initErr) {
+                    console.error("initSearch failed:", initErr);
+                    throw new Error(`Failed to initialize search index: ${initErr}`);
+                }
             } catch (err) {
                 console.error("Search initialization failed:", err);
                 if (searchResults) {
-                    searchResults.innerHTML = `<div style="padding: 2rem; color: #f85149;">Search initialization failed: ${err.message}</div>`;
+                    const errorMessage = err && err.message ? err.message : String(err);
+                    searchResults.innerHTML = `<div style="padding: 2rem; color: #f85149;">Search initialization failed: ${errorMessage}</div>`;
                 }
                 throw err;
             }

@@ -102,7 +102,11 @@ func fetchAndDecompress(url string) ([]byte, error) {
 			ch <- dst
 			return nil
 		})
-		bufPromise.Call("then", bufSuccess)
+		bufFailure := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			ch <- fmt.Errorf("failed to read array buffer: %v", args[0])
+			return nil
+		})
+		bufPromise.Call("then", bufSuccess, bufFailure)
 		return nil
 	})
 

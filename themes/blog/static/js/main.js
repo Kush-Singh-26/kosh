@@ -60,8 +60,9 @@
         const toggleBtn = document.getElementById('theme-toggle');
         const htmlEl = document.documentElement;
 
-        if (toggleBtn && !toggleBtn.dataset.hasListener) {
-            toggleBtn.dataset.hasListener = "true";
+        // Use a global flag to prevent race conditions if init() is called multiple times
+        if (toggleBtn && !window.__themeToggleInitialized) {
+            window.__themeToggleInitialized = true;
             toggleBtn.addEventListener('click', () => {
                 const isLight = htmlEl.getAttribute('data-theme') === 'light';
                 if (isLight) {

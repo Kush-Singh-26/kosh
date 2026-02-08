@@ -1,22 +1,68 @@
 package cache
 
 import (
+	"log"
+	"runtime"
 	"sync"
 )
+
+// writeRequest represents a request to write SSR data to cache
+type writeRequest struct {
+	key   string
+	value string
+}
 
 // DiagramCacheAdapter provides a map[string]string interface backed by BoltDB
 // This allows the existing markdown parser to work with the new cache system
 type DiagramCacheAdapter struct {
-	manager *Manager
-	local   map[string]string // In-memory buffer for current build
-	mu      sync.RWMutex
+	manager    *Manager
+	local      map[string]string // In-memory buffer for current build
+	mu         sync.RWMutex
+	pending    sync.WaitGroup    // Tracks pending async writes to prevent goroutine leaks
+	closed     bool              // Prevents new operations after Close() is called
+	writeQueue chan writeRequest // Bounded queue for async writes
+	workers    int               // Number of worker goroutines
+	stopCh     chan struct{}     // Signal to stop workers
+	closeOnce  sync.Once         // Ensures Close() is only called once
 }
 
-// NewDiagramCacheAdapter creates a new adapter
+// NewDiagramCacheAdapter creates a new adapter with a bounded worker pool
+// Uses runtime.NumCPU() workers to limit concurrent async writes
 func NewDiagramCacheAdapter(manager *Manager) *DiagramCacheAdapter {
-	return &DiagramCacheAdapter{
-		manager: manager,
-		local:   make(map[string]string),
+	workers := runtime.NumCPU()
+	if workers < 2 {
+		workers = 2
+	}
+
+	a := &DiagramCacheAdapter{
+		manager:    manager,
+		local:      make(map[string]string),
+		writeQueue: make(chan writeRequest, workers*4), // Buffered queue
+		workers:    workers,
+		stopCh:     make(chan struct{}),
+	}
+
+	// Start worker pool
+	for i := 0; i < workers; i++ {
+		go a.writeWorker()
+	}
+
+	return a
+}
+
+// writeWorker processes write requests from the queue
+func (a *DiagramCacheAdapter) writeWorker() {
+	for {
+		select {
+		case req := <-a.writeQueue:
+			if _, err := a.manager.StoreSSR("d2", req.key, []byte(req.value)); err != nil {
+				// Log error but don't fail - the data is still in local cache
+				log.Printf("Failed to store SSR cache for key %s: %v", req.key, err)
+			}
+			a.pending.Done()
+		case <-a.stopCh:
+			return
+		}
 	}
 }
 
@@ -50,16 +96,32 @@ func (a *DiagramCacheAdapter) Get(key string) (string, bool) {
 }
 
 // Set stores a diagram in the cache
+// Uses bounded worker pool to prevent goroutine explosion with many diagrams
 func (a *DiagramCacheAdapter) Set(key string, value string) {
+	a.mu.RLock()
+	if a.closed {
+		a.mu.RUnlock()
+		return
+	}
+	a.mu.RUnlock()
+
 	a.mu.Lock()
 	a.local[key] = value
 	a.mu.Unlock()
 
-	// Also store in BoltDB if manager is available
+	// Also store in BoltDB if manager is available using worker pool
 	if a.manager != nil {
-		go func() {
-			_, _ = a.manager.StoreSSR("d2", key, []byte(value))
-		}()
+		a.pending.Add(1)
+		select {
+		case a.writeQueue <- writeRequest{key: key, value: value}:
+			// Successfully queued
+		default:
+			// Queue full, process synchronously to avoid blocking
+			if _, err := a.manager.StoreSSR("d2", key, []byte(value)); err != nil {
+				log.Printf("Failed to store SSR cache for key %s: %v", key, err)
+			}
+			a.pending.Done()
+		}
 	}
 }
 
@@ -99,4 +161,24 @@ func (a *DiagramCacheAdapter) Clear() {
 	a.mu.Lock()
 	a.local = make(map[string]string)
 	a.mu.Unlock()
+}
+
+// Close waits for all pending async operations to complete and closes the adapter.
+// This should be called during shutdown to prevent goroutine leaks.
+// Safe to call multiple times - uses sync.Once to prevent double-close panic.
+func (a *DiagramCacheAdapter) Close() error {
+	a.mu.Lock()
+	a.closed = true
+	a.mu.Unlock()
+
+	// Wait for all pending writes to complete
+	a.pending.Wait()
+
+	// Signal workers to stop (only once, protected by sync.Once)
+	a.closeOnce.Do(func() {
+		close(a.stopCh)
+	})
+
+	// Flush any remaining local entries
+	return a.Flush()
 }

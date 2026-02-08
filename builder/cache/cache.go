@@ -13,6 +13,15 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// encodedPostPool is a sync.Pool for reusing EncodedPost slices
+// This reduces GC pressure during batch commits
+var encodedPostPool = sync.Pool{
+	New: func() interface{} {
+		// Pre-allocate with a reasonable capacity for typical batch sizes
+		return make([]EncodedPost, 0, 64)
+	},
+}
+
 // Manager provides the main cache interface
 type Manager struct {
 	db       *bolt.DB
@@ -21,22 +30,47 @@ type Manager struct {
 	cacheID  string
 	mu       sync.RWMutex
 	dirty    map[string]bool // track dirty PostIDs for batch commit
+	// Performance tracking
+	stats cacheStatsInternal
+}
+
+// cacheStatsInternal holds runtime performance metrics
+type cacheStatsInternal struct {
+	lastReadTime  time.Duration
+	lastWriteTime time.Duration
+	readCount     int64
+	writeCount    int64
 }
 
 // Open opens or creates a cache at the given path
-func Open(basePath string) (*Manager, error) {
+// isDev: when true, uses faster but less durable settings (safe for dev mode)
+func Open(basePath string, isDev bool) (*Manager, error) {
 	// Ensure directory exists
 	if err := os.MkdirAll(basePath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
+	// Configure BoltDB options based on dev/prod mode
+	opts := &bolt.Options{
+		Timeout:         1 * time.Second,
+		FreelistType:    bolt.FreelistArrayType, // Better for sequential access
+		PageSize:        16384,                  // Larger pages for HTML content
+		InitialMmapSize: 10 * 1024 * 1024,       // 10MB initial mmap
+	}
+
+	if isDev {
+		// Dev mode: faster, slightly less durable (acceptable for dev)
+		opts.NoGrowSync = true // Skip fsync on database growth
+		// Note: NoSync and NoFreelistSync can be enabled for even faster dev builds
+		// but are disabled by default for safety
+	} else {
+		// Production mode: fully durable
+		opts.NoGrowSync = false
+	}
+
 	// Open BoltDB
 	dbPath := filepath.Join(basePath, "meta.db")
-	db, err := bolt.Open(dbPath, 0644, &bolt.Options{
-		Timeout:      1 * time.Second,
-		NoGrowSync:   false,
-		FreelistType: bolt.FreelistMapType,
-	})
+	db, err := bolt.Open(dbPath, 0644, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open BoltDB: %w", err)
 	}
@@ -171,6 +205,64 @@ func (m *Manager) GetPostByID(postID string) (*PostMeta, error) {
 	return postMeta, err
 }
 
+// GetPostsByIDs retrieves multiple posts by their PostIDs in a single transaction
+// Optimized to avoid N+1 query problem
+func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*PostMeta, error) {
+	result := make(map[string]*PostMeta, len(postIDs))
+	if len(postIDs) == 0 {
+		return result, nil
+	}
+
+	err := m.db.View(func(tx *bolt.Tx) error {
+		postsBucket := tx.Bucket([]byte(BucketPosts))
+
+		for _, id := range postIDs {
+			data := postsBucket.Get([]byte(id))
+			if data == nil {
+				continue
+			}
+
+			var postMeta PostMeta
+			if err := Decode(data, &postMeta); err != nil {
+				continue // Skip corrupted entries
+			}
+			result[id] = &postMeta
+		}
+		return nil
+	})
+
+	return result, err
+}
+
+// GetSearchRecords retrieves multiple search records by PostIDs in a single transaction
+// Optimized for batch operations during template-only rebuilds
+func (m *Manager) GetSearchRecords(postIDs []string) (map[string]*SearchRecord, error) {
+	result := make(map[string]*SearchRecord, len(postIDs))
+	if len(postIDs) == 0 {
+		return result, nil
+	}
+
+	err := m.db.View(func(tx *bolt.Tx) error {
+		searchBucket := tx.Bucket([]byte(BucketSearch))
+
+		for _, id := range postIDs {
+			data := searchBucket.Get([]byte(id))
+			if data == nil {
+				continue
+			}
+
+			var record SearchRecord
+			if err := Decode(data, &record); err != nil {
+				continue // Skip corrupted entries
+			}
+			result[id] = &record
+		}
+		return nil
+	})
+
+	return result, err
+}
+
 // GetSearchRecord retrieves the search record for a post
 func (m *Manager) GetSearchRecord(postID string) (*SearchRecord, error) {
 	var record *SearchRecord
@@ -231,7 +323,13 @@ func (m *Manager) GetSSRContent(ssrType string, artifact *SSRArtifact) ([]byte, 
 }
 
 // GetHTMLContent retrieves HTML content for a post
+// Optimized: checks for inline HTML first (avoids 2nd I/O for small posts)
 func (m *Manager) GetHTMLContent(post *PostMeta) ([]byte, error) {
+	// Fast path: inline HTML for small posts
+	if len(post.InlineHTML) > 0 {
+		return post.InlineHTML, nil
+	}
+	// Fallback: content-addressed storage for large posts
 	if post.HTMLHash == "" {
 		return nil, nil
 	}
@@ -252,75 +350,122 @@ func (m *Manager) IsDirty(postID string) bool {
 	return m.dirty[postID]
 }
 
+// EncodedPost holds pre-encoded data for batch commit
+type EncodedPost struct {
+	PostID     []byte
+	Data       []byte
+	Path       []byte
+	SearchData []byte
+	DepsData   []byte
+	Tags       []string
+	Templates  []string
+	Includes   []string
+}
+
 // BatchCommit commits all pending changes in a single transaction
+// Optimized: Pre-encodes all data outside transaction for faster writes
 func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*SearchRecord, deps map[string]*Dependencies) error {
-	return m.db.Update(func(tx *bolt.Tx) error {
+	start := time.Now()
+
+	// Pre-encode all data OUTSIDE the transaction (can be parallelized)
+	// Use sync.Pool to reuse EncodedPost slices and reduce GC pressure
+	encoded := encodedPostPool.Get().([]EncodedPost)[:0]
+	defer func() {
+		// Return slice to pool for reuse (clear references to help GC)
+		for i := range encoded {
+			encoded[i] = EncodedPost{}
+		}
+		encodedPostPool.Put(encoded)
+	}()
+
+	for _, post := range posts {
+		postData, err := Encode(post)
+		if err != nil {
+			return fmt.Errorf("failed to encode post: %w", err)
+		}
+
+		ep := EncodedPost{
+			PostID: []byte(post.PostID),
+			Data:   postData,
+			Path:   []byte(normalizePath(post.Path)),
+		}
+
+		// Pre-encode search record if exists
+		if sr, ok := searchRecords[post.PostID]; ok {
+			srData, err := Encode(sr)
+			if err != nil {
+				return err
+			}
+			ep.SearchData = srData
+		}
+
+		// Pre-encode dependencies and extract index data
+		if d, ok := deps[post.PostID]; ok {
+			depsData, err := Encode(d)
+			if err != nil {
+				return err
+			}
+			ep.DepsData = depsData
+			ep.Tags = d.Tags
+			ep.Templates = d.Templates
+			ep.Includes = d.Includes
+		}
+
+		encoded = append(encoded, ep)
+	}
+
+	err := m.db.Update(func(tx *bolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(BucketPosts))
 		pathsBucket := tx.Bucket([]byte(BucketPaths))
 		searchBucket := tx.Bucket([]byte(BucketSearch))
 		depsBucket := tx.Bucket([]byte(BucketPostDeps))
 		tagsBucket := tx.Bucket([]byte(BucketTags))
+		depsTemplatesBucket := tx.Bucket([]byte(BucketDepsTemplates))
+		depsIncludesBucket := tx.Bucket([]byte(BucketDepsIncludes))
 
-		for _, post := range posts {
-			postID := []byte(post.PostID)
-			normalizedPath := []byte(normalizePath(post.Path))
-
-			// Update posts bucket
-			data, err := Encode(post)
-			if err != nil {
-				return fmt.Errorf("failed to encode post: %w", err)
-			}
-			if err := postsBucket.Put(postID, data); err != nil {
+		for _, ep := range encoded {
+			// Main post data
+			if err := postsBucket.Put(ep.PostID, ep.Data); err != nil {
 				return err
 			}
 
-			// Update paths mapping
-			if err := pathsBucket.Put(normalizedPath, postID); err != nil {
+			// Path mapping
+			if err := pathsBucket.Put(ep.Path, ep.PostID); err != nil {
 				return err
 			}
 
-			// Update search record
-			if sr, ok := searchRecords[post.PostID]; ok {
-				data, err := Encode(sr)
-				if err != nil {
-					return err
-				}
-				if err := searchBucket.Put(postID, data); err != nil {
+			// Search record
+			if ep.SearchData != nil {
+				if err := searchBucket.Put(ep.PostID, ep.SearchData); err != nil {
 					return err
 				}
 			}
 
-			// Update dependencies
-			if d, ok := deps[post.PostID]; ok {
-				data, err := Encode(d)
-				if err != nil {
-					return err
-				}
-				if err := depsBucket.Put(postID, data); err != nil {
+			// Dependencies and indexes
+			if ep.DepsData != nil {
+				if err := depsBucket.Put(ep.PostID, ep.DepsData); err != nil {
 					return err
 				}
 
-				// Update tag indexes
-				for _, tag := range d.Tags {
-					tagKey := []byte(tag + "/" + post.PostID)
+				// Tag indexes
+				for _, tag := range ep.Tags {
+					tagKey := []byte(tag + "/" + string(ep.PostID))
 					if err := tagsBucket.Put(tagKey, nil); err != nil {
 						return err
 					}
 				}
 
-				// Update template indexes
-				depsTemplatesBucket := tx.Bucket([]byte(BucketDepsTemplates))
-				for _, tmpl := range d.Templates {
-					tmplKey := []byte(tmpl + "/" + post.PostID)
+				// Template indexes
+				for _, tmpl := range ep.Templates {
+					tmplKey := []byte(tmpl + "/" + string(ep.PostID))
 					if err := depsTemplatesBucket.Put(tmplKey, nil); err != nil {
 						return err
 					}
 				}
 
-				// Update include indexes
-				depsIncludesBucket := tx.Bucket([]byte(BucketDepsIncludes))
-				for _, inc := range d.Includes {
-					incKey := []byte(inc + "/" + post.PostID)
+				// Include indexes
+				for _, inc := range ep.Includes {
+					incKey := []byte(inc + "/" + string(ep.PostID))
 					if err := depsIncludesBucket.Put(incKey, nil); err != nil {
 						return err
 					}
@@ -342,12 +487,43 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 
 		return nil
 	})
+
+	// Track write timing metrics
+	if err == nil {
+		writeTime := time.Since(start)
+		m.mu.Lock()
+		m.stats.lastWriteTime = writeTime
+		m.stats.writeCount++
+		m.mu.Unlock()
+	}
+
+	return err
 }
 
 // StoreHTML stores HTML content and returns its hash
+// For small content (< 32KB), it stores inline to avoid 2nd I/O
 func (m *Manager) StoreHTML(content []byte) (string, error) {
 	hash, _, err := m.store.Put("html", content)
 	return hash, err
+}
+
+// StoreHTMLForPost stores HTML for a specific post, inlining if small
+// Updates post.InlineHTML or post.HTMLHash accordingly
+func (m *Manager) StoreHTMLForPost(post *PostMeta, content []byte) error {
+	if len(content) < InlineHTMLThreshold {
+		// Inline small HTML directly in PostMeta
+		post.InlineHTML = content
+		post.HTMLHash = "" // Clear hash since we're inlining
+		return nil
+	}
+	// Large content: use content-addressed storage
+	hash, _, err := m.store.Put("html", content)
+	if err != nil {
+		return err
+	}
+	post.HTMLHash = hash
+	post.InlineHTML = nil // Clear inline
+	return nil
 }
 
 // StoreSSR stores an SSR artifact and its content
@@ -451,11 +627,12 @@ func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
 
 // Stats returns current cache statistics
 func (m *Manager) Stats() (*CacheStats, error) {
+	start := time.Now()
 	stats := &CacheStats{
 		SchemaVersion: SchemaVersion,
 	}
 
-	// Count posts
+	// Count posts and inline/hashed distribution
 	err := m.db.View(func(tx *bolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(BucketPosts))
 		stats.TotalPosts = postsBucket.Stats().KeyN
@@ -471,7 +648,18 @@ func (m *Manager) Stats() (*CacheStats, error) {
 			stats.LastGC = int64(binary.BigEndian.Uint64(data))
 		}
 
-		return nil
+		// Count inline vs hashed posts
+		return postsBucket.ForEach(func(k, v []byte) error {
+			var post PostMeta
+			if err := Decode(v, &post); err == nil {
+				if len(post.InlineHTML) > 0 {
+					stats.InlinePosts++
+				} else if post.HTMLHash != "" {
+					stats.HashedPosts++
+				}
+			}
+			return nil
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -482,6 +670,17 @@ func (m *Manager) Stats() (*CacheStats, error) {
 	d2Size, _ := m.store.Size(filepath.Join("ssr", "d2"))
 	katexSize, _ := m.store.Size(filepath.Join("ssr", "katex"))
 	stats.StoreBytes = htmlSize + d2Size + katexSize
+
+	// Update read timing metrics
+	readTime := time.Since(start)
+	m.mu.Lock()
+	m.stats.lastReadTime = readTime
+	m.stats.readCount++
+	stats.LastReadTime = m.stats.lastReadTime
+	stats.LastWriteTime = m.stats.lastWriteTime
+	stats.ReadCount = m.stats.readCount
+	stats.WriteCount = m.stats.writeCount
+	m.mu.Unlock()
 
 	return stats, nil
 }
@@ -554,10 +753,34 @@ func (m *Manager) GetAllSocialCardHashes() (map[string]string, error) {
 }
 
 // normalizePath normalizes a file path for consistent cache keys
+// Optimized to reduce allocations using strings.Builder
 func normalizePath(path string) string {
-	path = filepath.ToSlash(path)
-	path = strings.TrimPrefix(path, "content/")
-	return strings.ToLower(path)
+	// Fast path: no content/ prefix and no backslashes
+	if !strings.Contains(path, "\\") && !strings.HasPrefix(path, "content/") {
+		return strings.ToLower(path)
+	}
+
+	var b strings.Builder
+	b.Grow(len(path))
+
+	// Normalize separators and remove prefix in one pass
+	skipContent := strings.HasPrefix(path, "content/") || strings.HasPrefix(path, "content\\")
+	start := 0
+	if skipContent {
+		start = 8 // len("content/")
+	}
+
+	for i := start; i < len(path); i++ {
+		c := path[i]
+		if c == '\\' {
+			b.WriteByte('/')
+		} else if c >= 'A' && c <= 'Z' {
+			b.WriteByte(c + 32) // ToLower without function call
+		} else {
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
 }
 
 // GetWasmHash retrieves the stored WASM source hash

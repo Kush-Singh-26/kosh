@@ -97,6 +97,11 @@ func ReplaceMathExpressions(html string, rendered map[string]string, cache map[s
 		return html
 	}
 
+	// Ensure cache is not nil to avoid panic on assignment
+	if cache == nil {
+		cache = make(map[string]string)
+	}
+
 	result := html
 	getRendered := func(hash string) (string, bool) {
 		if h, ok := rendered[hash]; ok {

@@ -1,7 +1,7 @@
 package run
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 
@@ -10,6 +10,7 @@ import (
 
 	"my-ssg/builder/cache"
 	"my-ssg/builder/config"
+	"my-ssg/builder/metrics"
 	mdParser "my-ssg/builder/parser"
 	"my-ssg/builder/renderer"
 	"my-ssg/builder/renderer/native"
@@ -25,7 +26,11 @@ type Builder struct {
 	cacheManager   *cache.Manager
 	diagramAdapter *cache.DiagramCacheAdapter
 
-	// In-memory build cache (legacy field removed)
+	// Structured logging
+	logger *slog.Logger
+
+	// Build metrics tracking
+	metrics *metrics.BuildMetrics
 
 	md       goldmark.Markdown
 	rnd      *renderer.Renderer
@@ -40,6 +45,14 @@ func NewBuilder(args []string) *Builder {
 	cfg := config.Load(args)
 	utils.InitMinifier()
 
+	// Initialize structured logger
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	// Initialize build metrics
+	buildMetrics := metrics.NewBuildMetrics()
+
 	// Create cache directory if it doesn't exist
 	_ = os.MkdirAll(".kosh-cache", 0755)
 
@@ -47,9 +60,9 @@ func NewBuilder(args []string) *Builder {
 	var cacheManager *cache.Manager
 	var diagramAdapter *cache.DiagramCacheAdapter
 
-	cm, err := cache.Open(".kosh-cache")
+	cm, err := cache.Open(".kosh-cache", cfg.IsDev)
 	if err != nil {
-		fmt.Printf("⚠️  Failed to open cache database: %v. Using in-memory cache.\n", err)
+		logger.Warn("Failed to open cache database, using in-memory cache", "error", err)
 	} else {
 		cacheManager = cm
 
@@ -57,7 +70,7 @@ func NewBuilder(args []string) *Builder {
 		cacheID := generateCacheID(cfg)
 		needsRebuild, _ := cacheManager.VerifyCacheID(cacheID)
 		if needsRebuild {
-			fmt.Printf("🔄 Cache fingerprint changed. Triggering rebuild.\n")
+			logger.Info("Cache fingerprint changed, triggering rebuild")
 			cfg.ForceRebuild = true
 			_ = cacheManager.SetCacheID(cacheID)
 		}
@@ -84,6 +97,8 @@ func NewBuilder(args []string) *Builder {
 		cfg:            cfg,
 		cacheManager:   cacheManager,
 		diagramAdapter: diagramAdapter,
+		logger:         logger,
+		metrics:        buildMetrics,
 		md:             mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache, &sync.Mutex{}),
 		rnd:            renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir),
 		native:         nativeRenderer,
@@ -131,7 +146,7 @@ func (b *Builder) checkWasmUpdate() {
 	}
 	currentHash, err := utils.HashDirs(wasmSrcDirs)
 	if err != nil {
-		fmt.Printf("⚠️ Failed to calculate WASM source hash: %v\n", err)
+		b.logger.Warn("Failed to calculate WASM source hash", "error", err)
 		return
 	}
 
@@ -145,7 +160,7 @@ func (b *Builder) checkWasmUpdate() {
 		if build.CheckWASM("") {
 			if b.cacheManager != nil {
 				if err := b.cacheManager.SetWasmHash(currentHash); err != nil {
-					fmt.Printf("⚠️ Failed to store WASM hash: %v\n", err)
+					b.logger.Warn("Failed to store WASM hash", "error", err)
 				}
 			}
 		}
@@ -161,8 +176,8 @@ func (b *Builder) SetDevMode(isDev bool) {
 func (b *Builder) SaveCaches() {
 	// Flush diagram adapter to BoltDB
 	if b.diagramAdapter != nil {
-		if err := b.diagramAdapter.Flush(); err != nil {
-			fmt.Printf("Warning: Failed to flush diagram cache: %v\n", err)
+		if err := b.diagramAdapter.Close(); err != nil {
+			b.logger.Warn("Failed to flush diagram cache", "error", err)
 		}
 	}
 
@@ -171,7 +186,15 @@ func (b *Builder) SaveCaches() {
 		_ = b.cacheManager.IncrementBuildCount()
 	}
 
-	fmt.Printf("   💾 Saved caches to .kosh-cache/\n")
+	// Record end time
+	b.metrics.RecordEnd()
+
+	// Only print metrics in non-dev mode or on full builds
+	if !b.cfg.IsDev {
+		b.metrics.Print()
+	}
+
+	b.logger.Info("Saved caches", "path", ".kosh-cache/")
 }
 
 // Close cleans up resources

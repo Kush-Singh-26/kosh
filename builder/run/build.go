@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +17,7 @@ import (
 // Build executes a single build pass
 func (b *Builder) Build() {
 	cfg := b.cfg
-	numWorkers := runtime.NumCPU()
-	fmt.Printf("🔨 Building site... (Version: %d) | Parallel Workers: %d\n", cfg.BuildVersion, numWorkers)
+	// Build started - minimal logging
 
 	// 1. Setup & Cache Invalidation
 	b.checkWasmUpdate()
@@ -43,7 +41,6 @@ func (b *Builder) Build() {
 		lastBuildTime = indexInfo.ModTime()
 		for _, dep := range globalDependencies {
 			if info, err := os.Stat(dep); err == nil && info.ModTime().After(lastBuildTime) {
-				fmt.Printf("⚡ Global change detected in [%s].\n", dep)
 				affected := b.invalidateForTemplate(dep)
 				if affected != nil {
 					affectedPosts = append(affectedPosts, affected...)
@@ -132,16 +129,19 @@ func (b *Builder) Build() {
 	}
 
 	if isTemplateOnly && lastBuildTime.Unix() > 0 && cachedCount > 0 {
-		fmt.Println("🚀 Template-only change detected. Fast-tracking rebuild...")
 		b.renderCachedPosts()
 
 		// Hydrate data for global pages from cache
 		tagMap = make(map[string][]models.PostMetadata)
 		ids, _ := b.cacheManager.ListAllPosts()
 
+		// Batch fetch all posts and search records in single transactions (avoids N+1 queries)
+		cachedPosts, _ := b.cacheManager.GetPostsByIDs(ids)
+		searchRecords, _ := b.cacheManager.GetSearchRecords(ids)
+
 		for _, id := range ids {
-			cached, err := b.cacheManager.GetPostByID(id)
-			if err != nil || cached == nil {
+			cached, ok := cachedPosts[id]
+			if !ok || cached == nil {
 				continue
 			}
 
@@ -168,16 +168,16 @@ func (b *Builder) Build() {
 				tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], post)
 			}
 
-			// Indexed Posts
-			searchMeta, err := b.cacheManager.GetSearchRecord(id)
-			if err == nil && searchMeta != nil {
-				// Reconstruct PostRecord
+			// Indexed Posts - use batch-fetched search records
+			if searchMeta, ok := searchRecords[id]; ok && searchMeta != nil {
+				// Reconstruct PostRecord with relative link (not full URL)
+				relLink := strings.ToLower(strings.Replace(cached.Path, ".md", ".html", 1))
 				rec := models.PostRecord{
 					Title:       searchMeta.Title,
-					Link:        cached.Link, // From PostMeta
+					Link:        relLink, // Use relative link, not cached.Link which includes baseURL
 					Description: cached.Description,
 					Tags:        cached.Tags,
-					Content:     searchMeta.Content, // Needs Content field added earlier
+					Content:     searchMeta.Content,
 				}
 				rec.ID = len(indexedPosts) // Assign ID sequentially
 
@@ -234,5 +234,5 @@ func (b *Builder) Build() {
 	}
 	b.rnd.ClearRenderedFiles()
 
-	fmt.Println("✅ Build Complete.")
+	// Build complete
 }

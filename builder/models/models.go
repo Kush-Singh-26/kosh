@@ -8,10 +8,12 @@ import (
 )
 
 // --- TOC Structure ---
+// TOCEntry represents a table of contents entry
+// This unified type is used by both models and cache packages to avoid conversions
 type TOCEntry struct {
-	ID    string
-	Text  string
-	Level int
+	ID    string `msgpack:"id" json:"id"`
+	Text  string `msgpack:"text" json:"text"`
+	Level int    `msgpack:"level" json:"level"`
 }
 
 // PostMetadata represents the frontmatter and derived data of a markdown post.

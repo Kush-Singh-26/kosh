@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,6 +16,59 @@ import (
 	"my-ssg/builder/models"
 	"my-ssg/builder/utils"
 )
+
+// templateCache stores parsed templates with their modification times
+type templateCache struct {
+	templates   map[string]*template.Template
+	mtimes      map[string]time.Time
+	templateDir string
+	mu          sync.RWMutex
+}
+
+var (
+	globalCache     *templateCache
+	globalCacheOnce sync.Once
+)
+
+// getGlobalCache returns the singleton template cache instance
+func getGlobalCache(templateDir string) *templateCache {
+	globalCacheOnce.Do(func() {
+		globalCache = &templateCache{
+			templates:   make(map[string]*template.Template),
+			mtimes:      make(map[string]time.Time),
+			templateDir: templateDir,
+		}
+	})
+	return globalCache
+}
+
+// hasTemplatesChanged checks if any template files have been modified since last cache
+func (tc *templateCache) hasTemplatesChanged() bool {
+	templateFiles := []string{"layout.html", "index.html", "graph.html", "404.html"}
+
+	for _, fname := range templateFiles {
+		path := filepath.Join(tc.templateDir, fname)
+		info, err := os.Stat(path)
+		if err != nil {
+			continue // File might not exist, skip
+		}
+
+		cachedMtime, exists := tc.mtimes[fname]
+		if !exists || info.ModTime().After(cachedMtime) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// setTemplate caches a template with its modification time
+func (tc *templateCache) setTemplate(name string, tmpl *template.Template, mtime time.Time) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.templates[name] = tmpl
+	tc.mtimes[name] = mtime
+}
 
 type Renderer struct {
 	Layout      *template.Template
@@ -35,34 +89,79 @@ func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 		"now":       time.Now,
 	}
 
+	// Get or create the global template cache
+	tc := getGlobalCache(templateDir)
+
+	// Check if we can use cached templates
+	tc.mu.RLock()
+	cacheValid := len(tc.templates) > 0 && !tc.hasTemplatesChanged()
+	if cacheValid {
+		// Return cached renderer
+		r := &Renderer{
+			Layout:      tc.templates["layout"],
+			Index:       tc.templates["index"],
+			Graph:       tc.templates["graph"],
+			NotFound:    tc.templates["404"],
+			Compress:    compress,
+			DestFs:      destFs,
+			RenderedSet: make(map[string]bool),
+		}
+		tc.mu.RUnlock()
+		return r
+	}
+	tc.mu.RUnlock()
+
 	// Templates are read from OS filesystem (Source code)
 	// We could abstract this too, but templates are usually static source.
 	// Assuming running from root.
 
 	// Load layout template
-	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles(filepath.Join(templateDir, "layout.html"))
+	layoutPath := filepath.Join(templateDir, "layout.html")
+	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles(layoutPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+	layoutInfo, _ := os.Stat(layoutPath)
+	if layoutInfo != nil {
+		tc.setTemplate("layout", tmpl, layoutInfo.ModTime())
+	}
 
 	// Load index template
-	indexTmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles(filepath.Join(templateDir, "index.html"))
+	indexPath := filepath.Join(templateDir, "index.html")
+	indexTmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles(indexPath)
 	if err != nil {
 		log.Printf("⚠️  Index template not found in %s, will use layout.html for index. (%v)\n", templateDir, err)
 		indexTmpl = nil
+	} else {
+		indexInfo, _ := os.Stat(indexPath)
+		if indexInfo != nil {
+			tc.setTemplate("index", indexTmpl, indexInfo.ModTime())
+		}
 	}
 
 	// Load graph template
-	graphTmpl, err := template.ParseFiles(filepath.Join(templateDir, "graph.html"))
+	graphPath := filepath.Join(templateDir, "graph.html")
+	graphTmpl, err := template.ParseFiles(graphPath)
 	if err != nil {
 		log.Printf("⚠️  Graph template not found in %s, skipping graph page. (%v)\n", templateDir, err)
+	} else {
+		graphInfo, _ := os.Stat(graphPath)
+		if graphInfo != nil {
+			tc.setTemplate("graph", graphTmpl, graphInfo.ModTime())
+		}
 	}
 
 	// Load 404 template
-	notFoundTmpl, err := template.New("404.html").Funcs(funcMap).ParseFiles(filepath.Join(templateDir, "404.html"))
+	notFoundPath := filepath.Join(templateDir, "404.html")
+	notFoundTmpl, err := template.New("404.html").Funcs(funcMap).ParseFiles(notFoundPath)
 	if err != nil {
 		log.Printf("⚠️  404 template not found in %s, will use layout.html for 404 page. (%v)\n", templateDir, err)
 		notFoundTmpl = nil
+	} else {
+		notFoundInfo, _ := os.Stat(notFoundPath)
+		if notFoundInfo != nil {
+			tc.setTemplate("404", notFoundTmpl, notFoundInfo.ModTime())
+		}
 	}
 
 	return &Renderer{

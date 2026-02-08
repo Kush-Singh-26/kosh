@@ -62,7 +62,8 @@ func printCacheUsage() {
 }
 
 func openCache() *cache.Manager {
-	cm, err := cache.Open(".kosh-cache")
+	// Cache commands run in production mode for durability
+	cm, err := cache.Open(".kosh-cache", false)
 	if err != nil {
 		fmt.Printf("❌ Failed to open cache: %v\n", err)
 		os.Exit(1)
@@ -93,6 +94,16 @@ func cacheStats() {
 	} else {
 		fmt.Printf("Last GC:         never\n")
 	}
+
+	// Performance metrics
+	fmt.Println("\n⚡ Performance Metrics")
+	fmt.Println("────────────────────────────────────────")
+	fmt.Printf("Last Read Time:  %v (target: <50ms)\n", stats.LastReadTime)
+	fmt.Printf("Last Write Time: %v (target: <100ms)\n", stats.LastWriteTime)
+	fmt.Printf("Read Operations: %d\n", stats.ReadCount)
+	fmt.Printf("Write Operations: %d\n", stats.WriteCount)
+	fmt.Printf("Inline Posts:    %d (%.1f%%)\n", stats.InlinePosts, float64(stats.InlinePosts)*100/float64(stats.TotalPosts))
+	fmt.Printf("Hashed Posts:    %d (%.1f%%)\n", stats.HashedPosts, float64(stats.HashedPosts)*100/float64(stats.TotalPosts))
 }
 
 func cacheGC(dryRun bool) {

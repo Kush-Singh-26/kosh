@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -115,41 +116,83 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 
 	result.LiveBlobs = len(liveHTMLHashes) + len(liveSSRHashes)
 
-	// Step 2: Scan store and find orphaned blobs
-	var orphanedBlobs []struct {
-		category string
-		hash     string
+	// Step 2: Scan store and find orphaned blobs (parallelized for I/O efficiency)
+	type scanResult struct {
+		orphaned []struct {
+			category string
+			hash     string
+		}
+		scanned int
 	}
 
-	// Check HTML store
-	htmlHashes, err := m.store.ListHashes("html")
-	if err == nil {
+	resultsCh := make(chan scanResult, 3) // html, d2, katex
+	var scanWg sync.WaitGroup
+
+	// Scan HTML store concurrently
+	scanWg.Add(1)
+	go func() {
+		defer scanWg.Done()
+		htmlHashes, err := m.store.ListHashes("html")
+		if err != nil {
+			return
+		}
+		res := scanResult{orphaned: make([]struct {
+			category string
+			hash     string
+		}, 0, len(htmlHashes))}
 		for _, hash := range htmlHashes {
-			result.ScannedBlobs++
+			res.scanned++
 			if !liveHTMLHashes[hash] {
-				orphanedBlobs = append(orphanedBlobs, struct {
+				res.orphaned = append(res.orphaned, struct {
 					category string
 					hash     string
 				}{"html", hash})
 			}
 		}
-	}
+		resultsCh <- res
+	}()
 
-	// Check SSR stores
+	// Scan SSR stores concurrently
 	for _, ssrType := range []string{"d2", "katex"} {
-		category := filepath.Join("ssr", ssrType)
-		hashes, err := m.store.ListHashes(category)
-		if err == nil {
+		scanWg.Add(1)
+		go func(ssrType string) {
+			defer scanWg.Done()
+			category := filepath.Join("ssr", ssrType)
+			hashes, err := m.store.ListHashes(category)
+			if err != nil {
+				return
+			}
+			res := scanResult{orphaned: make([]struct {
+				category string
+				hash     string
+			}, 0, len(hashes))}
 			for _, hash := range hashes {
-				result.ScannedBlobs++
+				res.scanned++
 				if !liveSSRHashes[hash] {
-					orphanedBlobs = append(orphanedBlobs, struct {
+					res.orphaned = append(res.orphaned, struct {
 						category string
 						hash     string
 					}{category, hash})
 				}
 			}
-		}
+			resultsCh <- res
+		}(ssrType)
+	}
+
+	// Close channel when all goroutines complete
+	go func() {
+		scanWg.Wait()
+		close(resultsCh)
+	}()
+
+	// Collect results
+	var orphanedBlobs []struct {
+		category string
+		hash     string
+	}
+	for res := range resultsCh {
+		result.ScannedBlobs += res.scanned
+		orphanedBlobs = append(orphanedBlobs, res.orphaned...)
 	}
 
 	// Step 3: Delete orphaned blobs (unless dry run)
@@ -308,7 +351,7 @@ func (m *Manager) Clear() error {
 	_ = os.RemoveAll(m.basePath)
 
 	// Recreate
-	newManager, err := Open(m.basePath)
+	newManager, err := Open(m.basePath, false)
 	if err != nil {
 		return err
 	}

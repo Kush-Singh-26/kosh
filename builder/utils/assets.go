@@ -13,7 +13,6 @@ import (
 )
 
 func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string, minify bool, onWrite func(string)) (map[string]string, error) {
-	fmt.Println("🎨 Building assets with Esbuild...")
 	assets := make(map[string]string)
 
 	var jsEntryPoints []string
