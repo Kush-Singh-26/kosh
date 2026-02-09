@@ -6,7 +6,7 @@ This repository contains a custom Static Site Generator (SSG) built in Go, desig
 
 ### Build Commands
 The unified CLI tool `kosh` handles all operations.
-*   **Build CLI:** `go build -o kosh.exe cmd/kosh/main.go`
+*   **Build CLI:** `go build -o kosh.exe ./cmd/kosh`
 *   **Build Site:** `./kosh.exe build` (Minifies HTML/CSS/JS, compresses images)
 *   **Serve (Dev Mode):** `./kosh.exe serve --dev` (Starts server with live reload & watcher)
     *   **Note:** Dev mode skips PWA generation (manifest, service worker, icons) for faster builds

@@ -55,7 +55,7 @@ cd blogs
 
 ```bash
 # Build the unified tool 'kosh'
-go build -o kosh.exe cmd/kosh/main.go
+go build -o kosh.exe ./cmd/kosh
 ```
 
 ---
