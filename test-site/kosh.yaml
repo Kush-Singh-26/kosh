@@ -1,0 +1,25 @@
+# Site Configuration
+title: "My Kosh Site"
+description: "A new site built with Kosh"
+baseURL: "http://localhost:2604"
+language: "en"
+
+author:
+  name: "Author Name"
+  url: "https://example.com"
+
+# Navigation
+menu:
+  - name: "Home"
+    url: "/"
+  - name: "Tags"
+    url: "/tags/index.html"
+
+# Features
+postsPerPage: 10
+compressImages: true
+
+# Theme Configuration
+theme: "blog"
+themeDir: "themes"
+# templateDir and staticDir will default to themes/blog/templates and themes/blog/static

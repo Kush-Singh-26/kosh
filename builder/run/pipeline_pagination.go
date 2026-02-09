@@ -44,7 +44,7 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 
 	if needsGen {
 		_ = b.DestFs.MkdirAll(filepath.Dir(homeCardPath), 0755)
-		faviconPath := "themes/" + b.cfg.Theme + "/static/images/favicon.png"
+		faviconPath := filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
 		_ = os.MkdirAll(filepath.Dir(homeCardPath), 0755)
 
 		desc := cfg.Description
@@ -52,7 +52,7 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 			desc = desc[:97] + "..."
 		}
 
-		err := generators.GenerateSocialCardToDisk(b.SourceFs, cfg.Title, desc, "Latest Posts", homeCardPath, faviconPath, "builder/assets/fonts")
+		err := generators.GenerateSocialCardToDisk(b.SourceFs, cfg.Title, desc, "Latest Posts", homeCardPath, faviconPath)
 		if err != nil {
 			fmt.Printf("⚠️ Failed to generate home card: %v\n", err)
 		} else if b.cacheManager != nil {
@@ -127,8 +127,8 @@ func (b *Builder) renderTags(tagMap map[string][]models.PostMetadata, forceSocia
 
 	if needsIndexGen {
 		_ = os.MkdirAll(filepath.Dir(tagsIndexCard), 0755)
-		faviconPath := "themes/" + b.cfg.Theme + "/static/images/favicon.png"
-		err := generators.GenerateSocialCardToDisk(b.SourceFs, "All Topics", fmt.Sprintf("Browse all %d topics", len(tagMap)), "Topics", tagsIndexCard, faviconPath, "builder/assets/fonts")
+		faviconPath := filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+		err := generators.GenerateSocialCardToDisk(b.SourceFs, "All Topics", fmt.Sprintf("Browse all %d topics", len(tagMap)), "Topics", tagsIndexCard, faviconPath)
 		if err == nil && b.cacheManager != nil {
 			_ = b.cacheManager.SetSocialCardHash("tags/index", indexHash)
 		}
@@ -165,8 +165,8 @@ func (b *Builder) renderTags(tagMap map[string][]models.PostMetadata, forceSocia
 
 			if needsTagGen {
 				_ = os.MkdirAll(filepath.Dir(tagCard), 0755)
-				faviconPath := "themes/" + b.cfg.Theme + "/static/images/favicon.png"
-				err := generators.GenerateSocialCardToDisk(b.SourceFs, "#"+t, fmt.Sprintf("%d posts about %s", len(posts), t), "Topic", tagCard, faviconPath, "builder/assets/fonts")
+				faviconPath := filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+				err := generators.GenerateSocialCardToDisk(b.SourceFs, "#"+t, fmt.Sprintf("%d posts about %s", len(posts), t), "Topic", tagCard, faviconPath)
 				if err == nil && b.cacheManager != nil {
 					_ = b.cacheManager.SetSocialCardHash("tags/"+strings.ToLower(t), tagHash)
 				}

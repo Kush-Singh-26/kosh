@@ -1,0 +1,34 @@
+# Site Configuration
+title: "Kush Blogs"
+description: "I write about machine learning, deep learning and lately more about NLP."
+baseURL: "" # Empty for local dev, GitHub Actions will override this via CLI flag
+language: "en"
+
+# Author
+author:
+  name: "Kush Singh"
+  url: "https://kush-singh-26.github.io/"
+
+# Navigation
+menu:
+  - name: "Search"
+    id: "search-btn"
+    class: "nav-btn"
+  - name: "Tags"
+    url: "/tags/index.html"
+  - name: "Graph"
+    url: "/graph.html"
+  - name: "Home"
+    url: "https://kush-singh-26.github.io/"
+    target: "_blank"
+  - name: "GitHub"
+    url: "https://github.com/Kush-Singh-26/blogs"
+    target: "_blank"
+
+# Features
+postsPerPage: 10
+compressImages: true
+theme: "blog"
+templateDir: "themes/blog/templates"
+staticDir: "themes/blog/static"
+buildVersion: 0 # Automatically updated

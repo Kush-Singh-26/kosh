@@ -16,6 +16,17 @@ type TOCEntry struct {
 	Level int    `msgpack:"level" json:"level"`
 }
 
+// TreeNode represents a node in the site hierarchy (Sidebar)
+type TreeNode struct {
+	ID        string      `json:"id"`
+	Title     string      `json:"title"`
+	Link      string      `json:"link"`
+	Weight    int         `json:"weight"`
+	Children  []*TreeNode `json:"children"`
+	Active    bool        `json:"active"`     // For template helper
+	IsSection bool        `json:"is_section"` // True if node has children
+}
+
 // PostMetadata represents the frontmatter and derived data of a markdown post.
 type PostMetadata struct {
 	Title       string
@@ -23,6 +34,7 @@ type PostMetadata struct {
 	Link        string
 	Description string
 	Tags        []string
+	Weight      int
 	ReadingTime int
 	Pinned      bool
 	Draft       bool
@@ -73,6 +85,7 @@ type PageData struct {
 	Permalink    string
 	Image        string
 	TOC          []TOCEntry
+	SiteTree     []*TreeNode
 	Paginator    Paginator
 	Assets       map[string]string
 

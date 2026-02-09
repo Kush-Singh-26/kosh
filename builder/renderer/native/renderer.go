@@ -30,6 +30,7 @@ type Renderer struct {
 	pool       chan *Instance
 	numWorkers int
 	initOnce   sync.Once
+	katexProg  *goja.Program // Pre-compiled program to share across workers
 }
 
 // New creates a new Renderer - workers are lazy-initialized
@@ -50,20 +51,31 @@ func (r *Renderer) ensureInitialized() {
 	r.initOnce.Do(func() {
 		log.Printf("⚙️  Initializing Renderer Pool with %d workers...", r.numWorkers)
 
-		var wg sync.WaitGroup
+		// 1. Compile KaTeX once
+		log.Printf("   📝 Compiling KaTeX script...") // Debug log
+		prog, err := goja.Compile("katex.min.js", katexJS, true)
+		if err != nil {
+			log.Printf("❌ Failed to compile KaTeX: %v", err)
+			return
+		}
+		r.katexProg = prog
+
+		// Start workers in background without blocking
 		for i := 0; i < r.numWorkers; i++ {
-			wg.Add(1)
 			go func(id int) {
-				defer wg.Done()
 				instance := newInstance()
 				if instance != nil {
+					// Pass the program to the instance (we could store it in Instance or pass it during ensureInitialized)
+					instance.ensureInitialized(r.katexProg)
 					r.pool <- instance
 				} else {
 					log.Printf("⚠️ Failed to initialize worker %d", id)
 				}
 			}(i)
 		}
-		wg.Wait()
+		// We DO NOT wait for workers to be ready.
+		// The pool channel will block consumers until at least one worker is available.
+		// This "streams" workers as they come online, improving start time.
 	})
 }
 
@@ -79,7 +91,7 @@ func newInstance() *Instance {
 }
 
 // ensureInitialized performs lazy initialization of the JS engine
-func (i *Instance) ensureInitialized() {
+func (i *Instance) ensureInitialized(prog *goja.Program) {
 	i.initOnce.Do(func() {
 		// Initialize goja VM with KaTeX
 		vm := goja.New()
@@ -100,8 +112,8 @@ func (i *Instance) ensureInitialized() {
 		})
 		_ = vm.Set("document", document)
 
-		// Load KaTeX
-		_, err := vm.RunString(katexJS)
+		// Load KaTeX (Use pre-compiled program)
+		_, err := vm.RunProgram(prog)
 		if err != nil {
 			log.Printf("⚠️ Failed to load KaTeX: %v", err)
 			return

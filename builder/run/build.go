@@ -248,11 +248,15 @@ func (b *Builder) Build() {
 		b.generateMetadata(allContent, tagMap, indexedPosts, shouldForce)
 	}
 
-	// 5. PWA & Sync
-	fmt.Println("📱 Generating PWA...")
-	b.generatePWA(shouldForce)
+	// 5. PWA (Run concurrently)
+	setupWg.Add(1)
+	go func() {
+		defer setupWg.Done()
+		fmt.Println("📱 Generating PWA...")
+		b.generatePWA(shouldForce)
+	}()
 
-	// Ensure setup tasks (WASM check) are complete
+	// Ensure setup tasks (WASM check + PWA) are complete
 	setupWg.Wait()
 
 	// Now sync VFS to disk (includes completed social cards)

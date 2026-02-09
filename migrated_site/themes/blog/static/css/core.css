@@ -1,0 +1,40 @@
+/* --- CORE & FOUNDATION --- */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    max-width: 1024px;
+    margin: 0 auto;
+    padding: 0 1.5rem 2rem 1.5rem;
+    min-height: 100vh;
+    line-height: 1.6;
+}
+
+img {
+    max-width: 100%;
+    margin: 2.5rem 0;
+    display: block;
+}
+
+hr {
+    height: 1px;
+    margin: 3rem 0;
+    border: 0;
+}
+
+.center-text { text-align: center; }
+.center-flex { justify-content: center; }
+.mb-small { margin-bottom: 0.5rem; }
+.no-border { border: none !important; }
+.small-pill { font-size: 0.8em; }
+
+/* Responsive Base */
+@media (max-width: 768px) {
+    body {
+        padding: 0 1.2rem 2rem 1.2rem;
+    }
+}

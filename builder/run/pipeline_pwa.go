@@ -7,9 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/afero"
 	"my-ssg/builder/generators"
 	"sync"
+
+	"github.com/spf13/afero"
 )
 
 func (b *Builder) generatePWA(shouldForce bool) {
@@ -34,7 +35,7 @@ func (b *Builder) generatePWA(shouldForce bool) {
 		if b.cfg.IsDev {
 			return
 		}
-		faviconPath := "themes/" + b.cfg.Theme + "/static/images/favicon.png"
+		faviconPath := filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
 
 		// Check if source favicon exists
 		srcInfo, err := b.SourceFs.Stat(faviconPath)

@@ -14,8 +14,6 @@ func (r *Renderer) RenderMath(latex string, displayMode bool) (string, error) {
 	instance := <-r.pool
 	defer func() { r.pool <- instance }() // Release worker
 
-	instance.ensureInitialized()
-
 	if instance.vm == nil || instance.renderFn == nil {
 		return "", fmt.Errorf("KaTeX not initialized in worker")
 	}
@@ -64,8 +62,6 @@ func (r *Renderer) RenderAllMath(expressions []MathExpression, cache map[string]
 			// Acquire worker from pool
 			instance := <-r.pool
 			defer func() { r.pool <- instance }()
-
-			instance.ensureInitialized()
 
 			if instance.vm == nil || instance.renderFn == nil {
 				return

@@ -102,45 +102,41 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 	return nil
 }
 
+// Global map to track created directories in this process to avoid redundant MkdirAll
+var (
+	createdDirs   = make(map[string]bool)
+	createdDirsMu sync.RWMutex
+)
+
 func syncSingleFile(srcFs afero.Fs, path string) error {
-	// Get source file info first
-	srcInfo, err := srcFs.Stat(path)
-	if err != nil {
-		return err
-	}
-
-	srcSize := srcInfo.Size()
-
-	// Read content ONCE
+	// Read source content ONCE
 	srcContent, err := afero.ReadFile(srcFs, path)
 	if err != nil {
 		return err
 	}
 
-	// Check if destination exists and matches
-	if destInfo, err := os.Stat(path); err == nil {
-		// Quick check: different sizes mean different content
-		if destInfo.Size() != srcSize {
-			goto writeFile
-		}
-
-		// For small files (< 64KB), compare content directly using the buffer we already read
-		const smallFileThreshold = 64 * 1024
-		if srcSize < smallFileThreshold {
-			destContent, err := os.ReadFile(path)
-			if err == nil && bytes.Equal(destContent, srcContent) {
-				return nil // Identical
-			}
-		} else {
-			// For large files, compare modification times first
-			// This avoids reading large files into memory
-			if destInfo.ModTime().Equal(srcInfo.ModTime()) || destInfo.ModTime().After(srcInfo.ModTime()) {
-				return nil // Destination is same age or newer
-			}
-		}
+	// Check if destination exists with same content
+	destContent, err := os.ReadFile(path)
+	if err == nil && bytes.Equal(srcContent, destContent) {
+		return nil // Identical - skip write
 	}
 
-writeFile:
-	// Write using the already-read content
+	// Destination missing or different - write it
+	// Ensure directory exists (Optimized)
+	dir := filepath.Dir(path)
+
+	createdDirsMu.RLock()
+	exists := createdDirs[dir]
+	createdDirsMu.RUnlock()
+
+	if !exists {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+		createdDirsMu.Lock()
+		createdDirs[dir] = true
+		createdDirsMu.Unlock()
+	}
+
 	return os.WriteFile(path, srcContent, 0644)
 }

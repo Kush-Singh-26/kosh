@@ -7,6 +7,7 @@ import (
 
 	chroma_html "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
+	admonitions "github.com/stefanfritsch/goldmark-admonitions"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	meta "github.com/yuin/goldmark-meta"
@@ -80,6 +81,7 @@ func New(baseURL string, renderer *native.Renderer, diagramCache map[string]stri
 				InlineDelimiters: []passthrough.Delimiters{{Open: "$", Close: "$"}, {Open: "\\(", Close: "\\)"}},
 				BlockDelimiters:  []passthrough.Delimiters{{Open: "$$", Close: "$$"}, {Open: "\\[", Close: "\\]"}},
 			}),
+			&admonitions.Extender{},
 		),
 		goldmark.WithParserOptions(
 			// Register Transformers

@@ -24,6 +24,7 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **PWA Support**: Stale-while-revalidate caching for instant repeat visits.
 - **Unified Tooling (Kosh)**: Comes with a custom CLI tool, `kosh` (Hindi/Sanskrit for "Repository" or "Treasury"), which handles everything from creating posts to building the site and serving it locally.
 - **Automated Linting**: Pre-configured `golangci-lint` setup to maintain high code quality and consistency across the project.
+- **Documentation Ready**: Native support for **Admonitions** (`!!! note`), hierarchical **Sidebars**, and **Weighted Ordering** for documentation sites.
 
 ### Recent Optimizations
 
@@ -32,6 +33,10 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 - **Content-Only Fast Rebuilds**: Editing post content (not frontmatter) triggers a lightweight rebuild that skips global page regeneration.
 - **Separate Cache Directory**: Build caches stored in `.kosh-cache/` (not deployed), keeping deployments clean and cache restores fast.
 - **Cross-Platform Path Normalization**: Cache keys use forward slashes for compatibility between Windows (local) and Linux (CI) builds.
+- **Smart WASM Updates**: Search engine WASM only rebuilds when source code changes, persisting across clean builds.
+- **Concurrent PWA Generation**: Identity icons and manifests generated in parallel background threads.
+- **Optimized Resource Loading**: Favicons decoded once and cached; Native rendering engines initialized lazily and non-blocking.
+- **Two-Pass Build Architecture**: Post processing split into "Collect" and "Render" phases to enable efficient global site tree generation without performance loss.
 
 ****
 ---
@@ -129,6 +134,7 @@ description: "Exploring Transformers and MoE"
 date: "2026-01-14"
 tags: ["AI", "Architecture"]
 pinned: true
+weight: 10 # Higher weights appear first in documentation; default 0
 draft: false
 ```
 
@@ -223,6 +229,7 @@ The `kosh cache` subcommands:
 ## Dependencies
 
 - **Markdown Engine**: `github.com/yuin/goldmark`
+- **Admonitions**: `github.com/stefanfritsch/goldmark-admonitions`
 - **Frontmatter Parsing**: `github.com/yuin/goldmark-meta`
 - **Syntax Highlighting**: `github.com/yuin/goldmark-highlighting/v2`
 - **LaTeX Passthrough**: `github.com/gohugoio/hugo-goldmark-extensions/passthrough`
@@ -272,11 +279,11 @@ The cache system automatically normalizes paths (Windows `\` → Linux `/`) so y
 
 ## Performance
 
-With all optimizations applied:
+With all basic optimizations applied:
 
-- **Clean Build**: ~21 seconds (was ~40s) - 47% improvement
-- **Content Edit**: ~1-2 seconds (incremental)
-- **Frontmatter Edit**: Full rebuild (~21s)
+- **Clean Build**: ~12.1 seconds
+- **Content Edit**: ~100ms (incremental)
+- **Frontmatter Edit**: Full update (~1-2s)
 - **Image Processing**: Parallel with 24 workers
 - **Native Rendering**: LaTeX and D2 diagrams rendered directly in Go
 - **Static Assets**: Processed async with posts

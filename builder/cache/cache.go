@@ -362,8 +362,35 @@ type EncodedPost struct {
 	Includes   []string
 }
 
+// batchOp represents a single key-value operation for bucket writes
+type batchOp struct {
+	key   []byte
+	value []byte
+}
+
+// bucketOps groups all operations by bucket for sequential writes
+type bucketOps struct {
+	posts     []batchOp
+	paths     []batchOp
+	search    []batchOp
+	deps      []batchOp
+	tags      []batchOp
+	templates []batchOp
+	includes  []batchOp
+}
+
+// writeOps performs sequential writes to a bucket
+func writeOps(bucket *bolt.Bucket, ops []batchOp) error {
+	for _, op := range ops {
+		if err := bucket.Put(op.key, op.value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // BatchCommit commits all pending changes in a single transaction
-// Optimized: Pre-encodes all data outside transaction for faster writes
+// Optimized: Pre-encodes all data outside transaction and groups by bucket for sequential writes
 func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*SearchRecord, deps map[string]*Dependencies) error {
 	start := time.Now()
 
@@ -414,63 +441,85 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 		encoded = append(encoded, ep)
 	}
 
+	// Pre-group all operations by bucket for sequential writes (better cache locality)
+	var ops bucketOps
+	totalTags := 0
+	totalTemplates := 0
+	totalIncludes := 0
+	for _, ep := range encoded {
+		totalTags += len(ep.Tags)
+		totalTemplates += len(ep.Templates)
+		totalIncludes += len(ep.Includes)
+	}
+
+	// Pre-allocate slices with exact capacity
+	ops.posts = make([]batchOp, 0, len(encoded))
+	ops.paths = make([]batchOp, 0, len(encoded))
+	ops.search = make([]batchOp, 0, len(encoded))
+	ops.deps = make([]batchOp, 0, len(encoded))
+	ops.tags = make([]batchOp, 0, totalTags)
+	ops.templates = make([]batchOp, 0, totalTemplates)
+	ops.includes = make([]batchOp, 0, totalIncludes)
+
+	for _, ep := range encoded {
+		// Main post data
+		ops.posts = append(ops.posts, batchOp{key: ep.PostID, value: ep.Data})
+
+		// Path mapping
+		ops.paths = append(ops.paths, batchOp{key: ep.Path, value: ep.PostID})
+
+		// Search record
+		if ep.SearchData != nil {
+			ops.search = append(ops.search, batchOp{key: ep.PostID, value: ep.SearchData})
+		}
+
+		// Dependencies and indexes
+		if ep.DepsData != nil {
+			ops.deps = append(ops.deps, batchOp{key: ep.PostID, value: ep.DepsData})
+
+			// Tag indexes
+			for _, tag := range ep.Tags {
+				tagKey := []byte(tag + "/" + string(ep.PostID))
+				ops.tags = append(ops.tags, batchOp{key: tagKey, value: nil})
+			}
+
+			// Template indexes
+			for _, tmpl := range ep.Templates {
+				tmplKey := []byte(tmpl + "/" + string(ep.PostID))
+				ops.templates = append(ops.templates, batchOp{key: tmplKey, value: nil})
+			}
+
+			// Include indexes
+			for _, inc := range ep.Includes {
+				incKey := []byte(inc + "/" + string(ep.PostID))
+				ops.includes = append(ops.includes, batchOp{key: incKey, value: nil})
+			}
+		}
+	}
+
+	// Execute all writes in a single transaction with sequential bucket access
 	err := m.db.Update(func(tx *bolt.Tx) error {
-		postsBucket := tx.Bucket([]byte(BucketPosts))
-		pathsBucket := tx.Bucket([]byte(BucketPaths))
-		searchBucket := tx.Bucket([]byte(BucketSearch))
-		depsBucket := tx.Bucket([]byte(BucketPostDeps))
-		tagsBucket := tx.Bucket([]byte(BucketTags))
-		depsTemplatesBucket := tx.Bucket([]byte(BucketDepsTemplates))
-		depsIncludesBucket := tx.Bucket([]byte(BucketDepsIncludes))
-
-		for _, ep := range encoded {
-			// Main post data
-			if err := postsBucket.Put(ep.PostID, ep.Data); err != nil {
-				return err
-			}
-
-			// Path mapping
-			if err := pathsBucket.Put(ep.Path, ep.PostID); err != nil {
-				return err
-			}
-
-			// Search record
-			if ep.SearchData != nil {
-				if err := searchBucket.Put(ep.PostID, ep.SearchData); err != nil {
-					return err
-				}
-			}
-
-			// Dependencies and indexes
-			if ep.DepsData != nil {
-				if err := depsBucket.Put(ep.PostID, ep.DepsData); err != nil {
-					return err
-				}
-
-				// Tag indexes
-				for _, tag := range ep.Tags {
-					tagKey := []byte(tag + "/" + string(ep.PostID))
-					if err := tagsBucket.Put(tagKey, nil); err != nil {
-						return err
-					}
-				}
-
-				// Template indexes
-				for _, tmpl := range ep.Templates {
-					tmplKey := []byte(tmpl + "/" + string(ep.PostID))
-					if err := depsTemplatesBucket.Put(tmplKey, nil); err != nil {
-						return err
-					}
-				}
-
-				// Include indexes
-				for _, inc := range ep.Includes {
-					incKey := []byte(inc + "/" + string(ep.PostID))
-					if err := depsIncludesBucket.Put(incKey, nil); err != nil {
-						return err
-					}
-				}
-			}
+		// Sequential bucket writes for better CPU cache locality
+		if err := writeOps(tx.Bucket([]byte(BucketPosts)), ops.posts); err != nil {
+			return err
+		}
+		if err := writeOps(tx.Bucket([]byte(BucketPaths)), ops.paths); err != nil {
+			return err
+		}
+		if err := writeOps(tx.Bucket([]byte(BucketSearch)), ops.search); err != nil {
+			return err
+		}
+		if err := writeOps(tx.Bucket([]byte(BucketPostDeps)), ops.deps); err != nil {
+			return err
+		}
+		if err := writeOps(tx.Bucket([]byte(BucketTags)), ops.tags); err != nil {
+			return err
+		}
+		if err := writeOps(tx.Bucket([]byte(BucketDepsTemplates)), ops.templates); err != nil {
+			return err
+		}
+		if err := writeOps(tx.Bucket([]byte(BucketDepsIncludes)), ops.includes); err != nil {
+			return err
 		}
 
 		// Update build stats

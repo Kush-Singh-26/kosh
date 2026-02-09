@@ -9,6 +9,7 @@ import (
 	"my-ssg/builder/run"
 	"my-ssg/internal/clean"
 	"my-ssg/internal/new"
+	"my-ssg/internal/scaffold"
 	"my-ssg/internal/server"
 	"my-ssg/internal/watch"
 )
@@ -42,6 +43,9 @@ func main() {
 		// Auto-rebuild after creating a new post
 		fmt.Println("\n🔄 Building site with new post...")
 		run.Run([]string{})
+
+	case "init":
+		scaffold.Run(args)
 
 	case "serve":
 		// Check for --dev flag
@@ -229,6 +233,7 @@ func printUsage() {
 	fmt.Println("Usage: kosh <command> [arguments]")
 	fmt.Println("\nCommands:")
 	fmt.Println("  new <title>    Create a new blog post")
+	fmt.Println("  init           Initialize a new Kosh site")
 	fmt.Println("  clean          Clean public directory & rebuild")
 	fmt.Println("  serve          Start the preview server")
 	fmt.Println("  build          Build the static site (and WASM)")

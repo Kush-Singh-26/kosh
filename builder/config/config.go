@@ -38,6 +38,7 @@ type Config struct {
 	PostsPerPage   int          `yaml:"postsPerPage"`
 	CompressImages bool         `yaml:"compressImages"`
 	Theme          string       `yaml:"theme"`
+	ThemeDir       string       `yaml:"themeDir"`
 	TemplateDir    string       `yaml:"templateDir"`
 	StaticDir      string       `yaml:"staticDir"`
 	// Internal / Runtime fields
@@ -56,8 +57,7 @@ func Load(args []string) *Config {
 		CompressImages: true, // Always compress for performance
 		BuildVersion:   time.Now().Unix(),
 		Theme:          "blog",
-		TemplateDir:    "templates",
-		StaticDir:      "static",
+		ThemeDir:       "themes",
 	}
 
 	// 2. Load from YAML file if exists
@@ -74,10 +74,21 @@ func Load(args []string) *Config {
 		}
 	}
 
+	// 3. Apply Smart Defaults
+	if cfg.TemplateDir == "" {
+		// Default: themes/<theme>/templates
+		cfg.TemplateDir = strings.Join([]string{cfg.ThemeDir, cfg.Theme, "templates"}, "/")
+	}
+	if cfg.StaticDir == "" {
+		// Default: themes/<theme>/static
+		cfg.StaticDir = strings.Join([]string{cfg.ThemeDir, cfg.Theme, "static"}, "/")
+	}
+
 	// 3. Override with CLI Flags
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 	baseUrlFlag := fs.String("baseurl", "", "Base URL (overrides config file)")
 	draftsFlag := fs.Bool("drafts", false, "Include draft posts in the build")
+	themeFlag := fs.String("theme", "", "Theme to use (overrides config file)")
 
 	_ = fs.Parse(args)
 
@@ -86,6 +97,12 @@ func Load(args []string) *Config {
 	}
 	if *draftsFlag {
 		cfg.IncludeDrafts = true
+	}
+	if *themeFlag != "" {
+		cfg.Theme = *themeFlag
+		// Re-apply smart defaults since theme changed
+		cfg.TemplateDir = strings.Join([]string{cfg.ThemeDir, cfg.Theme, "templates"}, "/")
+		cfg.StaticDir = strings.Join([]string{cfg.ThemeDir, cfg.Theme, "static"}, "/")
 	}
 
 	return cfg

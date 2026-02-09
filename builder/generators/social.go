@@ -8,6 +8,8 @@ import (
 	"os"
 	"sync"
 
+	"my-ssg/builder/assets"
+
 	"github.com/chai2010/webp"
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
@@ -15,13 +17,32 @@ import (
 )
 
 var (
-	fontCache = make(map[string]*truetype.Font)
-	fontMu    sync.RWMutex
+	fontCache     = make(map[string]*truetype.Font)
+	fontMu        sync.RWMutex
+	baseCardImage image.Image
+	baseCardOnce  sync.Once
+	faviconImage  image.Image
+	faviconOnce   sync.Once
 )
 
-func loadFont(path string) (*truetype.Font, error) {
+func getFaviconImage(fs afero.Fs, path string) image.Image {
+	faviconOnce.Do(func() {
+		f, err := fs.Open(path)
+		if err != nil {
+			return
+		}
+		defer func() { _ = f.Close() }()
+		img, _, err := image.Decode(f)
+		if err == nil {
+			faviconImage = img
+		}
+	})
+	return faviconImage
+}
+
+func loadFont(name string) (*truetype.Font, error) {
 	fontMu.RLock()
-	if f, ok := fontCache[path]; ok {
+	if f, ok := fontCache[name]; ok {
 		fontMu.RUnlock()
 		return f, nil
 	}
@@ -30,19 +51,19 @@ func loadFont(path string) (*truetype.Font, error) {
 	fontMu.Lock()
 	defer fontMu.Unlock()
 
-	if f, ok := fontCache[path]; ok {
+	if f, ok := fontCache[name]; ok {
 		return f, nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := assets.GetFont(name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load font %s: %w", name, err)
 	}
 	f, err := truetype.Parse(data)
 	if err != nil {
 		return nil, err
 	}
-	fontCache[path] = f
+	fontCache[name] = f
 	return f, nil
 }
 
@@ -57,8 +78,8 @@ func setFontFace(dc *gg.Context, fontPath string, points float64) error {
 }
 
 // GenerateSocialCardToDisk writes directly to a file path on disk
-func GenerateSocialCardToDisk(srcFs afero.Fs, title, description, dateStr, destPath, faviconPath, fontsDir string) error {
-	img, err := generateSocialCardImage(srcFs, title, description, dateStr, faviconPath, fontsDir)
+func GenerateSocialCardToDisk(srcFs afero.Fs, title, description, dateStr, destPath, faviconPath string) error {
+	img, err := generateSocialCardImage(srcFs, title, description, dateStr, faviconPath)
 	if err != nil {
 		return err
 	}
@@ -69,12 +90,12 @@ func GenerateSocialCardToDisk(srcFs afero.Fs, title, description, dateStr, destP
 	}
 	defer func() { _ = f.Close() }()
 
-	return webp.Encode(f, img, &webp.Options{Lossless: true})
+	return webp.Encode(f, img, &webp.Options{Lossless: false, Quality: 85})
 }
 
 // GenerateSocialCard creates an Apple Dark Mode aesthetic Open Graph image.
-func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, title, description, dateStr, destPath, faviconPath, fontsDir string) error {
-	img, err := generateSocialCardImage(srcFs, title, description, dateStr, faviconPath, fontsDir)
+func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, title, description, dateStr, destPath, faviconPath string) error {
+	img, err := generateSocialCardImage(srcFs, title, description, dateStr, faviconPath)
 	if err != nil {
 		return err
 	}
@@ -85,10 +106,25 @@ func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, title, description, dat
 	}
 	defer func() { _ = f.Close() }()
 
-	return webp.Encode(f, img, &webp.Options{Lossless: true})
+	return webp.Encode(f, img, &webp.Options{Lossless: false, Quality: 85})
 }
 
-func generateSocialCardImage(srcFs afero.Fs, title, description, dateStr, faviconPath, fontsDir string) (image.Image, error) {
+func getBaseCardImage(w, h int) image.Image {
+	baseCardOnce.Do(func() {
+		dc := gg.NewContext(w, h)
+		// --- 1. Canvas & Background (Dark Mode) ---
+		dc.SetColor(color.RGBA{10, 10, 10, 255})
+		dc.Clear()
+
+		// --- 2. Ambient Lighting (The "Aurora" Effect) ---
+		drawDiffuseOrb(dc, 0, 0, 700, color.RGBA{94, 92, 230, 15})
+		drawDiffuseOrb(dc, float64(w), float64(h), 800, color.RGBA{48, 176, 199, 12})
+		baseCardImage = dc.Image()
+	})
+	return baseCardImage
+}
+
+func generateSocialCardImage(srcFs afero.Fs, title, description, dateStr, faviconPath string) (image.Image, error) {
 	const (
 		W = 1200
 		H = 630
@@ -96,18 +132,13 @@ func generateSocialCardImage(srcFs afero.Fs, title, description, dateStr, favico
 
 	dc := gg.NewContext(W, H)
 
-	// --- 1. Canvas & Background (Dark Mode) ---
-	dc.SetColor(color.RGBA{10, 10, 10, 255})
-	dc.Clear()
-
-	// --- 2. Ambient Lighting (The "Aurora" Effect) ---
-	drawDiffuseOrb(dc, 0, 0, 700, color.RGBA{94, 92, 230, 15})
-	drawDiffuseOrb(dc, W, H, 800, color.RGBA{48, 176, 199, 12})
+	// Draw pre-rendered background
+	dc.DrawImage(getBaseCardImage(W, H), 0, 0)
 
 	// --- 3. Typography Setup ---
-	boldFont := fontsDir + "/Inter-Bold.ttf"
-	mediumFont := fontsDir + "/Inter-Medium.ttf"
-	regFont := fontsDir + "/Inter-Regular.ttf"
+	boldFont := "Inter-Bold.ttf"
+	mediumFont := "Inter-Medium.ttf"
+	regFont := "Inter-Regular.ttf"
 
 	marginX := 80.0
 	headerY := 90.0
@@ -117,22 +148,19 @@ func generateSocialCardImage(srcFs afero.Fs, title, description, dateStr, favico
 	currentX := marginX
 
 	if faviconPath != "" {
-		f, err := srcFs.Open(faviconPath)
-		if err == nil {
-			defer func() { _ = f.Close() }()
-			im, _, err := image.Decode(f)
-			if err == nil {
-				iconSize := 48.0
-				w := im.Bounds().Dx()
-				scale := iconSize / float64(w)
+		// Use cached favicon if available
+		im := getFaviconImage(srcFs, faviconPath)
+		if im != nil {
+			iconSize := 48.0
+			w := im.Bounds().Dx()
+			scale := iconSize / float64(w)
 
-				dc.Push()
-				dc.Scale(scale, scale)
-				dc.DrawImage(im, int(currentX/scale), int((headerY-35)/scale))
-				dc.Pop()
+			dc.Push()
+			dc.Scale(scale, scale)
+			dc.DrawImage(im, int(currentX/scale), int((headerY-35)/scale))
+			dc.Pop()
 
-				currentX += iconSize + 20
-			}
+			currentX += iconSize + 20
 		}
 	}
 
@@ -174,6 +202,7 @@ func generateSocialCardImage(srcFs afero.Fs, title, description, dateStr, favico
 }
 
 // drawDiffuseOrb simulates a gradient mesh/blur
+// kept for initial generation of base image
 func drawDiffuseOrb(dc *gg.Context, x, y, maxRadius float64, baseColor color.RGBA) {
 	dc.Push()
 

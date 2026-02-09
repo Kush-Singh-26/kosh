@@ -48,6 +48,16 @@ func NewBuilder(args []string) *Builder {
 	cfg := config.Load(args)
 	utils.InitMinifier()
 
+	// Verify Theme Exists (Early Fail)
+	themePath := filepath.Join(cfg.ThemeDir, cfg.Theme)
+	if _, err := os.Stat(themePath); os.IsNotExist(err) {
+		// We use fmt here because logger isn't initialized yet, and this is a CLI error
+		fmt.Printf("\n❌ CRITICAL ERROR: Theme '%s' not found.\n", cfg.Theme)
+		fmt.Printf("   Path checked: %s\n", themePath)
+		fmt.Printf("   💡 Please ensure you have cloned/downloaded the theme into '%s'.\n", cfg.ThemeDir)
+		os.Exit(1)
+	}
+
 	// Initialize structured logger
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -154,7 +164,11 @@ func (b *Builder) checkWasmUpdate() {
 
 	// Optimization: Check if WASM exists and is newer than source
 	// This skips hashing entirely if not needed
-	wasmPath := "public/static/wasm/search.wasm"
+	// Optimization: Check if WASM exists (in source/static) and is newer than source
+	// This skips hashing entirely if not needed.
+	// We check 'static/wasm/search.wasm' because 'public' might be cleaned,
+	// but the intermediate build artifact in 'static' should persist.
+	wasmPath := "static/wasm/search.wasm"
 	if wasmInfo, err := os.Stat(wasmPath); err == nil {
 		isFresh := true
 		errFoundNewer := fmt.Errorf("newer")

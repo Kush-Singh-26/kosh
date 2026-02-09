@@ -65,13 +65,13 @@ Build performance is tracked via `builder/metrics/metrics.go`.
         *   `build.go` - Main build orchestration
         *   `incremental.go` - Incremental build logic and watch mode
         *   `pipeline_assets.go` - Asset processing (esbuild, images)
-        *   `pipeline_posts.go` - Post processing with persistent social card cache
+        *   `pipeline_posts.go` - Two-pass architecture (Collect -> Tree -> Render) with persistent social card cache. Support for `weight` and hierarchical `SiteTree`.
         *   `pipeline_meta.go` - Metadata generation (sitemap, RSS, graph)
         *   `pipeline_pwa.go` - PWA generation (manifest, SW, icons) with dev mode skip
         *   `pipeline_pagination.go` - Pagination and tag rendering with content hashing
         *   All pipelines now interact directly with `cache.Manager` (BoltDB), replacing the legacy in-memory `buildCache`.
     *   **`renderer/native/`**: Contains native D2 and LaTeX rendering logic, split into `renderer.go` (core), `math.go`, and `d2.go`.
-    *   **`parser/`**: Markdown parsing logic (Goldmark extensions and modular AST transformers: `trans_url.go`, `trans_d2.go`, `trans_ssr.go`, `math.go`, `toc.go`).
+    *   **`parser/`**: Markdown parsing logic (Goldmark extensions: **Admonitions**, `trans_url.go`, `trans_d2.go`, `trans_ssr.go`, `math.go`, `toc.go`).
     *   **`cache/`**: BoltDB-based cache system with content-addressed storage, compression, and garbage collection.
         *   `.kosh-cache/meta.db` - BoltDB database for post metadata, dependencies, template hashes
         *   `.kosh-cache/store/` - Content-addressed storage for SSR artifacts (D2, KaTeX)
@@ -189,16 +189,22 @@ The following optimizations have been implemented:
 24. **Skip Redundant Disk Checks:** On clean builds (known empty output), skip 39+ unnecessary `os.Stat` calls.
 25. **Fixed Template-Only Detection:** Default to `false` to ensure content changes are always detected.
 26. **Fixed Tag Card Updates:** Content-aware hashing (tag name + post count) ensures cards update when tags change.
-27. **Fixed Metrics Reporting:** Cached builds now correctly report hit rates (was showing 0/0).
+28. **WASM Rebuild Fix:** Smart check for intermediate `search.wasm` in `static/` prevents 5s rebuild on `clean` command.
+29. **KaTeX Pre-compilation:** Compiles JS script once and shares across workers, reducing init time from 3s to <300ms.
+30. **Favicon Caching:** Decodes `favicon.png` only once (using `sync.Once`) and reuses image for 42+ social cards (saves ~3.6s).
+31. **Parallel PWA Generation:** PWA icons/manifest generated concurrently with post processing (saves ~0.5s).
+32. **Non-Blocking Worker Init:** Native renderer workers start immediately while others initialize in background, reducing startup latency.
+33. **Optimized Background Clean:** `clean` command renames directories and deletes them in background to unblock build start.
+34. **Two-Pass Architecture:** Separated metadata collection from rendering (`pipeline_posts.go`) to build global `SiteTree` for documentation sidebars without multiple disk reads.
 
 ### Build Performance (Updated)
 
 | Build Scenario | Before | After | Improvement |
 |---------------|--------|-------|-------------|
-| **Clean Build** (`kosh clean && kosh build`) | ~14-19s | ~2.0s | **7-9x faster** |
-| **Cached Build** (`kosh build`) | ~1.2s | ~90-400ms | **3-13x faster** |
-| **Full Rebuild** (`clean --cache && build`) | ~18s | ~16s | ~10% faster |
-| **Dev Mode Incremental** | variable | ~100-200ms | **Consistent sub-second** |
+| **Clean Build** (`kosh clean && kosh build`) | ~18s | ~12.1s | **~33% faster** |
+| **Cached Build** (`kosh build`) | ~1.2s | ~90-200ms | **6-12x faster** |
+| **Clean --cache** (`clean --cache`) | ~18-20s | ~12.6s | **~35% faster** |
+| **Dev Mode Incremental** | variable | ~100ms | **Instant** |
 
 ## 3. Cursor/Agent Rules
 

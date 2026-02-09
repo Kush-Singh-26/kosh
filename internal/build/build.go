@@ -2,38 +2,36 @@ package build
 
 import (
 	"compress/gzip"
+	_ "embed"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
-// CheckWASM checks if the search engine WASM needs to be rebuilt based on source hash.
-func CheckWASM(currentHash string) bool {
+//go:embed wasm/search.wasm
+var searchWasm []byte
+
+// CheckWASM ensures the search engine WASM is present in the output directory.
+func CheckWASM(_ string) bool {
 	wasmOut := "static/wasm/search.wasm"
 	// Ensure output directory exists
 	if err := os.MkdirAll(filepath.Dir(wasmOut), 0755); err != nil {
 		fmt.Printf("⚠️ Failed to create WASM directory: %v\n", err)
 	}
 
-	_, err := os.Stat(wasmOut)
-	if err == nil && currentHash != "" {
-		// We have a hash and the file exists, we can trust the hash check done by the caller
+	// Check if file exists
+	if _, err := os.Stat(wasmOut); err == nil {
+		// Optimization: Assume embedded WASM doesn't change frequently during dev
+		// We could check hash here but for now existence is enough to avoid re-write
 		return false
 	}
 
-	fmt.Println("🚀 Building Search WASM...")
-	cmd := exec.Command("go", "build", "-ldflags=-s -w", "-o", wasmOut, "./cmd/search/main.go")
-	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("❌ WASM build failed: %v\n", err)
+	fmt.Println("🚀 Writing embedded Search WASM...")
+	if err := os.WriteFile(wasmOut, searchWasm, 0644); err != nil {
+		fmt.Printf("❌ Failed to write WASM: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("✅ WASM build complete.")
 
 	// Compress WASM
 	fmt.Println("📦 Compressing WASM...")

@@ -29,6 +29,7 @@ type PostMeta struct {
 	ReadingTime    int                    `msgpack:"reading_time"`
 	Description    string                 `msgpack:"description"`
 	Link           string                 `msgpack:"link"`
+	Weight         int                    `msgpack:"weight"`
 	Pinned         bool                   `msgpack:"pinned"`
 	Draft          bool                   `msgpack:"draft"`
 	HasMath        bool                   `msgpack:"has_math"`
