@@ -1,8 +1,11 @@
 package run
 
 import (
+	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/spf13/afero"
@@ -55,6 +58,10 @@ func NewBuilder(args []string) *Builder {
 
 	// Create cache directory if it doesn't exist
 	_ = os.MkdirAll(".kosh-cache", 0755)
+	_ = os.MkdirAll(".kosh-cache/social-cards", 0755)
+	_ = os.MkdirAll(".kosh-cache/assets", 0755)
+	_ = os.MkdirAll(".kosh-cache/images", 0755)
+	_ = os.MkdirAll(".kosh-cache/pwa-icons", 0755)
 
 	// Open BoltDB cache
 	var cacheManager *cache.Manager
@@ -144,7 +151,40 @@ func (b *Builder) checkWasmUpdate() {
 		"builder/search",
 		"builder/models",
 	}
-	currentHash, err := utils.HashDirs(wasmSrcDirs)
+
+	// Optimization: Check if WASM exists and is newer than source
+	// This skips hashing entirely if not needed
+	wasmPath := "public/static/wasm/search.wasm"
+	if wasmInfo, err := os.Stat(wasmPath); err == nil {
+		isFresh := true
+		errFoundNewer := fmt.Errorf("newer")
+
+		for _, dir := range wasmSrcDirs {
+			err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if info.IsDir() {
+					return nil
+				}
+				if info.ModTime().After(wasmInfo.ModTime()) {
+					return errFoundNewer
+				}
+				return nil
+			})
+			if err == errFoundNewer {
+				isFresh = false
+				break
+			}
+		}
+
+		if isFresh {
+			return
+		}
+	}
+
+	// Use Fast Hash (Metadata) for quick check
+	currentHash, err := utils.HashDirsFast(wasmSrcDirs)
 	if err != nil {
 		b.logger.Warn("Failed to calculate WASM source hash", "error", err)
 		return
@@ -157,6 +197,7 @@ func (b *Builder) checkWasmUpdate() {
 	}
 
 	if currentHash != storedHash {
+		// Only trigger rebuild if hash changed
 		if build.CheckWASM("") {
 			if b.cacheManager != nil {
 				if err := b.cacheManager.SetWasmHash(currentHash); err != nil {

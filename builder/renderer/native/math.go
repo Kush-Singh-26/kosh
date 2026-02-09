@@ -8,6 +8,8 @@ import (
 
 // RenderMath renders a single LaTeX expression to HTML using KaTeX via goja
 func (r *Renderer) RenderMath(latex string, displayMode bool) (string, error) {
+	r.ensureInitialized()
+
 	// Acquire worker
 	instance := <-r.pool
 	defer func() { r.pool <- instance }() // Release worker
@@ -40,6 +42,12 @@ type MathExpression struct {
 
 // RenderAllMath renders multiple LaTeX expressions in parallel using the worker pool
 func (r *Renderer) RenderAllMath(expressions []MathExpression, cache map[string]string) (map[string]string, error) {
+	if len(expressions) == 0 {
+		return make(map[string]string), nil
+	}
+
+	r.ensureInitialized()
+
 	results := make(map[string]string)
 	var mu sync.Mutex
 	var wg sync.WaitGroup

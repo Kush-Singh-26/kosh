@@ -19,7 +19,8 @@ func (b *Builder) copyStaticAndBuildAssets() {
 		defer wg.Done()
 		if exists, _ := afero.Exists(b.SourceFs, cfg.StaticDir); exists {
 			// Exclude .css and .js files from raw copy (they're handled by esbuild)
-			if err := utils.CopyDirVFS(b.SourceFs, b.DestFs, cfg.StaticDir, "public/static", cfg.CompressImages, []string{".css", ".js"}, b.rnd.RegisterFile); err != nil {
+			// Pass cache dir for images
+			if err := utils.CopyDirVFS(b.SourceFs, b.DestFs, cfg.StaticDir, "public/static", cfg.CompressImages, []string{".css", ".js"}, b.rnd.RegisterFile, ".kosh-cache/images"); err != nil {
 				fmt.Printf("⚠️ Failed to copy static assets: %v\n", err)
 			}
 		}
@@ -44,7 +45,7 @@ func (b *Builder) copyStaticAndBuildAssets() {
 	// 2. Esbuild Bundling (CSS/JS)
 	go func() {
 		defer wg.Done()
-		assets, assetErr := utils.BuildAssetsEsbuild(b.SourceFs, b.DestFs, cfg.StaticDir, "public/static", cfg.CompressImages, b.rnd.RegisterFile)
+		assets, assetErr := utils.BuildAssetsEsbuild(b.SourceFs, b.DestFs, cfg.StaticDir, "public/static", cfg.CompressImages, b.rnd.RegisterFile, ".kosh-cache/assets")
 		if assetErr == nil {
 			b.rnd.SetAssets(assets)
 		}

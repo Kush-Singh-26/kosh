@@ -19,7 +19,7 @@ import (
 )
 
 // CopyDirVFS copies a directory from srcFs to destFs with parallel image processing.
-func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string)) error {
+func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string) error {
 	// Create destination directory
 	if err := destFs.MkdirAll(dstDir, 0755); err != nil {
 		return err
@@ -43,7 +43,7 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 			defer wg.Done()
 			for task := range imageQueue {
 				target := filepath.Join(dstDir, task.relPath)
-				if err := processImageVFS(srcFs, destFs, task.path, target); err != nil {
+				if err := processImageVFS(srcFs, destFs, task.path, target, cacheDir); err != nil {
 					errChan <- fmt.Errorf("failed to process image %s: %w", task.path, err)
 				} else if onWrite != nil {
 					onWrite(target)
@@ -126,19 +126,32 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 	return nil
 }
 
-func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string) error {
+func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string, cacheDir string) error {
 	// Skip if destination exists and is newer than source
 	srcInfo, err := srcFs.Stat(srcPath)
 	if err == nil {
 		if dstInfo, err := os.Stat(dstPath); err == nil {
 			if !srcInfo.ModTime().After(dstInfo.ModTime()) {
 				// Optimization: Read existing from disk into VFS to keep it consistent
-				// though SyncVFS might skip it later anyway if it sees it on disk.
 				data, err := os.ReadFile(dstPath)
 				if err == nil {
 					return afero.WriteFile(destFs, dstPath, data, 0644)
 				}
 			}
+		}
+	}
+
+	// Persistent Cache Check
+	var cacheFile string
+	if cacheDir != "" && err == nil {
+		key := fmt.Sprintf("%s-%d-%d", srcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())
+		hash := md5.Sum([]byte(key))
+		hashStr := hex.EncodeToString(hash[:])
+		cacheFile = filepath.Join(cacheDir, hashStr+".webp")
+
+		if data, err := os.ReadFile(cacheFile); err == nil {
+			// Cache Hit! Write to VFS
+			return WriteFileVFS(destFs, dstPath, data)
 		}
 	}
 
@@ -162,6 +175,23 @@ func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string) e
 	// Write
 	if err := destFs.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
 		return err
+	}
+
+	if cacheFile != "" {
+		// Write to persistent cache first
+		fCache, err := os.Create(cacheFile)
+		if err == nil {
+			err = webp.Encode(fCache, img, &webp.Options{Lossless: false, Quality: 80})
+			fCache.Close()
+			if err == nil {
+				// Copy from cache to VFS
+				data, err := os.ReadFile(cacheFile)
+				if err == nil {
+					return afero.WriteFile(destFs, dstPath, data, 0644)
+				}
+			}
+		}
+		// Fallback if cache write fails
 	}
 
 	out, err := destFs.Create(dstPath)
@@ -201,6 +231,7 @@ func HydrateVFS(vfs afero.Fs, diskDir string) error {
 }
 
 // HashDirs generates a deterministic MD5 hash of multiple directories' contents.
+// It uses file content for accuracy.
 func HashDirs(dirs []string) (string, error) {
 	h := md5.New()
 	for _, dir := range dirs {
@@ -211,8 +242,6 @@ func HashDirs(dirs []string) (string, error) {
 			if info.IsDir() {
 				return nil
 			}
-			// Use path and modtime for speed, or full content for accuracy.
-			// Content is safer for WASM source hashing.
 			f, err := os.Open(path)
 			if err != nil {
 				return err
@@ -221,6 +250,29 @@ func HashDirs(dirs []string) (string, error) {
 			if _, err := io.Copy(h, f); err != nil {
 				return err
 			}
+			return nil
+		})
+		if err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// HashDirsFast generates a deterministic MD5 hash based on file metadata (path, size, mtime).
+// This is much faster than reading content but relies on filesystem timestamps.
+func HashDirsFast(dirs []string) (string, error) {
+	h := md5.New()
+	for _, dir := range dirs {
+		err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			// Write metadata to hash
+			fmt.Fprintf(h, "%s:%d:%d;", path, info.Size(), info.ModTime().UnixNano())
 			return nil
 		})
 		if err != nil && !os.IsNotExist(err) {

@@ -2,10 +2,12 @@ package run
 
 import (
 	"fmt"
+	"os"
+	"sync"
+
 	"my-ssg/builder/generators"
 	"my-ssg/builder/models"
 	"my-ssg/builder/utils"
-	"sync"
 )
 
 func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, shouldForce bool) {
@@ -35,7 +37,13 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 		cachedGraphHash, _ = b.cacheManager.GetGraphHash()
 	}
 
-	if shouldForce || cachedGraphHash != graphHash {
+	// Check if graph.json exists on disk
+	graphExists := false
+	if _, err := os.Stat("public/graph.json"); err == nil {
+		graphExists = true
+	}
+
+	if shouldForce || !graphExists || cachedGraphHash != graphHash {
 		genWg.Add(1)
 		go func() {
 			defer genWg.Done()

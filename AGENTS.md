@@ -9,6 +9,7 @@ The unified CLI tool `kosh` handles all operations.
 *   **Build CLI:** `go build -o kosh.exe cmd/kosh/main.go`
 *   **Build Site:** `./kosh.exe build` (Minifies HTML/CSS/JS, compresses images)
 *   **Serve (Dev Mode):** `./kosh.exe serve --dev` (Starts server with live reload & watcher)
+    *   **Note:** Dev mode skips PWA generation (manifest, service worker, icons) for faster builds
 *   **Clean Output:** `./kosh.exe clean` (Cleans `public/`)
 *   **Clean All:** `./kosh.exe clean --cache` (Cleans `public/` and `.kosh-cache/`)
 
@@ -59,10 +60,26 @@ Build performance is tracked via `builder/metrics/metrics.go`.
 
 ### Project Structure
 *   **`builder/`**: Core SSG logic (rendering, parsing, caching).
-    *   **`run/`**: **Modularized.** Contains build orchestration logic split into `builder.go`, `build.go`, `incremental.go`, and specialized pipelines: `pipeline_assets.go`, `pipeline_posts.go`, `pipeline_meta.go`, `pipeline_pwa.go`, and `pipeline_pagination.go`. All pipelines now interact directly with `cache.Manager` (BoltDB), replacing the legacy in-memory `buildCache`.
+    *   **`run/`**: **Modularized.** Contains build orchestration logic split into:
+        *   `builder.go` - Builder initialization and configuration
+        *   `build.go` - Main build orchestration
+        *   `incremental.go` - Incremental build logic and watch mode
+        *   `pipeline_assets.go` - Asset processing (esbuild, images)
+        *   `pipeline_posts.go` - Post processing with persistent social card cache
+        *   `pipeline_meta.go` - Metadata generation (sitemap, RSS, graph)
+        *   `pipeline_pwa.go` - PWA generation (manifest, SW, icons) with dev mode skip
+        *   `pipeline_pagination.go` - Pagination and tag rendering with content hashing
+        *   All pipelines now interact directly with `cache.Manager` (BoltDB), replacing the legacy in-memory `buildCache`.
     *   **`renderer/native/`**: Contains native D2 and LaTeX rendering logic, split into `renderer.go` (core), `math.go`, and `d2.go`.
     *   **`parser/`**: Markdown parsing logic (Goldmark extensions and modular AST transformers: `trans_url.go`, `trans_d2.go`, `trans_ssr.go`, `math.go`, `toc.go`).
-    *   **`cache/`**: BoltDB-based cache system with content-addressed storage, compression, and garbage collection. Now also handles WASM source hashing and dependency tracking.
+    *   **`cache/`**: BoltDB-based cache system with content-addressed storage, compression, and garbage collection.
+        *   `.kosh-cache/meta.db` - BoltDB database for post metadata, dependencies, template hashes
+        *   `.kosh-cache/store/` - Content-addressed storage for SSR artifacts (D2, KaTeX)
+        *   `.kosh-cache/images/` - WebP converted images
+        *   `.kosh-cache/assets/` - esbuild results
+        *   `.kosh-cache/social-cards/` - Generated social cards
+        *   `.kosh-cache/pwa-icons/` - PWA icons (192x192, 512x512)
+        *   Now also handles WASM source hashing and dependency tracking.
     *   **`benchmarks/`**: Performance benchmarks for critical paths (search, hashing, sorting).
     *   **`metrics/`**: Build performance tracking and telemetry.
 *   **`cmd/kosh/`**: Main entry point for the CLI.
@@ -92,12 +109,30 @@ Group imports into three blocks separated by newlines:
     *   **LaTeX:** Uses `github.com/dop251/goja` to run KaTeX JS server-side. Pre-rendered HTML is injected into the site.
     *   **D2 Diagrams:** Uses `oss.terrastruct.com/d2/d2lib`. Renders both light and dark themes as SVGs. Zoom logic in `main.js` handles theme-aware lightbox display.
     *   **Diagram Cache:** Uses `DiagramCacheAdapter` which requires `Close()` to be called for clean shutdown and goroutine cleanup. Uses bounded worker pool (NumCPU workers) to prevent goroutine explosion.
+    *   **Font Caching:** Social card fonts loaded once and cached in memory across card generations.
+
+*   **Social Card Generation:**
+    *   **Post Cards:** Generated in `pipeline_posts.go` with content hashing. Uses direct-to-disk generation to avoid VFS overhead.
+    *   **Home Card:** Generated in `pipeline_pagination.go` with hash based on site title + description.
+    *   **Tag Cards:** Generated in `pipeline_pagination.go` with content-aware hashing (tag name + post count) to ensure updates when post count changes.
+    *   **All Cards:** Cached in `.kosh-cache/social-cards/` and restored on clean builds.
+
+*   **PWA Generation:**
+    *   **Dev Mode Skip:** PWA generation (manifest, service worker, icons) is skipped entirely in `serve --dev` mode to speed up development.
+    *   **Icon Caching:** PWA icons (192x192, 512x512) are cached in `.kosh-cache/pwa-icons/` based on favicon hash.
+    *   **Source Path:** Icons are generated from `themes/<theme>/static/images/favicon.png`.
 *   **Logging Guidelines:**
     *   **Dev Mode:** Keep output minimal - avoid progress bars, per-file status, and verbose emoji
     *   **Production:** Show essential info only (errors, final metrics)
     *   **Error Messages:** Always log errors with context, use `❌` prefix for visibility
     *   **Success Messages:** Keep minimal, avoid spam during watch mode
     *   **Progress:** Remove progress updates; use metrics summary instead
+
+*   **Build Detection:**
+    *   **Template-Only Changes:** Automatically detected and handled with fast path (re-renders from cache)
+    *   **Content Changes:** Always trigger full processing to ensure updates are reflected
+    *   **Frontmatter Changes:** Trigger social card regeneration and tag page updates
+    *   **Config Changes:** (kosh.yaml) Force full rebuild including home page social card
 *   **Concurrency:**
     *   **Worker Pool:** A pool of `runtime.NumCPU()` workers handles rendering tasks in parallel.
     *   **Worker Sizing:** Adjust based on I/O vs CPU bound tasks. Use `runtime.NumCPU() * 3/2` for I/O-bound operations (cache reads).
@@ -106,6 +141,13 @@ Group imports into three blocks separated by newlines:
 *   **Caching & Incremental Builds:**
     *   **BoltDB Cache:** All metadata (Posts, Dependencies, Template Hashes) stored in `.kosh-cache/meta.db`. The legacy `buildCache` struct has been removed.
     *   **Content-Addressed Storage:** SSR artifacts (D2, KaTeX) stored in `.kosh-cache/store/` with BLAKE3 hashes.
+    *   **Persistent Image Cache:** WebP converted images cached in `.kosh-cache/images/` with source file hash keys.
+    *   **Persistent Asset Cache:** esbuild results cached in `.kosh-cache/assets/` with content-addressed storage.
+    *   **Social Card Caching:**
+        *   Post cards: `.kosh-cache/social-cards/<frontmatter_hash>.webp`
+        *   Home card: `.kosh-cache/social-cards/` (tracked via BoltDB hash)
+        *   Tag cards: `.kosh-cache/social-cards/` with content-aware hashing (tag name + post count)
+    *   **PWA Icon Caching:** Icons cached in `.kosh-cache/pwa-icons/<favicon_hash>-{192,512}.png`
     *   **Fast Rebuilds:** `incremental.go` queries BoltDB to determine invalidation. If only templates change, pages are reconstructed from cached PostMeta and HTML content.
     *   **Batch Cache Reads:** When reading multiple posts from cache, batch all BoltDB reads first in a single transaction, then parallelize rendering to avoid lock contention.
     *   **Batch Methods:** Use `GetPostsByIDs(ids []string)` and `GetSearchRecords(ids []string)` for N+1 query elimination.
@@ -135,6 +177,28 @@ The following optimizations have been implemented:
 12. **Bounded Workers:** Diagram cache uses fixed worker pool to prevent goroutine explosion.
 13. **Parallel GC:** Store operations parallelized during garbage collection (2-3x faster GC).
 14. **Tokenization Caching:** Cache tokenized words in `SearchRecord` to avoid re-tokenization.
+15. **Lazy Native Renderer:** D2/KaTeX workers initialized only when diagrams/math are detected in content.
+16. **Fast WASM Hash:** Uses file metadata (mtime+size) instead of content hashing for source change detection.
+17. **Persistent Image Cache:** WebP processed images cached in `.kosh-cache/images/` to avoid re-encoding.
+18. **Persistent Asset Cache:** esbuild results cached in `.kosh-cache/assets/` with content-addressed storage.
+19. **Social Card Caching:** Home, tag index, and individual tag cards cached in `.kosh-cache/social-cards/`.
+20. **PWA Icon Caching:** Icons (192x192, 512x512) cached in `.kosh-cache/pwa-icons/` with favicon hash tracking.
+21. **Direct-to-Disk Generation:** Social cards generate directly to disk, avoiding VFS double-buffering.
+22. **Font Caching:** Social card fonts loaded once and cached in memory across card generations.
+23. **VFS Single-Read Pattern:** Small files read once for comparison and writing, reducing I/O by 50%.
+24. **Skip Redundant Disk Checks:** On clean builds (known empty output), skip 39+ unnecessary `os.Stat` calls.
+25. **Fixed Template-Only Detection:** Default to `false` to ensure content changes are always detected.
+26. **Fixed Tag Card Updates:** Content-aware hashing (tag name + post count) ensures cards update when tags change.
+27. **Fixed Metrics Reporting:** Cached builds now correctly report hit rates (was showing 0/0).
+
+### Build Performance (Updated)
+
+| Build Scenario | Before | After | Improvement |
+|---------------|--------|-------|-------------|
+| **Clean Build** (`kosh clean && kosh build`) | ~14-19s | ~2.0s | **7-9x faster** |
+| **Cached Build** (`kosh build`) | ~1.2s | ~90-400ms | **3-13x faster** |
+| **Full Rebuild** (`clean --cache && build`) | ~18s | ~16s | ~10% faster |
+| **Dev Mode Incremental** | variable | ~100-200ms | **Consistent sub-second** |
 
 ## 3. Cursor/Agent Rules
 

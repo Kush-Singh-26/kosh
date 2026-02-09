@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"math"
 	"os"
@@ -34,7 +35,7 @@ const (
 	smallFileThreshold = 64 * 1024 // 64KB threshold for small files in VFS sync
 )
 
-func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool) {
+func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool) {
 	var (
 		allPosts       []models.PostMetadata
 		pinnedPosts    []models.PostMetadata
@@ -267,7 +268,23 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 			cardDestPath := filepath.Join("public", "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp")
 			_ = b.DestFs.MkdirAll(filepath.Dir(cardDestPath), 0755)
 
-			if forceSocialRebuild || cachedHash != frontmatterHash {
+			// Smart Social Cards:
+			// 1. Check if file exists in public/ (on disk) or VFS
+			// 2. If exists, check if it's newer than source post
+			// 3. Only then check hash
+
+			// Check if card exists on disk (persisted from previous builds)
+			cardExists := false
+			if info, err := os.Stat(cardDestPath); err == nil && !info.IsDir() {
+				// Check timestamp against post source
+				if sourceInfo, err := b.SourceFs.Stat(path); err == nil {
+					if info.ModTime().After(sourceInfo.ModTime()) {
+						cardExists = true
+					}
+				}
+			}
+
+			if forceSocialRebuild || (cachedHash != frontmatterHash && !cardExists) {
 				socialTasksMu.Lock()
 				socialCardTasks = append(socialCardTasks, socialCardTask{
 					path:            relPath,
@@ -277,6 +294,37 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 					frontmatterHash: frontmatterHash,
 				})
 				socialTasksMu.Unlock()
+			} else if cardExists {
+				// Card exists on disk and is fresh, skip generation.
+				// But we might need to update the hash in cache if it's missing (e.g. after clean --cache)
+				if b.cacheManager != nil && cachedHash == "" {
+					_ = b.cacheManager.SetSocialCardHash(relPath, frontmatterHash)
+				}
+			} else if _, err := os.Stat(cardDestPath); os.IsNotExist(err) {
+				// Rehydrate missing card from cache if available
+				// (Only if we have a valid cached hash, meaning the card *should* match)
+				if cachedHash != "" {
+					socialTasksMu.Lock()
+					socialCardTasks = append(socialCardTasks, socialCardTask{
+						path:            relPath,
+						relPath:         strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
+						cardDestPath:    cardDestPath,
+						metaData:        metaData,
+						frontmatterHash: cachedHash, // Use cached hash
+					})
+					socialTasksMu.Unlock()
+				} else {
+					// No file, no cache -> Must generate
+					socialTasksMu.Lock()
+					socialCardTasks = append(socialCardTasks, socialCardTask{
+						path:            relPath,
+						relPath:         strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
+						cardDestPath:    cardDestPath,
+						metaData:        metaData,
+						frontmatterHash: frontmatterHash,
+					})
+					socialTasksMu.Unlock()
+				}
 			}
 
 			imagePath := b.cfg.BaseURL + "/static/images/cards/" + strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
@@ -293,12 +341,26 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 			// Optimize: When using cache, skip the destination file stat check
 			// This saves redundant I/O operations on incremental builds
 			skipRendering := !shouldForce
-			if useCache {
-				// Cache is valid and fresh, skip rendering unless forced
-				skipRendering = true
-			} else if destInfo, err := os.Stat(destPath); err != nil || !destInfo.ModTime().After(info.ModTime()) {
-				// Only check destination file when not using cache
+
+			if outputMissing {
+				// Optimization: If we know output is missing (clean build), don't stat disk
 				skipRendering = false
+			} else if useCache {
+				// Even if we use cache data, we must render if the file is missing on disk
+				if _, err := os.Stat(destPath); os.IsNotExist(err) {
+					skipRendering = false
+				} else {
+					skipRendering = true
+				}
+			} else {
+				// Ensure info is available for comparison
+				if info == nil {
+					info, _ = b.SourceFs.Stat(path)
+				}
+				if destInfo, err := os.Stat(destPath); err != nil || !destInfo.ModTime().After(info.ModTime()) {
+					// Only check destination file when not using cache
+					skipRendering = false
+				}
 			}
 
 			if !skipRendering {
@@ -404,6 +466,7 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 	}
 
 	if len(socialCardTasks) > 0 {
+		fmt.Printf("%d social card(s) queued for generation\n", len(socialCardTasks))
 		cardSem := make(chan struct{}, numWorkers)
 		for _, t := range socialCardTasks {
 			wg.Add(1)
@@ -411,9 +474,51 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild bool) ([]models.P
 			go func(t socialCardTask) {
 				defer wg.Done()
 				defer func() { <-cardSem }()
-				_ = generators.GenerateSocialCard(b.DestFs, b.SourceFs, utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"), utils.GetString(t.metaData, "date"), t.cardDestPath, "static/images/favicon.png", "builder/assets/fonts")
-				if b.cacheManager != nil {
-					_ = b.cacheManager.SetSocialCardHash(t.path, t.frontmatterHash)
+
+				// Persistent Cache Check
+				// Only use persistent cache if we have a hash (t.frontmatterHash)
+				cachedCardPath := filepath.Join(".kosh-cache", "social-cards", t.frontmatterHash+".webp")
+				cachedFile, err := os.Open(cachedCardPath)
+				if err == nil && t.frontmatterHash != "" {
+					// Hit! Copy from persistent cache to dest
+					defer cachedFile.Close()
+
+					// Dest is in VFS (b.DestFs)
+					// We need to create it
+					out, err := b.DestFs.Create(t.cardDestPath)
+					if err == nil {
+						defer out.Close()
+						if _, err := io.Copy(out, cachedFile); err == nil {
+							// Successfully restored from cache
+							// Update BoltDB hash mapping if needed
+							if b.cacheManager != nil {
+								_ = b.cacheManager.SetSocialCardHash(t.path, t.frontmatterHash)
+							}
+							return
+						}
+					}
+				}
+
+				faviconPath := "themes/" + b.cfg.Theme + "/static/images/favicon.png"
+
+				// Optimization: Generate directly to persistent cache on disk
+				// This avoids double-buffering in VFS and leverages the optimized ToDisk function
+				err = generators.GenerateSocialCardToDisk(b.SourceFs, utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"), utils.GetString(t.metaData, "date"), cachedCardPath, faviconPath, "builder/assets/fonts")
+
+				if err == nil {
+					// Success! Copy from persistent cache to VFS (so SyncVFS sees it)
+					if data, err := os.ReadFile(cachedCardPath); err == nil {
+						// Create directory in VFS (redundant but safe)
+						_ = b.DestFs.MkdirAll(filepath.Dir(t.cardDestPath), 0755)
+						_ = afero.WriteFile(b.DestFs, t.cardDestPath, data, 0644)
+					}
+
+					if b.cacheManager != nil && t.frontmatterHash != "" {
+						_ = b.cacheManager.SetSocialCardHash(t.path, t.frontmatterHash)
+					}
+				} else {
+					// Fallback if disk write fails (unlikely) - try standard VFS generation
+					_ = generators.GenerateSocialCard(b.DestFs, b.SourceFs, utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"), utils.GetString(t.metaData, "date"), t.cardDestPath, faviconPath, "builder/assets/fonts")
 				}
 			}(t)
 		}
@@ -528,6 +633,10 @@ func (b *Builder) renderCachedPosts() {
 				TabTitle: cp.Meta.Title + " | " + b.cfg.Title, Permalink: cp.Meta.Link, Image: imagePath,
 				HasMath: cp.Meta.HasMath, HasMermaid: cp.Meta.HasMermaid, TOC: toc, Config: b.cfg,
 			})
+
+			// Update metrics
+			b.metrics.IncrementPostsProcessed()
+			b.metrics.IncrementCacheHit()
 		}(id, data)
 	}
 	wg.Wait()

@@ -27,38 +27,44 @@ type Instance struct {
 
 // Renderer manages a pool of native rendering instances for concurrency
 type Renderer struct {
-	pool chan *Instance
+	pool       chan *Instance
+	numWorkers int
+	initOnce   sync.Once
 }
 
-// New creates a new Renderer with a pool of workers sized to CPU count
+// New creates a new Renderer - workers are lazy-initialized
 func New() *Renderer {
 	numWorkers := runtime.NumCPU()
 	if numWorkers < 1 {
 		numWorkers = 1
 	}
 
-	pool := make(chan *Instance, numWorkers)
-
-	log.Printf("⚙️  Initializing Renderer Pool with %d workers...", numWorkers)
-
-	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			instance := newInstance()
-			if instance != nil {
-				pool <- instance
-			} else {
-				log.Printf("⚠️ Failed to initialize worker %d", id)
-			}
-		}(i)
-	}
-	wg.Wait()
-
 	return &Renderer{
-		pool: pool,
+		pool:       make(chan *Instance, numWorkers),
+		numWorkers: numWorkers,
 	}
+}
+
+// ensureInitialized lazily creates worker instances on first use
+func (r *Renderer) ensureInitialized() {
+	r.initOnce.Do(func() {
+		log.Printf("⚙️  Initializing Renderer Pool with %d workers...", r.numWorkers)
+
+		var wg sync.WaitGroup
+		for i := 0; i < r.numWorkers; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				instance := newInstance()
+				if instance != nil {
+					r.pool <- instance
+				} else {
+					log.Printf("⚠️ Failed to initialize worker %d", id)
+				}
+			}(i)
+		}
+		wg.Wait()
+	})
 }
 
 func newInstance() *Instance {

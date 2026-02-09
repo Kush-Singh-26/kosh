@@ -12,6 +12,8 @@ import (
 )
 
 func GenerateRSS(destFs afero.Fs, baseURL string, posts []models.PostMetadata, title, description string) {
+	fmt.Println("📡 Generating RSS feed...")
+
 	var items []models.Item
 	for _, p := range posts {
 		items = append(items, models.Item{

@@ -52,7 +52,7 @@ func Open(basePath string, isDev bool) (*Manager, error) {
 
 	// Configure BoltDB options based on dev/prod mode
 	opts := &bolt.Options{
-		Timeout:         1 * time.Second,
+		Timeout:         10 * time.Second,
 		FreelistType:    bolt.FreelistArrayType, // Better for sequential access
 		PageSize:        16384,                  // Larger pages for HTML content
 		InitialMmapSize: 10 * 1024 * 1024,       // 10MB initial mmap

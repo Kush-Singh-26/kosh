@@ -68,8 +68,8 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 
 	// 2. Parallel Sync with Worker Pool
 	numWorkers := runtime.NumCPU() * 2
-	if numWorkers > 32 {
-		numWorkers = 32
+	if numWorkers > 64 {
+		numWorkers = 64
 	}
 
 	var wg sync.WaitGroup
@@ -111,6 +111,12 @@ func syncSingleFile(srcFs afero.Fs, path string) error {
 
 	srcSize := srcInfo.Size()
 
+	// Read content ONCE
+	srcContent, err := afero.ReadFile(srcFs, path)
+	if err != nil {
+		return err
+	}
+
 	// Check if destination exists and matches
 	if destInfo, err := os.Stat(path); err == nil {
 		// Quick check: different sizes mean different content
@@ -118,13 +124,9 @@ func syncSingleFile(srcFs afero.Fs, path string) error {
 			goto writeFile
 		}
 
-		// For small files (< 64KB), compare content directly
+		// For small files (< 64KB), compare content directly using the buffer we already read
 		const smallFileThreshold = 64 * 1024
 		if srcSize < smallFileThreshold {
-			srcContent, err := afero.ReadFile(srcFs, path)
-			if err != nil {
-				return err
-			}
 			destContent, err := os.ReadFile(path)
 			if err == nil && bytes.Equal(destContent, srcContent) {
 				return nil // Identical
@@ -139,11 +141,6 @@ func syncSingleFile(srcFs afero.Fs, path string) error {
 	}
 
 writeFile:
-	// Read and write the file
-	srcContent, err := afero.ReadFile(srcFs, path)
-	if err != nil {
-		return err
-	}
-
+	// Write using the already-read content
 	return os.WriteFile(path, srcContent, 0644)
 }

@@ -20,7 +20,12 @@ func (b *Builder) Build() {
 	// Build started - minimal logging
 
 	// 1. Setup & Cache Invalidation
-	b.checkWasmUpdate()
+	var setupWg sync.WaitGroup
+	setupWg.Add(1)
+	go func() {
+		defer setupWg.Done()
+		b.checkWasmUpdate()
+	}()
 
 	globalDependencies := []string{
 		filepath.Join(cfg.TemplateDir, "layout.html"),
@@ -53,8 +58,10 @@ func (b *Builder) Build() {
 			forceSocialRebuild = true
 		}
 	} else {
-		shouldForce = true
-		forceSocialRebuild = true
+		// public/ is missing (e.g., after 'kosh clean').
+		// We do NOT force a full rebuild. We use the cache to rehydrate files.
+		// shouldForce stays false.
+		// forceSocialRebuild stays false (rely on missing file checks).
 	}
 
 	b.cfg.ForceRebuild = false
@@ -102,7 +109,12 @@ func (b *Builder) Build() {
 	)
 
 	// Template-only change detection logic
-	isTemplateOnly := true
+	isTemplateOnly := false // Default to false to ensure content changes are detected
+
+	// Only consider template-only optimization if we can verify no content changed?
+	// For now, disabling the default-true assumption ensures correctness.
+	// We can re-enable optimization later with proper content mtime checks.
+
 	if shouldForce || len(affectedPosts) > 0 {
 		isTemplateOnly = false
 	} else if len(globalDependencies) > 0 {
@@ -110,15 +122,15 @@ func (b *Builder) Build() {
 			if info, err := os.Stat(dep); err == nil {
 				if info.ModTime().After(lastBuildTime) {
 					// Check if it's a template
-					if !strings.HasSuffix(dep, ".html") && !strings.HasSuffix(dep, ".css") {
+					if strings.HasSuffix(dep, ".html") || strings.HasSuffix(dep, ".css") {
+						isTemplateOnly = true
+					} else {
 						isTemplateOnly = false
 						break
 					}
 				}
 			}
 		}
-	} else {
-		isTemplateOnly = false
 	}
 
 	cachedCount := 0
@@ -128,7 +140,12 @@ func (b *Builder) Build() {
 		}
 	}
 
-	if isTemplateOnly && lastBuildTime.Unix() > 0 && cachedCount > 0 {
+	// Use fast path if:
+	// 1. Template-only changes AND we have a valid lastBuildTime, OR
+	// 2. Output is missing (cleaned) AND we have cached data
+	outputMissing := lastBuildTime.IsZero()
+	if isTemplateOnly && ((!lastBuildTime.IsZero()) || outputMissing) && cachedCount > 0 {
+		fmt.Println("📝 Rehydrating from cache...")
 		b.renderCachedPosts()
 
 		// Hydrate data for global pages from cache
@@ -193,12 +210,15 @@ func (b *Builder) Build() {
 		utils.SortPosts(pinnedPosts)
 		anyPostChanged = true
 	} else {
-		allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(shouldForce, forceSocialRebuild)
+		fmt.Println("📝 Processing content...")
+		allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(shouldForce, forceSocialRebuild, outputMissing)
+		fmt.Println("   ✅ Content processed.")
 	}
 
 	// 4. Generate Global Pages
 	if shouldForce || anyPostChanged {
-		b.renderPagination(allPosts, pinnedPosts)
+		fmt.Println("📄 Rendering pagination...")
+		b.renderPagination(allPosts, pinnedPosts, shouldForce)
 	}
 
 	if !has404 {
@@ -211,10 +231,12 @@ func (b *Builder) Build() {
 	}
 
 	if shouldForce || anyPostChanged || forceSocialRebuild {
+		fmt.Println("🏷️  Rendering tags...")
 		b.renderTags(tagMap, forceSocialRebuild)
 	}
 
 	if shouldForce || anyPostChanged {
+		fmt.Println("🕸️  Rendering graph and metadata...")
 		b.rnd.RenderGraph("public/graph.html", models.PageData{
 			Title:        "Graph View",
 			TabTitle:     "Knowledge Graph | " + cfg.Title,
@@ -227,8 +249,14 @@ func (b *Builder) Build() {
 	}
 
 	// 5. PWA & Sync
+	fmt.Println("📱 Generating PWA...")
 	b.generatePWA(shouldForce)
 
+	// Ensure setup tasks (WASM check) are complete
+	setupWg.Wait()
+
+	// Now sync VFS to disk (includes completed social cards)
+	fmt.Println("💾 Syncing to disk...")
 	if err := utils.SyncVFS(b.DestFs, "public", b.rnd.GetRenderedFiles()); err != nil {
 		fmt.Printf("❌ Failed to sync VFS to disk: %v\n", err)
 	}

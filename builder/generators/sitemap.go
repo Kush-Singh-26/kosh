@@ -13,6 +13,8 @@ import (
 )
 
 func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata) {
+	fmt.Println("🗺️  Generating sitemap...")
+
 	var urls []models.Url
 
 	// 1. Add Home Page

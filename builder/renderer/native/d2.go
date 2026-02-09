@@ -13,6 +13,8 @@ import (
 
 // RenderD2 renders a D2 diagram to SVG with the specified theme ID.
 func (r *Renderer) RenderD2(code string, themeID int64) (string, error) {
+	r.ensureInitialized()
+
 	// Acquire worker
 	instance := <-r.pool
 	defer func() { r.pool <- instance }() // Release worker
