@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Config.Title }} | Documentation Hub</title>
+    {{ if .Assets }}
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/theme.css" }}">
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/layout.css" }}">
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/components/modal.css" }}">
+    {{ else }}
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/theme.css">
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/layout.css">
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/components/modal.css">
+    {{ end }}
+    {{ if .Config.Logo }}
+    <link rel="icon" type="image/png" href="{{ .BaseURL }}/{{ .Config.Logo }}">
+    {{ else }}
+    <link rel="icon" type="image/png" href="{{ .BaseURL }}/static/images/favicon.png">
+    {{ end }}
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+    <style>
+        .hub-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        .hub-hero {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .hub-hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hub-hero p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto 2.5rem;
+            line-height: 1.6;
+        }
+
+        .cta-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .btn-hub {
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-size: 1.1rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-card);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+
+        .category-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            text-decoration: none;
+            color: var(--text-color);
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .category-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .category-card h3 {
+            margin: 0 0 1rem;
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+
+        .category-card p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        .docs-header {
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .hub-footer {
+            margin-top: 6rem;
+            padding: 4rem 0;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+
+<body>
+    <header class="docs-header">
+        <div class="logo">
+            <a href="{{ .BaseURL }}/"
+                style="text-decoration: none; font-weight: bold; font-size: 1.2rem; display: flex; align-items: center; gap: 0.75rem; color: var(--primary-color);">
+                {{ if .Config.Logo }}
+                <img src="{{ .BaseURL }}/{{ .Config.Logo }}" alt="Logo" class="site-logo" style="max-height: 32px;">
+                {{ else }}
+                <span>📚</span>
+                {{ end }}
+                <span>{{ .Config.Title }}</span>
+            </a>
+        </div>
+        <nav style="display: flex; gap: 1rem; align-items: center;">
+            <button id="search-btn" class="search-btn" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; color: var(--text-color); display: flex; align-items: center; gap: 0.5rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <span>Search</span>
+            </button>
+            <button id="theme-toggle" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-color);">🌙</button>
+        </nav>
+    </header>
+
+    <main class="hub-container">
+        <section class="hub-hero">
+            <h1>{{ .Config.Title }}</h1>
+            <p>{{ .Config.Description }}</p>
+            
+            <div class="cta-group">
+                {{ $firstLink := "" }}
+                {{ range .SiteTree }}
+                    {{ if .Link }}{{ if eq $firstLink "" }}{{ $firstLink = .Link }}{{ end }}{{ end }}
+                    {{ range .Children }}
+                        {{ if .Link }}{{ if eq $firstLink "" }}{{ $firstLink = .Link }}{{ end }}{{ end }}
+                    {{ end }}
+                {{ end }}
+
+                {{ if $firstLink }}
+                <a href="{{ $firstLink }}" class="btn-hub btn-primary">Go to Latest Docs</a>
+                {{ end }}
+                <button onclick="document.getElementById('search-btn').click()" class="btn-hub btn-secondary">Search Documentation</button>
+            </div>
+        </section>
+
+        <section class="section-grid">
+            {{ range .SiteTree }}
+            <a href="{{ if .Link }}{{ .Link }}{{ else }}#{{ end }}" class="category-card">
+                <h3>{{ .Title }}</h3>
+                <p>
+                    {{ if .IsSection }}
+                        Explore {{ len .Children }} articles in this section.
+                    {{ else }}
+                        Read the full article about {{ .Title }}.
+                    {{ end }}
+                </p>
+            </a>
+            {{ end }}
+        </section>
+    </main>
+
+    <footer class="hub-footer">
+        <p>&copy; {{ now.Year }} {{ .Config.Author.Name }}. Built with Kosh.</p>
+    </footer>
+
+    <!-- Search Modal (shared with layout) -->
+    <div id="search-modal" class="modal">
+        <div class="modal-content">
+            <div class="search-header">
+                <input type="text" id="search-input" placeholder="Search docs..." autocomplete="off">
+                <span class="close-search">&times;</span>
+            </div>
+            <div id="search-results"></div>
+        </div>
+    </div>
+
+    <script>window.siteBaseURL = "{{ .BaseURL }}";</script>
+    {{ if .Assets }}
+    <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/wasm_exec.js" }}"></script>
+    <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/search.js" }}"></script>
+    <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/docs-features.js" }}"></script>
+    {{ end }}
+</body>
+
+</html>

@@ -1,0 +1,235 @@
+.docs-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr 240px;
+    grid-template-rows: auto 1fr;
+    min-height: 100vh;
+    max-width: 1440px;
+    margin: 0 auto;
+}
+
+.docs-header {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+}
+
+.site-logo {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
+}
+
+.version-badge {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background-color: var(--primary-color);
+    color: white;
+    margin-left: 0.75rem;
+    vertical-align: middle;
+}
+
+.docs-sidebar {
+    grid-column: 1;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    padding: 2rem;
+    overflow-y: auto;
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 60px);
+}
+
+.docs-main {
+    grid-column: 2;
+    padding: 2rem 4rem;
+    max-width: 800px;
+}
+
+.docs-toc {
+    grid-column: 3;
+    padding: 2rem;
+    font-size: 0.9em;
+    border-left: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 60px);
+}
+
+@media (max-width: 1024px) {
+    .docs-layout {
+        grid-template-columns: 240px 1fr;
+    }
+    .docs-toc {
+        display: none;
+    }
+}
+
+.tree-root, .tree-group {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.tree-group {
+    margin-left: 1.2rem;
+    border-left: 1px solid var(--border-color);
+    overflow: hidden;
+    max-height: 2000px;
+    opacity: 1;
+    transition: max-height 0.3s ease-in-out, opacity 0.3s ease;
+}
+
+.tree-group.collapsed {
+    max-height: 0;
+    opacity: 0;
+}
+
+.tree-item {
+    margin: 0.2rem 0;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tree-toggle {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.tree-toggle:hover {
+    background-color: var(--bg-hover);
+    color: var(--primary-color);
+}
+
+.tree-item.expanded > .tree-row > .tree-toggle {
+    transform: rotate(90deg);
+}
+
+.tree-link, .tree-label {
+    text-decoration: none;
+    color: var(--text-main);
+    font-size: 0.95rem;
+    padding: 0.3rem 0.5rem;
+    display: block;
+    flex: 1;
+    border-radius: 4px;
+}
+
+.tree-link:hover {
+    background-color: var(--bg-hover);
+    color: var(--primary-color);
+}
+
+.tree-link.active {
+    color: var(--primary-color);
+    font-weight: 600;
+    background-color: var(--bg-active);
+}
+
+.tree-item.section-active > .tree-row {
+    background-color: rgba(37, 99, 235, 0.05);
+    border-radius: 4px;
+}
+
+[data-theme="dark"] .tree-item.section-active > .tree-row {
+    background-color: rgba(96, 165, 250, 0.1);
+}
+
+.tree-label {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+}
+
+.source-link {
+    text-decoration: none;
+    color: var(--primary-color);
+}
+
+.source-link:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.version-banner {
+    grid-column: 1 / -1;
+    background-color: var(--bg-hover);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.75rem 2rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.version-banner-text a {
+    color: var(--primary-color);
+    font-weight: 600;
+    text-decoration: underline;
+    margin-left: 0.5rem;
+}
+
+.version-banner-text a:hover {
+    color: var(--accent-color);
+}
+
+.breadcrumbs {
+    grid-column: 2;
+    padding: 1.5rem 4rem 0 4rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.breadcrumb-link {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.breadcrumb-link:hover {
+    text-decoration: underline;
+}
+
+.breadcrumb-separator {
+    opacity: 0.5;
+}
+
+.breadcrumb-current {
+    font-weight: 500;
+    color: var(--text-main);
+}

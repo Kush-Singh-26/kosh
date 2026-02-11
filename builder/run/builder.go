@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/yuin/goldmark"
+	"gopkg.in/yaml.v3"
 
 	"my-ssg/builder/cache"
 	"my-ssg/builder/config"
@@ -48,20 +49,17 @@ func NewBuilder(args []string) *Builder {
 	cfg := config.Load(args)
 	utils.InitMinifier()
 
-	// Verify Theme Exists (Early Fail)
-	themePath := filepath.Join(cfg.ThemeDir, cfg.Theme)
-	if _, err := os.Stat(themePath); os.IsNotExist(err) {
-		// We use fmt here because logger isn't initialized yet, and this is a CLI error
-		fmt.Printf("\n❌ CRITICAL ERROR: Theme '%s' not found.\n", cfg.Theme)
-		fmt.Printf("   Path checked: %s\n", themePath)
-		fmt.Printf("   💡 Please ensure you have cloned/downloaded the theme into '%s'.\n", cfg.ThemeDir)
-		os.Exit(1)
-	}
-
-	// Initialize structured logger
+	// Initialize structured logger early
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
+
+	// Verify Theme Exists (Early Fail)
+	themePath := filepath.Join(cfg.ThemeDir, cfg.Theme)
+	if _, err := os.Stat(themePath); os.IsNotExist(err) {
+		logger.Error("Theme not found", "theme", cfg.Theme, "path", themePath, "hint", "Please ensure you have cloned/downloaded the theme into '"+cfg.ThemeDir+"'")
+		os.Exit(1)
+	}
 
 	// Initialize build metrics
 	buildMetrics := metrics.NewBuildMetrics()
@@ -102,6 +100,19 @@ func NewBuilder(args []string) *Builder {
 	sourceFs := afero.NewOsFs()
 	destFs := afero.NewMemMapFs()
 
+	// 3. Load theme metadata
+	themeMetadata := config.ThemeConfig{
+		Name:               cfg.Theme,
+		SupportsVersioning: false,
+	}
+	themeYamlPath := filepath.Join(themePath, "theme.yaml")
+	if data, err := afero.ReadFile(sourceFs, themeYamlPath); err == nil {
+		if err := yaml.Unmarshal(data, &themeMetadata); err != nil {
+			logger.Warn("Failed to parse theme.yaml", "error", err)
+		}
+	}
+	cfg.ThemeMetadata = themeMetadata
+
 	// Use the adapter's map for markdown parser
 	var diagramCache map[string]string
 	if diagramAdapter != nil {
@@ -117,7 +128,7 @@ func NewBuilder(args []string) *Builder {
 		logger:         logger,
 		metrics:        buildMetrics,
 		md:             mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache, &sync.Mutex{}),
-		rnd:            renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir),
+		rnd:            renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir, logger),
 		native:         nativeRenderer,
 		SourceFs:       sourceFs,
 		DestFs:         destFs,

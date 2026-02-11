@@ -22,7 +22,7 @@ func BenchmarkSearch(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_ = search.PerformSearch(index, "test query")
+				_ = search.PerformSearch(index, "test query", "")
 			}
 		})
 	}
@@ -34,7 +34,7 @@ func BenchmarkSearchWithTagFilter(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = search.PerformSearch(index, "tag:go test query")
+		_ = search.PerformSearch(index, "tag:go test query", "")
 	}
 }
 

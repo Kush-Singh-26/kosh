@@ -49,24 +49,15 @@ func BuildSiteTree(posts []models.PostMetadata) []*models.TreeNode {
 		}
 		path = strings.TrimPrefix(path, "/")
 
-		// Split into components
+		// If this is a versioned post, ignore the version prefix for tree structure
+		// e.g. "v2.0/advanced/config.html" -> "advanced/config.html"
+		if p.Version != "" {
+			path = strings.TrimPrefix(path, p.Version+"/")
+		}
 
-		// Traverse and build
-		// We need to find or create the parent.
-		// But wait, if we create intermediate parents, they might not map to a Post (section page).
-		// Should we auto-create sections? Yes.
-
-		// Current logic: Just flat list -> tree?
-		// Actually, complex tree building might be overkill if we just want
-		// Top-level sections -> Pages.
-		// Let's support arbitrary depth.
-
-		// We can't easily re-construct the tree from just Links if we don't know which Link matches which Post (for Title/Weight).
-		// We HAVE the Post here.
-
-		// Let's trace the detailed path components.
 		// Clean the path: remove .html
 		cleanPath := strings.TrimSuffix(path, ".html")
+
 		components := strings.Split(cleanPath, "/")
 
 		// If it's a root page (e.g. "about"), it's a root node.

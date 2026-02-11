@@ -50,7 +50,6 @@ func (t *SSRTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 						code string
 						hash string
 					}{code: code, hash: native.HashContent("d2", code)})
-					pc.Set(d2Key, true)
 				}
 			}
 		}
@@ -118,27 +117,4 @@ func (t *SSRTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 	}
 	pc.Set(d2SVGKey, pairMap)
 	pc.Set(d2OrderedKey, results)
-}
-
-// D2Detector just detects if d2 exists (for HasD2 flag)
-type D2Detector struct{}
-
-func (t *D2Detector) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
-	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-
-		// Check for code blocks with "d2" language
-		if n.Kind() == ast.KindFencedCodeBlock {
-			fcb := n.(*ast.FencedCodeBlock)
-			lang := strings.ToLower(strings.TrimSpace(string(fcb.Language(reader.Source()))))
-			if lang == "d2" {
-				pc.Set(d2Key, true)
-				return ast.WalkStop, nil
-			}
-		}
-
-		return ast.WalkContinue, nil
-	})
 }

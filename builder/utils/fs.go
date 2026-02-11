@@ -18,8 +18,30 @@ import (
 	"github.com/spf13/afero"
 )
 
+// NormalizePath ensures forward slashes and consistent drive letter casing on Windows.
+func NormalizePath(p string) string {
+	p = filepath.ToSlash(p)
+	if runtime.GOOS == "windows" && len(p) >= 2 && p[1] == ':' {
+		return strings.ToUpper(p[:1]) + p[1:]
+	}
+	return p
+}
+
+// SafeRel is a wrapper around filepath.Rel that normalizes paths first to ensure consistency.
+func SafeRel(base, target string) (string, error) {
+	base = filepath.FromSlash(NormalizePath(base))
+	target = filepath.FromSlash(NormalizePath(target))
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		return "", err
+	}
+	return filepath.ToSlash(rel), nil
+}
+
 // CopyDirVFS copies a directory from srcFs to destFs with parallel image processing.
 func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string) error {
+	srcDir = NormalizePath(srcDir)
+	dstDir = NormalizePath(dstDir)
 	// Create destination directory
 	if err := destFs.MkdirAll(dstDir, 0755); err != nil {
 		return err
@@ -37,6 +59,9 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 
 	// Start Image Workers
 	numWorkers := runtime.NumCPU()
+	if numWorkers > 4 {
+		numWorkers = 4 // Further cap to save memory
+	}
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 		go func() {
@@ -61,7 +86,7 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 			return nil
 		}
 
-		relPath, _ := filepath.Rel(srcDir, path)
+		relPath, _ := SafeRel(srcDir, path)
 		destPath := filepath.Join(dstDir, relPath)
 
 		ext := strings.ToLower(filepath.Ext(path))

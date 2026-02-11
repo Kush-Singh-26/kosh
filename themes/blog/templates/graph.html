@@ -24,15 +24,14 @@
     <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/graph.css" }}">
     <script src="{{ .BaseURL }}{{ index .Assets "/static/js/force-graph.js" }}"></script>
     {{ else }}
-    <style>
-        /* Inject Main Site CSS */
-        {{ .LayoutCSS }}
-        {{ .ThemeCSS }}
-    </style>
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/graph.css">
     <script src="{{ .BaseURL }}/static/js/force-graph.js"></script>
     {{ end }}
-    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
+    {{ if .Config.Logo }}
+    <link rel="icon" type="image/png" href="{{ .BaseURL }}/{{ .Config.Logo }}">
+    {{ else }}
+    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.png" width="35" height="35">
+    {{ end }}
 </head>
 
 <body>

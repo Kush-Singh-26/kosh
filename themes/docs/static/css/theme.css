@@ -1,0 +1,48 @@
+:root {
+    /* Docs Theme Colors */
+    --bg-color: #ffffff;
+    --text-color: #333333;
+    --primary-color: #2563eb;
+    --sidebar-bg: #f8fafc;
+    --border-color: #e2e8f0;
+
+    /* Admonition Colors */
+    --note-bg: #eff6ff;
+    --note-border: #2563eb;
+    --warn-bg: #fffbeb;
+    --warn-border: #f59e0b;
+    --tip-bg: #f0fdf4;
+    --tip-border: #22c55e;
+    --danger-bg: #fef2f2;
+    --danger-border: #ef4444;
+
+    /* Typography */
+    --font-sans: system-ui, -apple-system, sans-serif;
+    --font-mono: ui-monospace, monospace;
+}
+
+[data-theme="dark"] {
+    --bg-color: #0f172a;
+    --text-color: #e2e8f0;
+    --primary-color: #60a5fa;
+    --sidebar-bg: #1e293b;
+    --border-color: #334155;
+
+    /* Admonition Colors Dark */
+    --note-bg: #1e3a8a;
+    --note-border: #60a5fa;
+    --warn-bg: #78350f;
+    --warn-border: #fbbf24;
+    --tip-bg: #064e3b;
+    --tip-border: #4ade80;
+    --danger-bg: #7f1d1d;
+    --danger-border: #f87171;
+}
+
+body {
+    font-family: var(--font-sans);
+    background: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    line-height: 1.6;
+}

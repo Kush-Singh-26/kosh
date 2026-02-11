@@ -41,6 +41,14 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 ****
 ---
 
+## Documentation Hub
+Kosh now features a dedicated **Documentation Hub** for structured content. The `docs` theme automatically generates a hierarchy based on your file structure, including:
+- **Recursive Sidebar**: Auto-expanding navigation for deep documentation structures.
+- **Documentation Landing Page**: A summary of all categories with a "Go to Latest" quick-action button.
+- **Smart Versioning**: Support for snapshot isolation between different documentation versions.
+
+---
+
 ## Installation & Setup
 
 Ensure you have **Go 1.21+** installed.
@@ -96,6 +104,23 @@ go run cmd/kosh/main.go serve
 ```
 *   **Action:** Provides the live preview and browser auto-reload.
 *   **Tip:** Using `go run` here prevents file-locking issues on Windows while `air` tries to rebuild the binary.
+
+#### **Workflow C: Search Engine Development** (WASM)
+*Use this when modifying the client-side search logic.*
+
+1. **Compile the WASM Binary:**
+   ```bash
+   # Windows PowerShell
+   $env:GOOS="js"; $env:GOARCH="wasm"; go build -o internal/build/wasm/search.wasm ./cmd/search
+   ```
+2. **Rebuild Kosh CLI:** (Required because WASM is embedded)
+   ```bash
+   go build -ldflags="-s -w" -o kosh.exe ./cmd/kosh
+   ```
+3. **Run Build/Serve:**
+   ```bash
+   .\kosh build
+   ```
 
 ---
 

@@ -48,6 +48,7 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 		pinnedPosts    []models.PostMetadata
 		indexedPosts   []models.IndexedPost
 		tagMap         = make(map[string][]models.PostMetadata)
+		postsByVersion = make(map[string][]models.PostMetadata)
 		has404         bool
 		anyPostChanged bool
 		processedCount int32
@@ -63,22 +64,22 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 		newDeps          = make(map[string]*cache.Dependencies)
 	)
 
-	// Phase 1: Collect Metadata & Content
-	// We parse everything but do NOT render the final page yet.
-	// We store the PageData (which contains the heavy HTML string) in memory.
-
 	type RenderContext struct {
 		DestPath string
 		Data     models.PageData
+		Version  string
 	}
 
 	var files []string
+	var fileVersions []string
 	_ = afero.Walk(b.SourceFs, "content", func(path string, info fs.FileInfo, err error) error {
 		if err == nil && strings.HasSuffix(path, ".md") && !strings.Contains(path, "_index.md") {
 			if strings.Contains(path, "404.md") {
 				has404 = true
 			} else {
+				ver, _ := utils.GetVersionFromPath(path)
 				files = append(files, path)
+				fileVersions = append(fileVersions, ver)
 			}
 		}
 		return nil
@@ -86,16 +87,12 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 
 	renderQueue := make([]RenderContext, len(files))
 
-	// Adjust worker pool size based on whether operations are CPU or I/O bound
-	// When cache is active, we have more I/O operations, so use more workers
 	numWorkers := runtime.NumCPU()
-	if b.cacheManager != nil {
-		// I/O bound when reading from cache - use 1.5x workers
-		numWorkers = numWorkers * 3 / 2
+	if numWorkers > 12 {
+		numWorkers = 12
 	}
 	sem := make(chan struct{}, numWorkers)
 
-	// Card worker pool - starts immediately and runs concurrently with post processing
 	cardQueue := make(chan socialCardTask, numWorkers*4)
 	var cardWg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
@@ -108,18 +105,46 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 		}()
 	}
 
+	// Phase 0: Load global metadata from cache for complete sidebar/neighbor context
+	allMetadataMap := make(map[string]models.PostMetadata)
+	if b.cacheManager != nil {
+		ids, _ := b.cacheManager.ListAllPosts()
+		cachedPosts, _ := b.cacheManager.GetPostsByIDs(ids)
+		for _, cp := range cachedPosts {
+			allMetadataMap[cp.Link] = models.PostMetadata{
+				Title: cp.Title, Link: cp.Link, Weight: cp.Weight, Version: cp.Version,
+				DateObj: cp.Date, ReadingTime: cp.ReadingTime, Description: cp.Description,
+				Tags: cp.Tags, Pinned: cp.Pinned, Draft: cp.Draft,
+			}
+		}
+	}
+
+	// Mutex for protecting allMetadataMap during concurrent access
+	var metadataMu sync.RWMutex
+
 	for i, path := range files {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(idx int, path string) {
+		go func(idx int, path string, version string) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			relPath, _ := filepath.Rel("content", path)
+			relPath, _ := utils.SafeRel("content", path)
 			htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
-			destPath := filepath.Join("public", htmlRelPath)
 
-			// 1. Try to load from BoltDB Cache
+			cleanHtmlRelPath := htmlRelPath
+			if version != "" {
+				cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(version)+"/")
+			}
+
+			var destPath string
+			if version != "" {
+				destPath = filepath.Join("public", version, cleanHtmlRelPath)
+			} else {
+				destPath = filepath.Join("public", htmlRelPath)
+			}
+
+			// 1. Resolve from Cache
 			var cachedMeta *cache.PostMeta
 			var cachedSearch *cache.SearchRecord
 			var cachedHTML []byte
@@ -131,25 +156,19 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 				cachedMeta, err = b.cacheManager.GetPostByPath(relPath)
 				if err == nil && cachedMeta != nil {
 					exists = true
-					// Check freshness - only Stat if we have a cache hit
 					info, _ = b.SourceFs.Stat(path)
 					if info != nil && info.ModTime().Unix() > cachedMeta.ModTime {
-						exists = false // Stale
+						exists = false
 					}
-					// Check content hash or other validity if needed in future
 				}
 			}
 
 			useCache := exists && !shouldForce
 
-			// Get cached social card hash from BoltDB only when needed
-			// When using cache, the hash is already available from cachedMeta
 			var cachedHash string
 			if b.cacheManager != nil && !useCache {
-				// Only fetch from DB when not using cache (need to check if card needs regeneration)
 				cachedHash, _ = b.cacheManager.GetSocialCardHash(relPath)
 			} else if useCache && cachedMeta != nil {
-				// Use cached hash directly when cache is valid
 				cachedHash = cachedMeta.ContentHash
 			}
 
@@ -159,13 +178,11 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 			var searchRecord models.PostRecord
 			var wordFreqs map[string]int
 			var docLen int
-			var words []string // Cached tokenized words
+			var words []string
 			var toc []models.TOCEntry
 			var frontmatterHash string
-			var dependencies cache.Dependencies
 			var plainText string
 
-			// Load content from cache if valid
 			if useCache {
 				cachedHTML, err = b.cacheManager.GetHTMLContent(cachedMeta)
 				if err != nil || cachedHTML == nil {
@@ -178,58 +195,43 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 				}
 			}
 
-			// Track cache hit/miss
 			if useCache {
 				b.metrics.IncrementCacheHit()
-			} else {
-				b.metrics.IncrementCacheMiss()
-			}
-
-			if useCache {
 				htmlContent = string(cachedHTML)
 				metaData = cachedMeta.Meta
-				frontmatterHash = cachedMeta.ContentHash // Using ContentHash as FrontmatterHash per migration plan
+				frontmatterHash = cachedMeta.ContentHash
 
-				// Reconstruct PostMetadata
-				post = models.PostMetadata{
-					Title:       cachedMeta.Title,
-					Link:        cachedMeta.Link,
-					Description: cachedMeta.Description,
-					Tags:        cachedMeta.Tags,
-					ReadingTime: cachedMeta.ReadingTime,
-					Pinned:      cachedMeta.Pinned,
-					Weight:      cachedMeta.Weight,
-					Draft:       cachedMeta.Draft,
-					DateObj:     cachedMeta.Date,
-					HasMath:     cachedMeta.HasMath,
-					HasMermaid:  cachedMeta.HasMermaid,
-				}
+				metadataMu.RLock()
+				post = allMetadataMap[cachedMeta.Link]
+				metadataMu.RUnlock()
 
-				// Convert TOC
 				for _, t := range cachedMeta.TOC {
-					toc = append(toc, models.TOCEntry{
-						ID:    t.ID,
-						Text:  t.Text,
-						Level: t.Level,
-					})
+					toc = append(toc, models.TOCEntry{ID: t.ID, Text: t.Text, Level: t.Level})
 				}
 
-				// Reconstruct Search/Index Data
 				searchRecord = models.PostRecord{
-					Title: cachedSearch.Title, Link: cachedMeta.Link, Description: cachedMeta.Description, Tags: cachedMeta.Tags,
-					Content: cachedSearch.Content,
+					Title: cachedSearch.Title, Link: htmlRelPath, Description: cachedMeta.Description,
+					Tags: cachedMeta.Tags, Content: cachedSearch.Content, Version: cachedMeta.Version,
 				}
-
 				docLen = cachedSearch.DocLen
 				wordFreqs = cachedSearch.BM25Data
 			} else {
-				// Parse and Render
-				// Lazy Stat: only get file info when we need to process the file
+				b.metrics.IncrementCacheMiss()
 				if info == nil {
 					info, _ = b.SourceFs.Stat(path)
 				}
 				source, _ := afero.ReadFile(b.SourceFs, path)
+
+				// Copy raw markdown to output for "View Source" feature
+				if b.cfg.Features.RawMarkdown {
+					// Use filepath to handle OS-specific path separators correctly
+					mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
+					_ = b.DestFs.MkdirAll(filepath.Dir(mdDestPath), 0755)
+					_ = afero.WriteFile(b.DestFs, mdDestPath, source, 0644)
+				}
+
 				ctx := parser.NewContext()
+				ctx.Set(mdParser.ContextKeyFilePath, path)
 				docNode := b.md.Parser().Parse(text.NewReader(source), parser.WithContext(ctx))
 				var buf bytes.Buffer
 
@@ -240,7 +242,6 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 					htmlContent = mdParser.ReplaceD2BlocksWithThemeSupport(htmlContent, pairs)
 				}
 
-				// Use DiagramAdapter map equivalent
 				var diagramCache map[string]string
 				if b.diagramAdapter != nil {
 					diagramCache = b.diagramAdapter.AsMap()
@@ -259,22 +260,25 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 				isPinned, _ := metaData["pinned"].(bool)
 				weight, _ := metaData["weight"].(int)
 				if w, ok := metaData["weight"].(float64); ok && weight == 0 {
-					weight = int(w) // Handle float YAML parsing if needed
+					weight = int(w)
 				}
 				wordCount := len(strings.Fields(string(source)))
-
 				toc = mdParser.GetTOC(ctx)
 
+				postLink := utils.BuildPostLink(b.cfg.BaseURL, version, cleanHtmlRelPath)
+
 				post = models.PostMetadata{
-					Title: utils.GetString(metaData, "title"), Link: b.cfg.BaseURL + "/" + htmlRelPath,
+					Title: utils.GetString(metaData, "title"), Link: postLink,
 					Description: utils.GetString(metaData, "description"), Tags: utils.GetSlice(metaData, "tags"),
 					ReadingTime: int(math.Ceil(float64(wordCount) / wordsPerMinute)), Pinned: isPinned, Weight: weight,
-					DateObj: dateObj, HasMath: strings.Contains(string(source), "$"), HasMermaid: mdParser.HasD2(ctx),
-					Draft: utils.GetBool(metaData, "draft"),
+					DateObj: dateObj, Draft: utils.GetBool(metaData, "draft"), Version: version,
 				}
 
 				plainText = mdParser.ExtractPlainText(docNode, source)
-				searchRecord = models.PostRecord{Title: post.Title, Link: htmlRelPath, Description: post.Description, Tags: post.Tags, Content: plainText}
+				searchRecord = models.PostRecord{
+					Title: post.Title, Link: htmlRelPath, Description: post.Description,
+					Tags: post.Tags, Content: plainText, Version: version,
+				}
 				words = search.Tokenize(strings.ToLower(searchRecord.Title + " " + searchRecord.Description + " " + strings.Join(searchRecord.Tags, " ") + " " + searchRecord.Content))
 				docLen = len(words)
 				wordFreqs = make(map[string]int)
@@ -284,9 +288,6 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 					}
 				}
 				frontmatterHash, _ = utils.GetFrontmatterHash(metaData)
-
-				// Collect Dependencies
-				dependencies.Tags = post.Tags
 			}
 
 			if post.Draft && !b.cfg.IncludeDrafts {
@@ -296,15 +297,8 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 			cardDestPath := filepath.Join("public", "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp")
 			_ = b.DestFs.MkdirAll(filepath.Dir(cardDestPath), 0755)
 
-			// Smart Social Cards:
-			// 1. Check if file exists in public/ (on disk) or VFS
-			// 2. If exists, check if it's newer than source post
-			// 3. Only then check hash
-
-			// Check if card exists on disk (persisted from previous builds)
 			cardExists := false
 			if info, err := os.Stat(cardDestPath); err == nil && !info.IsDir() {
-				// Check timestamp against post source
 				if sourceInfo, err := b.SourceFs.Stat(path); err == nil {
 					if info.ModTime().After(sourceInfo.ModTime()) {
 						cardExists = true
@@ -314,38 +308,12 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 
 			if forceSocialRebuild || (cachedHash != frontmatterHash && !cardExists) {
 				cardQueue <- socialCardTask{
-					path:            relPath,
-					relPath:         strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
-					cardDestPath:    cardDestPath,
-					metaData:        metaData,
-					frontmatterHash: frontmatterHash,
+					path: relPath, relPath: strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
+					cardDestPath: cardDestPath, metaData: metaData, frontmatterHash: frontmatterHash,
 				}
 			} else if cardExists {
-				// Card exists on disk and is fresh, skip generation.
-				// But we might need to update the hash in cache if it's missing (e.g. after clean --cache)
 				if b.cacheManager != nil && cachedHash == "" {
 					_ = b.cacheManager.SetSocialCardHash(relPath, frontmatterHash)
-				}
-			} else if _, err := os.Stat(cardDestPath); os.IsNotExist(err) {
-				// Rehydrate missing card from cache if available
-				// (Only if we have a valid cached hash, meaning the card *should* match)
-				if cachedHash != "" {
-					cardQueue <- socialCardTask{
-						path:            relPath,
-						relPath:         strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
-						cardDestPath:    cardDestPath,
-						metaData:        metaData,
-						frontmatterHash: cachedHash, // Use cached hash
-					}
-				} else {
-					// No file, no cache -> Must generate
-					cardQueue <- socialCardTask{
-						path:            relPath,
-						relPath:         strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
-						cardDestPath:    cardDestPath,
-						metaData:        metaData,
-						frontmatterHash: frontmatterHash,
-					}
 				}
 			}
 
@@ -359,9 +327,6 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 				}
 				imagePath = b.cfg.BaseURL + img
 			}
-
-			// Optimize: When using cache, skip the destination file stat check
-			// This saves redundant I/O operations on incremental builds
 
 			willRender := false
 			if outputMissing {
@@ -379,14 +344,30 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 				}
 			}
 
+			// Copy raw markdown to output for "View Source" feature (for cached posts too)
+			if b.cfg.Features.RawMarkdown {
+				mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
+				if _, err := os.Stat(mdDestPath); os.IsNotExist(err) {
+					sourceBytes, _ := afero.ReadFile(b.SourceFs, path)
+					if len(sourceBytes) > 0 {
+						_ = b.DestFs.MkdirAll(filepath.Dir(mdDestPath), 0755)
+						_ = afero.WriteFile(b.DestFs, mdDestPath, sourceBytes, 0644)
+					}
+				}
+			}
+
 			if willRender {
 				renderQueue[idx] = RenderContext{
 					DestPath: destPath,
+					Version:  version,
 					Data: models.PageData{
 						Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
 						Meta: metaData, BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
 						TabTitle: post.Title + " | " + b.cfg.Title, Permalink: post.Link, Image: imagePath,
-						HasMath: post.HasMath, HasMermaid: post.HasMermaid, TOC: toc, Config: b.cfg,
+						TOC: toc, Config: b.cfg,
+						CurrentVersion: version,
+						IsOutdated:     version != "",
+						Versions:       b.cfg.GetVersionsMetadata(version),
 					},
 				}
 				mu.Lock()
@@ -394,76 +375,29 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 				mu.Unlock()
 			}
 
-			// Prepare data for BatchCommit and Memory Accumulation
-			mu.Lock()
+			metadataMu.Lock()
+			allMetadataMap[post.Link] = post
+			metadataMu.Unlock()
 
-			// Accumulate for return
-			for _, t := range post.Tags {
-				tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], post)
-			}
-			if post.Pinned {
-				pinnedPosts = append(pinnedPosts, post)
-			} else {
-				allPosts = append(allPosts, post)
-			}
+			mu.Lock()
 			searchRecord.ID = len(indexedPosts)
 			indexedPosts = append(indexedPosts, models.IndexedPost{Record: searchRecord, WordFreqs: wordFreqs, DocLen: docLen})
 			mu.Unlock()
 
-			// Cache Store Logic
 			if !useCache && b.cacheManager != nil {
 				postID := cache.GeneratePostID("", relPath)
-
-				// Convert TOC for cache (uses unified models.TOCEntry type)
-				cacheTOC := make([]models.TOCEntry, len(toc))
-				for i, t := range toc {
-					cacheTOC[i] = models.TOCEntry{
-						ID:    t.ID,
-						Text:  t.Text,
-						Level: t.Level,
-					}
-				}
-
-				// Ensure info is available for ModTime
-				if info == nil {
-					info, _ = b.SourceFs.Stat(path)
-				}
-
 				newMeta := &cache.PostMeta{
-					PostID:      postID,
-					Path:        relPath,
-					ModTime:     info.ModTime().Unix(),
-					ContentHash: frontmatterHash,
-					Title:       post.Title,
-					Date:        post.DateObj,
-					Tags:        post.Tags,
-					ReadingTime: post.ReadingTime,
-					Description: post.Description,
-					Link:        post.Link,
-					Pinned:      post.Pinned,
-					Weight:      post.Weight,
-					Draft:       post.Draft,
-					HasMath:     post.HasMath,
-					HasMermaid:  post.HasMermaid,
-					Meta:        metaData,
-					TOC:         cacheTOC,
+					PostID: postID, Path: relPath, ModTime: info.ModTime().Unix(),
+					ContentHash: frontmatterHash, Title: post.Title, Date: post.DateObj,
+					Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
+					Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
+					Meta: metaData, TOC: toc, Version: version,
 				}
-
-				// Store HTML (inlined if < 32KB, updates newMeta.InlineHTML or newMeta.HTMLHash)
 				_ = b.cacheManager.StoreHTMLForPost(newMeta, []byte(htmlContent))
-
 				newSearch := &cache.SearchRecord{
-					Title:    post.Title,
-					Tokens:   search.Tokenize(post.Description),
-					BM25Data: wordFreqs,
-					DocLen:   docLen,
-					Content:  plainText,
-					Words:    words, // Cache tokenized words to avoid re-tokenization
+					Title: post.Title, BM25Data: wordFreqs, DocLen: docLen, Content: plainText,
 				}
-
-				newDep := &cache.Dependencies{
-					Tags: post.Tags,
-				}
+				newDep := &cache.Dependencies{Tags: post.Tags}
 
 				batchMu.Lock()
 				newPostsMeta = append(newPostsMeta, newMeta)
@@ -474,57 +408,84 @@ func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bo
 
 			b.metrics.IncrementPostsProcessed()
 			_ = atomic.AddInt32(&processedCount, 1)
-		}(i, path)
+		}(i, path, fileVersions[i])
 	}
 	wg.Wait()
 
-	// Phase 2: Build Site Tree (Sidebar)
-	// Now we have all metadata in allPosts
-	utils.SortPosts(allPosts)
-	utils.SortPosts(pinnedPosts)
-	siteTree := utils.BuildSiteTree(allPosts)
-
-	// Phase 3: Render (Parallel)
-	// Process the render queue
-	renderWg := sync.WaitGroup{}
-
-	for _, task := range renderQueue {
-		if task.DestPath == "" {
-			continue // Skipped draft or unchanged
+	// Final Metadata Grouping (merges Cache + Source)
+	for _, p := range allMetadataMap {
+		postsByVersion[p.Version] = append(postsByVersion[p.Version], p)
+		if p.Version == "" {
+			for _, t := range p.Tags {
+				tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], p)
+			}
+			if p.Pinned {
+				pinnedPosts = append(pinnedPosts, p)
+			} else {
+				allPosts = append(allPosts, p)
+			}
 		}
+	}
+
+	siteTrees := make(map[string][]*models.TreeNode)
+	for ver, posts := range postsByVersion {
+		utils.SortPosts(posts)
+		siteTrees[ver] = utils.BuildSiteTree(posts)
+	}
+
+	renderWg := sync.WaitGroup{}
+	for i := range renderQueue {
+		task := &renderQueue[i]
+		if task.DestPath == "" {
+			continue
+		}
+
+		// Inject neighbors (Prev/Next)
+		versionPosts := postsByVersion[task.Version]
+		currentPost := models.PostMetadata{
+			Title: task.Data.Title, Link: task.Data.Permalink, Weight: task.Data.Weight, Version: task.Version,
+		}
+
+		// Ensure we match the actual metadata object to get DateObj for sorting if needed
+		for _, p := range versionPosts {
+			if p.Link == task.Data.Permalink {
+				currentPost = p
+				break
+			}
+		}
+
+		prev, next := utils.FindPrevNext(currentPost, versionPosts)
+		task.Data.PrevPage = prev
+		task.Data.NextPage = next
 
 		renderWg.Add(1)
 		sem <- struct{}{}
 		go func(t RenderContext) {
 			defer renderWg.Done()
 			defer func() { <-sem }()
-
-			// Inject SiteTree
-			t.Data.SiteTree = siteTree
-
+			t.Data.SiteTree = siteTrees[t.Version]
 			b.rnd.RenderPage(t.DestPath, t.Data)
-		}(task)
+		}(*task)
 	}
 	renderWg.Wait()
 
-	// Commit Batch to BoltDB
 	if b.cacheManager != nil && len(newPostsMeta) > 0 {
 		if err := b.cacheManager.BatchCommit(newPostsMeta, newSearchRecords, newDeps); err != nil {
-			fmt.Printf("⚠️ Failed to commit cache batch: %v\n", err)
+			b.logger.Warn("Failed to commit cache batch", "error", err)
 		}
 	}
 
-	// Close card queue and wait for all card workers to finish
 	close(cardQueue)
 	cardWg.Wait()
+	runtime.GC()
 
-	// SortPosts calls moved to before tree building
+	// Sort posts to ensure consistent ordering
+	utils.SortPosts(allPosts)
+	utils.SortPosts(pinnedPosts)
+
 	return allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404
 }
 
-// renderCachedPosts re-renders posts using cached HTML content (skips parsing)
-// This function has been optimized to batch all BoltDB reads first, then parallelize
-// rendering to avoid lock contention. This provides 3-5x faster cached rebuilds.
 func (b *Builder) renderCachedPosts() {
 	if b.cacheManager == nil {
 		fmt.Println("⚠️ Cache manager not available, skipping fast render.")
@@ -533,65 +494,55 @@ func (b *Builder) renderCachedPosts() {
 
 	ids, err := b.cacheManager.ListAllPosts()
 	if err != nil {
-		fmt.Printf("⚠️ Failed to list posts from cache: %v\n", err)
+		b.logger.Warn("Failed to list posts from cache", "error", err)
 		return
 	}
 
-	// Phase 1: Batch read all post metadata and HTML content from BoltDB
-	// This avoids lock contention during parallel rendering
 	type CachedPostData struct {
 		Meta *cache.PostMeta
 		HTML []byte
 	}
 
 	cachedData := make(map[string]*CachedPostData, len(ids))
+	postsByVersion := make(map[string][]models.PostMetadata)
 
 	err = b.cacheManager.DB().View(func(tx *bolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(cache.BucketPosts))
-		if postsBucket == nil {
-			return fmt.Errorf("posts bucket not found")
-		}
-
 		for _, id := range ids {
 			data := postsBucket.Get([]byte(id))
 			if data == nil {
 				continue
 			}
-
 			var meta cache.PostMeta
 			if err := cache.Decode(data, &meta); err != nil {
 				continue
 			}
-
 			htmlBytes, _ := b.cacheManager.GetHTMLContent(&meta)
 			if htmlBytes == nil {
 				continue
 			}
+			cachedData[id] = &CachedPostData{Meta: &meta, HTML: htmlBytes}
 
-			cachedData[id] = &CachedPostData{
-				Meta: &meta,
-				HTML: htmlBytes,
+			post := models.PostMetadata{
+				Title: meta.Title, Link: meta.Link, Weight: meta.Weight, Version: meta.Version,
+				DateObj: meta.Date,
 			}
+			postsByVersion[meta.Version] = append(postsByVersion[meta.Version], post)
 		}
 		return nil
 	})
 
 	if err != nil {
-		fmt.Printf("⚠️ Failed to batch read from cache: %v\n", err)
+		b.logger.Warn("Failed to batch read from cache", "error", err)
 		return
 	}
 
-	// Phase 1.5: Build Site Tree (for Sidebar)
-	// We need all PostMetadata to build the tree.
-	var allPosts []models.PostMetadata
-	for _, data := range cachedData {
-		allPosts = append(allPosts, models.PostMetadata{
-			Title: data.Meta.Title, Link: data.Meta.Link, Weight: data.Meta.Weight,
-		})
+	siteTrees := make(map[string][]*models.TreeNode)
+	for ver, posts := range postsByVersion {
+		utils.SortPosts(posts)
+		siteTrees[ver] = utils.BuildSiteTree(posts)
 	}
-	siteTree := utils.BuildSiteTree(allPosts)
 
-	// Phase 2: Parallel render (no DB contention, purely CPU-bound)
 	numWorkers := runtime.NumCPU()
 	sem := make(chan struct{}, numWorkers)
 	var wg sync.WaitGroup
@@ -605,9 +556,32 @@ func (b *Builder) renderCachedPosts() {
 
 			relPath := cp.Meta.Path
 			htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
-			destPath := filepath.Join("public", htmlRelPath)
 
-			// Determine image path (logic duplicated from processPosts for now)
+			cleanHtmlRelPath := htmlRelPath
+			if cp.Meta.Version != "" {
+				cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(cp.Meta.Version)+"/")
+			}
+
+			var destPath string
+			if cp.Meta.Version != "" {
+				destPath = filepath.Join("public", cp.Meta.Version, cleanHtmlRelPath)
+			} else {
+				destPath = filepath.Join("public", htmlRelPath)
+			}
+
+			// Copy raw markdown to output for "View Source" feature
+			if b.cfg.Features.RawMarkdown {
+				mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
+				if _, err := os.Stat(mdDestPath); os.IsNotExist(err) {
+					sourcePath := filepath.Join("content", relPath)
+					sourceBytes, _ := afero.ReadFile(b.SourceFs, sourcePath)
+					if len(sourceBytes) > 0 {
+						_ = b.DestFs.MkdirAll(filepath.Dir(mdDestPath), 0755)
+						_ = afero.WriteFile(b.DestFs, mdDestPath, sourceBytes, 0644)
+					}
+				}
+			}
+
 			imagePath := b.cfg.BaseURL + "/static/images/cards/" + strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
 			if img, ok := cp.Meta.Meta["image"].(string); ok {
 				if b.cfg.CompressImages && !strings.HasPrefix(img, "http") {
@@ -619,25 +593,32 @@ func (b *Builder) renderCachedPosts() {
 				imagePath = b.cfg.BaseURL + img
 			}
 
-			// Convert TOC for PageData
 			var toc []models.TOCEntry
 			for _, t := range cp.Meta.TOC {
-				toc = append(toc, models.TOCEntry{
-					ID:    t.ID,
-					Text:  t.Text,
-					Level: t.Level,
-				})
+				toc = append(toc, models.TOCEntry{ID: t.ID, Text: t.Text, Level: t.Level})
 			}
+
+			// FIND NEIGHBORS (Prev/Next) within cached version context
+			versionPosts := postsByVersion[cp.Meta.Version]
+			currentPost := models.PostMetadata{
+				Title: cp.Meta.Title, Link: cp.Meta.Link, Weight: cp.Meta.Weight, Version: cp.Meta.Version,
+				DateObj: cp.Meta.Date,
+			}
+			prev, next := utils.FindPrevNext(currentPost, versionPosts)
 
 			b.rnd.RenderPage(destPath, models.PageData{
 				Title: cp.Meta.Title, Description: cp.Meta.Description, Content: template.HTML(string(cp.HTML)),
 				Meta: cp.Meta.Meta, BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
 				TabTitle: cp.Meta.Title + " | " + b.cfg.Title, Permalink: cp.Meta.Link, Image: imagePath,
-				HasMath: cp.Meta.HasMath, HasMermaid: cp.Meta.HasMermaid, TOC: toc, Config: b.cfg,
-				SiteTree: siteTree,
+				TOC: toc, Config: b.cfg,
+				SiteTree:       siteTrees[cp.Meta.Version],
+				CurrentVersion: cp.Meta.Version,
+				IsOutdated:     cp.Meta.Version != "",
+				Versions:       b.cfg.GetVersionsMetadata(cp.Meta.Version),
+				PrevPage:       prev,
+				NextPage:       next,
 			})
 
-			// Update metrics
 			b.metrics.IncrementPostsProcessed()
 			b.metrics.IncrementCacheHit()
 		}(id, data)
@@ -645,25 +626,15 @@ func (b *Builder) renderCachedPosts() {
 	wg.Wait()
 }
 
-// generateSocialCard generates a social card for a single post
-// This is called by card worker goroutines running concurrently with post processing
 func (b *Builder) generateSocialCard(t socialCardTask) {
-	// Persistent Cache Check
-	// Only use persistent cache if we have a hash (t.frontmatterHash)
 	cachedCardPath := filepath.Join(".kosh-cache", "social-cards", t.frontmatterHash+".webp")
 	cachedFile, err := os.Open(cachedCardPath)
 	if err == nil && t.frontmatterHash != "" {
-		// Hit! Copy from persistent cache to dest
 		defer cachedFile.Close()
-
-		// Dest is in VFS (b.DestFs)
-		// We need to create it
 		out, err := b.DestFs.Create(t.cardDestPath)
 		if err == nil {
 			defer out.Close()
 			if _, err := io.Copy(out, cachedFile); err == nil {
-				// Successfully restored from cache
-				// Update BoltDB hash mapping if needed
 				if b.cacheManager != nil {
 					_ = b.cacheManager.SetSocialCardHash(t.path, t.frontmatterHash)
 				}
@@ -672,25 +643,23 @@ func (b *Builder) generateSocialCard(t socialCardTask) {
 		}
 	}
 
-	faviconPath := filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
-
-	// Optimization: Generate directly to persistent cache on disk
-	// This avoids double-buffering in VFS and leverages the optimized ToDisk function
-	err = generators.GenerateSocialCardToDisk(b.SourceFs, utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"), utils.GetString(t.metaData, "date"), cachedCardPath, faviconPath)
+	logoPath := ""
+	if b.cfg.Logo != "" {
+		logoPath = b.cfg.Logo
+	} else {
+		logoPath = filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+	}
+	err = generators.GenerateSocialCardToDisk(b.SourceFs, b.cfg.Title, utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"), utils.GetString(t.metaData, "date"), cachedCardPath, logoPath)
 
 	if err == nil {
-		// Success! Copy from persistent cache to VFS (so SyncVFS sees it)
 		if data, err := os.ReadFile(cachedCardPath); err == nil {
-			// Create directory in VFS (redundant but safe)
 			_ = b.DestFs.MkdirAll(filepath.Dir(t.cardDestPath), 0755)
 			_ = afero.WriteFile(b.DestFs, t.cardDestPath, data, 0644)
 		}
-
 		if b.cacheManager != nil && t.frontmatterHash != "" {
 			_ = b.cacheManager.SetSocialCardHash(t.path, t.frontmatterHash)
 		}
 	} else {
-		// Fallback if disk write fails (unlikely) - try standard VFS generation
-		_ = generators.GenerateSocialCard(b.DestFs, b.SourceFs, utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"), utils.GetString(t.metaData, "date"), t.cardDestPath, faviconPath)
+		_ = generators.GenerateSocialCard(b.DestFs, b.SourceFs, b.cfg.Title, utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"), utils.GetString(t.metaData, "date"), t.cardDestPath, logoPath)
 	}
 }

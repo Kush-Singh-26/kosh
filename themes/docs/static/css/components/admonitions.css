@@ -1,0 +1,64 @@
+/* Base Admonition Style */
+.admonition {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border-left: 4px solid var(--border-color);
+    background-color: var(--sidebar-bg);
+    border-radius: 0 4px 4px 0;
+}
+
+.adm-title {
+    font-weight: bold;
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.9;
+}
+
+.adm-body {
+    font-size: 0.95rem;
+}
+
+.adm-body p:last-child {
+    margin-bottom: 0;
+}
+
+/* Variants */
+.adm-note {
+    border-color: var(--note-border);
+    background-color: var(--note-bg);
+}
+
+.adm-note .adm-title {
+    color: var(--note-border);
+}
+
+.adm-warning {
+    border-color: var(--warn-border);
+    background-color: var(--warn-bg);
+}
+
+.adm-warning .adm-title {
+    color: var(--warn-border);
+}
+
+.adm-tip {
+    border-color: var(--tip-border);
+    background-color: var(--tip-bg);
+}
+
+.adm-tip .adm-title {
+    color: var(--tip-border);
+}
+
+.adm-danger,
+.adm-failure {
+    border-color: var(--danger-border);
+    background-color: var(--danger-bg);
+}
+
+.adm-danger .adm-title,
+.adm-failure .adm-title {
+    color: var(--danger-border);
+}

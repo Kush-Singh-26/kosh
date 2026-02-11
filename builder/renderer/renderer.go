@@ -4,7 +4,7 @@ package renderer
 import (
 	"html/template"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,13 +80,17 @@ type Renderer struct {
 	DestFs      afero.Fs
 	RenderedMu  sync.Mutex
 	RenderedSet map[string]bool
+	logger      *slog.Logger
 }
 
-func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
+func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger) *Renderer {
 	funcMap := template.FuncMap{
 		"lower":     strings.ToLower,
 		"hasPrefix": strings.HasPrefix,
-		"now":       time.Now,
+		"replace": func(from, to, input string) string {
+			return strings.ReplaceAll(input, from, to)
+		},
+		"now": time.Now,
 	}
 
 	// Get or create the global template cache
@@ -105,6 +109,7 @@ func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 			Compress:    compress,
 			DestFs:      destFs,
 			RenderedSet: make(map[string]bool),
+			logger:      logger,
 		}
 		tc.mu.RUnlock()
 		return r
@@ -119,7 +124,8 @@ func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 	layoutPath := filepath.Join(templateDir, "layout.html")
 	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles(layoutPath)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Failed to parse layout template", "path", layoutPath, "error", err)
+		os.Exit(1)
 	}
 	layoutInfo, _ := os.Stat(layoutPath)
 	if layoutInfo != nil {
@@ -130,7 +136,7 @@ func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 	indexPath := filepath.Join(templateDir, "index.html")
 	indexTmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles(indexPath)
 	if err != nil {
-		log.Printf("⚠️  Index template not found in %s, will use layout.html for index. (%v)\n", templateDir, err)
+		logger.Warn("Index template not found, falling back to layout", "dir", templateDir, "error", err)
 		indexTmpl = nil
 	} else {
 		indexInfo, _ := os.Stat(indexPath)
@@ -143,7 +149,7 @@ func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 	graphPath := filepath.Join(templateDir, "graph.html")
 	graphTmpl, err := template.ParseFiles(graphPath)
 	if err != nil {
-		log.Printf("⚠️  Graph template not found in %s, skipping graph page. (%v)\n", templateDir, err)
+		logger.Warn("Graph template not found, skipping graph page", "dir", templateDir, "error", err)
 	} else {
 		graphInfo, _ := os.Stat(graphPath)
 		if graphInfo != nil {
@@ -155,7 +161,7 @@ func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 	notFoundPath := filepath.Join(templateDir, "404.html")
 	notFoundTmpl, err := template.New("404.html").Funcs(funcMap).ParseFiles(notFoundPath)
 	if err != nil {
-		log.Printf("⚠️  404 template not found in %s, will use layout.html for 404 page. (%v)\n", templateDir, err)
+		logger.Warn("404 template not found, falling back to layout", "dir", templateDir, "error", err)
 		notFoundTmpl = nil
 	} else {
 		notFoundInfo, _ := os.Stat(notFoundPath)
@@ -172,6 +178,7 @@ func New(compress bool, destFs afero.Fs, templateDir string) *Renderer {
 		Compress:    compress,
 		DestFs:      destFs,
 		RenderedSet: make(map[string]bool),
+		logger:      logger,
 	}
 }
 
@@ -195,7 +202,6 @@ func (r *Renderer) ClearRenderedFiles() {
 }
 
 func (r *Renderer) SetAssets(assets map[string]string) {
-
 	r.Assets = assets
 }
 
@@ -204,13 +210,13 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 	data.Assets = r.Assets
 
 	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
+		r.logger.Error("Failed to create directory", "path", path, "error", err)
 		return
 	}
 
 	f, err := r.DestFs.Create(path)
 	if err != nil {
-		log.Printf("❌ Failed to create file %s: %v\n", path, err)
+		r.logger.Error("Failed to create file", "path", path, "error", err)
 		return
 	}
 	defer func() { _ = f.Close() }()
@@ -225,7 +231,7 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 	}
 
 	if err := r.Layout.Execute(w, data); err != nil {
-		log.Printf("❌ Failed to render layout for %s: %v\n", path, err)
+		r.logger.Error("Failed to render layout", "path", path, "error", err)
 	} else {
 		r.RegisterFile(path)
 	}
@@ -236,12 +242,12 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 	data.Assets = r.Assets
 
 	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
+		r.logger.Error("Failed to create directory", "path", path, "error", err)
 		return
 	}
 	f, err := r.DestFs.Create(path)
 	if err != nil {
-		log.Printf("❌ Failed to create file %s: %v\n", path, err)
+		r.logger.Error("Failed to create file", "path", path, "error", err)
 		return
 	}
 	defer func() { _ = f.Close() }()
@@ -263,7 +269,7 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 		errExec = r.Layout.Execute(w, data)
 	}
 	if errExec != nil {
-		log.Printf("❌ Failed to render index for %s: %v\n", path, errExec)
+		r.logger.Error("Failed to render index", "path", path, "error", errExec)
 	} else {
 		r.RegisterFile(path)
 	}
@@ -276,13 +282,13 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 	data.Assets = r.Assets
 
 	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
+		r.logger.Error("Failed to create directory", "path", path, "error", err)
 		return
 	}
 
 	f, err := r.DestFs.Create(path)
 	if err != nil {
-		log.Printf("❌ Failed to create file %s: %v\n", path, err)
+		r.logger.Error("Failed to create file", "path", path, "error", err)
 		return
 	}
 	defer func() { _ = f.Close() }()
@@ -295,7 +301,7 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 	}
 
 	if err := r.Graph.Execute(w, data); err != nil {
-		log.Printf("❌ Failed to render graph for %s: %v\n", path, err)
+		r.logger.Error("Failed to render graph", "path", path, "error", err)
 	} else {
 		r.RegisterFile(path)
 	}
@@ -306,12 +312,12 @@ func (r *Renderer) Render404(path string, data models.PageData) {
 	data.Assets = r.Assets
 
 	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		log.Printf("❌ Failed to create directory for %s: %v\n", path, err)
+		r.logger.Error("Failed to create directory", "path", path, "error", err)
 		return
 	}
 	f, err := r.DestFs.Create(path)
 	if err != nil {
-		log.Printf("❌ Failed to create file %s: %v\n", path, err)
+		r.logger.Error("Failed to create file", "path", path, "error", err)
 		return
 	}
 	defer func() { _ = f.Close() }()
@@ -333,7 +339,7 @@ func (r *Renderer) Render404(path string, data models.PageData) {
 		errExec = r.Layout.Execute(w, data)
 	}
 	if errExec != nil {
-		log.Printf("❌ Failed to render 404 for %s: %v\n", path, errExec)
+		r.logger.Error("Failed to render 404", "path", path, "error", errExec)
 	} else {
 		r.RegisterFile(path)
 	}

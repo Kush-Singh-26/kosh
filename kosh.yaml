@@ -1,6 +1,7 @@
 # Site Configuration
 title: "Kush Blogs"
 description: "I write about machine learning, deep learning and lately more about NLP."
+logo: "static/images/kush3.png"
 baseURL: "" # Empty for local dev, GitHub Actions will override this via CLI flag
 language: "en"
 
@@ -25,10 +26,24 @@ menu:
     url: "https://github.com/Kush-Singh-26/blogs"
     target: "_blank"
 
-# Features
+# Global Features & Generators
+features:
+  rawMarkdown: true      # Deploys .md files alongside .html for "View Source"
+  generators:
+    sitemap: true        # Auto-generate Google-compatible sitemap
+    rss: true            # Auto-generate RSS feed
+    graph: true          # Generate knowledge graph data
+    pwa: true            # Enable Service Workers, Manifest, and Icons
+    search: true         # Build the WASM search index
+
+# Build Optimization
 postsPerPage: 10
-compressImages: true
+compressImages: true     # Auto-convert PNG/JPG to optimized WebP
+
+# Theme Configuration
 theme: "blog"
 templateDir: "themes/blog/templates"
 staticDir: "themes/blog/static"
-buildVersion: 0 # Automatically updated
+
+# Build Metadata (Managed by SSG)
+buildVersion: 0

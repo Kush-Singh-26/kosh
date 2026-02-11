@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found | {{ .Config.Title }}</title>
+    {{ if .Assets }}
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/theme.css" }}">
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/layout.css" }}">
+    {{ else }}
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/theme.css">
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/layout.css">
+    {{ end }}
+    {{ if .Config.Logo }}
+    <link rel="icon" type="image/png" href="{{ .BaseURL }}/{{ .Config.Logo }}">
+    {{ else }}
+    <link rel="icon" type="image/png" href="{{ .BaseURL }}/static/images/favicon.png">
+    {{ end }}
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            text-align: center;
+        }
+
+        .error-container {
+            max-width: 600px;
+            padding: 2rem;
+        }
+
+        .error-code {
+            font-size: 8rem;
+            font-weight: 800;
+            margin: 0;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+        }
+
+        .error-title {
+            font-size: 2rem;
+            margin: 1rem 0;
+        }
+
+        .error-message {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background-color: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .logo-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            color: var(--text-color);
+            margin-bottom: 2rem;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .site-logo {
+            max-height: 40px;
+        }
+    </style>
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+</head>
+
+<body>
+    <div class="error-container">
+        <a href="{{ .BaseURL }}/" class="logo-link">
+            {{ if .Config.Logo }}
+            <img src="{{ .BaseURL }}/{{ .Config.Logo }}" alt="Logo" class="site-logo">
+            {{ else }}
+            <span>📚</span>
+            {{ end }}
+            <span>{{ .Config.Title }}</span>
+        </a>
+
+        <h1 class="error-code">404</h1>
+        <h2 class="error-title">Documentation Missing</h2>
+        <p class="error-message">
+            The documentation page you are looking for might have been moved, renamed, or is temporarily unavailable.
+        </p>
+
+        <a href="{{ .BaseURL }}/" class="btn">Return to Docs Hub</a>
+    </div>
+</body>
+
+</html>

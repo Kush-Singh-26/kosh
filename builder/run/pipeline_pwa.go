@@ -35,13 +35,18 @@ func (b *Builder) generatePWA(shouldForce bool) {
 		if b.cfg.IsDev {
 			return
 		}
-		faviconPath := filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+		faviconPath := ""
+		if b.cfg.Logo != "" {
+			faviconPath = b.cfg.Logo
+		} else {
+			faviconPath = filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+		}
 
-		// Check if source favicon exists
-		srcInfo, err := b.SourceFs.Stat(faviconPath)
-		if err != nil {
+		// Ensure info is available
+		if exists, _ := afero.Exists(b.SourceFs, faviconPath); !exists {
 			return
 		}
+		srcInfo, _ := b.SourceFs.Stat(faviconPath)
 
 		// Calculate hash based on favicon mtime and size
 		hashContent := fmt.Sprintf("%s-%d-%d", faviconPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())

@@ -44,7 +44,12 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 
 	if needsGen {
 		_ = b.DestFs.MkdirAll(filepath.Dir(homeCardPath), 0755)
-		faviconPath := filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+		faviconPath := ""
+		if b.cfg.Logo != "" {
+			faviconPath = b.cfg.Logo
+		} else {
+			faviconPath = filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+		}
 		_ = os.MkdirAll(filepath.Dir(homeCardPath), 0755)
 
 		desc := cfg.Description
@@ -52,9 +57,9 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 			desc = desc[:97] + "..."
 		}
 
-		err := generators.GenerateSocialCardToDisk(b.SourceFs, cfg.Title, desc, "Latest Posts", homeCardPath, faviconPath)
+		err := generators.GenerateSocialCardToDisk(b.SourceFs, b.cfg.Title, cfg.Title, desc, "Latest Posts", homeCardPath, faviconPath)
 		if err != nil {
-			fmt.Printf("⚠️ Failed to generate home card: %v\n", err)
+			b.logger.Warn("Failed to generate home card", "error", err)
 		} else if b.cacheManager != nil {
 			_ = b.cacheManager.SetSocialCardHash("home", currentHash)
 		}
@@ -96,7 +101,12 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 			if i == 1 {
 				curPinned = pinnedPosts
 			}
-			b.rnd.RenderIndex(destPath, models.PageData{Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned, BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title, Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp", Paginator: paginator, Config: cfg})
+
+			// Build SiteTree for docs theme navigation (Full tree for the home page)
+			// Root index should show all root level docs
+			siteTree := utils.BuildSiteTree(allPosts)
+
+			b.rnd.RenderIndex(destPath, models.PageData{Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned, BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title, Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp", Paginator: paginator, SiteTree: siteTree, Config: cfg})
 		}(i)
 	}
 	wg.Wait()
@@ -127,14 +137,28 @@ func (b *Builder) renderTags(tagMap map[string][]models.PostMetadata, forceSocia
 
 	if needsIndexGen {
 		_ = os.MkdirAll(filepath.Dir(tagsIndexCard), 0755)
-		faviconPath := filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
-		err := generators.GenerateSocialCardToDisk(b.SourceFs, "All Topics", fmt.Sprintf("Browse all %d topics", len(tagMap)), "Topics", tagsIndexCard, faviconPath)
+		faviconPath := ""
+		if b.cfg.Logo != "" {
+			faviconPath = b.cfg.Logo
+		} else {
+			faviconPath = filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+		}
+		err := generators.GenerateSocialCardToDisk(b.SourceFs, b.cfg.Title, "All Topics", fmt.Sprintf("Browse all %d topics", len(tagMap)), "Topics", tagsIndexCard, faviconPath)
 		if err == nil && b.cacheManager != nil {
 			_ = b.cacheManager.SetSocialCardHash("tags/index", indexHash)
 		}
 	}
 
-	b.rnd.RenderPage("public/tags/index.html", models.PageData{Title: "All Tags", IsTagsIndex: true, AllTags: allTags, BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion, Permalink: b.cfg.BaseURL + "/tags/index.html", Image: b.cfg.BaseURL + "/static/images/cards/tags/index.webp", TabTitle: "All Topics | " + b.cfg.Title, Config: b.cfg})
+	// Generate Tags Index
+	// Force Weight: 0 so layout doesn't crash
+	b.rnd.RenderPage("public/tags/index.html", models.PageData{
+		Title: "All Tags", IsTagsIndex: true, AllTags: allTags,
+		BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
+		Permalink: b.cfg.BaseURL + "/tags/index.html",
+		Image:     b.cfg.BaseURL + "/static/images/cards/tags/index.webp",
+		TabTitle:  "All Topics | " + b.cfg.Title, Config: b.cfg,
+		Weight: 0, // Fix for docs theme layout
+	})
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, runtime.NumCPU())
@@ -165,15 +189,27 @@ func (b *Builder) renderTags(tagMap map[string][]models.PostMetadata, forceSocia
 
 			if needsTagGen {
 				_ = os.MkdirAll(filepath.Dir(tagCard), 0755)
-				faviconPath := filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
-				err := generators.GenerateSocialCardToDisk(b.SourceFs, "#"+t, fmt.Sprintf("%d posts about %s", len(posts), t), "Topic", tagCard, faviconPath)
+				faviconPath := ""
+				if b.cfg.Logo != "" {
+					faviconPath = b.cfg.Logo
+				} else {
+					faviconPath = filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+				}
+				err := generators.GenerateSocialCardToDisk(b.SourceFs, b.cfg.Title, "#"+t, fmt.Sprintf("%d posts about %s", len(posts), t), "Topic", tagCard, faviconPath)
 				if err == nil && b.cacheManager != nil {
 					_ = b.cacheManager.SetSocialCardHash("tags/"+strings.ToLower(t), tagHash)
 				}
 			}
 
 			utils.SortPosts(posts)
-			b.rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{Title: "#" + t, IsIndex: true, Posts: posts, BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion, Permalink: fmt.Sprintf("%s/tags/%s.html", b.cfg.BaseURL, t), Image: fmt.Sprintf("%s/static/images/cards/tags/%s.webp", b.cfg.BaseURL, strings.ToLower(t)), TabTitle: "#" + t + " | " + b.cfg.Title, Config: b.cfg})
+			b.rnd.RenderPage(fmt.Sprintf("public/tags/%s.html", t), models.PageData{
+				Title: "#" + t, IsIndex: true, Posts: posts,
+				BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
+				Permalink: fmt.Sprintf("%s/tags/%s.html", b.cfg.BaseURL, t),
+				Image:     fmt.Sprintf("%s/static/images/cards/tags/%s.webp", b.cfg.BaseURL, strings.ToLower(t)),
+				TabTitle:  "#" + t + " | " + b.cfg.Title, Config: b.cfg,
+				Weight: 0, // Fix for docs theme layout
+			})
 		}(t, posts)
 	}
 	wg.Wait()

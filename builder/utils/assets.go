@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,8 @@ import (
 )
 
 func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string) (map[string]string, error) {
+	srcDir = NormalizePath(srcDir)
+	destDir = NormalizePath(destDir)
 	assets := make(map[string]string)
 
 	var jsEntryPoints []string
@@ -62,7 +65,8 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 						if info.IsDir() || filepath.Base(path) == "map.json" {
 							return nil
 						}
-						relPath, _ := filepath.Rel(cachePath, path)
+						path = NormalizePath(path)
+						relPath, _ := SafeRel(cachePath, path)
 						// destDir/relPath
 						// But relPath in cache is flattened?
 						// Wait, esbuild output preserves structure if Outbase is used.
@@ -130,13 +134,16 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 
 		result := api.Build(buildOptions)
 		if len(result.Errors) > 0 {
+			for _, e := range result.Errors {
+				slog.Error("esbuild error", "message", e.Text)
+			}
 			return fmt.Errorf("esbuild failed with %d errors", len(result.Errors))
 		}
 
 		for _, outFile := range result.OutputFiles {
-			fullPath := filepath.ToSlash(outFile.Path)
+			fullPath := NormalizePath(outFile.Path)
 			cwd, _ := os.Getwd()
-			cwd = filepath.ToSlash(cwd)
+			cwd = NormalizePath(cwd)
 
 			path := fullPath
 			if strings.HasPrefix(fullPath, cwd) {
@@ -190,22 +197,14 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 			// EntryPoint might be "themes/blog/static/js/main.js"
 			// We want the key to be "/static/js/main.js" for compatibility
 
-			relEntryPoint := outInfo.EntryPoint
-			relEntryPoint = strings.TrimPrefix(relEntryPoint, srcDir)
-			if !strings.HasPrefix(relEntryPoint, "/") {
-				relEntryPoint = "/" + relEntryPoint
-			}
-			// Ensure it starts with /static if it doesn't already
-			// (Assuming srcDir content maps to /static in the output)
-			key := "/static" + relEntryPoint
-			if strings.HasPrefix(relEntryPoint, "/static") {
-				key = relEntryPoint
-			}
+			entryPointAbs, _ := filepath.Abs(outInfo.EntryPoint)
+			relEntryPoint, _ := SafeRel(srcDir, NormalizePath(entryPointAbs))
+			relEntryPoint = strings.TrimPrefix(filepath.ToSlash(relEntryPoint), "/")
 
-			val := outPath
-			if strings.HasPrefix(val, "public/") {
-				val = strings.TrimPrefix(val, "public")
-			}
+			key := "/static/" + relEntryPoint
+
+			val := filepath.ToSlash(outPath)
+			val = strings.TrimPrefix(val, "public")
 			if !strings.HasPrefix(val, "/") {
 				val = "/" + val
 			}

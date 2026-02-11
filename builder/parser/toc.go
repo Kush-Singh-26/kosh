@@ -11,7 +11,6 @@ import (
 )
 
 var tocKey = parser.NewContextKey()
-var d2Key = parser.NewContextKey()
 var d2SVGKey = parser.NewContextKey()
 var d2OrderedKey = parser.NewContextKey()
 
@@ -20,10 +19,6 @@ func GetTOC(pc parser.Context) []models.TOCEntry {
 		return v.([]models.TOCEntry)
 	}
 	return nil
-}
-
-func HasD2(pc parser.Context) bool {
-	return pc.Get(d2Key) != nil
 }
 
 func GetD2SVGPairMap(pc parser.Context) map[string]D2SVGPair {

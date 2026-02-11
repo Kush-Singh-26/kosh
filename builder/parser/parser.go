@@ -27,10 +27,26 @@ func codeBlockWrapper(w util.BufWriter, c highlighting.CodeBlockContext, enterin
 		if lang == "" {
 			lang = "text"
 		}
+
+		title := ""
+		if attrs := c.Attributes(); attrs != nil {
+			if t, ok := attrs.Get([]byte("title")); ok {
+				if b, ok := t.([]byte); ok {
+					title = string(b)
+				} else if s, ok := t.(string); ok {
+					title = s
+				}
+			}
+		}
+
 		// Write the wrapper div with data-lang attribute
+		_, _ = w.WriteString(`<div class="code-block-container">`)
+		if title != "" {
+			_, _ = w.WriteString(`<div class="code-header">` + title + `</div>`)
+		}
 		_, _ = w.WriteString(`<div class="code-wrapper" data-lang="` + lang + `">`)
 	} else {
-		_, _ = w.WriteString(`</div>`)
+		_, _ = w.WriteString(`</div></div>`)
 	}
 }
 
@@ -88,7 +104,6 @@ func New(baseURL string, renderer *native.Renderer, diagramCache map[string]stri
 			parser.WithASTTransformers(
 				util.Prioritized(&URLTransformer{BaseURL: baseURL}, 100),
 				util.Prioritized(&TOCTransformer{}, 200),
-				util.Prioritized(&D2Detector{}, 300),
 				util.Prioritized(&SSRTransformer{
 					Renderer: renderer,
 					Cache:    diagramCache,

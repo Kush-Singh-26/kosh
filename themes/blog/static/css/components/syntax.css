@@ -300,6 +300,17 @@
     color: #bf616a
 }
 
+/* Code Block Containers */
+.code-block-container {
+    margin: 2rem 0;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.code-block-container pre {
+    margin: 0;
+}
+
 /* Code & Pre Containers */
 pre {
     background: var(--bg-code) !important;

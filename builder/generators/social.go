@@ -78,8 +78,8 @@ func setFontFace(dc *gg.Context, fontPath string, points float64) error {
 }
 
 // GenerateSocialCardToDisk writes directly to a file path on disk
-func GenerateSocialCardToDisk(srcFs afero.Fs, title, description, dateStr, destPath, faviconPath string) error {
-	img, err := generateSocialCardImage(srcFs, title, description, dateStr, faviconPath)
+func GenerateSocialCardToDisk(srcFs afero.Fs, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
+	img, err := generateSocialCardImage(srcFs, siteTitle, title, description, dateStr, faviconPath)
 	if err != nil {
 		return err
 	}
@@ -94,8 +94,8 @@ func GenerateSocialCardToDisk(srcFs afero.Fs, title, description, dateStr, destP
 }
 
 // GenerateSocialCard creates an Apple Dark Mode aesthetic Open Graph image.
-func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, title, description, dateStr, destPath, faviconPath string) error {
-	img, err := generateSocialCardImage(srcFs, title, description, dateStr, faviconPath)
+func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
+	img, err := generateSocialCardImage(srcFs, siteTitle, title, description, dateStr, faviconPath)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func getBaseCardImage(w, h int) image.Image {
 	return baseCardImage
 }
 
-func generateSocialCardImage(srcFs afero.Fs, title, description, dateStr, faviconPath string) (image.Image, error) {
+func generateSocialCardImage(srcFs afero.Fs, siteTitle, title, description, dateStr, faviconPath string) (image.Image, error) {
 	const (
 		W = 1200
 		H = 630
@@ -166,7 +166,7 @@ func generateSocialCardImage(srcFs afero.Fs, title, description, dateStr, favico
 
 	if err := setFontFace(dc, boldFont, 28); err == nil {
 		dc.SetColor(color.RGBA{255, 255, 255, 255})
-		dc.DrawString("Kush Blogs", currentX, headerY)
+		dc.DrawString(siteTitle, currentX, headerY)
 	}
 
 	// --- 5. Header: Date (Top Right) ---

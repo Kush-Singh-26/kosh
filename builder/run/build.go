@@ -90,7 +90,7 @@ func (b *Builder) Build() {
 
 	if len(affectedPosts) > 0 && b.cacheManager != nil {
 		for _, postPath := range affectedPosts {
-			relPath, _ := filepath.Rel("content", postPath)
+			relPath, _ := utils.SafeRel("content", postPath)
 			// Need PostID to delete.
 			// invalidateForTemplate returns paths.
 			// We can generate ID from path (empty UUID).
@@ -172,8 +172,7 @@ func (b *Builder) Build() {
 				Pinned:      cached.Pinned,
 				Draft:       cached.Draft,
 				DateObj:     cached.Date,
-				HasMath:     cached.HasMath,
-				HasMermaid:  cached.HasMermaid,
+				Version:     cached.Version,
 			}
 
 			if post.Pinned {
@@ -195,6 +194,7 @@ func (b *Builder) Build() {
 					Description: cached.Description,
 					Tags:        cached.Tags,
 					Content:     searchMeta.Content,
+					Version:     cached.Version,
 				}
 				rec.ID = len(indexedPosts) // Assign ID sequentially
 
@@ -249,12 +249,14 @@ func (b *Builder) Build() {
 	}
 
 	// 5. PWA (Run concurrently)
-	setupWg.Add(1)
-	go func() {
-		defer setupWg.Done()
-		fmt.Println("📱 Generating PWA...")
-		b.generatePWA(shouldForce)
-	}()
+	if cfg.Features.Generators.PWA {
+		setupWg.Add(1)
+		go func() {
+			defer setupWg.Done()
+			fmt.Println("📱 Generating PWA...")
+			b.generatePWA(shouldForce)
+		}()
+	}
 
 	// Ensure setup tasks (WASM check + PWA) are complete
 	setupWg.Wait()
@@ -262,7 +264,7 @@ func (b *Builder) Build() {
 	// Now sync VFS to disk (includes completed social cards)
 	fmt.Println("💾 Syncing to disk...")
 	if err := utils.SyncVFS(b.DestFs, "public", b.rnd.GetRenderedFiles()); err != nil {
-		fmt.Printf("❌ Failed to sync VFS to disk: %v\n", err)
+		b.logger.Error("Failed to sync VFS to disk", "error", err)
 	}
 	b.rnd.ClearRenderedFiles()
 

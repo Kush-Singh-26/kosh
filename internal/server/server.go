@@ -24,6 +24,11 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
+func (w *gzipResponseWriter) WriteHeader(code int) {
+	w.Header().Del("Content-Length")
+	w.ResponseWriter.WriteHeader(code)
+}
+
 func gzipHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
@@ -109,42 +114,42 @@ func Run(args []string) {
 
 	// Main File Handler
 	fileHandler := func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Clean(r.URL.Path)
-		// If path starts with /blogs/, strip it for local development
-		if strings.HasPrefix(path, "/blogs/") {
-			path = strings.TrimPrefix(path, "/blogs/")
-		} else if strings.HasPrefix(path, "\\blogs\\") {
-			path = strings.TrimPrefix(path, "\\blogs\\")
+		// Normalize path early for cross-platform consistency
+		rawPath := r.URL.Path
+		if strings.HasPrefix(rawPath, "/blogs/") {
+			rawPath = strings.TrimPrefix(rawPath, "/blogs/")
 		}
+		path := filepath.ToSlash(filepath.Clean(rawPath))
 
 		fullPath := filepath.Join(staticDir, path)
 
 		// Check if file exists
 		fileInfo, err := os.Stat(fullPath)
-		if os.IsNotExist(err) {
-			w.WriteHeader(http.StatusNotFound)
-			notFoundPath := filepath.Join(staticDir, "404.html")
-			content, readErr := os.ReadFile(notFoundPath)
-			if readErr != nil {
-				_, _ = w.Write([]byte("404 - Page Not Found"))
+		if err != nil {
+			if os.IsNotExist(err) {
+				w.WriteHeader(http.StatusNotFound)
+				notFoundPath := filepath.Join(staticDir, "404.html")
+				if content, readErr := os.ReadFile(notFoundPath); readErr == nil {
+					_, _ = w.Write(content)
+				} else {
+					_, _ = w.Write([]byte("404 - Page Not Found"))
+				}
 			} else {
-				_, _ = w.Write(content)
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte("500 - Internal Server Error"))
 			}
 			return
 		}
 
-		// Add cache headers for hashed assets (files with content hash in filename)
+		// Add cache headers for hashed assets
 		filename := filepath.Base(path)
 		if isHashedAsset(filename) {
-			// Content-addressable assets can be cached forever
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		} else if fileInfo.IsDir() || strings.HasSuffix(filename, ".html") {
-			// HTML files - disable all caching in development to prevent stale content
 			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
 			w.Header().Set("Pragma", "no-cache")
 			w.Header().Set("Expires", "0")
 		} else {
-			// Regular assets - short caching for development
 			w.Header().Set("Cache-Control", "public, max-age=60")
 		}
 

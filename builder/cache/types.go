@@ -32,10 +32,9 @@ type PostMeta struct {
 	Weight         int                    `msgpack:"weight"`
 	Pinned         bool                   `msgpack:"pinned"`
 	Draft          bool                   `msgpack:"draft"`
-	HasMath        bool                   `msgpack:"has_math"`
-	HasMermaid     bool                   `msgpack:"has_mermaid"`
 	Meta           map[string]interface{} `msgpack:"meta"`
 	TOC            []models.TOCEntry      `msgpack:"toc"`
+	Version        string                 `msgpack:"version"`
 }
 
 // Constants for inline HTML threshold

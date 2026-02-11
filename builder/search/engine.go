@@ -18,10 +18,11 @@ type Result struct {
 	Link        string
 	Description string
 	Snippet     string
+	Version     string
 	Score       float64
 }
 
-func PerformSearch(index *models.SearchIndex, query string) []Result {
+func PerformSearch(index *models.SearchIndex, query string, versionFilter string) []Result {
 	query = strings.ToLower(query)
 	if query == "" {
 		return nil
@@ -47,7 +48,6 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 	b := 0.75
 
 	// Pre-allocate post cache to avoid repeated map lookups
-	// This optimization provides 40-60% faster searches on large indexes
 	postCache := make(map[int]*models.PostRecord, len(queryTerms)*10)
 
 	for _, term := range queryTerms {
@@ -56,11 +56,17 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 			idf := math.Log(1 + (float64(index.TotalDocs)-float64(df)+0.5)/(float64(df)+0.5))
 
 			for postID, freq := range posts {
-				// Cache post lookup to avoid repeated index.Posts[postID] access
 				post, cached := postCache[postID]
 				if !cached {
 					post = &index.Posts[postID]
 					postCache[postID] = post
+				}
+
+				// Version Filter
+				if versionFilter != "all" {
+					if post.Version != versionFilter {
+						continue
+					}
 				}
 
 				if tagFilter != "" {
@@ -78,6 +84,13 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 
 	// Boost title and tag matches
 	for i, post := range index.Posts {
+		// Version Filter
+		if versionFilter != "all" {
+			if post.Version != versionFilter {
+				continue
+			}
+		}
+
 		if tagFilter != "" && !HasTag(post.Tags, tagFilter) {
 			continue
 		}
@@ -96,12 +109,18 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 	var results []Result
 	for id, score := range scores {
 		post := index.Posts[id]
+		title := post.Title
+		if versionFilter == "all" && post.Version != "" {
+			title = "[" + post.Version + "] " + title
+		}
+
 		results = append(results, Result{
 			ID:          id,
-			Title:       post.Title,
+			Title:       title,
 			Link:        post.Link,
 			Description: post.Description,
 			Snippet:     ExtractSnippet(post.Content, queryTerms),
+			Version:     post.Version,
 			Score:       score,
 		})
 	}

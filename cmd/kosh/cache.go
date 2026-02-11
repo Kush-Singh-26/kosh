@@ -216,10 +216,9 @@ func cacheInspect(path string) {
 	fmt.Printf("Tags:         %v\n", post.Tags)
 	fmt.Printf("WordCount:    %d\n", post.WordCount)
 	fmt.Printf("ReadingTime:  %d min\n", post.ReadingTime)
-	fmt.Printf("HasMath:      %v\n", post.HasMath)
-	fmt.Printf("HasMermaid:   %v\n", post.HasMermaid)
 	fmt.Printf("Draft:        %v\n", post.Draft)
 	fmt.Printf("Pinned:       %v\n", post.Pinned)
+	fmt.Printf("Version:      %s\n", post.Version)
 
 	if len(post.SSRInputHashes) > 0 {
 		fmt.Printf("SSR Hashes:   %d artifacts\n", len(post.SSRInputHashes))

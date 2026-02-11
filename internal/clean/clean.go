@@ -10,8 +10,6 @@ import (
 
 // Run removes the target directory (default: "public")
 // If cleanCache is true, also removes the .kosh-cache directory
-// Run removes the target directory (default: "public")
-// If cleanCache is true, also removes the .kosh-cache directory
 func Run(cleanCache bool) {
 	start := time.Now()
 	cwd, err := os.Getwd()
@@ -60,14 +58,8 @@ func Run(cleanCache bool) {
 		// No, let's just detach.
 
 		go func() {
-			// defer bgWg.Done() // If we were waiting
-			startDel := time.Now()
 			if err := os.RemoveAll(tempPath); err != nil {
-				// Silently fail or log to file?
-				// fmt.Printf("Failed to empty trash: %v\n", err)
-			} else {
-				// fmt.Printf("🗑️ Empty trash completed in %v\n", time.Since(startDel))
-				_ = startDel
+				// Cleanup failed
 			}
 		}()
 	}

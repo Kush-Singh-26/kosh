@@ -229,7 +229,6 @@ p {
     color: var(--text-main);
     line-height: 1.8;
     margin-bottom: var(--space-5);
-    max-width: 70ch;
 }
 
 .meta-info {

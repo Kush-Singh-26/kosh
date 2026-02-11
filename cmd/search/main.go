@@ -129,8 +129,12 @@ func searchPosts(this js.Value, args []js.Value) interface{} {
 		return nil
 	}
 	query := args[0].String()
+	versionFilter := ""
+	if len(args) >= 2 {
+		versionFilter = args[1].String()
+	}
 
-	results := search.PerformSearch(&index, query)
+	results := search.PerformSearch(&index, query, versionFilter)
 
 	// Convert to JS objects
 	finalResults := make([]interface{}, 0)
@@ -140,6 +144,7 @@ func searchPosts(this js.Value, args []js.Value) interface{} {
 		jsRes["link"] = res.Link
 		jsRes["description"] = res.Description
 		jsRes["snippet"] = res.Snippet
+		jsRes["version"] = res.Version
 		jsRes["score"] = res.Score
 		finalResults = append(finalResults, jsRes)
 	}

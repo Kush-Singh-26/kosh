@@ -189,7 +189,7 @@
         }
 
         try {
-            const results = window.searchPosts(query);
+            const results = window.searchPosts(query, "all");
             renderResults(results);
         } catch (err) {
             console.error("Search failed:", err);

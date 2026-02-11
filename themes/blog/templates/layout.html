@@ -50,9 +50,14 @@
     {{ end }}
     
     <script>window.siteBaseURL = "{{ .BaseURL }}";</script>
-    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.webp" width="35" height="35">
+    {{ if .Config.Logo }}
+    <link rel="icon" type="image/png" href="{{ .BaseURL }}/{{ .Config.Logo }}">
+    {{ else }}
+    <link rel="icon" href="{{ .BaseURL }}/static/images/favicon.png" width="35" height="35">
+    {{ end }}
 
     <link rel="manifest" href="{{ .BaseURL }}/manifest.json">
+
 
     {{ if not .IsIndex }}
     <script type="application/ld+json">
@@ -79,9 +84,14 @@
     
     <header>
         <a href="{{ .BaseURL }}/" class="site-title">
-            <img src="{{ .BaseURL }}/static/images/favicon.webp" alt="" class="site-logo" width="35" height="35">
+            {{ if .Config.Logo }}
+            <img src="{{ .BaseURL }}/{{ .Config.Logo }}" alt="Logo" class="site-logo" width="35" height="35">
+            {{ else }}
+            <img src="{{ .BaseURL }}/static/images/favicon.png" alt="" class="site-logo" width="35" height="35">
+            {{ end }}
             {{ .Config.Title }}
         </a>
+
         <nav>
             {{ range .Config.Menu }}
             {{ if .URL }}
@@ -156,6 +166,11 @@
                 {{ range .Meta.tags }}
                 <a href="{{ $.BaseURL }}/tags/{{ . | lower }}.html" class="tag-pill small-pill">#{{ . }}</a>
                 {{ end }}
+                {{ end }}
+
+                {{ if .Config.Features.RawMarkdown }}
+                <span class="meta-divider">|</span>
+                <a href="{{ .Permalink | replace ".html" ".md" }}" target="_blank" class="tag-pill small-pill">View Source</a>
                 {{ end }}
             </div>
             {{ if .TOC }}

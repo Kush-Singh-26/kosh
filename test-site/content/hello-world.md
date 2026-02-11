@@ -19,3 +19,10 @@ This is your first post. You can edit this file in `content/hello-world.md`.
     ```bash
     kosh serve --dev
     ```
+
+
+```python
+import numpy as np
+
+np.array(1,2)
+```

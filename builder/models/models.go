@@ -27,10 +27,32 @@ type TreeNode struct {
 	IsSection bool        `json:"is_section"` // True if node has children
 }
 
+// Breadcrumb represents a single breadcrumb item
+type Breadcrumb struct {
+	Title     string
+	Link      string
+	IsCurrent bool
+}
+
+// NavPage represents a navigation link (prev/next)
+type NavPage struct {
+	Title        string
+	Link         string
+	Weight       int
+	IsFromLatest bool // True if this link is from latest version (when current version doesn't have it)
+}
+
+// VersionInfo represents a version for the version selector
+type VersionInfo struct {
+	Name      string
+	URL       string
+	IsLatest  bool
+	IsCurrent bool
+}
+
 // PostMetadata represents the frontmatter and derived data of a markdown post.
 type PostMetadata struct {
 	Title       string
-	TabTile     string
 	Link        string
 	Description string
 	Tags        []string
@@ -39,8 +61,7 @@ type PostMetadata struct {
 	Pinned      bool
 	Draft       bool
 	DateObj     time.Time
-	HasMath     bool
-	HasMermaid  bool
+	Version     string // "v2.0", "v1.0", "" for latest
 }
 
 // TagData represents a tag and its frequency.
@@ -60,8 +81,6 @@ type Paginator struct {
 	LastURL     string
 	HasPrev     bool
 	HasNext     bool
-	HasPrevPage bool // Added for template logic consistency if needed
-	HasNextPage bool
 }
 
 // PageData is the context passed to HTML templates.
@@ -78,16 +97,24 @@ type PageData struct {
 	PinnedPosts  []PostMetadata
 	AllTags      []TagData
 	BuildVersion int64
-	HasMath      bool
-	HasMermaid   bool
-	LayoutCSS    template.CSS
-	ThemeCSS     template.CSS
 	Permalink    string
 	Image        string
 	TOC          []TOCEntry
 	SiteTree     []*TreeNode
 	Paginator    Paginator
 	Assets       map[string]string
+	Weight       int
+	ReadingTime  int
+
+	// Navigation
+	Breadcrumbs []Breadcrumb
+	PrevPage    *NavPage
+	NextPage    *NavPage
+
+	// Versioning
+	CurrentVersion string
+	Versions       []VersionInfo
+	IsOutdated     bool
 
 	// Config-driven fields
 	Config interface{} // To access Config fields in templates (Menu, Author, etc.)
@@ -157,6 +184,7 @@ type PostRecord struct {
 	Description string
 	Tags        []string
 	Content     string // Raw plain text for snippet extraction
+	Version     string // Version scoping
 }
 
 // --- Cache Structures ---
@@ -172,8 +200,6 @@ type CachedPost struct {
 	HTMLContent     string
 	TOC             []TOCEntry
 	Meta            map[string]interface{}
-	HasMath         bool
-	HasMermaid      bool
 }
 
 // IndexedPost bundles a search record with its pre-computed word frequencies

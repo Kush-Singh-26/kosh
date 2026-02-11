@@ -2,7 +2,6 @@ package run
 
 import (
 	"bytes"
-	"fmt"
 	"html/template"
 	"math"
 	"path/filepath"
@@ -17,16 +16,14 @@ import (
 	"my-ssg/builder/cache"
 	"my-ssg/builder/models"
 	mdParser "my-ssg/builder/parser"
-	"my-ssg/builder/search"
 	"my-ssg/builder/utils"
 )
 
 // invalidateForTemplate determines which posts to invalidate based on changed template
-// invalidateForTemplate determines which posts to invalidate based on changed template
 func (b *Builder) invalidateForTemplate(templatePath string) []string {
 	tp := filepath.ToSlash(templatePath)
 	if strings.HasPrefix(tp, filepath.ToSlash(b.cfg.TemplateDir)) {
-		relTmpl, _ := filepath.Rel(b.cfg.TemplateDir, tp)
+		relTmpl, _ := utils.SafeRel(b.cfg.TemplateDir, tp)
 		relTmpl = filepath.ToSlash(relTmpl)
 
 		if relTmpl == "layout.html" {
@@ -36,7 +33,6 @@ func (b *Builder) invalidateForTemplate(templatePath string) []string {
 		if b.cacheManager != nil {
 			ids, err := b.cacheManager.GetPostsByTemplate(relTmpl)
 			if err == nil && len(ids) > 0 {
-				// Batch fetch all posts in a single transaction (avoids N+1 query)
 				posts, err := b.cacheManager.GetPostsByIDs(ids)
 				if err == nil && len(posts) > 0 {
 					paths := make([]string, 0, len(posts))
@@ -67,9 +63,8 @@ func (b *Builder) invalidateForTemplate(templatePath string) []string {
 func (b *Builder) BuildChanged(changedPath string) {
 	if strings.HasSuffix(changedPath, ".md") && strings.HasPrefix(changedPath, "content") {
 		b.buildSinglePost(changedPath)
-		// Sync VFS changes to disk (differential)
 		if err := utils.SyncVFS(b.DestFs, "public", b.rnd.GetRenderedFiles()); err != nil {
-			fmt.Printf("❌ Sync failed: %v\n", err)
+			b.logger.Error("Sync failed", "error", err)
 		}
 		b.rnd.ClearRenderedFiles()
 		return
@@ -83,20 +78,20 @@ func (b *Builder) BuildChanged(changedPath string) {
 func (b *Builder) buildSinglePost(path string) {
 	source, err := afero.ReadFile(b.SourceFs, path)
 	if err != nil {
-		fmt.Printf("   ❌ Error reading %s: %v\n", path, err)
+		b.logger.Error("Error reading file", "path", path, "error", err)
 		b.Build()
 		return
 	}
 
 	context := parser.NewContext()
+	context.Set(mdParser.ContextKeyFilePath, path)
 	reader := text.NewReader(source)
 	b.md.Parser().Parse(reader, parser.WithContext(context))
 	metaData := meta.Get(context)
 	newFrontmatterHash, _ := utils.GetFrontmatterHash(metaData)
 
-	relPath, _ := filepath.Rel("content", path)
+	relPath, _ := utils.SafeRel("content", path)
 
-	// Check Cache
 	var exists bool
 	var cachedHash string
 
@@ -123,22 +118,34 @@ func (b *Builder) buildContentOnly(path string) {
 
 	source, err := afero.ReadFile(b.SourceFs, path)
 	if err != nil {
-		fmt.Printf("   ❌ Error reading %s: %v\n", path, err)
+		b.logger.Error("Error reading file", "path", path, "error", err)
 		return
 	}
 
 	info, _ := b.SourceFs.Stat(path)
-	relPath, _ := filepath.Rel("content", path)
+	version, relPath := utils.GetVersionFromPath(path)
 	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
-	destPath := filepath.Join("public", htmlRelPath)
-	fullLink := cfg.BaseURL + "/" + htmlRelPath
+
+	// Clean HTML relative path for versioned posts
+	cleanHtmlRelPath := htmlRelPath
+	if version != "" {
+		cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(version)+"/")
+	}
+
+	var destPath string
+	if version != "" {
+		destPath = filepath.Join("public", version, cleanHtmlRelPath)
+	} else {
+		destPath = filepath.Join("public", htmlRelPath)
+	}
+	fullLink := utils.BuildPostLink(cfg.BaseURL, version, cleanHtmlRelPath)
 
 	context := parser.NewContext()
+	context.Set(mdParser.ContextKeyFilePath, path)
 	reader := text.NewReader(source)
 	docNode := b.md.Parser().Parse(reader, parser.WithContext(context))
 
 	var buf bytes.Buffer
-	// Handle diagrams (simplified for partial build)
 	_ = b.md.Renderer().Render(&buf, source, docNode)
 	htmlContent := buf.String()
 
@@ -146,19 +153,23 @@ func (b *Builder) buildContentOnly(path string) {
 		htmlContent = mdParser.ReplaceD2BlocksWithThemeSupport(htmlContent, pairs)
 	}
 
-	// Use DiagramAdapter map equivalent
 	var diagramCache map[string]string
 	if b.diagramAdapter != nil {
 		diagramCache = b.diagramAdapter.AsMap()
 	}
 
-	hasMath := strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(")
-	if hasMath {
+	if strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(") {
 		htmlContent = mdParser.RenderMathForHTML(htmlContent, b.native, diagramCache, &b.mu)
 	}
-
 	if cfg.CompressImages {
 		htmlContent = utils.ReplaceToWebP(htmlContent)
+	}
+
+	// Copy raw markdown to output for "View Source" feature
+	if cfg.Features.RawMarkdown {
+		mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
+		_ = b.DestFs.MkdirAll(filepath.Dir(mdDestPath), 0755)
+		_ = afero.WriteFile(b.DestFs, mdDestPath, source, 0644)
 	}
 
 	metaData := meta.Get(context)
@@ -171,7 +182,6 @@ func (b *Builder) buildContentOnly(path string) {
 	isDraft := utils.GetBool(metaData, "draft")
 
 	toc := mdParser.GetTOC(context)
-	hasD2 := mdParser.HasD2(context)
 
 	post := models.PostMetadata{
 		Title:       utils.GetString(metaData, "title"),
@@ -182,82 +192,67 @@ func (b *Builder) buildContentOnly(path string) {
 		Pinned:      isPinned,
 		Draft:       isDraft,
 		DateObj:     dateObj,
-		HasMath:     hasMath,
-		HasMermaid:  hasD2,
+		Version:     version,
 	}
 
-	// Convert TOC for cache (uses unified models.TOCEntry type)
-	cacheTOC := make([]models.TOCEntry, len(toc))
-	for i, t := range toc {
-		cacheTOC[i] = models.TOCEntry{
-			ID:    t.ID,
-			Text:  t.Text,
-			Level: t.Level,
+	// Fetch other posts in the same version to build sidebar and neighbors
+	var versionPosts []models.PostMetadata
+	if b.cacheManager != nil {
+		ids, _ := b.cacheManager.ListAllPosts()
+		cachedPosts, _ := b.cacheManager.GetPostsByIDs(ids)
+		for _, cp := range cachedPosts {
+			if cp.Version == version {
+				versionPosts = append(versionPosts, models.PostMetadata{
+					Title: cp.Title, Link: cp.Link, Weight: cp.Weight, Version: cp.Version,
+					DateObj: cp.Date,
+				})
+			}
 		}
 	}
-
-	frontmatterHash, _ := utils.GetFrontmatterHash(metaData)
-
-	if isDraft && !cfg.IncludeDrafts {
-		return
+	// Sync current post in the list
+	found := false
+	for i, p := range versionPosts {
+		if p.Link == post.Link {
+			versionPosts[i] = post
+			found = true
+			break
+		}
 	}
+	if !found {
+		versionPosts = append(versionPosts, post)
+	}
+
+	// Calculate Neighbors & Sidebar
+	utils.SortPosts(versionPosts)
+	prev, next := utils.FindPrevNext(post, versionPosts)
+	siteTree := utils.BuildSiteTree(versionPosts)
 
 	// Update Cache in BoltDB
 	if b.cacheManager != nil {
 		htmlHash, _ := b.cacheManager.StoreHTML([]byte(htmlContent))
 		postID := cache.GeneratePostID("", relPath)
+		cacheTOC := make([]models.TOCEntry, len(toc))
+		for i, t := range toc {
+			cacheTOC[i] = models.TOCEntry{ID: t.ID, Text: t.Text, Level: t.Level}
+		}
 
 		newMeta := &cache.PostMeta{
-			PostID:      postID,
-			Path:        relPath,
-			ModTime:     info.ModTime().Unix(),
-			ContentHash: frontmatterHash,
-			HTMLHash:    htmlHash,
-			Title:       post.Title,
-			Date:        post.DateObj,
-			Tags:        post.Tags,
-			ReadingTime: post.ReadingTime,
-			Description: post.Description,
-			Link:        post.Link,
-			Pinned:      post.Pinned,
-			Draft:       post.Draft,
-			HasMath:     post.HasMath,
-			HasMermaid:  post.HasMermaid,
-			Meta:        metaData,
-			TOC:         cacheTOC,
-		}
-
-		// Search Record update (needed for partial build?)
-		searchRecord := models.PostRecord{
-			Title:       post.Title,
-			Link:        htmlRelPath,
-			Description: post.Description,
-			Tags:        post.Tags,
-			Content:     plainText,
-		}
-		fullText := strings.ToLower(searchRecord.Title + " " + searchRecord.Description + " " + strings.Join(searchRecord.Tags, " ") + " " + searchRecord.Content)
-		words := search.Tokenize(fullText)
-		docLen := len(words)
-		wordFreqs := make(map[string]int)
-		for _, w := range words {
-			if len(w) >= 2 {
-				wordFreqs[w]++
-			}
+			PostID: postID, Path: relPath, ModTime: info.ModTime().Unix(),
+			ContentHash: cache.HashString(string(source)), HTMLHash: htmlHash,
+			Title: post.Title, Date: post.DateObj, Tags: post.Tags,
+			ReadingTime: post.ReadingTime, Description: post.Description,
+			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight,
+			Draft: post.Draft, Meta: metaData, TOC: cacheTOC, Version: version,
 		}
 
 		newSearch := &cache.SearchRecord{
-			Title:    post.Title,
-			Tokens:   search.Tokenize(post.Description),
-			BM25Data: wordFreqs,
-			DocLen:   docLen,
+			Title: post.Title, BM25Data: make(map[string]int), DocLen: wordCount, Content: plainText,
 		}
-
 		newDep := &cache.Dependencies{Tags: post.Tags}
-
-		// Single Commit
 		_ = b.cacheManager.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*cache.Dependencies{postID: newDep})
 	}
 
+	// Determine Card Image
 	cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
 	imagePath := cfg.BaseURL + "/static/images/cards/" + cardRelPath
 	if img, ok := metaData["image"].(string); ok {
@@ -271,18 +266,12 @@ func (b *Builder) buildContentOnly(path string) {
 	}
 
 	b.rnd.RenderPage(destPath, models.PageData{
-		Title:        post.Title,
-		Description:  post.Description,
-		Content:      template.HTML(htmlContent),
-		Meta:         metaData,
-		BaseURL:      cfg.BaseURL,
-		BuildVersion: cfg.BuildVersion,
-		TabTitle:     post.Title + " | " + cfg.Title,
-		Permalink:    fullLink,
-		Image:        imagePath,
-		HasMath:      hasMath,
-		HasMermaid:   hasD2,
-		TOC:          toc,
-		Config:       cfg,
+		Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
+		Meta: metaData, BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
+		TabTitle: post.Title + " | " + cfg.Title, Permalink: post.Link, Image: imagePath,
+		TOC: toc, Config: cfg, SiteTree: siteTree,
+		CurrentVersion: version, IsOutdated: version != "",
+		Versions: cfg.GetVersionsMetadata(version),
+		PrevPage: prev, NextPage: next,
 	})
 }

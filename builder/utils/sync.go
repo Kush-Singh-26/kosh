@@ -39,6 +39,7 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 		alwaysSync := map[string]bool{
 			"public/.nojekyll":               true,
 			"public/sitemap.xml":             true,
+			"public/sitemap/sitemap.xml":     true,
 			"public/rss.xml":                 true,
 			"public/search_index.json":       true,
 			"public/search.bin":              true,
@@ -51,9 +52,10 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 
 		if dirtyFiles != nil {
 			pathNormalized := filepath.ToSlash(path)
-			// Always sync static assets and specific global files
+			// Always sync static assets, markdown files, and specific global files
 			isStatic := strings.HasPrefix(pathNormalized, "public/static/")
-			if !dirtyFiles[pathNormalized] && !alwaysSync[pathNormalized] && !isStatic {
+			isMarkdown := strings.HasSuffix(pathNormalized, ".md")
+			if !dirtyFiles[pathNormalized] && !alwaysSync[pathNormalized] && !isStatic && !isMarkdown {
 				return nil
 			}
 		}
