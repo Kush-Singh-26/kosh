@@ -21,14 +21,14 @@ func (b *Builder) generatePWA(shouldForce bool) {
 		if b.cfg.IsDev {
 			return
 		}
-		_ = generators.GenerateSW(b.DestFs, "public", b.cfg.BuildVersion, shouldForce, b.cfg.BaseURL, b.rnd.Assets)
+		_ = generators.GenerateSW(b.DestFs, b.cfg.OutputDir, b.cfg.BuildVersion, shouldForce, b.cfg.BaseURL, b.renderService.GetAssets())
 	}()
 	go func() {
 		defer wg.Done()
 		if b.cfg.IsDev {
 			return
 		}
-		_ = generators.GenerateManifest(b.DestFs, "public", b.cfg.BaseURL, b.cfg.Title, b.cfg.Description, shouldForce)
+		_ = generators.GenerateManifest(b.DestFs, b.cfg.OutputDir, b.cfg.BaseURL, b.cfg.Title, b.cfg.Description, shouldForce)
 	}()
 	go func() {
 		defer wg.Done()
@@ -55,14 +55,14 @@ func (b *Builder) generatePWA(shouldForce bool) {
 		currentHash := hex.EncodeToString(h.Sum(nil))
 
 		// Check cache
-		cacheDir := ".kosh-cache/pwa-icons"
+		cacheDir := filepath.Join(b.cfg.CacheDir, "pwa-icons")
 		cacheHashFile := filepath.Join(cacheDir, currentHash+".hash")
 
 		// Check if cached icons exist and are valid
 		needsGeneration := false
 		_, hashErr := os.Stat(cacheHashFile)
-		_, icon192Err := os.Stat("public/static/images/icon-192.png")
-		_, icon512Err := os.Stat("public/static/images/icon-512.png")
+		_, icon192Err := os.Stat(filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png"))
+		_, icon512Err := os.Stat(filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png"))
 
 		// Generate if: force=true, OR hash file missing, OR icons missing
 		if shouldForce || os.IsNotExist(hashErr) || os.IsNotExist(icon192Err) || os.IsNotExist(icon512Err) {
@@ -71,16 +71,16 @@ func (b *Builder) generatePWA(shouldForce bool) {
 
 		if needsGeneration {
 			// Generate icons only if source is newer or cache is missing
-			err := generators.GeneratePWAIcons(b.SourceFs, b.DestFs, faviconPath, "public/static/images")
+			err := generators.GeneratePWAIcons(b.SourceFs, b.DestFs, faviconPath, filepath.Join(b.cfg.OutputDir, "static/images"))
 			if err == nil {
 				// Save hash to cache
 				_ = os.WriteFile(cacheHashFile, []byte(currentHash), 0644)
 
 				// Copy generated icons to cache for future reuse
-				if data, err := afero.ReadFile(b.DestFs, "public/static/images/icon-192.png"); err == nil {
+				if data, err := afero.ReadFile(b.DestFs, filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png")); err == nil {
 					_ = os.WriteFile(filepath.Join(cacheDir, currentHash+"-192.png"), data, 0644)
 				}
-				if data, err := afero.ReadFile(b.DestFs, "public/static/images/icon-512.png"); err == nil {
+				if data, err := afero.ReadFile(b.DestFs, filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png")); err == nil {
 					_ = os.WriteFile(filepath.Join(cacheDir, currentHash+"-512.png"), data, 0644)
 				}
 			}
@@ -91,10 +91,10 @@ func (b *Builder) generatePWA(shouldForce bool) {
 
 			// Copy cached icons to VFS
 			if data, err := os.ReadFile(cache192); err == nil {
-				_ = afero.WriteFile(b.DestFs, "public/static/images/icon-192.png", data, 0644)
+				_ = afero.WriteFile(b.DestFs, filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png"), data, 0644)
 			}
 			if data, err := os.ReadFile(cache512); err == nil {
-				_ = afero.WriteFile(b.DestFs, "public/static/images/icon-512.png", data, 0644)
+				_ = afero.WriteFile(b.DestFs, filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png"), data, 0644)
 			}
 		}
 	}()

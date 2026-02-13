@@ -11,7 +11,7 @@ import (
 	"my-ssg/builder/utils"
 )
 
-func GenerateRSS(destFs afero.Fs, baseURL string, posts []models.PostMetadata, title, description string) {
+func GenerateRSS(destFs afero.Fs, baseURL string, posts []models.PostMetadata, title, description string, outputPath string) {
 	fmt.Println("📡 Generating RSS feed...")
 
 	var items []models.Item
@@ -34,7 +34,7 @@ func GenerateRSS(destFs afero.Fs, baseURL string, posts []models.PostMetadata, t
 		},
 	}
 	output, _ := xml.MarshalIndent(rss, "", "  ")
-	if err := utils.WriteFileVFS(destFs, "public/rss.xml", []byte(xml.Header+string(output))); err != nil {
+	if err := utils.WriteFileVFS(destFs, outputPath, []byte(xml.Header+string(output))); err != nil {
 		fmt.Printf("⚠️ Failed to write rss.xml: %v\n", err)
 	}
 }

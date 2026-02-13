@@ -36,6 +36,15 @@ features:
     pwa: true            # Enable Service Workers, Manifest, and Icons
     search: true         # Build the WASM search index
 
+# Social Cards (Open Graph Images)
+socialCards:
+  background: "#faf8f5"    # Base background color (warm cream)
+  gradient:                # Gradient colors - visible beige to brown
+    - "#e8e0d0"            # Medium beige
+    - "#d4c4a8"            # Darker brown-beige
+  angle: 135               # Gradient angle in degrees
+  textColor: "#1a1a1a"     # Text color (dark for light backgrounds)
+
 # Build Optimization
 postsPerPage: 10
 compressImages: true     # Auto-convert PNG/JPG to optimized WebP
@@ -44,6 +53,11 @@ compressImages: true     # Auto-convert PNG/JPG to optimized WebP
 theme: "blog"
 templateDir: "themes/blog/templates"
 staticDir: "themes/blog/static"
+
+# Directory Paths (Optional - defaults shown below)
+# contentDir: "content"      # Source content directory
+# outputDir: "public"        # Build output directory  
+# cacheDir: ".kosh-cache"    # Cache directory for incremental builds
 
 # Build Metadata (Managed by SSG)
 buildVersion: 0

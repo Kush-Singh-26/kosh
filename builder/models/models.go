@@ -178,13 +178,15 @@ type GraphData struct {
 // --- Search Structures ---
 
 type PostRecord struct {
-	ID          int
-	Title       string
-	Link        string
-	Description string
-	Tags        []string
-	Content     string // Raw plain text for snippet extraction
-	Version     string // Version scoping
+	ID              int
+	Title           string
+	NormalizedTitle string // Lowercase title for search
+	Link            string
+	Description     string
+	Tags            []string
+	NormalizedTags  []string // Lowercase tags for search
+	Content         string   // Raw plain text for snippet extraction
+	Version         string   // Version scoping
 }
 
 // --- Cache Structures ---

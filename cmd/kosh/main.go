@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"syscall"
 
 	"my-ssg/builder/run"
 	"my-ssg/internal/clean"
@@ -15,6 +18,19 @@ import (
 )
 
 func main() {
+	// Set up context with graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle SIGINT and SIGTERM for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println("\n🛑 Received shutdown signal...")
+		cancel()
+	}()
+
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
@@ -128,13 +144,16 @@ func main() {
 			b := run.NewBuilder(args)
 
 			b.SetDevMode(true)
-			b.Build()
+			if err := b.Build(ctx); err != nil {
+				fmt.Printf("❌ Build failed: %v\n", err)
+				os.Exit(1)
+			}
 
 			// 2. Start Watcher in background
 			go func() {
 				w, err := watch.New([]string{"content", b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
 					fmt.Printf("\n⚡ Change detected: %s | Rebuilding...\n", event.Name)
-					b.BuildChanged(event.Name)
+					b.BuildChanged(ctx, event.Name)
 				})
 				if err != nil {
 					fmt.Printf("❌ Watcher failed: %v\n", err)
@@ -144,9 +163,9 @@ func main() {
 			}()
 
 			// 3. Start Server (blocking)
-			server.Run(args)
+			server.Run(ctx, args)
 		} else {
-			server.Run(args)
+			server.Run(ctx, args)
 		}
 
 	case "build":
@@ -187,11 +206,14 @@ func main() {
 
 		if isWatch {
 			b := run.NewBuilder(args)
-			b.Build() // Initial build
+			if err := b.Build(ctx); err != nil {
+				fmt.Printf("❌ Initial build failed: %v\n", err)
+				os.Exit(1)
+			}
 
 			w, err := watch.New([]string{"content", b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
 				fmt.Printf("\n⚡ Change detected: %s | Rebuilding...\n", event.Name)
-				b.BuildChanged(event.Name)
+				b.BuildChanged(ctx, event.Name)
 			})
 			if err != nil {
 				fmt.Printf("❌ Watcher failed: %v\n", err)
@@ -220,6 +242,9 @@ func main() {
 	case "cache":
 		handleCacheCommand(args)
 
+	case "version", "-version", "--version":
+		printVersion()
+
 	case "help", "-help", "--help":
 		printUsage()
 	default:
@@ -237,6 +262,7 @@ func printUsage() {
 	fmt.Println("  clean          Clean public directory & rebuild")
 	fmt.Println("  serve          Start the preview server")
 	fmt.Println("  build          Build the static site (and WASM)")
+	fmt.Println("  version        Show version information")
 	fmt.Println("  cache          Cache management commands")
 	fmt.Println("  help           Show this help message")
 	fmt.Println("\nFlags for clean:")
@@ -249,4 +275,16 @@ func printUsage() {
 	fmt.Println("\nFlags for serve:")
 	fmt.Println("  --dev          Enable development mode (serve + watch)")
 	fmt.Println("  -drafts        Include draft posts in development mode")
+}
+
+func printVersion() {
+	fmt.Println("Kosh Static Site Generator")
+	fmt.Println("Version: v1.0.0")
+	fmt.Printf("Go Version: %s\n", runtime.Version())
+	fmt.Println("Build Date: 2026-02-12")
+	fmt.Println("\nOptimized with:")
+	fmt.Println("  - BLAKE3 hashing (replaced MD5)")
+	fmt.Println("  - Object pooling for memory management")
+	fmt.Println("  - Pre-computed search indexes")
+	fmt.Println("  - Generic cache operations")
 }

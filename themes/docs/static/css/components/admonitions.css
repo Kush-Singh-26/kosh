@@ -1,64 +1,288 @@
-/* Base Admonition Style */
+/* Nexus Prime - Admonitions (Callouts)
+ * Essential for documentation warnings, tips, and notes
+ * Features emoji icons for quick visual scanning
+ */
+
+/* ========================================
+   Base Admonition Style
+   ======================================== */
+
 .admonition {
-    margin: 1.5rem 0;
-    padding: 1rem;
-    border-left: 4px solid var(--border-color);
-    background-color: var(--sidebar-bg);
-    border-radius: 0 4px 4px 0;
+  margin: var(--space-6) 0;
+  padding: var(--space-4) var(--space-5);
+  border-left: 4px solid var(--bg-border);
+  background-color: var(--bg-surface);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
 
 .adm-title {
-    font-weight: bold;
-    font-size: 0.95rem;
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    opacity: 0.9;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.adm-title::before {
+  font-size: 1.2em;
+  line-height: 1;
 }
 
 .adm-body {
-    font-size: 0.95rem;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
 }
 
 .adm-body p:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
-/* Variants */
+/* ========================================
+   Note Admonition - ℹ️
+   ======================================== */
+
 .adm-note {
-    border-color: var(--note-border);
-    background-color: var(--note-bg);
+  border-color: var(--color-info);
+  background-color: var(--color-info-light);
 }
 
 .adm-note .adm-title {
-    color: var(--note-border);
+  color: var(--color-info);
 }
 
-.adm-warning {
-    border-color: var(--warn-border);
-    background-color: var(--warn-bg);
+.adm-note .adm-title::before {
+  content: "📘";
 }
 
-.adm-warning .adm-title {
-    color: var(--warn-border);
+[data-theme="dark"] .adm-note {
+  background-color: var(--color-info-light);
 }
 
-.adm-tip {
-    border-color: var(--tip-border);
-    background-color: var(--tip-bg);
+/* ========================================
+   Warning Admonition - ⚠️
+   ======================================== */
+
+.adm-warning,
+.adm-caution {
+  border-color: var(--color-warning);
+  background-color: var(--color-warning-light);
 }
 
-.adm-tip .adm-title {
-    color: var(--tip-border);
+.adm-warning .adm-title,
+.adm-caution .adm-title {
+  color: var(--color-warning);
 }
+
+.adm-warning .adm-title::before,
+.adm-caution .adm-title::before {
+  content: "⚠️";
+}
+
+[data-theme="dark"] .adm-warning,
+[data-theme="dark"] .adm-caution {
+  background-color: var(--color-warning-light);
+}
+
+/* ========================================
+   Tip Admonition - 💡
+   ======================================== */
+
+.adm-tip,
+.adm-hint,
+.adm-important {
+  border-color: var(--color-success);
+  background-color: var(--color-success-light);
+}
+
+.adm-tip .adm-title,
+.adm-hint .adm-title,
+.adm-important .adm-title {
+  color: var(--color-success);
+}
+
+.adm-tip .adm-title::before,
+.adm-hint .adm-title::before,
+.adm-important .adm-title::before {
+  content: "💡";
+}
+
+[data-theme="dark"] .adm-tip,
+[data-theme="dark"] .adm-hint,
+[data-theme="dark"] .adm-important {
+  background-color: var(--color-success-light);
+}
+
+/* ========================================
+   Danger/Failure Admonition - 🚨
+   ======================================== */
 
 .adm-danger,
-.adm-failure {
-    border-color: var(--danger-border);
-    background-color: var(--danger-bg);
+.adm-failure,
+.adm-error,
+.adm-bug {
+  border-color: var(--color-danger);
+  background-color: var(--color-danger-light);
 }
 
 .adm-danger .adm-title,
-.adm-failure .adm-title {
-    color: var(--danger-border);
+.adm-failure .adm-title,
+.adm-error .adm-title,
+.adm-bug .adm-title {
+  color: var(--color-danger);
+}
+
+.adm-danger .adm-title::before,
+.adm-failure .adm-title::before,
+.adm-error .adm-title::before,
+.adm-bug .adm-title::before {
+  content: "🚨";
+}
+
+[data-theme="dark"] .adm-danger,
+[data-theme="dark"] .adm-failure,
+[data-theme="dark"] .adm-error,
+[data-theme="dark"] .adm-bug {
+  background-color: var(--color-danger-light);
+}
+
+/* ========================================
+   Success Admonition - ✅
+   ======================================== */
+
+.adm-success,
+.adm-check,
+.adm-done {
+  border-color: var(--color-success);
+  background-color: var(--color-success-light);
+}
+
+.adm-success .adm-title,
+.adm-check .adm-title,
+.adm-done .adm-title {
+  color: var(--color-success);
+}
+
+.adm-success .adm-title::before,
+.adm-check .adm-title::before,
+.adm-done .adm-title::before {
+  content: "✅";
+}
+
+[data-theme="dark"] .adm-success,
+[data-theme="dark"] .adm-check,
+[data-theme="dark"] .adm-done {
+  background-color: var(--color-success-light);
+}
+
+/* ========================================
+   Info Admonition - ℹ️
+   ======================================== */
+
+.adm-info {
+  border-color: var(--color-info);
+  background-color: var(--color-info-light);
+}
+
+.adm-info .adm-title {
+  color: var(--color-info);
+}
+
+.adm-info .adm-title::before {
+  content: "ℹ️";
+}
+
+[data-theme="dark"] .adm-info {
+  background-color: var(--color-info-light);
+}
+
+/* ========================================
+   Question Admonition - ❓
+   ======================================== */
+
+.adm-question,
+.adm-help,
+.adm-faq {
+  border-color: var(--color-brand);
+  background-color: var(--color-brand-light);
+}
+
+.adm-question .adm-title,
+.adm-help .adm-title,
+.adm-faq .adm-title {
+  color: var(--color-brand);
+}
+
+.adm-question .adm-title::before,
+.adm-help .adm-title::before,
+.adm-faq .adm-title::before {
+  content: "❓";
+}
+
+[data-theme="dark"] .adm-question,
+[data-theme="dark"] .adm-help,
+[data-theme="dark"] .adm-faq {
+  background-color: var(--color-brand-light);
+}
+
+/* ========================================
+   Example Admonition - 📋
+   ======================================== */
+
+.adm-example {
+  border-color: var(--text-muted);
+  background-color: var(--bg-surface);
+}
+
+.adm-example .adm-title {
+  color: var(--text-secondary);
+}
+
+.adm-example .adm-title::before {
+  content: "📋";
+}
+
+/* ========================================
+   Quote/Abstract Admonition - 📄
+   ======================================== */
+
+.adm-quote,
+.adm-abstract,
+.adm-summary,
+.adm-tldr {
+  border-color: var(--text-muted);
+  background-color: var(--bg-surface);
+  font-style: italic;
+}
+
+.adm-quote .adm-title,
+.adm-abstract .adm-title,
+.adm-summary .adm-title,
+.adm-tldr .adm-title {
+  color: var(--text-secondary);
+  font-style: normal;
+}
+
+.adm-quote .adm-title::before,
+.adm-abstract .adm-title::before,
+.adm-summary .adm-title::before,
+.adm-tldr .adm-title::before {
+  content: "📄";
+}
+
+/* ========================================
+   Mobile Adjustments
+   ======================================== */
+
+@media (max-width: 768px) {
+  .admonition {
+    padding: var(--space-3) var(--space-4);
+    margin: var(--space-4) 0;
+  }
+  
+  .adm-title {
+    font-size: var(--text-xs);
+  }
 }

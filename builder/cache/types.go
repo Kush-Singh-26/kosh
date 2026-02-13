@@ -55,11 +55,13 @@ type SSRArtifact struct {
 
 // SearchRecord stores pre-computed search data for BM25
 type SearchRecord struct {
-	Title    string         `msgpack:"title"`
-	Tokens   []string       `msgpack:"tokens"`
-	BM25Data map[string]int `msgpack:"bm25_data"` // word -> frequency
-	DocLen   int            `msgpack:"doc_len"`
-	Content  string         `msgpack:"content"`
+	Title           string         `msgpack:"title"`
+	NormalizedTitle string         `msgpack:"norm_title"` // Lowercase title
+	Tokens          []string       `msgpack:"tokens"`
+	BM25Data        map[string]int `msgpack:"bm25_data"` // word -> frequency
+	DocLen          int            `msgpack:"doc_len"`
+	Content         string         `msgpack:"content"`
+	NormalizedTags  []string       `msgpack:"norm_tags"` // Lowercase tags
 	// Cached tokenization to avoid re-tokenizing unchanged content
 	Words []string `msgpack:"words,omitempty"` // Cached tokenized words
 }

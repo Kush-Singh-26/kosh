@@ -2,6 +2,7 @@ package server
 
 import (
 	"compress/gzip"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -11,8 +12,85 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
+
+// Global watcher and client management
+var (
+	watcher *fsnotify.Watcher
+	// Broadcast channel for reload events
+	reloadChan chan struct{}
+	clientMu   sync.Mutex
+	clients    = make(map[chan struct{}]struct{})
+	watcherWg  sync.WaitGroup
+)
+
+func startWatcher(dir string) {
+	var err error
+	watcher, err = fsnotify.NewWatcher()
+	if err != nil {
+		log.Printf("Failed to create file watcher: %v", err)
+		return
+	}
+
+	// Watch the public directory recursively
+	if err := watcher.Add(dir); err != nil {
+		log.Printf("Failed to watch directory %s: %v", dir, err)
+		return
+	}
+
+	reloadChan = make(chan struct{})
+
+	watcherWg.Add(1)
+	go func() {
+		defer watcherWg.Done()
+		defer watcher.Close()
+
+		// Debounce logic
+		var debounceTimer *time.Timer
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				// Ignore chmod events
+				if event.Op&fsnotify.Chmod != 0 {
+					continue
+				}
+
+				// Debounce rapid events (e.g. during build)
+				if debounceTimer != nil {
+					debounceTimer.Reset(300 * time.Millisecond)
+				} else {
+					debounceTimer = time.AfterFunc(300*time.Millisecond, func() {
+						select {
+						case reloadChan <- struct{}{}:
+						default:
+							// Channel full, skip
+						}
+					})
+				}
+
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				log.Printf("Watcher error: %v", err)
+			}
+		}
+	}()
+}
+
+func stopWatcher() {
+	if watcher != nil {
+		watcher.Close()
+	}
+	watcherWg.Wait()
+}
 
 // gzipResponseWriter wraps the underlying ResponseWriter to enable Gzip compression
 type gzipResponseWriter struct {
@@ -44,7 +122,7 @@ func gzipHandler(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // Run starts the preview server
-func Run(args []string) {
+func Run(ctx context.Context, args []string) {
 	// Parse flags manually from args to avoid conflicts with main CLI flags
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	host := fs.String("host", "localhost", "The host/IP to bind to")
@@ -63,6 +141,18 @@ func Run(args []string) {
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
 
 	staticDir := "./public"
+
+	// Start the file watcher
+	startWatcher(staticDir)
+	defer stopWatcher()
+
+	// Handle context cancellation for graceful shutdown
+	go func() {
+		<-ctx.Done()
+		fmt.Println("\n🛑 Shutting down server...")
+		stopWatcher()
+	}()
+
 	fileServer := http.FileServer(http.Dir(staticDir))
 
 	// --- Auto-Reload Endpoint (SSE) ---
@@ -72,41 +162,32 @@ func Run(args []string) {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 
-		// Check for file changes every 500ms
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer ticker.Stop()
+		// Create a channel for this client
+		clientChan := make(chan struct{})
+		clientMu.Lock()
+		clients[clientChan] = struct{}{}
+		clientMu.Unlock()
 
-		var lastMod time.Time
-		// Initialize with current state
-		if t, err := getLatestModTime(staticDir); err == nil {
-			lastMod = t
-		}
+		// Ensure cleanup on disconnect
+		defer func() {
+			clientMu.Lock()
+			delete(clients, clientChan)
+			clientMu.Unlock()
+		}()
+
+		// Initial sync check (optional, simplified)
+		// Send initial event to confirm connection
+		_, _ = fmt.Fprintf(w, "data: connected\n\n")
+		w.(http.Flusher).Flush()
 
 		for {
 			select {
 			case <-r.Context().Done():
 				return
-			case <-ticker.C:
-				currentMod, err := getLatestModTime(staticDir)
-				if err != nil {
-					continue
-				}
-				// If files have been modified since we last checked
-				if currentMod.After(lastMod) {
-					lastMod = currentMod
-					// Wait for build to complete (files may still be writing)
-					time.Sleep(300 * time.Millisecond)
-					// Verify files are still newer (build completed)
-					verifyMod, err := getLatestModTime(staticDir)
-					if err == nil && verifyMod.After(lastMod) {
-						// Build still in progress, wait more
-						time.Sleep(500 * time.Millisecond)
-						lastMod = verifyMod
-					}
-					// Send reload signal
-					_, _ = fmt.Fprintf(w, "data: reload\n\n")
-					w.(http.Flusher).Flush()
-				}
+			case <-clientChan:
+				// Reload signal received
+				_, _ = fmt.Fprintf(w, "data: reload\n\n")
+				w.(http.Flusher).Flush()
 			}
 		}
 	})
@@ -116,12 +197,15 @@ func Run(args []string) {
 	fileHandler := func(w http.ResponseWriter, r *http.Request) {
 		// Normalize path early for cross-platform consistency
 		rawPath := r.URL.Path
-		if strings.HasPrefix(rawPath, "/blogs/") {
-			rawPath = strings.TrimPrefix(rawPath, "/blogs/")
-		}
-		path := filepath.ToSlash(filepath.Clean(rawPath))
+		normalizedPath := normalizeRequestPath(rawPath)
 
-		fullPath := filepath.Join(staticDir, path)
+		// Validate path to prevent traversal attacks
+		fullPath, err := validatePath(staticDir, normalizedPath)
+		if err != nil {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte("403 - Forbidden: Invalid path"))
+			return
+		}
 
 		// Check if file exists
 		fileInfo, err := os.Stat(fullPath)
@@ -142,7 +226,7 @@ func Run(args []string) {
 		}
 
 		// Add cache headers for hashed assets
-		filename := filepath.Base(path)
+		filename := filepath.Base(normalizedPath)
 		if isHashedAsset(filename) {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		} else if fileInfo.IsDir() || strings.HasSuffix(filename, ".html") {
@@ -158,16 +242,48 @@ func Run(args []string) {
 
 	http.HandleFunc("/", gzipHandler(fileHandler))
 
+	// Start reload broadcaster
+	go func() {
+		for range reloadChan {
+			clientMu.Lock()
+			for clientChan := range clients {
+				select {
+				case clientChan <- struct{}{}:
+				default:
+					// Client buffer full, skip
+				}
+			}
+			clientMu.Unlock()
+		}
+	}()
+
+	// Create HTTP server with shutdown support
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: nil, // uses DefaultServeMux
+	}
+
+	// Shutdown handler - watches for context cancellation
+	go func() {
+		<-ctx.Done()
+		fmt.Println("\n🛑 Shutting down HTTP server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			log.Printf("HTTP server shutdown error: %v", err)
+		}
+	}()
+
 	fmt.Printf("🌍 Serving on http://%s\n", addr)
 	if *host == "0.0.0.0" {
 		fmt.Println("   (Accessible on your local network)")
 	}
 	fmt.Println("   (Auto-reload enabled via /events)")
 
-	err := http.ListenAndServe(addr, nil)
-	if err != nil {
+	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+	fmt.Println("✅ Server stopped.")
 }
 
 // isHashedAsset checks if filename contains a content hash (e.g., layout.a1b2c3.css)
@@ -191,21 +307,4 @@ func isHashedAsset(filename string) bool {
 		}
 	}
 	return false
-}
-
-// Helper: recursive walk to find the latest modification time in the directory
-func getLatestModTime(dir string) (time.Time, error) {
-	var latest time.Time
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			if info.ModTime().After(latest) {
-				latest = info.ModTime()
-			}
-		}
-		return nil
-	})
-	return latest, err
 }

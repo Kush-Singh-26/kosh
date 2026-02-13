@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"my-ssg/builder/cache"
+	"my-ssg/builder/config"
 )
 
 // handleCacheCommand processes cache-related subcommands
@@ -62,8 +63,11 @@ func printCacheUsage() {
 }
 
 func openCache() *cache.Manager {
+	// Load config to get cache directory
+	cfg := config.Load([]string{})
+
 	// Cache commands run in production mode for durability
-	cm, err := cache.Open(".kosh-cache", false)
+	cm, err := cache.Open(cfg.CacheDir, false)
 	if err != nil {
 		fmt.Printf("❌ Failed to open cache: %v\n", err)
 		os.Exit(1)

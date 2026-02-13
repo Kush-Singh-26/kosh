@@ -16,13 +16,6 @@ func InitMinifier() {
 	Minifier.AddFunc("text/html", html.Minify)
 }
 
-// NormalizeCacheKey converts a file path to a normalized cache key
-// Uses forward slashes for cross-platform compatibility
-func NormalizeCacheKey(path string) string {
-	// Convert Windows backslashes to forward slashes
-	return strings.ReplaceAll(path, "\\", "/")
-}
-
 var imgRe = regexp.MustCompile(`(?i)(<img[^>]+src=["'])([^"']+)((?:\.jpg|\.jpeg|\.png))(["'])`)
 
 func ReplaceToWebP(html string) string {

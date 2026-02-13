@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -16,15 +15,47 @@ import (
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 	"github.com/spf13/afero"
+	"github.com/zeebo/blake3"
 )
 
-// NormalizePath ensures forward slashes and consistent drive letter casing on Windows.
-func NormalizePath(p string) string {
-	p = filepath.ToSlash(p)
-	if runtime.GOOS == "windows" && len(p) >= 2 && p[1] == ':' {
-		return strings.ToUpper(p[:1]) + p[1:]
+// NormalizePath normalizes a file path for consistent cache keys and cross-platform compatibility.
+// Uses forward slashes, removes content/ prefix, converts to lowercase, and handles Windows drive letters.
+// Optimized to reduce allocations using strings.Builder.
+func NormalizePath(path string) string {
+	// Fast path: no content/ prefix and no backslashes
+	if !strings.Contains(path, "\\") && !strings.HasPrefix(path, "content/") {
+		return strings.ToLower(path)
 	}
-	return p
+
+	var b strings.Builder
+	b.Grow(len(path))
+
+	// Normalize separators and remove prefix in one pass
+	skipContent := strings.HasPrefix(path, "content/") || strings.HasPrefix(path, "content\\")
+	start := 0
+	if skipContent {
+		start = 8 // len("content/")
+	}
+
+	for i := start; i < len(path); i++ {
+		c := path[i]
+		if c == '\\' {
+			b.WriteByte('/')
+		} else if c >= 'A' && c <= 'Z' {
+			b.WriteByte(c + 32) // ToLower without function call
+		} else {
+			b.WriteByte(c)
+		}
+	}
+
+	result := b.String()
+
+	// Handle Windows drive letter casing if present
+	if runtime.GOOS == "windows" && len(result) >= 2 && result[1] == ':' {
+		return strings.ToUpper(result[:1]) + result[1:]
+	}
+
+	return result
 }
 
 // SafeRel is a wrapper around filepath.Rel that normalizes paths first to ensure consistency.
@@ -39,7 +70,8 @@ func SafeRel(base, target string) (string, error) {
 }
 
 // CopyDirVFS copies a directory from srcFs to destFs with parallel image processing.
-func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string) error {
+// imageWorkers specifies the number of parallel workers for image processing (0 uses runtime.NumCPU()).
+func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string, imageWorkers int) error {
 	srcDir = NormalizePath(srcDir)
 	dstDir = NormalizePath(dstDir)
 	// Create destination directory
@@ -58,9 +90,9 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 	var wg sync.WaitGroup
 
 	// Start Image Workers
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 4 {
-		numWorkers = 4 // Further cap to save memory
+	numWorkers := imageWorkers
+	if numWorkers <= 0 {
+		numWorkers = runtime.NumCPU()
 	}
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
@@ -170,7 +202,7 @@ func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string, c
 	var cacheFile string
 	if cacheDir != "" && err == nil {
 		key := fmt.Sprintf("%s-%d-%d", srcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())
-		hash := md5.Sum([]byte(key))
+		hash := blake3.Sum256([]byte(key))
 		hashStr := hex.EncodeToString(hash[:])
 		cacheFile = filepath.Join(cacheDir, hashStr+".webp")
 
@@ -255,10 +287,10 @@ func HydrateVFS(vfs afero.Fs, diskDir string) error {
 	})
 }
 
-// HashDirs generates a deterministic MD5 hash of multiple directories' contents.
+// HashDirs generates a deterministic BLAKE3 hash of multiple directories' contents.
 // It uses file content for accuracy.
 func HashDirs(dirs []string) (string, error) {
-	h := md5.New()
+	h := blake3.New()
 	for _, dir := range dirs {
 		err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
 			if err != nil {
@@ -284,10 +316,10 @@ func HashDirs(dirs []string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// HashDirsFast generates a deterministic MD5 hash based on file metadata (path, size, mtime).
+// HashDirsFast generates a deterministic BLAKE3 hash based on file metadata (path, size, mtime).
 // This is much faster than reading content but relies on filesystem timestamps.
 func HashDirsFast(dirs []string) (string, error) {
-	h := md5.New()
+	h := blake3.New()
 	for _, dir := range dirs {
 		err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
 			if err != nil {
@@ -307,10 +339,10 @@ func HashDirsFast(dirs []string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// HashFiles generates a deterministic MD5 hash of multiple files.
+// HashFiles generates a deterministic BLAKE3 hash of multiple files.
 func HashFiles(files []string) (string, error) {
 	sort.Strings(files)
-	h := md5.New()
+	h := blake3.New()
 	for _, path := range files {
 		f, err := os.Open(path)
 		if err != nil {

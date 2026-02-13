@@ -58,23 +58,38 @@ type ThemeConfig struct {
 	SupportsVersioning bool   `yaml:"supportsVersioning"`
 }
 
+type SocialCardsConfig struct {
+	Background string   `yaml:"background"`
+	Gradient   []string `yaml:"gradient"`
+	Angle      int      `yaml:"angle"`
+	TextColor  string   `yaml:"textColor"`
+}
+
 type Config struct {
-	Title          string         `yaml:"title"`
-	Description    string         `yaml:"description"`
-	BaseURL        string         `yaml:"baseURL"`
-	Language       string         `yaml:"language"`
-	Author         AuthorConfig   `yaml:"author"`
-	Menu           []MenuEntry    `yaml:"menu"`
-	PostsPerPage   int            `yaml:"postsPerPage"`
-	CompressImages bool           `yaml:"compressImages"`
-	Theme          string         `yaml:"theme"`
-	ThemeDir       string         `yaml:"themeDir"`
-	TemplateDir    string         `yaml:"templateDir"`
-	StaticDir      string         `yaml:"staticDir"`
-	Logo           string         `yaml:"logo"`     // Path to site logo/favicon
-	Versions       []Version      `yaml:"versions"` // Documentation versions
-	Features       FeaturesConfig `yaml:"features"` // Enable/Disable features
-	ThemeMetadata  ThemeConfig    `yaml:"-"`        // Loaded from theme.yaml
+	Title          string            `yaml:"title"`
+	Description    string            `yaml:"description"`
+	BaseURL        string            `yaml:"baseURL"`
+	Language       string            `yaml:"language"`
+	Author         AuthorConfig      `yaml:"author"`
+	Menu           []MenuEntry       `yaml:"menu"`
+	PostsPerPage   int               `yaml:"postsPerPage"`
+	CompressImages bool              `yaml:"compressImages"`
+	ImageWorkers   int               `yaml:"imageWorkers"` // Number of parallel image workers (default: 24)
+	Theme          string            `yaml:"theme"`
+	ThemeDir       string            `yaml:"themeDir"`
+	TemplateDir    string            `yaml:"templateDir"`
+	StaticDir      string            `yaml:"staticDir"`
+	Logo           string            `yaml:"logo"`     // Path to site logo/favicon
+	Versions       []Version         `yaml:"versions"` // Documentation versions
+	Features       FeaturesConfig    `yaml:"features"` // Enable/Disable features
+	ThemeMetadata  ThemeConfig       `yaml:"-"`        // Loaded from theme.yaml
+	SocialCards    SocialCardsConfig `yaml:"socialCards"`
+
+	// Configurable directory paths
+	ContentDir string `yaml:"contentDir"` // Content source directory (default: "content")
+	OutputDir  string `yaml:"outputDir"`  // Build output directory (default: "public")
+	CacheDir   string `yaml:"cacheDir"`   // Cache directory (default: ".kosh-cache")
+
 	// Internal / Runtime fields
 	ForceRebuild  bool  `yaml:"-"`
 	IncludeDrafts bool  `yaml:"-"`
@@ -89,9 +104,13 @@ func Load(args []string) *Config {
 		BaseURL:        "",
 		PostsPerPage:   10,
 		CompressImages: true, // Always compress for performance
+		ImageWorkers:   24,   // Default 24 parallel workers for image processing
 		BuildVersion:   time.Now().Unix(),
 		Theme:          "blog",
 		ThemeDir:       "themes",
+		ContentDir:     "content",
+		OutputDir:      "public",
+		CacheDir:       ".kosh-cache",
 		Features: FeaturesConfig{
 			RawMarkdown: false,
 			Generators: GeneratorsConfig{
@@ -101,6 +120,12 @@ func Load(args []string) *Config {
 				PWA:     true,
 				Search:  true,
 			},
+		},
+		SocialCards: SocialCardsConfig{
+			Background: "#faf8f5",
+			Gradient:   []string{"#e8e0d0", "#d4c4a8"},
+			Angle:      135,
+			TextColor:  "#1a1a1a",
 		},
 	}
 
@@ -116,6 +141,15 @@ func Load(args []string) *Config {
 				fmt.Printf("⚠️ Failed to parse config.yaml: %v\n", err)
 			}
 		}
+	}
+
+	// Validate and set defaults for ImageWorkers
+	if cfg.ImageWorkers <= 0 {
+		cfg.ImageWorkers = 24
+	}
+	// Cap at reasonable maximum to prevent resource exhaustion
+	if cfg.ImageWorkers > 32 {
+		cfg.ImageWorkers = 32
 	}
 
 	// 3. Apply Smart Defaults and resolve to absolute paths
@@ -146,6 +180,28 @@ func Load(args []string) *Config {
 		}
 	} else {
 		cfg.StaticDir = utils.NormalizePath(cfg.StaticDir)
+	}
+
+	// Resolve configurable directory paths to absolute paths
+	if cfg.ContentDir == "" {
+		cfg.ContentDir = "content"
+	}
+	if abs, err := filepath.Abs(cfg.ContentDir); err == nil {
+		cfg.ContentDir = utils.NormalizePath(abs)
+	}
+
+	if cfg.OutputDir == "" {
+		cfg.OutputDir = "public"
+	}
+	if abs, err := filepath.Abs(cfg.OutputDir); err == nil {
+		cfg.OutputDir = utils.NormalizePath(abs)
+	}
+
+	if cfg.CacheDir == "" {
+		cfg.CacheDir = ".kosh-cache"
+	}
+	if abs, err := filepath.Abs(cfg.CacheDir); err == nil {
+		cfg.CacheDir = utils.NormalizePath(abs)
 	}
 
 	// 3. Override with CLI Flags
@@ -186,12 +242,7 @@ func (cfg *Config) GetVersionsMetadata(currentVersion string) []models.VersionIn
 
 	var results []models.VersionInfo
 	for _, v := range cfg.Versions {
-		url := cfg.BaseURL
-		if v.Path != "" {
-			url += "/" + v.Path
-		} else {
-			url += "/"
-		}
+		url := utils.BuildURL(cfg.BaseURL, v.Path, "")
 
 		results = append(results, models.VersionInfo{
 			Name:      v.Name,

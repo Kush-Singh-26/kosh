@@ -2,6 +2,7 @@ package run
 
 import (
 	"os"
+	"path/filepath"
 	"sync"
 
 	"my-ssg/builder/generators"
@@ -12,12 +13,13 @@ import (
 func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, shouldForce bool) {
 	cfg := b.cfg
 	var genWg sync.WaitGroup
+	outputDir := cfg.OutputDir
 
 	if cfg.Features.Generators.Sitemap {
 		genWg.Add(1)
 		go func() {
 			defer genWg.Done()
-			generators.GenerateSitemap(b.DestFs, cfg.BaseURL, allContent, tagMap)
+			generators.GenerateSitemap(b.DestFs, cfg.BaseURL, allContent, tagMap, filepath.Join(outputDir, "sitemap", "sitemap.xml"))
 		}()
 	}
 
@@ -25,7 +27,7 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 		genWg.Add(1)
 		go func() {
 			defer genWg.Done()
-			generators.GenerateRSS(b.DestFs, cfg.BaseURL, allContent, cfg.Title, cfg.Description)
+			generators.GenerateRSS(b.DestFs, cfg.BaseURL, allContent, cfg.Title, cfg.Description, filepath.Join(outputDir, "rss.xml"))
 		}()
 	}
 
@@ -33,7 +35,7 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 		genWg.Add(1)
 		go func() {
 			defer genWg.Done()
-			if err := generators.GenerateSearchIndex(b.DestFs, "public", indexedPosts); err != nil {
+			if err := generators.GenerateSearchIndex(b.DestFs, outputDir, indexedPosts); err != nil {
 				b.logger.Error("Failed to generate search index", "error", err)
 			}
 		}()
@@ -42,13 +44,13 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 	if cfg.Features.Generators.Graph {
 		graphHash, _ := utils.GetGraphHash(allContent)
 		cachedGraphHash := ""
-		if b.cacheManager != nil {
-			cachedGraphHash, _ = b.cacheManager.GetGraphHash()
+		if b.cacheService != nil {
+			cachedGraphHash, _ = b.cacheService.GetGraphHash()
 		}
 
 		// Check if graph.json exists on disk
 		graphExists := false
-		if _, err := os.Stat("public/graph.json"); err == nil {
+		if _, err := os.Stat(filepath.Join(cfg.OutputDir, "graph.json")); err == nil {
 			graphExists = true
 		}
 
@@ -56,9 +58,9 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 			genWg.Add(1)
 			go func() {
 				defer genWg.Done()
-				generators.GenerateGraph(b.DestFs, cfg.BaseURL, allContent)
-				if b.cacheManager != nil {
-					_ = b.cacheManager.SetGraphHash(graphHash)
+				generators.GenerateGraph(b.DestFs, cfg.BaseURL, allContent, filepath.Join(outputDir, "graph.json"))
+				if b.cacheService != nil {
+					_ = b.cacheService.SetGraphHash(graphHash)
 				}
 			}()
 		}

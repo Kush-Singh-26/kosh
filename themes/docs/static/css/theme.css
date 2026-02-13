@@ -1,48 +1,312 @@
+/* Nexus Prime - Documentation Theme
+ * A high-contrast, technical documentation theme
+ * Prioritizes scannability, code legibility, and structural precision
+ */
+
+/* ========================================
+   1. CSS Custom Properties (Design Tokens)
+   ======================================== */
+
 :root {
-    /* Docs Theme Colors */
-    --bg-color: #ffffff;
-    --text-color: #333333;
-    --primary-color: #2563eb;
-    --sidebar-bg: #f8fafc;
-    --border-color: #e2e8f0;
+  /* ----------------------------------------
+     Typography
+     ---------------------------------------- */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, Monaco, monospace;
+  
+  /* Type Scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  
+  /* ----------------------------------------
+     Spacing Scale
+     ---------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  
+  /* ----------------------------------------
+     Border Radius
+     ---------------------------------------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+  
+  /* ----------------------------------------
+     Shadows
+     ---------------------------------------- */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  /* ----------------------------------------
+     Light Mode Palette
+     ---------------------------------------- */
+  
+  /* Background Colors */
+  --bg-body: #ffffff;
+  --bg-surface: #f8fafc;
+  --bg-hover: #f1f5f9;
+  --bg-active: #e2e8f0;
+  --bg-border: #e2e8f0;
+  --bg-code-block: #0f172a;
+  
+  /* Text Colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+  
+  /* Brand & Semantic Colors */
+  --color-brand: #4f46e5;
+  --color-brand-light: #e0e7ff;
+  --color-brand-dark: #3730a3;
+  --color-info: #0ea5e9;
+  --color-info-light: #e0f2fe;
+  --color-success: #10b981;
+  --color-success-light: #d1fae5;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fef3c7;
+  --color-danger: #ef4444;
+  --color-danger-light: #fee2e2;
+  
+  /* Syntax Highlighting - Light Mode */
+  --token-keyword: #7e22ce;
+  --token-function: #0284c7;
+  --token-string: #15803d;
+  --token-comment: #94a3b8;
+  --token-number: #be185d;
+  --token-operator: #334155;
 
-    /* Admonition Colors */
-    --note-bg: #eff6ff;
-    --note-border: #2563eb;
-    --warn-bg: #fffbeb;
-    --warn-border: #f59e0b;
-    --tip-bg: #f0fdf4;
-    --tip-border: #22c55e;
-    --danger-bg: #fef2f2;
-    --danger-border: #ef4444;
-
-    /* Typography */
-    --font-sans: system-ui, -apple-system, sans-serif;
-    --font-mono: ui-monospace, monospace;
+  /* Compatibility Aliases (for modal.css and templates) */
+  --primary-color: var(--color-brand);
+  --primary-hover: var(--color-brand-dark);
+  --primary-color-rgb: 79, 70, 229;
+  --border-color: var(--bg-border);
+  --text-color: var(--text-secondary);
+  --bg-card: var(--bg-surface);
+  --bg-color: var(--bg-body);
+  --sidebar-bg: var(--bg-surface);
+  --bg-tint: var(--bg-hover);
+  --text-main: var(--text-primary);
 }
 
-[data-theme="dark"] {
-    --bg-color: #0f172a;
-    --text-color: #e2e8f0;
-    --primary-color: #60a5fa;
-    --sidebar-bg: #1e293b;
-    --border-color: #334155;
+/* ========================================
+   Dark Mode Palette
+   ======================================== */
 
-    /* Admonition Colors Dark */
-    --note-bg: #1e3a8a;
-    --note-border: #60a5fa;
-    --warn-bg: #78350f;
-    --warn-border: #fbbf24;
-    --tip-bg: #064e3b;
-    --tip-border: #4ade80;
-    --danger-bg: #7f1d1d;
-    --danger-border: #f87171;
+[data-theme="dark"] {
+  /* Background Colors */
+  --bg-body: #020617;
+  --bg-surface: #0f172a;
+  --bg-hover: #1e293b;
+  --bg-active: #334155;
+  --bg-border: #334155;
+  --bg-code-block: #1e293b;
+  
+  /* Text Colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --text-inverse: #0f172a;
+  
+  /* Brand & Semantic Colors (Luminous) */
+  --color-brand: #818cf8;
+  --color-brand-light: #312e81;
+  --color-brand-dark: #a5b4fc;
+  --color-info: #38bdf8;
+  --color-info-light: #0c4a6e;
+  --color-success: #34d399;
+  --color-success-light: #064e3b;
+  --color-warning: #fbbf24;
+  --color-warning-light: #78350f;
+  --color-danger: #f87171;
+  --color-danger-light: #7f1d1d;
+  
+  /* Syntax Highlighting - Dark Mode */
+  --token-keyword: #c084fc;
+  --token-function: #38bdf8;
+  --token-string: #4ade80;
+  --token-comment: #64748b;
+  --token-number: #f472b6;
+  --token-operator: #cbd5e1;
+
+  /* Compatibility Aliases (for modal.css and templates) */
+  --primary-color: var(--color-brand);
+  --primary-hover: var(--color-brand-dark);
+  --primary-color-rgb: 129, 140, 248;
+  --border-color: var(--bg-border);
+  --text-color: var(--text-secondary);
+  --bg-card: var(--bg-surface);
+  --bg-color: var(--bg-body);
+  --sidebar-bg: var(--bg-surface);
+  --bg-tint: var(--bg-hover);
+  --text-main: var(--text-primary);
+}
+
+/* ========================================
+   Base Styles
+   ======================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-    font-family: var(--font-sans);
-    background: var(--bg-color);
-    color: var(--text-color);
-    margin: 0;
-    line-height: 1.6;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--text-secondary);
+  background-color: var(--bg-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========================================
+   Typography
+   ======================================== */
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+h1 {
+  font-size: var(--text-4xl);
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: var(--space-4);
+}
+
+h2 {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  margin-top: var(--space-10);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--bg-border);
+  scroll-margin-top: 5rem;
+}
+
+h3 {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-3);
+}
+
+h4 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-2);
+}
+
+p {
+  margin-bottom: var(--space-4);
+  max-width: 80ch;
+}
+
+a {
+  color: var(--color-brand);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--color-brand-dark);
+  text-decoration: underline;
+}
+
+[data-theme="dark"] a:hover {
+  color: var(--color-brand-dark);
+}
+
+/* Lists */
+ul, ol {
+  margin-bottom: var(--space-4);
+  padding-left: var(--space-6);
+}
+
+li {
+  margin-bottom: var(--space-2);
+}
+
+/* Inline Code */
+code:not(pre code) {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-surface);
+  color: var(--color-brand);
+  border: 1px solid var(--bg-border);
+  padding: 0.1em 0.3em;
+  border-radius: var(--radius-sm);
+}
+
+/* Strong and Emphasis */
+strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Blockquotes */
+blockquote {
+  border-left: 4px solid var(--color-brand);
+  background: var(--bg-surface);
+  padding: var(--space-4) var(--space-5);
+  margin: var(--space-6) 0;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  font-style: italic;
+}
+
+blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* Horizontal Rule */
+hr {
+  border: none;
+  border-top: 1px solid var(--bg-border);
+  margin: var(--space-8) 0;
+}
+
+/* Images */
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+/* Selection */
+::selection {
+  background: var(--color-brand-light);
+  color: var(--color-brand-dark);
+}
+
+[data-theme="dark"] ::selection {
+  background: var(--color-brand-light);
+  color: var(--text-primary);
 }

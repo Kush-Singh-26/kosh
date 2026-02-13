@@ -6,9 +6,12 @@ import (
 	"image/color"
 	_ "image/png"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 
 	"my-ssg/builder/assets"
+	"my-ssg/builder/config"
 
 	"github.com/chai2010/webp"
 	"github.com/fogleman/gg"
@@ -17,12 +20,10 @@ import (
 )
 
 var (
-	fontCache     = make(map[string]*truetype.Font)
-	fontMu        sync.RWMutex
-	baseCardImage image.Image
-	baseCardOnce  sync.Once
-	faviconImage  image.Image
-	faviconOnce   sync.Once
+	fontCache    = make(map[string]*truetype.Font)
+	fontMu       sync.RWMutex
+	faviconImage image.Image
+	faviconOnce  sync.Once
 )
 
 func getFaviconImage(fs afero.Fs, path string) image.Image {
@@ -77,9 +78,106 @@ func setFontFace(dc *gg.Context, fontPath string, points float64) error {
 	return nil
 }
 
+// hexToRGBA converts a hex color string to color.RGBA
+func hexToRGBA(hex string) color.RGBA {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) != 6 {
+		return color.RGBA{0, 0, 0, 255}
+	}
+
+	r, _ := strconv.ParseUint(hex[0:2], 16, 8)
+	g, _ := strconv.ParseUint(hex[2:4], 16, 8)
+	b, _ := strconv.ParseUint(hex[4:6], 16, 8)
+
+	return color.RGBA{uint8(r), uint8(g), uint8(b), 255}
+}
+
+// drawGradient draws a linear gradient on the context
+func drawGradient(dc *gg.Context, w, h int, colors []string, angle int) {
+	if len(colors) < 2 {
+		// If only one color or no colors, use solid background
+		bg := "#faf8f5"
+		if len(colors) == 1 {
+			bg = colors[0]
+		}
+		dc.SetColor(hexToRGBA(bg))
+		dc.Clear()
+		return
+	}
+
+	// Convert colors
+	parsedColors := make([]color.RGBA, len(colors))
+	for i, c := range colors {
+		parsedColors[i] = hexToRGBA(c)
+	}
+
+	// Normalize angle to 0-360
+	angle = angle % 360
+	if angle < 0 {
+		angle += 360
+	}
+
+	// Draw gradient as a series of rectangles
+	// For simplicity, we'll use a pixel-by-pixel approach for small dimensions
+	// or line-by-line for larger dimensions
+	steps := h
+	isHorizontal := angle >= 45 && angle < 135 || angle >= 225 && angle < 315
+	if !isHorizontal {
+		steps = w
+	}
+
+	for i := 0; i < steps; i++ {
+		t := float64(i) / float64(steps-1)
+
+		// Interpolate color
+		colorIdx := t * float64(len(parsedColors)-1)
+		idx1 := int(colorIdx)
+		idx2 := idx1 + 1
+		if idx2 >= len(parsedColors) {
+			idx2 = len(parsedColors) - 1
+		}
+
+		localT := colorIdx - float64(idx1)
+		c1 := parsedColors[idx1]
+		c2 := parsedColors[idx2]
+
+		r := uint8(float64(c1.R)*(1-localT) + float64(c2.R)*localT)
+		g := uint8(float64(c1.G)*(1-localT) + float64(c2.G)*localT)
+		b := uint8(float64(c1.B)*(1-localT) + float64(c2.B)*localT)
+
+		dc.SetRGBA(float64(r)/255, float64(g)/255, float64(b)/255, 1)
+
+		if isHorizontal {
+			// Draw horizontal strip
+			dc.DrawRectangle(0, float64(i), float64(w), 1)
+		} else {
+			// Draw vertical strip
+			dc.DrawRectangle(float64(i), 0, 1, float64(h))
+		}
+		dc.Fill()
+	}
+}
+
+// drawDotPattern adds a visible dot pattern overlay
+func drawDotPattern(dc *gg.Context, w, h int) {
+	// More visible warm brown dots
+	dc.SetRGBA255(120, 100, 80, 35) // Warm brown with ~14% opacity
+
+	// Grid spacing
+	spacing := 36
+	dotRadius := 1.5
+
+	for x := spacing / 2; x < w; x += spacing {
+		for y := spacing / 2; y < h; y += spacing {
+			dc.DrawCircle(float64(x), float64(y), dotRadius)
+			dc.Fill()
+		}
+	}
+}
+
 // GenerateSocialCardToDisk writes directly to a file path on disk
-func GenerateSocialCardToDisk(srcFs afero.Fs, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
-	img, err := generateSocialCardImage(srcFs, siteTitle, title, description, dateStr, faviconPath)
+func GenerateSocialCardToDisk(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
+	img, err := generateSocialCardImage(srcFs, cfg, siteTitle, title, description, dateStr, faviconPath)
 	if err != nil {
 		return err
 	}
@@ -93,9 +191,9 @@ func GenerateSocialCardToDisk(srcFs afero.Fs, siteTitle, title, description, dat
 	return webp.Encode(f, img, &webp.Options{Lossless: false, Quality: 85})
 }
 
-// GenerateSocialCard creates an Apple Dark Mode aesthetic Open Graph image.
-func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
-	img, err := generateSocialCardImage(srcFs, siteTitle, title, description, dateStr, faviconPath)
+// GenerateSocialCard creates a configurable gradient social card.
+func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
+	img, err := generateSocialCardImage(srcFs, cfg, siteTitle, title, description, dateStr, faviconPath)
 	if err != nil {
 		return err
 	}
@@ -109,22 +207,7 @@ func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, siteTitle, title, descr
 	return webp.Encode(f, img, &webp.Options{Lossless: false, Quality: 85})
 }
 
-func getBaseCardImage(w, h int) image.Image {
-	baseCardOnce.Do(func() {
-		dc := gg.NewContext(w, h)
-		// --- 1. Canvas & Background (Dark Mode) ---
-		dc.SetColor(color.RGBA{10, 10, 10, 255})
-		dc.Clear()
-
-		// --- 2. Ambient Lighting (The "Aurora" Effect) ---
-		drawDiffuseOrb(dc, 0, 0, 700, color.RGBA{94, 92, 230, 15})
-		drawDiffuseOrb(dc, float64(w), float64(h), 800, color.RGBA{48, 176, 199, 12})
-		baseCardImage = dc.Image()
-	})
-	return baseCardImage
-}
-
-func generateSocialCardImage(srcFs afero.Fs, siteTitle, title, description, dateStr, faviconPath string) (image.Image, error) {
+func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, faviconPath string) (image.Image, error) {
 	const (
 		W = 1200
 		H = 630
@@ -132,8 +215,12 @@ func generateSocialCardImage(srcFs afero.Fs, siteTitle, title, description, date
 
 	dc := gg.NewContext(W, H)
 
-	// Draw pre-rendered background
-	dc.DrawImage(getBaseCardImage(W, H), 0, 0)
+	// --- 1. Draw Gradient Background ---
+	allColors := append([]string{cfg.Background}, cfg.Gradient...)
+	drawGradient(dc, W, H, allColors, cfg.Angle)
+
+	// --- 2. Draw Dot Pattern Overlay ---
+	drawDotPattern(dc, W, H)
 
 	// --- 3. Typography Setup ---
 	boldFont := "Inter-Bold.ttf"
@@ -143,6 +230,11 @@ func generateSocialCardImage(srcFs afero.Fs, siteTitle, title, description, date
 	marginX := 80.0
 	headerY := 90.0
 	maxWidth := float64(W) - (marginX * 2)
+
+	textColor := hexToRGBA(cfg.TextColor)
+	textColorSecondary := textColor
+	// Make secondary text 60% opacity
+	textColorSecondary.A = uint8(float64(textColor.A) * 0.6)
 
 	// --- 4. Header: Logo + Brand (Top Left) ---
 	currentX := marginX
@@ -165,13 +257,13 @@ func generateSocialCardImage(srcFs afero.Fs, siteTitle, title, description, date
 	}
 
 	if err := setFontFace(dc, boldFont, 28); err == nil {
-		dc.SetColor(color.RGBA{255, 255, 255, 255})
+		dc.SetColor(textColor)
 		dc.DrawString(siteTitle, currentX, headerY)
 	}
 
 	// --- 5. Header: Date (Top Right) ---
 	if err := setFontFace(dc, mediumFont, 24); err == nil {
-		dc.SetColor(color.RGBA{245, 245, 247, 255})
+		dc.SetColor(textColor)
 		w, _ := dc.MeasureString(dateStr)
 		dc.DrawString(dateStr, float64(W)-marginX-w, headerY)
 	}
@@ -184,7 +276,7 @@ func generateSocialCardImage(srcFs afero.Fs, siteTitle, title, description, date
 		return nil, fmt.Errorf("failed to load bold font: %w", err)
 	}
 
-	dc.SetColor(color.RGBA{245, 245, 247, 255})
+	dc.SetColor(textColor)
 	titleY := 280.0
 	dc.DrawStringWrapped(title, marginX, titleY, 0, 0, maxWidth, titleLineSpacing, gg.AlignLeft)
 
@@ -193,32 +285,10 @@ func generateSocialCardImage(srcFs afero.Fs, siteTitle, title, description, date
 
 	// --- 7. The Description ---
 	if err := setFontFace(dc, regFont, 40); err == nil {
-		dc.SetColor(color.RGBA{174, 174, 178, 255})
+		dc.SetColor(textColorSecondary)
 		descY := titleY + titleHeight + 25
 		dc.DrawStringWrapped(description, marginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
 	}
 
 	return dc.Image(), nil
-}
-
-// drawDiffuseOrb simulates a gradient mesh/blur
-// kept for initial generation of base image
-func drawDiffuseOrb(dc *gg.Context, x, y, maxRadius float64, baseColor color.RGBA) {
-	dc.Push()
-
-	// Optimized: Reduced steps from 100 to 30
-	steps := 30
-	r, g, b := int(baseColor.R), int(baseColor.G), int(baseColor.B)
-
-	for i := 0; i < steps; i++ {
-		progress := float64(i) / float64(steps)
-		radius := maxRadius * (1.0 - progress)
-		alpha := float64(baseColor.A) * (1.0 - progress)
-
-		dc.SetRGBA255(r, g, b, int(alpha))
-		dc.DrawCircle(x, y, radius)
-		dc.Fill()
-	}
-
-	dc.Pop()
 }

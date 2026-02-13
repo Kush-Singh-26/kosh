@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/spf13/afero"
+	"github.com/zeebo/blake3"
 )
 
 func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string) (map[string]string, error) {
@@ -24,7 +24,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 	var cssEntryPoints []string
 
 	// Calculate input hash
-	inputHash := md5.New()
+	inputHash := blake3.New()
 
 	// Find entry points
 	err := afero.Walk(srcFs, srcDir, func(path string, info fs.FileInfo, err error) error {
@@ -142,32 +142,30 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 
 		for _, outFile := range result.OutputFiles {
 			fullPath := NormalizePath(outFile.Path)
-			cwd, _ := os.Getwd()
-			cwd = NormalizePath(cwd)
-
-			path := fullPath
-			if strings.HasPrefix(fullPath, cwd) {
-				path = strings.TrimPrefix(fullPath, cwd)
+			// Compute relative path from destDir for VFS
+			relPath, err := filepath.Rel(destDir, fullPath)
+			if err != nil {
+				return fmt.Errorf("failed to compute relative path for %s: %w", fullPath, err)
 			}
-			path = strings.TrimPrefix(path, "/")
+			vfsPath := filepath.Join(destDir, relPath)
 
-			dir := filepath.Dir(path)
+			dir := filepath.Dir(vfsPath)
 			if err := destFs.MkdirAll(dir, 0755); err != nil {
 				return err
 			}
-			if err := afero.WriteFile(destFs, path, outFile.Contents, 0644); err != nil {
+			if err := afero.WriteFile(destFs, vfsPath, outFile.Contents, 0644); err != nil {
 				return err
 			}
 			if onWrite != nil {
-				onWrite(path)
+				onWrite(vfsPath)
 			}
 
 			// Cache the output file
 			if cachePath != "" {
 				// Relativize path from destDir (public/static)
-				// path is public/static/css/main.css
+				// vfsPath is public/static/css/main.css
 				// rel is css/main.css
-				rel, err := filepath.Rel(destDir, path)
+				rel, err := filepath.Rel(destDir, vfsPath)
 				if err == nil {
 					cacheFile := filepath.Join(cachePath, rel)
 					_ = os.MkdirAll(filepath.Dir(cacheFile), 0755)

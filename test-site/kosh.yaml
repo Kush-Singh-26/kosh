@@ -1,22 +1,25 @@
 baseURL: "http://localhost:2604"
-title: "Docs Test Site"
+title: "Kosh"
 logo: "static/images/logo.png"
 theme: "docs"
 themeDir: "../themes"
 languageCode: "en-us"
 author:
-  name: "Author Name"
+  name: "Kush Singh"
   email: "author@example.com"
 build:
   drafts: true
 
 # Version configuration for documentation
 versions:
-  - name: "v3.0 (latest)"
+  - name: "v4.0"
     path: ""
-    isLatest: true
+  - name: "v3.0"
+    path: "v3.0"
   - name: "v2.0"
     path: "v2.0"
+  - name: "v1.0"
+    path: "v1.0"
 
 features:
   rawMarkdown: true
@@ -26,3 +29,17 @@ features:
     graph: true
     pwa: true
     search: true
+
+# Social Cards (Open Graph Images)
+socialCards:
+  background: "#faf8f5"    # Base background color (warm cream)
+  gradient:                # Gradient colors - visible beige to brown
+    - "#e8e0d0"            # Medium beige
+    - "#d4c4a8"            # Darker brown-beige
+  angle: 135               # Gradient angle in degrees
+  textColor: "#1a1a1a"     # Text color
+
+# Directory Paths (Optional - defaults shown below)
+# contentDir: "content"      # Source content directory
+# outputDir: "public"        # Build output directory  
+# cacheDir: ".kosh-cache"    # Cache directory for incremental builds

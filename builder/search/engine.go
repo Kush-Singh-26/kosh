@@ -22,6 +22,34 @@ type Result struct {
 	Score       float64
 }
 
+// Searchable interface defines what is needed for the generic search engine
+type Searchable interface {
+	GetID() int
+	GetTitle() string
+	GetNormalizedTitle() string
+	GetLink() string
+	GetDescription() string
+	GetContent() string
+	GetTags() []string
+	GetNormalizedTags() []string
+	GetVersion() string
+}
+
+// PostRecordWrapper wraps models.PostRecord to satisfy Searchable
+type PostRecordWrapper struct {
+	*models.PostRecord
+}
+
+func (p PostRecordWrapper) GetID() int                  { return p.ID }
+func (p PostRecordWrapper) GetTitle() string            { return p.Title }
+func (p PostRecordWrapper) GetNormalizedTitle() string  { return p.NormalizedTitle }
+func (p PostRecordWrapper) GetLink() string             { return p.Link }
+func (p PostRecordWrapper) GetDescription() string      { return p.Description }
+func (p PostRecordWrapper) GetContent() string          { return p.Content }
+func (p PostRecordWrapper) GetTags() []string           { return p.Tags }
+func (p PostRecordWrapper) GetNormalizedTags() []string { return p.NormalizedTags }
+func (p PostRecordWrapper) GetVersion() string          { return p.Version }
+
 func PerformSearch(index *models.SearchIndex, query string, versionFilter string) []Result {
 	query = strings.ToLower(query)
 	if query == "" {
@@ -70,7 +98,7 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 				}
 
 				if tagFilter != "" {
-					if !HasTag(post.Tags, tagFilter) {
+					if !HasTagNormalized(post.NormalizedTags, tagFilter) {
 						continue
 					}
 				}
@@ -82,8 +110,24 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		}
 	}
 
-	// Boost title and tag matches
-	for i, post := range index.Posts {
+	// Initialize scores for tag-only queries (when queryTerms is empty but tagFilter exists)
+	if len(queryTerms) == 0 && tagFilter != "" {
+		for i := range index.Posts {
+			post := &index.Posts[i]
+			if versionFilter != "all" && post.Version != versionFilter {
+				continue
+			}
+			if HasTagNormalized(post.NormalizedTags, tagFilter) {
+				scores[i] = 1.0
+			}
+		}
+	}
+
+	// Boost title and tag matches using PRE-COMPUTED fields
+	// This removes runtime strings.ToLower calls in the hot loop
+	for i := range index.Posts {
+		post := &index.Posts[i]
+
 		// Version Filter
 		if versionFilter != "all" {
 			if post.Version != versionFilter {
@@ -91,16 +135,18 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 			}
 		}
 
-		if tagFilter != "" && !HasTag(post.Tags, tagFilter) {
+		if tagFilter != "" && !HasTagNormalized(post.NormalizedTags, tagFilter) {
 			continue
 		}
 
-		lowerTitle := strings.ToLower(post.Title)
-		if query != "" && strings.Contains(lowerTitle, query) {
+		// Use pre-computed NormalizedTitle
+		if query != "" && strings.Contains(post.NormalizedTitle, query) {
 			scores[i] += 10.0
 		}
-		for _, tag := range post.Tags {
-			if strings.ToLower(tag) == query {
+
+		// Use pre-computed NormalizedTags
+		for _, tag := range post.NormalizedTags {
+			if tag == query {
 				scores[i] += 5.0
 			}
 		}
@@ -142,6 +188,17 @@ func Tokenize(text string) []string {
 	})
 }
 
+// HasTagNormalized checks tags against a pre-normalized target using exact match
+func HasTagNormalized(normalizedTags []string, target string) bool {
+	for _, t := range normalizedTags {
+		if t == target {
+			return true
+		}
+	}
+	return false
+}
+
+// Deprecated: Use HasTagNormalized with pre-computed tags instead
 func HasTag(tags []string, target string) bool {
 	for _, t := range tags {
 		if strings.EqualFold(t, target) {

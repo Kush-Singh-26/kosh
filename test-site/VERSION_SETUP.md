@@ -162,3 +162,16 @@ public/
 - `builder/run/pipeline_posts.go` - Version-aware rendering
 - `test-site/themes/docs/templates/layout.html` - Version UI
 - `test-site/themes/docs/static/css/layout.css` - Version styles
+
+
+
+| Category | Severity | Location | Observation | Recommendation |
+| :--- | :--- | :--- | :--- | :--- |
+| Discrepancy | Critical | builder/utils/fs.go:61-64 | README.md (Line 17, 374) claims 24 parallel workers for image processing. The code explicitly caps numWorkers at 4 to "save memory." | Either increase the cap to 24 (if memory allows) or update the documentation to reflect the actual limit of 4. |
+| Discrepancy | Warning | builder/run/pipeline_posts.go:90-93 | README.md (Line 8) claims 8 directory scanners, but the processPosts worker pool is capped at 12 (and uses runtime.NumCPU() otherwise). | Standardize the worker pool configuration or move these values to kosh.yaml to match documentation. |
+| Redundancy | Critical | builder/utils/fs.go, builder/utils/minifier.go, builder/cache/cache.go | Violates DRY: Path normalization is implemented in NormalizePath (utils/fs), NormalizeCacheKey (utils/minifier), and normalizePath (cache/cache). Each has slightly different logic for Windows compatibility. | Consolidate into a single utils.NormalizePath function. The version in cache.go is the most optimized (using strings.Builder); it should be the project-wide standard. |
+| Redundancy | Warning | builder/utils/version.go:37, 80 | BuildPostLink and BuildVersionedURL are nearly identical. BuildPostLink is used in post processing, while BuildVersionedURL is used in meta-generation. | Merge these into a single utility function. Having two "link builders" for the same logic increases the risk of one breaking (as seen in the protocol slash bug). |
+| Redundancy | Nitpick | builder/run/pipeline_posts.go:109-120 | Phase 0 manually loads metadata from cache into allMetadataMap, then the loop at Line 416 does the same. | Refactor the collection phase to use a single source of truth for metadata grouping to reduce memory allocations and loop iterations. |
+| Safety | Warning | internal/server/server.go:197-211 | Performance Sink: The SSE /events endpoint performs a full recursive directory walk (filepath.Walk) every 500ms per client. For large sites, this will cause high disk I/O. | Implement fsnotify or a similar event-based watcher instead of polling the entire directory tree. |
+| Safety | Warning | builder/utils/version.go:18-27 | GetVersionFromPath assumes the path always starts with a segment before the version (likely "content/"). If an absolute path is used, the index-based logic (parts[i+1:]) will produce incorrect relative paths. | Use filepath.Rel against the configured ContentDir to ensure the path is always relative before segmenting. |
+| Safety | Nitpick | builder/cache/cache.go:61-65 | In isDev mode, NoGrowSync is enabled for speed. While safe for dev, there is no logic to prevent a user from accidentally running a production build with isDev=true via environment variables. | Ensure that critical durability settings are strictly tied to the --dev CLI flag rather than just an internal boolean that might be misconfigured. |

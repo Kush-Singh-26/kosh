@@ -12,7 +12,7 @@ import (
 	"my-ssg/builder/utils"
 )
 
-func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata) {
+func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) {
 	fmt.Println("🗺️  Generating sitemap...")
 
 	var urls []models.Url
@@ -55,8 +55,7 @@ func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadat
 	}
 
 	finalOutput := []byte(xml.Header + string(output))
-
-	if err := utils.WriteFileVFS(destFs, "public/sitemap/sitemap.xml", finalOutput); err != nil {
+	if err := utils.WriteFileVFS(destFs, outputPath, finalOutput); err != nil {
 		fmt.Printf("⚠️ Failed to write sitemap.xml: %v\n", err)
 	}
 }

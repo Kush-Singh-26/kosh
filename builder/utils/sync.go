@@ -36,26 +36,44 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 		// Differential Sync: Only sync if dirtyFiles is nil (full sync)
 		// or if the specific file is in the dirty map.
 		// Always sync .nojekyll, sitemap, rss, search_index, manifest, sw.js, graph.json
+		// Build alwaysSync map dynamically based on target directory name
+		targetBase := filepath.Base(targetDirClean)
 		alwaysSync := map[string]bool{
-			"public/.nojekyll":               true,
-			"public/sitemap.xml":             true,
-			"public/sitemap/sitemap.xml":     true,
-			"public/rss.xml":                 true,
-			"public/search_index.json":       true,
-			"public/search.bin":              true,
-			"public/manifest.json":           true,
-			"public/sw.js":                   true,
-			"public/graph.json":              true,
-			"public/static/search.wasm":      true,
-			"public/static/wasm/search.wasm": true,
+			targetBase + "/.nojekyll":               true,
+			targetBase + "/sitemap.xml":             true,
+			targetBase + "/sitemap/sitemap.xml":     true,
+			targetBase + "/rss.xml":                 true,
+			targetBase + "/search_index.json":       true,
+			targetBase + "/search.bin":              true,
+			targetBase + "/manifest.json":           true,
+			targetBase + "/sw.js":                   true,
+			targetBase + "/graph.json":              true,
+			targetBase + "/static/search.wasm":      true,
+			targetBase + "/static/wasm/search.wasm": true,
 		}
 
+		pathNormalized := filepath.ToSlash(path)
+
 		if dirtyFiles != nil {
-			pathNormalized := filepath.ToSlash(path)
-			// Always sync static assets, markdown files, and specific global files
-			isStatic := strings.HasPrefix(pathNormalized, "public/static/")
-			isMarkdown := strings.HasSuffix(pathNormalized, ".md")
-			if !dirtyFiles[pathNormalized] && !alwaysSync[pathNormalized] && !isStatic && !isMarkdown {
+			relPath, relErr := filepath.Rel(targetDirClean, path)
+			if relErr != nil {
+				relPath = pathNormalized
+			}
+			relPath = filepath.ToSlash(relPath)
+
+			alwaysSyncKey := targetBase + "/" + relPath
+			isStatic := strings.HasPrefix(relPath, "static/")
+			isMarkdown := strings.HasSuffix(relPath, ".md")
+			isAlwaysSync := alwaysSync[alwaysSyncKey]
+			isDirty := dirtyFiles[pathNormalized]
+
+			// Debug logging for social cards
+			// if strings.Contains(pathNormalized, ".webp") {
+			// 	fmt.Printf("DEBUG SyncVFS webp: path=%s normalized=%s relPath=%s isDirty=%v isStatic=%v\n",
+			// 		path, pathNormalized, relPath, isDirty, isStatic)
+			// }
+
+			if !isDirty && !isAlwaysSync && !isStatic && !isMarkdown {
 				return nil
 			}
 		}
@@ -97,6 +115,8 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 	wg.Wait()
 	close(errChan)
 
+	// fmt.Printf("DEBUG SyncVFS: Found %d files, syncing %d files\n", fileCount, len(filesToSync))
+
 	if len(errChan) > 0 {
 		return <-errChan
 	}
@@ -117,15 +137,18 @@ func syncSingleFile(srcFs afero.Fs, path string) error {
 		return err
 	}
 
+	// Convert path to OS-specific format for disk operations
+	osPath := filepath.FromSlash(path)
+
 	// Check if destination exists with same content
-	destContent, err := os.ReadFile(path)
+	destContent, err := os.ReadFile(osPath)
 	if err == nil && bytes.Equal(srcContent, destContent) {
 		return nil // Identical - skip write
 	}
 
 	// Destination missing or different - write it
 	// Ensure directory exists (Optimized)
-	dir := filepath.Dir(path)
+	dir := filepath.Dir(osPath)
 
 	createdDirsMu.RLock()
 	exists := createdDirs[dir]
@@ -140,5 +163,5 @@ func syncSingleFile(srcFs afero.Fs, path string) error {
 		createdDirsMu.Unlock()
 	}
 
-	return os.WriteFile(path, srcContent, 0644)
+	return os.WriteFile(osPath, srcContent, 0644)
 }

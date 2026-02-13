@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -9,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/spf13/afero"
-	"github.com/yuin/goldmark"
 	"gopkg.in/yaml.v3"
 
 	"my-ssg/builder/cache"
@@ -18,6 +18,7 @@ import (
 	mdParser "my-ssg/builder/parser"
 	"my-ssg/builder/renderer"
 	"my-ssg/builder/renderer/native"
+	"my-ssg/builder/services"
 	"my-ssg/builder/utils"
 	"my-ssg/internal/build"
 )
@@ -26,8 +27,13 @@ import (
 type Builder struct {
 	cfg *config.Config
 
-	// BoltDB-based cache
-	cacheManager   *cache.Manager
+	// Services
+	cacheService  services.CacheService
+	postService   services.PostService
+	assetService  services.AssetService
+	renderService services.RenderService
+
+	// Legacy access if needed (or for SaveCaches/Close)
 	diagramAdapter *cache.DiagramCacheAdapter
 
 	// Structured logging
@@ -36,10 +42,7 @@ type Builder struct {
 	// Build metrics tracking
 	metrics *metrics.BuildMetrics
 
-	md       goldmark.Markdown
-	rnd      *renderer.Renderer
-	native   *native.Renderer
-	mu       sync.Mutex
+	// Filesystems
 	SourceFs afero.Fs
 	DestFs   afero.Fs
 }
@@ -65,17 +68,17 @@ func NewBuilder(args []string) *Builder {
 	buildMetrics := metrics.NewBuildMetrics()
 
 	// Create cache directory if it doesn't exist
-	_ = os.MkdirAll(".kosh-cache", 0755)
-	_ = os.MkdirAll(".kosh-cache/social-cards", 0755)
-	_ = os.MkdirAll(".kosh-cache/assets", 0755)
-	_ = os.MkdirAll(".kosh-cache/images", 0755)
-	_ = os.MkdirAll(".kosh-cache/pwa-icons", 0755)
+	_ = os.MkdirAll(cfg.CacheDir, 0755)
+	_ = os.MkdirAll(filepath.Join(cfg.CacheDir, "social-cards"), 0755)
+	_ = os.MkdirAll(filepath.Join(cfg.CacheDir, "assets"), 0755)
+	_ = os.MkdirAll(filepath.Join(cfg.CacheDir, "images"), 0755)
+	_ = os.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), 0755)
 
 	// Open BoltDB cache
 	var cacheManager *cache.Manager
 	var diagramAdapter *cache.DiagramCacheAdapter
 
-	cm, err := cache.Open(".kosh-cache", cfg.IsDev)
+	cm, err := cache.Open(cfg.CacheDir, cfg.IsDev)
 	if err != nil {
 		logger.Warn("Failed to open cache database, using in-memory cache", "error", err)
 	} else {
@@ -121,15 +124,29 @@ func NewBuilder(args []string) *Builder {
 		diagramCache = make(map[string]string)
 	}
 
+	// Create core components
+	md := mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache, &sync.Mutex{})
+	rnd := renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir, logger)
+
+	// Create Services
+	var cacheSvc services.CacheService
+	if cacheManager != nil {
+		cacheSvc = services.NewCacheService(cacheManager, logger)
+	}
+
+	renderSvc := services.NewRenderService(rnd, logger)
+	assetSvc := services.NewAssetService(sourceFs, destFs, cfg, renderSvc, logger)
+	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, md, nativeRenderer, sourceFs, destFs, diagramAdapter)
+
 	builder := &Builder{
 		cfg:            cfg,
-		cacheManager:   cacheManager,
+		cacheService:   cacheSvc,
+		postService:    postSvc,
+		assetService:   assetSvc,
+		renderService:  renderSvc,
 		diagramAdapter: diagramAdapter,
 		logger:         logger,
 		metrics:        buildMetrics,
-		md:             mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache, &sync.Mutex{}),
-		rnd:            renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir, logger),
-		native:         nativeRenderer,
 		SourceFs:       sourceFs,
 		DestFs:         destFs,
 	}
@@ -160,11 +177,6 @@ func (b *Builder) Config() *config.Config {
 	return b.cfg
 }
 
-// CacheManager returns the cache manager (may be nil if unavailable)
-func (b *Builder) CacheManager() *cache.Manager {
-	return b.cacheManager
-}
-
 // checkWasmUpdate checks if Search WASM needs rebuild based on source hash.
 func (b *Builder) checkWasmUpdate() {
 	wasmSrcDirs := []string{
@@ -175,10 +187,6 @@ func (b *Builder) checkWasmUpdate() {
 
 	// Optimization: Check if WASM exists and is newer than source
 	// This skips hashing entirely if not needed
-	// Optimization: Check if WASM exists (in source/static) and is newer than source
-	// This skips hashing entirely if not needed.
-	// We check 'static/wasm/search.wasm' because 'public' might be cleaned,
-	// but the intermediate build artifact in 'static' should persist.
 	wasmPath := "static/wasm/search.wasm"
 	if wasmInfo, err := os.Stat(wasmPath); err == nil {
 		isFresh := true
@@ -217,15 +225,15 @@ func (b *Builder) checkWasmUpdate() {
 
 	// Use BoltDB if available
 	var storedHash string
-	if b.cacheManager != nil {
-		storedHash, _ = b.cacheManager.GetWasmHash()
+	if b.cacheService != nil {
+		storedHash, _ = b.cacheService.GetWasmHash()
 	}
 
 	if currentHash != storedHash {
 		// Only trigger rebuild if hash changed
 		if build.CheckWASM("") {
-			if b.cacheManager != nil {
-				if err := b.cacheManager.SetWasmHash(currentHash); err != nil {
+			if b.cacheService != nil {
+				if err := b.cacheService.SetWasmHash(currentHash); err != nil {
 					b.logger.Warn("Failed to store WASM hash", "error", err)
 				}
 			}
@@ -248,9 +256,12 @@ func (b *Builder) SaveCaches() {
 	}
 
 	// Increment build count
-	if b.cacheManager != nil {
-		_ = b.cacheManager.IncrementBuildCount()
+	if b.cacheService != nil {
+		_ = b.cacheService.IncrementBuildCount()
 	}
+
+	// Flush cache service if needed
+	// (Our current implementation just wraps Manager which is closed below)
 
 	// Record end time
 	b.metrics.RecordEnd()
@@ -260,13 +271,13 @@ func (b *Builder) SaveCaches() {
 		b.metrics.Print()
 	}
 
-	b.logger.Info("Saved caches", "path", ".kosh-cache/")
+	b.logger.Info("Saved caches", "path", b.cfg.CacheDir)
 }
 
 // Close cleans up resources
 func (b *Builder) Close() {
-	if b.cacheManager != nil {
-		_ = b.cacheManager.Close()
+	if b.cacheService != nil {
+		_ = b.cacheService.Close()
 	}
 }
 
@@ -275,5 +286,7 @@ func Run(args []string) {
 	b := NewBuilder(args)
 	defer b.Close()
 	defer b.SaveCaches()
-	b.Build()
+	if err := b.Build(context.Background()); err != nil {
+		b.logger.Error("Build failed", "error", err)
+	}
 }

@@ -63,29 +63,28 @@ func (t *URLTransformer) processDestination(n ast.Node, dest []byte, pc parser.C
 	// Clean up ./ prefix which is redundant
 	href = strings.TrimPrefix(href, "./")
 
-	// Version-aware linking: If we're in a versioned file and the link is relative,
-	// prepend the version prefix to keep the user in the same version context
+	// Version-aware linking: Handle relative links within versioned documentation
+	// Option A: Use relative paths without version prefix for same-version links
 	if !strings.HasPrefix(href, "/") && !strings.HasPrefix(href, "http") {
 		if filePath, ok := pc.Get(ContextKeyFilePath).(string); ok && filePath != "" {
-			// Check if current file is in a version directory
 			version := extractVersionFromPath(filePath)
 			if version != "" {
-				// Check if link already has version prefix or goes to a different version
-				if !strings.HasPrefix(href, version+"/") && !isCrossVersionLink(href) {
-					// Check if this is a parent directory traversal that goes outside version
+				// Don't modify cross-version links (../v1.0/, ../v3.0/, etc.)
+				if isCrossVersionLink(href) {
+					// Keep as-is (e.g., ../v1.0/page.md → ../v1.0/page.html)
+				} else if isRootLevelLink(href) {
+					// Root-level links go to root (e.g., ../index.md → ../index.html)
+					// Keep as-is
+				} else {
+					// Same-version links: strip ../ prefix if present, keep relative
+					// e.g., ./new-in-v2.md → new-in-v2.html
+					// e.g., ./advanced/setup.md → advanced/setup.html
+					// e.g., ../advanced/config.md → advanced/config.html
 					if strings.HasPrefix(href, "../") {
-						// Count ../ to see if we go above version root
-						depth := countParentRefs(href)
-						fileDepth := getFileDepthInVersion(filePath)
-						if depth <= fileDepth {
-							// Still within version context, prepend version
-							href = version + "/" + href
-						}
-						// If depth > fileDepth, we're going to root, don't add version
-					} else {
-						// Simple relative link, prepend version
-						href = version + "/" + href
+						href = href[len("../"):]
 					}
+					// Ensure forward slashes
+					href = strings.ReplaceAll(href, "\\", "/")
 				}
 			}
 		}
@@ -133,8 +132,48 @@ func extractVersionFromPath(path string) string {
 
 // isCrossVersionLink checks if link explicitly references another version
 func isCrossVersionLink(href string) bool {
-	// Check for patterns like "../v1.0/" or "../v2.0/"
-	return strings.Contains(href, "/v") && strings.Contains(href, "..")
+	// Check for patterns like "../v1.0/" or "../v3.0/"
+	if strings.Contains(href, "/v") && strings.Contains(href, "..") {
+		return true
+	}
+	// Check if path after ../ starts with a version prefix (e.g., "../v1.0/page.md")
+	if strings.HasPrefix(href, "../") {
+		trimmed := strings.TrimPrefix(href, "../")
+		parts := strings.Split(trimmed, "/")
+		for _, part := range parts {
+			if strings.HasPrefix(part, "v") && len(part) > 2 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isRootLevelLink checks if a link points to a root-level file
+// Root-level files like index.md, features.md, getting-started.md should link to root
+func isRootLevelLink(href string) bool {
+	// Remove leading ../ or ./
+	trimmed := strings.TrimPrefix(href, "../")
+	trimmed = strings.TrimPrefix(trimmed, "./")
+
+	// Remove .md or .html extension for comparison
+	trimmed = strings.TrimSuffix(trimmed, ".md")
+	trimmed = strings.TrimSuffix(trimmed, ".html")
+
+	// Check if it points to a root-level file (no subdirectory)
+	if !strings.Contains(trimmed, "/") {
+		// Check if filename matches common root-level files
+		rootFiles := []string{
+			"index", "features", "getting-started",
+			"docs", "guide", "help", "readme", "intro",
+		}
+		for _, rf := range rootFiles {
+			if trimmed == rf {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // countParentRefs counts the number of "../" at the start of a path

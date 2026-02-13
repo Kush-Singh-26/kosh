@@ -33,10 +33,9 @@ func GetVersionFromPath(path string) (version, relPath string) {
 	return "", relPath
 }
 
-// BuildPostLink creates a version-aware link for a post
-func BuildPostLink(baseURL, version, cleanHtmlRelPath string) string {
+// BuildURL creates a version-aware URL
+func BuildURL(baseURL, version, relPath string) string {
 	// Handle protocol carefully to avoid stripping slashes from http:// or https://
-	// Split protocol from the rest of the URL if present
 	protocol := ""
 	if strings.Contains(baseURL, "://") {
 		parts := strings.SplitN(baseURL, "://", 2)
@@ -45,13 +44,13 @@ func BuildPostLink(baseURL, version, cleanHtmlRelPath string) string {
 	}
 
 	baseURL = strings.TrimSuffix(baseURL, "/")
-	cleanHtmlRelPath = strings.TrimPrefix(cleanHtmlRelPath, "/")
+	relPath = strings.TrimPrefix(relPath, "/")
 
 	res := protocol + baseURL
 	if version != "" {
 		res += "/" + version
 	}
-	res += "/" + cleanHtmlRelPath
+	res += "/" + relPath
 	return res
 }
 
@@ -70,30 +69,6 @@ func GetVersionFromURL(urlPath string) (version, cleanPath string) {
 	}
 
 	return "", "/" + urlPath
-}
-
-// BuildVersionedURL creates a URL for a specific version
-// baseURL: "http://localhost:2604"
-// version: "v2.0", ""
-// relPath: "advanced/configuration.html"
-// Returns: "http://localhost:2604/v2.0/advanced/configuration.html"
-func BuildVersionedURL(baseURL, version, relPath string) string {
-	// Handle protocol carefully to avoid stripping slashes from http:// or https://
-	protocol := ""
-	if strings.Contains(baseURL, "://") {
-		parts := strings.SplitN(baseURL, "://", 2)
-		protocol = parts[0] + "://"
-		baseURL = parts[1]
-	}
-
-	baseURL = strings.TrimSuffix(baseURL, "/")
-	relPath = strings.TrimPrefix(relPath, "/")
-
-	if version == "" {
-		return protocol + baseURL + "/" + relPath
-	}
-
-	return protocol + baseURL + "/" + version + "/" + relPath
 }
 
 // CleanVersionFromLink removes version prefix from a link for tree building

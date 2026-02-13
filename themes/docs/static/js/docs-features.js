@@ -178,7 +178,7 @@
 
         // Create overlay
         const overlay = document.createElement('div');
-        overlay.className = 'docs-sidebar-overlay';
+        overlay.className = 'sidebar-overlay';
         document.body.appendChild(overlay);
 
         const sidebar = document.querySelector('.docs-sidebar');

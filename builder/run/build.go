@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,12 +11,18 @@ import (
 
 	"my-ssg/builder/cache"
 	"my-ssg/builder/models"
-	mdParser "my-ssg/builder/parser"
 	"my-ssg/builder/utils"
 )
 
 // Build executes a single build pass
-func (b *Builder) Build() {
+func (b *Builder) Build(ctx context.Context) error {
+	// Check for cancellation early
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	cfg := b.cfg
 	// Build started - minimal logging
 
@@ -24,7 +31,12 @@ func (b *Builder) Build() {
 	setupWg.Add(1)
 	go func() {
 		defer setupWg.Done()
-		b.checkWasmUpdate()
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			b.checkWasmUpdate()
+		}
 	}()
 
 	globalDependencies := []string{
@@ -42,7 +54,7 @@ func (b *Builder) Build() {
 	var affectedPosts []string
 	var lastBuildTime time.Time
 
-	if indexInfo, err := os.Stat("public/index.html"); err == nil {
+	if indexInfo, err := os.Stat(filepath.Join(b.cfg.OutputDir, "index.html")); err == nil {
 		lastBuildTime = indexInfo.ModTime()
 		for _, dep := range globalDependencies {
 			if info, err := os.Stat(dep); err == nil && info.ModTime().After(lastBuildTime) {
@@ -66,36 +78,40 @@ func (b *Builder) Build() {
 
 	b.cfg.ForceRebuild = false
 
-	var diagramCache map[string]string
-	if b.diagramAdapter != nil {
-		diagramCache = b.diagramAdapter.AsMap()
-	} else {
-		diagramCache = make(map[string]string)
+	if err := b.DestFs.MkdirAll(filepath.Join(b.cfg.OutputDir, "tags"), 0755); err != nil {
+		b.logger.Error("Failed to create tags directory", "error", err)
 	}
-	b.md = mdParser.New(cfg.BaseURL, b.native, diagramCache, &b.mu)
 
-	_ = b.DestFs.MkdirAll("public/tags", 0755)
-	_ = b.DestFs.MkdirAll("public/static/images/cards", 0755)
-	_ = b.DestFs.MkdirAll("public/sitemap", 0755)
+	if err := b.DestFs.MkdirAll(filepath.Join(b.cfg.OutputDir, "static/images/cards"), 0755); err != nil {
+		b.logger.Error("Failed to create static images cards directory", "error", err)
+	}
+	if err := b.DestFs.MkdirAll(filepath.Join(b.cfg.OutputDir, "sitemap"), 0755); err != nil {
+		b.logger.Error("Failed to create sitemap directory", "error", err)
+	}
 
 	// 2. Static Assets
 	var staticWg sync.WaitGroup
 	staticWg.Add(1)
 	go func() {
 		defer staticWg.Done()
-		b.copyStaticAndBuildAssets()
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			b.copyStaticAndBuildAssets()
+		}
 	}()
-	_ = utils.WriteFileVFS(b.DestFs, "public/.nojekyll", []byte(""))
+	_ = utils.WriteFileVFS(b.DestFs, filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte(""))
 	staticWg.Wait()
 
-	if len(affectedPosts) > 0 && b.cacheManager != nil {
+	if len(affectedPosts) > 0 && b.cacheService != nil {
 		for _, postPath := range affectedPosts {
-			relPath, _ := utils.SafeRel("content", postPath)
+			relPath, _ := utils.SafeRel(b.cfg.ContentDir, postPath)
 			// Need PostID to delete.
 			// invalidateForTemplate returns paths.
 			// We can generate ID from path (empty UUID).
 			postID := cache.GeneratePostID("", relPath)
-			_ = b.cacheManager.DeletePost(postID)
+			_ = b.cacheService.DeletePost(postID)
 		}
 	}
 
@@ -110,10 +126,6 @@ func (b *Builder) Build() {
 
 	// Template-only change detection logic
 	isTemplateOnly := false // Default to false to ensure content changes are detected
-
-	// Only consider template-only optimization if we can verify no content changed?
-	// For now, disabling the default-true assumption ensures correctness.
-	// We can re-enable optimization later with proper content mtime checks.
 
 	if shouldForce || len(affectedPosts) > 0 {
 		isTemplateOnly = false
@@ -134,8 +146,8 @@ func (b *Builder) Build() {
 	}
 
 	cachedCount := 0
-	if b.cacheManager != nil {
-		if stats, err := b.cacheManager.Stats(); err == nil {
+	if b.cacheService != nil {
+		if stats, err := b.cacheService.Stats(); err == nil {
 			cachedCount = stats.TotalPosts
 		}
 	}
@@ -150,11 +162,11 @@ func (b *Builder) Build() {
 
 		// Hydrate data for global pages from cache
 		tagMap = make(map[string][]models.PostMetadata)
-		ids, _ := b.cacheManager.ListAllPosts()
+		ids, _ := b.cacheService.ListAllPosts()
 
 		// Batch fetch all posts and search records in single transactions (avoids N+1 queries)
-		cachedPosts, _ := b.cacheManager.GetPostsByIDs(ids)
-		searchRecords, _ := b.cacheManager.GetSearchRecords(ids)
+		cachedPosts, _ := b.cacheService.GetPostsByIDs(ids)
+		searchRecords, _ := b.cacheService.GetSearchRecords(ids)
 
 		for _, id := range ids {
 			cached, ok := cachedPosts[id]
@@ -222,7 +234,7 @@ func (b *Builder) Build() {
 	}
 
 	if !has404 {
-		b.rnd.Render404("public/404.html", models.PageData{
+		b.renderService.Render404(filepath.Join(b.cfg.OutputDir, "404.html"), models.PageData{
 			BaseURL:      cfg.BaseURL,
 			BuildVersion: cfg.BuildVersion,
 			Config:       cfg,
@@ -237,7 +249,7 @@ func (b *Builder) Build() {
 
 	if shouldForce || anyPostChanged {
 		fmt.Println("🕸️  Rendering graph and metadata...")
-		b.rnd.RenderGraph("public/graph.html", models.PageData{
+		b.renderService.RenderGraph(filepath.Join(b.cfg.OutputDir, "graph.html"), models.PageData{
 			Title:        "Graph View",
 			TabTitle:     "Knowledge Graph | " + cfg.Title,
 			BaseURL:      cfg.BaseURL,
@@ -253,8 +265,13 @@ func (b *Builder) Build() {
 		setupWg.Add(1)
 		go func() {
 			defer setupWg.Done()
-			fmt.Println("📱 Generating PWA...")
-			b.generatePWA(shouldForce)
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				fmt.Println("📱 Generating PWA...")
+				b.generatePWA(shouldForce)
+			}
 		}()
 	}
 
@@ -263,10 +280,30 @@ func (b *Builder) Build() {
 
 	// Now sync VFS to disk (includes completed social cards)
 	fmt.Println("💾 Syncing to disk...")
-	if err := utils.SyncVFS(b.DestFs, "public", b.rnd.GetRenderedFiles()); err != nil {
+	if err := utils.SyncVFS(b.DestFs, b.cfg.OutputDir, b.renderService.GetRenderedFiles()); err != nil {
 		b.logger.Error("Failed to sync VFS to disk", "error", err)
 	}
-	b.rnd.ClearRenderedFiles()
+	b.renderService.ClearRenderedFiles()
 
 	// Build complete
+	return nil
+}
+
+func (b *Builder) copyStaticAndBuildAssets() {
+	if err := b.assetService.Build(context.Background()); err != nil {
+		b.logger.Error("Failed to build assets", "error", err)
+	}
+}
+
+func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool) {
+	result, err := b.postService.Process(context.Background(), shouldForce, forceSocialRebuild, outputMissing)
+	if err != nil {
+		b.logger.Error("Failed to process posts", "error", err)
+		return nil, nil, nil, nil, false, false
+	}
+	return result.AllPosts, result.PinnedPosts, result.TagMap, result.IndexedPosts, result.AnyPostChanged, result.Has404
+}
+
+func (b *Builder) renderCachedPosts() {
+	b.postService.RenderCachedPosts()
 }

@@ -11,7 +11,7 @@ import (
 	"my-ssg/builder/utils"
 )
 
-func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata) {
+func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata, outputPath string) {
 	nodes := []models.GraphNode{}
 	links := []models.GraphLink{}
 	nodeExists := make(map[string]bool)
@@ -36,7 +36,7 @@ func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata)
 		}
 	}
 	output, _ := json.Marshal(models.GraphData{Nodes: nodes, Links: links})
-	if err := utils.WriteFileVFS(destFs, "public/graph.json", output); err != nil {
+	if err := utils.WriteFileVFS(destFs, outputPath, output); err != nil {
 		fmt.Printf("⚠️ Failed to write graph.json: %v\n", err)
 	}
 }
