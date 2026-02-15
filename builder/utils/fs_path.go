@@ -10,37 +10,20 @@ import (
 )
 
 func NormalizePath(path string) string {
-	if !strings.Contains(path, "\\") && !strings.HasPrefix(path, "content/") {
-		return strings.ToLower(path)
-	}
+	// Convert backslashes to forward slashes for consistency
+	path = strings.ReplaceAll(path, "\\", "/")
 
-	var b strings.Builder
-	b.Grow(len(path))
-
-	skipContent := strings.HasPrefix(path, "content/") || strings.HasPrefix(path, "content\\")
-	start := 0
-	if skipContent {
-		start = 8
-	}
-
-	for i := start; i < len(path); i++ {
-		c := path[i]
-		if c == '\\' {
-			b.WriteByte('/')
-		} else if c >= 'A' && c <= 'Z' {
-			b.WriteByte(c + 32)
-		} else {
-			b.WriteByte(c)
+	// Only lowercase on Windows (case-insensitive filesystem)
+	// Keep original case on Linux/macOS (case-sensitive filesystems)
+	if runtime.GOOS == "windows" {
+		path = strings.ToLower(path)
+		// Capitalize drive letter for Windows (e.g., "c:" -> "C:")
+		if len(path) >= 2 && path[1] == ':' {
+			path = strings.ToUpper(path[:1]) + path[1:]
 		}
 	}
 
-	result := b.String()
-
-	if runtime.GOOS == "windows" && len(result) >= 2 && result[1] == ':' {
-		return strings.ToUpper(result[:1]) + result[1:]
-	}
-
-	return result
+	return path
 }
 
 func SafeRel(base, target string) (string, error) {
