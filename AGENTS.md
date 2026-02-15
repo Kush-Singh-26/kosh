@@ -1,8 +1,8 @@
 # Agentic Development Guide
 
-This repository contains **Kosh**, a high-performance Static Site Generator (SSG) built in Go. This guide covers build processes, architecture, testing, and code conventions for the completed v1.0.0 release.
+This repository contains **Kosh**, a high-performance Static Site Generator (SSG) built in Go. This guide covers build processes, architecture, testing, and code conventions.
 
-## Project Status: v1.1.0 ✅
+## Project Status: v1.2.0 ✅
 
 All phases of development have been completed:
 - **Phase 1**: Security & Stability (BLAKE3, graceful shutdown, error handling)
@@ -10,23 +10,35 @@ All phases of development have been completed:
 - **Phase 3**: Performance Optimization (Memory pools, pre-computed search)
 - **Phase 4**: Modernization (Go 1.23, Generics, dependency updates)
 - **Phase 5**: Search Enhancement (Msgpack, stemming, fuzzy search, phrase matching)
+- **Phase 6**: Hugo-Style Distribution (detached themes, go install, custom outputDir)
 
 ---
 
 ## 1. Build, Lint & Test
 
+### Installation
+
+```bash
+# Install via go install (recommended)
+go install github.com/Kush-Singh-26/kosh/cmd/kosh@latest
+
+# Verify installation
+kosh version
+```
+
 ### Build Commands
 The unified CLI tool `kosh` handles all operations.
-*   **Build CLI:** `go build -o kosh.exe ./cmd/kosh`
-*   **Build Site:** `./kosh.exe build` (Minifies HTML/CSS/JS, compresses images)
-*   **Create Version:** `./kosh.exe version <name>` (Creates a frozen snapshot of documentation)
-*   **Serve (Dev Mode):** `./kosh.exe serve --dev` (Starts server with live reload & watcher)
+*   **Build CLI (development):** `go build -o kosh.exe ./cmd/kosh`
+*   **Build Site:** `kosh build` (Minifies HTML/CSS/JS, compresses images)
+*   **Create Version:** `kosh version <name>` (Creates a frozen snapshot of documentation)
+*   **Serve (Dev Mode):** `kosh serve --dev` (Starts server with live reload & watcher)
     *   **Note:** Dev mode skips PWA generation (manifest, service worker, icons) for faster builds
-*   **Clean Output:** `./kosh.exe clean` (Cleans root files only, preserves version folders)
-*   **Clean All:** `./kosh.exe clean --all` (Cleans entire `public/` including all versions)
-*   **Clean Cache:** `./kosh.exe clean --cache` (Cleans root files and `.kosh-cache/`)
-*   **Clean All + Cache:** `./kosh.exe clean --all --cache` (Cleans entire `public/` and `.kosh-cache/`)
-*   **Show Version:** `./kosh.exe version` (Display version and optimization features)
+    *   **Auto baseURL:** If `baseURL` is empty in config, dev mode auto-detects `http://localhost:2604`
+*   **Clean Output:** `kosh clean` (Cleans root files only, preserves version folders)
+*   **Clean All:** `kosh clean --all` (Cleans entire output directory including all versions)
+*   **Clean Cache:** `kosh clean --cache` (Cleans root files and `.kosh-cache/`)
+*   **Clean All + Cache:** `kosh clean --all --cache` (Cleans entire output and `.kosh-cache/`)
+*   **Show Version:** `kosh version` (Display version and optimization features)
 
 ### CLI Commands Reference
 
@@ -67,6 +79,8 @@ The unified CLI tool `kosh` handles all operations.
 |------|-------------|
 | `--cache` | Also clean `.kosh-cache/` directory |
 | `--all` | Clean all versions including versioned folders |
+
+**Note:** Clean command uses `outputDir` from config, supporting both relative and absolute paths.
 
 ### Cache Commands
 
@@ -189,6 +203,7 @@ This enables:
 *   **Cryptographic Hashing:** Use BLAKE3 for all hashing operations (replaced deprecated MD5).
 *   **Input Sanitization:** User-provided paths are normalized and validated before use.
 *   **Safe Defaults:** Dev mode uses less durable but faster cache settings; production uses full durability.
+*   **Case-Sensitive Paths:** `NormalizePath()` preserves case on Linux/macOS for case-sensitive filesystems (fixed in v1.2.0).
 
 ### Structured Logging
 We use `log/slog` for structured logging throughout the codebase.
@@ -281,10 +296,10 @@ Build performance is tracked via `builder/metrics/metrics.go`.
         *   `fuzzy.go` - Levenshtein distance and fuzzy matching
 *   **`cmd/kosh/`**: Main entry point for the CLI.
 *   **`cmd/search/`**: **WASM Bridge.** Compiles the search engine for browser execution.
-*   **`content/`**: Markdown source files. Versioned folders are isolated snapshots.
-*   **`themes/`**: **Themed Assets.**
-    *   `blog/`: Default blog theme. Optimized for chronological feed.
-    *   `docs/`: Documentation theme. Features a **Documentation Hub** and **Recursive Sidebar**.
+*   **`content/`**: Markdown source files. Versioned folders are isolated snapshots. (Removed in v1.2.0 - now separate from SSG)
+*   **`themes/`**: **Detached in v1.2.0.** Themes are now separate repositories:
+    *   `blog/`: Blog theme - `github.com/Kush-Singh-26/kosh-theme-blog`
+    *   `docs/`: Documentation theme - `github.com/Kush-Singh-26/kosh-theme-docs`
 
 ### Documentation Theme (Docs)
 
@@ -326,8 +341,9 @@ The `GetVersionsMetadata(currentVersion, currentPath string)` function in `build
 
 **Clean Command (Version-Aware):**
 - `kosh clean` → Removes root files only, preserves version folders
-- `kosh clean --all` → Removes entire `public/` directory
+- `kosh clean --all` → Removes entire output directory
 - Uses config-based version detection to identify folders to preserve
+- Handles both relative and absolute `outputDir` paths correctly
 
 **Interactive Features:**
 - **Search:** Version-scoped WASM search with snippets and keyboard navigation.
@@ -473,7 +489,7 @@ themeDir: "themes"      # Parent directory for themes
 
 ```bash
 # Clone a theme into the themes directory
-git clone <theme-repo-url> themes/blog
+git clone https://github.com/Kush-Singh-26/kosh-theme-blog themes/blog
 
 # Or create a custom theme
 mkdir -p themes/my-theme/templates themes/my-theme/static
@@ -497,6 +513,58 @@ The SSG validates theme presence at startup:
 - Theme directory must exist at `themes/<theme-name>/`
 - `templates/` directory is required
 - `static/` directory is auto-created if missing
+
+---
+
+## 9. Custom Output Directory
+
+Kosh supports custom output directories for Hugo-style integration with existing sites.
+
+### Configuration
+
+In `kosh.yaml`:
+```yaml
+outputDir: "../blogs"   # Output relative to project root
+# or absolute path:
+# outputDir: "/path/to/output"
+```
+
+### Use Case: Portfolio Integration
+
+```
+yourname.github.io/          # Portfolio repo
+├── index.html               # Portfolio homepage
+├── css/
+├── js/
+├── .github/workflows/
+│   └── deploy.yml
+└── blogs-src/               # Kosh project
+    ├── kosh.yaml            # outputDir: "../blogs"
+    ├── content/
+    └── themes/
+└── blogs/                   # Generated output
+```
+
+### Auto baseURL Detection
+
+When `baseURL` is empty in config:
+- **Dev mode** (`kosh serve --dev`): Auto-detects `http://localhost:2604`
+- **Production**: Use `-baseurl` flag in CI
+
+```bash
+# Local development - no flags needed
+kosh serve --dev
+
+# Production build
+kosh build -baseurl https://yourname.github.io/blogs
+```
+
+### URL Regeneration from Cache
+
+Cached posts automatically regenerate URLs with the current `baseURL`. This allows:
+- Build for production with one baseURL
+- Build for local dev with different baseURL
+- No cache invalidation needed when changing baseURL
 
 ---
 
@@ -559,6 +627,6 @@ tag:nlp attention       # Tag + terms
 
 ---
 
-**Version:** v1.1.0  
-**Last Updated:** 2026-02-14  
+**Version:** v1.2.0  
+**Last Updated:** 2026-02-15  
 **Status:** Production Ready ✅

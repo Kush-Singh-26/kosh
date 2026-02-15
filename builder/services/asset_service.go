@@ -81,6 +81,39 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			}
 		}
 
+		// Copy wasm_engine.js separately (needed for interactive math simulations, shouldn't be processed by esbuild)
+		wasmEngineSitePath := "static/js/wasm_engine.js"
+		wasmEngineThemePath := filepath.Join(s.cfg.StaticDir, "js/wasm_engine.js")
+		var wasmEngineSourcePath string
+		if exists, _ := afero.Exists(s.sourceFs, wasmEngineSitePath); exists {
+			wasmEngineSourcePath = wasmEngineSitePath
+		} else if exists, _ := afero.Exists(s.sourceFs, wasmEngineThemePath); exists {
+			wasmEngineSourcePath = wasmEngineThemePath
+		}
+		if wasmEngineSourcePath != "" {
+			src, err := s.sourceFs.Open(wasmEngineSourcePath)
+			if err == nil {
+				defer func() {
+					if cerr := src.Close(); cerr != nil {
+						s.logger.Warn("Failed to close source file", "path", wasmEngineSourcePath, "error", cerr)
+					}
+				}()
+				wasmEngineDestPath := filepath.Join(s.cfg.OutputDir, "static/js/wasm_engine.js")
+				_ = s.destFs.MkdirAll(filepath.Dir(wasmEngineDestPath), 0755)
+				dest, err := s.destFs.Create(wasmEngineDestPath)
+				if err == nil {
+					defer func() {
+						if cerr := dest.Close(); cerr != nil {
+							s.logger.Warn("Failed to close destination file", "path", wasmEngineDestPath, "error", cerr)
+						}
+					}()
+					if _, err := io.Copy(dest, src); err == nil {
+						s.renderer.RegisterFile(wasmEngineDestPath)
+					}
+				}
+			}
+		}
+
 		// WASM Search Engine Fallback logic
 		// 1. Check site root: static/wasm/search.wasm
 		// 2. Check theme: themes/<theme>/static/wasm/search.wasm
