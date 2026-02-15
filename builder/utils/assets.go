@@ -206,8 +206,10 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 			key := "/static/" + relEntryPoint
 
 			val := filepath.ToSlash(outPath)
-			val = strings.TrimPrefix(val, "public")
-			if !strings.HasPrefix(val, "/") {
+			// Find /static/ in the path to handle any output directory
+			if idx := strings.Index(val, "/static/"); idx != -1 {
+				val = val[idx:]
+			} else if !strings.HasPrefix(val, "/") {
 				val = "/" + val
 			}
 

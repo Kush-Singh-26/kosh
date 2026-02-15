@@ -79,7 +79,13 @@ func main() {
 
 		if isDev {
 			fmt.Println("🚀 Starting Kosh in Development Mode...")
-			b := run.NewBuilder(args)
+			// Pre-load config to check baseURL
+			cfg := config.Load(args)
+			if cfg.BaseURL == "" {
+				cfg.BaseURL = "http://localhost:2604"
+				fmt.Println("   📝 Auto-detected baseURL: http://localhost:2604")
+			}
+			b := run.NewBuilderWithConfig(cfg)
 			b.SetDevMode(true)
 			if err := b.Build(ctx); err != nil {
 				fmt.Printf("❌ Build failed: %v\n", err)

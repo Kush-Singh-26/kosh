@@ -37,9 +37,9 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 
 	var destPath string
 	if version != "" {
-		destPath = filepath.Join("public", version, cleanHtmlRelPath)
+		destPath = filepath.Join(s.cfg.OutputDir, version, cleanHtmlRelPath)
 	} else {
-		destPath = filepath.Join("public", htmlRelPath)
+		destPath = filepath.Join(s.cfg.OutputDir, htmlRelPath)
 	}
 	fullLink := utils.BuildURL(s.cfg.BaseURL, version, cleanHtmlRelPath)
 

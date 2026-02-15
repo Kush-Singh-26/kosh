@@ -17,10 +17,17 @@ func Run(cleanCache, cleanAllVersions bool) {
 		os.Exit(1)
 	}
 
+	// Get outputDir from config (fallback to "public")
+	outputDir := "public"
+	cfg := config.Load([]string{})
+	if cfg != nil && cfg.OutputDir != "" {
+		outputDir = cfg.OutputDir
+	}
+
 	if cleanAllVersions {
-		cleanDirAsync(cwd, "public")
+		cleanDirAsync(cwd, outputDir)
 	} else {
-		cleanRootFilesOnly(cwd)
+		cleanRootFilesOnly(cwd, outputDir, cfg)
 	}
 
 	if cleanCache {
@@ -53,16 +60,15 @@ func cleanDirAsync(cwd, name string) {
 	}()
 }
 
-func cleanRootFilesOnly(cwd string) {
-	publicPath := filepath.Join(cwd, "public")
-	if _, err := os.Stat(publicPath); os.IsNotExist(err) {
+func cleanRootFilesOnly(cwd string, outputDir string, cfg *config.Config) {
+	outputPath := filepath.Join(cwd, outputDir)
+	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
 		return
 	}
 
-	cfg := config.Load([]string{})
 	if cfg == nil {
-		fmt.Println("⚠️ Failed to load config, cleaning entire public/ directory")
-		cleanDirAsync(cwd, "public")
+		fmt.Printf("⚠️ Failed to load config, cleaning entire %s/ directory\n", outputDir)
+		cleanDirAsync(cwd, outputDir)
 		return
 	}
 
@@ -74,14 +80,14 @@ func cleanRootFilesOnly(cwd string) {
 	}
 
 	if len(preservePaths) == 0 {
-		fmt.Println("🧹 No versions configured, cleaning entire public/ directory")
-		cleanDirAsync(cwd, "public")
+		fmt.Printf("🧹 No versions configured, cleaning entire %s/ directory\n", outputDir)
+		cleanDirAsync(cwd, outputDir)
 		return
 	}
 
-	files, err := os.ReadDir(publicPath)
+	files, err := os.ReadDir(outputPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to read public directory: %v\n", err)
+		fmt.Printf("❌ Failed to read output directory: %v\n", err)
 		return
 	}
 
@@ -101,9 +107,9 @@ func cleanRootFilesOnly(cwd string) {
 	fmt.Printf("🧹 Cleaning root files (%d items), preserving %d version folders...\n", len(toDelete), len(preservePaths))
 
 	for _, name := range toDelete {
-		itemPath := filepath.Join(publicPath, name)
+		itemPath := filepath.Join(outputPath, name)
 		tempName := fmt.Sprintf("%s_deleting_%d", name, time.Now().UnixNano())
-		tempPath := filepath.Join(publicPath, tempName)
+		tempPath := filepath.Join(outputPath, tempName)
 
 		if err := os.Rename(itemPath, tempPath); err != nil {
 			_ = os.RemoveAll(itemPath)

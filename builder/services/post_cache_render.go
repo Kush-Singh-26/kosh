@@ -54,8 +54,16 @@ func (s *postServiceImpl) RenderCachedPosts() {
 		}
 		cachedData[id] = &CachedPostData{Meta: meta, HTML: htmlBytes}
 
+		// Regenerate Link from current baseURL
+		htmlRelPath := strings.ToLower(strings.Replace(meta.Path, ".md", ".html", 1))
+		cleanHtmlRelPath := htmlRelPath
+		if meta.Version != "" {
+			cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(meta.Version)+"/")
+		}
+		regeneratedLink := utils.BuildURL(s.cfg.BaseURL, meta.Version, cleanHtmlRelPath)
+
 		post := models.PostMetadata{
-			Title: meta.Title, Link: meta.Link, Weight: meta.Weight, Version: meta.Version,
+			Title: meta.Title, Link: regeneratedLink, Weight: meta.Weight, Version: meta.Version,
 			DateObj: meta.Date,
 		}
 		postsByVersion[meta.Version] = append(postsByVersion[meta.Version], post)
@@ -86,11 +94,14 @@ func (s *postServiceImpl) RenderCachedPosts() {
 				cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(cp.Meta.Version)+"/")
 			}
 
+			// Regenerate Link from current baseURL (not cached baseURL)
+			regeneratedLink := utils.BuildURL(s.cfg.BaseURL, cp.Meta.Version, cleanHtmlRelPath)
+
 			var destPath string
 			if cp.Meta.Version != "" {
-				destPath = filepath.Join("public", cp.Meta.Version, cleanHtmlRelPath)
+				destPath = filepath.Join(s.cfg.OutputDir, cp.Meta.Version, cleanHtmlRelPath)
 			} else {
-				destPath = filepath.Join("public", htmlRelPath)
+				destPath = filepath.Join(s.cfg.OutputDir, htmlRelPath)
 			}
 
 			if s.cfg.Features.RawMarkdown {
@@ -123,7 +134,7 @@ func (s *postServiceImpl) RenderCachedPosts() {
 
 			versionPosts := postsByVersion[cp.Meta.Version]
 			currentPost := models.PostMetadata{
-				Title: cp.Meta.Title, Link: cp.Meta.Link, Weight: cp.Meta.Weight, Version: cp.Meta.Version,
+				Title: cp.Meta.Title, Link: regeneratedLink, Weight: cp.Meta.Weight, Version: cp.Meta.Version,
 				DateObj: cp.Meta.Date,
 			}
 			prev, next := utils.FindPrevNext(currentPost, versionPosts)
@@ -131,7 +142,7 @@ func (s *postServiceImpl) RenderCachedPosts() {
 			s.renderer.RenderPage(destPath, models.PageData{
 				Title: cp.Meta.Title, Description: cp.Meta.Description, Content: template.HTML(string(cp.HTML)),
 				Meta: cp.Meta.Meta, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
-				TabTitle: cp.Meta.Title + " | " + s.cfg.Title, Permalink: cp.Meta.Link, Image: imagePath,
+				TabTitle: cp.Meta.Title + " | " + s.cfg.Title, Permalink: regeneratedLink, Image: imagePath,
 				TOC: toc, Config: s.cfg,
 				SiteTree:       siteTrees[cp.Meta.Version],
 				CurrentVersion: cp.Meta.Version,

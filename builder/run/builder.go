@@ -58,6 +58,16 @@ type Builder struct {
 // NewBuilder initializes a new site builder
 func NewBuilder(args []string) *Builder {
 	cfg := config.Load(args)
+	return newBuilderWithConfig(cfg)
+}
+
+// NewBuilderWithConfig initializes a new site builder with a pre-loaded config
+func NewBuilderWithConfig(cfg *config.Config) *Builder {
+	return newBuilderWithConfig(cfg)
+}
+
+// newBuilderWithConfig is the internal implementation
+func newBuilderWithConfig(cfg *config.Config) *Builder {
 	utils.InitMinifier()
 
 	// Initialize structured logger early
