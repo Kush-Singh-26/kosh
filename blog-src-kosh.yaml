@@ -1,0 +1,54 @@
+# Blog Configuration for Portfolio Integration
+# Place this file in: blog-src/kosh.yaml
+
+title: "Kush Blogs"
+description: "I write about machine learning, deep learning and lately more about NLP."
+baseURL: ""  # Overridden by CI: -baseurl https://kush-singh-26.github.io/blogs
+language: "en"
+
+author:
+  name: "Kush Singh"
+  url: "https://kush-singh-26.github.io/"
+
+# Navigation
+menu:
+  - name: "Home"
+    url: "https://kush-singh-26.github.io/"
+  - name: "Tags"
+    url: "/tags/index.html"
+  - name: "Graph"
+    url: "/graph.html"
+
+# Directories
+contentDir: "content"
+outputDir: "../blogs"  # Output to portfolio's blogs/ folder
+cacheDir: ".kosh-cache"
+
+# Theme Configuration
+theme: "blog"
+themeDir: "themes"
+# templateDir and staticDir default to themes/<theme>/templates and themes/<theme>/static
+
+# Global Features & Generators
+features:
+  rawMarkdown: true
+  generators:
+    sitemap: true
+    rss: true
+    graph: true
+    pwa: true
+    search: true
+
+# Social Cards
+socialCards:
+  background: "#faf8f5"
+  gradient:
+    - "#e8e0d0"
+    - "#c9b896"
+    - "#b8a078"
+  angle: 135
+  textColor: "#1a1a1a"
+
+# Build Settings
+postsPerPage: 10
+compressImages: true

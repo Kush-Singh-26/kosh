@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func Run(ctx context.Context, args []string) {
+func Run(ctx context.Context, args []string, outputDir string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	host := fs.String("host", "localhost", "The host/IP to bind to")
 	port := fs.String("port", "2604", "The port to listen on")
@@ -28,7 +28,10 @@ func Run(ctx context.Context, args []string) {
 
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
 
-	staticDir := "./public"
+	staticDir := outputDir
+	if staticDir == "" {
+		staticDir = "./public"
+	}
 
 	startWatcher(staticDir)
 	defer stopWatcher()
