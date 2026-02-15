@@ -112,17 +112,9 @@ func (b *Builder) Build(ctx context.Context) error {
 		b.logger.Error("Failed to create sitemap directory", "error", err)
 	}
 
-	// 2. Static Assets (run in background, don't block post processing)
-	staticDone := make(chan struct{})
-	go func() {
-		defer close(staticDone)
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			b.copyStaticAndBuildAssets(ctx)
-		}
-	}()
+	// 2. Static Assets (MUST complete before posts to populate Assets map)
+	fmt.Println("📦 Building assets...")
+	b.copyStaticAndBuildAssets(ctx)
 	_ = utils.WriteFileVFS(b.DestFs, filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte(""))
 
 	if len(affectedPosts) > 0 && b.cacheService != nil {
@@ -307,9 +299,6 @@ func (b *Builder) Build(ctx context.Context) error {
 
 	// Ensure setup tasks (WASM check + PWA) are complete
 	setupWg.Wait()
-
-	// Wait for static assets to complete before syncing
-	<-staticDone
 
 	// Now sync VFS to disk (includes completed social cards)
 	fmt.Println("💾 Syncing to disk...")
