@@ -111,16 +111,16 @@ func (a *DiagramCacheAdapter) Set(key string, value string) {
 
 	// Also store in BoltDB if manager is available using worker pool
 	if a.manager != nil {
-		a.pending.Add(1)
 		select {
 		case a.writeQueue <- writeRequest{key: key, value: value}:
-			// Successfully queued
+			// Successfully queued - worker will call Done()
+			a.pending.Add(1)
 		default:
 			// Queue full, process synchronously to avoid blocking
 			if _, err := a.manager.StoreSSR("d2", key, []byte(value)); err != nil {
 				log.Printf("Failed to store SSR cache for key %s: %v", key, err)
 			}
-			a.pending.Done()
+			// Note: pending.Add(1) is NOT called for synchronous path
 		}
 	}
 }
@@ -154,13 +154,6 @@ func (a *DiagramCacheAdapter) AsMap() map[string]string {
 		result[k] = v
 	}
 	return result
-}
-
-// Clear clears the local cache
-func (a *DiagramCacheAdapter) Clear() {
-	a.mu.Lock()
-	a.local = make(map[string]string)
-	a.mu.Unlock()
 }
 
 // Close waits for all pending async operations to complete and closes the adapter.

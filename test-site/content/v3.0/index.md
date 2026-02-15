@@ -1,40 +1,46 @@
 ---
 title: "v3.0 Documentation"
-description: "Version 3.0 documentation (Beta)"
-date: "2026-02-01"
+description: "Version 3.0 documentation"
 weight: 100
 ---
 
-# v3.0 Documentation (Beta)
+# v3.0 Documentation
 
-This is the **v3.0** beta version of the documentation.
+This is **v3.0** of Kosh documentation.
 
-## Version Notice
+> **Note:** This is not the latest version. [View v4.0 (Latest)](../v4.0/index.md)
 
-You are viewing the v3.0 beta. Also available:
-- [Latest Stable](../index.md) - Current release
-- [v2.0 (Stable)](../v2.0/index.md) - Previous stable
-- [v1.0 (Legacy)](../v1.0/index.md) - Legacy docs
+## Quick Links
+
+- [Quickstart](./quickstart.md) - Get started quickly
+- [What's New](./whats-new.md) - Features in v3.0
+- [Migration Guide](./advanced/migration.md) - Migrate from v2.0
+
+## v3.0 Features
+
+### What Was New
+
+- **Service Layer Architecture** - Clean separation of concerns
+- **Dependency Injection** - Testable, modular code
+- **Structured Logging** - `slog` throughout
+- **Context Support** - Graceful shutdown
+
+### Improvements
+
+- Better error handling
+- Improved cache durability
+- Cleaner API design
 
 ## v3.0 Pages
 
-- [Quickstart](./quickstart.md) - Get started quickly
-- [What's New](./whats-new.md) - New features
+| Page | Description |
+|------|-------------|
+| [Quickstart](./quickstart.md) | Get up and running quickly |
+| [What's New](./whats-new.md) | New features in v3.0 |
+| [Migration Guide](./advanced/migration.md) | Migrate from v2.0 |
 
-## Link Tests from v3.0
+## Other Versions
 
-### v3.0 → Root
-- [Home](../index.md) - Should go to /index.html
-- [Features](../features.md) - Should go to /features.html
-
-### v3.0 → Older Versions
-- [v2.0](../v2.0/index.md) - Should go to /v2.0/index.html
-- [v1.0](../v1.0/index.md) - Should go to /v1.0/index.html
-
-### v3.0 → Same Version
-- [Quickstart](./quickstart.md) - Should stay in /v3.0/
-- [What's New](./whats-new.md) - Should stay in /v3.0/
-
-### v3.0 → Subdirectories
-- [Advanced](../advanced/configuration.md) - Should go to /advanced/configuration.html
-- [API](../api/reference.md) - Should go to /api/reference.html
+- [v4.0 (Latest)](../v4.0/index.md) - Current version
+- [v2.0](../v2.0/index.md) - Older version
+- [v1.0](../v1.0/index.md) - Legacy version

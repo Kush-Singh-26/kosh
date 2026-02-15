@@ -33,7 +33,7 @@ Linear model can be adapted for binary classification by mapping the output of t
 
 ### 1. Odds Ratio
 
-The odds of an event occuring is the ratio of the probability of success $P$ to the probability of failure $1-P $.
+The odds of an event occuring is the ratio of the probability of success $P$ to the probability of failure $ 1-P $.
 
 $$ \text{Odds} = \frac{P(y=1|x)}{1 - P(y=1|x)} $$
 
@@ -136,7 +136,7 @@ Instead of measuring the distance between the prediction and the target (like MS
 $$ P(y|\mathbf{x}) = \begin{cases} \hat{y} & \text{if } y=1 \\ 1-\hat{y} & \text{if } y=0 \end{cases} $$
 
 - If the actual class is 1, we want the model to predict a high probability ($\hat{y}$).
-- If the actual class is 0, we want the model to predict a low probability (which means $1-\hat{y}$ is high).
+- If the actual class is 0, we want the model to predict a low probability (which means $ 1-\hat{y} $ is high).
 
 This can be compacted to :
 
@@ -234,7 +234,7 @@ $z$ (logits) is a linear function of the weights and features :
 
 $$z = \mathbf{w}^T\mathbf{x} + b = w_1x_1 + w_2x_2 + \dots + w_n x_n + b$$
 
-An instance is classified into the positive class ($y=1$) if the predicted probability is greater than or equal to a threshold, typically $0.5$.
+An instance is classified into the positive class ($y=1$) if the predicted probability is greater than or equal to a threshold, typically $ 0.5 $.
 
 $$\text{Predict } y=1 \iff P(y=1|\mathbf{x}) \ge 0.5$$
 

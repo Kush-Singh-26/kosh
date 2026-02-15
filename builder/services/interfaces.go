@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
-	"my-ssg/builder/cache"
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // PostResult contains the aggregated results of post processing
@@ -43,6 +43,7 @@ type CacheService interface {
 	// Write operations
 	StoreHTML(content []byte) (string, error)
 	StoreHTMLForPost(post *cache.PostMeta, content []byte) error
+	StoreHTMLForPostDirect(content []byte) (string, error)
 	BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error
 	DeletePost(postID string) error
 
@@ -54,7 +55,6 @@ type CacheService interface {
 	Stats() (*cache.CacheStats, error)
 	IncrementBuildCount() error
 	Close() error
-	Save() // Saves/flushes data
 }
 
 // AssetService handles static asset processing

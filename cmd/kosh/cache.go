@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"my-ssg/builder/cache"
-	"my-ssg/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
 // handleCacheCommand processes cache-related subcommands
@@ -99,13 +99,9 @@ func cacheStats() {
 		fmt.Printf("Last GC:         never\n")
 	}
 
-	// Performance metrics
-	fmt.Println("\n⚡ Performance Metrics")
+	// Storage metrics
+	fmt.Println("\n📦 Storage Metrics")
 	fmt.Println("────────────────────────────────────────")
-	fmt.Printf("Last Read Time:  %v (target: <50ms)\n", stats.LastReadTime)
-	fmt.Printf("Last Write Time: %v (target: <100ms)\n", stats.LastWriteTime)
-	fmt.Printf("Read Operations: %d\n", stats.ReadCount)
-	fmt.Printf("Write Operations: %d\n", stats.WriteCount)
 	fmt.Printf("Inline Posts:    %d (%.1f%%)\n", stats.InlinePosts, float64(stats.InlinePosts)*100/float64(stats.TotalPosts))
 	fmt.Printf("Hashed Posts:    %d (%.1f%%)\n", stats.HashedPosts, float64(stats.HashedPosts)*100/float64(stats.TotalPosts))
 }

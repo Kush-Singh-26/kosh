@@ -17,7 +17,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/util"
 
-	"my-ssg/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
 func codeBlockWrapper(w util.BufWriter, c highlighting.CodeBlockContext, entering bool) {
@@ -81,7 +81,7 @@ func ExtractPlainText(node ast.Node, source []byte) string {
 }
 
 // New creates a new Goldmark markdown parser with SSR support for diagrams
-func New(baseURL string, renderer *native.Renderer, diagramCache map[string]string, cacheMu *sync.Mutex) goldmark.Markdown {
+func New(baseURL string, renderer *native.Renderer, diagramCache *sync.Map) goldmark.Markdown {
 	return goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
@@ -107,7 +107,6 @@ func New(baseURL string, renderer *native.Renderer, diagramCache map[string]stri
 				util.Prioritized(&SSRTransformer{
 					Renderer: renderer,
 					Cache:    diagramCache,
-					CacheMu:  cacheMu,
 				}, 50), // Run SSR early (lower priority = runs first)
 			),
 			parser.WithAutoHeadingID(),

@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // FindPrevNext finds previous and next pages in version context
@@ -65,28 +65,4 @@ func FindPrevNext(currentPost models.PostMetadata, allPosts []models.PostMetadat
 	}
 
 	return prev, next
-}
-
-// FlattenSiteTree flattens the tree structure into a sorted slice
-// Used for navigation when we need linear order
-func FlattenSiteTree(nodes []*models.TreeNode) []models.NavPage {
-	var result []models.NavPage
-
-	for _, node := range nodes {
-		if node.Link != "" {
-			result = append(result, models.NavPage{
-				Title:  node.Title,
-				Link:   node.Link,
-				Weight: node.Weight,
-			})
-		}
-
-		// Recursively add children
-		if len(node.Children) > 0 {
-			children := FlattenSiteTree(node.Children)
-			result = append(result, children...)
-		}
-	}
-
-	return result
 }

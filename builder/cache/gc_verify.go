@@ -6,7 +6,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // Verify checks cache integrity

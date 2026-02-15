@@ -15,7 +15,7 @@ import (
 	"github.com/zeebo/blake3"
 )
 
-func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string) (map[string]string, error) {
+func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool) (map[string]string, error) {
 	srcDir = NormalizePath(srcDir)
 	destDir = NormalizePath(destDir)
 	assets := make(map[string]string)
@@ -43,7 +43,9 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 		}
 
 		// Add to hash (path + mtime + size)
-		fmt.Fprintf(inputHash, "%s:%d:%d;", path, info.Size(), info.ModTime().UnixNano())
+		if _, err := fmt.Fprintf(inputHash, "%s:%d:%d;", path, info.Size(), info.ModTime().UnixNano()); err != nil {
+			return fmt.Errorf("failed to write to input hash: %w", err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -54,48 +56,50 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 	cachePath := ""
 	if cacheDir != "" {
 		cachePath = filepath.Join(cacheDir, currentHash)
-		// Check cache
-		if info, err := os.Stat(cachePath); err == nil && info.IsDir() {
-			// Restore from cache
-			mapFile := filepath.Join(cachePath, "map.json")
-			if mapData, err := os.ReadFile(mapFile); err == nil {
-				if err := json.Unmarshal(mapData, &assets); err == nil {
-					// Restore files
-					err = filepath.Walk(cachePath, func(path string, info fs.FileInfo, err error) error {
-						if info.IsDir() || filepath.Base(path) == "map.json" {
+		// Check cache (skip if force is true)
+		if !force {
+			if info, err := os.Stat(cachePath); err == nil && info.IsDir() {
+				// Restore from cache
+				mapFile := filepath.Join(cachePath, "map.json")
+				if mapData, err := os.ReadFile(mapFile); err == nil {
+					if err := json.Unmarshal(mapData, &assets); err == nil {
+						// Restore files
+						err = filepath.Walk(cachePath, func(path string, info fs.FileInfo, walkErr error) error {
+							if info.IsDir() || filepath.Base(path) == "map.json" {
+								return nil
+							}
+							path = NormalizePath(path)
+							relPath, _ := SafeRel(cachePath, path)
+							// destDir/relPath
+							// But relPath in cache is flattened?
+							// Wait, esbuild output preserves structure if Outbase is used.
+							// We need to mirror structure.
+
+							// Let's assume cache structure matches public/static structure
+							// Read file
+							data, err := os.ReadFile(path)
+							if err != nil {
+								return err
+							}
+
+							// Write to destFs
+							// destDir is public/static
+							// relPath is css/main.css
+							destPath := filepath.Join(destDir, relPath)
+							if err := destFs.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+								return err
+							}
+							if err := afero.WriteFile(destFs, destPath, data, 0644); err != nil {
+								return err
+							}
+							if onWrite != nil {
+								onWrite(destPath)
+							}
 							return nil
+						})
+						if err == nil {
+							return assets, nil // Cache Hit!
 						}
-						path = NormalizePath(path)
-						relPath, _ := SafeRel(cachePath, path)
-						// destDir/relPath
-						// But relPath in cache is flattened?
-						// Wait, esbuild output preserves structure if Outbase is used.
-						// We need to mirror structure.
-
-						// Let's assume cache structure matches public/static structure
-						// Read file
-						data, err := os.ReadFile(path)
-						if err != nil {
-							return err
-						}
-
-						// Write to destFs
-						// destDir is public/static
-						// relPath is css/main.css
-						destPath := filepath.Join(destDir, relPath)
-						if err := destFs.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-							return err
-						}
-						if err := afero.WriteFile(destFs, destPath, data, 0644); err != nil {
-							return err
-						}
-						if onWrite != nil {
-							onWrite(destPath)
-						}
-						return nil
-					})
-					if err == nil {
-						return assets, nil // Cache Hit!
 					}
 				}
 			}
@@ -192,7 +196,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 			}
 
 			// Normalize paths for the assets map
-			// EntryPoint might be "themes/blog/static/js/main.js"
+			// EntryPoint might be "themes/<theme>/static/js/main.js"
 			// We want the key to be "/static/js/main.js" for compatibility
 
 			entryPointAbs, _ := filepath.Abs(outInfo.EntryPoint)

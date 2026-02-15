@@ -7,14 +7,16 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"syscall"
 
-	"my-ssg/builder/run"
-	"my-ssg/internal/clean"
-	"my-ssg/internal/new"
-	"my-ssg/internal/scaffold"
-	"my-ssg/internal/server"
-	"my-ssg/internal/watch"
+	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/internal/clean"
+	"github.com/Kush-Singh-26/kosh/internal/new"
+	"github.com/Kush-Singh-26/kosh/internal/scaffold"
+	"github.com/Kush-Singh-26/kosh/internal/server"
+	"github.com/Kush-Singh-26/kosh/internal/version"
+	"github.com/Kush-Singh-26/kosh/internal/watch"
 )
 
 func main() {
@@ -41,15 +43,18 @@ func main() {
 
 	switch command {
 	case "clean":
-		// Check for --cache flag
 		cleanCache := false
+		cleanAll := false
 		for _, arg := range args {
 			if arg == "--cache" || arg == "-cache" {
 				cleanCache = true
 			}
+			if arg == "--all" || arg == "-all" {
+				cleanAll = true
+			}
 		}
 
-		clean.Run(cleanCache)
+		clean.Run(cleanCache, cleanAll)
 		// Auto-rebuild after clean
 		fmt.Println("\n🔄 Rebuilding site...")
 		run.Run([]string{})
@@ -242,8 +247,18 @@ func main() {
 	case "cache":
 		handleCacheCommand(args)
 
-	case "version", "-version", "--version":
+	case "version":
+		if len(args) > 0 && (args[0] == "-info" || args[0] == "--info") {
+			printVersion()
+		} else if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+			version.Run(args)
+		} else {
+			version.Run([]string{})
+		}
+
+	case "-version", "--version":
 		printVersion()
+		os.Exit(0)
 
 	case "help", "-help", "--help":
 		printUsage()
@@ -257,24 +272,43 @@ func main() {
 func printUsage() {
 	fmt.Println("Usage: kosh <command> [arguments]")
 	fmt.Println("\nCommands:")
-	fmt.Println("  new <title>    Create a new blog post")
-	fmt.Println("  init           Initialize a new Kosh site")
-	fmt.Println("  clean          Clean public directory & rebuild")
+	fmt.Println("  init [name]    Initialize a new Kosh site (optionally with a name)")
+	fmt.Println("  new <title>    Create a new blog post with the given title")
+	fmt.Println("  build          Build the static site (and WASM search)")
 	fmt.Println("  serve          Start the preview server")
-	fmt.Println("  build          Build the static site (and WASM)")
-	fmt.Println("  version        Show version information")
+	fmt.Println("  clean          Clean output directory")
 	fmt.Println("  cache          Cache management commands")
+	fmt.Println("  version        Version management commands")
 	fmt.Println("  help           Show this help message")
-	fmt.Println("\nFlags for clean:")
-	fmt.Println("  --cache        Also clean .kosh-cache directory (force full re-render)")
-	fmt.Println("\nFlags for build:")
-	fmt.Println("  -baseurl       Base URL for the site")
-	fmt.Println("  -drafts        Include draft posts in the build")
-	fmt.Println("  --cpuprofile <file>  Write CPU profile to file")
-	fmt.Println("  --memprofile <file>  Write memory profile to file")
-	fmt.Println("\nFlags for serve:")
-	fmt.Println("  --dev          Enable development mode (serve + watch)")
-	fmt.Println("  -drafts        Include draft posts in development mode")
+	fmt.Println("\nBuild Flags:")
+	fmt.Println("  --watch              Watch for changes and rebuild automatically")
+	fmt.Println("  --cpuprofile <file>  Write CPU profile to file (for profiling)")
+	fmt.Println("  --memprofile <file>  Write memory profile to file (for profiling)")
+	fmt.Println("  -baseurl <url>       Override base URL from config")
+	fmt.Println("  -drafts              Include draft posts in build")
+	fmt.Println("  -theme <name>        Override theme from config")
+	fmt.Println("\nServe Flags:")
+	fmt.Println("  --dev                Enable development mode (build + watch + serve)")
+	fmt.Println("  --host <host>        Host/IP to bind to (default: localhost)")
+	fmt.Println("  --port <port>        Port to listen on (default: 2604)")
+	fmt.Println("  -drafts              Include draft posts in development mode")
+	fmt.Println("  -baseurl <url>       Override base URL from config")
+	fmt.Println("\nClean Flags:")
+	fmt.Println("  --cache              Also clean .kosh-cache directory (force full re-render)")
+	fmt.Println("  --all                Clean all versions including versioned folders")
+	fmt.Println("\nCache Commands:")
+	fmt.Println("  cache stats          Show cache statistics and performance metrics")
+	fmt.Println("  cache gc             Run garbage collection on cache")
+	fmt.Println("  cache verify         Check cache integrity")
+	fmt.Println("  cache rebuild        Clear cache for full rebuild")
+	fmt.Println("  cache clear          Delete all cache data")
+	fmt.Println("  cache inspect <path> Show cache entry for a specific file")
+	fmt.Println("\nCache GC Flags:")
+	fmt.Println("  --dry-run, -n        Show what would be deleted without deleting")
+	fmt.Println("\nVersion Commands:")
+	fmt.Println("  version              Show current documentation version info")
+	fmt.Println("  version <vX.X>       Freeze current latest and start new version")
+	fmt.Println("  version --info       Show Kosh build information and optimizations")
 }
 
 func printVersion() {

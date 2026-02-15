@@ -3,57 +3,81 @@ package cache
 import (
 	"encoding/binary"
 	"path/filepath"
+	"sync"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
 
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // BatchCommit commits all pending changes in a single transaction
 func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*SearchRecord, deps map[string]*Dependencies) error {
-	start := time.Now()
+	// Pre-allocate slice for parallel encoding results
+	encoded := make([]EncodedPost, len(posts))
 
-	encoded := encodedPostPool.Get().([]EncodedPost)[:0]
-	defer func() {
-		for i := range encoded {
-			encoded[i] = EncodedPost{}
-		}
-		encodedPostPool.Put(encoded)
-	}()
+	// Parallelize encoding for better performance
+	var encodeWg sync.WaitGroup
+	var encodeMu sync.Mutex
+	var encodeErr error
 
-	for _, post := range posts {
-		postData, err := Encode(post)
-		if err != nil {
-			return err
-		}
+	for i, post := range posts {
+		encodeWg.Add(1)
+		go func(idx int, p *PostMeta) {
+			defer encodeWg.Done()
 
-		ep := EncodedPost{
-			PostID: []byte(post.PostID),
-			Data:   postData,
-			Path:   []byte(utils.NormalizePath(post.Path)),
-		}
-
-		if sr, ok := searchRecords[post.PostID]; ok {
-			srData, err := Encode(sr)
+			postData, err := Encode(p)
 			if err != nil {
-				return err
+				encodeMu.Lock()
+				if encodeErr == nil {
+					encodeErr = err
+				}
+				encodeMu.Unlock()
+				return
 			}
-			ep.SearchData = srData
-		}
 
-		if d, ok := deps[post.PostID]; ok {
-			depsData, err := Encode(d)
-			if err != nil {
-				return err
+			ep := EncodedPost{
+				PostID: []byte(p.PostID),
+				Data:   postData,
+				Path:   []byte(utils.NormalizePath(p.Path)),
 			}
-			ep.DepsData = depsData
-			ep.Tags = d.Tags
-			ep.Templates = d.Templates
-			ep.Includes = d.Includes
-		}
 
-		encoded = append(encoded, ep)
+			if sr, ok := searchRecords[p.PostID]; ok {
+				srData, err := Encode(sr)
+				if err != nil {
+					encodeMu.Lock()
+					if encodeErr == nil {
+						encodeErr = err
+					}
+					encodeMu.Unlock()
+					return
+				}
+				ep.SearchData = srData
+			}
+
+			if d, ok := deps[p.PostID]; ok {
+				depsData, err := Encode(d)
+				if err != nil {
+					encodeMu.Lock()
+					if encodeErr == nil {
+						encodeErr = err
+					}
+					encodeMu.Unlock()
+					return
+				}
+				ep.DepsData = depsData
+				ep.Tags = d.Tags
+				ep.Templates = d.Templates
+				ep.Includes = d.Includes
+			}
+
+			encoded[idx] = ep
+		}(i, post)
+	}
+	encodeWg.Wait()
+
+	if encodeErr != nil {
+		return encodeErr
 	}
 
 	var ops bucketOps
@@ -139,14 +163,6 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 		return nil
 	})
 
-	if err == nil {
-		writeTime := time.Since(start)
-		m.mu.Lock()
-		m.stats.lastWriteTime = writeTime
-		m.stats.writeCount++
-		m.mu.Unlock()
-	}
-
 	return err
 }
 
@@ -158,7 +174,7 @@ func (m *Manager) StoreHTML(content []byte) (string, error) {
 
 // StoreHTMLForPost stores HTML for a specific post, inlining if small
 func (m *Manager) StoreHTMLForPost(post *PostMeta, content []byte) error {
-	if len(content) < InlineHTMLThreshold {
+	if len(content) < utils.InlineHTMLThreshold {
 		post.InlineHTML = content
 		post.HTMLHash = ""
 		return nil

@@ -9,7 +9,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 	"github.com/zeebo/blake3"
 
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // PostMeta stores metadata about a cached post
@@ -38,9 +38,7 @@ type PostMeta struct {
 }
 
 // Constants for inline HTML threshold
-const (
-	InlineHTMLThreshold = 32 * 1024 // 32KB - posts smaller than this are stored inline
-)
+// InlineHTMLThreshold is defined in builder/utils/constants.go
 
 // SSRArtifact stores server-side rendered content (D2 diagrams, KaTeX math)
 type SSRArtifact struct {
@@ -78,18 +76,11 @@ type CacheStats struct {
 	TotalPosts    int   `msgpack:"total_posts"`
 	TotalSSR      int   `msgpack:"total_ssr"`
 	StoreBytes    int64 `msgpack:"store_bytes"`
-	DeadBytes     int64 `msgpack:"dead_bytes"`
 	LastGC        int64 `msgpack:"last_gc"`
 	BuildCount    int   `msgpack:"build_count"`
 	SchemaVersion int   `msgpack:"schema_version"`
-	LastBuildTime int64 `msgpack:"last_build_time"`
-	// Performance metrics for optimization monitoring
-	LastReadTime  time.Duration `msgpack:"last_read_time"`
-	LastWriteTime time.Duration `msgpack:"last_write_time"`
-	ReadCount     int64         `msgpack:"read_count"`
-	WriteCount    int64         `msgpack:"write_count"`
-	InlinePosts   int           `msgpack:"inline_posts"` // Posts with inlined HTML
-	HashedPosts   int           `msgpack:"hashed_posts"` // Posts using content-addressed storage
+	InlinePosts   int   `msgpack:"inline_posts"`
+	HashedPosts   int   `msgpack:"hashed_posts"`
 }
 
 // CompressionType indicates how an artifact is stored
@@ -101,10 +92,7 @@ const (
 	CompressionZstdLevel3
 )
 
-// Constants for compression thresholds
 const (
-	RawThreshold  = 8 * 1024   // < 8KB stored raw
-	FastZstdMax   = 128 * 1024 // 8KB-128KB use zstd fast
 	SchemaVersion = 1
 )
 

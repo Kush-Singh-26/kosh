@@ -2,24 +2,27 @@ package generators
 
 import (
 	"compress/gzip"
-	"encoding/gob"
 	"path/filepath"
 
 	"github.com/spf13/afero"
+	"github.com/vmihailenco/msgpack/v5"
 
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/search"
 )
 
 func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []models.IndexedPost) error {
 	totalDocs := len(indexedPosts)
-	// Heuristic: estimate 100 unique words per post
 	estimatedUniqueWords := totalDocs * 100
 
 	index := models.SearchIndex{
 		Posts:    make([]models.PostRecord, totalDocs),
 		Inverted: make(map[string]map[int]int, estimatedUniqueWords),
 		DocLens:  make(map[int]int, totalDocs),
+		StemMap:  make(map[string][]string),
 	}
+
+	analyzer := search.NewAnalyzer(true, true)
 
 	totalLen := 0
 	for i, ip := range indexedPosts {
@@ -35,6 +38,27 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 			}
 			postMap[i] = freq
 		}
+
+		// Build stem map for fuzzy matching
+		stemmed, originals := analyzer.AnalyzeWithOriginals(ip.Record.Content)
+		for j, stem := range stemmed {
+			if j < len(originals) {
+				orig := originals[j]
+				if stem != orig {
+					existing := index.StemMap[stem]
+					found := false
+					for _, e := range existing {
+						if e == orig {
+							found = true
+							break
+						}
+					}
+					if !found {
+						index.StemMap[stem] = append(index.StemMap[stem], orig)
+					}
+				}
+			}
+		}
 	}
 
 	index.TotalDocs = len(indexedPosts)
@@ -42,22 +66,9 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
 	}
 
-	// Save to compressed binary file
 	if err := destFs.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}
-
-	// Use .bin.gz extension or just .bin?
-	// The plan said .bin.gz and client inflates it.
-	// But `search.bin` is what the client expects currently.
-	// I'll change it to `search.bin` but compressed content, or `search.bin.gz`.
-	// If I change filename, I must update WASM.
-	// I'll use `search.bin` for now but gzip it. The client will need to know.
-	// Actually, browsers can handle gzip via Content-Encoding if served correctly,
-	// but for WASM manual fetch, explicit decompression is better.
-	// I'll name it `search.bin` to minimize `run.go` changes for now,
-	// BUT `run.go` calls this function. I can pass `public/search.bin`.
-	// Let's use `search.bin` but containing gzipped data.
 
 	file, err := destFs.Create(filepath.Join(outputDir, "search.bin"))
 	if err != nil {
@@ -68,6 +79,6 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 	gw := gzip.NewWriter(file)
 	defer func() { _ = gw.Close() }()
 
-	enc := gob.NewEncoder(gw)
-	return enc.Encode(index)
+	enc := msgpack.NewEncoder(gw)
+	return enc.Encode(&index)
 }

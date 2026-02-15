@@ -5,39 +5,45 @@ theme: "docs"
 themeDir: "../themes"
 languageCode: "en-us"
 author:
-  name: "Kush Singh"
-  email: "author@example.com"
+    name: "Kush Singh"
+    email: "author@example.com"
 build:
-  drafts: true
-
+    drafts: true
 # Version configuration for documentation
 versions:
-  - name: "v4.0"
-    path: ""
-  - name: "v3.0"
-    path: "v3.0"
-  - name: "v2.0"
-    path: "v2.0"
-  - name: "v1.0"
-    path: "v1.0"
-
+    - name: v7.0
+      path: v7.0
+      isLatest: true
+    - name: v6.0
+      path: v6.0
+      isLatest: false
+    - name: v5.0
+      path: v5.0
+      isLatest: false
+    - name: v4.0
+      path: v4.0
+    - name: v3.0
+      path: v3.0
+    - name: v2.0
+      path: v2.0
+    - name: v1.0
+      path: v1.0
 features:
-  rawMarkdown: true
-  generators:
-    sitemap: true
-    rss: false
-    graph: true
-    pwa: true
-    search: true
-
+    rawMarkdown: true
+    generators:
+        sitemap: true
+        rss: false
+        graph: true
+        pwa: true
+        search: true
 # Social Cards (Open Graph Images)
 socialCards:
-  background: "#faf8f5"    # Base background color (warm cream)
-  gradient:                # Gradient colors - visible beige to brown
-    - "#e8e0d0"            # Medium beige
-    - "#d4c4a8"            # Darker brown-beige
-  angle: 135               # Gradient angle in degrees
-  textColor: "#1a1a1a"     # Text color
+    background: "#faf8f5" # Base background color (warm cream)
+    gradient: # Gradient colors - visible beige to brown
+        - "#e8e0d0" # Medium beige
+        - "#d4c4a8" # Darker brown-beige
+    angle: 135 # Gradient angle in degrees
+    textColor: "#1a1a1a" # Text color
 
 # Directory Paths (Optional - defaults shown below)
 # contentDir: "content"      # Source content directory

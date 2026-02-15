@@ -6,7 +6,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // getCachedItem retrieves a generic item from a bucket
@@ -32,21 +32,41 @@ func getCachedItem[T any](db *bolt.DB, bucketName string, key []byte) (*T, error
 	return result, err
 }
 
-// GetPostByPath looks up a post by its file path
+// GetPostByPath looks up a post by its file path in a single transaction
 func (m *Manager) GetPostByPath(path string) (*PostMeta, error) {
 	normalizedPath := utils.NormalizePath(path)
 
-	var postID []byte
+	var result *PostMeta
 	err := m.db.View(func(tx *bolt.Tx) error {
+		// First lookup the postID from paths bucket
 		paths := tx.Bucket([]byte(BucketPaths))
-		postID = paths.Get([]byte(normalizedPath))
+		if paths == nil {
+			return nil
+		}
+		postID := paths.Get([]byte(normalizedPath))
+		if postID == nil {
+			return nil
+		}
+
+		// Then get the post from posts bucket in the same transaction
+		posts := tx.Bucket([]byte(BucketPosts))
+		if posts == nil {
+			return nil
+		}
+		data := posts.Get(postID)
+		if data == nil {
+			return nil
+		}
+
+		var meta PostMeta
+		if err := Decode(data, &meta); err != nil {
+			return err
+		}
+		result = &meta
 		return nil
 	})
-	if err != nil || postID == nil {
-		return nil, err
-	}
 
-	return getCachedItem[PostMeta](m.db, BucketPosts, postID)
+	return result, err
 }
 
 // GetPostByID retrieves a post by its PostID
@@ -70,11 +90,12 @@ func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*PostMeta, error) 
 				continue
 			}
 
-			var postMeta PostMeta
-			if err := Decode(data, &postMeta); err != nil {
+			// Allocate directly on heap to avoid value-to-pointer conversion
+			postMeta := new(PostMeta)
+			if err := Decode(data, postMeta); err != nil {
 				continue
 			}
-			result[id] = &postMeta
+			result[id] = postMeta
 		}
 		return nil
 	})
@@ -131,11 +152,6 @@ func (m *Manager) GetSearchRecords(postIDs []string) (map[string]*SearchRecord, 
 // GetSearchRecord retrieves the search record for a post
 func (m *Manager) GetSearchRecord(postID string) (*SearchRecord, error) {
 	return getCachedItem[SearchRecord](m.db, BucketSearch, []byte(postID))
-}
-
-// GetDependencies retrieves dependencies for a post
-func (m *Manager) GetDependencies(postID string) (*Dependencies, error) {
-	return getCachedItem[Dependencies](m.db, BucketPostDeps, []byte(postID))
 }
 
 // GetSSRArtifact retrieves an SSR artifact

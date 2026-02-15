@@ -1,7 +1,6 @@
 ---
 title: "API Overview v2.0"
 description: "API overview for v2.0"
-date: "2025-06-07"
 weight: 50
 ---
 
@@ -9,25 +8,68 @@ weight: 50
 
 API documentation for v2.0.
 
-## API Changes in v2.0
+> **Note:** This is v2.0 documentation. For the latest API, see [API Reference](../../api/reference.md).
 
-v2.0 introduces breaking API changes from v1.0.
+## New in v2.0
 
-## Links Within v2.0/api
+### Version API
+
+Access version information in templates:
+
+```html
+{{ range .Versions }}
+<option value="{{ .URL }}" {{ if .IsCurrent }}selected{{ end }}>
+  {{ .Name }}
+</option>
+{{ end }}
+```
+
+### Search API
+
+Client-side search with WASM:
+
+```javascript
+// Initialize search
+await initSearch('/search.bin');
+
+// Perform search
+const results = search('query');
+```
+
+## Template Variables
+
+### Version Info
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Name` | string | Display name |
+| `URL` | string | Version URL |
+| `IsLatest` | bool | Is latest version |
+| `IsCurrent` | bool | Is current page version |
+
+### Page Data
+
+```go
+type PageData struct {
+    Title       string
+    Content     string
+    Version     string
+    Versions    []VersionInfo
+    IsOutdated  bool
+    SiteTree    []TreeNode
+}
+```
+
+## v2.0 API Pages
 
 - [Changelog](./changelog.md) - API changes
 
-## Links to v2.0
-
-- [Getting Started](../getting-started.md) - v2.0 guide
-- [Setup](../advanced/setup.md) - Advanced setup
-
 ## Cross-Version API
 
+- [v4.0 API Reference](../../api/reference.md) - Latest API
 - [v1.0 Tutorial](../../v1.0/guides/tutorial.md) - Legacy guide
-- [v3.0 What's New](../../v3.0/whats-new.md) - Future API
 
-## Root API
+## Related
 
-- [API Reference](../../api/reference.md) - Root API docs
-- [API Examples](../../api/examples.md) - Code examples
+- [v2.0 Documentation](../index.md)
+- [Changelog](./changelog.md)

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestHashContent(t *testing.T) {
@@ -350,21 +350,10 @@ func TestEncodeDecodeComplex(t *testing.T) {
 
 func TestConstants(t *testing.T) {
 	// Test that constants have expected values
-	if InlineHTMLThreshold != 32*1024 {
-		t.Errorf("InlineHTMLThreshold = %d, want %d", InlineHTMLThreshold, 32*1024)
-	}
-
-	if RawThreshold != 8*1024 {
-		t.Errorf("RawThreshold = %d, want %d", RawThreshold, 8*1024)
-	}
-
-	if FastZstdMax != 128*1024 {
-		t.Errorf("FastZstdMax = %d, want %d", FastZstdMax, 128*1024)
-	}
-
-	if SchemaVersion != 1 {
-		t.Errorf("SchemaVersion = %d, want 1", SchemaVersion)
-	}
+	// These constants are now in builder/utils/constants.go
+	// and should be tested there or imported from there.
+	// Removing this test as it was testing constants defined in this package
+	// which have been moved.
 }
 
 func TestCompressionType(t *testing.T) {

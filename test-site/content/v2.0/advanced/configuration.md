@@ -1,48 +1,77 @@
 ---
-title: "Configuration"
-description: "Configuration guide - VERSION 2.0"
-date: "2025-06-20"
-weight: 5
+title: "Configuration v2.0"
+description: "Configuration options for v2.0"
+weight: 65
 ---
 
-# Configuration (v2.0)
+# Configuration v2.0
 
-This is the **v2.0** version of the Configuration guide.
+v2.0 specific configuration options.
 
-## Configuration Options
+> **Note:** This page only exists in v2.0. For the latest config, see [Configuration](../../configuration.md).
 
-In v2.0, we introduced several new configuration options:
-
-### New in v2.0
+## Version Configuration
 
 ```yaml
-# kosh.yaml - v2.0 features
-version: "2.0"
-features:
-  - search
-  - versioning
-  - breadcrumbs
-  
-search:
-  enabled: true
-  indexAllVersions: true
+versions:
+  - name: "v2.0"
+    path: ""
+    isLatest: true
+  - name: "v1.0"
+    path: "v1.0"
 ```
 
-### Changed from v1.0
+### Version Fields
 
-- Option A: Now accepts arrays instead of strings
-- Option B: Default value changed from `false` to `true`
-- Option C: Removed (use Option D instead)
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Display name |
+| `path` | string | URL path prefix |
+| `isLatest` | bool | Mark as latest |
 
-## Breaking Changes
+## Search Configuration
 
-When migrating from v1.0 to v2.0:
+```yaml
+features:
+  generators:
+    search: true
+```
 
-1. Update your config file format
-2. Replace deprecated options
-3. Test in development mode first
+### Search Options
 
-## See Also
+| Option | Default | Description |
+|--------|---------|-------------|
+| `search` | `true` | Enable search index |
 
-- [Getting Started](../getting-started.html) - Overview
-- [New in v2.0](../new-in-v2.html) - v2.0 specific features
+## Theme Configuration
+
+### Docs Theme
+
+```yaml
+theme: "docs"
+themeDir: "themes"
+```
+
+### Available Themes
+
+- `blog` - Chronological blog theme
+- `docs` - Documentation theme
+
+## Build Options
+
+```yaml
+build:
+  drafts: false
+```
+
+## v2.0 Specific Notes
+
+- Version system introduced in v2.0
+- WASM search requires JavaScript
+- Sidebar uses recursive tree
+
+## Related
+
+- [Setup](./setup.md) - Advanced setup
+- [Migration](./migration.md) - Migration details
+- [v4.0 Configuration](../../configuration.md) - Latest config

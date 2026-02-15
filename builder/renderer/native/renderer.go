@@ -2,7 +2,6 @@
 package native
 
 import (
-	"crypto/md5"
 	_ "embed"
 	"encoding/hex"
 	"log"
@@ -10,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/dop251/goja"
+	"github.com/zeebo/blake3"
 	"oss.terrastruct.com/d2/lib/textmeasure"
 )
 
@@ -40,6 +40,9 @@ func New() *Renderer {
 		numWorkers = 1
 	}
 
+	// Channel buffer is sized to numWorkers to prevent deadlocks
+	// Workers are returned to pool after use, so this is safe as long as
+	// we never create more workers than the buffer size.
 	return &Renderer{
 		pool:       make(chan *Instance, numWorkers),
 		numWorkers: numWorkers,
@@ -52,7 +55,7 @@ func (r *Renderer) ensureInitialized() {
 		log.Printf("⚙️  Initializing Renderer Pool with %d workers...", r.numWorkers)
 
 		// 1. Compile KaTeX once
-		log.Printf("   📝 Compiling KaTeX script...") // Debug log
+		log.Printf("   📝 Compiling KaTeX script...")
 		prog, err := goja.Compile("katex.min.js", katexJS, true)
 		if err != nil {
 			log.Printf("❌ Failed to compile KaTeX: %v", err)
@@ -139,9 +142,9 @@ func (i *Instance) ensureInitialized(prog *goja.Program) {
 	})
 }
 
-// HashContent generates an MD5 hash for cache keys
+// HashContent generates a BLAKE3 hash for cache keys
 func HashContent(contentType, content string) string {
-	h := md5.New()
-	h.Write([]byte(contentType + ":" + content))
-	return hex.EncodeToString(h.Sum(nil))
+	h := blake3.New()
+	_, _ = h.WriteString(contentType + ":" + content)
+	return hex.EncodeToString(h.Sum(nil))[:16]
 }

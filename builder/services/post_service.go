@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,27 +19,15 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
-	"my-ssg/builder/cache"
-	"my-ssg/builder/config"
-	"my-ssg/builder/metrics"
-	"my-ssg/builder/models"
-	mdParser "my-ssg/builder/parser"
-	"my-ssg/builder/renderer/native"
-	"my-ssg/builder/search"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/search"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
-
-// Constants for magic numbers
-const (
-	wordsPerMinute = 120.0 // Average reading speed for calculating reading time
-)
-
-// socialCardTask represents a social card generation task
-type socialCardTask struct {
-	path, relPath, cardDestPath string
-	metaData                    map[string]interface{}
-	frontmatterHash             string
-}
 
 type postServiceImpl struct {
 	cfg            *config.Config
@@ -87,7 +74,6 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	var (
 		allPosts       []models.PostMetadata
 		pinnedPosts    []models.PostMetadata
-		indexedPosts   []models.IndexedPost
 		tagMap         = make(map[string][]models.PostMetadata)
 		postsByVersion = make(map[string][]models.PostMetadata)
 		has404         bool
@@ -95,6 +81,9 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		processedCount int32
 		mu             sync.Mutex
 	)
+
+	// Use sync.Map for concurrent metadata updates (optimization: avoids lock contention)
+	var allMetadataMap sync.Map
 
 	// Batch storage for BoltDB commit
 	var (
@@ -112,8 +101,12 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 
 	var files []string
 	var fileVersions []string
-	_ = afero.Walk(s.sourceFs, s.cfg.ContentDir, func(path string, info fs.FileInfo, err error) error {
-		if err == nil && strings.HasSuffix(path, ".md") && !strings.Contains(path, "_index.md") {
+	if err := afero.Walk(s.sourceFs, s.cfg.ContentDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			s.logger.Error("Error walking content directory", "path", path, "error", err)
+			return nil // Continue walking other files
+		}
+		if strings.HasSuffix(path, ".md") && !strings.Contains(path, "_index.md") {
 			if strings.Contains(path, "404.md") {
 				has404 = true
 			} else {
@@ -123,14 +116,17 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		s.logger.Error("Failed to walk content directory", "error", err)
+	}
+
+	// Pre-allocate indexed posts slice and use atomic index for lock-free writes
+	indexedPosts := make([]models.IndexedPost, len(files))
+	var indexedPostIdx int32 = -1 // Start at -1 so first AddInt32 returns 0
 
 	renderQueue := make([]RenderContext, len(files))
 
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 12 {
-		numWorkers = 12
-	}
+	numWorkers := utils.GetDefaultWorkerCount()
 
 	cardPool := utils.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) {
 		s.generateSocialCard(task)
@@ -138,23 +134,19 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	cardPool.Start()
 
 	// Phase 0: Load global metadata from cache for complete sidebar/neighbor context
-	allMetadataMap := make(map[string]models.PostMetadata)
 	if s.cache != nil {
-		if Lister, ok := s.cache.(interface{ ListAllPosts() ([]string, error) }); ok {
-			ids, _ := Lister.ListAllPosts()
+		if lister, ok := s.cache.(interface{ ListAllPosts() ([]string, error) }); ok {
+			ids, _ := lister.ListAllPosts()
 			cachedPosts, _ := s.cache.GetPostsByIDs(ids)
 			for _, cp := range cachedPosts {
-				allMetadataMap[cp.Link] = models.PostMetadata{
+				allMetadataMap.Store(cp.Link, models.PostMetadata{
 					Title: cp.Title, Link: cp.Link, Weight: cp.Weight, Version: cp.Version,
 					DateObj: cp.Date, ReadingTime: cp.ReadingTime, Description: cp.Description,
 					Tags: cp.Tags, Pinned: cp.Pinned, Draft: cp.Draft,
-				}
+				})
 			}
 		}
 	}
-
-	// Mutex for protecting allMetadataMap during concurrent access
-	var metadataMu sync.RWMutex
 
 	parsePool := utils.NewWorkerPool(ctx, numWorkers, func(pt struct {
 		idx     int
@@ -235,9 +227,9 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			metaData = cachedMeta.Meta
 			frontmatterHash = cachedMeta.ContentHash
 
-			metadataMu.RLock()
-			post = allMetadataMap[cachedMeta.Link]
-			metadataMu.RUnlock()
+			if v, ok := allMetadataMap.Load(cachedMeta.Link); ok {
+				post = v.(models.PostMetadata)
+			}
 
 			for _, t := range cachedMeta.TOC {
 				toc = append(toc, models.TOCEntry{ID: t.ID, Text: t.Text, Level: t.Level})
@@ -266,8 +258,12 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			if s.cfg.Features.RawMarkdown {
 				// Use filepath to handle OS-specific path separators correctly
 				mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
-				_ = s.destFs.MkdirAll(filepath.Dir(mdDestPath), 0755)
-				_ = afero.WriteFile(s.destFs, mdDestPath, source, 0644)
+				if err := s.destFs.MkdirAll(filepath.Dir(mdDestPath), 0755); err != nil {
+					s.logger.Error("Failed to create markdown directory", "path", filepath.Dir(mdDestPath), "error", err)
+				}
+				if err := afero.WriteFile(s.destFs, mdDestPath, source, 0644); err != nil {
+					s.logger.Error("Failed to write markdown file", "path", mdDestPath, "error", err)
+				}
 			}
 
 			ctx := parser.NewContext()
@@ -278,7 +274,10 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			buf := utils.SharedBufferPool.Get()
 			defer utils.SharedBufferPool.Put(buf)
 
-			_ = s.md.Renderer().Render(buf, source, docNode)
+			if err := s.md.Renderer().Render(buf, source, docNode); err != nil {
+				s.logger.Error("Failed to render markdown", "path", path, "error", err)
+				return
+			}
 			htmlContent = buf.String()
 
 			if pairs := mdParser.GetD2SVGPairSlice(ctx); pairs != nil {
@@ -336,9 +335,8 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				Version:         version,
 			}
 
-			// Use strings.Builder for tokenization pre-processing to reduce allocations
+			// Use analyzer for tokenization with stemming and stop word removal
 			var sb strings.Builder
-			// Estimate size: Title (50) + Desc (150) + Tags (50) + Content (5000)
 			sb.Grow(len(searchRecord.Title) + len(searchRecord.Description) + len(searchRecord.Content) + 200)
 			sb.WriteString(searchRecord.Title)
 			sb.WriteByte(' ')
@@ -350,7 +348,8 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			}
 			sb.WriteString(searchRecord.Content)
 
-			words = search.Tokenize(strings.ToLower(sb.String()))
+			// Analyze with stemming and stop words
+			words = search.DefaultAnalyzer.Analyze(sb.String())
 			docLen = len(words)
 			wordFreqs = make(map[string]int)
 			for _, w := range words {
@@ -381,7 +380,6 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		}
 
 		if forceSocialRebuild || (cachedHash != frontmatterHash || !cardExists) {
-			// s.logger.Debug("Submitting social card task", "path", relPath, "cardDestPath", cardDestPath, "forceSocialRebuild", forceSocialRebuild, "cachedHash", cachedHash, "frontmatterHash", frontmatterHash, "cardExists", cardExists)
 			cardPool.Submit(socialCardTask{
 				path:            relPath,
 				relPath:         strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
@@ -391,7 +389,9 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			})
 		} else if cardExists {
 			if s.cache != nil && cachedHash == "" {
-				_ = s.cache.SetSocialCardHash(relPath, frontmatterHash)
+				if err := s.cache.SetSocialCardHash(relPath, frontmatterHash); err != nil {
+					s.logger.Error("Failed to set social card hash", "path", relPath, "error", err)
+				}
 			}
 		}
 
@@ -426,10 +426,16 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		if s.cfg.Features.RawMarkdown {
 			mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
 			if _, err := os.Stat(mdDestPath); os.IsNotExist(err) {
-				sourceBytes, _ := afero.ReadFile(s.sourceFs, path)
-				if len(sourceBytes) > 0 {
-					_ = s.destFs.MkdirAll(filepath.Dir(mdDestPath), 0755)
-					_ = afero.WriteFile(s.destFs, mdDestPath, sourceBytes, 0644)
+				sourceBytes, err := afero.ReadFile(s.sourceFs, path)
+				if err != nil {
+					s.logger.Error("Failed to read source file for raw markdown", "path", path, "error", err)
+				} else if len(sourceBytes) > 0 {
+					if err := s.destFs.MkdirAll(filepath.Dir(mdDestPath), 0755); err != nil {
+						s.logger.Error("Failed to create markdown directory", "path", filepath.Dir(mdDestPath), "error", err)
+					}
+					if err := afero.WriteFile(s.destFs, mdDestPath, sourceBytes, 0644); err != nil {
+						s.logger.Error("Failed to write raw markdown file", "path", mdDestPath, "error", err)
+					}
 				}
 			}
 		}
@@ -444,8 +450,8 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 					TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
 					TOC: toc, Config: s.cfg,
 					CurrentVersion: version,
-					IsOutdated:     version != "",
-					Versions:       s.cfg.GetVersionsMetadata(version),
+					IsOutdated:     s.isOutdatedVersion(version),
+					Versions:       s.cfg.GetVersionsMetadata(version, cleanHtmlRelPath),
 				},
 			}
 			mu.Lock()
@@ -453,14 +459,20 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			mu.Unlock()
 		}
 
-		metadataMu.Lock()
-		allMetadataMap[post.Link] = post
-		metadataMu.Unlock()
+		// Use sync.Map for metadata (optimization: lock-free concurrent access)
+		allMetadataMap.Store(post.Link, post)
 
-		mu.Lock()
-		searchRecord.ID = len(indexedPosts)
-		indexedPosts = append(indexedPosts, models.IndexedPost{Record: searchRecord, WordFreqs: wordFreqs, DocLen: docLen})
-		mu.Unlock()
+		// Lock-free indexed post assignment using atomic index
+		id := int(atomic.AddInt32(&indexedPostIdx, 1))
+		searchRecord.ID = id
+		indexedPosts[id] = models.IndexedPost{Record: searchRecord, WordFreqs: wordFreqs, DocLen: docLen}
+
+		// Check for cancellation
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 
 		if !useCache && s.cache != nil {
 			postID := cache.GeneratePostID("", relPath)
@@ -471,7 +483,9 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
 				Meta: metaData, TOC: toc, Version: version,
 			}
-			_ = s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent))
+			if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
+				s.logger.Error("Failed to store HTML in cache", "path", relPath, "error", err)
+			}
 			newSearch := &cache.SearchRecord{
 				Title: post.Title, NormalizedTitle: searchRecord.NormalizedTitle,
 				BM25Data: wordFreqs, DocLen: docLen, Content: plainText,
@@ -491,30 +505,55 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	})
 	parsePool.Start()
 
+Loop:
 	for i, path := range files {
-		parsePool.Submit(struct {
-			idx     int
-			path    string
-			version string
-		}{i, path, fileVersions[i]})
+		select {
+		case <-ctx.Done():
+			break Loop
+		default:
+			parsePool.Submit(struct {
+				idx     int
+				path    string
+				version string
+			}{i, path, fileVersions[i]})
+		}
 	}
 	parsePool.Stop()
 	cardPool.Stop() // Wait for all social card generation to complete
 
 	// Final Metadata Grouping (merges Cache + Source)
-	for _, p := range allMetadataMap {
+	allMetadataMap.Range(func(key, value interface{}) bool {
+		p := value.(models.PostMetadata)
 		postsByVersion[p.Version] = append(postsByVersion[p.Version], p)
-		if p.Version == "" {
-			for _, t := range p.Tags {
-				tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], p)
+
+		// Add to tagMap for all versions (not just unversioned)
+		for _, t := range p.Tags {
+			key := strings.ToLower(strings.TrimSpace(t))
+			tagMap[key] = append(tagMap[key], p)
+		}
+
+		// Determine if this post belongs to the main feed:
+		// - Unversioned posts for non-versioned sites
+		// - Latest version posts for versioned sites
+		isLatestOrUnversioned := p.Version == ""
+		if len(s.cfg.Versions) > 0 {
+			for _, v := range s.cfg.Versions {
+				if v.IsLatest && p.Version == v.Name {
+					isLatestOrUnversioned = true
+					break
+				}
 			}
+		}
+
+		if isLatestOrUnversioned {
 			if p.Pinned {
 				pinnedPosts = append(pinnedPosts, p)
 			} else {
 				allPosts = append(allPosts, p)
 			}
 		}
-	}
+		return true
+	})
 
 	siteTrees := make(map[string][]*models.TreeNode)
 	for ver, posts := range postsByVersion {
@@ -561,8 +600,6 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			s.logger.Warn("Failed to commit cache batch", "error", err)
 		}
 	}
-
-	runtime.GC()
 
 	// Sort posts to ensure consistent ordering
 	utils.SortPosts(allPosts)

@@ -23,7 +23,8 @@
             if (parts.length > 0 && parts[0].match(/^v\d+/)) {
                 return parts[0];
             }
-            return ""; // latest
+            // On hub page, return latest version for search filtering
+            return window.latestVersion || "";
         }
 
         const joinPath = (base, path) => {

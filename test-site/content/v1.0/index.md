@@ -1,46 +1,51 @@
 ---
 title: "v1.0 Documentation"
-description: "Version 1.0 documentation"
-date: "2025-01-01"
+description: "Version 1.0 documentation (Legacy)"
 weight: 100
 ---
 
 # v1.0 Documentation
 
-This is the **v1.0** version of the documentation (Legacy).
+This is the **legacy v1.0** of Kosh documentation.
 
-## Version Notice
+> **Warning:** This version is no longer maintained. [View v4.0 (Latest)](../v4.0/index.md)
 
-You are viewing the legacy v1.0 documentation. Consider upgrading to:
-- [v2.0 (Stable)](../v2.0/index.md)
-- [v3.0 (Latest)](../index.md)
+## Quick Links
 
-## v1.0 Pages
+- [Getting Started](./getting-started.md) - Start with v1.0
+- [Installation](./installation.md) - Install v1.0
+- [Configuration](./configuration.md) - Configure v1.0
 
-- [Getting Started](./getting-started.md) - v1.0 Getting Started
-- [Installation](./installation.md) - Installation guide
-- [Configuration](./configuration.md) - Configuration
+## v1.0 Features
 
-## v1.0 Guides
+v1.0 was the initial release with core features:
 
-- [Tutorial](./guides/tutorial.md) - Step-by-step tutorial
-- [Best Practices](./guides/best-practices.md) - Recommended practices
+- Static site generation
+- Markdown support (Goldmark)
+- Blog and Docs themes
+- BoltDB caching
+- Basic search
 
-## Link Tests from v1.0
+## v1.0 Structure
 
-### v1.0 → Root (Parent)
-- [Documentation Home](../index.md) - Should go to /index.html
-- [Getting Started](../getting-started.md) - Should go to /getting-started.html
-- [Features](../features.md) - Should go to /features.html
+| Section | Pages |
+|---------|-------|
+| [Getting Started](./getting-started.md) | Basic setup |
+| [Installation](./installation.md) | v1.0 specific |
+| [Configuration](./configuration.md) | v1.0 config |
+| [Tutorial](./guides/tutorial.md) | Step-by-step |
+| [Best Practices](./guides/best-practices.md) | Recommendations |
 
-### v1.0 → v2.0 (Cross-Version)
-- [v2.0 Getting Started](../v2.0/getting-started.md) - Should go to /v2.0/getting-started.html
-- [v2.0 New Features](../v2.0/new-in-v2.md) - Should go to /v2.0/new-in-v2.html
+## Upgrade Path
 
-### v1.0 → Same Version
-- [v1.0 Installation](./installation.md) - Should go to /v1.0/installation.html
-- [v1.0 Tutorial](./guides/tutorial.md) - Should go to /v1.0/guides/tutorial.html
+Consider upgrading to a newer version:
 
-### v1.0 → Root Subdirectories
-- [Advanced Config](../advanced/configuration.md) - Should go to /advanced/configuration.html
-- [API Reference](../api/reference.md) - Should go to /api/reference.html
+- [v4.0 (Latest)](../v4.0/index.md) - Current version
+- [v3.0](../v3.0/index.md) - Previous stable
+- [v2.0](../v2.0/index.md) - Added versioning
+
+## Migration
+
+See migration guides:
+
+- [v2.0 Migration Guide](../v2.0/migration-guide.md) - From v1.0 to v2.0

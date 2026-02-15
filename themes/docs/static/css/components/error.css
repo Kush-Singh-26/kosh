@@ -1,0 +1,84 @@
+/* Clarity in Motion - Error Page
+ * 404 and error page styling
+ */
+
+/* ========================================
+   Error Page (404)
+   ======================================== */
+
+.error-container {
+  max-width: 600px;
+  padding: var(--space-8);
+  margin: 0 auto;
+  text-align: center;
+}
+
+.error-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  text-decoration: none;
+  color: var(--text-primary);
+  margin-bottom: var(--space-8);
+  font-weight: bold;
+  font-size: var(--text-lg);
+}
+
+.error-logo img {
+  max-height: 40px;
+}
+
+.error-logo::after {
+  display: none;
+}
+
+.error-code {
+  font-size: 8rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--color-brand);
+  line-height: 1;
+}
+
+.error-title {
+  font-size: var(--text-2xl);
+  margin: var(--space-4) 0;
+  color: var(--text-primary);
+}
+
+.error-message {
+  color: var(--text-muted);
+  margin-bottom: var(--space-8);
+  font-size: var(--text-lg);
+}
+
+.error-btn {
+  display: inline-block;
+  padding: var(--space-3) var(--space-6);
+  background-color: var(--color-brand);
+  color: var(--text-inverse);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+
+.error-btn:hover {
+  background-color: var(--color-brand-dark);
+  text-decoration: none;
+}
+
+.error-btn::after {
+  display: none;
+}
+
+/* ========================================
+   Responsive - Error
+   ======================================== */
+
+@media (max-width: 768px) {
+  .error-code {
+    font-size: 5rem;
+  }
+}

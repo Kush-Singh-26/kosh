@@ -3,7 +3,6 @@ package cache
 import (
 	"encoding/binary"
 	"path/filepath"
-	"time"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -23,7 +22,6 @@ func (m *Manager) ListAllPosts() ([]string, error) {
 
 // Stats returns current cache statistics
 func (m *Manager) Stats() (*CacheStats, error) {
-	start := time.Now()
 	stats := &CacheStats{
 		SchemaVersion: SchemaVersion,
 	}
@@ -64,16 +62,8 @@ func (m *Manager) Stats() (*CacheStats, error) {
 	katexSize, _ := m.store.Size(filepath.Join("ssr", "katex"))
 	stats.StoreBytes = htmlSize + d2Size + katexSize
 
-	readTime := time.Since(start)
-	m.mu.Lock()
-	m.stats.lastReadTime = readTime
-	m.stats.readCount++
-	stats.LastReadTime = m.stats.lastReadTime
-	stats.LastWriteTime = m.stats.lastWriteTime
-	stats.ReadCount = m.stats.readCount
-	stats.WriteCount = m.stats.writeCount
-	m.mu.Unlock()
-
+	// Runtime metrics are no longer tracked in Manager struct
+	// but kept in API for compatibility
 	return stats, nil
 }
 
@@ -97,19 +87,6 @@ func (m *Manager) SetSocialCardHash(path, hash string) error {
 		bucket := tx.Bucket([]byte(BucketSocialCard))
 		return bucket.Put([]byte(path), []byte(hash))
 	})
-}
-
-// GetAllSocialCardHashes returns all social card hashes
-func (m *Manager) GetAllSocialCardHashes() (map[string]string, error) {
-	hashes := make(map[string]string)
-	err := m.db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BucketSocialCard))
-		return bucket.ForEach(func(k, v []byte) error {
-			hashes[string(k)] = string(v)
-			return nil
-		})
-	})
-	return hashes, err
 }
 
 // GetGraphHash retrieves the graph data hash

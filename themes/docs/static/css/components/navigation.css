@@ -1,0 +1,152 @@
+/* Clarity in Motion - Navigation
+ * Breadcrumbs, page navigation, and version banner
+ */
+
+/* ========================================
+   Version Banner (appears below header in grid)
+   ======================================== */
+
+.version-banner {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-6);
+  margin: var(--space-4) var(--space-4) var(--space-4) 0;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.version-banner-text a {
+  color: var(--color-brand);
+  font-weight: 600;
+  text-decoration: underline;
+  margin-left: var(--space-2);
+}
+
+.version-banner-text a:hover {
+  color: var(--color-brand-dark);
+}
+
+.version-banner-text a::after {
+  display: none;
+}
+
+/* ========================================
+   Breadcrumbs (inside main content)
+   ======================================== */
+
+.breadcrumbs {
+  padding: 0 0 var(--space-4) 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.breadcrumb-link {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+.breadcrumb-link:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb-link::after {
+  display: none;
+}
+
+.breadcrumb-separator {
+  opacity: 0.5;
+}
+
+.breadcrumb-current {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ========================================
+   Page Navigation (Prev/Next)
+   ======================================== */
+
+.page-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-12);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--bg-border);
+}
+
+.page-nav-prev,
+.page-nav-next {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--bg-border);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  flex: 1;
+  max-width: 280px;
+}
+
+.page-nav-prev:hover,
+.page-nav-next:hover {
+  background: var(--bg-surface);
+  border-color: var(--color-brand);
+  text-decoration: none;
+}
+
+.page-nav-prev::after,
+.page-nav-next::after {
+  display: none;
+}
+
+.page-nav-prev {
+  align-items: flex-start;
+}
+
+.page-nav-next {
+  align-items: flex-end;
+  text-align: right;
+  margin-left: auto;
+}
+
+.page-nav-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-1);
+}
+
+.page-nav-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ========================================
+   Responsive - Navigation
+   ======================================== */
+
+@media (max-width: 768px) {
+  .breadcrumbs {
+    grid-column: 1;
+    padding: var(--space-4);
+  }
+  
+  .page-nav {
+    flex-direction: column;
+  }
+  
+  .page-nav-prev,
+  .page-nav-next {
+    max-width: 100%;
+    align-items: flex-start;
+    text-align: left;
+  }
+}

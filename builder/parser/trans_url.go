@@ -80,9 +80,7 @@ func (t *URLTransformer) processDestination(n ast.Node, dest []byte, pc parser.C
 					// e.g., ./new-in-v2.md → new-in-v2.html
 					// e.g., ./advanced/setup.md → advanced/setup.html
 					// e.g., ../advanced/config.md → advanced/config.html
-					if strings.HasPrefix(href, "../") {
-						href = href[len("../"):]
-					}
+					href = strings.TrimPrefix(href, "../")
 					// Ensure forward slashes
 					href = strings.ReplaceAll(href, "\\", "/")
 				}
@@ -174,16 +172,6 @@ func isRootLevelLink(href string) bool {
 		}
 	}
 	return false
-}
-
-// countParentRefs counts the number of "../" at the start of a path
-func countParentRefs(href string) int {
-	count := 0
-	for strings.HasPrefix(href, "../") {
-		count++
-		href = href[3:]
-	}
-	return count
 }
 
 // getFileDepthInVersion returns how many directories deep a file is within its version

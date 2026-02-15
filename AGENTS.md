@@ -2,13 +2,14 @@
 
 This repository contains **Kosh**, a high-performance Static Site Generator (SSG) built in Go. This guide covers build processes, architecture, testing, and code conventions for the completed v1.0.0 release.
 
-## Project Status: v1.0.0 ✅
+## Project Status: v1.1.0 ✅
 
-All four phases of development have been completed:
+All phases of development have been completed:
 - **Phase 1**: Security & Stability (BLAKE3, graceful shutdown, error handling)
 - **Phase 2**: Architecture Refactoring (Service Layer, Dependency Injection)
 - **Phase 3**: Performance Optimization (Memory pools, pre-computed search)
 - **Phase 4**: Modernization (Go 1.23, Generics, dependency updates)
+- **Phase 5**: Search Enhancement (Msgpack, stemming, fuzzy search, phrase matching)
 
 ---
 
@@ -21,9 +22,76 @@ The unified CLI tool `kosh` handles all operations.
 *   **Create Version:** `./kosh.exe version <name>` (Creates a frozen snapshot of documentation)
 *   **Serve (Dev Mode):** `./kosh.exe serve --dev` (Starts server with live reload & watcher)
     *   **Note:** Dev mode skips PWA generation (manifest, service worker, icons) for faster builds
-*   **Clean Output:** `./kosh.exe clean` (Cleans `public/` and triggers async background deletion)
-*   **Clean All:** `./kosh.exe clean --cache` (Cleans `public/` and `.kosh-cache/`)
+*   **Clean Output:** `./kosh.exe clean` (Cleans root files only, preserves version folders)
+*   **Clean All:** `./kosh.exe clean --all` (Cleans entire `public/` including all versions)
+*   **Clean Cache:** `./kosh.exe clean --cache` (Cleans root files and `.kosh-cache/`)
+*   **Clean All + Cache:** `./kosh.exe clean --all --cache` (Cleans entire `public/` and `.kosh-cache/`)
 *   **Show Version:** `./kosh.exe version` (Display version and optimization features)
+
+### CLI Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `init [name]` | Initialize a new Kosh site |
+| `new <title>` | Create a new blog post with the given title |
+| `build` | Build the static site (and WASM search) |
+| `serve` | Start the preview server |
+| `clean` | Clean output directory |
+| `cache <subcmd>` | Cache management commands |
+| `version` | Version management commands |
+
+### Build Flags
+
+| Flag | Description |
+|------|-------------|
+| `--watch` | Watch for changes and rebuild automatically |
+| `--cpuprofile <file>` | Write CPU profile to file (for profiling) |
+| `--memprofile <file>` | Write memory profile to file (for profiling) |
+| `-baseurl <url>` | Override base URL from config |
+| `-drafts` | Include draft posts in build |
+| `-theme <name>` | Override theme from config |
+
+### Serve Flags
+
+| Flag | Description |
+|------|-------------|
+| `--dev` | Enable development mode (build + watch + serve) |
+| `--host <host>` | Host/IP to bind to (default: localhost) |
+| `--port <port>` | Port to listen on (default: 2604) |
+| `-drafts` | Include draft posts in development mode |
+| `-baseurl <url>` | Override base URL from config |
+
+### Clean Flags
+
+| Flag | Description |
+|------|-------------|
+| `--cache` | Also clean `.kosh-cache/` directory |
+| `--all` | Clean all versions including versioned folders |
+
+### Cache Commands
+
+| Command | Description |
+|---------|-------------|
+| `cache stats` | Show cache statistics and performance metrics |
+| `cache gc` | Run garbage collection on cache |
+| `cache verify` | Check cache integrity |
+| `cache rebuild` | Clear cache for full rebuild |
+| `cache clear` | Delete all cache data |
+| `cache inspect <path>` | Show cache entry for a specific file |
+
+### Cache GC Flags
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run`, `-n` | Show what would be deleted without deleting |
+
+### Version Commands
+
+| Command | Description |
+|---------|-------------|
+| `version` | Show current documentation version info |
+| `version <vX.X>` | Freeze current latest and start new version |
+| `version --info` | Show Kosh build information and optimizations |
 
 ### Testing & Benchmarking
 *   **Benchmark Suite:** `go test -bench=. -benchmem ./builder/benchmarks/`
@@ -206,7 +274,11 @@ Build performance is tracked via `builder/metrics/metrics.go`.
     *   **`cache/`**: BoltDB-based cache with content-addressed storage and BLAKE3 hashing.
         *   Uses generic `getCachedItem[T any]` for type-safe retrieval
         *   Object pooling for batch operations
-    *   **`search/`**: **Version-Aware Engine.** BM25 scoring with pre-computed normalized fields.
+    *   **`search/`**: **Advanced Search Engine.** BM25 scoring with fuzzy matching, stemming, and phrase support.
+        *   `engine.go` - Main search logic with BM25, fuzzy, and phrase matching
+        *   `analyzer.go` - Text analysis pipeline (tokenization, stop words, stemming)
+        *   `stemmer.go` - Porter stemmer implementation for English
+        *   `fuzzy.go` - Levenshtein distance and fuzzy matching
 *   **`cmd/kosh/`**: Main entry point for the CLI.
 *   **`cmd/search/`**: **WASM Bridge.** Compiles the search engine for browser execution.
 *   **`content/`**: Markdown source files. Versioned folders are isolated snapshots.
@@ -219,16 +291,52 @@ Build performance is tracked via `builder/metrics/metrics.go`.
 The docs theme provides a professional documentation experience:
 
 **Documentation Hub:**
-- **Landing Page:** A high-level summary of all categories with a "Go to Latest" CTA.
-- **Standalone 404:** A dedicated, styled error page for missing documentation.
+- **Hub Page (`/`):** Template-only landing page (no `content/index.md` required) with "Go to Latest Docs" CTA
+- **Version Cards:** Displays all available versions with "Current" badge on latest
+- **Standalone 404:** A dedicated, styled error page for missing documentation
 
 **Versioning System:**
-- **Snapshot Model:** Versions are independent folders (`content/v1.0/`).
-- **Strict Navigation:** Next/Prev links and Sidebar items are version-scoped.
-- **Version Banner:** Shows on outdated snapshots with a link to the latest version.
+- **Version Configuration:** Defined in `kosh.yaml` with `name`, `path`, and `isLatest` fields
+- **Version Selector:** Dropdown shows `(Latest)` suffix for current version
+- **Version Landing Pages:** Each version has its own `index.md` at `content/vX.X/index.md`
+- **Version URL Preservation:** Switching versions preserves the current page path (e.g., `/getting-started.html` → `/v4.0/getting-started.html`)
+- **Sparse Versioning:** Only changed pages need version-specific content; others fall back to latest
+- **Outdated Banner:** Shows on non-latest versions with link to equivalent page in latest version
+- **Fallback Handling:** If a page doesn't exist in the target version, redirects to version index or first available page
+
+**URL Structure:**
+```
+/                           → Hub page (template-only)
+/getting-started.html       → Latest version (dual access)
+/v4.0/                      → Latest version landing page
+/v4.0/getting-started.html  → Latest version (dual access)
+/v3.0/                      → v3.0 landing page
+/v3.0/quickstart.html       → v3.0 specific content
+/v2.0/                      → v2.0 landing page
+/v1.0/                      → v1.0 landing page
+```
+
+**Version URL Preservation:**
+When switching versions via the dropdown selector, the current page path is preserved:
+- On `/getting-started.html` → switch to v4.0 → `/v4.0/getting-started.html`
+- On `/v3.0/quickstart.html` → switch to latest → `/quickstart.html`
+- If the target page doesn't exist in that version, falls back to the first available page
+
+The `GetVersionsMetadata(currentVersion, currentPath string)` function in `builder/config/config.go` handles URL generation with path preservation.
+
+**Clean Command (Version-Aware):**
+- `kosh clean` → Removes root files only, preserves version folders
+- `kosh clean --all` → Removes entire `public/` directory
+- Uses config-based version detection to identify folders to preserve
 
 **Interactive Features:**
 - **Search:** Version-scoped WASM search with snippets and keyboard navigation.
+    - **BM25 Scoring:** Industry-standard relevance ranking
+    - **Fuzzy Matching:** Typo tolerance (Levenshtein distance ≤ 2)
+    - **Phrase Search:** Use quotes for exact phrases: `"machine learning"`
+    - **Stemming:** Porter stemmer reduces words to roots ("running" → "run")
+    - **Stop Words:** Common words filtered ("the", "and", "is", etc.)
+    - **Msgpack Encoding:** ~30% smaller index, ~2.5x faster decode than GOB
 - **Mobile Nav:** Hamburger menu with slide-in sidebar.
 - **Copy Code:** One-click copying for code blocks.
 - **Theme Toggle:** Dark/light mode persistence with zero-flash implementation.
@@ -238,9 +346,48 @@ The docs theme provides a professional documentation experience:
 - **Global Identity:** Site-wide logo and favicon configured via `logo` in `kosh.yaml`.
 - **Parallel Sync:** VFS synchronization uses parallel worker pools for high-speed disk writes.
 - **Cross-Platform Stability:** Absolute path resolution and Windows-Linux path normalization.
-- **WASM Sync:** Search engine binary is embedded into the CLI and extracted during build.
-    *   **Compile:** `GOOS=js GOARCH=wasm go build -o internal/build/wasm/search.wasm ./cmd/search`
-    *   **Rebuild CLI:** `go build -ldflags="-s -w" -o kosh.exe ./cmd/kosh` (Required to embed new WASM).
+- **WASM Search Engine:** Embedded into CLI and extracted during build.
+
+### WASM Compilation
+
+The search engine compiles to WebAssembly for browser-side execution. Recompile when modifying search logic.
+
+**Full Compilation Process:**
+
+| Step | Command | Purpose |
+|------|---------|---------|
+| 1 | `GOOS=js GOARCH=wasm go build -o internal/build/wasm/search.wasm ./cmd/search` | Compile WASM binary |
+| 2 | `go build -ldflags="-s -w" -o kosh.exe ./cmd/kosh` | Rebuild CLI (embeds WASM) |
+| 3 | `./kosh.exe clean --cache` | Clear old cached index |
+| 4 | `./kosh.exe build` | Rebuild site with new format |
+
+**PowerShell Equivalent:**
+```powershell
+# Step 1: Compile WASM
+$env:GOOS="js"; $env:GOARCH="wasm"; go build -o internal/build/wasm/search.wasm ./cmd/search; Remove-Item Env:GOOS; Remove-Item Env:GOARCH
+
+# Step 2: Rebuild CLI
+go build -ldflags="-s -w" -o kosh.exe ./cmd/kosh
+
+# Step 3-4: Clean and rebuild
+.\kosh.exe clean --cache
+.\kosh.exe build
+```
+
+**When to Recompile WASM:**
+- ✅ `cmd/search/main.go` changes
+- ✅ `builder/search/*.go` changes
+- ✅ `builder/models/models.go` changes (SearchIndex struct)
+- ✅ Serialization format changes (msgpack version)
+- ❌ Content changes (no recompile needed)
+- ❌ Theme changes (no recompile needed)
+
+**Output Files:**
+| File | Location | Size |
+|------|----------|------|
+| WASM source | `internal/build/wasm/search.wasm` | ~4.2 MB |
+| Deployed WASM | `public/static/wasm/search.wasm` | Extracted from CLI |
+| Search index | `public/search.bin` | ~200 KB (msgpack + gzip) |
 
 ---
 
@@ -280,6 +427,7 @@ The docs theme provides a professional documentation experience:
 *   **Cache DB:** `go.etcd.io/bbolt` v1.4.3
 *   **Hashing:** `github.com/zeebo/blake3` v0.2.4
 *   **Compression:** `github.com/klauspost/compress` v1.18.4
+*   **Serialization:** `github.com/vmihailenco/msgpack/v5` v5.4.1 (search index encoding)
 
 ### Updating Dependencies
 ```bash
@@ -295,7 +443,64 @@ go test ./...
 
 ---
 
-## 8. Release Checklist
+## 8. Theme System (Detachable)
+
+### Architecture
+
+Themes are fully detachable and can be installed separately from the core SSG:
+
+```
+themes/
+├── <theme-name>/
+│   ├── templates/       # HTML templates (required)
+│   │   ├── layout.html  # Base template
+│   │   └── index.html   # Home page
+│   ├── static/          # CSS, JS, images (optional)
+│   └── theme.yaml       # Theme metadata
+```
+
+### Theme Configuration
+
+In `kosh.yaml`:
+```yaml
+theme: "blog"           # Theme name
+themeDir: "themes"      # Parent directory for themes
+# templateDir: ""       # Override: defaults to themes/<theme>/templates
+# staticDir: ""         # Override: defaults to themes/<theme>/static
+```
+
+### Installing Themes
+
+```bash
+# Clone a theme into the themes directory
+git clone <theme-repo-url> themes/blog
+
+# Or create a custom theme
+mkdir -p themes/my-theme/templates themes/my-theme/static
+```
+
+### Creating Custom Themes
+
+**Minimal `theme.yaml`:**
+```yaml
+name: "My Theme"
+supportsVersioning: false  # Set true for docs-style versioned sites
+```
+
+**Required Templates:**
+- `layout.html` - Base layout with `{{ template "content" . }}` block
+- `index.html` - Home page template
+
+### Theme Validation
+
+The SSG validates theme presence at startup:
+- Theme directory must exist at `themes/<theme-name>/`
+- `templates/` directory is required
+- `static/` directory is auto-created if missing
+
+---
+
+## 9. Release Checklist
 
 Before releasing a new version:
 
@@ -305,11 +510,55 @@ Before releasing a new version:
 - [ ] Version command shows correct version (`./kosh version`)
 - [ ] README.md is up to date
 - [ ] AGENTS.md is up to date
-- [ ] WASM is recompiled if search engine changed
+- [ ] WASM recompiled if search engine changed (see Section 5 - WASM Compilation)
 - [ ] CHANGELOG.md is updated (if maintained)
 
 ---
 
-**Version:** v1.0.0  
-**Last Updated:** 2026-02-12  
+## 10. Search Engine Features
+
+The search engine provides advanced full-text search capabilities:
+
+### Architecture
+
+```
+builder/search/
+├── engine.go       # Core search with BM25 scoring
+├── analyzer.go     # Text processing pipeline
+├── stemmer.go      # Porter stemmer for English
+├── fuzzy.go        # Fuzzy matching and phrase parsing
+└── search_test.go  # Comprehensive test suite
+```
+
+### Features
+
+| Feature | Description | Example |
+|---------|-------------|---------|
+| **BM25 Scoring** | Industry-standard relevance ranking | Better results ordering |
+| **Stemming** | Porter stemmer reduces words to roots | `running` → `run` |
+| **Stop Words** | 115+ common English words filtered | `the`, `and`, `is` ignored |
+| **Fuzzy Search** | Typo tolerance with Levenshtein distance | `trnsformer` → `transformer` |
+| **Phrase Matching** | Exact phrase search with quotes | `"machine learning"` |
+| **Trigram Index** | Fast fuzzy candidate lookup | Efficient typo correction |
+
+### Encoding
+
+- **Format:** Msgpack + gzip
+- **Size Reduction:** ~30% smaller than GOB
+- **Decode Speed:** ~2.5x faster than GOB
+- **Cross-Platform:** Msgpack is language-agnostic
+
+### Search Query Syntax
+
+```
+machine learning        # Terms search (stemmed)
+"machine learning"      # Phrase search (exact)
+tag:transformer         # Tag filter
+tag:nlp attention       # Tag + terms
+```
+
+---
+
+**Version:** v1.1.0  
+**Last Updated:** 2026-02-14  
 **Status:** Production Ready ✅

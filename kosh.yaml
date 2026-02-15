@@ -41,7 +41,8 @@ socialCards:
   background: "#faf8f5"    # Base background color (warm cream)
   gradient:                # Gradient colors - visible beige to brown
     - "#e8e0d0"            # Medium beige
-    - "#d4c4a8"            # Darker brown-beige
+    - "#c9b896"            # Darker tan (middle tone)
+    - "#b8a078"            # Darker brown-beige
   angle: 135               # Gradient angle in degrees
   textColor: "#1a1a1a"     # Text color (dark for light backgrounds)
 

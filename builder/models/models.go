@@ -45,6 +45,7 @@ type NavPage struct {
 // VersionInfo represents a version for the version selector
 type VersionInfo struct {
 	Name      string
+	Path      string // Raw version path (e.g., "v7.0")
 	URL       string
 	IsLatest  bool
 	IsCurrent bool
@@ -178,60 +179,29 @@ type GraphData struct {
 // --- Search Structures ---
 
 type PostRecord struct {
-	ID              int
-	Title           string
-	NormalizedTitle string // Lowercase title for search
-	Link            string
-	Description     string
-	Tags            []string
-	NormalizedTags  []string // Lowercase tags for search
-	Content         string   // Raw plain text for snippet extraction
-	Version         string   // Version scoping
+	ID              int      `msgpack:"id"`
+	Title           string   `msgpack:"title"`
+	NormalizedTitle string   `msgpack:"norm_title"` // Lowercase title for search
+	Link            string   `msgpack:"link"`
+	Description     string   `msgpack:"desc"`
+	Tags            []string `msgpack:"tags"`
+	NormalizedTags  []string `msgpack:"norm_tags"` // Lowercase tags for search
+	Content         string   `msgpack:"content"`   // Raw plain text for snippet extraction
+	Version         string   `msgpack:"ver"`       // Version scoping
 }
 
-// --- Cache Structures ---
-
-// CachedPost stores the results of parsing a single markdown file
-type CachedPost struct {
-	ModTime         time.Time
-	FrontmatterHash string // Hash of frontmatter fields for detecting metadata changes
-	Metadata        PostMetadata
-	SearchRecord    PostRecord
-	WordFreqs       map[string]int // Pre-computed word frequencies for BM25
-	DocLen          int            // Total word count for BM25
-	HTMLContent     string
-	TOC             []TOCEntry
-	Meta            map[string]interface{}
-}
-
-// IndexedPost bundles a search record with its pre-computed word frequencies
+// IndexedPost bundles a search record with pre-computed word frequencies for BM25
 type IndexedPost struct {
-	Record    PostRecord
-	WordFreqs map[string]int
-	DocLen    int
-}
-
-// DependencyGraph tracks relationships between files for incremental builds
-type DependencyGraph struct {
-	Templates map[string][]string `json:"templates"` // Template -> [PostPaths]
-	Tags      map[string][]string `json:"tags"`      // Tag -> [PostPaths]
-	Assets    map[string][]string `json:"assets"`    // Asset -> [PostPaths]
-}
-
-// MetadataCache is the structure for our persistent build cache
-type MetadataCache struct {
-	BaseURL          string                `json:"base_url"`
-	Posts            map[string]CachedPost `json:"posts"`
-	DiagramCache     map[string]string     `json:"diagram_cache"`      // hash -> rendered SVG/HTML
-	TemplateModTimes map[string]time.Time  `json:"template_mod_times"` // Track template changes for granular invalidation
-	Dependencies     DependencyGraph       `json:"dependencies"`
-	WasmHash         string                `json:"wasm_hash"`
+	Record    PostRecord     `msgpack:"rec"`
+	WordFreqs map[string]int `msgpack:"freqs"`
+	DocLen    int            `msgpack:"len"`
 }
 
 type SearchIndex struct {
-	Posts     []PostRecord
-	Inverted  map[string]map[int]int // word -> postID -> frequency
-	DocLens   map[int]int            // postID -> word count
-	AvgDocLen float64
-	TotalDocs int
+	Posts     []PostRecord           `msgpack:"posts"`
+	Inverted  map[string]map[int]int `msgpack:"inv"`  // word -> postID -> frequency
+	DocLens   map[int]int            `msgpack:"lens"` // postID -> word count
+	AvgDocLen float64                `msgpack:"avg"`
+	TotalDocs int                    `msgpack:"total"`
+	StemMap   map[string][]string    `msgpack:"stem,omitempty"` // stemmed -> original forms
 }

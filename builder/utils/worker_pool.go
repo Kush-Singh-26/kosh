@@ -2,11 +2,12 @@ package utils
 
 import (
 	"context"
+	"runtime"
 	"sync"
 )
 
 const (
-	MaxWorkers       = 12
+	MaxWorkers       = 32
 	WorkerBufferSize = 4
 )
 
@@ -19,11 +20,11 @@ type WorkerPool[T any] struct {
 }
 
 func NewWorkerPool[T any](ctx context.Context, workers int, handler func(T)) *WorkerPool[T] {
+	if workers <= 0 {
+		workers = runtime.NumCPU()
+	}
 	if workers > MaxWorkers {
 		workers = MaxWorkers
-	}
-	if workers <= 0 {
-		workers = 1
 	}
 	return &WorkerPool[T]{
 		workers:   workers,

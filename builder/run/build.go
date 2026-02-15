@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"my-ssg/builder/cache"
-	"my-ssg/builder/models"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // Build executes a single build pass
@@ -56,24 +56,32 @@ func (b *Builder) Build(ctx context.Context) error {
 
 	if indexInfo, err := os.Stat(filepath.Join(b.cfg.OutputDir, "index.html")); err == nil {
 		lastBuildTime = indexInfo.ModTime()
+
+		// Parallelize dependency checks for better performance
+		var depMu sync.Mutex
+		var depWg sync.WaitGroup
+
 		for _, dep := range globalDependencies {
-			if info, err := os.Stat(dep); err == nil && info.ModTime().After(lastBuildTime) {
-				affected := b.invalidateForTemplate(dep)
-				if affected != nil {
-					affectedPosts = append(affectedPosts, affected...)
-				} else {
-					shouldForce = true
+			depWg.Add(1)
+			go func(depPath string) {
+				defer depWg.Done()
+				if info, err := os.Stat(depPath); err == nil && info.ModTime().After(lastBuildTime) {
+					affected := b.invalidateForTemplate(depPath)
+					depMu.Lock()
+					if affected != nil {
+						affectedPosts = append(affectedPosts, affected...)
+					} else {
+						shouldForce = true
+					}
+					depMu.Unlock()
 				}
-			}
+			}(dep)
 		}
+		depWg.Wait()
+
 		if info, err := os.Stat("builder/generators/social.go"); err == nil && info.ModTime().After(lastBuildTime) {
 			forceSocialRebuild = true
 		}
-	} else {
-		// public/ is missing (e.g., after 'kosh clean').
-		// We do NOT force a full rebuild. We use the cache to rehydrate files.
-		// shouldForce stays false.
-		// forceSocialRebuild stays false (rely on missing file checks).
 	}
 
 	b.cfg.ForceRebuild = false
@@ -98,7 +106,7 @@ func (b *Builder) Build(ctx context.Context) error {
 		case <-ctx.Done():
 			return
 		default:
-			b.copyStaticAndBuildAssets()
+			b.copyStaticAndBuildAssets(ctx)
 		}
 	}()
 	_ = utils.WriteFileVFS(b.DestFs, filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte(""))
@@ -200,15 +208,24 @@ func (b *Builder) Build(ctx context.Context) error {
 			if searchMeta, ok := searchRecords[id]; ok && searchMeta != nil {
 				// Reconstruct PostRecord with relative link (not full URL)
 				relLink := strings.ToLower(strings.Replace(cached.Path, ".md", ".html", 1))
-				rec := models.PostRecord{
-					Title:       searchMeta.Title,
-					Link:        relLink, // Use relative link, not cached.Link which includes baseURL
-					Description: cached.Description,
-					Tags:        cached.Tags,
-					Content:     searchMeta.Content,
-					Version:     cached.Version,
+
+				// Pre-compute normalized fields
+				normalizedTags := make([]string, len(cached.Tags))
+				for i, t := range cached.Tags {
+					normalizedTags[i] = strings.ToLower(t)
 				}
-				rec.ID = len(indexedPosts) // Assign ID sequentially
+
+				rec := models.PostRecord{
+					Title:           searchMeta.Title,
+					NormalizedTitle: searchMeta.NormalizedTitle,
+					Link:            relLink,
+					Description:     cached.Description,
+					Tags:            cached.Tags,
+					NormalizedTags:  normalizedTags,
+					Content:         searchMeta.Content,
+					Version:         cached.Version,
+				}
+				rec.ID = len(indexedPosts)
 
 				indexedPosts = append(indexedPosts, models.IndexedPost{
 					Record:    rec,
@@ -223,7 +240,7 @@ func (b *Builder) Build(ctx context.Context) error {
 		anyPostChanged = true
 	} else {
 		fmt.Println("📝 Processing content...")
-		allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(shouldForce, forceSocialRebuild, outputMissing)
+		allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing)
 		fmt.Println("   ✅ Content processed.")
 	}
 
@@ -289,14 +306,14 @@ func (b *Builder) Build(ctx context.Context) error {
 	return nil
 }
 
-func (b *Builder) copyStaticAndBuildAssets() {
-	if err := b.assetService.Build(context.Background()); err != nil {
+func (b *Builder) copyStaticAndBuildAssets(ctx context.Context) {
+	if err := b.assetService.Build(ctx); err != nil {
 		b.logger.Error("Failed to build assets", "error", err)
 	}
 }
 
-func (b *Builder) processPosts(shouldForce, forceSocialRebuild, outputMissing bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool) {
-	result, err := b.postService.Process(context.Background(), shouldForce, forceSocialRebuild, outputMissing)
+func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool) {
+	result, err := b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing)
 	if err != nil {
 		b.logger.Error("Failed to process posts", "error", err)
 		return nil, nil, nil, nil, false, false

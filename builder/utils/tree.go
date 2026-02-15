@@ -4,7 +4,10 @@ import (
 	"sort"
 	"strings"
 
-	"my-ssg/builder/models"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // BuildSiteTree constructs a hierarchical tree from a flat list of posts
@@ -92,8 +95,8 @@ func BuildSiteTree(posts []models.PostMetadata) []*models.TreeNode {
 				// Create virtual section node
 				newNode := &models.TreeNode{
 					ID:        currentPath,
-					Title:     strings.Title(comp), // Fallback title
-					Link:      "",                  // Section might not have a link if no _index.md
+					Title:     cases.Title(language.English).String(comp), // Fallback title
+					Link:      "",                                         // Section might not have a link if no _index.md
 					Weight:    0,
 					IsSection: true,
 					Children:  []*models.TreeNode{},

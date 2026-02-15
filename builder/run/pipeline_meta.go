@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"my-ssg/builder/generators"
-	"my-ssg/builder/models"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, shouldForce bool) {

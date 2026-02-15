@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/afero"
 
-	"my-ssg/builder/cache"
-	"my-ssg/builder/models"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func (s *postServiceImpl) RenderCachedPosts() {
@@ -135,8 +135,8 @@ func (s *postServiceImpl) RenderCachedPosts() {
 				TOC: toc, Config: s.cfg,
 				SiteTree:       siteTrees[cp.Meta.Version],
 				CurrentVersion: cp.Meta.Version,
-				IsOutdated:     cp.Meta.Version != "",
-				Versions:       s.cfg.GetVersionsMetadata(cp.Meta.Version),
+				IsOutdated:     s.isOutdatedVersion(cp.Meta.Version),
+				Versions:       s.cfg.GetVersionsMetadata(cp.Meta.Version, cleanHtmlRelPath),
 				PrevPage:       prev,
 				NextPage:       next,
 			})

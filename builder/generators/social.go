@@ -10,13 +10,27 @@ import (
 	"strings"
 	"sync"
 
-	"my-ssg/builder/assets"
-	"my-ssg/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/assets"
+	"github.com/Kush-Singh-26/kosh/builder/config"
 
 	"github.com/chai2010/webp"
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
 	"github.com/spf13/afero"
+)
+
+const (
+	SocialCardWidth  = 1200
+	SocialCardHeight = 630
+
+	MarginX       = 80.0
+	HeaderY       = 90.0
+	TitleStartY   = 180.0
+	TitleFontSize = 80.0
+	DescFontSize  = 40.0
+	IconSize      = 48.0
+	BrandFontSize = 28.0
+	DateFontSize  = 24.0
 )
 
 var (
@@ -118,8 +132,6 @@ func drawGradient(dc *gg.Context, w, h int, colors []string, angle int) {
 	}
 
 	// Draw gradient as a series of rectangles
-	// For simplicity, we'll use a pixel-by-pixel approach for small dimensions
-	// or line-by-line for larger dimensions
 	steps := h
 	isHorizontal := angle >= 45 && angle < 135 || angle >= 225 && angle < 315
 	if !isHorizontal {
@@ -161,11 +173,11 @@ func drawGradient(dc *gg.Context, w, h int, colors []string, angle int) {
 // drawDotPattern adds a visible dot pattern overlay
 func drawDotPattern(dc *gg.Context, w, h int) {
 	// More visible warm brown dots
-	dc.SetRGBA255(120, 100, 80, 35) // Warm brown with ~14% opacity
+	dc.SetRGBA255(120, 100, 80, 70) // Warm brown with ~27% opacity
 
 	// Grid spacing
-	spacing := 36
-	dotRadius := 1.5
+	spacing := 32
+	dotRadius := 2.0
 
 	for x := spacing / 2; x < w; x += spacing {
 		for y := spacing / 2; y < h; y += spacing {
@@ -208,86 +220,76 @@ func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, cfg *config.SocialCards
 }
 
 func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, faviconPath string) (image.Image, error) {
-	const (
-		W = 1200
-		H = 630
-	)
-
-	dc := gg.NewContext(W, H)
+	dc := gg.NewContext(SocialCardWidth, SocialCardHeight)
 
 	// --- 1. Draw Gradient Background ---
 	allColors := append([]string{cfg.Background}, cfg.Gradient...)
-	drawGradient(dc, W, H, allColors, cfg.Angle)
+	drawGradient(dc, SocialCardWidth, SocialCardHeight, allColors, cfg.Angle)
 
 	// --- 2. Draw Dot Pattern Overlay ---
-	drawDotPattern(dc, W, H)
+	drawDotPattern(dc, SocialCardWidth, SocialCardHeight)
 
 	// --- 3. Typography Setup ---
 	boldFont := "Inter-Bold.ttf"
 	mediumFont := "Inter-Medium.ttf"
 	regFont := "Inter-Regular.ttf"
 
-	marginX := 80.0
-	headerY := 90.0
-	maxWidth := float64(W) - (marginX * 2)
+	maxWidth := float64(SocialCardWidth) - (MarginX * 2)
 
 	textColor := hexToRGBA(cfg.TextColor)
 	textColorSecondary := textColor
-	// Make secondary text 60% opacity
-	textColorSecondary.A = uint8(float64(textColor.A) * 0.6)
+	// Make secondary text 75% opacity (slightly darker)
+	textColorSecondary.A = uint8(float64(textColor.A) * 0.75)
 
 	// --- 4. Header: Logo + Brand (Top Left) ---
-	currentX := marginX
+	currentX := MarginX
 
 	if faviconPath != "" {
 		// Use cached favicon if available
 		im := getFaviconImage(srcFs, faviconPath)
 		if im != nil {
-			iconSize := 48.0
 			w := im.Bounds().Dx()
-			scale := iconSize / float64(w)
+			scale := IconSize / float64(w)
 
 			dc.Push()
 			dc.Scale(scale, scale)
-			dc.DrawImage(im, int(currentX/scale), int((headerY-35)/scale))
+			dc.DrawImage(im, int(currentX/scale), int((HeaderY-35)/scale))
 			dc.Pop()
 
-			currentX += iconSize + 20
+			currentX += IconSize + 20
 		}
 	}
 
-	if err := setFontFace(dc, boldFont, 28); err == nil {
+	if err := setFontFace(dc, boldFont, BrandFontSize); err == nil {
 		dc.SetColor(textColor)
-		dc.DrawString(siteTitle, currentX, headerY)
+		dc.DrawString(siteTitle, currentX, HeaderY)
 	}
 
 	// --- 5. Header: Date (Top Right) ---
-	if err := setFontFace(dc, mediumFont, 24); err == nil {
+	if err := setFontFace(dc, mediumFont, DateFontSize); err == nil {
 		dc.SetColor(textColor)
 		w, _ := dc.MeasureString(dateStr)
-		dc.DrawString(dateStr, float64(W)-marginX-w, headerY)
+		dc.DrawString(dateStr, float64(SocialCardWidth)-MarginX-w, HeaderY)
 	}
 
 	// --- 6. The Title (Center-Left) ---
-	titleFontSize := 80.0
 	titleLineSpacing := 1.1
 
-	if err := setFontFace(dc, boldFont, titleFontSize); err != nil {
+	if err := setFontFace(dc, boldFont, TitleFontSize); err != nil {
 		return nil, fmt.Errorf("failed to load bold font: %w", err)
 	}
 
 	dc.SetColor(textColor)
-	titleY := 280.0
-	dc.DrawStringWrapped(title, marginX, titleY, 0, 0, maxWidth, titleLineSpacing, gg.AlignLeft)
+	dc.DrawStringWrapped(title, MarginX, TitleStartY, 0, 0, maxWidth, titleLineSpacing, gg.AlignLeft)
 
 	titleLines := dc.WordWrap(title, maxWidth)
-	titleHeight := float64(len(titleLines)) * titleFontSize * titleLineSpacing
+	titleHeight := float64(len(titleLines)) * TitleFontSize * titleLineSpacing
 
 	// --- 7. The Description ---
-	if err := setFontFace(dc, regFont, 40); err == nil {
+	if err := setFontFace(dc, regFont, DescFontSize); err == nil {
 		dc.SetColor(textColorSecondary)
-		descY := titleY + titleHeight + 25
-		dc.DrawStringWrapped(description, marginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
+		descY := TitleStartY + titleHeight + 25
+		dc.DrawStringWrapped(description, MarginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
 	}
 
 	return dc.Image(), nil

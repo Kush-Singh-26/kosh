@@ -1,0 +1,90 @@
+/* Clarity in Motion - Core Layout
+ * Base grid system and main content area
+ */
+
+/* ========================================
+   Main Layout Grid
+   Row 1: Header (sticky)
+   Row 2: Content area with sidebar, main content, TOC
+   ======================================== */
+
+.docs-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr 240px;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  max-width: 1440px;
+  margin: 0 auto;
+  background: var(--bg-body);
+  overflow: hidden;
+}
+
+/* ========================================
+   Main Content Area
+   ======================================== */
+
+.docs-main {
+  grid-column: 2;
+  grid-row: 2;
+  padding: var(--space-6) var(--space-16) var(--space-8);
+  max-width: 800px;
+  overflow-y: auto;
+}
+
+.docs-main article {
+  padding-bottom: var(--space-16);
+}
+
+.docs-main .article-header {
+  margin-bottom: var(--space-8);
+}
+
+.docs-main .article-header h1 {
+  margin-bottom: var(--space-4);
+}
+
+.docs-main .meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.docs-main .content {
+  font-size: var(--text-base);
+}
+
+/* ========================================
+   Responsive - Core Layout
+   ======================================== */
+
+@media (max-width: 1024px) {
+  .docs-layout {
+    grid-template-columns: 280px 1fr;
+  }
+  
+  .docs-main {
+    grid-column: 2;
+    padding: var(--space-6) var(--space-8);
+  }
+}
+
+@media (max-width: 768px) {
+  .docs-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  
+  .docs-main {
+    grid-column: 1;
+    grid-row: 2;
+    padding: var(--space-4);
+    max-width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+}

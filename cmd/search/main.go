@@ -5,12 +5,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/gob"
 	"fmt"
 	"syscall/js"
 
-	"my-ssg/builder/models"
-	"my-ssg/builder/search"
+	"github.com/vmihailenco/msgpack/v5"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/search"
 )
 
 var index models.SearchIndex
@@ -19,7 +20,6 @@ func main() {
 	c := make(chan struct{}, 0)
 	fmt.Println("WASM Search Engine Initializing...")
 
-	// Expose functions to JS
 	js.Global().Set("initSearch", js.FuncOf(initSearch))
 	js.Global().Set("searchPosts", js.FuncOf(searchPosts))
 
@@ -44,7 +44,7 @@ func initSearch(this js.Value, args []js.Value) interface{} {
 				return
 			}
 
-			dec := gob.NewDecoder(bytes.NewReader(data))
+			dec := msgpack.NewDecoder(bytes.NewReader(data))
 			if err := dec.Decode(&index); err != nil {
 				reject.Invoke(fmt.Sprintf("Decode error: %v", err))
 				return
@@ -73,23 +73,16 @@ func fetchAndDecompress(url string) ([]byte, error) {
 			return nil
 		}
 
-		// Check if DecompressionStream exists (browser support)
 		dsCtor := window.Get("DecompressionStream")
 		if dsCtor.IsUndefined() {
-			// Fallback or error? Most modern browsers support it.
-			// Assuming gzip content, we must decompress.
 			ch <- fmt.Errorf("DecompressionStream not supported in this browser")
 			return nil
 		}
 
-		// Create DecompressionStream
 		ds := dsCtor.New("gzip")
-
-		// Pipe the response body through the decompressor
 		body := resp.Get("body")
 		decompressedStream := body.Call("pipeThrough", ds)
 
-		// Read the stream using Response object trick
 		newRespCtor := window.Get("Response")
 		newResp := newRespCtor.New(decompressedStream)
 
@@ -136,8 +129,7 @@ func searchPosts(this js.Value, args []js.Value) interface{} {
 
 	results := search.PerformSearch(&index, query, versionFilter)
 
-	// Convert to JS objects
-	finalResults := make([]interface{}, 0)
+	finalResults := make([]interface{}, 0, len(results))
 	for _, res := range results {
 		jsRes := make(map[string]interface{})
 		jsRes["title"] = res.Title

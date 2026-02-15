@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/afero"
 
-	"my-ssg/builder/config"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 type assetServiceImpl struct {
@@ -60,12 +60,20 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		if exists, _ := afero.Exists(s.sourceFs, wasmExecPath); exists {
 			src, err := s.sourceFs.Open(wasmExecPath)
 			if err == nil {
-				defer src.Close()
+				defer func() {
+					if cerr := src.Close(); cerr != nil {
+						s.logger.Warn("Failed to close source file", "path", wasmExecPath, "error", cerr)
+					}
+				}()
 				wasmExecDestPath := filepath.Join(s.cfg.OutputDir, "static/js/wasm_exec.js")
 				_ = s.destFs.MkdirAll(filepath.Join(s.cfg.OutputDir, "static/js"), 0755)
 				dest, err := s.destFs.Create(wasmExecDestPath)
 				if err == nil {
-					defer dest.Close()
+					defer func() {
+						if cerr := dest.Close(); cerr != nil {
+							s.logger.Warn("Failed to close destination file", "path", wasmExecDestPath, "error", cerr)
+						}
+					}()
 					if _, err := io.Copy(dest, src); err == nil {
 						s.renderer.RegisterFile(wasmExecDestPath)
 					}
@@ -90,11 +98,19 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		if wasmSourcePath != "" {
 			src, err := s.sourceFs.Open(wasmSourcePath)
 			if err == nil {
-				defer src.Close()
+				defer func() {
+					if cerr := src.Close(); cerr != nil {
+						s.logger.Warn("Failed to close source file", "path", wasmSourcePath, "error", cerr)
+					}
+				}()
 				_ = s.destFs.MkdirAll(filepath.Dir(wasmDestPath), 0755)
 				dest, err := s.destFs.Create(wasmDestPath)
 				if err == nil {
-					defer dest.Close()
+					defer func() {
+						if cerr := dest.Close(); cerr != nil {
+							s.logger.Warn("Failed to close destination file", "path", wasmDestPath, "error", cerr)
+						}
+					}()
 					if _, err := io.Copy(dest, src); err == nil {
 						s.renderer.RegisterFile(wasmDestPath)
 					}
@@ -107,12 +123,20 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			if exists, _ := afero.Exists(s.sourceFs, s.cfg.Logo); exists {
 				src, err := s.sourceFs.Open(s.cfg.Logo)
 				if err == nil {
-					defer src.Close()
+					defer func() {
+						if cerr := src.Close(); cerr != nil {
+							s.logger.Warn("Failed to close source file", "path", s.cfg.Logo, "error", cerr)
+						}
+					}()
 					destPath := filepath.Join(s.cfg.OutputDir, s.cfg.Logo)
 					_ = s.destFs.MkdirAll(filepath.Dir(destPath), 0755)
 					dest, err := s.destFs.Create(destPath)
 					if err == nil {
-						defer dest.Close()
+						defer func() {
+							if cerr := dest.Close(); cerr != nil {
+								s.logger.Warn("Failed to close destination file", "path", destPath, "error", cerr)
+							}
+						}()
 						if _, err := io.Copy(dest, src); err == nil {
 							s.renderer.RegisterFile(destPath)
 						}
@@ -126,7 +150,9 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 	go func() {
 		defer wg.Done()
 		destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
-		assets, assetErr := utils.BuildAssetsEsbuild(s.sourceFs, s.destFs, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets")
+		// Force rebuild in dev mode to ensure changes are picked up
+		force := s.cfg.IsDev
+		assets, assetErr := utils.BuildAssetsEsbuild(s.sourceFs, s.destFs, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
 		if assetErr != nil {
 			s.logger.Error("Failed to build assets", "error", assetErr)
 			return

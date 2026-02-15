@@ -3,7 +3,7 @@ package utils
 import (
 	"testing"
 
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestBuildSiteTree(t *testing.T) {
@@ -87,12 +87,10 @@ func TestBuildSiteTree(t *testing.T) {
 	if guides == nil {
 		t.Error("Section 'Guides Index' not found (index merging failed)")
 	} else {
-		if !guides.IsSection {
-			// Actually, BuildSiteTree implementation keeps IsSection=true for virtual nodes
-			// but if we merged an index page, it takes the index page's title.
-			// IsSection might still be true or false depending on logic.
-			// The current logic just updates Title/Link/Weight but leaves IsSection=true if created as virtual first.
-		}
+		// Note: BuildSiteTree implementation keeps IsSection=true for virtual nodes
+		// but if we merged an index page, it takes the index page's title.
+		// IsSection might still be true or false depending on logic.
+		// The current logic just updates Title/Link/Weight but leaves IsSection=true if created as virtual first.
 		if len(guides.Children) != 1 {
 			t.Errorf("Guides should have 1 child (Advanced), got %d", len(guides.Children))
 		}

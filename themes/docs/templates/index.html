@@ -7,12 +7,16 @@
     <title>{{ .Config.Title }} | Documentation Hub</title>
     {{ if .Assets }}
     <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/theme.css" }}">
-    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/layout.css" }}">
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/components/header.css" }}">
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/components/buttons.css" }}">
     <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/components/modal.css" }}">
+    <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/components/hub.css" }}">
     {{ else }}
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/theme.css">
-    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/layout.css">
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/components/header.css">
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/components/buttons.css">
     <link rel="stylesheet" href="{{ .BaseURL }}/static/css/components/modal.css">
+    <link rel="stylesheet" href="{{ .BaseURL }}/static/css/components/hub.css">
     {{ end }}
     {{ if .Config.Logo }}
     <link rel="icon" type="image/png" href="{{ .BaseURL }}/{{ .Config.Logo }}">
@@ -52,29 +56,104 @@
     </header>
 
     <main class="hub-container">
+        <!-- Decorative background -->
+        <div class="hub-bg-pattern"></div>
+        <div class="hub-bg-glow"></div>
+
         <section class="hub-hero">
             <h1>{{ .Config.Title }}</h1>
             <p>{{ .Config.Description }}</p>
             
             <div class="cta-group">
-                {{ $firstLink := "" }}
-                {{ range .SiteTree }}
-                    {{ if .Link }}{{ if eq $firstLink "" }}{{ $firstLink = .Link }}{{ end }}{{ end }}
-                    {{ range .Children }}
-                        {{ if .Link }}{{ if eq $firstLink "" }}{{ $firstLink = .Link }}{{ end }}{{ end }}
-                    {{ end }}
+                {{ $latestURL := printf "%s/" .BaseURL }}
+                
+                {{ range .Versions }}
+                    {{ if .IsLatest }}{{ $latestURL = .URL }}{{ end }}
                 {{ end }}
 
-                {{ if $firstLink }}
-                <a href="{{ $firstLink }}" class="btn-hub btn-primary">Go to Latest Docs</a>
+                {{ if .SiteTree }}
+                    {{ $firstPage := index .SiteTree 0 }}
+                    {{ if $firstPage.Link }}{{ $latestURL = $firstPage.Link }}{{ end }}
                 {{ end }}
-                <button onclick="document.getElementById('search-btn').click()" class="btn-hub btn-secondary">Search Documentation</button>
+
+                <a href="{{ $latestURL }}" class="btn-hub btn-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                    Go to Latest Docs
+                </a>
+                <button onclick="document.getElementById('search-btn').click()" class="btn-hub btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    Search Documentation
+                </button>
             </div>
         </section>
 
         <section class="hub-section-grid">
             {{ range .SiteTree }}
-            <a href="{{ if .Link }}{{ .Link }}{{ else }}#{{ end }}" class="hub-category-card">
+            {{ $icon := "doc" }}
+            {{ if or (eq (lower .Title) "getting started") (eq (lower .Title) "installation") (eq (lower .Title) "tutorial") (eq (lower .Title) "quickstart") }}
+                {{ $icon = "rocket" }}
+            {{ else if or (eq (lower .Title) "configuration") (eq (lower .Title) "advanced") }}
+                {{ $icon = "settings" }}
+            {{ else if or (eq (lower .Title) "api") (eq (lower .Title) "sdk") (eq (lower .Title) "reference") (eq (lower .Title) "examples") }}
+                {{ $icon = "code" }}
+            {{ else if eq (lower .Title) "features" }}
+                {{ $icon = "star" }}
+            {{ else if eq (lower .Title) "changelog" }}
+                {{ $icon = "list" }}
+            {{ else if .IsSection }}
+                {{ $icon = "folder" }}
+            {{ end }}
+            <a href="{{ if .Link }}{{ .Link }}{{ else }}#{{ end }}" class="hub-category-card" data-icon="{{ $icon }}">
+                <div class="card-icon">
+                    {{ if eq $icon "rocket" }}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+                        <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+                        <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+                        <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+                    </svg>
+                    {{ else if eq $icon "settings" }}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    {{ else if eq $icon "code" }}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 18 22 12 16 6"/>
+                        <polyline points="8 6 2 12 8 18"/>
+                    </svg>
+                    {{ else if eq $icon "star" }}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                    {{ else if eq $icon "list" }}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="8" y1="6" x2="21" y2="6"/>
+                        <line x1="8" y1="12" x2="21" y2="12"/>
+                        <line x1="8" y1="18" x2="21" y2="18"/>
+                        <line x1="3" y1="6" x2="3.01" y2="6"/>
+                        <line x1="3" y1="12" x2="3.01" y2="12"/>
+                        <line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                    {{ else if eq $icon "folder" }}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    {{ else }}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                    {{ end }}
+                </div>
                 <h3>{{ .Title }}</h3>
                 <p>
                     {{ if .IsSection }}
@@ -86,6 +165,33 @@
             </a>
             {{ end }}
         </section>
+
+        {{ if .Versions }}
+        <section class="hub-versions">
+            <h2>Documentation Versions</h2>
+            <div class="version-timeline">
+                {{ $firstPageLink := "" }}
+                {{ if .SiteTree }}
+                    {{ $firstPage := index .SiteTree 0 }}
+                    {{ if $firstPage.Link }}{{ $firstPageLink = $firstPage.Link }}{{ end }}
+                {{ end }}
+                
+                {{ range $index, $v := .Versions }}
+                {{ $versionURL := $v.URL }}
+                {{ if and $v.IsLatest $firstPageLink }}
+                    {{ $versionURL = $firstPageLink }}
+                {{ end }}
+                <a href="{{ $versionURL }}" class="version-node {{ if $v.IsLatest }}latest{{ end }}">
+                    <div class="version-node-dot"></div>
+                    <div class="version-node-content">
+                        {{ if $v.IsLatest }}<span class="badge-current">Current</span>{{ end }}
+                        <span class="version-name">{{ $v.Name }}</span>
+                    </div>
+                </a>
+                {{ end }}
+            </div>
+        </section>
+        {{ end }}
     </main>
 
     <footer class="hub-footer">
@@ -102,12 +208,53 @@
         </div>
     </div>
 
-    <script>window.siteBaseURL = "{{ .BaseURL }}";</script>
+    <script>
+        window.siteBaseURL = "{{ .BaseURL }}";
+        {{ range .Versions }}{{ if .IsLatest }}window.latestVersion = "{{ .Path }}";{{ end }}{{ end }}
+    </script>
     {{ if .Assets }}
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/wasm_exec.js" }}"></script>
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/search.js" }}"></script>
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/docs-features.js" }}"></script>
     {{ end }}
+
+    <script>
+        (function () {
+            const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+
+            if (hosts.includes(window.location.hostname)) {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(registration => {
+                            registration.unregister();
+                        });
+                    });
+                }
+
+                if ('caches' in window) {
+                    caches.keys().then(cacheNames => {
+                        cacheNames.forEach(cacheName => {
+                            caches.delete(cacheName);
+                        });
+                    });
+                }
+
+                let reloadTimeout;
+                const source = new EventSource("/events");
+                source.onmessage = function (event) {
+                    if (event.data === "reload") {
+                        if (reloadTimeout) clearTimeout(reloadTimeout);
+                        reloadTimeout = setTimeout(() => {
+                            window.location.reload();
+                        }, 250);
+                    }
+                };
+                source.onerror = function () {
+                    source.close();
+                };
+            }
+        })();
+    </script>
 </body>
 
 </html>

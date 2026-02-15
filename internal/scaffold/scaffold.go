@@ -29,7 +29,7 @@ compressImages: true
 # Theme Configuration
 theme: "blog"
 themeDir: "themes"
-# templateDir and staticDir will default to themes/blog/templates and themes/blog/static
+# templateDir and staticDir will default to themes/<theme>/templates and themes/<theme>/static
 `
 
 const firstPost = `---
@@ -45,10 +45,23 @@ This is your first post. You can edit this file in ` + "`content/hello-world.md`
 
 ## Getting Started
 
-1.  **Themes**: Kosh requires a theme. Clone one into the ` + "`themes/`" + ` directory.
+1.  **Themes**: Kosh requires a theme. Install the official blog theme:
     ` + "```bash" + `
-    git clone https://github.com/your-username/kosh-theme-blog themes/blog
+    git clone https://github.com/Kush-Singh-26/kosh-theme-blog themes/blog
     ` + "```" + `
+    
+    Or create your own theme with this structure:
+    ` + "```" + `
+    themes/your-theme/
+    ├── templates/
+    │   ├── layout.html
+    │   └── index.html
+    ├── static/
+    │   ├── css/
+    │   └── js/
+    └── theme.yaml
+    ` + "```" + `
+
 2.  **Run**: Start the dev server.
     ` + "```bash" + `
     kosh serve --dev

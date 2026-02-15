@@ -65,9 +65,9 @@ func (w *Watcher) Start() {
 
 	log.Println("👀 Watch mode active. Waiting for changes...")
 
-	// Debounce timer
+	// Debounce timer - reduced to 50ms for faster response in dev mode
 	var timer *time.Timer
-	const debounceDuration = 100 * time.Millisecond
+	const debounceDuration = 50 * time.Millisecond
 
 	for {
 		select {

@@ -4,90 +4,220 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
-	"my-ssg/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
-// Run takes a snapshot of current content and creates a new version
 func Run(args []string) {
 	if len(args) < 1 {
-		fmt.Println("Usage: kosh version <vX.X>")
+		printVersionInfo()
 		return
 	}
 
 	versionName := args[0]
-	versionPath := versionName // Use name as path for now
 
-	// 1. Load current config to check for existing versions and version folders
 	cfg := loadConfig()
 	if cfg == nil {
 		fmt.Println("❌ Error: Could not load kosh.yaml")
 		return
 	}
 
-	// 2. Validate version name
 	for _, v := range cfg.Versions {
-		if v.Name == versionName || v.Path == versionPath {
-			fmt.Printf("❌ Error: Version '%s' or path '%s' already exists in kosh.yaml\n", versionName, versionPath)
+		if v.Name == versionName {
+			fmt.Printf("❌ Error: Version '%s' already exists in kosh.yaml\n", versionName)
 			return
 		}
 	}
 
-	destDir := filepath.Join("content", versionPath)
-	if _, err := os.Stat(destDir); err == nil {
-		fmt.Printf("❌ Error: Directory '%s' already exists\n", destDir)
+	latestIdx, latestVersion := findLatestVersion(cfg)
+	if latestVersion == nil {
+		fmt.Println("❌ Error: No current 'latest' version found in config")
 		return
 	}
 
-	// 3. Snapshot content
-	fmt.Printf("📸 Taking snapshot for version %s...\n", versionName)
-
-	// Create destination directory
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		fmt.Printf("❌ Error: Failed to create directory: %v\n", err)
-		return
-	}
-
-	// Collect version paths to ignore
+	// Build map of existing version paths
 	versionPaths := make(map[string]bool)
 	for _, v := range cfg.Versions {
 		if v.Path != "" {
 			versionPaths[v.Path] = true
 		}
 	}
-	// Also ignore the one we are creating
-	versionPaths[versionPath] = true
 
-	err := filepath.WalkDir("content", func(path string, d fs.DirEntry, err error) error {
+	var frozenPath string      // Path for the old latest version after freezing
+	var frozenSourceDir string // Where to copy frozen content FROM
+	var newVersionPath string  // Path for the new latest version
+	var newVersionDir string   // Directory to create for new version
+
+	if latestVersion.Path != "" {
+		// All-in-folders style: latest has explicit path (e.g., v7.0)
+		// - Old latest stays where it is (already in folder)
+		// - New version gets a NEW folder
+		frozenPath = latestVersion.Path
+		frozenSourceDir = ""         // No need to copy frozen content
+		newVersionPath = versionName // e.g., "v8.0"
+		newVersionDir = filepath.Join("content", versionName)
+	} else {
+		// Traditional style: latest at root
+		// - Copy root content to frozen folder
+		// - New version stays at root
+		frozenPath = latestVersion.Name
+		frozenSourceDir = "content"
+		newVersionPath = "" // New latest at root
+		newVersionDir = ""  // No new folder needed
+	}
+
+	// Handle frozen content copy (traditional style only)
+	if frozenSourceDir != "" {
+		frozenDestDir := filepath.Join("content", frozenPath)
+		if _, err := os.Stat(frozenDestDir); err == nil {
+			if versionPaths[frozenPath] {
+				fmt.Printf("❌ Error: Directory '%s' already exists and is registered as a version\n", frozenDestDir)
+				return
+			}
+			fmt.Printf("⚠️  Warning: Directory '%s' exists but is not registered. Renaming to backup...\n", frozenDestDir)
+			backupDir := frozenDestDir + ".backup"
+			if err := os.Rename(frozenDestDir, backupDir); err != nil {
+				fmt.Printf("❌ Error: Could not rename existing directory: %v\n", err)
+				return
+			}
+			fmt.Printf("   Backup created at: %s\n", backupDir)
+		}
+		fmt.Printf("📸 Freezing version %s to content/%s/...\n", latestVersion.Name, frozenPath)
+		if err := snapshotContent(frozenDestDir, frozenSourceDir, cfg); err != nil {
+			fmt.Printf("❌ Error during snapshot: %v\n", err)
+			return
+		}
+	}
+
+	// Handle new version folder creation (all-in-folders style)
+	if newVersionDir != "" {
+		if _, err := os.Stat(newVersionDir); err == nil {
+			fmt.Printf("❌ Error: Directory '%s' already exists\n", newVersionDir)
+			return
+		}
+		// Copy from current latest version
+		sourceDir := filepath.Join("content", latestVersion.Path)
+		fmt.Printf("📸 Creating new version %s at content/%s/...\n", versionName, versionName)
+		if err := snapshotContent(newVersionDir, sourceDir, cfg); err != nil {
+			fmt.Printf("❌ Error creating new version: %v\n", err)
+			return
+		}
+	}
+
+	fmt.Printf("📝 Updating version configuration...\n")
+
+	if err := updateVersionConfig(cfg, latestIdx, versionName, frozenPath, newVersionPath); err != nil {
+		fmt.Printf("❌ Error updating kosh.yaml: %v\n", err)
+		return
+	}
+
+	fmt.Printf("\n✅ Version transition complete!\n")
+	if latestVersion.Path != "" {
+		fmt.Printf("   Previous latest: %s (content/%s/) → frozen\n", latestVersion.Name, latestVersion.Path)
+		fmt.Printf("   New working version: %s (content/%s/)\n", versionName, versionName)
+	} else {
+		fmt.Printf("   Previous latest: %s → frozen at content/%s/\n", latestVersion.Name, frozenPath)
+		fmt.Printf("   New working version: %s (content/ root)\n", versionName)
+	}
+	fmt.Printf("   Config updated with proper version ordering\n")
+}
+
+func printVersionInfo() {
+	cfg := loadConfig()
+	if cfg == nil {
+		fmt.Println("❌ Error: Could not load kosh.yaml")
+		return
+	}
+
+	fmt.Println("📚 Version Information")
+	fmt.Println("======================")
+
+	if len(cfg.Versions) == 0 {
+		fmt.Println("   No versions configured")
+		return
+	}
+
+	for i, v := range cfg.Versions {
+		marker := "  "
+		if v.IsLatest {
+			marker = "→ " // Arrow for latest
+		}
+		path := v.Path
+		if path == "" {
+			path = "(root)"
+		}
+		fmt.Printf("%s %d. %s - %s", marker, i+1, v.Name, path)
+		if v.IsLatest {
+			fmt.Printf(" [LATEST]")
+		}
+		fmt.Println()
+	}
+
+	_, latest := findLatestVersion(cfg)
+	if latest != nil {
+		fmt.Printf("\n💡 Current working version: %s\n", latest.Name)
+		fmt.Println("   Edit files in content/ to update this version")
+	}
+}
+
+func findLatestVersion(cfg *config.Config) (int, *config.Version) {
+	for i := range cfg.Versions {
+		if cfg.Versions[i].IsLatest {
+			return i, &cfg.Versions[i]
+		}
+	}
+	return -1, nil
+}
+
+func snapshotContent(destDir string, sourceDir string, cfg *config.Config) error {
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	versionPaths := make(map[string]bool)
+	for _, v := range cfg.Versions {
+		if v.Path != "" {
+			versionPaths[v.Path] = true
+		}
+	}
+
+	// Add destination to versionPaths so we don't try to copy into it
+	rel, _ := filepath.Rel("content", destDir)
+	if rel != "." && rel != "" {
+		parts := strings.Split(rel, string(os.PathSeparator))
+		if len(parts) > 0 {
+			versionPaths[parts[0]] = true
+		}
+	}
+
+	return filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Skip "content" itself
-		if path == "content" {
+		if path == sourceDir {
 			return nil
 		}
 
-		relPath, _ := filepath.Rel("content", path)
+		relPath, _ := filepath.Rel(sourceDir, path)
 		parts := strings.Split(relPath, string(os.PathSeparator))
 
-		// If it's a directory and starts with a version path we know, skip it
 		if d.IsDir() {
-			if versionPaths[parts[0]] {
+			// Skip if this is another version's directory (when source is root)
+			if sourceDir == "content" && len(parts) > 0 && versionPaths[parts[0]] {
 				return filepath.SkipDir
 			}
-			// Create directory in destination
 			return os.MkdirAll(filepath.Join(destDir, relPath), 0755)
 		}
 
-		// Copy .md files
 		if strings.HasSuffix(path, ".md") {
-			// Ensure it's not in a version subdirectory (extra safety)
-			if len(parts) > 1 && versionPaths[parts[0]] {
+			// Skip files in other version directories when source is root
+			if sourceDir == "content" && len(parts) > 1 && versionPaths[parts[0]] {
 				return nil
 			}
 
@@ -99,21 +229,6 @@ func Run(args []string) {
 
 		return nil
 	})
-
-	if err != nil {
-		fmt.Printf("❌ Error during snapshot: %v\n", err)
-		return
-	}
-
-	// 4. Update kosh.yaml
-	if err := updateConfig(versionName, versionPath); err != nil {
-		fmt.Printf("❌ Error updating kosh.yaml: %v\n", err)
-		return
-	}
-
-	fmt.Printf("✅ Version %s created successfully as a snapshot!\n", versionName)
-	fmt.Println("   New content at:", destDir)
-	fmt.Println("   Updated kosh.yaml with strategy: snapshot")
 }
 
 func copyFile(src, dst string) error {
@@ -121,13 +236,21 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer source.Close()
+	defer func() {
+		if cerr := source.Close(); cerr != nil {
+			slog.Warn("Failed to close source file", "path", src, "error", cerr)
+		}
+	}()
 
 	destination, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destination.Close()
+	defer func() {
+		if cerr := destination.Close(); cerr != nil {
+			slog.Warn("Failed to close destination file", "path", dst, "error", cerr)
+		}
+	}()
 
 	_, err = io.Copy(destination, source)
 	return err
@@ -145,19 +268,17 @@ func loadConfig() *config.Config {
 	return cfg
 }
 
-func updateConfig(name, path string) error {
+func updateVersionConfig(cfg *config.Config, oldLatestIdx int, newVersionName, frozenPath string, newLatestPath string) error {
 	data, err := os.ReadFile("kosh.yaml")
 	if err != nil {
 		return err
 	}
 
-	// Use yaml.Node to preserve comments
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return err
 	}
 
-	// Find the 'versions' node
 	if root.Kind != yaml.DocumentNode || len(root.Content) == 0 {
 		return fmt.Errorf("invalid yaml structure")
 	}
@@ -171,33 +292,59 @@ func updateConfig(name, path string) error {
 		}
 	}
 
-	newVersion := &yaml.Node{
+	if versionsNode == nil || versionsNode.Kind != yaml.SequenceNode {
+		return fmt.Errorf("versions not found or not a sequence")
+	}
+
+	newLatestNode := &yaml.Node{
 		Kind: yaml.MappingNode,
 		Content: []*yaml.Node{
 			{Kind: yaml.ScalarNode, Value: "name"},
-			{Kind: yaml.ScalarNode, Value: name},
+			{Kind: yaml.ScalarNode, Value: newVersionName},
 			{Kind: yaml.ScalarNode, Value: "path"},
-			{Kind: yaml.ScalarNode, Value: path},
-			{Kind: yaml.ScalarNode, Value: "strategy"},
-			{Kind: yaml.ScalarNode, Value: "snapshot"},
+			{Kind: yaml.ScalarNode, Value: newLatestPath},
+			{Kind: yaml.ScalarNode, Value: "isLatest"},
+			{Kind: yaml.ScalarNode, Value: "true"},
 		},
 	}
 
-	if versionsNode == nil {
-		// Create 'versions' key if it doesn't exist
-		keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: "versions"}
-		valNode := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{newVersion}}
-		mapping.Content = append(mapping.Content, keyNode, valNode)
-	} else {
-		// Append to existing versions
-		// We want to insert it AFTER the latest version (which is usually first)
-		// but before older ones? Or just at the end?
-		// Docusaurus puts newer ones at the top, but Latest is always root.
-
-		// Let's just append for now, or insert after Latest.
-		// For now, append is simplest.
-		versionsNode.Content = append(versionsNode.Content, newVersion)
+	for _, versionNode := range versionsNode.Content {
+		if versionNode.Kind != yaml.MappingNode {
+			continue
+		}
+		var isCurrentlyLatest bool
+		var currentPath string
+		for i := 0; i < len(versionNode.Content); i += 2 {
+			key := versionNode.Content[i].Value
+			if key == "isLatest" && versionNode.Content[i+1].Value == "true" {
+				isCurrentlyLatest = true
+			}
+			if key == "path" {
+				currentPath = versionNode.Content[i+1].Value
+			}
+		}
+		for i := 0; i < len(versionNode.Content); i += 2 {
+			key := versionNode.Content[i].Value
+			if key == "isLatest" {
+				versionNode.Content[i+1].Value = "false"
+			}
+			if key == "path" {
+				// If old latest had empty path (root), set it to frozenPath
+				// If old latest had explicit path, keep it (content is already there)
+				if isCurrentlyLatest && currentPath == "" {
+					versionNode.Content[i+1] = &yaml.Node{
+						Kind:  yaml.ScalarNode,
+						Value: frozenPath,
+						Tag:   "",
+					}
+				}
+			}
+		}
 	}
+
+	newVersions := []*yaml.Node{newLatestNode}
+	newVersions = append(newVersions, versionsNode.Content...)
+	versionsNode.Content = newVersions
 
 	out, err := yaml.Marshal(&root)
 	if err != nil {

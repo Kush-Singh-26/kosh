@@ -1,0 +1,33 @@
+/* Clarity in Motion - Buttons & Badges
+ * Badges, source links, and small UI elements
+ */
+
+/* ========================================
+   Badges & Labels
+   ======================================== */
+
+.badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  border: 1px solid var(--bg-border);
+}
+
+.source-link {
+  text-decoration: none;
+  color: var(--color-brand);
+  transition: all 0.2s ease;
+}
+
+.source-link:hover {
+  background: var(--color-brand);
+  color: var(--text-inverse);
+  text-decoration: none;
+}
+
+.source-link::after {
+  display: none;
+}

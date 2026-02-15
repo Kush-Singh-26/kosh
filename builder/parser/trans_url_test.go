@@ -248,7 +248,7 @@ func TestURLTransformer_VersionAwareLinking(t *testing.T) {
 			doc := md.Parser().Parse(reader, parser.WithContext(context))
 
 			var foundLink string
-			ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+			if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 				if !entering {
 					return ast.WalkContinue, nil
 				}
@@ -256,7 +256,9 @@ func TestURLTransformer_VersionAwareLinking(t *testing.T) {
 					foundLink = string(link.Destination)
 				}
 				return ast.WalkContinue, nil
-			})
+			}); err != nil {
+				t.Fatalf("ast.Walk failed: %v", err)
+			}
 
 			if foundLink != tt.expectedLink {
 				t.Errorf("link destination = %q, want %q", foundLink, tt.expectedLink)

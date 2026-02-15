@@ -26,15 +26,6 @@ type Manager struct {
 	cacheID  string
 	mu       sync.RWMutex
 	dirty    map[string]bool
-	stats    cacheStatsInternal
-}
-
-// cacheStatsInternal holds runtime performance metrics
-type cacheStatsInternal struct {
-	lastReadTime  time.Duration
-	lastWriteTime time.Duration
-	readCount     int64
-	writeCount    int64
 }
 
 // Open opens or creates a cache at the given path
@@ -43,11 +34,24 @@ func Open(basePath string, isDev bool) (*Manager, error) {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
+	// Calculate initial mmap size based on existing database
+	initialSize := 10 * 1024 * 1024 // Default 10MB
+	dbPath := filepath.Join(basePath, "meta.db")
+	if info, err := os.Stat(dbPath); err == nil {
+		// Use 2x current size, minimum 10MB, maximum 100MB
+		calculatedSize := int(info.Size()) * 2
+		if calculatedSize > 100*1024*1024 {
+			initialSize = 100 * 1024 * 1024
+		} else if calculatedSize > 10*1024*1024 {
+			initialSize = calculatedSize
+		}
+	}
+
 	opts := &bolt.Options{
 		Timeout:         10 * time.Second,
 		FreelistType:    bolt.FreelistArrayType,
 		PageSize:        16384,
-		InitialMmapSize: 10 * 1024 * 1024,
+		InitialMmapSize: initialSize,
 	}
 
 	if isDev {
@@ -56,7 +60,6 @@ func Open(basePath string, isDev bool) (*Manager, error) {
 		opts.NoGrowSync = false
 	}
 
-	dbPath := filepath.Join(basePath, "meta.db")
 	db, err := bolt.Open(dbPath, 0644, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open BoltDB: %w", err)

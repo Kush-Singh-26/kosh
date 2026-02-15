@@ -1,9 +1,7 @@
-// Handles template loading and file creation
 package renderer
 
 import (
 	"html/template"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -12,63 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
-
-	"my-ssg/builder/models"
-	"my-ssg/builder/utils"
 )
-
-// templateCache stores parsed templates with their modification times
-type templateCache struct {
-	templates   map[string]*template.Template
-	mtimes      map[string]time.Time
-	templateDir string
-	mu          sync.RWMutex
-}
-
-var (
-	globalCache     *templateCache
-	globalCacheOnce sync.Once
-)
-
-// getGlobalCache returns the singleton template cache instance
-func getGlobalCache(templateDir string) *templateCache {
-	globalCacheOnce.Do(func() {
-		globalCache = &templateCache{
-			templates:   make(map[string]*template.Template),
-			mtimes:      make(map[string]time.Time),
-			templateDir: templateDir,
-		}
-	})
-	return globalCache
-}
-
-// hasTemplatesChanged checks if any template files have been modified since last cache
-func (tc *templateCache) hasTemplatesChanged() bool {
-	templateFiles := []string{"layout.html", "index.html", "graph.html", "404.html"}
-
-	for _, fname := range templateFiles {
-		path := filepath.Join(tc.templateDir, fname)
-		info, err := os.Stat(path)
-		if err != nil {
-			continue // File might not exist, skip
-		}
-
-		cachedMtime, exists := tc.mtimes[fname]
-		if !exists || info.ModTime().After(cachedMtime) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// setTemplate caches a template with its modification time
-func (tc *templateCache) setTemplate(name string, tmpl *template.Template, mtime time.Time) {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
-	tc.templates[name] = tmpl
-	tc.mtimes[name] = mtime
-}
 
 type Renderer struct {
 	Layout      *template.Template
@@ -76,9 +18,10 @@ type Renderer struct {
 	Graph       *template.Template
 	NotFound    *template.Template
 	Assets      map[string]string
+	AssetsMu    sync.RWMutex
 	Compress    bool
 	DestFs      afero.Fs
-	RenderedMu  sync.Mutex
+	RenderedMu  sync.RWMutex
 	RenderedSet map[string]bool
 	logger      *slog.Logger
 }
@@ -93,14 +36,11 @@ func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger
 		"now": time.Now,
 	}
 
-	// Get or create the global template cache
 	tc := getGlobalCache(templateDir)
 
-	// Check if we can use cached templates
 	tc.mu.RLock()
 	cacheValid := len(tc.templates) > 0 && !tc.hasTemplatesChanged()
 	if cacheValid {
-		// Return cached renderer
 		r := &Renderer{
 			Layout:      tc.templates["layout"],
 			Index:       tc.templates["index"],
@@ -116,11 +56,6 @@ func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger
 	}
 	tc.mu.RUnlock()
 
-	// Templates are read from OS filesystem (Source code)
-	// We could abstract this too, but templates are usually static source.
-	// Assuming running from root.
-
-	// Load layout template
 	layoutPath := filepath.Join(templateDir, "layout.html")
 	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles(layoutPath)
 	if err != nil {
@@ -132,7 +67,6 @@ func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger
 		tc.setTemplate("layout", tmpl, layoutInfo.ModTime())
 	}
 
-	// Load index template
 	indexPath := filepath.Join(templateDir, "index.html")
 	indexTmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles(indexPath)
 	if err != nil {
@@ -145,7 +79,6 @@ func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger
 		}
 	}
 
-	// Load graph template
 	graphPath := filepath.Join(templateDir, "graph.html")
 	graphTmpl, err := template.ParseFiles(graphPath)
 	if err != nil {
@@ -157,7 +90,6 @@ func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger
 		}
 	}
 
-	// Load 404 template
 	notFoundPath := filepath.Join(templateDir, "404.html")
 	notFoundTmpl, err := template.New("404.html").Funcs(funcMap).ParseFiles(notFoundPath)
 	if err != nil {
@@ -185,14 +117,17 @@ func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger
 func (r *Renderer) RegisterFile(path string) {
 	r.RenderedMu.Lock()
 	defer r.RenderedMu.Unlock()
-	// Normalize path to forward slashes for consistency
 	r.RenderedSet[filepath.ToSlash(path)] = true
 }
 
 func (r *Renderer) GetRenderedFiles() map[string]bool {
-	r.RenderedMu.Lock()
-	defer r.RenderedMu.Unlock()
-	return r.RenderedSet
+	r.RenderedMu.RLock()
+	defer r.RenderedMu.RUnlock()
+	copy := make(map[string]bool, len(r.RenderedSet))
+	for k, v := range r.RenderedSet {
+		copy[k] = v
+	}
+	return copy
 }
 
 func (r *Renderer) ClearRenderedFiles() {
@@ -202,145 +137,17 @@ func (r *Renderer) ClearRenderedFiles() {
 }
 
 func (r *Renderer) SetAssets(assets map[string]string) {
+	r.AssetsMu.Lock()
+	defer r.AssetsMu.Unlock()
 	r.Assets = assets
 }
 
-func (r *Renderer) RenderPage(path string, data models.PageData) {
-	// Inject Assets
-	data.Assets = r.Assets
-
-	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		r.logger.Error("Failed to create directory", "path", path, "error", err)
-		return
+func (r *Renderer) GetAssets() map[string]string {
+	r.AssetsMu.RLock()
+	defer r.AssetsMu.RUnlock()
+	copy := make(map[string]string, len(r.Assets))
+	for k, v := range r.Assets {
+		copy[k] = v
 	}
-
-	f, err := r.DestFs.Create(path)
-	if err != nil {
-		r.logger.Error("Failed to create file", "path", path, "error", err)
-		return
-	}
-	defer func() { _ = f.Close() }()
-
-	var w io.Writer = f
-
-	// Minify HTML if enabled
-	if r.Compress {
-		mw := utils.Minifier.Writer("text/html", f)
-		defer func() { _ = mw.Close() }() // Flush the minifier buffer
-		w = mw
-	}
-
-	if err := r.Layout.Execute(w, data); err != nil {
-		r.logger.Error("Failed to render layout", "path", path, "error", err)
-	} else {
-		r.RegisterFile(path)
-	}
-}
-
-func (r *Renderer) RenderIndex(path string, data models.PageData) {
-	// Inject Assets
-	data.Assets = r.Assets
-
-	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		r.logger.Error("Failed to create directory", "path", path, "error", err)
-		return
-	}
-	f, err := r.DestFs.Create(path)
-	if err != nil {
-		r.logger.Error("Failed to create file", "path", path, "error", err)
-		return
-	}
-	defer func() { _ = f.Close() }()
-
-	var w io.Writer = f
-
-	// Minify HTML if enabled
-	if r.Compress {
-		mw := utils.Minifier.Writer("text/html", f)
-		defer func() { _ = mw.Close() }()
-		w = mw
-	}
-
-	// Use dedicated index template if available, otherwise fall back to layout
-	var errExec error
-	if r.Index != nil {
-		errExec = r.Index.Execute(w, data)
-	} else {
-		errExec = r.Layout.Execute(w, data)
-	}
-	if errExec != nil {
-		r.logger.Error("Failed to render index", "path", path, "error", errExec)
-	} else {
-		r.RegisterFile(path)
-	}
-}
-
-func (r *Renderer) RenderGraph(path string, data models.PageData) {
-	if r.Graph == nil {
-		return
-	}
-	data.Assets = r.Assets
-
-	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		r.logger.Error("Failed to create directory", "path", path, "error", err)
-		return
-	}
-
-	f, err := r.DestFs.Create(path)
-	if err != nil {
-		r.logger.Error("Failed to create file", "path", path, "error", err)
-		return
-	}
-	defer func() { _ = f.Close() }()
-
-	var w io.Writer = f
-	if r.Compress {
-		mw := utils.Minifier.Writer("text/html", f)
-		defer func() { _ = mw.Close() }()
-		w = mw
-	}
-
-	if err := r.Graph.Execute(w, data); err != nil {
-		r.logger.Error("Failed to render graph", "path", path, "error", err)
-	} else {
-		r.RegisterFile(path)
-	}
-}
-
-func (r *Renderer) Render404(path string, data models.PageData) {
-	// Inject Assets
-	data.Assets = r.Assets
-
-	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		r.logger.Error("Failed to create directory", "path", path, "error", err)
-		return
-	}
-	f, err := r.DestFs.Create(path)
-	if err != nil {
-		r.logger.Error("Failed to create file", "path", path, "error", err)
-		return
-	}
-	defer func() { _ = f.Close() }()
-
-	var w io.Writer = f
-
-	// Minify HTML if enabled
-	if r.Compress {
-		mw := utils.Minifier.Writer("text/html", f)
-		defer func() { _ = mw.Close() }()
-		w = mw
-	}
-
-	// Use dedicated 404 template if available, otherwise fall back to layout
-	var errExec error
-	if r.NotFound != nil {
-		errExec = r.NotFound.Execute(w, data)
-	} else {
-		errExec = r.Layout.Execute(w, data)
-	}
-	if errExec != nil {
-		r.logger.Error("Failed to render 404", "path", path, "error", errExec)
-	} else {
-		r.RegisterFile(path)
-	}
+	return copy
 }

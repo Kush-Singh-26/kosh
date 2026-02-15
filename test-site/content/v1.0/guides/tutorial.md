@@ -1,26 +1,91 @@
 ---
 title: "Tutorial v1.0"
-description: "v1.0 tutorial"
-date: "2025-01-05"
-weight: 60
+description: "Step-by-step tutorial for v1.0"
+weight: 70
 ---
 
 # Tutorial v1.0
 
-Step-by-step tutorial for v1.0.
+Step-by-step tutorial for Kosh v1.0.
 
-## Tutorial Steps
+> **Warning:** This is v1.0 documentation. For the latest tutorial, see [Tutorial](../tutorial.md).
 
-1. Setup
-2. Configuration
-3. Deployment
+## Prerequisites
 
-## Links
+- [Installed Kosh v1.0](./installation.md)
+- Basic command line knowledge
 
-- [Best Practices](./best-practices.md) - Learn best practices
-- [Getting Started](../getting-started.md) - Back to start
+## Step 1: Create Project
 
-## Cross-Reference
+```bash
+mkdir my-docs
+cd my-docs
+```
 
-- [Root Advanced](../../advanced/configuration.md) - Advanced config
-- [v2.0 Migration](../../v2.0/migration-guide.md) - Migrate to v2.0
+## Step 2: Create Configuration
+
+Create `kosh.yaml`:
+
+```yaml
+baseURL: "http://localhost:2604"
+title: "My Documentation"
+theme: "docs"
+
+author:
+  name: "Your Name"
+```
+
+## Step 3: Create Content
+
+Create `content/getting-started.md`:
+
+```markdown
+---
+title: "Getting Started"
+---
+
+# Getting Started
+
+Welcome to my documentation!
+```
+
+## Step 4: Start Server
+
+```bash
+kosh serve
+```
+
+Open `http://localhost:2604` in your browser.
+
+## Step 5: Add More Pages
+
+```
+content/
+├── getting-started.md
+├── features.md
+└── guides/
+    └── tutorial.md
+```
+
+## Step 6: Build
+
+```bash
+kosh build
+```
+
+Output in `public/` directory.
+
+## v1.0 Limitations
+
+- No version support
+- Basic search only
+- Manual asset management
+
+## Next Steps
+
+- [Best Practices](./best-practices.md) - Recommendations
+- [Configuration](../configuration.md) - More options
+
+## Upgrade
+
+Consider [upgrading to v4.0](../tutorial.md) for more features.

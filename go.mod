@@ -1,4 +1,4 @@
-module my-ssg
+module github.com/Kush-Singh-26/kosh
 
 go 1.25.0
 

@@ -70,7 +70,16 @@
 
                 if (!response.ok) {
                     if (response.status === 404) {
-                        // Page doesn't exist in this version, redirect to version home page
+                        // Page doesn't exist in this version
+                        // Try to find the first available page in this version
+                        const firstPageUrl = getFirstPageInVersion(url);
+                        if (firstPageUrl) {
+                            console.log(`Page not found in this version, redirecting to first page: ${firstPageUrl}`);
+                            window.location.href = firstPageUrl;
+                            return;
+                        }
+                        
+                        // Fall back to version home page
                         const homeUrl = getVersionHomeUrl(url);
                         console.log(`Page not found in this version, redirecting to: ${homeUrl}`);
                         window.location.href = homeUrl;
@@ -259,5 +268,37 @@
 
         // Fallback to latest version home
         return window.siteBaseURL + '/index.html';
+    }
+
+    function getFirstPageInVersion(url) {
+        // Extract the version path from the URL
+        try {
+            const pathname = new URL(url, window.location.origin).pathname;
+            const versionMatch = pathname.match(/^\/(v\d+\.\d+)/);
+
+            // Find the first page link in the sidebar for this version
+            const sidebarLinks = document.querySelectorAll('.tree-link');
+            for (const link of sidebarLinks) {
+                const href = link.getAttribute('href');
+                if (href) {
+                    // For versioned paths, find links that match the version
+                    if (versionMatch && href.includes('/' + versionMatch[1] + '/')) {
+                        return href;
+                    }
+                    // For latest version (no version in path), find links without version prefix
+                    if (!versionMatch && !href.match(/\/v\d+\.\d+\//)) {
+                        return href;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Error getting first page in version", e);
+        }
+        return null;
+    }
+
+    function getHubPage() {
+        // Return the hub page URL
+        return window.siteBaseURL + '/';
     }
 })();

@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"my-ssg/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
 )
 
 // cacheServiceImpl implements CacheService
@@ -83,6 +83,10 @@ func (s *cacheServiceImpl) StoreHTML(content []byte) (string, error) {
 	return s.manager.StoreHTML(content)
 }
 
+func (s *cacheServiceImpl) StoreHTMLForPostDirect(content []byte) (string, error) {
+	return s.manager.StoreHTML(content)
+}
+
 func (s *cacheServiceImpl) StoreHTMLForPost(post *cache.PostMeta, content []byte) error {
 	return s.manager.StoreHTMLForPost(post, content)
 }
@@ -102,8 +106,17 @@ func (s *cacheServiceImpl) MarkDirty(postID string) {
 }
 
 func (s *cacheServiceImpl) IsDirty(postID string) bool {
-	_, ok := s.dirty.Load(postID)
-	return ok
+	val, ok := s.dirty.Load(postID)
+	if !ok {
+		return false
+	}
+	dirty, ok := val.(bool)
+	return ok && dirty
+}
+
+func (s *cacheServiceImpl) ClearDirty() {
+	// Fresh map allocation is faster than Range+Delete for bulk clear
+	s.dirty = sync.Map{}
 }
 
 func (s *cacheServiceImpl) Stats() (*cache.CacheStats, error) {
@@ -116,10 +129,6 @@ func (s *cacheServiceImpl) IncrementBuildCount() error {
 
 func (s *cacheServiceImpl) Close() error {
 	return s.manager.Close()
-}
-
-func (s *cacheServiceImpl) Save() {
-	// Trigger any flush logic if needed
 }
 
 // Additional helper to expose the underlying manager if absolutely necessary (try to avoid)

@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/afero"
 
-	"my-ssg/builder/models"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) {

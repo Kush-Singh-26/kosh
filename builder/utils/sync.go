@@ -13,14 +13,36 @@ import (
 	"github.com/spf13/afero"
 )
 
-// SyncVFS synchronizes the `targetDir` directory from VFS to disk using parallel workers.
-// If dirtyFiles is not nil, it only syncs files present in the map.
+var (
+	createdDirs   = make(map[string]bool)
+	createdDirsMu sync.RWMutex
+
+	// File content cache to avoid redundant disk reads during sync
+	fileContentCache   = make(map[string][]byte)
+	fileContentCacheMu sync.RWMutex
+	maxCacheEntries    = 1000
+)
+
+// alwaysSyncPaths contains paths that should always be synced regardless of dirty state
+var alwaysSyncPaths = map[string]bool{
+	".nojekyll":               true,
+	"sitemap.xml":             true,
+	"sitemap/sitemap.xml":     true,
+	"rss.xml":                 true,
+	"search_index.json":       true,
+	"search.bin":              true,
+	"manifest.json":           true,
+	"sw.js":                   true,
+	"graph.json":              true,
+	"static/search.wasm":      true,
+	"static/wasm/search.wasm": true,
+}
+
 func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error {
 	fmt.Println("💾 Syncing in-memory filesystem to disk...")
 
 	targetDirClean := filepath.Clean(targetDir)
 
-	// 1. Collect all files from VFS
 	var filesToSync []string
 	err := afero.Walk(srcFs, targetDirClean, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
@@ -33,25 +55,6 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 			return os.MkdirAll(path, 0755)
 		}
 
-		// Differential Sync: Only sync if dirtyFiles is nil (full sync)
-		// or if the specific file is in the dirty map.
-		// Always sync .nojekyll, sitemap, rss, search_index, manifest, sw.js, graph.json
-		// Build alwaysSync map dynamically based on target directory name
-		targetBase := filepath.Base(targetDirClean)
-		alwaysSync := map[string]bool{
-			targetBase + "/.nojekyll":               true,
-			targetBase + "/sitemap.xml":             true,
-			targetBase + "/sitemap/sitemap.xml":     true,
-			targetBase + "/rss.xml":                 true,
-			targetBase + "/search_index.json":       true,
-			targetBase + "/search.bin":              true,
-			targetBase + "/manifest.json":           true,
-			targetBase + "/sw.js":                   true,
-			targetBase + "/graph.json":              true,
-			targetBase + "/static/search.wasm":      true,
-			targetBase + "/static/wasm/search.wasm": true,
-		}
-
 		pathNormalized := filepath.ToSlash(path)
 
 		if dirtyFiles != nil {
@@ -61,17 +64,10 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 			}
 			relPath = filepath.ToSlash(relPath)
 
-			alwaysSyncKey := targetBase + "/" + relPath
+			isAlwaysSync := alwaysSyncPaths[relPath]
 			isStatic := strings.HasPrefix(relPath, "static/")
 			isMarkdown := strings.HasSuffix(relPath, ".md")
-			isAlwaysSync := alwaysSync[alwaysSyncKey]
 			isDirty := dirtyFiles[pathNormalized]
-
-			// Debug logging for social cards
-			// if strings.Contains(pathNormalized, ".webp") {
-			// 	fmt.Printf("DEBUG SyncVFS webp: path=%s normalized=%s relPath=%s isDirty=%v isStatic=%v\n",
-			// 		path, pathNormalized, relPath, isDirty, isStatic)
-			// }
 
 			if !isDirty && !isAlwaysSync && !isStatic && !isMarkdown {
 				return nil
@@ -86,15 +82,16 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 		return fmt.Errorf("failed to scan VFS: %w", err)
 	}
 
-	// 2. Parallel Sync with Worker Pool
 	numWorkers := runtime.NumCPU() * 2
-	if numWorkers > 64 {
-		numWorkers = 64
+	if numWorkers > 32 {
+		numWorkers = 32
 	}
 
 	var wg sync.WaitGroup
-	fileChan := make(chan string, len(filesToSync))
+	fileChan := make(chan string, min(len(filesToSync), 100))
 	errChan := make(chan error, len(filesToSync))
+	var firstErr error
+	var errOnce sync.Once
 
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
@@ -102,6 +99,7 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 			defer wg.Done()
 			for path := range fileChan {
 				if err := syncSingleFile(srcFs, path); err != nil {
+					errOnce.Do(func() { firstErr = err })
 					errChan <- err
 				}
 			}
@@ -115,39 +113,51 @@ func SyncVFS(srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool) error
 	wg.Wait()
 	close(errChan)
 
-	// fmt.Printf("DEBUG SyncVFS: Found %d files, syncing %d files\n", fileCount, len(filesToSync))
-
-	if len(errChan) > 0 {
-		return <-errChan
+	if firstErr != nil {
+		return firstErr
 	}
 
 	return nil
 }
 
-// Global map to track created directories in this process to avoid redundant MkdirAll
-var (
-	createdDirs   = make(map[string]bool)
-	createdDirsMu sync.RWMutex
-)
-
 func syncSingleFile(srcFs afero.Fs, path string) error {
-	// Read source content ONCE
 	srcContent, err := afero.ReadFile(srcFs, path)
 	if err != nil {
 		return err
 	}
 
-	// Convert path to OS-specific format for disk operations
 	osPath := filepath.FromSlash(path)
 
-	// Check if destination exists with same content
-	destContent, err := os.ReadFile(osPath)
-	if err == nil && bytes.Equal(srcContent, destContent) {
-		return nil // Identical - skip write
+	// Check content cache first
+	fileContentCacheMu.RLock()
+	cached, inCache := fileContentCache[osPath]
+	fileContentCacheMu.RUnlock()
+
+	if inCache && bytes.Equal(srcContent, cached) {
+		return nil // Skip write, content unchanged from cache
 	}
 
-	// Destination missing or different - write it
-	// Ensure directory exists (Optimized)
+	// Only stat if not in cache
+	destContent, err := os.ReadFile(osPath)
+	if err == nil && bytes.Equal(srcContent, destContent) {
+		// Update cache with matched content
+		fileContentCacheMu.Lock()
+		if len(fileContentCache) >= maxCacheEntries {
+			// Simple eviction: clear half
+			cnt := 0
+			for k := range fileContentCache {
+				delete(fileContentCache, k)
+				cnt++
+				if cnt >= maxCacheEntries/2 {
+					break
+				}
+			}
+		}
+		fileContentCache[osPath] = srcContent
+		fileContentCacheMu.Unlock()
+		return nil
+	}
+
 	dir := filepath.Dir(osPath)
 
 	createdDirsMu.RLock()
@@ -163,5 +173,14 @@ func syncSingleFile(srcFs afero.Fs, path string) error {
 		createdDirsMu.Unlock()
 	}
 
-	return os.WriteFile(osPath, srcContent, 0644)
+	if err := os.WriteFile(osPath, srcContent, 0644); err != nil {
+		return err
+	}
+
+	// Update cache after successful write
+	fileContentCacheMu.Lock()
+	fileContentCache[osPath] = srcContent
+	fileContentCacheMu.Unlock()
+
+	return nil
 }

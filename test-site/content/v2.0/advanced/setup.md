@@ -1,34 +1,79 @@
 ---
 title: "Advanced Setup v2.0"
 description: "Advanced setup for v2.0"
-date: "2025-06-05"
 weight: 70
 ---
 
 # Advanced Setup v2.0
 
-Advanced configuration for v2.0.
+Advanced configuration options for v2.0.
 
-## Setup Options
+> **Note:** This is v2.0 documentation. For the latest version, see [Advanced Configuration](../advanced/configuration.md).
 
-v2.0 introduces new configuration options.
+## Configuration
 
-## Links Within v2.0/advanced
+### Version Settings
 
-- [Migration](./migration.md) - Migration details
+```yaml
+versions:
+  - name: "v2.0"
+    path: ""
+    isLatest: true
+  - name: "v1.0"
+    path: "v1.0"
+```
 
-## Links to v2.0 Root
+### Search Settings
 
-- [Getting Started](../getting-started.md) - Back to start
-- [New in v2.0](../new-in-v2.md) - What's new
-- [Migration Guide](../migration-guide.md) - Migration overview
+```yaml
+features:
+  generators:
+    search: true
+```
 
-## Cross-Version Links
+## Directory Structure
 
-- [v1.0 Tutorial](../../v1.0/guides/tutorial.md) - Legacy tutorial
-- [v3.0 Quickstart](../../v3.0/quickstart.md) - Latest version
+```
+content/
+├── getting-started.md      # Latest
+├── features.md
+├── v1.0/
+│   ├── index.md
+│   └── getting-started.md  # v1.0 specific
+└── v2.0/                   # Only if v2.0 != latest
+```
 
-## Root Links
+## Theme Configuration
 
-- [Advanced Config](../../advanced/configuration.md) - Root advanced config
-- [Deployment](../../advanced/deployment.md) - Deployment guide
+### Docs Theme
+
+```yaml
+theme: "docs"
+```
+
+Features:
+- Version selector
+- Recursive sidebar
+- Search modal
+- Breadcrumbs
+
+### Blog Theme
+
+```yaml
+theme: "blog"
+```
+
+Features:
+- Chronological feed
+- Tag pages
+- RSS feed
+
+## v2.0 Advanced Pages
+
+- [Configuration](./configuration.md) - v2.0 specific config
+- [Migration Details](./migration.md) - Migration details
+
+## Other Versions
+
+- [v4.0 Advanced](../../advanced/configuration.md) - Latest config
+- [v1.0 Configuration](../../v1.0/configuration.md) - Legacy config

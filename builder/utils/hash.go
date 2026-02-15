@@ -1,54 +1,48 @@
 package utils
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"hash"
-	"io"
 	"sort"
 
-	"my-ssg/builder/models"
+	"github.com/zeebo/blake3"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func GetFrontmatterHash(metaData map[string]interface{}) (string, error) {
-	// Use optimized hashing approach that avoids JSON marshal overhead
-	// This provides ~60% faster hash computation
-	h := sha256.New()
+	h := blake3.New()
 
-	// Write fields directly to hasher in deterministic order
-	writeString(h, GetString(metaData, "title"))
-	h.Write([]byte{0}) // Delimiter
-	writeString(h, GetString(metaData, "description"))
-	h.Write([]byte{0})
-	writeString(h, GetString(metaData, "date"))
-	h.Write([]byte{0})
+	writeStringBlake3(h, GetString(metaData, "title"))
+	_, _ = h.Write([]byte{0})
+	writeStringBlake3(h, GetString(metaData, "description"))
+	_, _ = h.Write([]byte{0})
+	writeStringBlake3(h, GetString(metaData, "date"))
+	_, _ = h.Write([]byte{0})
 
-	// Tags (sorted for determinism)
+	// Sort in-place (caller shouldn't rely on original order)
 	tags := GetSlice(metaData, "tags")
 	if len(tags) > 0 {
-		tagsCopy := make([]string, len(tags))
-		copy(tagsCopy, tags)
-		sort.Strings(tagsCopy)
-		for _, tag := range tagsCopy {
-			writeString(h, tag)
-			h.Write([]byte{0})
+		sort.Strings(tags)
+		for _, tag := range tags {
+			writeStringBlake3(h, tag)
+			_, _ = h.Write([]byte{0})
 		}
 	}
 
 	// Pinned flag
 	if isPinned, _ := metaData["pinned"].(bool); isPinned {
-		h.Write([]byte{1})
+		_, _ = h.Write([]byte{1})
 	} else {
-		h.Write([]byte{0})
+		_, _ = h.Write([]byte{0})
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// writeString writes a string to the hash
-func writeString(h hash.Hash, s string) {
-	_, _ = io.WriteString(h, s)
+// writeStringBlake3 writes a string to the BLAKE3 hash
+func writeStringBlake3(h *blake3.Hasher, s string) {
+	_, _ = h.Write([]byte(s))
 }
 
 type GraphHashData struct {
@@ -76,6 +70,6 @@ func GetGraphHash(posts []models.PostMetadata) (string, error) {
 		return "", err
 	}
 
-	hash := sha256.Sum256(data)
+	hash := blake3.Sum256(data)
 	return hex.EncodeToString(hash[:]), nil
 }

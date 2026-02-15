@@ -83,7 +83,7 @@ For the $i^{th}$ word in the vocabulary, the vector $\mathbb{w}^i$ is defined as
 
 $$ \mathbb{w^i} = [0, 0, \dots, 1, \dots, 0]^\top $$
 
-- $1$ is at the $i^{th}$ position.
+- $ 1 $ is at the $i^{th}$ position.
 
 <h4 class = "pink">Mathematical Failure</h4>
 
@@ -167,9 +167,9 @@ $$ \text{PMI}(x,y) = \log_2{\frac{P(x,y)}{P(x)P(y)}} $$
 
 Interpretation of PMI :
 
-- PMI $> 0$: $x$ and $y$ co-occur more often than chance (Semantic association).
-- PMI $= 0$: $x$ and $y$ are independent.
-- PMI $< 0$: $x$ and $y$ co-occur less often than chance (Complementary distribution).
+- PMI $ \gt 0 $ : $ x $ and $ y $ co-occur more often than chance (Semantic association).
+- PMI $ = 0 $ : $ x $ and $ y $ are independent.
+- PMI $ \lt 0 $ : $ x $ and $ y $ co-occur less often than chance (Complementary distribution).
 
 #### Positive Pointwise Mutual Information (PPMI)
 
@@ -239,7 +239,7 @@ $$P(w_O | w_I) = \frac{\exp(\mathbf{v}'_{w_O}{}^\top \mathbf{v}_{w_I})}{\sum_{w=
 - $\mathbf{v}_{w_I}$: Vector representation of the input (center) word.
 - $\mathbf{v}'_{w_O}$: Vector representation of the output (context) word.
 
-> **The Bottleneck** : The denominator requires summing over the entire vocabulary ($100,000+$ words) for every single training example. This is computationally infeasible.
+> **The Bottleneck** : The denominator requires summing over the entire vocabulary ( $ 100,000+ $ words) for every single training example. This is computationally infeasible.
 
 ---
 
@@ -469,7 +469,7 @@ If a layer is intialized like : `nn.Embedding(num_embeddings=10000, embedding_di
 
 $$E_{initial} = \begin{bmatrix} 0.01 & -0.42 & \dots \\ -1.2 & 0.05 & \dots \\ \vdots & \vdots & \ddots \end{bmatrix}$$
 
-A **dense matrix** is initialized but the gradients (updates) for this embedding matrix will be sparse. If the vocabulary will have 50,000 words and batch size is 64 and the max sentence length is 10, then total tokens in one batch $64 \times 10 = 640$ tokens. So when error is backpropagated, the gradient $\nabla E$ (which tells how much should the embedding matrix change) is calculated. Only 640 rows will be active out of the 50,000 rows. 49,360 rows gradient will be exactly 0. Thus, the gradient matrix for this batch will be **98.7% sparse**.
+A **dense matrix** is initialized but the gradients (updates) for this embedding matrix will be sparse. If the vocabulary will have 50,000 words and batch size is 64 and the max sentence length is 10, then total tokens in one batch $ 64 \times 10 = 640 $ tokens. So when error is backpropagated, the gradient $\nabla E$ (which tells how much should the embedding matrix change) is calculated. Only 640 rows will be active out of the 50,000 rows. 49,360 rows gradient will be exactly 0. Thus, the gradient matrix for this batch will be **98.7% sparse**.
 
 ---
 

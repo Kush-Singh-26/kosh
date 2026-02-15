@@ -168,6 +168,9 @@
         const header = document.querySelector('.docs-header nav');
         if (!header || document.getElementById('mobile-menu-toggle')) return;
 
+        const sidebar = document.querySelector('.docs-sidebar');
+        if (!sidebar) return;
+
         const toggleBtn = document.createElement('button');
         toggleBtn.id = 'mobile-menu-toggle';
         toggleBtn.className = 'mobile-menu-toggle';
@@ -180,8 +183,6 @@
         const overlay = document.createElement('div');
         overlay.className = 'sidebar-overlay';
         document.body.appendChild(overlay);
-
-        const sidebar = document.querySelector('.docs-sidebar');
 
         function toggleMenu() {
             sidebar.classList.toggle('open');

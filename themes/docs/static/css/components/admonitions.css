@@ -1,6 +1,6 @@
-/* Nexus Prime - Admonitions (Callouts)
+/* Clarity in Motion - Admonitions (Callouts)
  * Essential for documentation warnings, tips, and notes
- * Features emoji icons for quick visual scanning
+ * Warm color palette matching the blog theme
  */
 
 /* ========================================
@@ -41,7 +41,7 @@
 }
 
 /* ========================================
-   Note Admonition - ℹ️
+   Note Admonition - Slate Blue
    ======================================== */
 
 .adm-note {
@@ -57,23 +57,19 @@
   content: "📘";
 }
 
-[data-theme="dark"] .adm-note {
-  background-color: var(--color-info-light);
-}
-
 /* ========================================
-   Warning Admonition - ⚠️
+   Warning Admonition - Bronze/Gold
    ======================================== */
 
 .adm-warning,
 .adm-caution {
-  border-color: var(--color-warning);
+  border-color: var(--accent-warm);
   background-color: var(--color-warning-light);
 }
 
 .adm-warning .adm-title,
 .adm-caution .adm-title {
-  color: var(--color-warning);
+  color: var(--accent-warm);
 }
 
 .adm-warning .adm-title::before,
@@ -81,13 +77,8 @@
   content: "⚠️";
 }
 
-[data-theme="dark"] .adm-warning,
-[data-theme="dark"] .adm-caution {
-  background-color: var(--color-warning-light);
-}
-
 /* ========================================
-   Tip Admonition - 💡
+   Tip Admonition - Green
    ======================================== */
 
 .adm-tip,
@@ -109,14 +100,8 @@
   content: "💡";
 }
 
-[data-theme="dark"] .adm-tip,
-[data-theme="dark"] .adm-hint,
-[data-theme="dark"] .adm-important {
-  background-color: var(--color-success-light);
-}
-
 /* ========================================
-   Danger/Failure Admonition - 🚨
+   Danger/Failure Admonition - Warm Red
    ======================================== */
 
 .adm-danger,
@@ -141,15 +126,8 @@
   content: "🚨";
 }
 
-[data-theme="dark"] .adm-danger,
-[data-theme="dark"] .adm-failure,
-[data-theme="dark"] .adm-error,
-[data-theme="dark"] .adm-bug {
-  background-color: var(--color-danger-light);
-}
-
 /* ========================================
-   Success Admonition - ✅
+   Success Admonition - Green
    ======================================== */
 
 .adm-success,
@@ -171,14 +149,8 @@
   content: "✅";
 }
 
-[data-theme="dark"] .adm-success,
-[data-theme="dark"] .adm-check,
-[data-theme="dark"] .adm-done {
-  background-color: var(--color-success-light);
-}
-
 /* ========================================
-   Info Admonition - ℹ️
+   Info Admonition - Slate Blue
    ======================================== */
 
 .adm-info {
@@ -194,12 +166,8 @@
   content: "ℹ️";
 }
 
-[data-theme="dark"] .adm-info {
-  background-color: var(--color-info-light);
-}
-
 /* ========================================
-   Question Admonition - ❓
+   Question Admonition - Bronze
    ======================================== */
 
 .adm-question,
@@ -221,14 +189,8 @@
   content: "❓";
 }
 
-[data-theme="dark"] .adm-question,
-[data-theme="dark"] .adm-help,
-[data-theme="dark"] .adm-faq {
-  background-color: var(--color-brand-light);
-}
-
 /* ========================================
-   Example Admonition - 📋
+   Example Admonition - Muted
    ======================================== */
 
 .adm-example {
@@ -245,14 +207,14 @@
 }
 
 /* ========================================
-   Quote/Abstract Admonition - 📄
+   Quote/Abstract Admonition - Muted
    ======================================== */
 
 .adm-quote,
 .adm-abstract,
 .adm-summary,
 .adm-tldr {
-  border-color: var(--text-muted);
+  border-color: var(--accent-border);
   background-color: var(--bg-surface);
   font-style: italic;
 }

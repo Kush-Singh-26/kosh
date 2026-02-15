@@ -7,7 +7,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 var tocKey = parser.NewContextKey()
@@ -17,13 +17,6 @@ var d2OrderedKey = parser.NewContextKey()
 func GetTOC(pc parser.Context) []models.TOCEntry {
 	if v := pc.Get(tocKey); v != nil {
 		return v.([]models.TOCEntry)
-	}
-	return nil
-}
-
-func GetD2SVGPairMap(pc parser.Context) map[string]D2SVGPair {
-	if v := pc.Get(d2SVGKey); v != nil {
-		return v.(map[string]D2SVGPair)
 	}
 	return nil
 }

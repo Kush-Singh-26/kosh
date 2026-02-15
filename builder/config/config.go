@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"my-ssg/builder/models"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 
 	"gopkg.in/yaml.v3"
 )
@@ -235,17 +235,43 @@ func SetDevMode(cfg *Config, isDev bool) {
 }
 
 // GetVersionsMetadata returns a list of version information for templates
-func (cfg *Config) GetVersionsMetadata(currentVersion string) []models.VersionInfo {
+// currentPath is the current page path (e.g., "getting-started.html") to preserve across version switches
+func (cfg *Config) GetVersionsMetadata(currentVersion, currentPath string) []models.VersionInfo {
 	if len(cfg.Versions) == 0 {
 		return nil
 	}
 
+	// Clean the current path - remove version prefix if present
+	cleanPath := currentPath
+	if currentVersion != "" && cleanPath != "" {
+		// Remove version prefix from path (e.g., "v2.0/getting-started.html" -> "getting-started.html")
+		prefix := currentVersion + "/"
+		cleanPath = strings.TrimPrefix(cleanPath, prefix)
+		// Also handle lowercase version prefix
+		prefixLower := strings.ToLower(currentVersion) + "/"
+		cleanPath = strings.TrimPrefix(cleanPath, prefixLower)
+	}
+
 	var results []models.VersionInfo
 	for _, v := range cfg.Versions {
-		url := utils.BuildURL(cfg.BaseURL, v.Path, "")
+		// Build URL preserving the current page path
+		var url string
+		if v.Path == "" {
+			// Latest version - use root path with cleanPath
+			url = utils.BuildURL(cfg.BaseURL, "", cleanPath)
+		} else {
+			// Versioned path - prepend version to cleanPath
+			url = utils.BuildURL(cfg.BaseURL, v.Path, cleanPath)
+		}
+
+		name := v.Name
+		if v.IsLatest {
+			name = v.Name + " (Latest)"
+		}
 
 		results = append(results, models.VersionInfo{
-			Name:      v.Name,
+			Name:      name,
+			Path:      v.Path,
 			URL:       url,
 			IsLatest:  v.IsLatest,
 			IsCurrent: v.Path == currentVersion,

@@ -1,6 +1,6 @@
-/* Nexus Prime - Syntax Highlighting
- * Custom token colors optimized for high contrast
- * Dark mode: vibrant & neon | Light mode: deep & saturated
+/* Clarity in Motion - Syntax Highlighting
+ * Nord color palette for code blocks
+ * Consistent with the blog theme
  */
 
 /* ========================================
@@ -10,7 +10,8 @@
 pre {
   background: var(--bg-code-block) !important;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--bg-border);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   margin: var(--space-6) 0;
   padding: var(--space-4);
   overflow: auto;
@@ -40,9 +41,9 @@ code {
   position: absolute;
   top: var(--space-2);
   right: var(--space-2);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--bg-surface);
   color: var(--text-muted);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
   padding: var(--space-1) var(--space-2);
@@ -59,63 +60,137 @@ pre:hover .copy-btn,
 }
 
 .copy-btn:hover {
-  background: var(--color-brand);
-  border-color: var(--color-brand);
-  color: var(--text-inverse);
+  background: var(--accent-primary);
+  color: var(--bg-body);
+  transform: scale(1.05);
 }
 
 .copy-btn.copied {
   background: var(--color-success);
   border-color: var(--color-success);
-  color: var(--text-inverse);
+  color: var(--bg-body);
 }
 
 /* ========================================
-   Chroma Syntax Highlighting - Dark Mode
+   Chroma Syntax Highlighting - Nord Theme
    ======================================== */
 
 .chroma {
-  color: var(--text-inverse);
+  color: #d8dee9;
   background-color: transparent;
 }
 
-/* Keywords */
+.chroma .err {
+  color: #bf616a;
+}
+
+.chroma .lntd {
+  vertical-align: top;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.chroma .lntable {
+  border-spacing: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.chroma .hl {
+  background-color: #424853;
+}
+
+.chroma .lnt {
+  white-space: pre;
+  user-select: none;
+  margin-right: 0.4em;
+  padding: 0 0.4em 0 0.4em;
+  color: #6c6f74;
+}
+
+.chroma .ln {
+  white-space: pre;
+  user-select: none;
+  margin-right: 0.4em;
+  padding: 0 0.4em 0 0.4em;
+  color: #6c6f74;
+}
+
+.chroma .line {
+  display: flex;
+}
+
+/* Keywords - Blue */
 .chroma .k,
 .chroma .kc,
 .chroma .kd,
 .chroma .kn,
+.chroma .kr {
+  color: #81a1c1;
+  font-weight: bold;
+}
+
 .chroma .kp,
-.chroma .kr,
-.chroma .kt {
-  color: var(--token-keyword);
-  font-weight: 600;
+.chroma .kt,
+.chroma .nb {
+  color: #81a1c1;
 }
 
-/* Functions */
-.chroma .nf,
+/* Attributes & Names */
+.chroma .na {
+  color: #8fbcbb;
+}
+
 .chroma .nc,
-.chroma .nn,
-.chroma .fm {
-  color: var(--token-function);
+.chroma .no,
+.chroma .nl,
+.chroma .nn {
+  color: #8fbcbb;
 }
 
-/* Strings */
+.chroma .nd,
+.chroma .ni {
+  color: #d08770;
+}
+
+.chroma .ne {
+  color: #bf616a;
+}
+
+.chroma .nt {
+  color: #81a1c1;
+}
+
+/* Functions - Cyan */
+.chroma .nf {
+  color: #88c0d0;
+}
+
+/* Strings - Green */
 .chroma .s,
 .chroma .s1,
 .chroma .s2,
 .chroma .sa,
 .chroma .sb,
 .chroma .sc,
+.chroma .sd,
 .chroma .dl,
 .chroma .sh,
 .chroma .si,
 .chroma .sx,
 .chroma .sr,
 .chroma .ss {
-  color: var(--token-string);
+  color: #a3be8c;
 }
 
-/* Numbers */
+/* Escape sequences */
+.chroma .se {
+  color: #ebcb8b;
+}
+
+/* Numbers - Purple */
 .chroma .m,
 .chroma .mb,
 .chroma .mf,
@@ -123,78 +198,77 @@ pre:hover .copy-btn,
 .chroma .mi,
 .chroma .il,
 .chroma .mo {
-  color: var(--token-number);
+  color: #b48ead;
 }
 
-/* Comments */
+/* Operators */
+.chroma .o {
+  color: #81a1c1;
+}
+
+.chroma .ow {
+  color: #81a1c1;
+  font-weight: bold;
+}
+
+.chroma .p {
+  color: #eceff4;
+}
+
+/* Comments - Gray italic */
 .chroma .c,
 .chroma .c1,
 .chroma .ch,
 .chroma .cm,
-.chroma .cs,
-.chroma .cp,
-.chroma .cpf {
-  color: var(--token-comment);
+.chroma .cs {
+  color: #616e87;
   font-style: italic;
 }
 
-/* Operators */
-.chroma .o,
-.chroma .ow,
-.chroma .p {
-  color: var(--token-operator);
+.chroma .cp,
+.chroma .cpf {
+  color: #5e81ac;
+  font-style: italic;
 }
 
-/* Names */
-.chroma .na,
-.chroma .nb,
-.chroma .no,
-.chroma .nd,
-.chroma .ni,
-.chroma .ne,
-.chroma .nl,
-.chroma .nt,
-.chroma .nv,
-.chroma .vc,
-.chroma .vg,
-.chroma .vi,
-.chroma .vm {
-  color: var(--text-inverse);
-}
-
-/* Errors */
-.chroma .err,
-.chroma .gr,
-.chroma .gt {
-  color: var(--color-danger);
-}
-
-/* Highlights */
-.chroma .gh,
-.chroma .gu {
-  color: var(--token-function);
-  font-weight: bold;
-}
-
+/* Diff & Changes */
 .chroma .gd {
-  color: var(--color-danger);
-}
-
-.chroma .gi {
-  color: var(--color-success);
+  color: #bf616a;
 }
 
 .chroma .ge {
   font-style: italic;
 }
 
+.chroma .gr {
+  color: #bf616a;
+}
+
+.chroma .gh {
+  color: #88c0d0;
+  font-weight: bold;
+}
+
+.chroma .gi {
+  color: #a3be8c;
+}
+
+.chroma .gp {
+  color: #4c566a;
+  font-weight: bold;
+}
+
 .chroma .gs {
   font-weight: bold;
 }
 
-.chroma .gp {
-  color: var(--text-muted);
+.chroma .gu {
+  color: #88c0d0;
   font-weight: bold;
+}
+
+.chroma .gt {
+  color: #bf616a;
 }
 
 /* Highlighted Lines */
@@ -205,29 +279,27 @@ pre:hover .copy-btn,
 }
 
 /* ========================================
-   Chroma Syntax Highlighting - Light Mode
+   Light Mode Syntax - Warm Tones
    ======================================== */
 
 [data-theme="light"] .chroma {
-  color: var(--text-inverse);
+  background-color: #f0ece6;
+  color: #3d3a35;
 }
 
 [data-theme="light"] .chroma .k,
 [data-theme="light"] .chroma .kc,
 [data-theme="light"] .chroma .kd,
 [data-theme="light"] .chroma .kn,
-[data-theme="light"] .chroma .kp,
-[data-theme="light"] .chroma .kr,
-[data-theme="light"] .chroma .kt {
-  color: var(--token-keyword);
-  font-weight: 600;
+[data-theme="light"] .chroma .kr {
+  color: #7a6240;
+  font-weight: bold;
 }
 
-[data-theme="light"] .chroma .nf,
-[data-theme="light"] .chroma .nc,
-[data-theme="light"] .chroma .nn,
-[data-theme="light"] .chroma .fm {
-  color: var(--token-function);
+[data-theme="light"] .chroma .kp,
+[data-theme="light"] .chroma .kt,
+[data-theme="light"] .chroma .nb {
+  color: #7a6240;
 }
 
 [data-theme="light"] .chroma .s,
@@ -236,56 +308,53 @@ pre:hover .copy-btn,
 [data-theme="light"] .chroma .sa,
 [data-theme="light"] .chroma .sb,
 [data-theme="light"] .chroma .sc,
-[data-theme="light"] .chroma .dl,
 [data-theme="light"] .chroma .sh,
 [data-theme="light"] .chroma .si,
 [data-theme="light"] .chroma .sx,
-[data-theme="light"] .chroma .sr,
 [data-theme="light"] .chroma .ss {
-  color: var(--token-string);
-}
-
-[data-theme="light"] .chroma .m,
-[data-theme="light"] .chroma .mb,
-[data-theme="light"] .chroma .mf,
-[data-theme="light"] .chroma .mh,
-[data-theme="light"] .chroma .mi,
-[data-theme="light"] .chroma .il,
-[data-theme="light"] .chroma .mo {
-  color: var(--token-number);
+  color: #5d7d8d;
 }
 
 [data-theme="light"] .chroma .c,
 [data-theme="light"] .chroma .c1,
 [data-theme="light"] .chroma .ch,
 [data-theme="light"] .chroma .cm,
-[data-theme="light"] .chroma .cs,
-[data-theme="light"] .chroma .cp,
-[data-theme="light"] .chroma .cpf {
-  color: var(--token-comment);
+[data-theme="light"] .chroma .cs {
+  color: #8a8580;
   font-style: italic;
 }
 
+[data-theme="light"] .chroma .nf,
+[data-theme="light"] .chroma .nc,
+[data-theme="light"] .chroma .nn {
+  color: #6b9e6b;
+}
+
+[data-theme="light"] .chroma .m,
+[data-theme="light"] .chroma .mi,
+[data-theme="light"] .chroma .mf,
+[data-theme="light"] .chroma .mh,
+[data-theme="light"] .chroma .mo {
+  color: #a6855c;
+}
+
 [data-theme="light"] .chroma .o,
-[data-theme="light"] .chroma .ow,
+[data-theme="light"] .chroma .ow {
+  color: #9c744a;
+}
+
 [data-theme="light"] .chroma .p {
-  color: var(--token-operator);
+  color: #3d3a35;
 }
 
 [data-theme="light"] .chroma .na,
-[data-theme="light"] .chroma .nb,
 [data-theme="light"] .chroma .no,
-[data-theme="light"] .chroma .nd,
-[data-theme="light"] .chroma .ni,
-[data-theme="light"] .chroma .ne,
-[data-theme="light"] .chroma .nl,
-[data-theme="light"] .chroma .nt,
-[data-theme="light"] .chroma .nv,
-[data-theme="light"] .chroma .vc,
-[data-theme="light"] .chroma .vg,
-[data-theme="light"] .chroma .vi,
-[data-theme="light"] .chroma .vm {
-  color: var(--text-inverse);
+[data-theme="light"] .chroma .nl {
+  color: #5d7d8d;
+}
+
+[data-theme="light"] .chroma .hl {
+  background-color: rgba(122, 98, 64, 0.1);
 }
 
 /* ========================================
@@ -326,6 +395,10 @@ pre:hover .copy-btn,
   color: var(--color-brand);
 }
 
+.heading-anchor::after {
+  display: none;
+}
+
 /* ========================================
    Reading Progress Bar
    ======================================== */
@@ -336,12 +409,10 @@ pre:hover .copy-btn,
   left: 0;
   width: 0%;
   height: 3px;
-  background: var(--color-brand);
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-warm));
   z-index: 1000;
   transition: width 0.1s linear;
 }
-
-
 
 /* ========================================
    Code Block with Header
@@ -351,7 +422,7 @@ pre:hover .copy-btn,
   margin: var(--space-6) 0;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  border: 1px solid var(--bg-border);
+  border: 1px solid var(--border);
 }
 
 .code-header {
@@ -360,7 +431,7 @@ pre:hover .copy-btn,
   font-size: var(--text-sm);
   font-family: var(--font-mono);
   color: var(--text-muted);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -390,5 +461,9 @@ pre:hover .copy-btn,
     opacity: 1;
     padding: var(--space-1);
     font-size: 0.7rem;
+  }
+  
+  .heading-anchor {
+    left: -1rem;
   }
 }

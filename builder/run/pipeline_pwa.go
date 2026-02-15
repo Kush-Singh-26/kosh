@@ -1,13 +1,12 @@
 package run
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"os"
 	"path/filepath"
 
-	"my-ssg/builder/generators"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"sync"
 
 	"github.com/spf13/afero"
@@ -50,9 +49,7 @@ func (b *Builder) generatePWA(shouldForce bool) {
 
 		// Calculate hash based on favicon mtime and size
 		hashContent := fmt.Sprintf("%s-%d-%d", faviconPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())
-		h := md5.New()
-		h.Write([]byte(hashContent))
-		currentHash := hex.EncodeToString(h.Sum(nil))
+		currentHash := cache.HashString(hashContent)
 
 		// Check cache
 		cacheDir := filepath.Join(b.cfg.CacheDir, "pwa-icons")

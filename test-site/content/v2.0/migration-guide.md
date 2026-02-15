@@ -1,33 +1,107 @@
 ---
-title: "Migration Guide"
+title: "Migration Guide v2.0"
 description: "Migrate from v1.0 to v2.0"
-date: "2025-06-04"
 weight: 70
 ---
 
-# Migration Guide
+# Migration Guide v2.0
 
 Guide for migrating from v1.0 to v2.0.
 
-## Migration Steps
+> **Note:** This is v2.0 documentation. For the latest version, see [v4.0 Documentation](../v4.0/index.md).
 
-1. Backup v1.0 data
-2. Install v2.0
-3. Migrate configuration
-4. Update code
-5. Test thoroughly
+## Overview
 
-## Links
+v2.0 introduces versioning and search features. Most v1.0 configurations will work without changes.
 
-- [New in v2.0](./new-in-v2.md) - What's new
-- [Getting Started](./getting-started.md) - v2.0 guide
+## Configuration Changes
 
-## Legacy Reference
+### New: Versions Section
 
-- [v1.0 Tutorial](../v1.0/guides/tutorial.md) - What you're migrating from
-- [v1.0 Best Practices](../v1.0/guides/best-practices.md) - Old practices
+Add version configuration:
 
-## Root Reference
+```yaml
+# kosh.yaml
+versions:
+  - name: "v2.0"
+    path: ""
+    isLatest: true
+  - name: "v1.0"
+    path: "v1.0"
+```
 
-- [Advanced Config](../advanced/configuration.md) - New config options
-- [Deployment](../advanced/deployment.md) - Updated deployment
+### Content Structure
+
+Organize versioned content:
+
+```
+content/
+├── getting-started.md    # Latest (v2.0)
+├── features.md
+└── v1.0/
+    └── getting-started.md  # v1.0 specific
+```
+
+## Breaking Changes
+
+### Theme Update
+
+If using the docs theme, update templates:
+
+```html
+<!-- Add version selector -->
+{{ if .Versions }}
+<select id="version-selector">
+  {{ range .Versions }}
+  <option value="{{ .URL }}">{{ .Name }}</option>
+  {{ end }}
+</select>
+{{ end }}
+```
+
+### Search Integration
+
+Add search scripts:
+
+```html
+<script src="/static/js/wasm_exec.js"></script>
+<script src="/static/js/search.js"></script>
+```
+
+## New Features to Adopt
+
+### Version Support
+
+Create versioned content:
+
+```markdown
+---
+title: "Getting Started v1.0"
+---
+
+This is v1.0 specific content.
+```
+
+### Client Search
+
+Enable search:
+
+```yaml
+features:
+  generators:
+    search: true
+```
+
+## Testing Checklist
+
+- [ ] Version selector appears
+- [ ] Version switching works
+- [ ] Search returns results
+- [ ] Sidebar shows correct tree
+- [ ] Old URLs still work
+
+## Need Help?
+
+- [v2.0 Documentation](./index.md)
+- [What's New](./new-in-v2.md)
+- [v4.0 (Latest)](../v4.0/index.md)

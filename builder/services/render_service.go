@@ -3,8 +3,8 @@ package services
 import (
 	"log/slog"
 
-	"my-ssg/builder/models"
-	"my-ssg/builder/renderer"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/renderer"
 )
 
 type renderServiceImpl struct {
@@ -44,7 +44,7 @@ func (s *renderServiceImpl) SetAssets(assets map[string]string) {
 }
 
 func (s *renderServiceImpl) GetAssets() map[string]string {
-	return s.rnd.Assets
+	return s.rnd.GetAssets()
 }
 
 func (s *renderServiceImpl) GetRenderedFiles() map[string]bool {

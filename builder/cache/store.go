@@ -2,13 +2,25 @@ package cache
 
 import (
 	"fmt"
-	"io"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/klauspost/compress/zstd"
 )
+
+// level3EncoderPool pools level-3 zstd encoders for better performance
+var level3EncoderPool = sync.Pool{
+	New: func() interface{} {
+		enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
+		if err != nil {
+			return nil
+		}
+		return enc
+	},
+}
 
 // Store provides content-addressed file storage with two-tier sharding
 type Store struct {
@@ -62,10 +74,10 @@ func extension(ct CompressionType) string {
 
 // determineCompression decides compression strategy based on size
 func determineCompression(size int) CompressionType {
-	if size < RawThreshold {
+	if size < utils.RawThreshold {
 		return CompressionNone
 	}
-	if size < FastZstdMax {
+	if size < utils.FastZstdMax {
 		return CompressionZstdFast
 	}
 	return CompressionZstdLevel3
@@ -78,15 +90,15 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 
 	path := s.shardPath(category, hash) + extension(ct)
 
-	// Check if already exists
-	if _, err := os.Stat(path); err == nil {
-		return hash, ct, nil
-	}
-
-	// Ensure directory exists
+	// Ensure directory exists first (combine directory creation with existence check)
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", 0, fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Check if already exists
+	if _, err := os.Stat(path); err == nil {
+		return hash, ct, nil
 	}
 
 	// Prepare content
@@ -94,12 +106,14 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 	if ct != CompressionNone {
 		// Compress
 		if ct == CompressionZstdLevel3 {
-			enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
-			if err != nil {
-				return "", 0, err
+			enc := level3EncoderPool.Get()
+			if enc == nil {
+				enc, _ = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
 			}
-			data = enc.EncodeAll(content, nil)
-			_ = enc.Close()
+			zstdEnc := enc.(*zstd.Encoder)
+			data = zstdEnc.EncodeAll(content, nil)
+			zstdEnc.Reset(nil)
+			level3EncoderPool.Put(enc)
 		} else {
 			data = s.encoder.EncodeAll(content, nil)
 		}
@@ -238,14 +252,4 @@ func (s *Store) Size(category string) (int64, error) {
 		return nil
 	})
 	return total, err
-}
-
-// CopyTo copies a hash to a writer
-func (s *Store) CopyTo(category string, hash string, compressed bool, w io.Writer) error {
-	data, err := s.Get(category, hash, compressed)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(data)
-	return err
 }

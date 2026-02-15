@@ -70,22 +70,3 @@ func GetVersionFromURL(urlPath string) (version, cleanPath string) {
 
 	return "", "/" + urlPath
 }
-
-// CleanVersionFromLink removes version prefix from a link for tree building
-// Input: "http://localhost:2604/v2.0/getting-started.html"
-// Output: "http://localhost:2604/getting-started.html"
-func CleanVersionFromLink(link string) string {
-	// Check for version pattern in URL
-	// Match: /v2.0/, /v1.0/, etc.
-	if strings.Contains(link, "/v") {
-		parts := strings.Split(link, "/")
-		for i, part := range parts {
-			if i > 0 && strings.HasPrefix(part, "v") && len(part) > 2 {
-				// Remove this part from the URL
-				newParts := append(parts[:i], parts[i+1:]...)
-				return strings.Join(newParts, "/")
-			}
-		}
-	}
-	return link
-}

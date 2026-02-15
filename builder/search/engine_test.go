@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestTokenize(t *testing.T) {
@@ -163,14 +163,6 @@ func TestPerformSearch(t *testing.T) {
 			var gotIDs []int
 			for _, r := range results {
 				gotIDs = append(gotIDs, r.ID)
-			}
-
-			// Sort for comparison if multiple expected
-			if len(gotIDs) > 0 {
-				// We don't sort gotIDs because order matters (score),
-				// but for simple existence checks we might want to be flexible.
-				// For this test, we assume 'guide' returns 0 then 1 or 1 then 0.
-				// Let's just check if expected IDs are present.
 			}
 
 			if len(gotIDs) != len(tt.wantIDs) {

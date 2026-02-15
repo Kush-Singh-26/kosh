@@ -10,14 +10,13 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
-	"my-ssg/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
 // SSRTransformer handles server-side rendering of D2 diagrams and LaTeX math
 type SSRTransformer struct {
 	Renderer *native.Renderer
-	Cache    map[string]string
-	CacheMu  *sync.Mutex
+	Cache    *sync.Map // Thread-safe cache for D2 diagrams
 }
 
 func (t *SSRTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
@@ -76,13 +75,12 @@ func (t *SSRTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			lightHash := b.hash + "_light"
 			darkHash := b.hash + "_dark"
 
-			t.CacheMu.Lock()
-			lightCached, lightExists := t.Cache[lightHash]
-			darkCached, darkExists := t.Cache[darkHash]
-			t.CacheMu.Unlock()
+			// Check cache (sync.Map is thread-safe, no mutex needed)
+			lightCached, lightExists := t.Cache.Load(lightHash)
+			darkCached, darkExists := t.Cache.Load(darkHash)
 
 			if lightExists && darkExists {
-				results[idx] = D2SVGPair{Light: lightCached, Dark: darkCached}
+				results[idx] = D2SVGPair{Light: lightCached.(string), Dark: darkCached.(string)}
 				return
 			}
 
@@ -101,10 +99,9 @@ func (t *SSRTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			pair := D2SVGPair{Light: lightSVG, Dark: darkSVG}
 			results[idx] = pair
 
-			t.CacheMu.Lock()
-			t.Cache[lightHash] = lightSVG
-			t.Cache[darkHash] = darkSVG
-			t.CacheMu.Unlock()
+			// Store in cache (sync.Map is thread-safe)
+			t.Cache.Store(lightHash, lightSVG)
+			t.Cache.Store(darkHash, darkSVG)
 		}(i, block)
 	}
 	wg.Wait()

@@ -1,13 +1,12 @@
 package run
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"math"
-	"my-ssg/builder/generators"
-	"my-ssg/builder/models"
-	"my-ssg/builder/utils"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,21 +15,13 @@ import (
 	"sync"
 )
 
-func hashString(s string) string {
-	h := md5.New()
-	h.Write([]byte(s))
-	return hex.EncodeToString(h.Sum(nil))
-}
-
 func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, force bool) {
 	cfg := b.cfg
 
 	// Generate Home Social Card
 	homeCardPath := filepath.Join(b.cfg.OutputDir, "static/images/cards/home.webp")
-
-	// Check content hash
-	cardContent := cfg.Title + "|" + cfg.Description
-	currentHash := hashString(cardContent)
+	cardContent := fmt.Sprintf("%s|%s", cfg.Title, cfg.Description)
+	currentHash := cache.HashString(cardContent)
 	needsGen := false
 
 	if _, err := os.Stat(homeCardPath); os.IsNotExist(err) || force {
@@ -65,10 +56,35 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 		}
 	}
 
-	totalPages := int(math.Ceil(float64(len(allPosts)) / float64(cfg.PostsPerPage)))
+	// For docs theme with versions, filter to only latest version posts for hub page
+	latestPosts := allPosts
+	if len(cfg.Versions) > 0 {
+		// Find the latest version name
+		var latestVersion string
+		for _, v := range cfg.Versions {
+			if v.IsLatest {
+				latestVersion = v.Name
+				break
+			}
+		}
+		if latestVersion != "" {
+			latestPosts = make([]models.PostMetadata, 0, len(allPosts)/len(cfg.Versions))
+			for _, p := range allPosts {
+				if p.Version == latestVersion {
+					latestPosts = append(latestPosts, p)
+				}
+			}
+		}
+	}
+
+	totalPages := int(math.Ceil(float64(len(latestPosts)) / float64(cfg.PostsPerPage)))
 	if totalPages == 0 {
 		totalPages = 1
 	}
+
+	// Build SiteTree once before the loop (optimization: avoids recalculating for each page)
+	siteTree := utils.BuildSiteTree(latestPosts)
+
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, runtime.NumCPU())
 	for i := 1; i <= totalPages; i++ {
@@ -78,10 +94,10 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 			defer wg.Done()
 			defer func() { <-sem }()
 			start, end := (i-1)*cfg.PostsPerPage, i*cfg.PostsPerPage
-			if end > len(allPosts) {
-				end = len(allPosts)
+			if end > len(latestPosts) {
+				end = len(latestPosts)
 			}
-			pagePosts := allPosts[start:end]
+			pagePosts := latestPosts[start:end]
 			destPath, permalink := filepath.Join(b.cfg.OutputDir, "index.html"), cfg.BaseURL+"/"
 			if i > 1 {
 				destPath = filepath.Join(b.cfg.OutputDir, fmt.Sprintf("page/%d/index.html", i))
@@ -102,11 +118,7 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 				curPinned = pinnedPosts
 			}
 
-			// Build SiteTree for docs theme navigation (Full tree for the home page)
-			// Root index should show all root level docs
-			siteTree := utils.BuildSiteTree(allPosts)
-
-			b.renderService.RenderIndex(destPath, models.PageData{Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned, BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title, Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp", Paginator: paginator, SiteTree: siteTree, Config: cfg})
+			b.renderService.RenderIndex(destPath, models.PageData{Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned, BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title, Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp", Paginator: paginator, SiteTree: siteTree, Config: cfg, Versions: cfg.GetVersionsMetadata("", "")})
 		}(i)
 	}
 	wg.Wait()
@@ -123,7 +135,7 @@ func (b *Builder) renderTags(tagMap map[string][]models.PostMetadata, forceSocia
 	tagsIndexCard := filepath.Join(b.cfg.OutputDir, "static/images/cards/tags/index.webp")
 
 	indexContent := fmt.Sprintf("All Topics|%d", len(tagMap))
-	indexHash := hashString(indexContent)
+	indexHash := cache.HashString(indexContent)
 	needsIndexGen := false
 
 	if _, err := os.Stat(tagsIndexCard); os.IsNotExist(err) || forceSocialRebuild {
@@ -175,13 +187,13 @@ func (b *Builder) renderTags(tagMap map[string][]models.PostMetadata, forceSocia
 			// Hash: Tag Name + Post Count
 			// This ensures update when count changes
 			tagContent := fmt.Sprintf("%s|%d", t, len(posts))
-			tagHash := hashString(tagContent)
+			tagHash := cache.HashString(tagContent)
 			needsTagGen := false
 
 			if _, err := os.Stat(tagCard); os.IsNotExist(err) || forceSocialRebuild {
 				needsTagGen = true
 			} else if b.cacheService != nil {
-				cachedHash, _ := b.cacheService.GetSocialCardHash("tags/" + strings.ToLower(t))
+				cachedHash, _ := b.cacheService.GetSocialCardHash("tags/" + t)
 				if cachedHash != tagHash {
 					needsTagGen = true
 				}

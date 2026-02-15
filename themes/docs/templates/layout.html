@@ -11,6 +11,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     
+    <!-- Preload WASM search engine for faster first search -->
+    <link rel="preload" href="{{ .BaseURL }}/static/wasm/search.wasm" as="fetch" crossorigin>
+    
     {{ if .Assets }}
     <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/theme.css" }}">
     <link rel="stylesheet" href="{{ .BaseURL }}{{ index .Assets "/static/css/layout.css" }}">
@@ -77,28 +80,6 @@
             </nav>
         </header>
 
-        {{ if .IsOutdated }}
-        <div class="version-banner">
-            <span class="version-banner-text">
-                You are viewing {{ .CurrentVersion }}.
-                {{ range .Versions }}{{ if .IsLatest }}<a href="{{ .URL }}">View latest version</a>{{ end }}{{ end }}
-            </span>
-        </div>
-        {{ end }}
-
-        {{ if .Breadcrumbs }}
-        <nav class="breadcrumbs">
-            {{ range .Breadcrumbs }}
-            {{ if .IsCurrent }}
-            <span class="breadcrumb-current">{{ .Title }}</span>
-            {{ else }}
-            <a href="{{ .Link }}" class="breadcrumb-link">{{ .Title }}</a>
-            <span class="breadcrumb-separator">/</span>
-            {{ end }}
-            {{ end }}
-        </nav>
-        {{ end }}
-
         <!-- Sidebar (Recursive Tree) -->
         <aside class="docs-sidebar">
             {{ define "tree-node" }}
@@ -138,8 +119,30 @@
             </ul>
         </aside>
 
-        <!-- Main Content -->
+        <!-- Main Content (with version banner and breadcrumbs inside) -->
         <main class="docs-main">
+            {{ if .IsOutdated }}
+            <div class="version-banner">
+                <span class="version-banner-text">
+                    You are viewing {{ .CurrentVersion }}.
+                    {{ range .Versions }}{{ if .IsLatest }}<a href="{{ .URL }}">View latest version</a>{{ end }}{{ end }}
+                </span>
+            </div>
+            {{ end }}
+
+            {{ if .Breadcrumbs }}
+            <nav class="breadcrumbs">
+                {{ range .Breadcrumbs }}
+                {{ if .IsCurrent }}
+                <span class="breadcrumb-current">{{ .Title }}</span>
+                {{ else }}
+                <a href="{{ .Link }}" class="breadcrumb-link">{{ .Title }}</a>
+                <span class="breadcrumb-separator">/</span>
+                {{ end }}
+                {{ end }}
+            </nav>
+            {{ end }}
+
             <article>
                 <div class="article-header">
                     <h1>{{ .Title }}</h1>
@@ -218,13 +221,72 @@
         </div>
     </div>
 
-    <script>window.siteBaseURL = "{{ .BaseURL }}";</script>
+    <script>
+        window.siteBaseURL = "{{ .BaseURL }}";
+        {{ range .Versions }}{{ if .IsLatest }}window.latestVersion = "{{ .Path }}";{{ end }}{{ end }}
+    </script>
     {{ if .Assets }}
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/wasm_exec.js" }}"></script>
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/search.js" }}"></script>
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/version-switcher.js" }}"></script>
     <script defer src="{{ .BaseURL }}{{ index .Assets "/static/js/docs-features.js" }}"></script>
     {{ end }}
+
+    <script>
+        (function () {
+            const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+
+            // DEV MODE: Live reload via SSE
+            if (hosts.includes(window.location.hostname)) {
+                // Unregister any Service Workers in dev
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(registration => {
+                            registration.unregister();
+                        });
+                    });
+                }
+
+                // Clear caches in dev
+                if ('caches' in window) {
+                    caches.keys().then(cacheNames => {
+                        cacheNames.forEach(cacheName => {
+                            caches.delete(cacheName);
+                        });
+                    });
+                }
+
+                // SSE with debounced reload
+                let reloadTimeout;
+                const source = new EventSource("/events");
+                source.onmessage = function (event) {
+                    if (event.data === "reload") {
+                        if (reloadTimeout) clearTimeout(reloadTimeout);
+                        reloadTimeout = setTimeout(() => {
+                            window.location.reload();
+                        }, 250);
+                    }
+                };
+                source.onerror = function () {
+                    source.close();
+                };
+            } else {
+                // Production: PWA Service Worker Registration
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => {
+                        const swPath = '{{ .BaseURL }}/sw.js';
+                        navigator.serviceWorker.register(swPath)
+                            .then(registration => {
+                                console.log('✅ ServiceWorker registered');
+                            })
+                            .catch(err => {
+                                console.error('❌ ServiceWorker registration failed:', err);
+                            });
+                    });
+                }
+            }
+        })();
+    </script>
 </body>
 
 </html>

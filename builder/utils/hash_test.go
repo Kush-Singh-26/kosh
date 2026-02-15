@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestGetFrontmatterHash(t *testing.T) {

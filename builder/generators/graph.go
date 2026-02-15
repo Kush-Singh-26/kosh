@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/afero"
 
-	"my-ssg/builder/models"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata, outputPath string) {

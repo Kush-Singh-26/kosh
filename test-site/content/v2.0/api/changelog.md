@@ -1,30 +1,94 @@
 ---
 title: "API Changelog v2.0"
 description: "API changes in v2.0"
-date: "2025-06-08"
-weight: 40
+weight: 45
 ---
 
 # API Changelog v2.0
 
-Changes to the API in v2.0.
+API changes introduced in v2.0.
 
-## Breaking Changes
+> **Note:** This is v2.0 documentation. For the latest changes, see [Changelog](../../changelog.md).
 
-- Endpoint X renamed to Y
-- Parameter Z is now required
+## Added
 
-## Links
+### Version API
 
-- [Overview](./overview.md) - API overview
-- [Getting Started](../getting-started.md) - v2.0 guide
+New template variables for version support:
 
-## Cross-Reference
+```go
+type VersionInfo struct {
+    Name      string
+    URL       string
+    IsLatest  bool
+    IsCurrent bool
+}
+```
 
-- [v1.0 Configuration](../../v1.0/configuration.md) - Old API config
-- [v3.0 Preview](../../v3.0/quickstart.md) - Future changes
+### Search API
 
-## Root Reference
+WASM-based client search:
 
-- [Features](../../features.md) - Feature list
-- [API Reference](../../api/reference.md) - Root API docs
+```javascript
+// wasm_engine.js
+function search(query) {
+    return wasmSearch(query);
+}
+```
+
+### Template Functions
+
+```html
+{{ range .Versions }}
+  {{ .Name }} - {{ .URL }}
+{{ end }}
+
+{{ if .IsOutdated }}
+  <div class="version-banner">...</div>
+{{ end }}
+```
+
+## Changed
+
+### PageData Structure
+
+Added fields:
+
+```go
+type PageData struct {
+    // Existing
+    Title   string
+    Content string
+    
+    // New in v2.0
+    Version    string
+    Versions   []VersionInfo
+    IsOutdated bool
+}
+```
+
+### Site Tree
+
+Recursive tree structure:
+
+```go
+type TreeNode struct {
+    Title    string
+    Link     string
+    Children []TreeNode
+    Active   bool
+}
+```
+
+## Removed
+
+None. v2.0 maintains backward compatibility.
+
+## Migration
+
+See [Migration Guide](../migration-guide.md) for details.
+
+## Related
+
+- [API Overview](./overview.md)
+- [v4.0 Changelog](../../changelog.md)

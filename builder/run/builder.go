@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -10,17 +11,18 @@ import (
 	"sync"
 
 	"github.com/spf13/afero"
+	"github.com/yuin/goldmark"
 	"gopkg.in/yaml.v3"
 
-	"my-ssg/builder/cache"
-	"my-ssg/builder/config"
-	"my-ssg/builder/metrics"
-	mdParser "my-ssg/builder/parser"
-	"my-ssg/builder/renderer"
-	"my-ssg/builder/renderer/native"
-	"my-ssg/builder/services"
-	"my-ssg/builder/utils"
-	"my-ssg/internal/build"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/renderer"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/internal/build"
 )
 
 // Builder maintains the state for site builds
@@ -45,6 +47,12 @@ type Builder struct {
 	// Filesystems
 	SourceFs afero.Fs
 	DestFs   afero.Fs
+
+	// Shared markdown parser for reuse in incremental builds
+	md goldmark.Markdown
+
+	// Build coordination - prevents concurrent builds during watch mode
+	buildMu sync.Mutex
 }
 
 // NewBuilder initializes a new site builder
@@ -60,19 +68,52 @@ func NewBuilder(args []string) *Builder {
 	// Verify Theme Exists (Early Fail)
 	themePath := filepath.Join(cfg.ThemeDir, cfg.Theme)
 	if _, err := os.Stat(themePath); os.IsNotExist(err) {
-		logger.Error("Theme not found", "theme", cfg.Theme, "path", themePath, "hint", "Please ensure you have cloned/downloaded the theme into '"+cfg.ThemeDir+"'")
+		logger.Error("Theme not found",
+			"theme", cfg.Theme,
+			"path", themePath,
+			"hint", "Please ensure you have installed the theme into '"+cfg.ThemeDir+"/"+cfg.Theme+"/'")
+		logger.Info("Theme installation:", "example", "git clone <theme-repo-url> "+filepath.Join(cfg.ThemeDir, cfg.Theme))
 		os.Exit(1)
+	}
+
+	// Verify required theme directories exist
+	templatePath := cfg.TemplateDir
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		logger.Error("Theme templates directory not found",
+			"theme", cfg.Theme,
+			"path", templatePath,
+			"hint", "Theme must have a 'templates' directory")
+		os.Exit(1)
+	}
+
+	staticPath := cfg.StaticDir
+	if _, err := os.Stat(staticPath); os.IsNotExist(err) {
+		logger.Warn("Theme static directory not found, creating empty",
+			"theme", cfg.Theme,
+			"path", staticPath)
+		_ = os.MkdirAll(staticPath, 0755)
 	}
 
 	// Initialize build metrics
 	buildMetrics := metrics.NewBuildMetrics()
 
 	// Create cache directory if it doesn't exist
-	_ = os.MkdirAll(cfg.CacheDir, 0755)
-	_ = os.MkdirAll(filepath.Join(cfg.CacheDir, "social-cards"), 0755)
-	_ = os.MkdirAll(filepath.Join(cfg.CacheDir, "assets"), 0755)
-	_ = os.MkdirAll(filepath.Join(cfg.CacheDir, "images"), 0755)
-	_ = os.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), 0755)
+	if err := os.MkdirAll(cfg.CacheDir, 0755); err != nil {
+		logger.Error("Failed to create cache directory", "path", cfg.CacheDir, "error", err)
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "social-cards"), 0755); err != nil {
+		logger.Error("Failed to create social-cards cache directory", "error", err)
+	}
+	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "assets"), 0755); err != nil {
+		logger.Error("Failed to create assets cache directory", "error", err)
+	}
+	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "images"), 0755); err != nil {
+		logger.Error("Failed to create images cache directory", "error", err)
+	}
+	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), 0755); err != nil {
+		logger.Error("Failed to create pwa-icons cache directory", "error", err)
+	}
 
 	// Open BoltDB cache
 	var cacheManager *cache.Manager
@@ -116,16 +157,11 @@ func NewBuilder(args []string) *Builder {
 	}
 	cfg.ThemeMetadata = themeMetadata
 
-	// Use the adapter's map for markdown parser
-	var diagramCache map[string]string
-	if diagramAdapter != nil {
-		diagramCache = diagramAdapter.AsMap()
-	} else {
-		diagramCache = make(map[string]string)
-	}
+	// Create sync.Map for diagram cache (thread-safe, no mutex needed)
+	diagramCache := &sync.Map{}
 
 	// Create core components
-	md := mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache, &sync.Mutex{})
+	md := mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache)
 	rnd := renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir, logger)
 
 	// Create Services
@@ -149,6 +185,7 @@ func NewBuilder(args []string) *Builder {
 		metrics:        buildMetrics,
 		SourceFs:       sourceFs,
 		DestFs:         destFs,
+		md:             md,
 	}
 
 	return builder
@@ -205,7 +242,7 @@ func (b *Builder) checkWasmUpdate() {
 				}
 				return nil
 			})
-			if err == errFoundNewer {
+			if errors.Is(err, errFoundNewer) {
 				isFresh = false
 				break
 			}

@@ -1,0 +1,83 @@
+/* Clarity in Motion - Table of Contents
+ * Right sidebar with page TOC navigation
+ */
+
+/* ========================================
+   Table of Contents (Right)
+   ======================================== */
+
+.docs-toc {
+  grid-column: 3;
+  grid-row: 2;
+  padding: var(--space-8) var(--space-6);
+  font-size: var(--text-xs);
+  border-left: 1px solid var(--bg-border);
+  overflow-y: auto;
+  width: 240px;
+}
+
+.docs-toc strong {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.toc-nav {
+  position: relative;
+}
+
+.toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc-item {
+  margin: var(--space-1) 0;
+}
+
+.toc-link {
+  display: block;
+  color: var(--text-muted);
+  padding: var(--space-1) 0;
+  border-left: 2px solid transparent;
+  padding-left: var(--space-3);
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.toc-link::after {
+  display: none;
+}
+
+.toc-link:hover {
+  color: var(--text-secondary);
+}
+
+.toc-link.active {
+  color: var(--color-brand);
+  border-left-color: var(--color-brand);
+  transform: translateX(4px);
+}
+
+/* TOC Level indentation */
+.toc-item[data-level="2"] .toc-link {
+  padding-left: var(--space-3);
+}
+
+.toc-item[data-level="3"] .toc-link {
+  padding-left: var(--space-6);
+}
+
+/* ========================================
+   Responsive - TOC
+   ======================================== */
+
+@media (max-width: 1024px) {
+  .docs-toc {
+    display: none;
+  }
+}

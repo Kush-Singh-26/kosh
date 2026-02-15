@@ -13,10 +13,10 @@ import (
 	gParser "github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
-	"my-ssg/builder/cache"
-	"my-ssg/builder/models"
-	mdParser "my-ssg/builder/parser"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error {
@@ -132,7 +132,7 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 	siteTree := utils.BuildSiteTree(versionPosts)
 
 	if s.cache != nil {
-		htmlHash, _ := s.cache.(*cacheServiceImpl).Manager().StoreHTML([]byte(htmlContent))
+		htmlHash, _ := s.cache.StoreHTMLForPostDirect([]byte(htmlContent))
 
 		postID := cache.GeneratePostID("", relPath)
 		cacheTOC := make([]models.TOCEntry, len(toc))
@@ -140,9 +140,12 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 			cacheTOC[i] = models.TOCEntry{ID: t.ID, Text: t.Text, Level: t.Level}
 		}
 
+		// Use frontmatter hash for consistent comparison with full builds
+		frontmatterHash, _ := utils.GetFrontmatterHash(metaData)
+
 		newMeta := &cache.PostMeta{
 			PostID: postID, Path: relPath, ModTime: info.ModTime().Unix(),
-			ContentHash: cache.HashString(string(source)), HTMLHash: htmlHash,
+			ContentHash: frontmatterHash, HTMLHash: htmlHash,
 			Title: post.Title, Date: post.DateObj, Tags: post.Tags,
 			ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight,
@@ -180,8 +183,8 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 		Meta: metaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
 		TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
 		TOC: toc, Config: s.cfg, SiteTree: siteTree,
-		CurrentVersion: version, IsOutdated: version != "",
-		Versions: s.cfg.GetVersionsMetadata(version),
+		CurrentVersion: version, IsOutdated: s.isOutdatedVersion(version),
+		Versions: s.cfg.GetVersionsMetadata(version, cleanHtmlRelPath),
 		PrevPage: prev, NextPage: next,
 	})
 

@@ -47,15 +47,46 @@ A high-performance, parallelized Static Site Generator (SSG) built in Go. Design
 ### Installation
 
 ```bash
-# Clone the repository
-git clone "https://github.com/kush-singh-26/blogs.git"
-cd blogs
-
-# Build the CLI tool
-go build -o kosh.exe ./cmd/kosh
+# Install via go install
+go install github.com/Kush-Singh-26/kosh/cmd/kosh@latest
 
 # Verify installation
-./kosh version
+kosh version
+```
+
+### Initialize a New Site
+
+```bash
+# Initialize project structure
+kosh init my-site
+cd my-site
+
+# Install a theme (required)
+git clone https://github.com/Kush-Singh-26/kosh-theme-blog themes/blog
+```
+
+### Theme Structure
+
+A valid theme requires:
+
+```
+themes/<theme-name>/
+├── templates/
+│   ├── layout.html    # Base template (required)
+│   ├── index.html     # Home page template (required)
+│   ├── 404.html       # Error page (optional)
+│   └── graph.html     # Graph view (optional)
+├── static/
+│   ├── css/           # Stylesheets
+│   └── js/            # JavaScript
+└── theme.yaml         # Theme metadata (optional)
+```
+
+### Minimal theme.yaml
+
+```yaml
+name: "My Theme"
+supportsVersioning: false
 ```
 
 ## Usage
@@ -65,7 +96,7 @@ go build -o kosh.exe ./cmd/kosh
 For content creation and theme development:
 
 ```bash
-./kosh serve --dev
+kosh serve --dev
 # Serving on http://localhost:2604 (Auto-reload enabled)
 ```
 
@@ -75,7 +106,7 @@ For content creation and theme development:
 ### Production Build
 
 ```bash
-./kosh build
+kosh build
 ```
 
 Minifies HTML/CSS/JS, compresses images, generates search index.
@@ -84,16 +115,16 @@ Minifies HTML/CSS/JS, compresses images, generates search index.
 
 ```bash
 # Create a new post
-./kosh new "Title of new blog"
+kosh new "Title of new blog"
 
 # Clean build artifacts
-./kosh clean
+kosh clean
 
 # Clean everything including cache (force full rebuild)
-./kosh clean --cache
+kosh clean --cache
 
 # Show version and build info
-./kosh version
+kosh version
 ```
 
 ### Available Commands
@@ -286,7 +317,7 @@ image: "/static/images/hero.jpg"  # Custom social card
 When writing posts or tweaking themes:
 
 ```bash
-./kosh serve --dev
+kosh serve --dev
 ```
 - Watches `content/`, `themes/`, `static/`, `templates/`
 - Auto-reloads browser on changes
@@ -318,7 +349,7 @@ $env:GOOS="js"; $env:GOARCH="wasm"; go build -o internal/build/wasm/search.wasm 
 go build -o kosh.exe ./cmd/kosh
 
 # Test
-./kosh build
+kosh build
 ```
 
 ## Performance
@@ -379,19 +410,40 @@ go build -o kosh.exe ./cmd/kosh
 
 ### GitHub Pages
 
-1. Enable GitHub Pages in repository settings
-2. Update base URL in `.github/workflows/deploy.yml`:
-   ```yaml
-   ./kosh build -baseurl https://yourusername.github.io/yourrepo
+1. Copy the deployment workflow:
+   ```bash
+   cp deployment.yaml .github/workflows/deploy.yml
    ```
+
+2. Enable GitHub Pages in repository settings (Source: GitHub Actions)
+
 3. Push to `main` branch triggers automatic deployment
+
+The workflow automatically:
+- Builds the Kosh CLI
+- Restores cache for incremental builds
+- Deploys to `https://<owner>.github.io/<repo>/`
+
+### Custom Domain
+
+To use a custom domain, update `kosh.yaml`:
+
+```yaml
+baseURL: "https://yourdomain.com"
+```
+
+Or override via CLI:
+
+```bash
+kosh build -baseurl https://yourdomain.com
+```
 
 ### Cache Management
 
 Build caches stored in `.kosh-cache/`:
 - Restored between CI runs for incremental builds
 - Automatically normalized for cross-platform compatibility
-- Use `./kosh clean --cache` to force full rebuild
+- Use `kosh clean --cache` to force full rebuild
 
 ## License
 

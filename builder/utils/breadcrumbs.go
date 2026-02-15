@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"my-ssg/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // simpleTitle capitalizes the first letter of each word
@@ -100,48 +100,6 @@ func BuildBreadcrumbs(urlPath string, siteTree []*models.TreeNode, baseURL strin
 
 			breadcrumbs = append(breadcrumbs, breadcrumb)
 		}
-	}
-
-	return breadcrumbs
-}
-
-// SimpleBreadcrumb creates a simple breadcrumb from URL segments
-// Used as fallback when SiteTree is not available
-func SimpleBreadcrumbs(urlPath string, baseURL string) []models.Breadcrumb {
-	// Strip baseURL if present to get just the path
-	pathOnly := strings.TrimPrefix(urlPath, baseURL)
-	_, cleanPath := GetVersionFromURL(pathOnly)
-	cleanPath = strings.TrimSuffix(cleanPath, ".html")
-	cleanPath = strings.Trim(cleanPath, "/")
-
-	breadcrumbs := []models.Breadcrumb{
-		{Title: "Home", Link: baseURL + "/", IsCurrent: cleanPath == ""},
-	}
-
-	if cleanPath == "" {
-		return breadcrumbs
-	}
-
-	segments := strings.Split(cleanPath, "/")
-	var currentPath string
-
-	for i, segment := range segments {
-		isLast := i == len(segments)-1
-		currentPath = filepath.Join(currentPath, segment)
-
-		title := strings.ReplaceAll(segment, "-", " ")
-		title = simpleTitle(title)
-
-		breadcrumb := models.Breadcrumb{
-			Title:     title,
-			IsCurrent: isLast,
-		}
-
-		if !isLast {
-			breadcrumb.Link = baseURL + "/" + currentPath + ".html"
-		}
-
-		breadcrumbs = append(breadcrumbs, breadcrumb)
 	}
 
 	return breadcrumbs

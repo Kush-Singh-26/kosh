@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"my-ssg/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
 // LaTeX SSR logic and regex patterns

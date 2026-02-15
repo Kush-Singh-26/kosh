@@ -37,12 +37,6 @@ type GCResult struct {
 
 // ShouldRunGC checks if GC should run based on conditions
 func (m *Manager) ShouldRunGC(cfg GCConfig) (bool, string) {
-	stats, err := m.Stats()
-	if err != nil {
-		return false, "failed to get stats"
-	}
-
-	// Check builds since last GC
 	var buildsSinceGC int
 	_ = m.db.View(func(tx *bolt.Tx) error {
 		statsBucket := tx.Bucket([]byte(BucketStats))
@@ -54,14 +48,6 @@ func (m *Manager) ShouldRunGC(cfg GCConfig) (bool, string) {
 
 	if buildsSinceGC < cfg.MinBuildsBetweenGC {
 		return false, fmt.Sprintf("only %d builds since last GC (min: %d)", buildsSinceGC, cfg.MinBuildsBetweenGC)
-	}
-
-	// Check dead bytes ratio
-	if stats.StoreBytes > 0 && stats.DeadBytes > 0 {
-		ratio := float64(stats.DeadBytes) / float64(stats.StoreBytes)
-		if ratio > cfg.DeadBytesThreshold {
-			return true, fmt.Sprintf("dead bytes ratio %.2f%% exceeds threshold %.2f%%", ratio*100, cfg.DeadBytesThreshold*100)
-		}
 	}
 
 	return false, "no GC trigger conditions met"

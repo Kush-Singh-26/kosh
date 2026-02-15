@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"my-ssg/builder/models"
-	"my-ssg/builder/search"
-	"my-ssg/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/search"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // BenchmarkSearch performs search with various index sizes

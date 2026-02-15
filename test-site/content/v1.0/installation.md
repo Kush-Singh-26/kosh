@@ -1,27 +1,56 @@
 ---
 title: "Installation v1.0"
 description: "Install v1.0"
-date: "2025-01-03"
-weight: 80
+weight: 85
 ---
 
 # Installation v1.0
 
-Installing v1.0 of the software.
+Install Kosh v1.0 on your system.
 
-## Installation Steps
+> **Warning:** This page only exists in v1.0. For the latest installation, see [Installation](../installation.md).
 
-1. Download v1.0
-2. Run installer
-3. Configure settings
+## Requirements
 
-## Links
+- Go 1.18 or later
+- Git
 
-- [Configuration](./configuration.md) - Next step
-- [Getting Started](./getting-started.md) - Overview
-- [Tutorial](./guides/tutorial.md) - Learn more
+## Install
 
-## External Links
+```bash
+go install github.com/kosh/kosh@v1.0
+```
 
-- [Latest Version](../index.md) - Current documentation
-- [v2.0](../v2.0/index.md) - Next version
+## Verify
+
+```bash
+kosh version
+# Output: Kosh v1.0.0
+```
+
+## Platform Notes
+
+### macOS / Linux
+
+```bash
+go install github.com/kosh/kosh@v1.0
+```
+
+### Windows
+
+```powershell
+go install github.com/kosh/kosh@v1.0
+```
+
+## Next Steps
+
+- [Configuration](./configuration.md) - Configure your site
+- [Getting Started](./getting-started.md) - Build your first site
+- [Tutorial](./guides/tutorial.md) - Step-by-step guide
+
+## Upgrade
+
+Consider upgrading to [v4.0 (Latest)](../installation.md) for:
+- Better performance
+- More features
+- Active support
