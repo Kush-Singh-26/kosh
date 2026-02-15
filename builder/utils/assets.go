@@ -35,6 +35,15 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
+		baseName := filepath.Base(path)
+
+		// Skip files that must be copied directly without esbuild processing
+		// wasm_engine.js - loaded directly by HTML, defines global variables
+		// engine.js - loaded by wasm_engine.js, expects exact filename
+		if baseName == "wasm_engine.js" || baseName == "engine.js" {
+			return nil
+		}
+
 		switch ext {
 		case ".js":
 			jsEntryPoints = append(jsEntryPoints, path)

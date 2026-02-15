@@ -114,6 +114,39 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			}
 		}
 
+		// Copy engine.js separately (needed by wasm_engine.js, must keep original filename)
+		engineSitePath := "static/wasm/engine.js"
+		engineThemePath := filepath.Join(s.cfg.StaticDir, "wasm/engine.js")
+		var engineSourcePath string
+		if exists, _ := afero.Exists(s.sourceFs, engineSitePath); exists {
+			engineSourcePath = engineSitePath
+		} else if exists, _ := afero.Exists(s.sourceFs, engineThemePath); exists {
+			engineSourcePath = engineThemePath
+		}
+		if engineSourcePath != "" {
+			src, err := s.sourceFs.Open(engineSourcePath)
+			if err == nil {
+				defer func() {
+					if cerr := src.Close(); cerr != nil {
+						s.logger.Warn("Failed to close source file", "path", engineSourcePath, "error", cerr)
+					}
+				}()
+				engineDestPath := filepath.Join(s.cfg.OutputDir, "static/wasm/engine.js")
+				_ = s.destFs.MkdirAll(filepath.Dir(engineDestPath), 0755)
+				dest, err := s.destFs.Create(engineDestPath)
+				if err == nil {
+					defer func() {
+						if cerr := dest.Close(); cerr != nil {
+							s.logger.Warn("Failed to close destination file", "path", engineDestPath, "error", cerr)
+						}
+					}()
+					if _, err := io.Copy(dest, src); err == nil {
+						s.renderer.RegisterFile(engineDestPath)
+					}
+				}
+			}
+		}
+
 		// WASM Search Engine Fallback logic
 		// 1. Check site root: static/wasm/search.wasm
 		// 2. Check theme: themes/<theme>/static/wasm/search.wasm
