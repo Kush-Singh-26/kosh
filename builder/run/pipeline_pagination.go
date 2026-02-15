@@ -35,13 +35,8 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 
 	if needsGen {
 		_ = b.DestFs.MkdirAll(filepath.Dir(homeCardPath), 0755)
-		faviconPath := ""
-		if b.cfg.Logo != "" {
-			faviconPath = b.cfg.Logo
-		} else {
-			faviconPath = filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
-		}
-		_ = os.MkdirAll(filepath.Dir(homeCardPath), 0755)
+		_ = os.MkdirAll(filepath.Dir(homeCardPath), 0755) // For GenerateSocialCardToDisk which uses os.Create
+		faviconPath := b.getFaviconPath()
 
 		desc := cfg.Description
 		if len(desc) > 100 {
@@ -83,7 +78,7 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 	}
 
 	// Build SiteTree once before the loop (optimization: avoids recalculating for each page)
-	siteTree := utils.BuildSiteTree(latestPosts)
+	siteTree := utils.BuildSiteTree(latestPosts, "")
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, runtime.NumCPU())
@@ -150,11 +145,7 @@ func (b *Builder) renderTags(tagMap map[string][]models.PostMetadata, forceSocia
 	if needsIndexGen {
 		_ = os.MkdirAll(filepath.Dir(tagsIndexCard), 0755)
 		faviconPath := ""
-		if b.cfg.Logo != "" {
-			faviconPath = b.cfg.Logo
-		} else {
-			faviconPath = filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
-		}
+		faviconPath = b.getFaviconPath()
 		err := generators.GenerateSocialCardToDisk(b.SourceFs, &b.cfg.SocialCards, b.cfg.Title, "All Topics", fmt.Sprintf("Browse all %d topics", len(tagMap)), "Topics", tagsIndexCard, faviconPath)
 		if err == nil && b.cacheService != nil {
 			_ = b.cacheService.SetSocialCardHash("tags/index", indexHash)
@@ -201,12 +192,7 @@ func (b *Builder) renderTags(tagMap map[string][]models.PostMetadata, forceSocia
 
 			if needsTagGen {
 				_ = os.MkdirAll(filepath.Dir(tagCard), 0755)
-				faviconPath := ""
-				if b.cfg.Logo != "" {
-					faviconPath = b.cfg.Logo
-				} else {
-					faviconPath = filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
-				}
+				faviconPath := b.getFaviconPath()
 				err := generators.GenerateSocialCardToDisk(b.SourceFs, &b.cfg.SocialCards, b.cfg.Title, "#"+t, fmt.Sprintf("%d posts about %s", len(posts), t), "Topic", tagCard, faviconPath)
 				if err == nil && b.cacheService != nil {
 					_ = b.cacheService.SetSocialCardHash("tags/"+strings.ToLower(t), tagHash)

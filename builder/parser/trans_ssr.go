@@ -13,20 +13,19 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
-// SSRTransformer handles server-side rendering of D2 diagrams and LaTeX math
-type SSRTransformer struct {
+// ssrTransformer handles server-side rendering of D2 diagrams and LaTeX math
+type ssrTransformer struct {
 	Renderer *native.Renderer
 	Cache    *sync.Map // Thread-safe cache for D2 diagrams
 }
 
-func (t *SSRTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
+func (t *ssrTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	source := reader.Source()
 	var d2Blocks []struct {
 		code string
 		hash string
 	}
 
-	// 1. Collect all D2 blocks
 	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
@@ -45,10 +44,12 @@ func (t *SSRTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 				}
 				code := strings.TrimSpace(codeBuilder.String())
 				if code != "" {
+					hash := native.HashContent("d2", code)
 					d2Blocks = append(d2Blocks, struct {
 						code string
 						hash string
-					}{code: code, hash: native.HashContent("d2", code)})
+					}{code: code, hash: hash})
+					AddSSRHash(pc, hash)
 				}
 			}
 		}
@@ -61,7 +62,6 @@ func (t *SSRTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 
 	// 2. Render all blocks in parallel (or use cache)
 	results := make([]D2SVGPair, len(d2Blocks))
-	pairMap := make(map[string]D2SVGPair)
 	var wg sync.WaitGroup
 
 	for i, block := range d2Blocks {
@@ -107,11 +107,5 @@ func (t *SSRTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 	wg.Wait()
 
 	// 3. Store in context
-	for i, block := range d2Blocks {
-		if results[i].Light != "" {
-			pairMap[block.code] = results[i]
-		}
-	}
-	pc.Set(d2SVGKey, pairMap)
 	pc.Set(d2OrderedKey, results)
 }

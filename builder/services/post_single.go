@@ -1,7 +1,9 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"html/template"
 	"math"
 	"path/filepath"
@@ -20,13 +22,24 @@ import (
 )
 
 func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error {
+	info, err := s.sourceFs.Stat(path)
+	if err != nil {
+		s.logger.Error("Error stating file", "path", path, "error", err)
+		return err
+	}
+
+	// Check file size before loading into memory
+	if info.Size() > utils.MaxFileSize {
+		s.logger.Warn("File exceeds size limit, skipping", "path", path, "size", info.Size(), "limit", utils.MaxFileSize)
+		return fmt.Errorf("file size %d exceeds limit %d", info.Size(), utils.MaxFileSize)
+	}
+
 	source, err := afero.ReadFile(s.sourceFs, path)
 	if err != nil {
 		s.logger.Error("Error reading file", "path", path, "error", err)
 		return err
 	}
 
-	info, _ := s.sourceFs.Stat(path)
 	version, relPath := utils.GetVersionFromPath(path)
 	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 
@@ -51,7 +64,10 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 	buf := utils.SharedBufferPool.Get()
 	defer utils.SharedBufferPool.Put(buf)
 
-	_ = s.md.Renderer().Render(buf, source, docNode)
+	if err := s.md.Renderer().Render(buf, source, docNode); err != nil {
+		s.logger.Error("Failed to render markdown", "path", path, "error", err)
+		return err
+	}
 	htmlContent := buf.String()
 
 	if pairs := mdParser.GetD2SVGPairSlice(context); pairs != nil {
@@ -63,8 +79,12 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 		diagramCache = s.diagramAdapter.AsMap()
 	}
 
-	if strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(") {
-		htmlContent = mdParser.RenderMathForHTML(htmlContent, s.nativeRenderer, diagramCache, &s.mu)
+	ssrHashes := mdParser.GetSSRHashes(context)
+
+	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) {
+		var mathHashes []string
+		htmlContent, mathHashes = mdParser.RenderMathForHTML(htmlContent, s.nativeRenderer, diagramCache, &s.mu)
+		ssrHashes = append(ssrHashes, mathHashes...)
 	}
 	if s.cfg.CompressImages {
 		htmlContent = utils.ReplaceToWebP(htmlContent)
@@ -101,15 +121,17 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 
 	var versionPosts []models.PostMetadata
 	if s.cache != nil {
-		if Lister, ok := s.cache.(interface{ ListAllPosts() ([]string, error) }); ok {
-			ids, _ := Lister.ListAllPosts()
-			cachedPosts, _ := s.cache.GetPostsByIDs(ids)
-			for _, cp := range cachedPosts {
-				if cp.Version == version {
-					versionPosts = append(versionPosts, models.PostMetadata{
-						Title: cp.Title, Link: cp.Link, Weight: cp.Weight, Version: cp.Version,
-						DateObj: cp.Date,
-					})
+		// Use optimized version query instead of loading all posts
+		versionMetas, err := s.cache.GetPostsMetadataByVersion(version)
+		if err == nil {
+			versionPosts = make([]models.PostMetadata, len(versionMetas))
+			for i, m := range versionMetas {
+				versionPosts[i] = models.PostMetadata{
+					Title:   m.Title,
+					Link:    m.Link,
+					Weight:  m.Weight,
+					Version: m.Version,
+					DateObj: m.Date,
 				}
 			}
 		}
@@ -129,10 +151,10 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 
 	utils.SortPosts(versionPosts)
 	prev, next := utils.FindPrevNext(post, versionPosts)
-	siteTree := utils.BuildSiteTree(versionPosts)
+	siteTree := utils.BuildSiteTree(versionPosts, post.Link)
 
 	if s.cache != nil {
-		htmlHash, _ := s.cache.StoreHTMLForPostDirect([]byte(htmlContent))
+		htmlHash, _ := s.cache.StoreHTML([]byte(htmlContent))
 
 		postID := cache.GeneratePostID("", relPath)
 		cacheTOC := make([]models.TOCEntry, len(toc))
@@ -140,16 +162,17 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 			cacheTOC[i] = models.TOCEntry{ID: t.ID, Text: t.Text, Level: t.Level}
 		}
 
-		// Use frontmatter hash for consistent comparison with full builds
 		frontmatterHash, _ := utils.GetFrontmatterHash(metaData)
+		bodyHash := utils.GetBodyHash(source)
 
 		newMeta := &cache.PostMeta{
 			PostID: postID, Path: relPath, ModTime: info.ModTime().Unix(),
-			ContentHash: frontmatterHash, HTMLHash: htmlHash,
+			ContentHash: frontmatterHash, BodyHash: bodyHash, HTMLHash: htmlHash,
 			Title: post.Title, Date: post.DateObj, Tags: post.Tags,
 			ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight,
 			Draft: post.Draft, Meta: metaData, TOC: cacheTOC, Version: version,
+			SSRInputHashes: ssrHashes,
 		}
 
 		normalizedTags := make([]string, len(post.Tags))

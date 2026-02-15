@@ -120,35 +120,51 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		return
 	}
 
-	// Use shared goldmark instance from builder (optimization: avoids creating new parser per change)
 	context := gParser.NewContext()
 	context.Set(mdParser.ContextKeyFilePath, path)
 	reader := text.NewReader(source)
 	b.md.Parser().Parse(reader, gParser.WithContext(context))
 	metaData := meta.Get(context)
 	newFrontmatterHash, _ := utils.GetFrontmatterHash(metaData)
+	newBodyHash := utils.GetBodyHash(source)
 
 	relPath, _ := utils.SafeRel(b.cfg.ContentDir, path)
 
 	var exists bool
-	var cachedHash string
-	var cacheErr error
+	var cachedFrontmatterHash, cachedBodyHash string
 
 	if b.cacheService != nil {
 		meta, err := b.cacheService.GetPostByPath(relPath)
-		cacheErr = err
 		if err == nil && meta != nil {
 			exists = true
-			cachedHash = meta.ContentHash
+			cachedFrontmatterHash = meta.ContentHash
+			cachedBodyHash = meta.BodyHash
 		}
 	}
 
-	if exists && cachedHash == newFrontmatterHash {
-		// Content only change: use PostService to process single
+	// Check if frontmatter changed (requires full rebuild)
+	frontmatterChanged := exists && cachedFrontmatterHash != newFrontmatterHash
+	// Check if only body changed (single post rebuild sufficient)
+	bodyOnlyChanged := exists && cachedFrontmatterHash == newFrontmatterHash && cachedBodyHash != newBodyHash
+
+	if !exists {
+		b.logger.Info("🆕 New post detected, running full build...")
+		if err := b.Build(ctx); err != nil {
+			b.logger.Error("Build failed", "error", err)
+			return
+		}
+		b.SaveCaches()
+	} else if frontmatterChanged {
+		b.logger.Info("🏷️  Frontmatter changed, running full build...")
+		if err := b.Build(ctx); err != nil {
+			b.logger.Error("Build failed", "error", err)
+			return
+		}
+		b.SaveCaches()
+	} else if bodyOnlyChanged || cachedBodyHash == "" {
 		b.logger.Info("📝 Content-only change detected, rebuilding single post...")
 		if err := b.postService.ProcessSingle(ctx, path); err != nil {
 			b.logger.Error("Failed to process single post", "error", err)
-			// Fall back to full build on error
 			if err := b.Build(ctx); err != nil {
 				b.logger.Error("Build failed", "error", err)
 				return
@@ -156,20 +172,6 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		}
 		b.SaveCaches()
 	} else {
-		// Frontmatter changed or new post: Full rebuild
-		if !exists {
-			b.logger.Info("🆕 New post detected, running full build...")
-		} else if cachedHash != newFrontmatterHash {
-			b.logger.Info("🏷️  Frontmatter changed, running full build...")
-		} else if b.cacheService == nil {
-			b.logger.Info("📦 Cache unavailable, running full build...")
-		} else if cacheErr != nil {
-			b.logger.Info("📦 Cache error, running full build...", "error", cacheErr)
-		}
-		if err := b.Build(ctx); err != nil {
-			b.logger.Error("Build failed", "error", err)
-			return
-		}
-		b.SaveCaches()
+		b.logger.Info("✅ No changes detected, skipping...")
 	}
 }

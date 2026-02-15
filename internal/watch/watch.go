@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -45,11 +46,11 @@ func (w *Watcher) Start() {
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			continue
 		}
-		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if info.IsDir() {
+			if d.IsDir() {
 				// Skip hidden directories like .git
 				if filepath.Base(path)[0] == '.' && path != "." {
 					return filepath.SkipDir

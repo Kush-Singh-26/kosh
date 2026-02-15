@@ -18,7 +18,6 @@ type TOCEntry struct {
 
 // TreeNode represents a node in the site hierarchy (Sidebar)
 type TreeNode struct {
-	ID        string      `json:"id"`
 	Title     string      `json:"title"`
 	Link      string      `json:"link"`
 	Weight    int         `json:"weight"`
@@ -36,10 +35,8 @@ type Breadcrumb struct {
 
 // NavPage represents a navigation link (prev/next)
 type NavPage struct {
-	Title        string
-	Link         string
-	Weight       int
-	IsFromLatest bool // True if this link is from latest version (when current version doesn't have it)
+	Title string
+	Link  string
 }
 
 // VersionInfo represents a version for the version selector
@@ -198,10 +195,11 @@ type IndexedPost struct {
 }
 
 type SearchIndex struct {
-	Posts     []PostRecord           `msgpack:"posts"`
-	Inverted  map[string]map[int]int `msgpack:"inv"`  // word -> postID -> frequency
-	DocLens   map[int]int            `msgpack:"lens"` // postID -> word count
-	AvgDocLen float64                `msgpack:"avg"`
-	TotalDocs int                    `msgpack:"total"`
-	StemMap   map[string][]string    `msgpack:"stem,omitempty"` // stemmed -> original forms
+	Posts      []PostRecord           `msgpack:"posts"`
+	Inverted   map[string]map[int]int `msgpack:"inv"`  // word -> postID -> frequency
+	DocLens    map[int]int            `msgpack:"lens"` // postID -> word count
+	AvgDocLen  float64                `msgpack:"avg"`
+	TotalDocs  int                    `msgpack:"total"`
+	StemMap    map[string][]string    `msgpack:"stem,omitempty"`  // stemmed -> original forms
+	NgramIndex map[string][]string    `msgpack:"ngram,omitempty"` // trigram -> terms (for fuzzy search)
 }

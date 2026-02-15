@@ -12,7 +12,8 @@ import (
 
 // BuildSiteTree constructs a hierarchical tree from a flat list of posts
 // It infers structure from file paths (e.g., docs/section/page.md)
-func BuildSiteTree(posts []models.PostMetadata) []*models.TreeNode {
+// currentPath optionally specifies the current page to mark as Active
+func BuildSiteTree(posts []models.PostMetadata, currentPath string) []*models.TreeNode {
 	// Map to track created nodes by path -> node
 	// Path used here is the logical section path (e.g., "docs/section")
 	nodeMap := make(map[string]*models.TreeNode)
@@ -66,7 +67,6 @@ func BuildSiteTree(posts []models.PostMetadata) []*models.TreeNode {
 		// If it's a root page (e.g. "about"), it's a root node.
 		if len(components) == 1 && components[0] != "" {
 			node := &models.TreeNode{
-				ID:        path,
 				Title:     p.Title,
 				Link:      p.Link,
 				Weight:    p.Weight,
@@ -94,7 +94,6 @@ func BuildSiteTree(posts []models.PostMetadata) []*models.TreeNode {
 			} else {
 				// Create virtual section node
 				newNode := &models.TreeNode{
-					ID:        currentPath,
 					Title:     cases.Title(language.English).String(comp), // Fallback title
 					Link:      "",                                         // Section might not have a link if no _index.md
 					Weight:    0,
@@ -114,11 +113,11 @@ func BuildSiteTree(posts []models.PostMetadata) []*models.TreeNode {
 
 		// Add the leaf node (the post itself)
 		leafNode := &models.TreeNode{
-			ID:        path,
 			Title:     p.Title,
 			Link:      p.Link,
 			Weight:    p.Weight,
 			IsSection: false,
+			Active:    currentPath != "" && p.Link == currentPath,
 		}
 
 		// Check if this leaf is actually an _index for the parent?

@@ -17,7 +17,8 @@ type PostMeta struct {
 	PostID         string                 `msgpack:"post_id"`
 	Path           string                 `msgpack:"path"`
 	ModTime        int64                  `msgpack:"mod_time"`
-	ContentHash    string                 `msgpack:"content_hash"`
+	ContentHash    string                 `msgpack:"content_hash"`          // Frontmatter hash
+	BodyHash       string                 `msgpack:"body_hash"`             // Body content hash (CRITICAL for cache validity)
 	HTMLHash       string                 `msgpack:"html_hash,omitempty"`   // Only for large posts
 	InlineHTML     []byte                 `msgpack:"inline_html,omitempty"` // < 32KB posts stored inline
 	TemplateHash   string                 `msgpack:"template_hash"`

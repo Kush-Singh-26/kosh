@@ -20,17 +20,17 @@ import (
 )
 
 const (
-	SocialCardWidth  = 1200
-	SocialCardHeight = 630
+	socialCardWidth  = 1200
+	socialCardHeight = 630
 
-	MarginX       = 80.0
-	HeaderY       = 90.0
-	TitleStartY   = 180.0
-	TitleFontSize = 80.0
-	DescFontSize  = 40.0
-	IconSize      = 48.0
-	BrandFontSize = 28.0
-	DateFontSize  = 24.0
+	marginX       = 80.0
+	headerY       = 90.0
+	titleStartY   = 180.0
+	titleFontSize = 80.0
+	descFontSize  = 40.0
+	iconSize      = 48.0
+	brandFontSize = 28.0
+	dateFontSize  = 24.0
 )
 
 var (
@@ -220,21 +220,21 @@ func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, cfg *config.SocialCards
 }
 
 func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, faviconPath string) (image.Image, error) {
-	dc := gg.NewContext(SocialCardWidth, SocialCardHeight)
+	dc := gg.NewContext(socialCardWidth, socialCardHeight)
 
 	// --- 1. Draw Gradient Background ---
 	allColors := append([]string{cfg.Background}, cfg.Gradient...)
-	drawGradient(dc, SocialCardWidth, SocialCardHeight, allColors, cfg.Angle)
+	drawGradient(dc, socialCardWidth, socialCardHeight, allColors, cfg.Angle)
 
 	// --- 2. Draw Dot Pattern Overlay ---
-	drawDotPattern(dc, SocialCardWidth, SocialCardHeight)
+	drawDotPattern(dc, socialCardWidth, socialCardHeight)
 
 	// --- 3. Typography Setup ---
 	boldFont := "Inter-Bold.ttf"
 	mediumFont := "Inter-Medium.ttf"
 	regFont := "Inter-Regular.ttf"
 
-	maxWidth := float64(SocialCardWidth) - (MarginX * 2)
+	maxWidth := float64(socialCardWidth) - (marginX * 2)
 
 	textColor := hexToRGBA(cfg.TextColor)
 	textColorSecondary := textColor
@@ -242,54 +242,54 @@ func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, site
 	textColorSecondary.A = uint8(float64(textColor.A) * 0.75)
 
 	// --- 4. Header: Logo + Brand (Top Left) ---
-	currentX := MarginX
+	currentX := marginX
 
 	if faviconPath != "" {
 		// Use cached favicon if available
 		im := getFaviconImage(srcFs, faviconPath)
 		if im != nil {
 			w := im.Bounds().Dx()
-			scale := IconSize / float64(w)
+			scale := iconSize / float64(w)
 
 			dc.Push()
 			dc.Scale(scale, scale)
-			dc.DrawImage(im, int(currentX/scale), int((HeaderY-35)/scale))
+			dc.DrawImage(im, int(currentX/scale), int((headerY-35)/scale))
 			dc.Pop()
 
-			currentX += IconSize + 20
+			currentX += iconSize + 20
 		}
 	}
 
-	if err := setFontFace(dc, boldFont, BrandFontSize); err == nil {
+	if err := setFontFace(dc, boldFont, brandFontSize); err == nil {
 		dc.SetColor(textColor)
-		dc.DrawString(siteTitle, currentX, HeaderY)
+		dc.DrawString(siteTitle, currentX, headerY)
 	}
 
 	// --- 5. Header: Date (Top Right) ---
-	if err := setFontFace(dc, mediumFont, DateFontSize); err == nil {
+	if err := setFontFace(dc, mediumFont, dateFontSize); err == nil {
 		dc.SetColor(textColor)
 		w, _ := dc.MeasureString(dateStr)
-		dc.DrawString(dateStr, float64(SocialCardWidth)-MarginX-w, HeaderY)
+		dc.DrawString(dateStr, float64(socialCardWidth)-marginX-w, headerY)
 	}
 
 	// --- 6. The Title (Center-Left) ---
 	titleLineSpacing := 1.1
 
-	if err := setFontFace(dc, boldFont, TitleFontSize); err != nil {
+	if err := setFontFace(dc, boldFont, titleFontSize); err != nil {
 		return nil, fmt.Errorf("failed to load bold font: %w", err)
 	}
 
 	dc.SetColor(textColor)
-	dc.DrawStringWrapped(title, MarginX, TitleStartY, 0, 0, maxWidth, titleLineSpacing, gg.AlignLeft)
+	dc.DrawStringWrapped(title, marginX, titleStartY, 0, 0, maxWidth, titleLineSpacing, gg.AlignLeft)
 
 	titleLines := dc.WordWrap(title, maxWidth)
-	titleHeight := float64(len(titleLines)) * TitleFontSize * titleLineSpacing
+	titleHeight := float64(len(titleLines)) * titleFontSize * titleLineSpacing
 
 	// --- 7. The Description ---
-	if err := setFontFace(dc, regFont, DescFontSize); err == nil {
+	if err := setFontFace(dc, regFont, descFontSize); err == nil {
 		dc.SetColor(textColorSecondary)
-		descY := TitleStartY + titleHeight + 25
-		dc.DrawStringWrapped(description, MarginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
+		descY := titleStartY + titleHeight + 25
+		dc.DrawStringWrapped(description, marginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
 	}
 
 	return dc.Image(), nil

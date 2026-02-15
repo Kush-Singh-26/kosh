@@ -39,11 +39,11 @@ type CacheService interface {
 	SetGraphHash(hash string) error
 	GetWasmHash() (string, error)
 	SetWasmHash(hash string) error
+	GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error)
 
 	// Write operations
 	StoreHTML(content []byte) (string, error)
 	StoreHTMLForPost(post *cache.PostMeta, content []byte) error
-	StoreHTMLForPostDirect(content []byte) (string, error)
 	BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error
 	DeletePost(postID string) error
 

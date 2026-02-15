@@ -104,10 +104,10 @@ func main() {
 				w.Start()
 			}()
 
-			server.Run(ctx, args, b.Config().OutputDir)
+			server.Run(ctx, args, b.Config().OutputDir, b.Config().Build)
 		} else {
 			cfg := config.Load(args)
-			server.Run(ctx, args, cfg.OutputDir)
+			server.Run(ctx, args, cfg.OutputDir, cfg.Build)
 		}
 
 	case "build":
@@ -248,9 +248,9 @@ func printUsage() {
 
 func printVersion() {
 	fmt.Println("Kosh Static Site Generator")
-	fmt.Println("Version: v1.0.0")
+	fmt.Println("Version: v1.2.0")
 	fmt.Printf("Go Version: %s\n", runtime.Version())
-	fmt.Println("Build Date: 2026-02-12")
+	fmt.Println("Build Date: 2026-02-16")
 	fmt.Println("\nOptimized with:")
 	fmt.Println("  - BLAKE3 hashing (replaced MD5)")
 	fmt.Println("  - Object pooling for memory management")

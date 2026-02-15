@@ -64,24 +64,19 @@ func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 		utils.GetString(t.metaData, "date"), cachedCardPath, logoPath)
 
 	if err == nil {
-		if data, err := os.ReadFile(cachedCardPath); err == nil {
-			cardDir := filepath.ToSlash(filepath.Dir(t.cardDestPath))
-			if err := s.destFs.MkdirAll(cardDir, 0755); err != nil {
-				s.logger.Error("Failed to create social card directory", "path", cardDir, "error", err)
-			}
-			if err := afero.WriteFile(s.destFs, t.cardDestPath, data, 0644); err != nil {
-				s.logger.Error("Failed to write social card", "path", t.cardDestPath, "error", err)
-			} else {
-				s.logger.Debug("Social card generated successfully", "path", t.cardDestPath)
-				if _, err := s.destFs.Stat(t.cardDestPath); err != nil {
-					s.logger.Error("Social card file not found in VFS after write", "path", t.cardDestPath, "error", err)
-				} else {
-					s.logger.Debug("Social card verified in VFS", "path", t.cardDestPath)
-				}
-				s.renderer.RegisterFile(t.cardDestPath)
-			}
-		} else {
+		cardDir := filepath.ToSlash(filepath.Dir(t.cardDestPath))
+		if err := s.destFs.MkdirAll(cardDir, 0755); err != nil {
+			s.logger.Error("Failed to create social card directory", "path", cardDir, "error", err)
+		}
+		// Read the generated card once and write to VFS
+		data, err := os.ReadFile(cachedCardPath)
+		if err != nil {
 			s.logger.Error("Failed to read generated social card from cache", "path", cachedCardPath, "error", err)
+		} else if err := afero.WriteFile(s.destFs, t.cardDestPath, data, 0644); err != nil {
+			s.logger.Error("Failed to write social card", "path", t.cardDestPath, "error", err)
+		} else {
+			s.logger.Debug("Social card generated successfully", "path", t.cardDestPath)
+			s.renderer.RegisterFile(t.cardDestPath)
 		}
 
 		if s.cache != nil && t.frontmatterHash != "" {

@@ -3,13 +3,13 @@ package cache
 import (
 	"bytes"
 	"path/filepath"
+	"time"
 
 	bolt "go.etcd.io/bbolt"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-// getCachedItem retrieves a generic item from a bucket
 func getCachedItem[T any](db *bolt.DB, bucketName string, key []byte) (*T, error) {
 	var result *T
 	err := db.View(func(tx *bolt.Tx) error {
@@ -32,9 +32,51 @@ func getCachedItem[T any](db *bolt.DB, bucketName string, key []byte) (*T, error
 	return result, err
 }
 
+// memCacheGet retrieves a PostMeta from the in-memory cache
+func (m *Manager) memCacheGet(key string) *PostMeta {
+	m.memCacheMu.RLock()
+	entry, ok := m.memCache[key]
+	m.memCacheMu.RUnlock()
+
+	if !ok {
+		return nil
+	}
+
+	if time.Now().After(entry.expiresAt) {
+		m.memCacheMu.Lock()
+		delete(m.memCache, key)
+		m.memCacheMu.Unlock()
+		return nil
+	}
+
+	return entry.meta
+}
+
+// memCacheSet stores a PostMeta in the in-memory cache
+func (m *Manager) memCacheSet(key string, meta *PostMeta) {
+	m.memCacheMu.Lock()
+	m.memCache[key] = &memoryCacheEntry{
+		meta:      meta,
+		expiresAt: time.Now().Add(m.memCacheTTL),
+	}
+	m.memCacheMu.Unlock()
+}
+
+// memCacheDelete removes an entry from the in-memory cache
+func (m *Manager) memCacheDelete(key string) {
+	m.memCacheMu.Lock()
+	delete(m.memCache, key)
+	m.memCacheMu.Unlock()
+}
+
 // GetPostByPath looks up a post by its file path in a single transaction
 func (m *Manager) GetPostByPath(path string) (*PostMeta, error) {
 	normalizedPath := utils.NormalizePath(path)
+
+	// Check in-memory cache first
+	if cached := m.memCacheGet("path:" + normalizedPath); cached != nil {
+		return cached, nil
+	}
 
 	var result *PostMeta
 	err := m.db.View(func(tx *bolt.Tx) error {
@@ -66,12 +108,27 @@ func (m *Manager) GetPostByPath(path string) (*PostMeta, error) {
 		return nil
 	})
 
+	if err == nil && result != nil {
+		// Store in memory cache for future lookups
+		m.memCacheSet("path:"+normalizedPath, result)
+	}
+
 	return result, err
 }
 
 // GetPostByID retrieves a post by its PostID
 func (m *Manager) GetPostByID(postID string) (*PostMeta, error) {
-	return getCachedItem[PostMeta](m.db, BucketPosts, []byte(postID))
+	// Check in-memory cache first
+	cacheKey := "id:" + postID
+	if cached := m.memCacheGet(cacheKey); cached != nil {
+		return cached, nil
+	}
+
+	result, err := getCachedItem[PostMeta](m.db, BucketPosts, []byte(postID))
+	if err == nil && result != nil {
+		m.memCacheSet(cacheKey, result)
+	}
+	return result, err
 }
 
 // GetPostsByIDs retrieves multiple posts by their PostIDs in a single transaction
@@ -193,4 +250,46 @@ func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
 	})
 
 	return ids, err
+}
+
+// GetPostsMetadataByVersion retrieves minimal metadata for posts in a specific version
+// This is optimized for ProcessSingle to avoid loading all posts
+func (m *Manager) GetPostsMetadataByVersion(version string) ([]PostListMeta, error) {
+	var result []PostListMeta
+
+	err := m.db.View(func(tx *bolt.Tx) error {
+		postsBucket := tx.Bucket([]byte(BucketPosts))
+		if postsBucket == nil {
+			return nil
+		}
+
+		c := postsBucket.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var meta PostMeta
+			if err := Decode(v, &meta); err != nil {
+				continue
+			}
+			if meta.Version == version {
+				result = append(result, PostListMeta{
+					Title:   meta.Title,
+					Link:    meta.Link,
+					Weight:  meta.Weight,
+					Version: meta.Version,
+					Date:    meta.Date,
+				})
+			}
+		}
+		return nil
+	})
+
+	return result, err
+}
+
+// PostListMeta contains minimal metadata needed for navigation/sorting
+type PostListMeta struct {
+	Title   string
+	Link    string
+	Weight  int
+	Version string
+	Date    time.Time
 }

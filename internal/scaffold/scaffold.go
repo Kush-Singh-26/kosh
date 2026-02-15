@@ -3,6 +3,7 @@ package scaffold
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 const defaultKoshYaml = `# Site Configuration
@@ -101,7 +102,7 @@ func Run(args []string) {
 
 	// 3. Create first post
 	if _, err := os.Stat("content/hello-world.md"); os.IsNotExist(err) {
-		content := fmt.Sprintf(firstPost, "2026-02-09")
+		content := fmt.Sprintf(firstPost, time.Now().Format("2006-01-02"))
 		if err := os.WriteFile("content/hello-world.md", []byte(content), 0644); err != nil {
 			fmt.Printf("❌ Failed to create first post: %v\n", err)
 		} else {

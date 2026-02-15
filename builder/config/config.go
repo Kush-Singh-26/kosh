@@ -95,6 +95,9 @@ type Config struct {
 	IncludeDrafts bool  `yaml:"-"`
 	BuildVersion  int64 `yaml:"-"`
 	IsDev         bool  `yaml:"-"`
+
+	// Build configuration (loaded from kosh.build.yaml)
+	Build *BuildConfig `yaml:"-"`
 }
 
 func Load(args []string) *Config {
@@ -151,6 +154,9 @@ func Load(args []string) *Config {
 	if cfg.ImageWorkers > 32 {
 		cfg.ImageWorkers = 32
 	}
+
+	// Load build configuration from kosh.build.yaml
+	cfg.Build = LoadBuildConfig()
 
 	// 3. Apply Smart Defaults and resolve to absolute paths
 	if cfg.ThemeDir == "" {

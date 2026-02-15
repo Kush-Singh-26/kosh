@@ -1,11 +1,7 @@
 package cache
 
 import (
-	"encoding/binary"
-	"fmt"
 	"time"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 // GCConfig controls garbage collection behavior
@@ -33,22 +29,4 @@ type GCResult struct {
 	Duration     time.Duration
 	WasSkipped   bool
 	SkipReason   string
-}
-
-// ShouldRunGC checks if GC should run based on conditions
-func (m *Manager) ShouldRunGC(cfg GCConfig) (bool, string) {
-	var buildsSinceGC int
-	_ = m.db.View(func(tx *bolt.Tx) error {
-		statsBucket := tx.Bucket([]byte(BucketStats))
-		if data := statsBucket.Get([]byte("builds_since_gc")); data != nil {
-			buildsSinceGC = int(binary.BigEndian.Uint32(data))
-		}
-		return nil
-	})
-
-	if buildsSinceGC < cfg.MinBuildsBetweenGC {
-		return false, fmt.Sprintf("only %d builds since last GC (min: %d)", buildsSinceGC, cfg.MinBuildsBetweenGC)
-	}
-
-	return false, "no GC trigger conditions met"
 }

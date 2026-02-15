@@ -54,7 +54,7 @@ func TestTOCTransformer(t *testing.T) {
 			md := goldmark.New(
 				goldmark.WithParserOptions(
 					parser.WithASTTransformers(
-						util.Prioritized(&TOCTransformer{}, 100),
+						util.Prioritized(&tocTransformer{}, 100),
 					),
 					parser.WithAutoHeadingID(),
 				),

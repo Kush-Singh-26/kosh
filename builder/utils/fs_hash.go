@@ -13,12 +13,16 @@ import (
 func HashDirsFast(dirs []string) (string, error) {
 	h := blake3.New()
 	for _, dir := range dirs {
-		err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if info.IsDir() {
+			if d.IsDir() {
 				return nil
+			}
+			info, err := d.Info()
+			if err != nil {
+				return err
 			}
 			if _, err := fmt.Fprintf(h, "%s:%d:%d;", path, info.Size(), info.ModTime().UnixNano()); err != nil {
 				return fmt.Errorf("failed to write to hash: %w", err)

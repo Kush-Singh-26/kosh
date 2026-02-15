@@ -11,9 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
-func Run(ctx context.Context, args []string, outputDir string) {
+func Run(ctx context.Context, args []string, outputDir string, buildCfg *config.BuildConfig) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	host := fs.String("host", "localhost", "The host/IP to bind to")
 	port := fs.String("port", "2604", "The port to listen on")
@@ -33,7 +35,18 @@ func Run(ctx context.Context, args []string, outputDir string) {
 		staticDir = "./public"
 	}
 
-	startWatcher(staticDir)
+	// Get shutdown timeout from build config
+	shutdownTimeout := 5 * time.Second
+	if buildCfg != nil {
+		shutdownTimeout = buildCfg.ShutdownTimeout
+	}
+
+	debounceDuration := 500 * time.Millisecond
+	if buildCfg != nil {
+		debounceDuration = buildCfg.DebounceDuration
+	}
+
+	startWatcherWithConfig(staticDir, debounceDuration)
 	defer stopWatcher()
 
 	go func() {
@@ -98,7 +111,7 @@ func Run(ctx context.Context, args []string, outputDir string) {
 	go func() {
 		<-ctx.Done()
 		fmt.Println("\n🛑 Shutting down HTTP server...")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			log.Printf("HTTP server shutdown error: %v", err)

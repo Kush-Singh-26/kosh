@@ -18,6 +18,12 @@ var encodedPostPool = sync.Pool{
 	},
 }
 
+// memoryCacheEntry holds a cached PostMeta with expiration
+type memoryCacheEntry struct {
+	meta      *PostMeta
+	expiresAt time.Time
+}
+
 // Manager provides the main cache interface
 type Manager struct {
 	db       *bolt.DB
@@ -26,10 +32,22 @@ type Manager struct {
 	cacheID  string
 	mu       sync.RWMutex
 	dirty    map[string]bool
+
+	// In-memory LRU cache for hot PostMeta data
+	memCache    map[string]*memoryCacheEntry
+	memCacheMu  sync.RWMutex
+	memCacheTTL time.Duration
 }
+
+const defaultMemCacheTTL = 5 * time.Minute
 
 // Open opens or creates a cache at the given path
 func Open(basePath string, isDev bool) (*Manager, error) {
+	return OpenWithTimeout(basePath, isDev, 10*time.Second)
+}
+
+// OpenWithTimeout opens or creates a cache with a custom timeout
+func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manager, error) {
 	if err := os.MkdirAll(basePath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
@@ -48,7 +66,7 @@ func Open(basePath string, isDev bool) (*Manager, error) {
 	}
 
 	opts := &bolt.Options{
-		Timeout:         10 * time.Second,
+		Timeout:         timeout,
 		FreelistType:    bolt.FreelistArrayType,
 		PageSize:        16384,
 		InitialMmapSize: initialSize,
@@ -73,10 +91,12 @@ func Open(basePath string, isDev bool) (*Manager, error) {
 	}
 
 	m := &Manager{
-		db:       db,
-		store:    store,
-		basePath: basePath,
-		dirty:    make(map[string]bool),
+		db:          db,
+		store:       store,
+		basePath:    basePath,
+		dirty:       make(map[string]bool),
+		memCache:    make(map[string]*memoryCacheEntry),
+		memCacheTTL: defaultMemCacheTTL,
 	}
 
 	if err := m.initSchema(); err != nil {
@@ -148,6 +168,33 @@ func (m *Manager) SetCacheID(id string) error {
 		meta := tx.Bucket([]byte(BucketMeta))
 		return meta.Put([]byte(KeyCacheID), []byte(id))
 	})
+}
+
+// ClearAll removes all cached data (used when corruption detected)
+func (m *Manager) ClearAll() error {
+	err := m.db.Update(func(tx *bolt.Tx) error {
+		for _, name := range AllBuckets() {
+			if name == BucketMeta {
+				continue // Keep metadata
+			}
+			bucket := tx.Bucket([]byte(name))
+			if bucket != nil {
+				if err := bucket.ForEach(func(k, v []byte) error {
+					return bucket.Delete(k)
+				}); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+
+	// Clear memory cache
+	m.memCacheMu.Lock()
+	m.memCache = make(map[string]*memoryCacheEntry)
+	m.memCacheMu.Unlock()
+
+	return err
 }
 
 // Store returns the underlying content store

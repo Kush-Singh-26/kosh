@@ -117,12 +117,13 @@ func FuzzyExpandWithNgrams(term string, ngramIndex map[string][]string, maxDist 
 
 // generateTrigrams creates trigram (3-character) sequences from a word
 func generateTrigrams(word string) []string {
-	if len(word) < 3 {
+	runes := []rune(word)
+	n := len(runes)
+
+	if n < 3 {
 		return []string{word}
 	}
 
-	runes := []rune(word)
-	n := len(runes)
 	trigrams := make([]string, 0, n-2)
 
 	for i := 0; i <= n-3; i++ {

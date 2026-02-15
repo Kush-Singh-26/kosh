@@ -7,6 +7,79 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+func TestGetBodyHash(t *testing.T) {
+	tests := []struct {
+		name    string
+		source  []byte
+		wantLen int
+	}{
+		{
+			name:    "markdown with frontmatter",
+			source:  []byte("---\ntitle: Test\n---\nThis is the body content."),
+			wantLen: 64,
+		},
+		{
+			name:    "markdown without frontmatter",
+			source:  []byte("Just plain markdown content."),
+			wantLen: 64,
+		},
+		{
+			name:    "empty content",
+			source:  []byte(""),
+			wantLen: 64,
+		},
+		{
+			name:    "frontmatter only",
+			source:  []byte("---\ntitle: Test\n---\n"),
+			wantLen: 64,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hash := GetBodyHash(tt.source)
+			if len(hash) != tt.wantLen {
+				t.Errorf("GetBodyHash() returned hash of length %d, want %d", len(hash), tt.wantLen)
+			}
+		})
+	}
+}
+
+func TestGetBodyHashDeterministic(t *testing.T) {
+	source := []byte("---\ntitle: Test\n---\nBody content here.")
+
+	hash1 := GetBodyHash(source)
+	hash2 := GetBodyHash(source)
+
+	if hash1 != hash2 {
+		t.Errorf("GetBodyHash() not deterministic: %s != %s", hash1, hash2)
+	}
+}
+
+func TestGetBodyHashDifferentContent(t *testing.T) {
+	source1 := []byte("---\ntitle: Test\n---\nContent A")
+	source2 := []byte("---\ntitle: Test\n---\nContent B")
+
+	hash1 := GetBodyHash(source1)
+	hash2 := GetBodyHash(source2)
+
+	if hash1 == hash2 {
+		t.Error("Different body content should produce different hashes")
+	}
+}
+
+func TestGetBodyHashIgnoresFrontmatter(t *testing.T) {
+	source1 := []byte("---\ntitle: First\n---\nSame body")
+	source2 := []byte("---\ntitle: Second\n---\nSame body")
+
+	hash1 := GetBodyHash(source1)
+	hash2 := GetBodyHash(source2)
+
+	if hash1 != hash2 {
+		t.Error("Same body with different frontmatter should produce same body hash")
+	}
+}
+
 func TestGetFrontmatterHash(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -7,7 +7,9 @@ import (
 )
 
 const (
-	MaxWorkers       = 32
+	// MaxWorkers is the maximum number of workers in a pool
+	MaxWorkers = 32
+	// WorkerBufferSize is the channel buffer multiplier
 	WorkerBufferSize = 4
 )
 

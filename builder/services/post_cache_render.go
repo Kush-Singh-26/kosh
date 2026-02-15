@@ -72,7 +72,7 @@ func (s *postServiceImpl) RenderCachedPosts() {
 	siteTrees := make(map[string][]*models.TreeNode)
 	for ver, posts := range postsByVersion {
 		utils.SortPosts(posts)
-		siteTrees[ver] = utils.BuildSiteTree(posts)
+		siteTrees[ver] = utils.BuildSiteTree(posts, "")
 	}
 
 	numWorkers := runtime.NumCPU()

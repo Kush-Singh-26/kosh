@@ -102,9 +102,9 @@ func New(baseURL string, renderer *native.Renderer, diagramCache *sync.Map) gold
 		goldmark.WithParserOptions(
 			// Register Transformers
 			parser.WithASTTransformers(
-				util.Prioritized(&URLTransformer{BaseURL: baseURL}, 100),
-				util.Prioritized(&TOCTransformer{}, 200),
-				util.Prioritized(&SSRTransformer{
+				util.Prioritized(&urlTransformer{BaseURL: baseURL}, 100),
+				util.Prioritized(&tocTransformer{}, 200),
+				util.Prioritized(&ssrTransformer{
 					Renderer: renderer,
 					Cache:    diagramCache,
 				}, 50), // Run SSR early (lower priority = runs first)

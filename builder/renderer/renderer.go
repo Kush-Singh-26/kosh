@@ -60,6 +60,10 @@ func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger
 	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles(layoutPath)
 	if err != nil {
 		logger.Error("Failed to parse layout template", "path", layoutPath, "error", err)
+		// Check if error might be due to template cycle
+		if strings.Contains(err.Error(), "template") && strings.Contains(err.Error(), "not defined") {
+			logger.Error("Possible template cycle detected - check for circular {{ template }} references")
+		}
 		os.Exit(1)
 	}
 	layoutInfo, _ := os.Stat(layoutPath)

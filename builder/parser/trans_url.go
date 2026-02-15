@@ -12,12 +12,12 @@ import (
 // ContextKeyFilePath stores the current file path being parsed
 var ContextKeyFilePath = parser.NewContextKey()
 
-// URLTransformer intercepts links and images to rewrite URLs (e.g., .md -> .html).
-type URLTransformer struct {
+// urlTransformer intercepts links and images to rewrite URLs (e.g., .md -> .html).
+type urlTransformer struct {
 	BaseURL string
 }
 
-func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
+func (t *urlTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
@@ -32,7 +32,7 @@ func (t *URLTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 	})
 }
 
-func (t *URLTransformer) processDestination(n ast.Node, dest []byte, pc parser.Context) {
+func (t *urlTransformer) processDestination(n ast.Node, dest []byte, pc parser.Context) {
 	href := string(dest)
 
 	// Handle External Links

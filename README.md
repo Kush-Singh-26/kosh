@@ -352,6 +352,17 @@ go build -o kosh.exe ./cmd/kosh
 kosh build
 ```
 
+### Local testing
+
+```powershell
+$env:GOPROXY="direct"; go install github.com/Kush-Singh-26/kosh/cmd/kosh@latest
+```
+
+```bash
+# Install from local directory (not GitHub)
+go install ./cmd/kosh
+```
+
 ## Performance
 
 ### Build Times

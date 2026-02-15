@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -178,30 +179,20 @@ func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string, c
 		return fmt.Errorf("failed to create image directory: %w", err)
 	}
 
+	// Encode to buffer once, then write to both cache and destination
+	var buf bytes.Buffer
+	if err := webp.Encode(&buf, img, &webp.Options{Lossless: false, Quality: 80}); err != nil {
+		return fmt.Errorf("failed to encode webp %s: %w", dstPath, err)
+	}
+	encodedData := buf.Bytes()
+
+	// Write to cache file if configured
 	if cacheFile != "" {
-		fCache, err := os.Create(cacheFile)
-		if err == nil {
-			err = webp.Encode(fCache, img, &webp.Options{Lossless: false, Quality: 80})
-			if cerr := fCache.Close(); cerr != nil {
-				slog.Warn("Failed to close cache file", "path", cacheFile, "error", cerr)
-			}
-			if err == nil {
-				data, err := os.ReadFile(cacheFile)
-				if err == nil {
-					return afero.WriteFile(destFs, dstPath, data, 0644)
-				}
-			}
+		if err := os.WriteFile(cacheFile, encodedData, 0644); err != nil {
+			slog.Warn("Failed to write image cache file", "path", cacheFile, "error", err)
 		}
 	}
 
-	out, err := destFs.Create(dstPath)
-	if err != nil {
-		return fmt.Errorf("failed to create destination image %s: %w", dstPath, err)
-	}
-	defer func() { _ = out.Close() }()
-
-	if err := webp.Encode(out, img, &webp.Options{Lossless: false, Quality: 80}); err != nil {
-		return fmt.Errorf("failed to encode webp %s: %w", dstPath, err)
-	}
-	return nil
+	// Write to destination
+	return afero.WriteFile(destFs, dstPath, encodedData, 0644)
 }

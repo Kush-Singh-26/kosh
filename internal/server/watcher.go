@@ -10,14 +10,16 @@ import (
 )
 
 var (
-	watcher    *fsnotify.Watcher
-	reloadChan chan struct{}
-	clientMu   sync.Mutex
-	clients    = make(map[chan struct{}]struct{})
-	watcherWg  sync.WaitGroup
+	watcher        *fsnotify.Watcher
+	reloadChan     chan struct{}
+	clientMu       sync.Mutex
+	clients        = make(map[chan struct{}]struct{})
+	watcherWg      sync.WaitGroup
+	debounceConfig time.Duration
 )
 
-func startWatcher(dir string) {
+func startWatcherWithConfig(dir string, debounce time.Duration) {
+	debounceConfig = debounce
 	var err error
 	watcher, err = fsnotify.NewWatcher()
 	if err != nil {
@@ -53,9 +55,9 @@ func startWatcher(dir string) {
 				}
 
 				if debounceTimer != nil {
-					debounceTimer.Reset(500 * time.Millisecond)
+					debounceTimer.Reset(debounceConfig)
 				} else {
-					debounceTimer = time.AfterFunc(500*time.Millisecond, func() {
+					debounceTimer = time.AfterFunc(debounceConfig, func() {
 						select {
 						case reloadChan <- struct{}{}:
 						default:

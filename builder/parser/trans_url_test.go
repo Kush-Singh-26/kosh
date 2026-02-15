@@ -236,7 +236,7 @@ func TestURLTransformer_VersionAwareLinking(t *testing.T) {
 			md := goldmark.New(
 				goldmark.WithParserOptions(
 					parser.WithASTTransformers(
-						util.Prioritized(&URLTransformer{BaseURL: "https://example.com"}, 100),
+						util.Prioritized(&urlTransformer{BaseURL: "https://example.com"}, 100),
 					),
 				),
 			)

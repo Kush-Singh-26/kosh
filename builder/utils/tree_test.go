@@ -24,7 +24,7 @@ func TestBuildSiteTree(t *testing.T) {
 		{Link: "http://site.com/guides/advanced.html", Title: "Advanced Guide", Weight: 10},
 	}
 
-	roots := BuildSiteTree(posts)
+	roots := BuildSiteTree(posts, "")
 
 	// Expected Structure:
 	// - About

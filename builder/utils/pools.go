@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"strings"
 	"sync"
 )
 
@@ -40,38 +39,6 @@ func (p *BufferPool) Put(buf *bytes.Buffer) {
 	p.pool.Put(buf)
 }
 
-// StringBuilderPool manages a pool of reusable strings.Builder objects
-type StringBuilderPool struct {
-	pool sync.Pool
-}
-
-// NewStringBuilderPool creates a new StringBuilderPool
-func NewStringBuilderPool() *StringBuilderPool {
-	return &StringBuilderPool{
-		pool: sync.Pool{
-			New: func() interface{} {
-				sb := new(strings.Builder)
-				sb.Grow(256)
-				return sb
-			},
-		},
-	}
-}
-
-// Get retrieves a strings.Builder from the pool
-func (p *StringBuilderPool) Get() *strings.Builder {
-	return p.pool.Get().(*strings.Builder)
-}
-
-// Put returns a strings.Builder to the pool, resetting it for reuse
-func (p *StringBuilderPool) Put(sb *strings.Builder) {
-	if sb.Cap() > MaxBufferSize {
-		return
-	}
-	sb.Reset()
-	p.pool.Put(sb)
-}
-
 // BufioWriterPool manages a pool of reusable bufio.Writer objects
 type BufioWriterPool struct {
 	pool sync.Pool
@@ -105,7 +72,6 @@ func (p *BufioWriterPool) Put(bw *bufio.Writer) {
 
 // Global shared pool instances
 var (
-	SharedBufferPool        = NewBufferPool()
-	SharedStringBuilderPool = NewStringBuilderPool()
-	SharedBufioWriterPool   = NewBufioWriterPool()
+	SharedBufferPool      = NewBufferPool()
+	SharedBufioWriterPool = NewBufioWriterPool()
 )

@@ -1,0 +1,17 @@
+name: Notify Portfolio on Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger portfolio rebuild
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
+          repository: Kush-Singh-26/Kush-Singh-26.github.io
+          event-type: kosh-updated
+          client-payload: '{"version": "${{ github.event.release.tag_name }}"}'

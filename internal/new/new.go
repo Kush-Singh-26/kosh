@@ -3,9 +3,34 @@ package new
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
+
+// slugRegex matches characters that are unsafe for filenames/URLs
+var slugRegex = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
+
+// sanitizeSlug converts a title to a safe filename slug
+func sanitizeSlug(title string) string {
+	// Convert to lowercase
+	slug := strings.ToLower(title)
+	// Replace spaces with hyphens
+	slug = strings.ReplaceAll(slug, " ", "-")
+	// Remove or replace unsafe characters
+	slug = slugRegex.ReplaceAllString(slug, "")
+	// Remove consecutive hyphens
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+	// Trim leading/trailing hyphens
+	slug = strings.Trim(slug, "-")
+	// Limit length to prevent excessively long filenames
+	if len(slug) > 100 {
+		slug = slug[:100]
+	}
+	return slug
+}
 
 // Run creates a new blog post file
 func Run(args []string) {
@@ -15,11 +40,12 @@ func Run(args []string) {
 	}
 
 	title := args[0]
-	// Create a filename like: content/my-new-post-title.md
-	slug := strings.ToLower(strings.ReplaceAll(title, " ", "-"))
-	// Remove special chars to be safe
-	slug = strings.ReplaceAll(slug, "?", "")
-	slug = strings.ReplaceAll(slug, ":", "")
+	// Create a safe filename slug
+	slug := sanitizeSlug(title)
+	if slug == "" {
+		fmt.Println("❌ Error: Title produces empty slug after sanitization")
+		return
+	}
 	filename := fmt.Sprintf("content/%s.md", slug)
 
 	// Basic Frontmatter template

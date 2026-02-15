@@ -9,12 +9,16 @@ import (
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // titleCaser is cached at package level to avoid recreation on every snippet extraction
 var titleCaser = cases.Title(language.English)
+
+// lowerCaser for Unicode-aware lowercasing
+var lowerCaser = cases.Lower(language.Und) // Und = undefined language, uses default Unicode lowercasing
 
 // replacerCache caches string replacers for snippet highlighting
 var (
@@ -50,7 +54,9 @@ type Result struct {
 
 // PerformSearch executes a search query against the index with fuzzy and phrase support
 func PerformSearch(index *models.SearchIndex, query string, versionFilter string) []Result {
-	query = strings.ToLower(strings.TrimSpace(query))
+	// Apply NFC normalization and Unicode-aware lowercasing
+	query = norm.NFC.String(query)
+	query = lowerCaser.String(strings.TrimSpace(query))
 	if query == "" {
 		return nil
 	}
@@ -81,7 +87,6 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 	b := 0.75
 
 	postCache := make(map[int]*models.PostRecord, maxResults)
-	matchedTerms := make(map[string]bool)
 
 	// Process individual terms with BM25
 	for _, term := range queryTerms {
@@ -107,11 +112,16 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 				docLen := float64(index.DocLens[postID])
 				score := idf * (float64(freq) * (k1 + 1)) / (float64(freq) + k1*(1-b+b*(docLen/index.AvgDocLen)))
 				scores[postID] += score
-				matchedTerms[term] = true
 			}
 		} else {
 			// Try fuzzy matching if exact term not found
-			fuzzyCandidates := FuzzyExpand(term, index.Inverted, MaxEditDistance)
+			// Use ngram index for fast candidate generation if available
+			var fuzzyCandidates []string
+			if index.NgramIndex != nil {
+				fuzzyCandidates = FuzzyExpandWithNgrams(term, index.NgramIndex, MaxEditDistance)
+			} else {
+				fuzzyCandidates = FuzzyExpand(term, index.Inverted, MaxEditDistance)
+			}
 			for _, fuzzyTerm := range fuzzyCandidates {
 				if posts, ok := index.Inverted[fuzzyTerm]; ok {
 					df := len(posts)
@@ -231,14 +241,10 @@ func Tokenize(text string) []string {
 	if len(text) == 0 {
 		return nil
 	}
-	estimatedWords := max(8, len(text)/5)
-	words := make([]string, 0, estimatedWords)
-	for _, word := range strings.FieldsFunc(text, func(r rune) bool {
+	words := make([]string, 0, max(8, len(text)/5))
+	return append(words, strings.FieldsFunc(text, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-	}) {
-		words = append(words, word)
-	}
-	return words
+	})...)
 }
 
 func max(a, b int) int {

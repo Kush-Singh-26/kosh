@@ -187,10 +187,16 @@ func ReplaceMathExpressions(html string, rendered map[string]string, cache map[s
 }
 
 // RenderMathForHTML extracts, renders, and replaces all LaTeX in HTML
-func RenderMathForHTML(html string, renderer *native.Renderer, cache map[string]string, cacheMu *sync.Mutex) string {
+// Returns the rendered HTML and a slice of SSR input hashes for cache tracking
+func RenderMathForHTML(html string, renderer *native.Renderer, cache map[string]string, cacheMu *sync.Mutex) (string, []string) {
 	expressions := ExtractMathExpressions(html)
 	if len(expressions) == 0 {
-		return html
+		return html, nil
+	}
+
+	hashes := make([]string, len(expressions))
+	for i, expr := range expressions {
+		hashes[i] = expr.Hash
 	}
 
 	cacheMu.Lock()
@@ -205,5 +211,5 @@ func RenderMathForHTML(html string, renderer *native.Renderer, cache map[string]
 		log.Printf("   ⚠️  LaTeX batch render failed: %v", err)
 	}
 
-	return ReplaceMathExpressions(html, rendered, cache, cacheMu)
+	return ReplaceMathExpressions(html, rendered, cache, cacheMu), hashes
 }

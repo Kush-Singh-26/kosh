@@ -34,12 +34,7 @@ func (b *Builder) generatePWA(shouldForce bool) {
 		if b.cfg.IsDev {
 			return
 		}
-		faviconPath := ""
-		if b.cfg.Logo != "" {
-			faviconPath = b.cfg.Logo
-		} else {
-			faviconPath = filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
-		}
+		faviconPath := b.getFaviconPath()
 
 		// Ensure info is available
 		if exists, _ := afero.Exists(b.SourceFs, faviconPath); !exists {

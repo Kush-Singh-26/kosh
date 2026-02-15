@@ -129,11 +129,25 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 	var cacheManager *cache.Manager
 	var diagramAdapter *cache.DiagramCacheAdapter
 
-	cm, err := cache.Open(cfg.CacheDir, cfg.IsDev)
+	cacheTimeout := cfg.Build.CacheDBTimeout
+	cm, err := cache.OpenWithTimeout(cfg.CacheDir, cfg.IsDev, cacheTimeout)
 	if err != nil {
 		logger.Warn("Failed to open cache database, using in-memory cache", "error", err)
 	} else {
 		cacheManager = cm
+
+		// Quick integrity check on startup
+		if errors, verifyErr := cacheManager.QuickVerify(); verifyErr != nil || len(errors) > 0 {
+			logger.Warn("Cache integrity issues detected, forcing rebuild", "errors", len(errors))
+			if len(errors) > 0 && len(errors) <= 5 {
+				for _, e := range errors {
+					logger.Debug("Cache error", "detail", e)
+				}
+			}
+			cfg.ForceRebuild = true
+			// Clear corrupted entries
+			_ = cacheManager.ClearAll()
+		}
 
 		// Generate and verify cache ID
 		cacheID := generateCacheID(cfg)
@@ -224,6 +238,14 @@ func (b *Builder) Config() *config.Config {
 	return b.cfg
 }
 
+// getFaviconPath returns the favicon path - uses custom logo if set, otherwise defaults to theme favicon
+func (b *Builder) getFaviconPath() string {
+	if b.cfg.Logo != "" {
+		return b.cfg.Logo
+	}
+	return filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+}
+
 // checkWasmUpdate checks if Search WASM needs rebuild based on source hash.
 func (b *Builder) checkWasmUpdate() {
 	wasmSrcDirs := []string{
@@ -240,12 +262,16 @@ func (b *Builder) checkWasmUpdate() {
 		errFoundNewer := fmt.Errorf("newer")
 
 		for _, dir := range wasmSrcDirs {
-			err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+			err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
 					return err
 				}
-				if info.IsDir() {
+				if d.IsDir() {
 					return nil
+				}
+				info, err := d.Info()
+				if err != nil {
+					return err
 				}
 				if info.ModTime().After(wasmInfo.ModTime()) {
 					return errFoundNewer

@@ -1,10 +1,38 @@
 package search
 
+import "sync"
+
 // Porter Stemmer implementation for English
 // Based on the Porter Stemming Algorithm: https://tartarus.org/martin/PorterStemmer/
 
-// Stem applies the Porter stemming algorithm to a word
+// stemCache caches stemmed words to avoid redundant computation
+// Most content has many repeated words (articles, prepositions, etc.)
+var stemCache sync.Map
+
+// StemCached returns the stemmed form of word, using a cache for efficiency
+func StemCached(word string) string {
+	if len(word) <= 2 {
+		return word
+	}
+
+	// Check cache first
+	if cached, ok := stemCache.Load(word); ok {
+		return cached.(string)
+	}
+
+	// Compute and cache
+	result := stem(word)
+	stemCache.Store(word, result)
+	return result
+}
+
+// Stem applies the Porter stemming algorithm to a word (uncached version)
 func Stem(word string) string {
+	return stem(word)
+}
+
+// stem is the internal stemming implementation
+func stem(word string) string {
 	if len(word) <= 2 {
 		return word
 	}
@@ -123,34 +151,6 @@ func endsWithCVC(runes []rune) bool {
 	return c != 'w' && c != 'x' && c != 'y'
 }
 
-// replaceSuffix replaces a suffix if the stem is long enough
-func replaceSuffix(runes []rune, suffix, replacement string, minLength int) []rune {
-	if len(runes) < len(suffix) {
-		return runes
-	}
-
-	// Check if it ends with suffix
-	suffixRunes := []rune(suffix)
-	n := len(runes)
-	match := true
-	for i := 0; i < len(suffixRunes); i++ {
-		if runes[n-len(suffixRunes)+i] != suffixRunes[i] {
-			match = false
-			break
-		}
-	}
-
-	if !match {
-		return runes
-	}
-
-	stem := runes[:n-len(suffixRunes)]
-	if measure(stem) > minLength {
-		return append(stem, []rune(replacement)...)
-	}
-	return runes
-}
-
 func step1a(runes []rune) []rune {
 	n := len(runes)
 	if n >= 4 && string(runes[n-4:]) == "sses" {
@@ -215,7 +215,7 @@ func step1bHelper(runes []rune) []rune {
 	}
 
 	// Double consonant -> single
-	if endsWithDoubleConsonant(runes) && !(runes[len(runes)-1] == 'l' || runes[len(runes)-1] == 's' || runes[len(runes)-1] == 'z') {
+	if endsWithDoubleConsonant(runes) && runes[len(runes)-1] != 'l' && runes[len(runes)-1] != 's' && runes[len(runes)-1] != 'z' {
 		return runes[:len(runes)-1]
 	}
 

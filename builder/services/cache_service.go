@@ -83,10 +83,6 @@ func (s *cacheServiceImpl) StoreHTML(content []byte) (string, error) {
 	return s.manager.StoreHTML(content)
 }
 
-func (s *cacheServiceImpl) StoreHTMLForPostDirect(content []byte) (string, error) {
-	return s.manager.StoreHTML(content)
-}
-
 func (s *cacheServiceImpl) StoreHTMLForPost(post *cache.PostMeta, content []byte) error {
 	return s.manager.StoreHTMLForPost(post, content)
 }
@@ -129,6 +125,10 @@ func (s *cacheServiceImpl) IncrementBuildCount() error {
 
 func (s *cacheServiceImpl) Close() error {
 	return s.manager.Close()
+}
+
+func (s *cacheServiceImpl) GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error) {
+	return s.manager.GetPostsMetadataByVersion(version)
 }
 
 // Additional helper to expose the underlying manager if absolutely necessary (try to avoid)

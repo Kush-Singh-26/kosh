@@ -163,6 +163,14 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 		return nil
 	})
 
+	// Invalidate memory cache for committed posts
+	if err == nil {
+		for _, ep := range encoded {
+			m.memCacheDelete("id:" + string(ep.PostID))
+			m.memCacheDelete("path:" + string(ep.Path))
+		}
+	}
+
 	return err
 }
 
@@ -221,7 +229,9 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*SSRArtif
 
 // DeletePost removes a post and its associated data
 func (m *Manager) DeletePost(postID string) error {
-	return m.db.Update(func(tx *bolt.Tx) error {
+	var postPath string
+
+	err := m.db.Update(func(tx *bolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(BucketPosts))
 		pathsBucket := tx.Bucket([]byte(BucketPaths))
 		searchBucket := tx.Bucket([]byte(BucketSearch))
@@ -234,7 +244,8 @@ func (m *Manager) DeletePost(postID string) error {
 		if data != nil {
 			var post PostMeta
 			if err := Decode(data, &post); err == nil {
-				_ = pathsBucket.Delete([]byte(utils.NormalizePath(post.Path)))
+				postPath = utils.NormalizePath(post.Path)
+				_ = pathsBucket.Delete([]byte(postPath))
 
 				for _, tag := range post.Tags {
 					tagKey := []byte(tag + "/" + postID)
@@ -249,4 +260,14 @@ func (m *Manager) DeletePost(postID string) error {
 
 		return nil
 	})
+
+	// Invalidate memory cache
+	if err == nil {
+		m.memCacheDelete("id:" + postID)
+		if postPath != "" {
+			m.memCacheDelete("path:" + postPath)
+		}
+	}
+
+	return err
 }

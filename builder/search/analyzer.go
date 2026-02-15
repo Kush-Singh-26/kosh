@@ -67,7 +67,7 @@ func (a *Analyzer) Analyze(text string) []string {
 			continue
 		}
 		if a.useStemming {
-			token = Stem(token)
+			token = StemCached(token)
 		}
 		if token != "" {
 			result = append(result, token)
@@ -93,7 +93,7 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, original
 		originals = append(originals, token)
 
 		if a.useStemming {
-			stemmed = append(stemmed, Stem(token))
+			stemmed = append(stemmed, StemCached(token))
 		} else {
 			stemmed = append(stemmed, token)
 		}

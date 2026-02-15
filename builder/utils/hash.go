@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"sort"
@@ -45,20 +46,34 @@ func writeStringBlake3(h *blake3.Hasher, s string) {
 	_, _ = h.Write([]byte(s))
 }
 
-type GraphHashData struct {
-	Posts []PostGraphInfo `json:"posts"`
+// yamlDelim is the YAML frontmatter delimiter
+var yamlDelim = []byte("---")
+
+// GetBodyHash extracts the body content (after frontmatter) and returns its BLAKE3 hash
+// This is CRITICAL for cache validity - body changes without frontmatter changes
+// would otherwise be silently ignored
+func GetBodyHash(source []byte) string {
+	parts := bytes.SplitN(source, yamlDelim, 3)
+	if len(parts) >= 3 {
+		body := parts[2]
+		body = bytes.TrimSpace(body)
+		hash := blake3.Sum256(body)
+		return hex.EncodeToString(hash[:])
+	}
+	hash := blake3.Sum256(source)
+	return hex.EncodeToString(hash[:])
 }
 
-type PostGraphInfo struct {
+type postGraphInfo struct {
 	Title string   `json:"title"`
 	Link  string   `json:"link"`
 	Tags  []string `json:"tags"`
 }
 
 func GetGraphHash(posts []models.PostMetadata) (string, error) {
-	graphInfo := make([]PostGraphInfo, 0, len(posts))
+	graphInfo := make([]postGraphInfo, 0, len(posts))
 	for _, p := range posts {
-		graphInfo = append(graphInfo, PostGraphInfo{
+		graphInfo = append(graphInfo, postGraphInfo{
 			Title: p.Title,
 			Link:  p.Link,
 			Tags:  p.Tags,

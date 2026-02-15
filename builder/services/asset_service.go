@@ -38,6 +38,15 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 	// 1. Static Copy (excluding source CSS/JS handled by esbuild)
 	go func() {
 		defer wg.Done()
+
+		// Check for early cancellation
+		select {
+		case <-ctx.Done():
+			s.logger.Warn("Asset build cancelled", "reason", ctx.Err())
+			return
+		default:
+		}
+
 		// Theme Static
 		if exists, _ := afero.Exists(s.sourceFs, s.cfg.StaticDir); exists {
 			// Exclude .css and .js files from raw copy (they're handled by esbuild)
@@ -45,6 +54,13 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			if err := utils.CopyDirVFS(s.sourceFs, s.destFs, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers); err != nil {
 				s.logger.Warn("Failed to copy theme static assets", "error", err)
 			}
+		}
+
+		// Check for cancellation between operations
+		select {
+		case <-ctx.Done():
+			return
+		default:
 		}
 
 		// Site Static (Root 'static' folder)
@@ -74,7 +90,9 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 							s.logger.Warn("Failed to close destination file", "path", wasmExecDestPath, "error", cerr)
 						}
 					}()
-					if _, err := io.Copy(dest, src); err == nil {
+					if _, err := io.Copy(dest, src); err != nil {
+						s.logger.Warn("Failed to copy wasm_exec.js", "path", wasmExecDestPath, "error", err)
+					} else {
 						s.renderer.RegisterFile(wasmExecDestPath)
 					}
 				}
@@ -107,7 +125,9 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 							s.logger.Warn("Failed to close destination file", "path", wasmEngineDestPath, "error", cerr)
 						}
 					}()
-					if _, err := io.Copy(dest, src); err == nil {
+					if _, err := io.Copy(dest, src); err != nil {
+						s.logger.Warn("Failed to copy wasm_engine.js", "path", wasmEngineDestPath, "error", err)
+					} else {
 						s.renderer.RegisterFile(wasmEngineDestPath)
 					}
 				}
@@ -140,7 +160,9 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 							s.logger.Warn("Failed to close destination file", "path", engineDestPath, "error", cerr)
 						}
 					}()
-					if _, err := io.Copy(dest, src); err == nil {
+					if _, err := io.Copy(dest, src); err != nil {
+						s.logger.Warn("Failed to copy engine.js", "path", engineDestPath, "error", err)
+					} else {
 						s.renderer.RegisterFile(engineDestPath)
 					}
 				}
@@ -177,7 +199,9 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 							s.logger.Warn("Failed to close destination file", "path", wasmDestPath, "error", cerr)
 						}
 					}()
-					if _, err := io.Copy(dest, src); err == nil {
+					if _, err := io.Copy(dest, src); err != nil {
+						s.logger.Warn("Failed to copy search.wasm", "path", wasmDestPath, "error", err)
+					} else {
 						s.renderer.RegisterFile(wasmDestPath)
 					}
 				}
@@ -203,7 +227,9 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 								s.logger.Warn("Failed to close destination file", "path", destPath, "error", cerr)
 							}
 						}()
-						if _, err := io.Copy(dest, src); err == nil {
+						if _, err := io.Copy(dest, src); err != nil {
+							s.logger.Warn("Failed to copy logo", "path", destPath, "error", err)
+						} else {
 							s.renderer.RegisterFile(destPath)
 						}
 					}
@@ -215,6 +241,15 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 	// 2. Esbuild Bundling (CSS/JS)
 	go func() {
 		defer wg.Done()
+
+		// Check for early cancellation
+		select {
+		case <-ctx.Done():
+			s.logger.Warn("Asset bundling cancelled", "reason", ctx.Err())
+			return
+		default:
+		}
+
 		destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
 		// Force rebuild in dev mode to ensure changes are picked up
 		force := s.cfg.IsDev
@@ -226,6 +261,18 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		s.renderer.SetAssets(assets)
 	}()
 
-	wg.Wait()
-	return nil
+	// Wait for both goroutines or context cancellation
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		s.logger.Warn("Asset build interrupted", "reason", ctx.Err())
+		return ctx.Err()
+	case <-done:
+		return nil
+	}
 }

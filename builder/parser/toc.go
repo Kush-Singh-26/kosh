@@ -11,8 +11,8 @@ import (
 )
 
 var tocKey = parser.NewContextKey()
-var d2SVGKey = parser.NewContextKey()
 var d2OrderedKey = parser.NewContextKey()
+var ssrHashesKey = parser.NewContextKey()
 
 func GetTOC(pc parser.Context) []models.TOCEntry {
 	if v := pc.Get(tocKey); v != nil {
@@ -28,9 +28,27 @@ func GetD2SVGPairSlice(pc parser.Context) []D2SVGPair {
 	return nil
 }
 
-type TOCTransformer struct{}
+// GetSSRHashes returns all SSR input hashes (D2 diagrams, LaTeX math) for cache tracking
+func GetSSRHashes(pc parser.Context) []string {
+	if v := pc.Get(ssrHashesKey); v != nil {
+		return v.([]string)
+	}
+	return nil
+}
 
-func (t *TOCTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
+// AddSSRHash adds an SSR input hash to the context
+func AddSSRHash(pc parser.Context, hash string) {
+	var hashes []string
+	if v := pc.Get(ssrHashesKey); v != nil {
+		hashes = v.([]string)
+	}
+	hashes = append(hashes, hash)
+	pc.Set(ssrHashesKey, hashes)
+}
+
+type tocTransformer struct{}
+
+func (t *tocTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	var toc []models.TOCEntry
 
 	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {

@@ -1,0 +1,30 @@
+# Kosh Build Configuration
+# This file allows customization of build parameters
+# All values have sensible defaults - only override what you need
+
+# Worker settings
+maxWorkers: 32        # Maximum worker pool size
+defaultWorkers: 12    # Default worker count (capped by CPU cores)
+imageWorkers: 24      # Parallel image processing workers
+
+# Buffer/Cache settings
+maxBufferSize: 65536          # 64KB - Max buffer size for pools
+inlineHTMLThreshold: 32768    # 32KB - Size threshold for inline HTML storage
+maxFileSize: 52428800         # 50MB - Max file size to load in memory
+fastZstdMax: 65536            # 64KB - Threshold for fast zstd compression
+
+# Timeouts
+shutdownTimeout: 5s           # Server shutdown timeout
+debounceDuration: 500ms       # File watcher debounce
+templateCheckTTL: 2s          # Template mtime check TTL
+cacheDBTimeout: 10s           # BoltDB timeout
+
+# Search settings
+maxSnippetContentLength: 10000  # Max content length for snippets
+defaultSnippetLength: 150       # Default snippet length
+scoreTitleMatch: 10.0           # BM25 title match score
+scoreTagMatch: 5.0              # BM25 tag match score
+scorePhraseMatch: 15.0          # BM25 phrase match score
+scoreFuzzyModifier: 0.7         # Fuzzy match score modifier
+maxEditDistance: 2             # Max fuzzy edit distance
+maxSearchResults: 100           # Max search results

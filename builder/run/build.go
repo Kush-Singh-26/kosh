@@ -23,6 +23,21 @@ func (b *Builder) Build(ctx context.Context) error {
 	default:
 	}
 
+	// Acquire build lock to prevent concurrent builds
+	buildLock, lockErr := utils.AcquireBuildLock(b.cfg.OutputDir)
+	if lockErr != nil {
+		b.logger.Warn("Could not acquire build lock - another build may be in progress", "error", lockErr)
+		// Continue anyway - warn but don't block
+	} else {
+		defer func() { _ = buildLock.Release() }()
+	}
+
+	// Warn about empty baseURL in production mode
+	if b.cfg.BaseURL == "" && !b.cfg.IsDev {
+		b.logger.Warn("baseURL is empty in production mode - links will be relative and may not work correctly")
+		b.logger.Info("Set baseURL in kosh.yaml or use -baseurl flag for production builds")
+	}
+
 	cfg := b.cfg
 	// Build started - minimal logging
 
@@ -97,11 +112,10 @@ func (b *Builder) Build(ctx context.Context) error {
 		b.logger.Error("Failed to create sitemap directory", "error", err)
 	}
 
-	// 2. Static Assets
-	var staticWg sync.WaitGroup
-	staticWg.Add(1)
+	// 2. Static Assets (run in background, don't block post processing)
+	staticDone := make(chan struct{})
 	go func() {
-		defer staticWg.Done()
+		defer close(staticDone)
 		select {
 		case <-ctx.Done():
 			return
@@ -110,7 +124,6 @@ func (b *Builder) Build(ctx context.Context) error {
 		}
 	}()
 	_ = utils.WriteFileVFS(b.DestFs, filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte(""))
-	staticWg.Wait()
 
 	if len(affectedPosts) > 0 && b.cacheService != nil {
 		for _, postPath := range affectedPosts {
@@ -294,6 +307,9 @@ func (b *Builder) Build(ctx context.Context) error {
 
 	// Ensure setup tasks (WASM check + PWA) are complete
 	setupWg.Wait()
+
+	// Wait for static assets to complete before syncing
+	<-staticDone
 
 	// Now sync VFS to disk (includes completed social cards)
 	fmt.Println("💾 Syncing to disk...")

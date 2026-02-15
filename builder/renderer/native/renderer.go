@@ -16,8 +16,8 @@ import (
 //go:embed katex.min.js
 var katexJS string
 
-// Instance represents a single isolated renderer worker
-type Instance struct {
+// instance represents a single isolated renderer worker
+type instance struct {
 	ruler    *textmeasure.Ruler
 	vm       *goja.Runtime
 	katex    goja.Value
@@ -27,7 +27,7 @@ type Instance struct {
 
 // Renderer manages a pool of native rendering instances for concurrency
 type Renderer struct {
-	pool       chan *Instance
+	pool       chan *instance
 	numWorkers int
 	initOnce   sync.Once
 	katexProg  *goja.Program // Pre-compiled program to share across workers
@@ -44,7 +44,7 @@ func New() *Renderer {
 	// Workers are returned to pool after use, so this is safe as long as
 	// we never create more workers than the buffer size.
 	return &Renderer{
-		pool:       make(chan *Instance, numWorkers),
+		pool:       make(chan *instance, numWorkers),
 		numWorkers: numWorkers,
 	}
 }
@@ -66,9 +66,9 @@ func (r *Renderer) ensureInitialized() {
 		// Start workers in background without blocking
 		for i := 0; i < r.numWorkers; i++ {
 			go func(id int) {
-				instance := newInstance()
+				instance := newinstance()
 				if instance != nil {
-					// Pass the program to the instance (we could store it in Instance or pass it during ensureInitialized)
+					// Pass the program to the instance (we could store it in instance or pass it during ensureInitialized)
 					instance.ensureInitialized(r.katexProg)
 					r.pool <- instance
 				} else {
@@ -82,19 +82,19 @@ func (r *Renderer) ensureInitialized() {
 	})
 }
 
-func newInstance() *Instance {
+func newinstance() *instance {
 	ruler, err := textmeasure.NewRuler()
 	if err != nil {
 		log.Printf("⚠️ Failed to initialize text ruler: %v", err)
 	}
 
-	return &Instance{
+	return &instance{
 		ruler: ruler,
 	}
 }
 
 // ensureInitialized performs lazy initialization of the JS engine
-func (i *Instance) ensureInitialized(prog *goja.Program) {
+func (i *instance) ensureInitialized(prog *goja.Program) {
 	i.initOnce.Do(func() {
 		// Initialize goja VM with KaTeX
 		vm := goja.New()

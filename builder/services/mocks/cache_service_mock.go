@@ -284,3 +284,24 @@ func (m *MockCacheService) Close() error {
 	m.recordCall("Close")
 	return m.Err
 }
+
+// GetPostsMetadataByVersion returns minimal metadata for posts in a version
+func (m *MockCacheService) GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error) {
+	m.recordCall("GetPostsMetadataByVersion")
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	var result []cache.PostListMeta
+	for _, post := range m.Posts {
+		if post.Version == version {
+			result = append(result, cache.PostListMeta{
+				Title:   post.Title,
+				Link:    post.Link,
+				Weight:  post.Weight,
+				Version: post.Version,
+				Date:    post.Date,
+			})
+		}
+	}
+	return result, nil
+}

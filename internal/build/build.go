@@ -61,7 +61,9 @@ func CheckWASM(_ string) bool {
 // hashBytes computes BLAKE3 hash of byte slice (first 16 hex chars)
 func hashBytes(data []byte) string {
 	h := blake3.New()
-	h.Write(data)
+	if _, err := h.Write(data); err != nil {
+		return ""
+	}
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 

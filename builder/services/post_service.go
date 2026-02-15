@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"html/template"
 	"io/fs"
@@ -75,9 +76,10 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		allPosts       []models.PostMetadata
 		pinnedPosts    []models.PostMetadata
 		tagMap         = make(map[string][]models.PostMetadata)
+		tagMapMu       sync.Mutex
 		postsByVersion = make(map[string][]models.PostMetadata)
 		has404         bool
-		anyPostChanged bool
+		anyPostChanged atomic.Bool
 		processedCount int32
 		mu             sync.Mutex
 	)
@@ -176,6 +178,8 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		var cachedHTML []byte
 		var err error
 		var info os.FileInfo
+		var source []byte
+		var bodyHash string
 		exists := false
 
 		if s.cache != nil {
@@ -187,6 +191,23 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 					exists = false
 				}
 			}
+		}
+
+		// Always read source to compute body hash (CRITICAL for cache validity)
+		// This ensures body-only changes are detected even if ModTime didn't change
+		if info == nil {
+			info, _ = s.sourceFs.Stat(path)
+		}
+		if info != nil && info.Size() > utils.MaxFileSize {
+			s.logger.Warn("File exceeds size limit, skipping", "path", path, "size", info.Size(), "limit", utils.MaxFileSize)
+			return
+		}
+		source, _ = afero.ReadFile(s.sourceFs, path)
+		bodyHash = utils.GetBodyHash(source)
+
+		// Invalidate cache if body content changed (regardless of ModTime)
+		if exists && cachedMeta != nil && cachedMeta.BodyHash != "" && cachedMeta.BodyHash != bodyHash {
+			exists = false
 		}
 
 		useCache := exists && !shouldForce
@@ -208,6 +229,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		var toc []models.TOCEntry
 		var frontmatterHash string
 		var plainText string
+		var ssrHashes []string
 
 		if useCache {
 			cachedHTML, err = s.cache.GetHTMLContent(cachedMeta)
@@ -226,9 +248,12 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			htmlContent = string(cachedHTML)
 			metaData = cachedMeta.Meta
 			frontmatterHash = cachedMeta.ContentHash
+			ssrHashes = cachedMeta.SSRInputHashes
 
 			if v, ok := allMetadataMap.Load(cachedMeta.Link); ok {
-				post = v.(models.PostMetadata)
+				if cachedPost, ok := v.(models.PostMetadata); ok {
+					post = cachedPost
+				}
 			}
 
 			for _, t := range cachedMeta.TOC {
@@ -249,10 +274,6 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			wordFreqs = cachedSearch.BM25Data
 		} else {
 			s.metrics.IncrementCacheMiss()
-			if info == nil {
-				info, _ = s.sourceFs.Stat(path)
-			}
-			source, _ := afero.ReadFile(s.sourceFs, path)
 
 			// Copy raw markdown to output for "View Source" feature
 			if s.cfg.Features.RawMarkdown {
@@ -289,8 +310,12 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				diagramCache = s.diagramAdapter.AsMap()
 			}
 
-			if strings.Contains(string(source), "$") || strings.Contains(string(source), "\\(") {
-				htmlContent = mdParser.RenderMathForHTML(htmlContent, s.nativeRenderer, diagramCache, &s.mu)
+			ssrHashes = mdParser.GetSSRHashes(ctx)
+
+			if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) {
+				var mathHashes []string
+				htmlContent, mathHashes = mdParser.RenderMathForHTML(htmlContent, s.nativeRenderer, diagramCache, &s.mu)
+				ssrHashes = append(ssrHashes, mathHashes...)
 			}
 			if s.cfg.CompressImages {
 				htmlContent = utils.ReplaceToWebP(htmlContent)
@@ -455,7 +480,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				},
 			}
 			mu.Lock()
-			anyPostChanged = true
+			anyPostChanged.Store(true)
 			mu.Unlock()
 		}
 
@@ -478,10 +503,11 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			postID := cache.GeneratePostID("", relPath)
 			newMeta := &cache.PostMeta{
 				PostID: postID, Path: relPath, ModTime: info.ModTime().Unix(),
-				ContentHash: frontmatterHash, Title: post.Title, Date: post.DateObj,
+				ContentHash: frontmatterHash, BodyHash: bodyHash, Title: post.Title, Date: post.DateObj,
 				Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
 				Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
 				Meta: metaData, TOC: toc, Version: version,
+				SSRInputHashes: ssrHashes,
 			}
 			if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
 				s.logger.Error("Failed to store HTML in cache", "path", relPath, "error", err)
@@ -529,7 +555,9 @@ Loop:
 		// Add to tagMap for all versions (not just unversioned)
 		for _, t := range p.Tags {
 			key := strings.ToLower(strings.TrimSpace(t))
+			tagMapMu.Lock()
 			tagMap[key] = append(tagMap[key], p)
+			tagMapMu.Unlock()
 		}
 
 		// Determine if this post belongs to the main feed:
@@ -558,7 +586,7 @@ Loop:
 	siteTrees := make(map[string][]*models.TreeNode)
 	for ver, posts := range postsByVersion {
 		utils.SortPosts(posts)
-		siteTrees[ver] = utils.BuildSiteTree(posts)
+		siteTrees[ver] = utils.BuildSiteTree(posts, "")
 	}
 
 	renderPool := utils.NewWorkerPool(ctx, numWorkers, func(t RenderContext) {
@@ -610,7 +638,7 @@ Loop:
 		PinnedPosts:    pinnedPosts,
 		TagMap:         tagMap,
 		IndexedPosts:   indexedPosts,
-		AnyPostChanged: anyPostChanged,
+		AnyPostChanged: anyPostChanged.Load(),
 		Has404:         has404,
 	}, nil
 }

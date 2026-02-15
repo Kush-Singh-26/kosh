@@ -4,6 +4,7 @@ package benchmarks
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -97,6 +98,146 @@ func BenchmarkExtractSnippet(b *testing.B) {
 	}
 }
 
+// BenchmarkStemCached tests cached stemming performance
+func BenchmarkStemCached(b *testing.B) {
+	words := []string{
+		"running", "jumped", "quickly", "beautifully", "programming",
+		"transformer", "optimization", "performance", "architecture", "implementation",
+		"documentation", "configuration", "initialization", "synchronization", "communication",
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for _, word := range words {
+			_ = search.StemCached(word)
+		}
+	}
+}
+
+// BenchmarkStemUncached tests uncached stemming for comparison
+func BenchmarkStemUncached(b *testing.B) {
+	words := []string{
+		"running", "jumped", "quickly", "beautifully", "programming",
+		"transformer", "optimization", "performance", "architecture", "implementation",
+		"documentation", "configuration", "initialization", "synchronization", "communication",
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for _, word := range words {
+			_ = search.Stem(word)
+		}
+	}
+}
+
+// BenchmarkStemCachedRepeated tests caching benefit on repeated words
+func BenchmarkStemCachedRepeated(b *testing.B) {
+	// Same word repeated many times (common in real content)
+	word := "programming"
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < 100; j++ {
+			_ = search.StemCached(word)
+		}
+	}
+}
+
+// BenchmarkStemUncachedRepeated tests uncached repeated stems for comparison
+func BenchmarkStemUncachedRepeated(b *testing.B) {
+	word := "programming"
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < 100; j++ {
+			_ = search.Stem(word)
+		}
+	}
+}
+
+// BenchmarkFuzzyExpand tests fuzzy matching with full scan
+func BenchmarkFuzzyExpand(b *testing.B) {
+	index := createMockSearchIndex(500)
+	term := "progamming" // typo
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = search.FuzzyExpand(term, index.Inverted, 2)
+	}
+}
+
+// BenchmarkFuzzyExpandWithNgrams tests fuzzy matching with ngram index
+func BenchmarkFuzzyExpandWithNgrams(b *testing.B) {
+	index := createMockSearchIndexWithNgrams(500)
+	term := "progamming" // typo
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = search.FuzzyExpandWithNgrams(term, index.NgramIndex, 2)
+	}
+}
+
+// BenchmarkBuildNgramIndex tests ngram index construction
+func BenchmarkBuildNgramIndex(b *testing.B) {
+	index := createMockSearchIndex(500)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = search.BuildNgramIndex(index.Inverted)
+	}
+}
+
+// BenchmarkAnalyze tests text analysis with stemming
+func BenchmarkAnalyze(b *testing.B) {
+	analyzer := search.NewAnalyzer(true, true)
+	text := strings.Repeat("The quick brown fox jumps over the lazy dog. ", 10)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = analyzer.Analyze(text)
+	}
+}
+
+// BenchmarkAnalyzeNoStemming tests text analysis without stemming
+func BenchmarkAnalyzeNoStemming(b *testing.B) {
+	analyzer := search.NewAnalyzer(true, false)
+	text := strings.Repeat("The quick brown fox jumps over the lazy dog. ", 10)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = analyzer.Analyze(text)
+	}
+}
+
+// BenchmarkLevenshteinDistance tests edit distance calculation
+func BenchmarkLevenshteinDistance(b *testing.B) {
+	tests := []struct {
+		a, b string
+	}{
+		{"programming", "progamming"},          // 1 edit
+		{"optimization", "optimisation"},       // 2 edits
+		{"implementation", "imlementation"},    // 1 edit
+		{"synchronization", "synchronisation"}, // 2 edits
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for _, tt := range tests {
+			_ = search.LevenshteinDistance(tt.a, tt.b)
+		}
+	}
+}
+
 // Helper functions
 
 func createMockSearchIndex(size int) *models.SearchIndex {
@@ -119,7 +260,7 @@ func createMockSearchIndex(size int) *models.SearchIndex {
 		}
 
 		// Add some inverted index entries
-		words := []string{"test", "content", "post", "go", "ssg"}
+		words := []string{"test", "content", "post", "go", "ssg", "programming", "optimization", "performance"}
 		for j, word := range words {
 			if _, ok := index.Inverted[word]; !ok {
 				index.Inverted[word] = make(map[int]int)
@@ -135,6 +276,12 @@ func createMockSearchIndex(size int) *models.SearchIndex {
 		index.AvgDocLen = float64(totalLen) / float64(size)
 	}
 
+	return index
+}
+
+func createMockSearchIndexWithNgrams(size int) *models.SearchIndex {
+	index := createMockSearchIndex(size)
+	index.NgramIndex = search.BuildNgramIndex(index.Inverted)
 	return index
 }
 

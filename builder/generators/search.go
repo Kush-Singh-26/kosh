@@ -33,7 +33,7 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 		for word, freq := range ip.WordFreqs {
 			postMap, ok := index.Inverted[word]
 			if !ok {
-				postMap = make(map[int]int)
+				postMap = make(map[int]int, 4)
 				index.Inverted[word] = postMap
 			}
 			postMap[i] = freq
@@ -65,6 +65,9 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 	if index.TotalDocs > 0 {
 		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
 	}
+
+	// Build ngram index for fast fuzzy search
+	index.NgramIndex = search.BuildNgramIndex(index.Inverted)
 
 	if err := destFs.MkdirAll(outputDir, 0755); err != nil {
 		return err

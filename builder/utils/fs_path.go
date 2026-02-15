@@ -7,9 +7,14 @@ import (
 	"strings"
 
 	"github.com/spf13/afero"
+	"golang.org/x/text/unicode/norm"
 )
 
 func NormalizePath(path string) string {
+	// Apply NFC normalization for consistent Unicode handling across platforms
+	// This ensures accented characters are handled consistently (e.g., é vs é)
+	path = norm.NFC.String(path)
+
 	// Convert backslashes to forward slashes for consistency
 	path = strings.ReplaceAll(path, "\\", "/")
 

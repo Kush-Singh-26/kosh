@@ -4,6 +4,7 @@ import (
 	"log"
 	"runtime"
 	"sync"
+	"sync/atomic"
 )
 
 // writeRequest represents a request to write SSR data to cache
@@ -19,7 +20,7 @@ type DiagramCacheAdapter struct {
 	local      map[string]string // In-memory buffer for current build
 	mu         sync.RWMutex
 	pending    sync.WaitGroup    // Tracks pending async writes to prevent goroutine leaks
-	closed     bool              // Prevents new operations after Close() is called
+	closed     atomic.Bool       // Prevents new operations after Close() is called
 	writeQueue chan writeRequest // Bounded queue for async writes
 	workers    int               // Number of worker goroutines
 	stopCh     chan struct{}     // Signal to stop workers
@@ -98,12 +99,9 @@ func (a *DiagramCacheAdapter) Get(key string) (string, bool) {
 // Set stores a diagram in the cache
 // Uses bounded worker pool to prevent goroutine explosion with many diagrams
 func (a *DiagramCacheAdapter) Set(key string, value string) {
-	a.mu.RLock()
-	if a.closed {
-		a.mu.RUnlock()
+	if a.closed.Load() {
 		return
 	}
-	a.mu.RUnlock()
 
 	a.mu.Lock()
 	a.local[key] = value
@@ -160,9 +158,7 @@ func (a *DiagramCacheAdapter) AsMap() map[string]string {
 // This should be called during shutdown to prevent goroutine leaks.
 // Safe to call multiple times - uses sync.Once to prevent double-close panic.
 func (a *DiagramCacheAdapter) Close() error {
-	a.mu.Lock()
-	a.closed = true
-	a.mu.Unlock()
+	a.closed.Store(true)
 
 	// Wait for all pending writes to complete
 	a.pending.Wait()

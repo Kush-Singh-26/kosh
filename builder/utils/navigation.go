@@ -48,9 +48,8 @@ func FindPrevNext(currentPost models.PostMetadata, allPosts []models.PostMetadat
 	if currentIdx > 0 {
 		p := sortedPosts[currentIdx-1]
 		prev = &models.NavPage{
-			Title:  p.Title,
-			Link:   p.Link,
-			Weight: p.Weight,
+			Title: p.Title,
+			Link:  p.Link,
 		}
 	}
 
@@ -58,9 +57,8 @@ func FindPrevNext(currentPost models.PostMetadata, allPosts []models.PostMetadat
 	if currentIdx < len(sortedPosts)-1 {
 		n := sortedPosts[currentIdx+1]
 		next = &models.NavPage{
-			Title:  n.Title,
-			Link:   n.Link,
-			Weight: n.Weight,
+			Title: n.Title,
+			Link:  n.Link,
 		}
 	}
 
