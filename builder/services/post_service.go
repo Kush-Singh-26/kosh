@@ -84,29 +84,12 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		mu             sync.Mutex
 	)
 
-	// Use sync.Map for concurrent metadata updates (optimization: avoids lock contention)
-	var allMetadataMap sync.Map
-
-	// Batch storage for BoltDB commit
-	var (
-		batchMu          sync.Mutex
-		newPostsMeta     []*cache.PostMeta
-		newSearchRecords = make(map[string]*cache.SearchRecord)
-		newDeps          = make(map[string]*cache.Dependencies)
-	)
-
-	type RenderContext struct {
-		DestPath string
-		Data     models.PageData
-		Version  string
-	}
-
 	var files []string
 	var fileVersions []string
 	if err := afero.Walk(s.sourceFs, s.cfg.ContentDir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			s.logger.Error("Error walking content directory", "path", path, "error", err)
-			return nil // Continue walking other files
+			return nil
 		}
 		if strings.HasSuffix(path, ".md") && !strings.Contains(path, "_index.md") {
 			if strings.Contains(path, "404.md") {
@@ -120,6 +103,43 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		return nil
 	}); err != nil {
 		s.logger.Error("Failed to walk content directory", "error", err)
+	}
+
+	existingFiles := make(map[string]bool)
+	for _, f := range files {
+		relPath, _ := utils.SafeRel(s.cfg.ContentDir, f)
+		existingFiles[relPath] = true
+	}
+
+	if s.cache != nil {
+		if lister, ok := s.cache.(interface{ ListAllPosts() ([]string, error) }); ok {
+			ids, _ := lister.ListAllPosts()
+			for _, id := range ids {
+				meta, err := s.cache.GetPost(id)
+				if err != nil || meta == nil {
+					continue
+				}
+				if !existingFiles[meta.Path] {
+					s.logger.Info("🗑️ Purging stale cache entry", "path", meta.Path)
+					_ = s.cache.DeletePost(id)
+				}
+			}
+		}
+	}
+
+	var allMetadataMap sync.Map
+
+	var (
+		batchMu          sync.Mutex
+		newPostsMeta     []*cache.PostMeta
+		newSearchRecords = make(map[string]*cache.SearchRecord)
+		newDeps          = make(map[string]*cache.Dependencies)
+	)
+
+	type RenderContext struct {
+		DestPath string
+		Data     models.PageData
+		Version  string
 	}
 
 	// Pre-allocate indexed posts slice and use atomic index for lock-free writes

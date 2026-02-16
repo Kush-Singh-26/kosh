@@ -95,7 +95,7 @@ func main() {
 			go func() {
 				w, err := watch.New([]string{"content", b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
 					fmt.Printf("\n⚡ Change detected: %s | Rebuilding...\n", event.Name)
-					b.BuildChanged(ctx, event.Name)
+					b.BuildChanged(ctx, event.Name, event.Op)
 				})
 				if err != nil {
 					fmt.Printf("❌ Watcher failed: %v\n", err)
@@ -154,7 +154,7 @@ func main() {
 
 			w, err := watch.New([]string{"content", b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
 				fmt.Printf("\n⚡ Change detected: %s | Rebuilding...\n", event.Name)
-				b.BuildChanged(ctx, event.Name)
+				b.BuildChanged(ctx, event.Name, event.Op)
 			})
 			if err != nil {
 				fmt.Printf("❌ Watcher failed: %v\n", err)
