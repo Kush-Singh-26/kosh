@@ -5,9 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fsnotify/fsnotify"
 	gParser "github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
+	"github.com/Kush-Singh-26/kosh/builder/cache"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 
@@ -56,8 +58,7 @@ func (b *Builder) invalidateForTemplate(templatePath string) []string {
 }
 
 // BuildChanged rebuilds only the changed file (for watch mode)
-func (b *Builder) BuildChanged(ctx context.Context, changedPath string) {
-	// Prevent concurrent builds - critical for stability during rapid changes
+func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnotify.Op) {
 	b.buildMu.Lock()
 	defer b.buildMu.Unlock()
 
@@ -67,7 +68,20 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string) {
 	default:
 	}
 
-	b.logger.Info("⚡ Change detected", "path", changedPath)
+	b.logger.Info("⚡ Change detected", "path", changedPath, "op", op.String())
+
+	// Handle file deletion - remove from cache
+	if op&fsnotify.Remove == fsnotify.Remove || op&fsnotify.Rename == fsnotify.Rename {
+		if strings.HasSuffix(changedPath, ".md") && strings.HasPrefix(changedPath, b.cfg.ContentDir) {
+			b.deletePostFromCache(changedPath)
+			if err := b.Build(ctx); err != nil {
+				b.logger.Error("Build failed after deletion", "error", err)
+				return
+			}
+			b.SaveCaches()
+			return
+		}
+	}
 
 	// Handle markdown files - single post rebuild
 	if strings.HasSuffix(changedPath, ".md") && strings.HasPrefix(changedPath, b.cfg.ContentDir) {
@@ -174,4 +188,24 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 	} else {
 		b.logger.Info("✅ No changes detected, skipping...")
 	}
+}
+
+func (b *Builder) deletePostFromCache(path string) {
+	relPath, err := utils.SafeRel(b.cfg.ContentDir, path)
+	if err != nil {
+		b.logger.Error("Failed to get relative path for deletion", "path", path, "error", err)
+		return
+	}
+
+	if b.cacheService == nil {
+		return
+	}
+
+	postID := cache.GeneratePostID("", relPath)
+	if err := b.cacheService.DeletePost(postID); err != nil {
+		b.logger.Error("Failed to delete post from cache", "postID", postID, "error", err)
+		return
+	}
+
+	b.logger.Info("🗑️ Removed deleted post from cache", "path", relPath)
 }

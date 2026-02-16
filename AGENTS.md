@@ -2,7 +2,7 @@
 
 This repository contains **Kosh**, a high-performance Static Site Generator (SSG) built in Go. This guide covers build processes, architecture, testing, and code conventions.
 
-## Project Status: v1.2.0 ✅
+## Project Status: v1.2.1 ✅
 
 All phases of development have been completed:
 - **Phase 1**: Security & Stability (BLAKE3, graceful shutdown, error handling)
@@ -11,6 +11,7 @@ All phases of development have been completed:
 - **Phase 4**: Modernization (Go 1.23, Generics, dependency updates)
 - **Phase 5**: Search Enhancement (Msgpack, stemming, fuzzy search, phrase matching)
 - **Phase 6**: Hugo-Style Distribution (detached themes, go install, custom outputDir)
+- **Phase 7**: Performance Audit & Dead Code Cleanup (body hash caching, LRU cache, race condition fixes)
 
 ---
 
@@ -259,6 +260,16 @@ pool.Stop()
 *   **Content-Addressed Storage**: Large content stored by BLAKE3 hash
 *   **Batch Operations**: Group database writes for better throughput
 *   **Pre-computed Fields**: Search indexes store normalized strings to avoid runtime `ToLower()`
+*   **Body Hash Caching** (v1.2.1): Body content hashed separately from frontmatter for accurate cache invalidation
+*   **In-Memory LRU Cache** (v1.2.1): Hot PostMeta data cached with 5-minute TTL for faster lookups
+*   **SSR Hash Tracking** (v1.2.1): D2 diagrams and LaTeX math hashes tracked for proper cache management
+
+### Build Order (Critical)
+Static assets MUST complete before post rendering because templates use the `Assets` map (hashed CSS/JS filenames). The build pipeline enforces this order:
+1. Static assets build → populates `Assets` map via `SetAssets()`
+2. Posts render → templates use `{{ index .Assets "/static/css/layout.css" }}`
+3. Global pages render → same asset references
+4. PWA generation → uses `GetAssets()`
 
 ### Build Metrics
 Build performance is tracked via `builder/metrics/metrics.go`.
@@ -289,6 +300,8 @@ Build performance is tracked via `builder/metrics/metrics.go`.
     *   **`cache/`**: BoltDB-based cache with content-addressed storage and BLAKE3 hashing.
         *   Uses generic `getCachedItem[T any]` for type-safe retrieval
         *   Object pooling for batch operations
+        *   In-memory LRU cache for hot PostMeta data (v1.2.1)
+        *   Body hash tracking for accurate cache invalidation (v1.2.1)
     *   **`search/`**: **Advanced Search Engine.** BM25 scoring with fuzzy matching, stemming, and phrase support.
         *   `engine.go` - Main search logic with BM25, fuzzy, and phrase matching
         *   `analyzer.go` - Text analysis pipeline (tokenization, stop words, stemming)
@@ -516,7 +529,7 @@ The SSG validates theme presence at startup:
 
 ---
 
-## 9. Custom Output Directory
+## 10. Custom Output Directory
 
 Kosh supports custom output directories for Hugo-style integration with existing sites.
 
@@ -568,7 +581,7 @@ Cached posts automatically regenerate URLs with the current `baseURL`. This allo
 
 ---
 
-## 9. Release Checklist
+## 11. Release Checklist
 
 Before releasing a new version:
 
@@ -583,7 +596,7 @@ Before releasing a new version:
 
 ---
 
-## 10. Search Engine Features
+## 12. Search Engine Features
 
 The search engine provides advanced full-text search capabilities:
 
@@ -627,6 +640,31 @@ tag:nlp attention       # Tag + terms
 
 ---
 
-**Version:** v1.2.0  
-**Last Updated:** 2026-02-15  
+## 13. Version History
+
+### v1.2.1 (2026-02-16)
+
+**Performance Optimizations:**
+- **Body Hash Caching**: Body content hashed separately from frontmatter, fixing a critical bug where body-only changes were silently ignored by the cache
+- **In-Memory LRU Cache**: Hot PostMeta data cached with 5-minute TTL, reducing BoltDB reads for frequently accessed posts
+- **SSR Hash Tracking**: D2 diagrams and LaTeX math hashes now tracked in `SSRInputHashes` field for proper cache management
+- **Stemming Cache**: `StemCached()` uses `sync.Map` for ~76x speedup on repeated words
+- **Ngram Index for Fuzzy Search**: Pre-built trigram index enables ~20% faster fuzzy queries
+- **Double ReadFile Fix**: Image encoding now done once to buffer, then written to both cache and destination
+
+**Bug Fixes:**
+- **Race Condition Fix**: Static assets now build synchronously before post rendering, ensuring `Assets` map is populated when templates render (previously caused CSS 404 errors on post pages)
+- **filepath.WalkDir**: More efficient than `filepath.Walk`, avoids extra stat calls
+- **bytes.Contains**: Avoids string allocation when checking frontmatter delimiters
+
+**Dead Code Cleanup:**
+- Removed unused breadcrumb functionality
+- Removed unused pool instances (`SharedStringBuilderPool`, `SharedByteSlicePool`)
+- Cleaned up empty test functions
+- Removed duplicate code (favicon path helper, StoreHTML methods)
+
+---
+
+**Version:** v1.2.1  
+**Last Updated:** 2026-02-16  
 **Status:** Production Ready ✅
