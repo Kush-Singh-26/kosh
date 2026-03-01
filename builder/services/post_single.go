@@ -18,6 +18,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/search"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
@@ -153,6 +154,33 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 	prev, next := utils.FindPrevNext(post, versionPosts)
 	siteTree := utils.BuildSiteTree(versionPosts, post.Link)
 
+	normalizedTags := make([]string, len(post.Tags))
+	for i, t := range post.Tags {
+		normalizedTags[i] = strings.ToLower(t)
+	}
+
+	var sb strings.Builder
+	sb.Grow(len(post.Title) + len(post.Description) + len(plainText) + 200)
+	sb.WriteString(post.Title)
+	sb.WriteByte(' ')
+	sb.WriteString(post.Description)
+	sb.WriteByte(' ')
+	for _, t := range post.Tags {
+		sb.WriteString(t)
+		sb.WriteByte(' ')
+	}
+	sb.WriteString(plainText)
+
+	// Analyze with stemming and stop words
+	words := search.DefaultAnalyzer.Analyze(sb.String())
+	docLen := len(words)
+	wordFreqs := make(map[string]int)
+	for _, w := range words {
+		if len(w) >= 2 {
+			wordFreqs[w]++
+		}
+	}
+
 	if s.cache != nil {
 		htmlHash, _ := s.cache.StoreHTML([]byte(htmlContent))
 
@@ -175,14 +203,9 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 			SSRInputHashes: ssrHashes,
 		}
 
-		normalizedTags := make([]string, len(post.Tags))
-		for i, t := range post.Tags {
-			normalizedTags[i] = strings.ToLower(t)
-		}
-
 		newSearch := &cache.SearchRecord{
 			Title: post.Title, NormalizedTitle: strings.ToLower(post.Title),
-			BM25Data: make(map[string]int), DocLen: wordCount, Content: plainText,
+			BM25Data: wordFreqs, DocLen: docLen, Content: plainText,
 			NormalizedTags: normalizedTags,
 		}
 		newDep := &cache.Dependencies{Tags: post.Tags}

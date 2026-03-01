@@ -33,20 +33,38 @@ type Renderer struct {
 	katexProg  *goja.Program // Pre-compiled program to share across workers
 }
 
+type RendererOption func(*Renderer)
+
+func WithWorkers(n int) RendererOption {
+	return func(r *Renderer) {
+		if n > 0 {
+			r.numWorkers = n
+		}
+	}
+}
+
 // New creates a new Renderer - workers are lazy-initialized
-func New() *Renderer {
+func New(opts ...RendererOption) *Renderer {
 	numWorkers := runtime.NumCPU()
 	if numWorkers < 1 {
 		numWorkers = 1
 	}
 
-	// Channel buffer is sized to numWorkers to prevent deadlocks
-	// Workers are returned to pool after use, so this is safe as long as
-	// we never create more workers than the buffer size.
-	return &Renderer{
+	r := &Renderer{
 		pool:       make(chan *instance, numWorkers),
 		numWorkers: numWorkers,
 	}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	// Re-create pool with correct size if workers were changed
+	if r.numWorkers != numWorkers {
+		r.pool = make(chan *instance, r.numWorkers)
+	}
+
+	return r
 }
 
 // ensureInitialized lazily creates worker instances on first use

@@ -6,15 +6,18 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/cache"
 )
 
 type templateCache struct {
 	templates   map[string]*template.Template
 	mtimes      map[string]time.Time
+	hashes      map[string]string
 	templateDir string
 	mu          sync.RWMutex
 	lastCheck   time.Time
-	checkTTL    time.Duration // How often to re-check mtimes
+	checkTTL    time.Duration
 }
 
 var (
@@ -27,8 +30,9 @@ func getGlobalCache(templateDir string) *templateCache {
 		globalCache = &templateCache{
 			templates:   make(map[string]*template.Template),
 			mtimes:      make(map[string]time.Time),
+			hashes:      make(map[string]string),
 			templateDir: templateDir,
-			checkTTL:    2 * time.Second, // Only check mtimes every 2s
+			checkTTL:    2 * time.Second,
 		}
 	})
 	return globalCache
@@ -40,7 +44,7 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 	tc.mu.RLock()
 	if now.Sub(tc.lastCheck) < tc.checkTTL {
 		tc.mu.RUnlock()
-		return false // Skip check, assume unchanged within TTL
+		return false
 	}
 	tc.mu.RUnlock()
 
@@ -49,13 +53,18 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 
 	for _, fname := range templateFiles {
 		path := filepath.Join(tc.templateDir, fname)
-		info, err := os.Stat(path)
+		content, err := os.ReadFile(path)
 		if err != nil {
 			continue
 		}
 
-		cachedMtime, exists := tc.mtimes[fname]
-		if !exists || info.ModTime().After(cachedMtime) {
+		hash := cache.HashContent(content)
+
+		tc.mu.RLock()
+		cachedHash, exists := tc.hashes[fname]
+		tc.mu.RUnlock()
+
+		if !exists || cachedHash != hash {
 			changed = true
 			break
 		}
@@ -68,9 +77,12 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 	return changed
 }
 
-func (tc *templateCache) setTemplate(name string, tmpl *template.Template, mtime time.Time) {
+func (tc *templateCache) setTemplate(name string, tmpl *template.Template, mtime time.Time, content []byte) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 	tc.templates[name] = tmpl
 	tc.mtimes[name] = mtime
+	if len(content) > 0 {
+		tc.hashes[name] = cache.HashContent(content)
+	}
 }

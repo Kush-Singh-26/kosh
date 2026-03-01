@@ -5,68 +5,74 @@ import (
 	"os"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
-// handleCacheCommand processes cache-related subcommands
-func handleCacheCommand(args []string) {
-	if len(args) < 1 {
-		printCacheUsage()
-		os.Exit(1)
-	}
+var (
+	cacheDryRun bool
+)
 
-	subcommand := args[0]
-	subArgs := args[1:]
-
-	switch subcommand {
-	case "stats":
-		cacheStats()
-	case "gc":
-		dryRun := false
-		for _, arg := range subArgs {
-			if arg == "--dry-run" || arg == "-n" {
-				dryRun = true
-			}
-		}
-		cacheGC(dryRun)
-	case "verify":
-		cacheVerify()
-	case "rebuild":
-		cacheRebuild()
-	case "clear":
-		cacheClear()
-	case "inspect":
-		if len(subArgs) < 1 {
-			fmt.Println("Usage: kosh cache inspect <path>")
-			os.Exit(1)
-		}
-		cacheInspect(subArgs[0])
-	default:
-		fmt.Printf("Unknown cache subcommand: %s\n", subcommand)
-		printCacheUsage()
-		os.Exit(1)
-	}
+var cacheCmd = &cobra.Command{
+	Use:   "cache",
+	Short: "Cache management commands",
+	Long:  `Manage the Kosh cache. Includes stats, garbage collection, verification, and inspection.`,
 }
 
-func printCacheUsage() {
-	fmt.Println("Usage: kosh cache <subcommand> [arguments]")
-	fmt.Println("\nSubcommands:")
-	fmt.Println("  stats          Show cache statistics")
-	fmt.Println("  gc             Run garbage collection")
-	fmt.Println("  verify         Check cache integrity")
-	fmt.Println("  rebuild        Force full cache rebuild")
-	fmt.Println("  clear          Delete all cache data")
-	fmt.Println("  inspect <path> Show cache entry for a specific file")
-	fmt.Println("\nFlags for gc:")
-	fmt.Println("  --dry-run, -n  Show what would be deleted without deleting")
+var cacheStatsCmd = &cobra.Command{
+	Use:   "stats",
+	Short: "Show cache statistics",
+	Run:   runCacheStats,
+}
+
+var cacheGCCmd = &cobra.Command{
+	Use:   "gc",
+	Short: "Run garbage collection on cache",
+	Run:   runCacheGC,
+}
+
+var cacheVerifyCmd = &cobra.Command{
+	Use:   "verify",
+	Short: "Check cache integrity",
+	Run:   runCacheVerify,
+}
+
+var cacheRebuildCmd = &cobra.Command{
+	Use:   "rebuild",
+	Short: "Clear cache for full rebuild",
+	Run:   runCacheRebuild,
+}
+
+var cacheClearCmd = &cobra.Command{
+	Use:   "clear",
+	Short: "Delete all cache data",
+	Run:   runCacheClear,
+}
+
+var cacheInspectCmd = &cobra.Command{
+	Use:   "inspect <path>",
+	Short: "Show cache entry for a file",
+	Args:  cobra.ExactArgs(1),
+	Run:   runCacheInspect,
+}
+
+func init() {
+	rootCmd.AddCommand(cacheCmd)
+
+	cacheCmd.AddCommand(cacheStatsCmd)
+	cacheCmd.AddCommand(cacheGCCmd)
+	cacheCmd.AddCommand(cacheVerifyCmd)
+	cacheCmd.AddCommand(cacheRebuildCmd)
+	cacheCmd.AddCommand(cacheClearCmd)
+	cacheCmd.AddCommand(cacheInspectCmd)
+
+	cacheGCCmd.Flags().BoolVarP(&cacheDryRun, "dry-run", "n", false, "Show what would be deleted without deleting")
 }
 
 func openCache() *cache.Manager {
-	// Load config to get cache directory
 	cfg := config.Load([]string{})
-
-	// Cache commands run in production mode for durability
 	cm, err := cache.Open(cfg.CacheDir, false)
 	if err != nil {
 		fmt.Printf("❌ Failed to open cache: %v\n", err)
@@ -75,7 +81,7 @@ func openCache() *cache.Manager {
 	return cm
 }
 
-func cacheStats() {
+func runCacheStats(cmd *cobra.Command, args []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
@@ -99,22 +105,21 @@ func cacheStats() {
 		fmt.Printf("Last GC:         never\n")
 	}
 
-	// Storage metrics
 	fmt.Println("\n📦 Storage Metrics")
 	fmt.Println("────────────────────────────────────────")
 	fmt.Printf("Inline Posts:    %d (%.1f%%)\n", stats.InlinePosts, float64(stats.InlinePosts)*100/float64(stats.TotalPosts))
 	fmt.Printf("Hashed Posts:    %d (%.1f%%)\n", stats.HashedPosts, float64(stats.HashedPosts)*100/float64(stats.TotalPosts))
 }
 
-func cacheGC(dryRun bool) {
+func runCacheGC(cmd *cobra.Command, args []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
 	cfg := cache.DefaultGCConfig()
-	cfg.DryRun = dryRun
-	cfg.MinBuildsBetweenGC = 0 // Always run when manually invoked
+	cfg.DryRun = cacheDryRun
+	cfg.MinBuildsBetweenGC = 0
 
-	if dryRun {
+	if cacheDryRun {
 		fmt.Println("🗑️  Running GC (dry run)...")
 	} else {
 		fmt.Println("🗑️  Running garbage collection...")
@@ -132,14 +137,14 @@ func cacheGC(dryRun bool) {
 	fmt.Printf("Deleted:    %d blobs (%.2f MB)\n", result.DeletedBlobs, float64(result.DeletedBytes)/(1024*1024))
 	fmt.Printf("Duration:   %v\n", result.Duration)
 
-	if dryRun {
+	if cacheDryRun {
 		fmt.Println("\n(No changes made - dry run mode)")
 	} else {
 		fmt.Println("\n✅ GC complete")
 	}
 }
 
-func cacheVerify() {
+func runCacheVerify(cmd *cobra.Command, args []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
@@ -161,7 +166,7 @@ func cacheVerify() {
 	}
 }
 
-func cacheRebuild() {
+func runCacheRebuild(cmd *cobra.Command, args []string) {
 	cm := openCache()
 
 	fmt.Println("🔄 Clearing cache for rebuild...")
@@ -175,7 +180,7 @@ func cacheRebuild() {
 	fmt.Println("✅ Cache cleared. Run 'kosh build' to rebuild.")
 }
 
-func cacheClear() {
+func runCacheClear(cmd *cobra.Command, args []string) {
 	cm := openCache()
 
 	fmt.Println("🗑️  Clearing all cache data...")
@@ -189,7 +194,8 @@ func cacheClear() {
 	fmt.Println("✅ Cache cleared")
 }
 
-func cacheInspect(path string) {
+func runCacheInspect(cmd *cobra.Command, args []string) {
+	path := args[0]
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 

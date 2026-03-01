@@ -35,9 +35,11 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 		genWg.Add(1)
 		go func() {
 			defer genWg.Done()
+			searchTimer := utils.StartPhase("Search index generation")
 			if err := generators.GenerateSearchIndex(b.DestFs, outputDir, indexedPosts); err != nil {
 				b.logger.Error("Failed to generate search index", "error", err)
 			}
+			searchTimer.Stop()
 		}()
 	}
 

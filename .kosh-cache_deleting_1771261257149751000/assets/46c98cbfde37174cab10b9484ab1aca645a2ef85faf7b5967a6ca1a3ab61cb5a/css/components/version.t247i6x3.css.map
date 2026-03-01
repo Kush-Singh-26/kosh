@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../themes/docs/static/css/components/version.css"],
+  "sourcesContent": ["/* Clarity in Motion - Version Selector\n * Dropdown for switching documentation versions\n */\n\n/* ========================================\n   Version Selector\n   ======================================== */\n\n.version-selector {\n  background: var(--bg-surface);\n  border: 1px solid var(--bg-border);\n  color: var(--text-primary);\n  padding: var(--space-1) var(--space-3);\n  border-radius: var(--radius-md);\n  font-size: var(--text-sm);\n  font-family: var(--font-sans);\n  cursor: pointer;\n  transition: all 0.2s ease;\n}\n\n.version-selector:hover {\n  border-color: var(--color-brand);\n}\n\n.version-selector:focus {\n  outline: none;\n  border-color: var(--color-brand);\n  box-shadow: 0 0 0 2px var(--color-brand-light);\n}\n"],
+  "mappings": "AAQA,CAAC,iBACC,WAAY,IAAI,cAChB,OAAQ,IAAI,MAAM,IAAI,aACtB,MAAO,IAAI,gBACX,QAAS,IAAI,WAAW,IAAI,WAC5B,cAAe,IAAI,aACnB,UAAW,IAAI,WACf,YAAa,IAAI,aACjB,OAAQ,QACR,WAAY,IAAI,IAAK,IACvB,CAEA,CAZC,gBAYgB,OACf,aAAc,IAAI,cACpB,CAEA,CAhBC,gBAgBgB,OACf,QAAS,KACT,aAAc,IAAI,eAClB,WAAY,EAAE,EAAE,EAAE,IAAI,IAAI,oBAC5B",
+  "names": []
+}

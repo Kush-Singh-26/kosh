@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../themes/docs/static/css/components/buttons.css"],
+  "sourcesContent": ["/* Clarity in Motion - Buttons & Badges\n * Badges, source links, and small UI elements\n */\n\n/* ========================================\n   Badges & Labels\n   ======================================== */\n\n.badge {\n  display: inline-block;\n  padding: var(--space-1) var(--space-2);\n  border-radius: var(--radius-sm);\n  font-size: var(--text-xs);\n  background: var(--bg-surface);\n  color: var(--text-muted);\n  border: 1px solid var(--bg-border);\n}\n\n.source-link {\n  text-decoration: none;\n  color: var(--color-brand);\n  transition: all 0.2s ease;\n}\n\n.source-link:hover {\n  background: var(--color-brand);\n  color: var(--text-inverse);\n  text-decoration: none;\n}\n\n.source-link::after {\n  display: none;\n}\n"],
+  "mappings": "AAQA,CAAC,MACC,QAAS,aACT,QAAS,IAAI,WAAW,IAAI,WAC5B,cAAe,IAAI,aACnB,UAAW,IAAI,WACf,WAAY,IAAI,cAChB,MAAO,IAAI,cACX,OAAQ,IAAI,MAAM,IAAI,YACxB,CAEA,CAAC,YACC,gBAAiB,KACjB,MAAO,IAAI,eACX,WAAY,IAAI,IAAK,IACvB,CAEA,CANC,WAMW,OACV,WAAY,IAAI,eAChB,MAAO,IAAI,gBACX,gBAAiB,IACnB,CAEA,CAZC,WAYW,OACV,QAAS,IACX",
+  "names": []
+}

@@ -409,8 +409,8 @@ go install ./cmd/kosh
 ### Rendering
 - **D2 Diagrams**: `oss.terrastruct.com/d2` v0.7.1
 - **LaTeX**: `github.com/dop251/goja` (KaTeX via JS)
-- **Images**: `github.com/disintegration/imaging`
-- **WebP**: `github.com/chai2010/webp`
+- **Images**: `github.com/twincats/golibvips` (libvips bindings)
+- **WebP**: `github.com/twincats/golibvips` (via libvips)
 
 ### Build Tools
 - **Minification**: `github.com/tdewolff/minify/v2`
@@ -431,9 +431,12 @@ go install ./cmd/kosh
 3. Push to `main` branch triggers automatic deployment
 
 The workflow automatically:
+- Installs libvips (required for image processing)
 - Builds the Kosh CLI
 - Restores cache for incremental builds
 - Deploys to `https://<owner>.github.io/<repo>/`
+
+**Note:** The deployment workflow includes `libvips-dev` installation for image optimization.
 
 ### Custom Domain
 

@@ -3,8 +3,10 @@ package services
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"html/template"
 	"io/fs"
+	"log"
 	"log/slog"
 	"math"
 	"os"
@@ -149,6 +151,9 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	renderQueue := make([]RenderContext, len(files))
 
 	numWorkers := utils.GetDefaultWorkerCount()
+	if s.cfg.ParserWorkers > 0 {
+		numWorkers = s.cfg.ParserWorkers
+	}
 
 	cardPool := utils.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) {
 		s.generateSocialCard(task)
@@ -161,8 +166,16 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			ids, _ := lister.ListAllPosts()
 			cachedPosts, _ := s.cache.GetPostsByIDs(ids)
 			for _, cp := range cachedPosts {
-				allMetadataMap.Store(cp.Link, models.PostMetadata{
-					Title: cp.Title, Link: cp.Link, Weight: cp.Weight, Version: cp.Version,
+				// Reconstruct correct link for the current BaseURL
+				htmlRelPath := strings.ToLower(strings.Replace(cp.Path, ".md", ".html", 1))
+				cleanHtmlRelPath := htmlRelPath
+				if cp.Version != "" {
+					cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(cp.Version)+"/")
+				}
+				regeneratedLink := utils.BuildURL(s.cfg.BaseURL, cp.Version, cleanHtmlRelPath)
+
+				allMetadataMap.Store(regeneratedLink, models.PostMetadata{
+					Title: cp.Title, Link: regeneratedLink, Weight: cp.Weight, Version: cp.Version,
 					DateObj: cp.Date, ReadingTime: cp.ReadingTime, Description: cp.Description,
 					Tags: cp.Tags, Pinned: cp.Pinned, Draft: cp.Draft,
 				})
@@ -170,6 +183,8 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		}
 	}
 
+	log.Printf("   📝 Parsing %d posts...", len(files))
+	parseTimer := utils.StartPhase(fmt.Sprintf("Parse %d posts", len(files)))
 	parsePool := utils.NewWorkerPool(ctx, numWorkers, func(pt struct {
 		idx     int
 		path    string
@@ -228,6 +243,14 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		// Invalidate cache if body content changed (regardless of ModTime)
 		if exists && cachedMeta != nil && cachedMeta.BodyHash != "" && cachedMeta.BodyHash != bodyHash {
 			exists = false
+		}
+
+		// Invalidate cache if frontmatter changed (compute hash from raw source without full parsing)
+		if exists && cachedMeta != nil && cachedMeta.ContentHash != "" {
+			currentFrontmatterHash, _ := utils.GetFrontmatterHashFromSource(source)
+			if currentFrontmatterHash != "" && currentFrontmatterHash != cachedMeta.ContentHash {
+				exists = false
+			}
 		}
 
 		useCache := exists && !shouldForce
@@ -406,6 +429,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		}
 
 		if post.Draft && !s.cfg.IncludeDrafts {
+			allMetadataMap.Delete(post.Link)
 			return
 		}
 
@@ -565,6 +589,7 @@ Loop:
 		}
 	}
 	parsePool.Stop()
+	parseTimer.Stop()
 	cardPool.Stop() // Wait for all social card generation to complete
 
 	// Final Metadata Grouping (merges Cache + Source)
@@ -615,6 +640,8 @@ Loop:
 	})
 	renderPool.Start()
 
+	log.Printf("   🎨 Rendering %d pages...", len(renderQueue))
+	renderTimer := utils.StartPhase(fmt.Sprintf("Render %d pages", len(renderQueue)))
 	for i := range renderQueue {
 		task := &renderQueue[i]
 		if task.DestPath == "" {
@@ -642,6 +669,7 @@ Loop:
 		renderPool.Submit(*task)
 	}
 	renderPool.Stop()
+	renderTimer.Stop()
 
 	if s.cache != nil && len(newPostsMeta) > 0 {
 		if err := s.cache.BatchCommit(newPostsMeta, newSearchRecords, newDeps); err != nil {
@@ -653,11 +681,14 @@ Loop:
 	utils.SortPosts(allPosts)
 	utils.SortPosts(pinnedPosts)
 
+	// Truncate indexedPosts to actual processed count
+	finalIndexedPosts := indexedPosts[:indexedPostIdx+1]
+
 	return &PostResult{
 		AllPosts:       allPosts,
 		PinnedPosts:    pinnedPosts,
 		TagMap:         tagMap,
-		IndexedPosts:   indexedPosts,
+		IndexedPosts:   finalIndexedPosts,
 		AnyPostChanged: anyPostChanged.Load(),
 		Has404:         has404,
 	}, nil

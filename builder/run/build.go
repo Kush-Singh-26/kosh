@@ -114,7 +114,9 @@ func (b *Builder) Build(ctx context.Context) error {
 
 	// 2. Static Assets (MUST complete before posts to populate Assets map)
 	fmt.Println("📦 Building assets...")
+	assetTimer := utils.StartPhase("Asset building")
 	b.copyStaticAndBuildAssets(ctx)
+	assetTimer.Stop()
 	_ = utils.WriteFileVFS(b.DestFs, filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte(""))
 
 	if len(affectedPosts) > 0 && b.cacheService != nil {
@@ -245,14 +247,18 @@ func (b *Builder) Build(ctx context.Context) error {
 		anyPostChanged = true
 	} else {
 		fmt.Println("📝 Processing content...")
+		contentTimer := utils.StartPhase("Content processing")
 		allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing)
+		contentTimer.Stop()
 		fmt.Println("   ✅ Content processed.")
 	}
 
 	// 4. Generate Global Pages
 	if shouldForce || anyPostChanged {
 		fmt.Println("📄 Rendering pagination...")
+		paginationTimer := utils.StartPhase("Pagination")
 		b.renderPagination(allPosts, pinnedPosts, shouldForce)
+		paginationTimer.Stop()
 	}
 
 	if !has404 {
@@ -266,11 +272,14 @@ func (b *Builder) Build(ctx context.Context) error {
 
 	if shouldForce || anyPostChanged || forceSocialRebuild {
 		fmt.Println("🏷️  Rendering tags...")
+		tagsTimer := utils.StartPhase("Tags rendering")
 		b.renderTags(tagMap, forceSocialRebuild)
+		tagsTimer.Stop()
 	}
 
 	if shouldForce || anyPostChanged {
 		fmt.Println("🕸️  Rendering graph and metadata...")
+		graphTimer := utils.StartPhase("Graph and metadata")
 		b.renderService.RenderGraph(filepath.Join(b.cfg.OutputDir, "graph.html"), models.PageData{
 			Title:        "Graph View",
 			TabTitle:     "Knowledge Graph | " + cfg.Title,
@@ -280,6 +289,7 @@ func (b *Builder) Build(ctx context.Context) error {
 		})
 		allContent := append(allPosts, pinnedPosts...)
 		b.generateMetadata(allContent, tagMap, indexedPosts, shouldForce)
+		graphTimer.Stop()
 	}
 
 	// 5. PWA (Run concurrently)
@@ -292,7 +302,9 @@ func (b *Builder) Build(ctx context.Context) error {
 				return
 			default:
 				fmt.Println("📱 Generating PWA...")
+				pwaTimer := utils.StartPhase("PWA generation")
 				b.generatePWA(shouldForce)
+				pwaTimer.Stop()
 			}
 		}()
 	}
@@ -302,9 +314,11 @@ func (b *Builder) Build(ctx context.Context) error {
 
 	// Now sync VFS to disk (includes completed social cards)
 	fmt.Println("💾 Syncing to disk...")
+	syncTimer := utils.StartPhase("VFS sync to disk")
 	if err := utils.SyncVFS(b.DestFs, b.cfg.OutputDir, b.renderService.GetRenderedFiles()); err != nil {
 		b.logger.Error("Failed to sync VFS to disk", "error", err)
 	}
+	syncTimer.Stop()
 	b.renderService.ClearRenderedFiles()
 
 	// Build complete

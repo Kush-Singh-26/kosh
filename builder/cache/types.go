@@ -21,7 +21,6 @@ type PostMeta struct {
 	BodyHash       string                 `msgpack:"body_hash"`             // Body content hash (CRITICAL for cache validity)
 	HTMLHash       string                 `msgpack:"html_hash,omitempty"`   // Only for large posts
 	InlineHTML     []byte                 `msgpack:"inline_html,omitempty"` // < 32KB posts stored inline
-	TemplateHash   string                 `msgpack:"template_hash"`
 	SSRInputHashes []string               `msgpack:"ssr_input_hashes"`
 	Title          string                 `msgpack:"title"`
 	Date           time.Time              `msgpack:"date"`

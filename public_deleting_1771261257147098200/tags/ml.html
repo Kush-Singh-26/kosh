@@ -1,0 +1,75 @@
+<!doctype html><html lang=en><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1"><title>#ml | Kush Blogs</title><link rel=preconnect href=https://fonts.googleapis.com><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel=stylesheet><link rel=preload href=/static/wasm/search.wasm as=fetch crossorigin><link rel=stylesheet href=/static/css/theme.ZKLTYHIA.css><link rel=stylesheet href=/static/css/layout.3JDQPZXT.css><link rel=stylesheet href=/static/css/components/admonitions.EIQ5W3IM.css><link rel=stylesheet href=/static/css/components/modal.L6VNA5CE.css><link rel=stylesheet href=/static/css/syntax.F3E27C5A.css><link rel=icon type=image/png href=/static/images/kush3.png><script>
+        
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script><div class=docs-layout><header class=docs-header><div class=logo><a href=/ class=logo-link><img src=/static/images/kush3.png alt=Logo class=site-logo>
+<span>Kush Blogs</span></a></div><nav><button id=search-btn class=search-btn>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+<span>Search</span>
+<span class=search-shortcut>Ctrl K</span>
+</button>
+<button id=theme-toggle>🌙</button></nav></header><aside class=docs-sidebar><ul class=tree-root></ul></aside><main class=docs-main><article><div class=article-header><h1>#ml</h1><div class=meta><a href=/tags/ml.md target=_blank class="badge source-link">View Source</a></div></div><div class=content></div></article></main><aside class=docs-toc><strong>On this page</strong></aside></div><div id=search-modal class=modal><div class=modal-content><div class=search-header><input id=search-input placeholder="Search docs..." autocomplete=off>
+<span class=close-search>&#215;</span></div><div class=search-options><label class=search-option><input type=checkbox id=search-all-versions>
+<span>Search all versions</span></label></div><div id=search-results></div><div class=search-footer>Search docs | <kbd>Esc</kbd> to close | <kbd>↑↓</kbd> to navigate</div></div></div><script>
+        window.siteBaseURL = "";
+        
+    </script><script defer src=/static/js/wasm_exec.6ME2P5AW.js></script><script defer src=/static/js/search.3A5A62PM.js></script><script defer src=/static/js/version-switcher.E62DPIRL.js></script><script defer src=/static/js/docs-features.KWMCRORE.js></script><script>
+        (function () {
+            const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+
+            
+            if (hosts.includes(window.location.hostname)) {
+                
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(registration => {
+                            registration.unregister();
+                        });
+                    });
+                }
+
+                
+                if ('caches' in window) {
+                    caches.keys().then(cacheNames => {
+                        cacheNames.forEach(cacheName => {
+                            caches.delete(cacheName);
+                        });
+                    });
+                }
+
+                
+                let reloadTimeout;
+                const source = new EventSource("/events");
+                source.onmessage = function (event) {
+                    if (event.data === "reload") {
+                        if (reloadTimeout) clearTimeout(reloadTimeout);
+                        reloadTimeout = setTimeout(() => {
+                            window.location.reload();
+                        }, 250);
+                    }
+                };
+                source.onerror = function () {
+                    source.close();
+                };
+            } else {
+                
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => {
+                        const swPath = '/sw.js';
+                        navigator.serviceWorker.register(swPath)
+                            .then(registration => {
+                                console.log('✅ ServiceWorker registered');
+                            })
+                            .catch(err => {
+                                console.error('❌ ServiceWorker registration failed:', err);
+                            });
+                    });
+                }
+            }
+        })();
+    </script>

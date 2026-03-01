@@ -32,7 +32,7 @@ func startWatcherWithConfig(dir string, debounce time.Duration) {
 		return
 	}
 
-	reloadChan = make(chan struct{})
+	reloadChan = make(chan struct{}, 1)
 
 	watcherWg.Add(1)
 	go func() {

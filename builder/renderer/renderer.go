@@ -57,10 +57,14 @@ func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger
 	tc.mu.RUnlock()
 
 	layoutPath := filepath.Join(templateDir, "layout.html")
-	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles(layoutPath)
+	layoutContent, err := os.ReadFile(layoutPath)
+	if err != nil {
+		logger.Error("Failed to read layout template", "path", layoutPath, "error", err)
+		os.Exit(1)
+	}
+	tmpl, err := template.New("layout.html").Funcs(funcMap).Parse(string(layoutContent))
 	if err != nil {
 		logger.Error("Failed to parse layout template", "path", layoutPath, "error", err)
-		// Check if error might be due to template cycle
 		if strings.Contains(err.Error(), "template") && strings.Contains(err.Error(), "not defined") {
 			logger.Error("Possible template cycle detected - check for circular {{ template }} references")
 		}
@@ -68,41 +72,57 @@ func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger
 	}
 	layoutInfo, _ := os.Stat(layoutPath)
 	if layoutInfo != nil {
-		tc.setTemplate("layout", tmpl, layoutInfo.ModTime())
+		tc.setTemplate("layout", tmpl, layoutInfo.ModTime(), layoutContent)
 	}
 
 	indexPath := filepath.Join(templateDir, "index.html")
-	indexTmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles(indexPath)
+	var indexTmpl *template.Template
+	indexContent, err := os.ReadFile(indexPath)
 	if err != nil {
 		logger.Warn("Index template not found, falling back to layout", "dir", templateDir, "error", err)
-		indexTmpl = nil
 	} else {
-		indexInfo, _ := os.Stat(indexPath)
-		if indexInfo != nil {
-			tc.setTemplate("index", indexTmpl, indexInfo.ModTime())
+		indexTmpl, err = template.New("index.html").Funcs(funcMap).Parse(string(indexContent))
+		if err != nil {
+			logger.Warn("Failed to parse index template", "dir", templateDir, "error", err)
+		} else {
+			indexInfo, _ := os.Stat(indexPath)
+			if indexInfo != nil {
+				tc.setTemplate("index", indexTmpl, indexInfo.ModTime(), indexContent)
+			}
 		}
 	}
 
 	graphPath := filepath.Join(templateDir, "graph.html")
-	graphTmpl, err := template.ParseFiles(graphPath)
+	var graphTmpl *template.Template
+	graphContent, err := os.ReadFile(graphPath)
 	if err != nil {
 		logger.Warn("Graph template not found, skipping graph page", "dir", templateDir, "error", err)
 	} else {
-		graphInfo, _ := os.Stat(graphPath)
-		if graphInfo != nil {
-			tc.setTemplate("graph", graphTmpl, graphInfo.ModTime())
+		graphTmpl, err = template.ParseFiles(graphPath)
+		if err != nil {
+			logger.Warn("Failed to parse graph template", "dir", templateDir, "error", err)
+		} else {
+			graphInfo, _ := os.Stat(graphPath)
+			if graphInfo != nil {
+				tc.setTemplate("graph", graphTmpl, graphInfo.ModTime(), graphContent)
+			}
 		}
 	}
 
 	notFoundPath := filepath.Join(templateDir, "404.html")
-	notFoundTmpl, err := template.New("404.html").Funcs(funcMap).ParseFiles(notFoundPath)
+	var notFoundTmpl *template.Template
+	notFoundContent, err := os.ReadFile(notFoundPath)
 	if err != nil {
 		logger.Warn("404 template not found, falling back to layout", "dir", templateDir, "error", err)
-		notFoundTmpl = nil
 	} else {
-		notFoundInfo, _ := os.Stat(notFoundPath)
-		if notFoundInfo != nil {
-			tc.setTemplate("404", notFoundTmpl, notFoundInfo.ModTime())
+		notFoundTmpl, err = template.New("404.html").Funcs(funcMap).Parse(string(notFoundContent))
+		if err != nil {
+			logger.Warn("Failed to parse 404 template", "dir", templateDir, "error", err)
+		} else {
+			notFoundInfo, _ := os.Stat(notFoundPath)
+			if notFoundInfo != nil {
+				tc.setTemplate("404", notFoundTmpl, notFoundInfo.ModTime(), notFoundContent)
+			}
 		}
 	}
 

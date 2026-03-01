@@ -3,6 +3,8 @@ package generators
 import (
 	"compress/gzip"
 	"path/filepath"
+	"runtime"
+	"sync"
 
 	"github.com/spf13/afero"
 	"github.com/vmihailenco/msgpack/v5"
@@ -38,26 +40,59 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 			}
 			postMap[i] = freq
 		}
+	}
 
-		// Build stem map for fuzzy matching
-		stemmed, originals := analyzer.AnalyzeWithOriginals(ip.Record.Content)
-		for j, stem := range stemmed {
-			if j < len(originals) {
-				orig := originals[j]
-				if stem != orig {
-					existing := index.StemMap[stem]
-					found := false
-					for _, e := range existing {
-						if e == orig {
-							found = true
-							break
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 4 {
+		numWorkers = 4
+	}
+	if totalDocs < 10 {
+		numWorkers = 1
+	}
+
+	type stemResult struct {
+		stem   string
+		origin string
+	}
+
+	stemChan := make(chan stemResult, totalDocs*10)
+	var wg sync.WaitGroup
+
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for i := workerID; i < totalDocs; i += numWorkers {
+				ip := indexedPosts[i]
+				stemmed, originals := analyzer.AnalyzeWithOriginals(ip.Record.Content)
+				for j, stem := range stemmed {
+					if j < len(originals) {
+						orig := originals[j]
+						if stem != orig {
+							stemChan <- stemResult{stem: stem, origin: orig}
 						}
-					}
-					if !found {
-						index.StemMap[stem] = append(index.StemMap[stem], orig)
 					}
 				}
 			}
+		}(w)
+	}
+
+	go func() {
+		wg.Wait()
+		close(stemChan)
+	}()
+
+	stemMap := make(map[string]map[string]bool)
+	for sr := range stemChan {
+		if _, ok := stemMap[sr.stem]; !ok {
+			stemMap[sr.stem] = make(map[string]bool)
+		}
+		stemMap[sr.stem][sr.origin] = true
+	}
+
+	for stem, originMap := range stemMap {
+		for origin := range originMap {
+			index.StemMap[stem] = append(index.StemMap[stem], origin)
 		}
 	}
 
@@ -66,7 +101,6 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
 	}
 
-	// Build ngram index for fast fuzzy search
 	index.NgramIndex = search.BuildNgramIndex(index.Inverted)
 
 	if err := destFs.MkdirAll(outputDir, 0755); err != nil {

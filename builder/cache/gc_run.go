@@ -132,9 +132,16 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 		orphanedBlobs = append(orphanedBlobs, res.orphaned...)
 	}
 
-	// Step 3: Delete orphaned blobs (unless dry run)
+	// Step 3: Delete orphaned blobs (unless dry run), respecting ref counts for HTML
 	if !cfg.DryRun {
 		for _, blob := range orphanedBlobs {
+			if blob.category == "html" {
+				refCount := m.refCount.Get(blob.hash)
+				if refCount > 0 {
+					continue
+				}
+			}
+
 			rawPath := filepath.Join(m.basePath, "store", blob.category, blob.hash[0:2], blob.hash[2:4], blob.hash+".raw")
 			zstPath := filepath.Join(m.basePath, "store", blob.category, blob.hash[0:2], blob.hash[2:4], blob.hash+".zst")
 
@@ -153,7 +160,12 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 		result.DeletedBlobs = len(orphanedBlobs)
 	}
 
-	// Step 4: Reconcile SSR RefCounts
+	// Step 4: Reconcile HTML RefCounts
+	if !cfg.DryRun {
+		_ = m.refCount.Reconcile()
+	}
+
+	// Step 5: Reconcile SSR RefCounts
 	if !cfg.DryRun {
 		_ = m.db.Update(func(tx *bolt.Tx) error {
 			ssrBucket := tx.Bucket([]byte(BucketSSR))
@@ -181,6 +193,11 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 				newRefCount := refCounts[artifact.InputHash]
 				if artifact.RefCount != newRefCount {
 					artifact.RefCount = newRefCount
+					if newRefCount == 0 {
+						// Safe to delete from store if refcount is 0
+						_ = m.store.Delete(artifact.Type, artifact.OutputHash)
+						return ssrBucket.Delete(k)
+					}
 					data, err := Encode(&artifact)
 					if err != nil {
 						return nil

@@ -2,7 +2,7 @@
 
 This repository contains **Kosh**, a high-performance Static Site Generator (SSG) built in Go. This guide covers build processes, architecture, testing, and code conventions.
 
-## Project Status: v1.2.1 ✅
+## Project Status: v1.2.3 ✅
 
 All phases of development have been completed:
 - **Phase 1**: Security & Stability (BLAKE3, graceful shutdown, error handling)
@@ -12,6 +12,8 @@ All phases of development have been completed:
 - **Phase 5**: Search Enhancement (Msgpack, stemming, fuzzy search, phrase matching)
 - **Phase 6**: Hugo-Style Distribution (detached themes, go install, custom outputDir)
 - **Phase 7**: Performance Audit & Dead Code Cleanup (body hash caching, LRU cache, race condition fixes)
+- **Phase 8**: libvips Integration (parallel image processing, 3x faster builds)
+- **Phase 9**: Advanced Reliability & Memory Profiling (CGO leak fixes, thread-safe debounce, strict LRU)
 
 ---
 
@@ -450,13 +452,14 @@ go build -ldflags="-s -w" -o kosh.exe ./cmd/kosh
 
 ## 7. Dependencies
 
-### Current Versions (Phase 4)
+### Current Versions (Phase 8)
 *   **Go:** 1.23 (stable)
 *   **Markdown:** `github.com/yuin/goldmark` v1.7.16
 *   **Cache DB:** `go.etcd.io/bbolt` v1.4.3
 *   **Hashing:** `github.com/zeebo/blake3` v0.2.4
 *   **Compression:** `github.com/klauspost/compress` v1.18.4
 *   **Serialization:** `github.com/vmihailenco/msgpack/v5` v5.4.1 (search index encoding)
+*   **Image Processing:** `github.com/twincats/golibvips` v0.1.2 (libvips Go bindings)
 
 ### Updating Dependencies
 ```bash
@@ -642,6 +645,48 @@ tag:nlp attention       # Tag + terms
 
 ## 13. Version History
 
+### v1.2.3 (2026-03-01)
+
+**Stability & Reliability Optimizations:**
+- **Waitgroup Race Condition Fix**: Resolved a critical panic in `DiagramCacheAdapter` where async worker completion could outpace waitgroup incrementing.
+- **CGO Memory Leak Fix**: Addressed massive memory leaks during image optimization by ensuring `libvips.ImageRef` instances are explicitly closed after processing.
+- **Strict LRU Memory Cache**: Replaced standard Go map with `github.com/hashicorp/golang-lru/v2` to strictly enforce memory limits during long watch-mode sessions.
+- **Search Index Integrity**: Fixed an issue where incremental builds corrupted BM25 data for live-edited files by integrating proper analysis into the single-post processing pipeline.
+- **Ghost Drafts Fix**: Prevented drafts from appearing as broken 404 links in tags and pagination when drafts are excluded from the build.
+
+**Server & Watcher Enhancements:**
+- **Thread-safe Debounce**: Files modified rapidly in succession are now correctly batched and triggered together instead of dropping intermediary events.
+- **SSE Broadcast Reliability**: Auto-reload events in watch mode are now buffered, preventing missed browser refreshes under high load.
+- **Gzip Range Fix**: Custom `gzipHandler` now bypasses compression for `Range` requests, restoring scrub support for large media and PDF files.
+
+**Dependencies:**
+- Added `github.com/hashicorp/golang-lru/v2` for reliable memory management
+
+---
+
+### v1.2.2 (2026-02-17)
+
+**Performance Optimizations:**
+- **Parallel Index Building**: Search index now built in parallel using multiple goroutines for stem map generation, 2-4x faster for larger sites
+- **LRU Memory Cache for Images**: In-memory LRU cache (50MB) added for processed images, significantly faster in watch mode with repeated builds
+- **libvips Integration**: Switched from pure Go imaging libraries to libvips for 3-5x faster image processing
+  - Parallel processing with configurable concurrency (`vipsConcurrency` config option)
+  - Auto-detects CPU cores, defaults to min(CPU count, 4) threads
+  - Increased cache: 100MB memory, 100 files, 100 operations
+
+**Configuration:**
+- Added `vipsConcurrency` option to `kosh.yaml`:
+  ```yaml
+  vipsConcurrency: 0  # Auto-detect (default: uses CPU count, capped at 4)
+  vipsConcurrency: 4  # Use exactly 4 threads
+  ```
+- Suppressed verbose libvips logging (only warnings/errors shown)
+
+**Dependencies:**
+- Added `github.com/twincats/golibvips` v0.1.2 for high-performance image processing
+
+---
+
 ### v1.2.1 (2026-02-16)
 
 **Performance Optimizations:**
@@ -665,6 +710,6 @@ tag:nlp attention       # Tag + terms
 
 ---
 
-**Version:** v1.2.1  
-**Last Updated:** 2026-02-16  
+**Version:** v1.2.2  
+**Last Updated:** 2026-02-17  
 **Status:** Production Ready ✅

@@ -59,7 +59,8 @@ func (w *gzipResponseWriter) WriteHeader(code int) {
 
 func gzipHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		// Do not gzip if the client doesn't support it, or if it's a range request (breaks media seek/PDFs)
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") || r.Header.Get("Range") != "" {
 			next(w, r)
 			return
 		}

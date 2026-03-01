@@ -297,7 +297,6 @@ func TestEncodeDecodeComplex(t *testing.T) {
 		PostID:         "complex-id",
 		Path:           "/posts/complex.md",
 		ContentHash:    HashString("content"),
-		TemplateHash:   HashString("template"),
 		SSRInputHashes: []string{"hash1", "hash2"},
 		Title:          "Complex Post",
 		Date:           time.Now().UTC(),
