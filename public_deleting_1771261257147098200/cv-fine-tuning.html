@@ -1,0 +1,107 @@
+<!doctype html><html lang=en><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1"><title>4. Computer Vision: Fine Tuning Models | Kush Blogs</title><link rel=preconnect href=https://fonts.googleapis.com><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel=stylesheet><link rel=preload href=/static/wasm/search.wasm as=fetch crossorigin><link rel=stylesheet href=/static/css/theme.ZKLTYHIA.css><link rel=stylesheet href=/static/css/layout.3JDQPZXT.css><link rel=stylesheet href=/static/css/components/admonitions.EIQ5W3IM.css><link rel=stylesheet href=/static/css/components/modal.L6VNA5CE.css><link rel=stylesheet href=/static/css/syntax.F3E27C5A.css><link rel=icon type=image/png href=/static/images/kush3.png><script>
+        
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script><div class=docs-layout><header class=docs-header><div class=logo><a href=/ class=logo-link><img src=/static/images/kush3.png alt=Logo class=site-logo>
+<span>Kush Blogs</span></a></div><nav><button id=search-btn class=search-btn>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+<span>Search</span>
+<span class=search-shortcut>Ctrl K</span>
+</button>
+<button id=theme-toggle>🌙</button></nav></header><aside class=docs-sidebar><ul class=tree-root><li class=tree-item><div class=tree-row><a href=/cv-architecture.html class=tree-link>1. Computer Vision: Architecture</a></div></li><li class=tree-item><div class=tree-row><a href=/ml-basics.html class=tree-link>1. ML: Basic Fundamentals</a></div></li><li class=tree-item><div class=tree-row><a href=/maths-vector-basis-span.html class=tree-link>1. Maths4ML: Vectors, Basis & Spans</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-rnn.html class=tree-link>1. NLP: Recurrent Neural Networks [RNN]</a></div></li><li class=tree-item><div class=tree-row><a href=/nn-overview.html class=tree-link>1. Neural Nets: Overview</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-moe.html class=tree-link>10. NLP: Mixture of Experts (MOE)</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-tokenization.html class=tree-link>11. NLP: Tokenizers</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-embeddings.html class=tree-link>12. NLP: Embeddings</a></div></li><li class=tree-item><div class=tree-row><a href=/cv-pretrained.html class=tree-link>2. Computer Vision: Pre trained Models</a></div></li><li class=tree-item><div class=tree-row><a href=/ml-linear_regression.html class=tree-link>2. ML: Linear Regression</a></div></li><li class=tree-item><div class=tree-row><a href=/maths-norms.html class=tree-link>2. Maths4ML: Distances & Norms</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-lstm.html class=tree-link>2. NLP: LSTM & GRU</a></div></li><li class=tree-item><div class=tree-row><a href=/nn-preprocessing.html class=tree-link>2. Neural Nets: Preprocessing data</a></div></li><li class=tree-item><div class=tree-row><a href=/cv-transfer-learning.html class=tree-link>3. Computer Vision: Transfer Learning</a></div></li><li class=tree-item><div class=tree-row><a href=/ml-logistic_regression.html class=tree-link>3. ML: Logistic Regression</a></div></li><li class=tree-item><div class=tree-row><a href=/maths-dot-product.html class=tree-link>3. Maths4ML: Dot Product</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-pytorch-for-nlp.html class=tree-link>3. NLP: Pytorch for NLP</a></div></li><li class=tree-item><div class=tree-row><a href=/nn-activation.html class=tree-link>3. Neural Nets: Activation Functions</a></div></li><li class=tree-item><div class=tree-row><a href=/cv-fine-tuning.html class=tree-link>4. Computer Vision: Fine Tuning Models</a></div></li><li class=tree-item><div class=tree-row><a href=/ml-confusion-matrix-regularization.html class=tree-link>4. ML: Confusion Matrix, Bias-Variance & Regularization</a></div></li><li class=tree-item><div class=tree-row><a href=/maths-kernel-trick.html class=tree-link>4. Maths4ML: Kernel Trick</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-seq2seq.html class=tree-link>4. NLP: Seq2Seq</a></div></li><li class=tree-item><div class=tree-row><a href=/nn-optimize.html class=tree-link>4. Neural Nets: Loss and Optmization</a></div></li><li class=tree-item><div class=tree-row><a href=/cv-semantic-segmentation.html class=tree-link>5. Computer Vision: Semantic Segmentation</a></div></li><li class=tree-item><div class=tree-row><a href=/maths-matrices.html class=tree-link>5. Maths4ML: Matrices</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-attention.html class=tree-link>5. NLP: Attention</a></div></li><li class=tree-item><div class=tree-row><a href=/nn-mlp.html class=tree-link>5. Neural Nets: Implementing MLP using PyTorch</a></div></li><li class=tree-item><div class=tree-row><a href=/cv-object-detection.html class=tree-link>6. Computer Vision: Object Detection</a></div></li><li class=tree-item><div class=tree-row><a href=/maths-determinant-eigenvectors.html class=tree-link>6. Maths4ML: Determinants & Eigenvectors</a></div></li><li class=tree-item><div class=tree-row><a href=/maths-svd.html class=tree-link>6. Maths4ML: Matrix Decomposition & SVD</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-transformer.html class=tree-link>6. NLP: Transformers</a></div></li><li class=tree-item><div class=tree-row><a href=/nn-reg-norm.html class=tree-link>6. Neural Nets: Regularization and Normalization</a></div></li><li class=tree-item><div class=tree-row><a href=/cv-instance-segmentation.html class=tree-link>7. Computer Vision: Instance Segmentation</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-transformer-implementation.html class=tree-link>7. NLP: Transformer Implementation</a></div></li><li class=tree-item><div class=tree-row><a href=/cv-neural-style-transfer.html class=tree-link>8. Computer Vision: Neural Style Transfer</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-bert.html class=tree-link>8. NLP: BERT</a></div></li><li class=tree-item><div class=tree-row><a href=/nlp-attention-optimize.html class=tree-link>9. NLP: Optimizing Attention</a></div></li><li class=tree-item><div class=tree-row><a href=/inference_engine.html class=tree-link>Inference Engine</a></div></li><li class=tree-item><div class=tree-row><a href=/ant.html class=tree-link>ant</a></div></li></ul></aside><main class=docs-main><article><div class=article-header><h1>4. Computer Vision: Fine Tuning Models</h1><div class=meta><a href=/cv-fine-tuning.md target=_blank class="badge source-link">View Source</a></div></div><div class=content><h1 id=fine-tuning-a-pre-trained-model>Fine Tuning a pre trained model</h1><ul><li>Here, instead of freezing all the feature extraction layers, only fist <code>n</code> layers will be freezed.</li><li>Last <code>m</code> layers will remain trainable along with the classifier.</li><li>Leverage low level features from the pretrained model.</li><li>Provides more potential for final model performance.</li></ul><h2 id=training-configurations>Training Configurations</h2><ul><li>Using <code>dataclasses</code> module to create classes to organize several training configuration parameter.</li><li>Allows to create data structures for configuration parameters.</li></ul><div class=code-block-container><div class=code-wrapper data-lang=python><pre class=chroma><code><span class=line><span class=cl><span class=nd>@dataclass</span><span class=p>(</span><span class=n>frozen</span><span class=o>=</span><span class=kc>True</span><span class=p>)</span>  <span class=c1># Creating an immutable dataclass for training configuration</span>
+</span></span><span class=line><span class=cl><span class=k>class</span> <span class=nc>TrainingConfig</span><span class=p>:</span>
+</span></span><span class=line><span class=cl>      <span class=n>batch_size</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>32</span>  <span class=c1># Number of samples per training batch</span>
+</span></span><span class=line><span class=cl>      <span class=n>num_epochs</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>20</span>  <span class=c1># Number of epochs (full passes through dataset)</span>
+</span></span><span class=line><span class=cl>      <span class=n>learning_rate</span><span class=p>:</span> <span class=nb>float</span> <span class=o>=</span> <span class=mf>1e-4</span>  <span class=c1># Learning rate for optimizer</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>      <span class=n>log_interval</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>1</span>  <span class=c1># Interval at which to log training progress</span>
+</span></span><span class=line><span class=cl>      <span class=n>test_interval</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>1</span>  <span class=c1># Interval at which to test model performance</span>
+</span></span><span class=line><span class=cl>      <span class=n>data_root</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=s2>&#34;./&#34;</span>  <span class=c1># Path to dataset storage</span>
+</span></span><span class=line><span class=cl>      <span class=n>num_workers</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>5</span>  <span class=c1># Number of worker processes for data loading</span>
+</span></span><span class=line><span class=cl>      <span class=n>device</span><span class=p>:</span> <span class=nb>str</span> <span class=o>=</span> <span class=s2>&#34;cuda&#34;</span>  <span class=c1># Default device for training (CUDA if available)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Creating an instance of the training configuration</span>
+</span></span><span class=line><span class=cl><span class=n>train_config</span> <span class=o>=</span> <span class=n>TrainingConfig</span><span class=p>()</span>
+</span></span></code></pre></div></div><ul><li><p><code>@dataclass</code></p><ul><li>python decorator that automatically creates special methods for a class like <code>__init__()</code></li></ul></li><li><p><code>frozen=True</code></p><ul><li>makes the dataclass immutable, i.e., cannot change its attribute,</li></ul></li></ul><h2 id=torchvisiondatasetsimagefolder><code>torchvision.datasets.ImageFolder</code></h2><ul><li>Helps to load images arranged in folders</li><li>Automatically assigns labels to images based on the folder names.</li><li>Expects the dataset directory to look like :</li></ul><div class=code-block-container><div class=code-wrapper data-lang=text>root/
+class1/
+img1.png
+img2.png
+...
+class2/
+img3.png
+img4.png
+...</div></div><div class=code-block-container><div class=code-wrapper data-lang=python><pre class=chroma><code><span class=line><span class=cl><span class=n>torchvision</span><span class=o>.</span><span class=n>datasets</span><span class=o>.</span><span class=n>ImageFolder</span><span class=p>(</span><span class=n>root</span><span class=p>,</span> <span class=n>transform</span><span class=o>=</span><span class=kc>None</span><span class=p>,</span> <span class=n>target_transform</span><span class=o>=</span><span class=kc>None</span><span class=p>,</span> <span class=n>loader</span><span class=o>=&lt;</span><span class=n>function</span> <span class=n>default_loader</span><span class=o>&gt;</span><span class=p>,</span> <span class=n>is_valid_file</span><span class=o>=</span><span class=kc>None</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>train_data</span> <span class=o>=</span> <span class=n>datasets</span><span class=o>.</span><span class=n>ImageFolder</span><span class=p>(</span><span class=n>root</span> <span class=o>=</span> <span class=n>train_root</span><span class=p>,</span> <span class=n>transform</span> <span class=o>=</span> <span class=n>train_transforms</span><span class=p>)</span>
+</span></span></code></pre></div></div><h2 id=freezing-the-first-n-layers>Freezing the first n layers</h2><div class=code-block-container><div class=code-wrapper data-lang=python><pre class=chroma><code><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>for</span> <span class=n>param</span> <span class=ow>in</span> <span class=n>model</span><span class=o>.</span><span class=n>features</span><span class=p>[:</span><span class=mi>10</span><span class=p>]</span><span class=o>.</span><span class=n>parameters</span><span class=p>():</span>
+</span></span><span class=line><span class=cl>    <span class=n>param</span><span class=o>.</span><span class=n>requires_grad</span> <span class=o>=</span> <span class=kc>False</span>
+</span></span></code></pre></div></div><h2 id=modifying-the-final-linear-layer-of-classifier>Modifying the final linear layer of classifier</h2><div class=code-block-container><div class=code-wrapper data-lang=python><pre class=chroma><code><span class=line><span class=cl><span class=n>mobilenetv3_model</span><span class=o>.</span><span class=n>classifier</span><span class=p>[</span><span class=mi>3</span><span class=p>]</span> <span class=o>=</span> <span class=n>nn</span><span class=o>.</span><span class=n>Linear</span><span class=p>(</span><span class=n>in_features</span> <span class=o>=</span> <span class=mi>1024</span><span class=p>,</span> <span class=n>out_features</span> <span class=o>=</span> <span class=mi>10</span><span class=p>,</span> <span class=n>bias</span> <span class=o>=</span> <span class=kc>True</span><span class=p>)</span>
+</span></span></code></pre></div></div><blockquote><p>Rest of the training and validation process is same as previous.</p></blockquote><blockquote><p>Colab Notebook with the complete implementation can be accessed <a href=https://github.com/Kush-Singh-26/Learning-Pytorch/blob/main/Fine_Tuning.ipynb target=_blank rel="noopener noreferrer">here</a></p></blockquote></div><nav class=page-nav><a href=/cv-semantic-segmentation.html class=page-nav-prev><span class=page-nav-label>← Previous</span>
+<span class=page-nav-title>5. Computer Vision: Semantic Segmentation</span>
+</a><a href=/cv-transfer-learning.html class=page-nav-next><span class=page-nav-label>Next →</span>
+<span class=page-nav-title>3. Computer Vision: Transfer Learning</span></a></nav></article></main><aside class=docs-toc><strong>On this page</strong><nav class=toc-nav><ul class=toc-list><li class=toc-item data-level=2><a href=#training-configurations class=toc-link>Training Configurations</a></li><li class=toc-item data-level=2><a href=#torchvisiondatasetsimagefolder class=toc-link>torchvision.datasets.ImageFolder</a></li><li class=toc-item data-level=2><a href=#freezing-the-first-n-layers class=toc-link>Freezing the first n layers</a></li><li class=toc-item data-level=2><a href=#modifying-the-final-linear-layer-of-classifier class=toc-link>Modifying the final linear layer of classifier</a></li></ul></nav></aside></div><div id=search-modal class=modal><div class=modal-content><div class=search-header><input id=search-input placeholder="Search docs..." autocomplete=off>
+<span class=close-search>&#215;</span></div><div class=search-options><label class=search-option><input type=checkbox id=search-all-versions>
+<span>Search all versions</span></label></div><div id=search-results></div><div class=search-footer>Search docs | <kbd>Esc</kbd> to close | <kbd>↑↓</kbd> to navigate</div></div></div><script>
+        window.siteBaseURL = "";
+        
+    </script><script defer src=/static/js/wasm_exec.6ME2P5AW.js></script><script defer src=/static/js/search.3A5A62PM.js></script><script defer src=/static/js/version-switcher.E62DPIRL.js></script><script defer src=/static/js/docs-features.KWMCRORE.js></script><script>
+        (function () {
+            const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+
+            
+            if (hosts.includes(window.location.hostname)) {
+                
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(registration => {
+                            registration.unregister();
+                        });
+                    });
+                }
+
+                
+                if ('caches' in window) {
+                    caches.keys().then(cacheNames => {
+                        cacheNames.forEach(cacheName => {
+                            caches.delete(cacheName);
+                        });
+                    });
+                }
+
+                
+                let reloadTimeout;
+                const source = new EventSource("/events");
+                source.onmessage = function (event) {
+                    if (event.data === "reload") {
+                        if (reloadTimeout) clearTimeout(reloadTimeout);
+                        reloadTimeout = setTimeout(() => {
+                            window.location.reload();
+                        }, 250);
+                    }
+                };
+                source.onerror = function () {
+                    source.close();
+                };
+            } else {
+                
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => {
+                        const swPath = '/sw.js';
+                        navigator.serviceWorker.register(swPath)
+                            .then(registration => {
+                                console.log('✅ ServiceWorker registered');
+                            })
+                            .catch(err => {
+                                console.error('❌ ServiceWorker registration failed:', err);
+                            });
+                    });
+                }
+            }
+        })();
+    </script>

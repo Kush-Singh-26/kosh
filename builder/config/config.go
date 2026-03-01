@@ -66,24 +66,26 @@ type SocialCardsConfig struct {
 }
 
 type Config struct {
-	Title          string            `yaml:"title"`
-	Description    string            `yaml:"description"`
-	BaseURL        string            `yaml:"baseURL"`
-	Language       string            `yaml:"language"`
-	Author         AuthorConfig      `yaml:"author"`
-	Menu           []MenuEntry       `yaml:"menu"`
-	PostsPerPage   int               `yaml:"postsPerPage"`
-	CompressImages bool              `yaml:"compressImages"`
-	ImageWorkers   int               `yaml:"imageWorkers"` // Number of parallel image workers (default: 24)
-	Theme          string            `yaml:"theme"`
-	ThemeDir       string            `yaml:"themeDir"`
-	TemplateDir    string            `yaml:"templateDir"`
-	StaticDir      string            `yaml:"staticDir"`
-	Logo           string            `yaml:"logo"`     // Path to site logo/favicon
-	Versions       []Version         `yaml:"versions"` // Documentation versions
-	Features       FeaturesConfig    `yaml:"features"` // Enable/Disable features
-	ThemeMetadata  ThemeConfig       `yaml:"-"`        // Loaded from theme.yaml
-	SocialCards    SocialCardsConfig `yaml:"socialCards"`
+	Title           string            `yaml:"title"`
+	Description     string            `yaml:"description"`
+	BaseURL         string            `yaml:"baseURL"`
+	Language        string            `yaml:"language"`
+	Author          AuthorConfig      `yaml:"author"`
+	Menu            []MenuEntry       `yaml:"menu"`
+	PostsPerPage    int               `yaml:"postsPerPage"`
+	CompressImages  bool              `yaml:"compressImages"`
+	ImageWorkers    int               `yaml:"imageWorkers"`    // Number of parallel image workers (default: 24)
+	VipsConcurrency int               `yaml:"vipsConcurrency"` // libvips worker threads (0 = auto, default: 0)
+	ParserWorkers   int               `yaml:"parserWorkers"`   // Number of parallel parser workers (0 = auto, default: 0)
+	Theme           string            `yaml:"theme"`
+	ThemeDir        string            `yaml:"themeDir"`
+	TemplateDir     string            `yaml:"templateDir"`
+	StaticDir       string            `yaml:"staticDir"`
+	Logo            string            `yaml:"logo"`     // Path to site logo/favicon
+	Versions        []Version         `yaml:"versions"` // Documentation versions
+	Features        FeaturesConfig    `yaml:"features"` // Enable/Disable features
+	ThemeMetadata   ThemeConfig       `yaml:"-"`        // Loaded from theme.yaml
+	SocialCards     SocialCardsConfig `yaml:"socialCards"`
 
 	// Configurable directory paths
 	ContentDir string `yaml:"contentDir"` // Content source directory (default: "content")
@@ -108,6 +110,7 @@ func Load(args []string) *Config {
 		PostsPerPage:   10,
 		CompressImages: true, // Always compress for performance
 		ImageWorkers:   24,   // Default 24 parallel workers for image processing
+		ParserWorkers:  0,    // 0 = auto (use GetDefaultWorkerCount)
 		BuildVersion:   time.Now().Unix(),
 		Theme:          "blog",
 		ThemeDir:       "themes",
@@ -153,6 +156,11 @@ func Load(args []string) *Config {
 	// Cap at reasonable maximum to prevent resource exhaustion
 	if cfg.ImageWorkers > 32 {
 		cfg.ImageWorkers = 32
+	}
+
+	// Validate ParserWorkers (0 = auto)
+	if cfg.ParserWorkers > 64 {
+		cfg.ParserWorkers = 64
 	}
 
 	// Load build configuration from kosh.build.yaml

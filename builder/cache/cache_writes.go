@@ -183,6 +183,9 @@ func (m *Manager) StoreHTML(content []byte) (string, error) {
 // StoreHTMLForPost stores HTML for a specific post, inlining if small
 func (m *Manager) StoreHTMLForPost(post *PostMeta, content []byte) error {
 	if len(content) < utils.InlineHTMLThreshold {
+		if post.HTMLHash != "" {
+			_, _ = m.refCount.Decrement(post.HTMLHash)
+		}
 		post.InlineHTML = content
 		post.HTMLHash = ""
 		return nil
@@ -191,6 +194,15 @@ func (m *Manager) StoreHTMLForPost(post *PostMeta, content []byte) error {
 	if err != nil {
 		return err
 	}
+
+	if post.HTMLHash != "" && post.HTMLHash != hash {
+		_, _ = m.refCount.Decrement(post.HTMLHash)
+	}
+
+	if post.HTMLHash != hash {
+		_ = m.refCount.Increment(hash)
+	}
+
 	post.HTMLHash = hash
 	post.InlineHTML = nil
 	return nil
@@ -230,6 +242,7 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*SSRArtif
 // DeletePost removes a post and its associated data
 func (m *Manager) DeletePost(postID string) error {
 	var postPath string
+	var htmlHash string
 
 	err := m.db.Update(func(tx *bolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(BucketPosts))
@@ -245,6 +258,7 @@ func (m *Manager) DeletePost(postID string) error {
 			var post PostMeta
 			if err := Decode(data, &post); err == nil {
 				postPath = utils.NormalizePath(post.Path)
+				htmlHash = post.HTMLHash
 				_ = pathsBucket.Delete([]byte(postPath))
 
 				for _, tag := range post.Tags {
@@ -260,6 +274,10 @@ func (m *Manager) DeletePost(postID string) error {
 
 		return nil
 	})
+
+	if htmlHash != "" {
+		_, _ = m.refCount.Decrement(htmlHash)
+	}
 
 	// Invalidate memory cache
 	if err == nil {

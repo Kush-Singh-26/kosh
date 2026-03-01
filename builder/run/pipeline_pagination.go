@@ -2,17 +2,19 @@ package run
 
 import (
 	"fmt"
-	"github.com/Kush-Singh-26/kosh/builder/cache"
-	"github.com/Kush-Singh-26/kosh/builder/generators"
-	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"math"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, force bool) {
@@ -122,7 +124,7 @@ func (b *Builder) renderPagination(allPosts, pinnedPosts []models.PostMetadata, 
 func (b *Builder) renderTags(tagMap map[string][]models.PostMetadata, forceSocialRebuild bool) {
 	var allTags []models.TagData
 	for t, posts := range tagMap {
-		allTags = append(allTags, models.TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("%s/tags/%s.html", b.cfg.BaseURL, t)})
+		allTags = append(allTags, models.TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("%s/tags/%s.html", b.cfg.BaseURL, url.PathEscape(t))})
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 

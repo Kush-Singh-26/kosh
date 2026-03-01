@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -70,6 +71,9 @@ func (w *Watcher) Start() {
 	var timer *time.Timer
 	const debounceDuration = 50 * time.Millisecond
 
+	var pendingMu sync.Mutex
+	pendingEvents := make(map[string]fsnotify.Op)
+
 	for {
 		select {
 		case event, ok := <-w.watcher.Events:
@@ -89,11 +93,28 @@ func (w *Watcher) Start() {
 				}
 			}
 
+			pendingMu.Lock()
+			// Combine operations if same file modified multiple times
+			existingOp, exists := pendingEvents[event.Name]
+			if exists {
+				pendingEvents[event.Name] = existingOp | event.Op
+			} else {
+				pendingEvents[event.Name] = event.Op
+			}
+			pendingMu.Unlock()
+
 			if timer != nil {
 				timer.Stop()
 			}
 			timer = time.AfterFunc(debounceDuration, func() {
-				w.OnEvent(Event{Name: event.Name, Op: event.Op})
+				pendingMu.Lock()
+				eventsToProcess := pendingEvents
+				pendingEvents = make(map[string]fsnotify.Op)
+				pendingMu.Unlock()
+
+				for name, op := range eventsToProcess {
+					w.OnEvent(Event{Name: name, Op: op})
+				}
 			})
 
 		case err, ok := <-w.watcher.Errors:

@@ -19,6 +19,9 @@ const (
 	BucketMeta  = "meta"  // schema_version, cache_id
 	BucketStats = "stats" // last_gc, build_count, etc.
 
+	// Reference counting for content-addressed storage
+	BucketRefCount = "ref_count" // {hash} -> count (for HTML blobs)
+
 	// Meta keys
 	KeySchemaVersion = "schema_version"
 	KeyCacheID       = "cache_id"
@@ -42,5 +45,6 @@ func AllBuckets() []string {
 		BucketDepsIncludes,
 		BucketMeta,
 		BucketStats,
+		BucketRefCount,
 	}
 }

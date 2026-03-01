@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/fs"
@@ -21,6 +22,10 @@ var (
 	fileContentCache   = make(map[string][]byte)
 	fileContentCacheMu sync.RWMutex
 	maxCacheEntries    = 1000
+)
+
+const (
+	WriteBufferSize = 64 * 1024 // 64KB buffer for writes
 )
 
 // alwaysSyncPaths contains paths that should always be synced regardless of dirty state
@@ -173,7 +178,20 @@ func syncSingleFile(srcFs afero.Fs, path string) error {
 		createdDirsMu.Unlock()
 	}
 
-	if err := os.WriteFile(osPath, srcContent, 0644); err != nil {
+	// Use buffered write with larger buffer for better performance
+	f, err := os.OpenFile(osPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	writer := bufio.NewWriterSize(f, WriteBufferSize)
+	_, err = writer.Write(srcContent)
+	if err != nil {
+		return err
+	}
+	err = writer.Flush()
+	if err != nil {
 		return err
 	}
 

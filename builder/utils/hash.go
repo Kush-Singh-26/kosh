@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/zeebo/blake3"
+	"gopkg.in/yaml.v3"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
@@ -62,6 +63,33 @@ func GetBodyHash(source []byte) string {
 	}
 	hash := blake3.Sum256(source)
 	return hex.EncodeToString(hash[:])
+}
+
+// GetFrontmatterHashFromSource extracts frontmatter from raw source and computes its hash
+// This enables cache invalidation without full markdown parsing
+func GetFrontmatterHashFromSource(source []byte) (string, error) {
+	parts := bytes.SplitN(source, yamlDelim, 3)
+	if len(parts) < 3 {
+		return "", nil
+	}
+
+	frontmatter := bytes.TrimSpace(parts[1])
+	metaData, err := parseFrontmatter(frontmatter)
+	if err != nil || metaData == nil {
+		return "", nil
+	}
+	return GetFrontmatterHash(metaData)
+}
+
+func parseFrontmatter(data []byte) (map[string]interface{}, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+	metaData := make(map[string]interface{})
+	if err := yaml.Unmarshal(data, &metaData); err != nil {
+		return nil, err
+	}
+	return metaData, nil
 }
 
 type postGraphInfo struct {

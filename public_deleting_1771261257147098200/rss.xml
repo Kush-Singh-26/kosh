@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Kush Blogs</title>
+    <link></link>
+    <description>I write about machine learning, deep learning and lately more about NLP.</description>
+    <item>
+      <title>ant</title>
+      <link>/ant.html</link>
+      <description>maths ant note</description>
+      <pubDate>Sat, 07 Feb 2026 00:00:00 UTC</pubDate>
+      <guid>/ant.html</guid>
+    </item>
+    <item>
+      <title>4. ML: Confusion Matrix, Bias-Variance &amp; Regularization</title>
+      <link>/ml-confusion-matrix-regularization.html</link>
+      <description>Model evaluation, bias-variance decomposition, and how regularization techniques constrain complexity.</description>
+      <pubDate>Tue, 03 Feb 2026 00:00:00 UTC</pubDate>
+      <guid>/ml-confusion-matrix-regularization.html</guid>
+    </item>
+    <item>
+      <title>3. ML: Logistic Regression</title>
+      <link>/ml-logistic_regression.html</link>
+      <description>Probabilistic power of Logistic Regression: A deep dive into its linear roots and sigmoid derivation.</description>
+      <pubDate>Mon, 02 Feb 2026 00:00:00 UTC</pubDate>
+      <guid>/ml-logistic_regression.html</guid>
+    </item>
+    <item>
+      <title>2. ML: Linear Regression</title>
+      <link>/ml-linear_regression.html</link>
+      <description>Mathematical art of drawing a straight line through a cloud of chaos and confidently calling it a prediction.</description>
+      <pubDate>Mon, 02 Feb 2026 00:00:00 UTC</pubDate>
+      <guid>/ml-linear_regression.html</guid>
+    </item>
+    <item>
+      <title>1. ML: Basic Fundamentals</title>
+      <link>/ml-basics.html</link>
+      <description>Building Blocks of Machine Learning</description>
+      <pubDate>Fri, 30 Jan 2026 00:00:00 UTC</pubDate>
+      <guid>/ml-basics.html</guid>
+    </item>
+    <item>
+      <title>12. NLP: Embeddings</title>
+      <link>/nlp-embeddings.html</link>
+      <description>The Geometry of Meaning : Turning meaning into maths.</description>
+      <pubDate>Mon, 05 Jan 2026 00:00:00 UTC</pubDate>
+      <guid>/nlp-embeddings.html</guid>
+    </item>
+    <item>
+      <title>6. Maths4ML: Matrix Decomposition &amp; SVD</title>
+      <link>/maths-svd.html</link>
+      <description>The Art of Mathematical Forgetting: How to throw away 90% of your data without losing the meaning.</description>
+      <pubDate>Sat, 03 Jan 2026 00:00:00 UTC</pubDate>
+      <guid>/maths-svd.html</guid>
+    </item>
+    <item>
+      <title>6. Maths4ML: Determinants &amp; Eigenvectors</title>
+      <link>/maths-determinant-eigenvectors.html</link>
+      <description>Finding the stillness inside the transformation.</description>
+      <pubDate>Sat, 27 Dec 2025 00:00:00 UTC</pubDate>
+      <guid>/maths-determinant-eigenvectors.html</guid>
+    </item>
+    <item>
+      <title>5. Maths4ML: Matrices</title>
+      <link>/maths-matrices.html</link>
+      <description>Matrices are Machines, Not Just Grids</description>
+      <pubDate>Thu, 25 Dec 2025 00:00:00 UTC</pubDate>
+      <guid>/maths-matrices.html</guid>
+    </item>
+    <item>
+      <title>4. Maths4ML: Kernel Trick</title>
+      <link>/maths-kernel-trick.html</link>
+      <description>The Kernel Trick - Folding Space. Why struggle to bend the line when you can just fold the space?</description>
+      <pubDate>Tue, 23 Dec 2025 00:00:00 UTC</pubDate>
+      <guid>/maths-kernel-trick.html</guid>
+    </item>
+    <item>
+      <title>3. Maths4ML: Dot Product</title>
+      <link>/maths-dot-product.html</link>
+      <description>Shadows, Angles, and the Geometry of Sameness</description>
+      <pubDate>Sun, 21 Dec 2025 00:00:00 UTC</pubDate>
+      <guid>/maths-dot-product.html</guid>
+    </item>
+    <item>
+      <title>2. Maths4ML: Distances &amp; Norms</title>
+      <link>/maths-norms.html</link>
+      <description>Measuring the gap - Rulers of ML</description>
+      <pubDate>Thu, 18 Dec 2025 00:00:00 UTC</pubDate>
+      <guid>/maths-norms.html</guid>
+    </item>
+    <item>
+      <title>1. Maths4ML: Vectors, Basis &amp; Spans</title>
+      <link>/maths-vector-basis-span.html</link>
+      <description>The Building Blocks – Vectors, Basis &amp; Spans</description>
+      <pubDate>Mon, 15 Dec 2025 00:00:00 UTC</pubDate>
+      <guid>/maths-vector-basis-span.html</guid>
+    </item>
+    <item>
+      <title>11. NLP: Tokenizers</title>
+      <link>/nlp-tokenization.html</link>
+      <description>A detailed description about tokenizers in LLMs.</description>
+      <pubDate>Sun, 07 Dec 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-tokenization.html</guid>
+    </item>
+    <item>
+      <title>10. NLP: Mixture of Experts (MOE)</title>
+      <link>/nlp-moe.html</link>
+      <description>A guide on MoEs, their history and implementation in transformers along with the losses associated with it.</description>
+      <pubDate>Mon, 22 Sep 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-moe.html</guid>
+    </item>
+    <item>
+      <title>9. NLP: Optimizing Attention</title>
+      <link>/nlp-attention-optimize.html</link>
+      <description>A guide on KV-Caching along with Sliding Window Attention. Ending with MQA and GQA.</description>
+      <pubDate>Tue, 05 Aug 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-attention-optimize.html</guid>
+    </item>
+    <item>
+      <title>8. NLP: BERT</title>
+      <link>/nlp-bert.html</link>
+      <description>A guide on BERT models and how their architecture.</description>
+      <pubDate>Fri, 25 Jul 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-bert.html</guid>
+    </item>
+    <item>
+      <title>7. NLP: Transformer Implementation</title>
+      <link>/nlp-transformer-implementation.html</link>
+      <description>Implementation and trainig of Transformer for En-Hi machine translation task.</description>
+      <pubDate>Fri, 18 Jul 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-transformer-implementation.html</guid>
+    </item>
+    <item>
+      <title>4. NLP: Seq2Seq</title>
+      <link>/nlp-seq2seq.html</link>
+      <description>A guide on Seq2Seq models that changed machine translation task.</description>
+      <pubDate>Mon, 19 May 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-seq2seq.html</guid>
+    </item>
+    <item>
+      <title>3. NLP: Pytorch for NLP</title>
+      <link>/nlp-pytorch-for-nlp.html</link>
+      <description>Some tips for working with PyTorch for NLP tasks</description>
+      <pubDate>Sat, 10 May 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-pytorch-for-nlp.html</guid>
+    </item>
+    <item>
+      <title>2. NLP: LSTM &amp; GRU</title>
+      <link>/nlp-lstm.html</link>
+      <description>A guide on LSTM and GRU models and how they overcome limitations of RNNs.</description>
+      <pubDate>Thu, 08 May 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-lstm.html</guid>
+    </item>
+    <item>
+      <title>1. NLP: Recurrent Neural Networks [RNN]</title>
+      <link>/nlp-rnn.html</link>
+      <description>A guide on the first steps towards modern NLP.</description>
+      <pubDate>Sun, 04 May 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-rnn.html</guid>
+    </item>
+    <item>
+      <title>8. Computer Vision: Neural Style Transfer</title>
+      <link>/cv-neural-style-transfer.html</link>
+      <description>Mini Project performing style transfer from a source image to a target image.</description>
+      <pubDate>Fri, 28 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/cv-neural-style-transfer.html</guid>
+    </item>
+    <item>
+      <title>7. Computer Vision: Instance Segmentation</title>
+      <link>/cv-instance-segmentation.html</link>
+      <description>A small description on Instance Segmentation.</description>
+      <pubDate>Thu, 27 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/cv-instance-segmentation.html</guid>
+    </item>
+    <item>
+      <title>6. Computer Vision: Object Detection</title>
+      <link>/cv-object-detection.html</link>
+      <description>A detailed description on Object Detection models.</description>
+      <pubDate>Tue, 25 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/cv-object-detection.html</guid>
+    </item>
+    <item>
+      <title>5. Computer Vision: Semantic Segmentation</title>
+      <link>/cv-semantic-segmentation.html</link>
+      <description>A small guide on semantic segmentation of images.</description>
+      <pubDate>Mon, 24 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/cv-semantic-segmentation.html</guid>
+    </item>
+    <item>
+      <title>4. Computer Vision: Fine Tuning Models</title>
+      <link>/cv-fine-tuning.html</link>
+      <description>A small guide on how to fine-tune pre-trained models.</description>
+      <pubDate>Sat, 22 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/cv-fine-tuning.html</guid>
+    </item>
+    <item>
+      <title>3. Computer Vision: Transfer Learning</title>
+      <link>/cv-transfer-learning.html</link>
+      <description>A small guide on how transfer learning using pre-trained models.</description>
+      <pubDate>Sat, 22 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/cv-transfer-learning.html</guid>
+    </item>
+    <item>
+      <title>2. Computer Vision: Pre trained Models</title>
+      <link>/cv-pretrained.html</link>
+      <description>A small guide on how to work with pre-trained models.</description>
+      <pubDate>Sat, 22 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/cv-pretrained.html</guid>
+    </item>
+    <item>
+      <title>1. Computer Vision: Architecture</title>
+      <link>/cv-architecture.html</link>
+      <description>A description on working of CNNs.</description>
+      <pubDate>Fri, 21 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/cv-architecture.html</guid>
+    </item>
+    <item>
+      <title>6. Neural Nets: Regularization and Normalization</title>
+      <link>/nn-reg-norm.html</link>
+      <description>Regularization Techniques.</description>
+      <pubDate>Tue, 18 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/nn-reg-norm.html</guid>
+    </item>
+    <item>
+      <title>5. Neural Nets: Implementing MLP using PyTorch</title>
+      <link>/nn-mlp.html</link>
+      <description>Implementing Multi Layer Perceptron</description>
+      <pubDate>Mon, 17 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/nn-mlp.html</guid>
+    </item>
+    <item>
+      <title>4. Neural Nets: Loss and Optmization</title>
+      <link>/nn-optimize.html</link>
+      <description>Dicussion about different types of Optimization functions and losses</description>
+      <pubDate>Sun, 16 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/nn-optimize.html</guid>
+    </item>
+    <item>
+      <title>3. Neural Nets: Activation Functions</title>
+      <link>/nn-activation.html</link>
+      <description>Overview of differnet types of Actiavation functions.</description>
+      <pubDate>Sun, 16 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/nn-activation.html</guid>
+    </item>
+    <item>
+      <title>2. Neural Nets: Preprocessing data</title>
+      <link>/nn-preprocessing.html</link>
+      <description>Brief description on how data can be processed.</description>
+      <pubDate>Sun, 16 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/nn-preprocessing.html</guid>
+    </item>
+    <item>
+      <title>1. Neural Nets: Overview</title>
+      <link>/nn-overview.html</link>
+      <description>Overview of Neural Networks</description>
+      <pubDate>Thu, 13 Mar 2025 00:00:00 UTC</pubDate>
+      <guid>/nn-overview.html</guid>
+    </item>
+    <item>
+      <title>Inference Engine</title>
+      <link>/inference_engine.html</link>
+      <description>Building an infernece engine for machine translation transformer model in C++.</description>
+      <pubDate>Mon, 24 Nov 2025 00:00:00 UTC</pubDate>
+      <guid>/inference_engine.html</guid>
+    </item>
+    <item>
+      <title>6. NLP: Transformers</title>
+      <link>/nlp-transformer.html</link>
+      <description>A complete guide to the transformer architecture, attention mechanisms, and positional encoding.</description>
+      <pubDate>Sun, 22 Jun 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-transformer.html</guid>
+    </item>
+    <item>
+      <title>5. NLP: Attention</title>
+      <link>/nlp-attention.html</link>
+      <description>A guide on Attention mechanism for seq2seq models.</description>
+      <pubDate>Wed, 28 May 2025 00:00:00 UTC</pubDate>
+      <guid>/nlp-attention.html</guid>
+    </item>
+  </channel>
+</rss>

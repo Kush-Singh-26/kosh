@@ -34,18 +34,13 @@ func getCachedItem[T any](db *bolt.DB, bucketName string, key []byte) (*T, error
 
 // memCacheGet retrieves a PostMeta from the in-memory cache
 func (m *Manager) memCacheGet(key string) *PostMeta {
-	m.memCacheMu.RLock()
-	entry, ok := m.memCache[key]
-	m.memCacheMu.RUnlock()
-
+	entry, ok := m.memCache.Get(key)
 	if !ok {
 		return nil
 	}
 
 	if time.Now().After(entry.expiresAt) {
-		m.memCacheMu.Lock()
-		delete(m.memCache, key)
-		m.memCacheMu.Unlock()
+		m.memCache.Remove(key)
 		return nil
 	}
 
@@ -54,19 +49,15 @@ func (m *Manager) memCacheGet(key string) *PostMeta {
 
 // memCacheSet stores a PostMeta in the in-memory cache
 func (m *Manager) memCacheSet(key string, meta *PostMeta) {
-	m.memCacheMu.Lock()
-	m.memCache[key] = &memoryCacheEntry{
+	m.memCache.Add(key, &memoryCacheEntry{
 		meta:      meta,
 		expiresAt: time.Now().Add(m.memCacheTTL),
-	}
-	m.memCacheMu.Unlock()
+	})
 }
 
 // memCacheDelete removes an entry from the in-memory cache
 func (m *Manager) memCacheDelete(key string) {
-	m.memCacheMu.Lock()
-	delete(m.memCache, key)
-	m.memCacheMu.Unlock()
+	m.memCache.Remove(key)
 }
 
 // GetPostByPath looks up a post by its file path in a single transaction

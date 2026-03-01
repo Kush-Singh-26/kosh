@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/golang-lru/v2"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -34,9 +35,11 @@ type Manager struct {
 	dirty    map[string]bool
 
 	// In-memory LRU cache for hot PostMeta data
-	memCache    map[string]*memoryCacheEntry
-	memCacheMu  sync.RWMutex
+	memCache    *lru.Cache[string, *memoryCacheEntry]
 	memCacheTTL time.Duration
+
+	// Reference counting for content-addressed storage
+	refCount *RefCountManager
 }
 
 const defaultMemCacheTTL = 5 * time.Minute
@@ -90,13 +93,16 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		return nil, fmt.Errorf("failed to create store: %w", err)
 	}
 
+	lruCache, _ := lru.New[string, *memoryCacheEntry](1024) // 1024 items max
+
 	m := &Manager{
 		db:          db,
 		store:       store,
 		basePath:    basePath,
 		dirty:       make(map[string]bool),
-		memCache:    make(map[string]*memoryCacheEntry),
+		memCache:    lruCache,
 		memCacheTTL: defaultMemCacheTTL,
+		refCount:    newRefCountManager(db),
 	}
 
 	if err := m.initSchema(); err != nil {
@@ -190,9 +196,7 @@ func (m *Manager) ClearAll() error {
 	})
 
 	// Clear memory cache
-	m.memCacheMu.Lock()
-	m.memCache = make(map[string]*memoryCacheEntry)
-	m.memCacheMu.Unlock()
+	m.memCache.Purge()
 
 	return err
 }

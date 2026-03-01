@@ -8,9 +8,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"github.com/spf13/afero"
+	"github.com/twincats/golibvips/libvips"
 	"github.com/yuin/goldmark"
 	"gopkg.in/yaml.v3"
 
@@ -125,6 +127,9 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 		logger.Error("Failed to create pwa-icons cache directory", "error", err)
 	}
 
+	// Initialize libvips with configured concurrency
+	initLibvips(cfg, logger)
+
 	// Open BoltDB cache
 	var cacheManager *cache.Manager
 	var diagramAdapter *cache.DiagramCacheAdapter
@@ -162,7 +167,12 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 	}
 
 	// Create native renderer (Worker Pool)
-	nativeRenderer := native.New()
+	var nativeRenderer *native.Renderer
+	if cfg.ParserWorkers > 0 {
+		nativeRenderer = native.New(native.WithWorkers(cfg.ParserWorkers))
+	} else {
+		nativeRenderer = native.New()
+	}
 
 	// Initialize Filesystems
 	sourceFs := afero.NewOsFs()
@@ -352,6 +362,35 @@ func (b *Builder) Close() {
 	if b.cacheService != nil {
 		_ = b.cacheService.Close()
 	}
+	libvips.Shutdown()
+}
+
+// initLibvips initializes libvips with configured concurrency
+func initLibvips(cfg *config.Config, logger *slog.Logger) {
+	// Suppress verbose libvips logging (only show warnings and errors)
+	libvips.LoggingSettings(nil, libvips.LogLevelWarning)
+
+	concurrency := cfg.VipsConcurrency
+	if concurrency == 0 {
+		// Auto-detect: use number of CPUs, capped at 4
+		concurrency = runtime.NumCPU()
+		if concurrency > 4 {
+			concurrency = 4
+		}
+	}
+
+	libvipsConfig := &libvips.Config{
+		ConcurrencyLevel: concurrency,
+		MaxCacheFiles:    100,
+		MaxCacheMem:      100 * 1024 * 1024, // 100MB
+		MaxCacheSize:     100,
+		ReportLeaks:      false,
+		CacheTrace:       false,
+		CollectStats:     false,
+	}
+
+	libvips.Startup(libvipsConfig)
+	logger.Info("libvips initialized", "concurrency", concurrency)
 }
 
 // Run executes the main build logic

@@ -15,7 +15,7 @@ const (
 )
 
 // Legacy constant for backward compatibility
-const DefaultWorkerCountMax = 12
+const DefaultWorkerCountMax = 32
 
 // GetDefaultWorkerCount returns the default worker count based on CPU cores
 func GetDefaultWorkerCount() int {
