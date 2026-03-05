@@ -3,22 +3,19 @@ package run
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 
 	"github.com/spf13/afero"
 	"github.com/twincats/golibvips/libvips"
-	"github.com/yuin/goldmark"
-	"gopkg.in/yaml.v3"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
@@ -26,6 +23,9 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/Kush-Singh-26/kosh/internal/build"
 )
+
+// errFoundNewer is a sentinel error for WASM source freshness check
+var errFoundNewer = errors.New("source newer than WASM")
 
 // Builder maintains the state for site builds
 type Builder struct {
@@ -50,11 +50,20 @@ type Builder struct {
 	SourceFs afero.Fs
 	DestFs   afero.Fs
 
-	// Shared markdown parser for reuse in incremental builds
-	md goldmark.Markdown
+	// Shared markdown parser pool for reuse in incremental builds
+	mdPool *sync.Pool
+
+	// Native renderer for D2/LaTeX
+	nativeRenderer *native.Renderer
+
+	// Mutex for concurrent rendering safety
+	mu sync.Mutex
 
 	// Build coordination - prevents concurrent builds during watch mode
 	buildMu sync.Mutex
+
+	// Cached data for incremental builds
+	indexedPosts []models.IndexedPost
 }
 
 // NewBuilder initializes a new site builder
@@ -73,98 +82,22 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 	utils.InitMinifier()
 
 	// Initialize structured logger early
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+	logger := InitLogger()
 
-	// Verify Theme Exists (Early Fail)
-	themePath := filepath.Join(cfg.ThemeDir, cfg.Theme)
-	if _, err := os.Stat(themePath); os.IsNotExist(err) {
-		logger.Error("Theme not found",
-			"theme", cfg.Theme,
-			"path", themePath,
-			"hint", "Please ensure you have installed the theme into '"+cfg.ThemeDir+"/"+cfg.Theme+"/'")
-		logger.Info("Theme installation:", "example", "git clone <theme-repo-url> "+filepath.Join(cfg.ThemeDir, cfg.Theme))
-		os.Exit(1)
-	}
-
-	// Verify required theme directories exist
-	templatePath := cfg.TemplateDir
-	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		logger.Error("Theme templates directory not found",
-			"theme", cfg.Theme,
-			"path", templatePath,
-			"hint", "Theme must have a 'templates' directory")
-		os.Exit(1)
-	}
-
-	staticPath := cfg.StaticDir
-	if _, err := os.Stat(staticPath); os.IsNotExist(err) {
-		logger.Warn("Theme static directory not found, creating empty",
-			"theme", cfg.Theme,
-			"path", staticPath)
-		_ = os.MkdirAll(staticPath, 0755)
-	}
+	// Verify Theme Exists
+	VerifyTheme(cfg, logger)
 
 	// Initialize build metrics
 	buildMetrics := metrics.NewBuildMetrics()
 
 	// Create cache directory if it doesn't exist
-	if err := os.MkdirAll(cfg.CacheDir, 0755); err != nil {
-		logger.Error("Failed to create cache directory", "path", cfg.CacheDir, "error", err)
-		os.Exit(1)
-	}
-	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "social-cards"), 0755); err != nil {
-		logger.Error("Failed to create social-cards cache directory", "error", err)
-	}
-	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "assets"), 0755); err != nil {
-		logger.Error("Failed to create assets cache directory", "error", err)
-	}
-	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "images"), 0755); err != nil {
-		logger.Error("Failed to create images cache directory", "error", err)
-	}
-	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), 0755); err != nil {
-		logger.Error("Failed to create pwa-icons cache directory", "error", err)
-	}
+	SetupCacheDirectories(cfg, logger)
 
 	// Initialize libvips with configured concurrency
-	initLibvips(cfg, logger)
+	InitLibvips(cfg, logger)
 
 	// Open BoltDB cache
-	var cacheManager *cache.Manager
-	var diagramAdapter *cache.DiagramCacheAdapter
-
-	cacheTimeout := cfg.Build.CacheDBTimeout
-	cm, err := cache.OpenWithTimeout(cfg.CacheDir, cfg.IsDev, cacheTimeout)
-	if err != nil {
-		logger.Warn("Failed to open cache database, using in-memory cache", "error", err)
-	} else {
-		cacheManager = cm
-
-		// Quick integrity check on startup
-		if errors, verifyErr := cacheManager.QuickVerify(); verifyErr != nil || len(errors) > 0 {
-			logger.Warn("Cache integrity issues detected, forcing rebuild", "errors", len(errors))
-			if len(errors) > 0 && len(errors) <= 5 {
-				for _, e := range errors {
-					logger.Debug("Cache error", "detail", e)
-				}
-			}
-			cfg.ForceRebuild = true
-			// Clear corrupted entries
-			_ = cacheManager.ClearAll()
-		}
-
-		// Generate and verify cache ID
-		cacheID := generateCacheID(cfg)
-		needsRebuild, _ := cacheManager.VerifyCacheID(cacheID)
-		if needsRebuild {
-			logger.Info("Cache fingerprint changed, triggering rebuild")
-			cfg.ForceRebuild = true
-			_ = cacheManager.SetCacheID(cacheID)
-		}
-
-		diagramAdapter = cache.NewDiagramCacheAdapter(cacheManager)
-	}
+	cacheManager, diagramAdapter := SetupCacheManager(cfg, logger)
 
 	// Create native renderer (Worker Pool)
 	var nativeRenderer *native.Renderer
@@ -179,24 +112,18 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 	destFs := afero.NewMemMapFs()
 
 	// 3. Load theme metadata
-	themeMetadata := config.ThemeConfig{
-		Name:               cfg.Theme,
-		SupportsVersioning: false,
-	}
-	themeYamlPath := filepath.Join(themePath, "theme.yaml")
-	if data, err := afero.ReadFile(sourceFs, themeYamlPath); err == nil {
-		if err := yaml.Unmarshal(data, &themeMetadata); err != nil {
-			logger.Warn("Failed to parse theme.yaml", "error", err)
-		}
-	}
-	cfg.ThemeMetadata = themeMetadata
+	LoadThemeMetadata(cfg, sourceFs, logger)
 
 	// Create sync.Map for diagram cache (thread-safe, no mutex needed)
 	diagramCache := &sync.Map{}
 
-	// Create core components
-	md := mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache)
-	rnd := renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir, logger)
+	// Create core components mapping pool
+	mdPool := &sync.Pool{
+		New: func() interface{} {
+			return mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache)
+		},
+	}
+	rnd := renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir, cfg.IsDev, logger)
 
 	// Create Services
 	var cacheSvc services.CacheService
@@ -206,7 +133,7 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 
 	renderSvc := services.NewRenderService(rnd, logger)
 	assetSvc := services.NewAssetService(sourceFs, destFs, cfg, renderSvc, logger)
-	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, md, nativeRenderer, sourceFs, destFs, diagramAdapter)
+	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, sourceFs, destFs, diagramAdapter)
 
 	builder := &Builder{
 		cfg:            cfg,
@@ -219,31 +146,15 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 		metrics:        buildMetrics,
 		SourceFs:       sourceFs,
 		DestFs:         destFs,
-		md:             md,
+		mdPool:         mdPool,
+		nativeRenderer: nativeRenderer,
 	}
 
 	return builder
 }
 
-// generateCacheID creates a fingerprint of all dependencies that affect output
-func generateCacheID(cfg *config.Config) string {
-	// Combine versions of all SSR dependencies
-	components := []string{
-		"kosh:1.0",
-		"goldmark:1.7",
-		"d2:0.7",
-		"katex:embedded",
-	}
+// See generateCacheID in setup.go
 
-	combined := ""
-	for _, c := range components {
-		combined += c + "|"
-	}
-
-	return cache.HashString(combined)
-}
-
-// Config returns the builder's configuration
 func (b *Builder) Config() *config.Config {
 	return b.cfg
 }
@@ -264,12 +175,22 @@ func (b *Builder) checkWasmUpdate() {
 		"builder/models",
 	}
 
+	// Detect if we are in the source tree
+	inSourceTree := false
+	if _, err := os.Stat(filepath.Join("cmd", "search", "main.go")); err == nil {
+		inSourceTree = true
+	}
+
+	if !inSourceTree {
+		build.CheckWASM("")
+		return
+	}
+
 	// Optimization: Check if WASM exists and is newer than source
 	// This skips hashing entirely if not needed
 	wasmPath := "static/wasm/search.wasm"
 	if wasmInfo, err := os.Stat(wasmPath); err == nil {
 		isFresh := true
-		errFoundNewer := fmt.Errorf("newer")
 
 		for _, dir := range wasmSrcDirs {
 			err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -314,6 +235,19 @@ func (b *Builder) checkWasmUpdate() {
 
 	if currentHash != storedHash {
 		// Only trigger rebuild if hash changed
+		if inSourceTree {
+			// Try to compile from source (developer mode)
+			if err := build.CompileWASMFromSource(context.Background(), "./cmd/search", "static/wasm/search.wasm"); err == nil {
+				if b.cacheService != nil {
+					_ = b.cacheService.SetWasmHash(currentHash)
+				}
+				// Also update the compressed version
+				_ = build.CompressGzip("static/wasm/search.wasm", "static/wasm/search.wasm.gz")
+				return
+			}
+			b.logger.Warn("Automatic WASM compilation failed, falling back to embedded version")
+		}
+
 		if build.CheckWASM("") {
 			if b.cacheService != nil {
 				if err := b.cacheService.SetWasmHash(currentHash); err != nil {
@@ -341,6 +275,7 @@ func (b *Builder) SaveCaches() {
 	// Increment build count
 	if b.cacheService != nil {
 		_ = b.cacheService.IncrementBuildCount()
+		b.cacheService.ClearDirty()
 	}
 
 	// Flush cache service if needed
@@ -365,33 +300,7 @@ func (b *Builder) Close() {
 	libvips.Shutdown()
 }
 
-// initLibvips initializes libvips with configured concurrency
-func initLibvips(cfg *config.Config, logger *slog.Logger) {
-	// Suppress verbose libvips logging (only show warnings and errors)
-	libvips.LoggingSettings(nil, libvips.LogLevelWarning)
-
-	concurrency := cfg.VipsConcurrency
-	if concurrency == 0 {
-		// Auto-detect: use number of CPUs, capped at 4
-		concurrency = runtime.NumCPU()
-		if concurrency > 4 {
-			concurrency = 4
-		}
-	}
-
-	libvipsConfig := &libvips.Config{
-		ConcurrencyLevel: concurrency,
-		MaxCacheFiles:    100,
-		MaxCacheMem:      100 * 1024 * 1024, // 100MB
-		MaxCacheSize:     100,
-		ReportLeaks:      false,
-		CacheTrace:       false,
-		CollectStats:     false,
-	}
-
-	libvips.Startup(libvipsConfig)
-	logger.Info("libvips initialized", "concurrency", concurrency)
-}
+// See initLibvips in setup.go
 
 // Run executes the main build logic
 func Run(args []string) {
