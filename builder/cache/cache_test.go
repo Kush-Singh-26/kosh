@@ -323,31 +323,6 @@ func TestManager_MultipleDirtyPosts(t *testing.T) {
 	}
 }
 
-func TestEncodedPost_Pool(t *testing.T) {
-	// Get from pool
-	item := encodedPostPool.Get().([]EncodedPost)
-	if item == nil {
-		t.Fatal("Pool should return non-nil slice")
-	}
-
-	// Reset and return to pool
-	for i := range item {
-		item[i] = EncodedPost{}
-	}
-	//nolint:staticcheck // SA6002 - slices are reference types
-	encodedPostPool.Put(item)
-
-	// Get again - should be the same or similar item
-	item2 := encodedPostPool.Get().([]EncodedPost)
-	if item2 == nil {
-		t.Fatal("Pool should return non-nil slice on second get")
-	}
-
-	// Return to pool
-	//nolint:staticcheck // SA6002 - slices are reference types
-	encodedPostPool.Put(item2)
-}
-
 func TestWriteOps(t *testing.T) {
 	// This is tested indirectly through BatchCommit and other write operations
 	// The writeOps function is internal and tested through higher-level functions

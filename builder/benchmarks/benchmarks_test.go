@@ -4,6 +4,7 @@ package benchmarks
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +37,16 @@ func BenchmarkSearchWithTagFilter(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		_ = search.PerformSearch(index, "tag:go test query", "")
+	}
+}
+
+// BenchmarkPhraseSearch tests phrase matching performance
+func BenchmarkPhraseSearch(b *testing.B) {
+	index := createMockSearchIndex(100)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = search.PerformSearch(index, `"programming optimization"`, "")
 	}
 }
 
@@ -243,33 +254,33 @@ func BenchmarkLevenshteinDistance(b *testing.B) {
 func createMockSearchIndex(size int) *models.SearchIndex {
 	index := &models.SearchIndex{
 		Posts:     make([]models.PostRecord, size),
-		Inverted:  make(map[string]map[int]int),
-		DocLens:   make(map[int]int),
-		TotalDocs: size,
+		Inverted:  make(map[string]map[string][]int),
+		DocLens:   make(map[string]int64),
+		TotalDocs: int64(size),
 	}
 
 	totalLen := 0
 	for i := 0; i < size; i++ {
+		idStr := strconv.Itoa(i)
 		index.Posts[i] = models.PostRecord{
 			ID:          i,
 			Title:       fmt.Sprintf("Post %d", i),
 			Link:        fmt.Sprintf("/posts/post-%d", i),
 			Description: fmt.Sprintf("Description for post %d", i),
 			Tags:        []string{"go", "ssg", "web"},
-			Content:     fmt.Sprintf("Content for post %d with some test words", i),
 		}
 
 		// Add some inverted index entries
 		words := []string{"test", "content", "post", "go", "ssg", "programming", "optimization", "performance"}
 		for j, word := range words {
 			if _, ok := index.Inverted[word]; !ok {
-				index.Inverted[word] = make(map[int]int)
+				index.Inverted[word] = make(map[string][]int)
 			}
-			index.Inverted[word][i] = j + 1
+			index.Inverted[word][idStr] = []int{j}
 		}
 
-		index.DocLens[i] = 100 + i
-		totalLen += index.DocLens[i]
+		index.DocLens[idStr] = int64(100 + i)
+		totalLen += int(index.DocLens[idStr])
 	}
 
 	if size > 0 {

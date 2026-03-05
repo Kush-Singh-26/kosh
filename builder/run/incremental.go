@@ -3,18 +3,20 @@ package run
 import (
 	"context"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
-	gParser "github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
-	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 
 	"github.com/spf13/afero"
-	"github.com/yuin/goldmark-meta"
 )
 
 // invalidateForTemplate determines which posts to invalidate based on changed template
@@ -79,6 +81,7 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 				return
 			}
 			b.SaveCaches()
+			// Search index is regenerated during Build()
 			return
 		}
 	}
@@ -86,8 +89,9 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 	// Handle markdown files - single post rebuild
 	if strings.HasSuffix(changedPath, ".md") && strings.HasPrefix(changedPath, b.cfg.ContentDir) {
 		b.buildSinglePost(ctx, changedPath)
-		if err := utils.SyncVFS(b.DestFs, b.cfg.OutputDir, b.renderService.GetRenderedFiles()); err != nil {
+		if err := utils.SyncVFS(ctx, b.DestFs, b.cfg.OutputDir, b.renderService.GetRenderedFiles(), false); err != nil {
 			b.logger.Error("Sync failed", "error", err)
+			b.deletePostFromCache(changedPath)
 			return
 		}
 		b.renderService.ClearRenderedFiles()
@@ -134,15 +138,35 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		return
 	}
 
-	context := gParser.NewContext()
-	context.Set(mdParser.ContextKeyFilePath, path)
-	reader := text.NewReader(source)
-	b.md.Parser().Parse(reader, gParser.WithContext(context))
-	metaData := meta.Get(context)
-	newFrontmatterHash, _ := utils.GetFrontmatterHash(metaData)
-	newBodyHash := utils.GetBodyHash(source)
+	version, relPath := utils.GetVersionFromPath(path)
+	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
+	cleanHtmlRelPath := htmlRelPath
+	if version != "" {
+		cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(version)+"/")
+	}
 
-	relPath, _ := utils.SafeRel(b.cfg.ContentDir, path)
+	// First parse to check hashes
+	parseRes, err := services.ParseMarkdown(
+		ctx,
+		source,
+		path,
+		version,
+		cleanHtmlRelPath,
+		htmlRelPath,
+		b.mdPool,
+		b.cfg,
+		b.nativeRenderer,
+		b.diagramAdapter,
+		&b.mu,
+	)
+
+	if err != nil {
+		b.logger.Error("Error parsing markdown", "path", path, "error", err)
+		return
+	}
+
+	newFrontmatterHash := parseRes.FrontmatterHash
+	newBodyHash := utils.GetBodyHash(source)
 
 	var exists bool
 	var cachedFrontmatterHash, cachedBodyHash string
@@ -176,15 +200,24 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		}
 		b.SaveCaches()
 	} else if bodyOnlyChanged || cachedBodyHash == "" {
-		b.logger.Info("📝 Content-only change detected, rebuilding single post...")
-		if err := b.postService.ProcessSingle(ctx, path); err != nil {
+		b.logger.Info("📝 Content-only change detected, rebuilding single post (Zero-Double-Parse)...")
+		if err := b.postService.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
 			b.logger.Error("Failed to process single post", "error", err)
 			if err := b.Build(ctx); err != nil {
 				b.logger.Error("Build failed", "error", err)
 				return
 			}
+		} else {
+			// Update the in-memory indexedPosts cache for faster search regeneration
+			b.updateIndexedPostCache(relPath, parseRes)
 		}
 		b.SaveCaches()
+
+		// Regenerate search index using the updated cache
+		if err := b.regenerateSearchIndex(ctx); err != nil {
+			b.logger.Error("Failed to regenerate search index", "error", err)
+			// Don't fail the build, just log the error
+		}
 	} else {
 		b.logger.Info("✅ No changes detected, skipping...")
 	}
@@ -208,4 +241,128 @@ func (b *Builder) deletePostFromCache(path string) {
 	}
 
 	b.logger.Info("🗑️ Removed deleted post from cache", "path", relPath)
+}
+
+// lastSearchIndexRegeneration tracks when we last regenerated the search index
+var lastSearchIndexRegeneration atomic.Value // stores time.Time
+
+// updateIndexedPostCache updates a single entry in the in-memory cache
+func (b *Builder) updateIndexedPostCache(relPath string, parseRes *services.ParsedMarkdownResult) {
+	if len(b.indexedPosts) == 0 {
+		return
+	}
+
+	found := false
+	for i, ip := range b.indexedPosts {
+		if ip.Record.Link == parseRes.SearchRecord.Link {
+			// Update existing record
+			b.indexedPosts[i] = models.IndexedPost{
+				Record:          parseRes.SearchRecord,
+				WordFreqs:       parseRes.WordFreqs,
+				DocLen:          parseRes.DocLen,
+				StemMap:         parseRes.StemMap,
+				PositionalIndex: parseRes.PositionalIndex,
+			}
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// New post added to existing cache
+		b.indexedPosts = append(b.indexedPosts, models.IndexedPost{
+			Record:          parseRes.SearchRecord,
+			WordFreqs:       parseRes.WordFreqs,
+			DocLen:          parseRes.DocLen,
+			StemMap:         parseRes.StemMap,
+			PositionalIndex: parseRes.PositionalIndex,
+		})
+	}
+}
+
+// regenerateSearchIndex rebuilds the search index from cached post data.
+// It uses debouncing and the in-memory cache to avoid redundant BoltDB operations.
+func (b *Builder) regenerateSearchIndex(ctx context.Context) error {
+	// Debounce: don't regenerate if less than 500ms since last one
+	if last, ok := lastSearchIndexRegeneration.Load().(time.Time); ok && time.Since(last) < 500*time.Millisecond {
+		return nil
+	}
+	lastSearchIndexRegeneration.Store(time.Now())
+
+	if b.cacheService == nil {
+		return nil
+	}
+
+	var indexedPosts []models.IndexedPost
+	if len(b.indexedPosts) > 0 {
+		// Use in-memory cache if available (very fast)
+		indexedPosts = b.indexedPosts
+	} else {
+		// Fallback to BoltDB only if cache is empty
+		postIDs, err := b.cacheService.ListAllPosts()
+		if err != nil {
+			return err
+		}
+		if len(postIDs) == 0 {
+			return nil
+		}
+		posts, err := b.cacheService.GetPostsByIDs(postIDs)
+		if err != nil {
+			return err
+		}
+		searchRecords, err := b.cacheService.GetSearchRecords(postIDs)
+		if err != nil {
+			return err
+		}
+
+		sort.Strings(postIDs)
+		indexedPosts = make([]models.IndexedPost, 0, len(posts))
+		id := 0
+		for _, postID := range postIDs {
+			postMeta, ok := posts[postID]
+			if !ok || postMeta == nil {
+				continue
+			}
+			searchRec, ok := searchRecords[postID]
+			if !ok || searchRec == nil {
+				continue
+			}
+			id++
+			indexedPosts = append(indexedPosts, models.IndexedPost{
+				Record: models.PostRecord{
+					ID:              id,
+					Title:           postMeta.Title,
+					NormalizedTitle: searchRec.NormalizedTitle,
+					Link:            postMeta.Link,
+					Description:     postMeta.Description,
+					Tags:            postMeta.Tags,
+					NormalizedTags:  searchRec.NormalizedTags,
+					Version:         postMeta.Version,
+				},
+				WordFreqs:       searchRec.BM25Data,
+				DocLen:          searchRec.DocLen,
+				StemMap:         searchRec.StemMap,
+				PositionalIndex: searchRec.PositionalIndex,
+			})
+		}
+		// Warm the cache
+		b.indexedPosts = indexedPosts
+	}
+
+	if len(indexedPosts) == 0 {
+		return nil
+	}
+
+	// Generate search index file
+	start := time.Now()
+	path, err := generators.GenerateSearchIndex(b.DestFs, b.cfg.OutputDir, indexedPosts)
+	if err != nil {
+		return err
+	}
+	b.renderService.RegisterFile(path)
+
+	b.logger.Info("🔍 Search index regenerated",
+		"posts", len(indexedPosts),
+		"duration", time.Since(start).Round(time.Millisecond))
+	return nil
 }

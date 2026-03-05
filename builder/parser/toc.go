@@ -10,9 +10,15 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-var tocKey = parser.NewContextKey()
-var d2OrderedKey = parser.NewContextKey()
-var ssrHashesKey = parser.NewContextKey()
+// Package-level context keys, isolated by being unexported.
+// parser.NewContextKey() returns globally unique keys via an atomic counter,
+// so collisions across packages or multiple parser instances are impossible.
+var (
+	tocKey          = parser.NewContextKey()
+	plainTextKey    = parser.NewContextKey()
+	ssrHashesKey    = parser.NewContextKey()
+	contextKeyBuild = parser.NewContextKey()
+)
 
 func GetTOC(pc parser.Context) []models.TOCEntry {
 	if v := pc.Get(tocKey); v != nil {
@@ -21,11 +27,11 @@ func GetTOC(pc parser.Context) []models.TOCEntry {
 	return nil
 }
 
-func GetD2SVGPairSlice(pc parser.Context) []D2SVGPair {
-	if v := pc.Get(d2OrderedKey); v != nil {
-		return v.([]D2SVGPair)
+func GetPlainText(pc parser.Context) string {
+	if v := pc.Get(plainTextKey); v != nil {
+		return v.(string)
 	}
-	return nil
+	return ""
 }
 
 // GetSSRHashes returns all SSR input hashes (D2 diagrams, LaTeX math) for cache tracking
@@ -50,42 +56,58 @@ type tocTransformer struct{}
 
 func (t *tocTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	var toc []models.TOCEntry
+	var plainText strings.Builder
 
 	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
 
-		if n.Kind() == ast.KindHeading {
-			heading := n.(*ast.Heading)
-			if heading.Level < 2 || heading.Level > 6 {
-				return ast.WalkContinue, nil
+		// Extract plain text for search indexing simultaneously
+		switch n.Kind() {
+		case ast.KindText:
+			t := n.(*ast.Text)
+			plainText.Write(t.Segment.Value(reader.Source()))
+			plainText.WriteString(" ")
+		case ast.KindCodeBlock, ast.KindFencedCodeBlock:
+			l := n.Lines().Len()
+			for i := 0; i < l; i++ {
+				line := n.Lines().At(i)
+				plainText.Write(line.Value(reader.Source()))
 			}
+			plainText.WriteString(" ")
+		case ast.KindHeading:
+			plainText.WriteString("\n")
 
-			var headerText strings.Builder
-			walker := func(child ast.Node, entering bool) (ast.WalkStatus, error) {
-				if !entering {
+			// Handle TOC extraction
+			heading := n.(*ast.Heading)
+			if heading.Level >= 2 && heading.Level <= 6 {
+				var headerText strings.Builder
+				walker := func(child ast.Node, entering bool) (ast.WalkStatus, error) {
+					if !entering {
+						return ast.WalkContinue, nil
+					}
+					if child.Kind() == ast.KindText {
+						textNode := child.(*ast.Text)
+						headerText.Write(textNode.Segment.Value(reader.Source()))
+					}
 					return ast.WalkContinue, nil
 				}
-				if child.Kind() == ast.KindText {
-					textNode := child.(*ast.Text)
-					headerText.Write(textNode.Segment.Value(reader.Source()))
-				}
-				return ast.WalkContinue, nil
-			}
-			_ = ast.Walk(heading, walker)
+				_ = ast.Walk(heading, walker)
 
-			id, _ := heading.AttributeString("id")
-			if id != nil {
-				toc = append(toc, models.TOCEntry{
-					ID:    string(id.([]byte)),
-					Text:  headerText.String(),
-					Level: heading.Level,
-				})
+				id, _ := heading.AttributeString("id")
+				if id != nil {
+					toc = append(toc, models.TOCEntry{
+						ID:    string(id.([]byte)),
+						Text:  headerText.String(),
+						Level: heading.Level,
+					})
+				}
 			}
 		}
 		return ast.WalkContinue, nil
 	})
 
 	pc.Set(tocKey, toc)
+	pc.Set(plainTextKey, plainText.String())
 }

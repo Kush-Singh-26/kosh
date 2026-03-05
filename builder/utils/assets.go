@@ -40,7 +40,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 		// Skip files that must be copied directly without esbuild processing
 		// wasm_engine.js - loaded directly by HTML, defines global variables
 		// engine.js - loaded by wasm_engine.js, expects exact filename
-		if baseName == "wasm_engine.js" || baseName == "engine.js" {
+		if baseName == "wasm_engine.js" || baseName == "engine.js" || baseName == "force-graph.js" {
 			return nil
 		}
 
@@ -73,8 +73,8 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 				if mapData, err := os.ReadFile(mapFile); err == nil {
 					if err := json.Unmarshal(mapData, &assets); err == nil {
 						// Restore files
-						err = filepath.Walk(cachePath, func(path string, info fs.FileInfo, walkErr error) error {
-							if info.IsDir() || filepath.Base(path) == "map.json" {
+						err = filepath.WalkDir(cachePath, func(path string, d fs.DirEntry, walkErr error) error {
+							if d.IsDir() || filepath.Base(path) == "map.json" {
 								return nil
 							}
 							path = NormalizePath(path)
@@ -222,6 +222,9 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 				val = "/" + val
 			}
 
+			// Normalize hash portion to lowercase for case-insensitive filesystems (Windows)
+			val = normalizeHashCase(val)
+
 			assets[key] = val
 		}
 		return nil
@@ -232,8 +235,8 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 		return nil, err
 	}
 
-	// Process JS without bundling (to avoid wrapping standalone libraries)
-	if err := process(jsEntryPoints, false); err != nil {
+	// Process JS with bundling (allows tree-shaking and reduces requests)
+	if err := process(jsEntryPoints, true); err != nil {
 		return nil, err
 	}
 
@@ -244,4 +247,30 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 	}
 
 	return assets, nil
+}
+
+func normalizeHashCase(path string) string {
+	// Find pattern like .HASH12345. where hash is alphanumeric and 8-12 chars
+	for i := strings.Index(path, "."); i >= 0 && i < len(path)-10; i++ {
+		// Look for extension-like pattern after a dot
+		if i+9 < len(path) {
+			hashPart := path[i+1 : i+9]
+			if isAlphanumericHash(hashPart) {
+				return path[:i+1] + strings.ToLower(hashPart) + path[i+9:]
+			}
+		}
+	}
+	return path
+}
+
+func isAlphanumericHash(s string) bool {
+	if len(s) < 8 || len(s) > 12 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+			return false
+		}
+	}
+	return true
 }

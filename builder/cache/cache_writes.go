@@ -2,6 +2,8 @@ package cache
 
 import (
 	"encoding/binary"
+	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sync"
 	"time"
@@ -37,9 +39,10 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 			}
 
 			ep := EncodedPost{
-				PostID: []byte(p.PostID),
-				Data:   postData,
-				Path:   []byte(utils.NormalizePath(p.Path)),
+				PostID:  []byte(p.PostID),
+				Data:    postData,
+				Path:    []byte(utils.NormalizePath(p.Path)),
+				Version: p.Version,
 			}
 
 			if sr, ok := searchRecords[p.PostID]; ok {
@@ -97,10 +100,16 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 	ops.tags = make([]batchOp, 0, totalTags)
 	ops.templates = make([]batchOp, 0, totalTemplates)
 	ops.includes = make([]batchOp, 0, totalIncludes)
+	ops.versions = make([]batchOp, 0, len(encoded))
 
 	for _, ep := range encoded {
 		ops.posts = append(ops.posts, batchOp{key: ep.PostID, value: ep.Data})
 		ops.paths = append(ops.paths, batchOp{key: ep.Path, value: ep.PostID})
+
+		if ep.Version != "" {
+			verKey := []byte(ep.Version + "/" + string(ep.PostID))
+			ops.versions = append(ops.versions, batchOp{key: verKey, value: nil})
+		}
 
 		if ep.SearchData != nil {
 			ops.search = append(ops.search, batchOp{key: ep.PostID, value: ep.SearchData})
@@ -126,8 +135,28 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 		}
 	}
 
+	// Invalidate memory cache BEFORE the transaction
+	for _, ep := range encoded {
+		m.memCacheDelete("id:" + string(ep.PostID))
+		m.memCacheDelete("path:" + string(ep.Path))
+	}
+
 	err := m.db.Update(func(tx *bolt.Tx) error {
-		if err := writeOps(tx.Bucket([]byte(BucketPosts)), ops.posts); err != nil {
+		postsBucket := tx.Bucket([]byte(BucketPosts))
+
+		// Phase 1: Collect old HTML hashes for refcount delta (inside the tx)
+		oldHashes := make(map[string]string) // postID -> oldHTMLHash
+		for _, ep := range encoded {
+			if existing := postsBucket.Get(ep.PostID); existing != nil {
+				var oldPost PostMeta
+				if err := Decode(existing, &oldPost); err == nil && oldPost.HTMLHash != "" {
+					oldHashes[string(ep.PostID)] = oldPost.HTMLHash
+				}
+			}
+		}
+
+		// Phase 2: Write all bucket operations
+		if err := writeOps(postsBucket, ops.posts); err != nil {
 			return err
 		}
 		if err := writeOps(tx.Bucket([]byte(BucketPaths)), ops.paths); err != nil {
@@ -148,6 +177,30 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 		if err := writeOps(tx.Bucket([]byte(BucketDepsIncludes)), ops.includes); err != nil {
 			return err
 		}
+		if err := writeOps(tx.Bucket([]byte(BucketVersions)), ops.versions); err != nil {
+			return err
+		}
+
+		// Phase 3: Adjust refcounts atomically inside the same transaction
+		for _, ep := range encoded {
+			var newPost PostMeta
+			if err := Decode(ep.Data, &newPost); err != nil {
+				continue
+			}
+			oldHash := oldHashes[string(ep.PostID)]
+			newHash := newPost.HTMLHash
+
+			if oldHash != "" && oldHash != newHash {
+				if err := m.refCount.DecrementTx(tx, oldHash, nil); err != nil {
+					return fmt.Errorf("failed to decrement refcount: %w", err)
+				}
+			}
+			if newHash != "" && newHash != oldHash {
+				if err := m.refCount.IncrementTx(tx, newHash); err != nil {
+					return fmt.Errorf("failed to increment refcount: %w", err)
+				}
+			}
+		}
 
 		stats := tx.Bucket([]byte(BucketStats))
 		buildCount := uint32(1)
@@ -163,12 +216,13 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 		return nil
 	})
 
-	// Invalidate memory cache for committed posts
-	if err == nil {
-		for _, ep := range encoded {
-			m.memCacheDelete("id:" + string(ep.PostID))
-			m.memCacheDelete("path:" + string(ep.Path))
+	if err != nil {
+		// Log failed batch commits with post IDs for manual reconciliation
+		postIDs := make([]string, len(encoded))
+		for i, ep := range encoded {
+			postIDs[i] = string(ep.PostID)
 		}
+		slog.Error("BatchCommit failed", "count", len(postIDs), "ids", postIDs, "error", err)
 	}
 
 	return err
@@ -180,12 +234,12 @@ func (m *Manager) StoreHTML(content []byte) (string, error) {
 	return hash, err
 }
 
-// StoreHTMLForPost stores HTML for a specific post, inlining if small
+// StoreHTMLForPost stores HTML for a specific post, inlining if small.
+// Note: Refcount adjustments are handled atomically inside BatchCommit,
+// not here. This method only sets the HTMLHash/InlineHTML fields on the post struct.
 func (m *Manager) StoreHTMLForPost(post *PostMeta, content []byte) error {
 	if len(content) < utils.InlineHTMLThreshold {
-		if post.HTMLHash != "" {
-			_, _ = m.refCount.Decrement(post.HTMLHash)
-		}
+		// Small content is inlined directly, no hash needed
 		post.InlineHTML = content
 		post.HTMLHash = ""
 		return nil
@@ -195,14 +249,7 @@ func (m *Manager) StoreHTMLForPost(post *PostMeta, content []byte) error {
 		return err
 	}
 
-	if post.HTMLHash != "" && post.HTMLHash != hash {
-		_, _ = m.refCount.Decrement(post.HTMLHash)
-	}
-
-	if post.HTMLHash != hash {
-		_ = m.refCount.Increment(hash)
-	}
-
+	// Just set the hash — refcount is reconciled atomically in BatchCommit
 	post.HTMLHash = hash
 	post.InlineHTML = nil
 	return nil
@@ -243,6 +290,7 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*SSRArtif
 func (m *Manager) DeletePost(postID string) error {
 	var postPath string
 	var htmlHash string
+	var deleteErrors []error
 
 	err := m.db.Update(func(tx *bolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(BucketPosts))
@@ -250,33 +298,58 @@ func (m *Manager) DeletePost(postID string) error {
 		searchBucket := tx.Bucket([]byte(BucketSearch))
 		depsBucket := tx.Bucket([]byte(BucketPostDeps))
 		tagsBucket := tx.Bucket([]byte(BucketTags))
+		versionsBucket := tx.Bucket([]byte(BucketVersions))
 
 		postIDBytes := []byte(postID)
 
 		data := postsBucket.Get(postIDBytes)
 		if data != nil {
 			var post PostMeta
-			if err := Decode(data, &post); err == nil {
+			if decodeErr := Decode(data, &post); decodeErr == nil {
 				postPath = utils.NormalizePath(post.Path)
 				htmlHash = post.HTMLHash
-				_ = pathsBucket.Delete([]byte(postPath))
+				if err := pathsBucket.Delete([]byte(postPath)); err != nil {
+					deleteErrors = append(deleteErrors, fmt.Errorf("delete path: %w", err))
+				}
 
 				for _, tag := range post.Tags {
 					tagKey := []byte(tag + "/" + postID)
-					_ = tagsBucket.Delete(tagKey)
+					if err := tagsBucket.Delete(tagKey); err != nil {
+						deleteErrors = append(deleteErrors, fmt.Errorf("delete tag %s: %w", tag, err))
+					}
+				}
+				if post.Version != "" && versionsBucket != nil {
+					verKey := []byte(post.Version + "/" + postID)
+					if err := versionsBucket.Delete(verKey); err != nil {
+						deleteErrors = append(deleteErrors, fmt.Errorf("delete version: %w", err))
+					}
 				}
 			}
 		}
 
-		_ = postsBucket.Delete(postIDBytes)
-		_ = searchBucket.Delete(postIDBytes)
-		_ = depsBucket.Delete(postIDBytes)
+		if err := postsBucket.Delete(postIDBytes); err != nil {
+			deleteErrors = append(deleteErrors, fmt.Errorf("delete post: %w", err))
+		}
+		if err := searchBucket.Delete(postIDBytes); err != nil {
+			deleteErrors = append(deleteErrors, fmt.Errorf("delete search: %w", err))
+		}
+		if err := depsBucket.Delete(postIDBytes); err != nil {
+			deleteErrors = append(deleteErrors, fmt.Errorf("delete deps: %w", err))
+		}
+
+		// Decrement refcount inside transaction
+		if htmlHash != "" {
+			if err := m.refCount.DecrementTx(tx, htmlHash, nil); err != nil {
+				deleteErrors = append(deleteErrors, fmt.Errorf("decrement refcount: %w", err))
+			}
+		}
 
 		return nil
 	})
 
-	if htmlHash != "" {
-		_, _ = m.refCount.Decrement(htmlHash)
+	// Log any delete errors (best effort cleanup)
+	for _, delErr := range deleteErrors {
+		slog.Warn("Cache delete error", "postID", postID, "error", delErr)
 	}
 
 	// Invalidate memory cache

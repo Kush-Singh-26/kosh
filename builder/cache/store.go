@@ -2,11 +2,13 @@ package cache
 
 import (
 	"fmt"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -16,7 +18,8 @@ var level3EncoderPool = sync.Pool{
 	New: func() interface{} {
 		enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
 		if err != nil {
-			return nil
+			// Return a marker that creation failed - callers must check
+			return err
 		}
 		return enc
 	},
@@ -51,8 +54,15 @@ func NewStore(basePath string) (*Store, error) {
 
 // Close releases resources
 func (s *Store) Close() error {
-	_ = s.encoder.Close()
+	var errs []error
+	if err := s.encoder.Close(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to close encoder: %w", err))
+	}
+	// Decoder.Close() doesn't return an error
 	s.decoder.Close()
+	if len(errs) > 0 {
+		return fmt.Errorf("store close errors: %v", errs)
+	}
 	return nil
 }
 
@@ -64,7 +74,6 @@ func (s *Store) shardPath(category string, hash string) string {
 	return filepath.Join(s.basePath, category, hash[0:2], hash[2:4], hash)
 }
 
-// extension returns the file extension based on compression type
 func extension(ct CompressionType) string {
 	if ct == CompressionNone {
 		return ".raw"
@@ -107,13 +116,29 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 		// Compress
 		if ct == CompressionZstdLevel3 {
 			enc := level3EncoderPool.Get()
+			var zstdEnc *zstd.Encoder
 			if enc == nil {
-				enc, _ = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
+				// Pool was empty, create new encoder
+				var encErr error
+				zstdEnc, encErr = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
+				if encErr != nil {
+					return "", 0, fmt.Errorf("failed to create zstd encoder: %w", encErr)
+				}
+			} else if poolErr, ok := enc.(error); ok {
+				// Pool creation previously failed, create new encoder
+				if poolErr != nil {
+					var encErr error
+					zstdEnc, encErr = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
+					if encErr != nil {
+						return "", 0, fmt.Errorf("failed to create zstd encoder: %w", encErr)
+					}
+				}
+			} else {
+				zstdEnc = enc.(*zstd.Encoder)
 			}
-			zstdEnc := enc.(*zstd.Encoder)
 			data = zstdEnc.EncodeAll(content, nil)
 			zstdEnc.Reset(nil)
-			level3EncoderPool.Put(enc)
+			level3EncoderPool.Put(zstdEnc)
 		} else {
 			data = s.encoder.EncodeAll(content, nil)
 		}
@@ -132,12 +157,6 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 		_ = f.Close()
 		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("failed to write content: %w", err)
-	}
-
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmpPath)
-		return "", 0, fmt.Errorf("failed to sync file: %w", err)
 	}
 
 	if err := f.Close(); err != nil {
@@ -208,7 +227,6 @@ func (s *Store) Delete(category string, hash string) error {
 	return nil
 }
 
-// ListHashes returns all hashes in a category
 func (s *Store) ListHashes(category string) ([]string, error) {
 	categoryPath := filepath.Join(s.basePath, category)
 	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
@@ -216,15 +234,15 @@ func (s *Store) ListHashes(category string) ([]string, error) {
 	}
 
 	var hashes []string
-	err := filepath.Walk(categoryPath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(categoryPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 		// Extract hash from filename
-		name := info.Name()
+		name := d.Name()
 		if ext := filepath.Ext(name); ext == ".raw" || ext == ".zst" {
 			hash := strings.TrimSuffix(name, ext)
 			hashes = append(hashes, hash)
@@ -234,7 +252,6 @@ func (s *Store) ListHashes(category string) ([]string, error) {
 	return hashes, err
 }
 
-// Size returns total bytes used by a category
 func (s *Store) Size(category string) (int64, error) {
 	categoryPath := filepath.Join(s.basePath, category)
 	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
@@ -242,14 +259,54 @@ func (s *Store) Size(category string) (int64, error) {
 	}
 
 	var total int64
-	err := filepath.Walk(categoryPath, func(_ string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(categoryPath, func(_ string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
-			total += info.Size()
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err == nil {
+				total += info.Size()
+			}
 		}
 		return nil
 	})
 	return total, err
+}
+
+// CleanOrphans deletes artifacts in a category that are older than maxAge and not in liveHashes
+func (s *Store) CleanOrphans(category string, liveHashes map[string]bool, maxAge time.Duration) (int, int64, error) {
+	deleted, freedBytes := 0, int64(0)
+	cutoff := time.Now().Add(-maxAge)
+	categoryPath := filepath.Join(s.basePath, category)
+	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
+		return 0, 0, nil
+	}
+
+	err := filepath.WalkDir(categoryPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+
+		ext := filepath.Ext(d.Name())
+		if ext != ".raw" && ext != ".zst" && ext != ".tmp" && ext != ".kosh-backup" {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+
+		hash := strings.TrimSuffix(d.Name(), ext)
+		if !liveHashes[hash] && info.ModTime().Before(cutoff) {
+			if err := os.Remove(path); err == nil {
+				deleted++
+				freedBytes += info.Size()
+			}
+		}
+		return nil
+	})
+
+	return deleted, freedBytes, err
 }

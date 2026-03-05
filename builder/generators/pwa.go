@@ -21,20 +21,10 @@ func GenerateSW(destFs afero.Fs, destDir string, buildVersion int64, forceRebuil
 	}
 
 	swTemplate := `
-const CACHE_NAME = 'kush-blog-cache-v{{ .Version }}';
-const STATIC_CACHE = 'kush-blog-static-v{{ .Version }}';
-
-// Dev hostnames to disable caching
-const DEV_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0'];
-
-// Core app shell assets
-const CORE_ASSETS = [
-    '{{ .BaseURL }}/',
-    '{{ .BaseURL }}/index.html',
-    '{{ .BaseURL }}/404.html',
-    '{{ .BaseURL }}/manifest.json'{{ range .CriticalAssets }},
-    '{{ $.BaseURL }}{{ . }}'{{ end }}
-];
+// Service worker disabled in dev mode or incomplete implementation
+self.addEventListener('fetch', function(event) {
+    // Pass-through
+});
 `
 
 	tmpl, err := template.New("sw").Parse(swTemplate)

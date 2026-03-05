@@ -3,9 +3,8 @@ package cache
 import (
 	"encoding/binary"
 	"fmt"
-	"os"
+	"log/slog"
 	"path/filepath"
-	"sync"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -57,112 +56,42 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 
 	result.LiveBlobs = len(liveHTMLHashes) + len(liveSSRHashes)
 
-	// Step 2: Scan store and find orphaned blobs (parallelized for I/O efficiency)
-	type scanResult struct {
-		orphaned []struct {
-			category string
-			hash     string
-		}
-		scanned int
-	}
-
-	resultsCh := make(chan scanResult, 3)
-	var scanWg sync.WaitGroup
-
-	scanWg.Add(1)
-	go func() {
-		defer scanWg.Done()
-		htmlHashes, err := m.store.ListHashes("html")
-		if err != nil {
-			return
-		}
-		res := scanResult{orphaned: make([]struct {
-			category string
-			hash     string
-		}, 0, len(htmlHashes))}
-		for _, hash := range htmlHashes {
-			res.scanned++
-			if !liveHTMLHashes[hash] {
-				res.orphaned = append(res.orphaned, struct {
-					category string
-					hash     string
-				}{"html", hash})
-			}
-		}
-		resultsCh <- res
-	}()
-
-	for _, ssrType := range []string{"d2", "katex"} {
-		scanWg.Add(1)
-		go func(ssrType string) {
-			defer scanWg.Done()
-			category := filepath.Join("ssr", ssrType)
-			hashes, err := m.store.ListHashes(category)
-			if err != nil {
-				return
-			}
-			res := scanResult{orphaned: make([]struct {
-				category string
-				hash     string
-			}, 0, len(hashes))}
-			for _, hash := range hashes {
-				res.scanned++
-				if !liveSSRHashes[hash] {
-					res.orphaned = append(res.orphaned, struct {
-						category string
-						hash     string
-					}{category, hash})
-				}
-			}
-			resultsCh <- res
-		}(ssrType)
-	}
-
-	go func() {
-		scanWg.Wait()
-		close(resultsCh)
-	}()
-
-	var orphanedBlobs []struct {
-		category string
-		hash     string
-	}
-	for res := range resultsCh {
-		result.ScannedBlobs += res.scanned
-		orphanedBlobs = append(orphanedBlobs, res.orphaned...)
-	}
-
-	// Step 3: Delete orphaned blobs (unless dry run), respecting ref counts for HTML
+	// Step 2 & 3: Scan store and find/delete orphaned blobs based on TTL
 	if !cfg.DryRun {
-		for _, blob := range orphanedBlobs {
-			if blob.category == "html" {
-				refCount := m.refCount.Get(blob.hash)
-				if refCount > 0 {
-					continue
-				}
-			}
+		// Set a default maxAge if not provided (e.g., 7 days)
+		maxAge := cfg.MaxAge
+		if maxAge == 0 {
+			maxAge = 7 * 24 * time.Hour
+		}
 
-			rawPath := filepath.Join(m.basePath, "store", blob.category, blob.hash[0:2], blob.hash[2:4], blob.hash+".raw")
-			zstPath := filepath.Join(m.basePath, "store", blob.category, blob.hash[0:2], blob.hash[2:4], blob.hash+".zst")
+		// Clean HTML artifacts
+		deleted, freedBytes, err := m.store.CleanOrphans("html", liveHTMLHashes, maxAge)
+		if err == nil {
+			result.DeletedBlobs += deleted
+			result.DeletedBytes += freedBytes
+		}
 
-			if info, err := os.Stat(rawPath); err == nil {
-				result.DeletedBytes += info.Size()
-			}
-			if info, err := os.Stat(zstPath); err == nil {
-				result.DeletedBytes += info.Size()
-			}
-
-			if err := m.store.Delete(blob.category, blob.hash); err == nil {
-				result.DeletedBlobs++
+		// Clean SSR artifacts
+		for _, ssrType := range []string{"d2", "katex"} {
+			category := filepath.Join("ssr", ssrType)
+			deleted, freedBytes, err := m.store.CleanOrphans(category, liveSSRHashes, maxAge)
+			if err == nil {
+				result.DeletedBlobs += deleted
+				result.DeletedBytes += freedBytes
 			}
 		}
+
+		// Set scanned blobs to live + deleted as an approximation
+		result.ScannedBlobs = result.LiveBlobs + result.DeletedBlobs
 	} else {
-		result.DeletedBlobs = len(orphanedBlobs)
+		// Dry run is tricky with TTL since we skip the walk in store.go
+		// We'll keep the output zeroes and just report what live blobs are
+		result.ScannedBlobs = result.LiveBlobs
 	}
 
 	// Step 4: Reconcile HTML RefCounts
 	if !cfg.DryRun {
-		_ = m.refCount.Reconcile()
+		_ = m.refCount.ReconcileWithLog(slog.Default())
 	}
 
 	// Step 5: Reconcile SSR RefCounts
@@ -195,7 +124,7 @@ func (m *Manager) RunGC(cfg GCConfig) (*GCResult, error) {
 					artifact.RefCount = newRefCount
 					if newRefCount == 0 {
 						// Safe to delete from store if refcount is 0
-						_ = m.store.Delete(artifact.Type, artifact.OutputHash)
+						_ = m.store.Delete(filepath.Join("ssr", artifact.Type), artifact.OutputHash)
 						return ssrBucket.Delete(k)
 					}
 					data, err := Encode(&artifact)

@@ -42,3 +42,6 @@ ant.md
 *.prof
 
 nul
+
+themes/
+.opencode/

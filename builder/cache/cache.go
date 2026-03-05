@@ -3,21 +3,15 @@ package cache
 import (
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2"
+	lru "github.com/hashicorp/golang-lru/v2"
 	bolt "go.etcd.io/bbolt"
 )
-
-// encodedPostPool is a sync.Pool for reusing EncodedPost slices
-var encodedPostPool = sync.Pool{
-	New: func() interface{} {
-		return make([]EncodedPost, 0, 64)
-	},
-}
 
 // memoryCacheEntry holds a cached PostMeta with expiration
 type memoryCacheEntry struct {
@@ -93,7 +87,12 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		return nil, fmt.Errorf("failed to create store: %w", err)
 	}
 
-	lruCache, _ := lru.New[string, *memoryCacheEntry](1024) // 1024 items max
+	lruCache, err := lru.New[string, *memoryCacheEntry](1024) // 1024 items max
+	if err != nil {
+		_ = store.Close()
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to create LRU cache: %w", err)
+	}
 
 	m := &Manager{
 		db:          db,
@@ -106,20 +105,72 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 	}
 
 	if err := m.initSchema(); err != nil {
-		_ = m.Close()
+		_ = m.cleanupOnError()
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
+	}
+
+	// Verify schema and run migrations if needed
+	var currentVersion uint32
+	err = m.db.View(func(tx *bolt.Tx) error {
+		meta := tx.Bucket([]byte(BucketMeta))
+		if meta != nil {
+			v := meta.Get([]byte(KeySchemaVersion))
+			if v != nil {
+				currentVersion = binary.BigEndian.Uint32(v)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		_ = m.cleanupOnError()
+		return nil, fmt.Errorf("failed to read schema version: %w", err)
+	}
+
+	if currentVersion > 0 && currentVersion != uint32(SchemaVersion) {
+		newVer, err := RunMigrations(m.db, currentVersion, nil)
+		if err != nil || newVer != uint32(SchemaVersion) {
+			_ = m.cleanupOnError()
+			return nil, fmt.Errorf("incompatible schema version: got %d, want %d (migration failed: %v)", currentVersion, SchemaVersion, err)
+		}
 	}
 
 	return m, nil
 }
 
-// Close closes the cache
-func (m *Manager) Close() error {
+// cleanupOnError closes all resources during initialization failure
+func (m *Manager) cleanupOnError() error {
+	var errs []error
 	if m.store != nil {
-		_ = m.store.Close()
+		if err := m.store.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	if m.db != nil {
-		return m.db.Close()
+		if err := m.db.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("cleanup errors: %v", errs)
+	}
+	return nil
+}
+
+// Close closes the cache
+func (m *Manager) Close() error {
+	var errs []error
+	if m.store != nil {
+		if err := m.store.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close store: %w", err))
+		}
+	}
+	if m.db != nil {
+		if err := m.db.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close db: %w", err))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("cache close errors: %v", errs)
 	}
 	return nil
 }
@@ -198,15 +249,35 @@ func (m *Manager) ClearAll() error {
 	// Clear memory cache
 	m.memCache.Purge()
 
+	// Clear filesystem store
+	if err := m.clearFilesystemStore(); err != nil {
+		// Log but don't fail - the DB clear is the critical part
+		slog.Warn("Failed to clear filesystem store", "error", err)
+	}
+
 	return err
 }
 
-// Store returns the underlying content store
+// clearFilesystemStore removes all content from the filesystem store
+func (m *Manager) clearFilesystemStore() error {
+	// List all categories and delete their contents
+	categories := []string{"html", "ssr-d2", "ssr-math", "search"}
+	for _, category := range categories {
+		hashes, err := m.store.ListHashes(category)
+		if err != nil {
+			continue // Skip categories that don't exist
+		}
+		for _, hash := range hashes {
+			_ = m.store.Delete(category, hash)
+		}
+	}
+	return nil
+}
+
 func (m *Manager) Store() *Store {
 	return m.store
 }
 
-// DB returns the underlying BoltDB instance
 func (m *Manager) DB() *bolt.DB {
 	return m.db
 }
@@ -218,6 +289,7 @@ type EncodedPost struct {
 	Path       []byte
 	SearchData []byte
 	DepsData   []byte
+	Version    string
 	Tags       []string
 	Templates  []string
 	Includes   []string
@@ -238,10 +310,14 @@ type bucketOps struct {
 	tags      []batchOp
 	templates []batchOp
 	includes  []batchOp
+	versions  []batchOp
 }
 
 // writeOps performs sequential writes to a bucket
 func writeOps(bucket *bolt.Bucket, ops []batchOp) error {
+	if bucket == nil {
+		return nil
+	}
 	for _, op := range ops {
 		if err := bucket.Put(op.key, op.value); err != nil {
 			return err

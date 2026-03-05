@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"os"
@@ -15,7 +15,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
-func Run(ctx context.Context, args []string, outputDir string, buildCfg *config.BuildConfig) {
+func Run(ctx context.Context, args []string, outputDir string, baseURL string, buildCfg *config.BuildConfig) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	host := fs.String("host", "localhost", "The host/IP to bind to")
 	port := fs.String("port", "2604", "The port to listen on")
@@ -29,6 +29,7 @@ func Run(ctx context.Context, args []string, outputDir string, buildCfg *config.
 	addr := fmt.Sprintf("%s:%s", *host, *port)
 
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
+	_ = mime.AddExtensionType(".bin", "application/octet-stream")
 
 	staticDir := outputDir
 	if staticDir == "" {
@@ -51,7 +52,7 @@ func Run(ctx context.Context, args []string, outputDir string, buildCfg *config.
 
 	go func() {
 		<-ctx.Done()
-		fmt.Println("\n🛑 Shutting down server...")
+		slog.Info("\n🛑 Shutting down server...")
 		stopWatcher()
 	}()
 
@@ -60,8 +61,36 @@ func Run(ctx context.Context, args []string, outputDir string, buildCfg *config.
 	http.HandleFunc("/events", handleSSE)
 
 	http.HandleFunc("/", gzipHandler(func(w http.ResponseWriter, r *http.Request) {
+		// If build is active, wait briefly (5s max)
+		buildMu.Lock()
+		if buildActive {
+			// Use a channel to wait with timeout
+			waitDone := make(chan struct{})
+			go func() {
+				buildMu.Lock()
+				defer buildMu.Unlock()
+				for buildActive {
+					buildComplete.Wait()
+				}
+				close(waitDone)
+			}()
+			buildMu.Unlock()
+
+			select {
+			case <-waitDone:
+				// Build finished, proceed
+			case <-time.After(5 * time.Second):
+				slog.Warn("Wait for build timed out", "path", r.URL.Path)
+			}
+		} else {
+			buildMu.Unlock()
+		}
+
 		rawPath := r.URL.Path
-		normalizedPath := normalizeRequestPath(rawPath)
+		normalizedPath := normalizeRequestPath(rawPath, baseURL)
+
+		// Update request path for fileServer to handle baseURL prefix
+		r.URL.Path = normalizedPath
 
 		fullPath, err := validatePath(staticDir, normalizedPath)
 		if err != nil {
@@ -73,6 +102,7 @@ func Run(ctx context.Context, args []string, outputDir string, buildCfg *config.
 		fileInfo, err := os.Stat(fullPath)
 		if err != nil {
 			if os.IsNotExist(err) {
+				slog.Debug("File not found", "fullPath", fullPath, "normalizedPath", normalizedPath)
 				w.WriteHeader(http.StatusNotFound)
 				notFoundPath := filepath.Join(staticDir, "404.html")
 				if content, readErr := os.ReadFile(notFoundPath); readErr == nil {
@@ -88,6 +118,18 @@ func Run(ctx context.Context, args []string, outputDir string, buildCfg *config.
 		}
 
 		filename := filepath.Base(normalizedPath)
+
+		// Special handling for directory requests - serve index.html directly
+		// This prevents Go's http.FileServer from redirecting /tags/ to tags/
+		if fileInfo.IsDir() {
+			indexPath := filepath.Join(fullPath, "index.html")
+			if indexInfo, err := os.Stat(indexPath); err == nil && !indexInfo.IsDir() {
+				// Serve index.html directly without redirect
+				http.ServeFile(w, r, indexPath)
+				return
+			}
+		}
+
 		if isHashedAsset(filename) {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		} else if fileInfo.IsDir() || strings.HasSuffix(filename, ".html") {
@@ -110,22 +152,23 @@ func Run(ctx context.Context, args []string, outputDir string, buildCfg *config.
 
 	go func() {
 		<-ctx.Done()
-		fmt.Println("\n🛑 Shutting down HTTP server...")
+		slog.Info("\n🛑 Shutting down HTTP server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			log.Printf("HTTP server shutdown error: %v", err)
+			slog.Error("HTTP server shutdown error", "error", err)
 		}
 	}()
 
-	fmt.Printf("🌍 Serving on http://%s\n", addr)
+	slog.Info(fmt.Sprintf("🌍 Serving on http://%s", addr))
 	if *host == "0.0.0.0" {
-		fmt.Println("   (Accessible on your local network)")
+		slog.Info("   (Accessible on your local network)")
 	}
-	fmt.Println("   (Auto-reload enabled via /events)")
+	slog.Info("   (Auto-reload enabled via /events)")
 
 	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
-		log.Fatal(err)
+		slog.Error("HTTP server error", "error", err)
+		os.Exit(1)
 	}
-	fmt.Println("✅ Server stopped.")
+	slog.Info("✅ Server stopped.")
 }

@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"log"
+	"log/slog"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -53,12 +53,18 @@ func NewDiagramCacheAdapter(manager *Manager) *DiagramCacheAdapter {
 
 // writeWorker processes write requests from the queue
 func (a *DiagramCacheAdapter) writeWorker() {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("writeWorker panic recovered", "panic", r)
+		}
+	}()
+
 	for {
 		select {
 		case req := <-a.writeQueue:
 			if _, err := a.manager.StoreSSR("d2", req.key, []byte(req.value)); err != nil {
 				// Log error but don't fail - the data is still in local cache
-				log.Printf("Failed to store SSR cache for key %s: %v", req.key, err)
+				slog.Warn("Failed to store SSR cache", "key", req.key, "error", err)
 			}
 			a.pending.Done()
 		case <-a.stopCh:
@@ -99,25 +105,25 @@ func (a *DiagramCacheAdapter) Get(key string) (string, bool) {
 // Set stores a diagram in the cache
 // Uses bounded worker pool to prevent goroutine explosion with many diagrams
 func (a *DiagramCacheAdapter) Set(key string, value string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	if a.closed.Load() {
 		return
 	}
 
-	a.mu.Lock()
 	a.local[key] = value
-	a.mu.Unlock()
 
 	// Also store in BoltDB if manager is available using worker pool
 	if a.manager != nil {
-		a.pending.Add(1)
+		a.pending.Add(1) // Increment before sending to prevent race
 		select {
 		case a.writeQueue <- writeRequest{key: key, value: value}:
-			// Successfully queued - worker will call Done()
 		default:
-			a.pending.Done() // Revert since we couldn't queue it
-			// Queue full, process synchronously to avoid blocking
+			// Queue full, process synchronously
+			a.pending.Done() // Decrement since we're doing it sync
 			if _, err := a.manager.StoreSSR("d2", key, []byte(value)); err != nil {
-				log.Printf("Failed to store SSR cache for key %s: %v", key, err)
+				slog.Warn("Failed to store SSR cache", "key", key, "error", err)
 			}
 		}
 	}
@@ -129,10 +135,15 @@ func (a *DiagramCacheAdapter) Flush() error {
 		return nil
 	}
 
+	// Copy data under lock, then release before I/O
 	a.mu.RLock()
-	defer a.mu.RUnlock()
+	localCopy := make(map[string]string, len(a.local))
+	for k, v := range a.local {
+		localCopy[k] = v
+	}
+	a.mu.RUnlock()
 
-	for key, value := range a.local {
+	for key, value := range localCopy {
 		_, err := a.manager.StoreSSR("d2", key, []byte(value))
 		if err != nil {
 			return err

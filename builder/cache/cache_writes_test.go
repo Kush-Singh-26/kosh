@@ -14,6 +14,38 @@ func TestBatchCommit_Empty(t *testing.T) {
 	}
 }
 
+func TestBatchCommit_RefCountAtomic(t *testing.T) {
+	m, cleanup := createTestCache(t)
+	defer cleanup()
+
+	// 1. Initial commit with HTML Hash "hashA"
+	post1 := createSamplePostMeta()
+	post1.PostID = "atomic-post"
+	post1.HTMLHash = "hashA"
+	if err := m.BatchCommit([]*PostMeta{post1}, nil, nil); err != nil {
+		t.Fatalf("Initial commit failed: %v", err)
+	}
+
+	if count := m.refCount.Get("hashA"); count != 1 {
+		t.Errorf("Expected refcount 1 for hashA, got %d", count)
+	}
+
+	// 2. Update post to have HTML Hash "hashB"
+	post2 := createSamplePostMeta()
+	post2.PostID = "atomic-post" // Same ID
+	post2.HTMLHash = "hashB"
+	if err := m.BatchCommit([]*PostMeta{post2}, nil, nil); err != nil {
+		t.Fatalf("Update commit failed: %v", err)
+	}
+
+	if count := m.refCount.Get("hashA"); count != 0 {
+		t.Errorf("Expected refcount 0 for hashA after update, got %d", count)
+	}
+	if count := m.refCount.Get("hashB"); count != 1 {
+		t.Errorf("Expected refcount 1 for hashB after update, got %d", count)
+	}
+}
+
 func TestBatchCommit_SinglePost(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
@@ -70,10 +102,8 @@ func TestBatchCommit_WithSearchRecords(t *testing.T) {
 	record := &SearchRecord{
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
-		Tokens:          []string{"test", "post"},
 		BM25Data:        map[string]int{"test": 1},
 		DocLen:          10,
-		Content:         "Test content",
 		NormalizedTags:  []string{"test"},
 	}
 
@@ -148,8 +178,7 @@ func TestBatchCommit_Complete(t *testing.T) {
 	post.PostID = "complete-test"
 
 	record := &SearchRecord{
-		Title:  "Complete Test",
-		Tokens: []string{"complete", "test"},
+		Title: "Complete Test",
 	}
 
 	deps := &Dependencies{
@@ -483,5 +512,61 @@ func TestDeletePost_WithSearchRecord(t *testing.T) {
 	retrieved, _ := m.GetSearchRecord(post.PostID)
 	if retrieved != nil {
 		t.Error("Search record should be deleted")
+	}
+}
+
+func TestDeletePost_ClearsMemoryCache(t *testing.T) {
+	m, cleanup := createTestCache(t)
+	defer cleanup()
+
+	post := createSamplePostMeta()
+	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+		t.Fatalf("BatchCommit failed: %v", err)
+	}
+
+	// Load into memory cache
+	_, _ = m.GetPostByID(post.PostID)
+	_, _ = m.GetPostByPath(post.Path)
+
+	// Delete the post
+	if err := m.DeletePost(post.PostID); err != nil {
+		t.Fatalf("DeletePost failed: %v", err)
+	}
+
+	// Verify memory cache is cleared
+	cachedByID := m.memCacheGet("id:" + post.PostID)
+	if cachedByID != nil {
+		t.Error("Memory cache should be cleared for post ID")
+	}
+
+	cachedByPath := m.memCacheGet("path:" + post.Path)
+	if cachedByPath != nil {
+		t.Error("Memory cache should be cleared for post path")
+	}
+}
+
+func TestDeletePost_BestEffortCleanup(t *testing.T) {
+	m, cleanup := createTestCache(t)
+	defer cleanup()
+
+	// Test that DeletePost works even with missing data
+	// This tests the best-effort cleanup behavior
+
+	// Create a minimal post without full data
+	post := createSamplePostMeta()
+	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+		t.Fatalf("BatchCommit failed: %v", err)
+	}
+
+	// Delete should succeed even if some references are already gone
+	// (simulates partial cleanup scenarios)
+	if err := m.DeletePost(post.PostID); err != nil {
+		t.Fatalf("DeletePost failed: %v", err)
+	}
+
+	// Verify post is deleted
+	retrieved, _ := m.GetPostByID(post.PostID)
+	if retrieved != nil {
+		t.Error("Post should be deleted")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -25,12 +26,27 @@ func init() {
 func getContext() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	sigChan := make(chan os.Signal, 1)
+	sigChan := make(chan os.Signal, 2) // Buffer for 2 signals
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		<-sigChan
-		fmt.Println("\n🛑 Received shutdown signal...")
+		sig := <-sigChan
+		fmt.Printf("\n🛑 Received signal: %s. Initiating graceful shutdown...\n", sig)
 		cancel()
+
+		// Second signal forces exit
+		select {
+		case sig2 := <-sigChan:
+			fmt.Printf("\n🛑 Received second signal: %s. Forcing exit.\n", sig2)
+			os.Exit(1)
+		case <-time.After(2 * time.Second):
+			// After 2 seconds, the user can still force exit with another Ctrl+C
+			// but we keep the listener alive just in case.
+			go func() {
+				sig3 := <-sigChan
+				fmt.Printf("\n🛑 Received forceful Signal: %s. Exiting.\n", sig3)
+				os.Exit(1)
+			}()
+		}
 	}()
 
 	return ctx

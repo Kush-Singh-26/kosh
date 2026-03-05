@@ -7,7 +7,6 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// ListAllPosts returns all PostIDs
 func (m *Manager) ListAllPosts() ([]string, error) {
 	var ids []string
 	err := m.db.View(func(tx *bolt.Tx) error {
@@ -20,7 +19,6 @@ func (m *Manager) ListAllPosts() ([]string, error) {
 	return ids, err
 }
 
-// Stats returns current cache statistics
 func (m *Manager) Stats() (*CacheStats, error) {
 	stats := &CacheStats{
 		SchemaVersion: SchemaVersion,
@@ -72,6 +70,9 @@ func (m *Manager) GetSocialCardHash(path string) (string, error) {
 	var hash string
 	err := m.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(BucketSocialCard))
+		if bucket == nil {
+			return nil
+		}
 		data := bucket.Get([]byte(path))
 		if data != nil {
 			hash = string(data)
@@ -85,6 +86,9 @@ func (m *Manager) GetSocialCardHash(path string) (string, error) {
 func (m *Manager) SetSocialCardHash(path, hash string) error {
 	return m.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(BucketSocialCard))
+		if bucket == nil {
+			return nil
+		}
 		return bucket.Put([]byte(path), []byte(hash))
 	})
 }

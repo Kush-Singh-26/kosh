@@ -55,25 +55,50 @@ var DefaultAnalyzer = NewAnalyzer(true, true)
 
 // Analyze processes text and returns normalized tokens
 func (a *Analyzer) Analyze(text string) []string {
+	tokens, _ := a.AnalyzeWithMapping(text)
+	return tokens
+}
+
+// AnalyzeWithMapping processes text and returns tokens plus a word->stem mapping
+func (a *Analyzer) AnalyzeWithMapping(text string) ([]string, map[string]string) {
+	tokens, mapping, _ := a.AnalyzeWithPositions(text)
+	return tokens, mapping
+}
+
+// AnalyzeWithPositions processes text and returns tokens, mapping, and positional data
+func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]string, map[string][]int) {
 	tokens := TokenizeWithUnicode(text)
 	result := make([]string, 0, len(tokens))
+	mapping := make(map[string]string)
+	positions := make(map[string][]int)
 
+	idx := 0
 	for _, token := range tokens {
-		token = strings.ToLower(token)
-		if len(token) < 2 {
+		orig := strings.ToLower(token)
+		if len(orig) < 2 {
+			idx++
 			continue
 		}
-		if a.useStopWords && stopWords[token] {
+		if a.useStopWords && stopWords[orig] {
+			idx++
 			continue
 		}
+
+		stem := orig
 		if a.useStemming {
-			token = StemCached(token)
+			stem = StemCached(orig)
+			if stem != "" {
+				mapping[orig] = stem
+			}
 		}
-		if token != "" {
-			result = append(result, token)
+
+		if stem != "" {
+			result = append(result, stem)
+			positions[stem] = append(positions[stem], idx)
 		}
+		idx++
 	}
-	return result
+	return result, mapping, positions
 }
 
 // AnalyzeWithOriginals returns both stemmed and original forms
@@ -99,6 +124,11 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, original
 		}
 	}
 	return stemmed, originals
+}
+
+// Tokenize splits text into tokens (deprecated: use TokenizeWithUnicode)
+func Tokenize(text string) []string {
+	return TokenizeWithUnicode(text)
 }
 
 // TokenizeWithUnicode splits text into tokens with Unicode support

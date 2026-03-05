@@ -47,9 +47,9 @@ func runVersion(cmd *cobra.Command, args []string) {
 
 func printVersionInfo() {
 	fmt.Println("Kosh Static Site Generator")
-	fmt.Println("Version: v1.3.0")
+	fmt.Println("Version: v1.3.9")
 	fmt.Printf("Go Version: %s\n", runtime.Version())
-	fmt.Println("Build Date: 2026-02-16")
+	fmt.Println("Build Date: 2026-03-05")
 	fmt.Println("\nOptimized with:")
 	fmt.Println("  - BLAKE3 hashing (replaced MD5)")
 	fmt.Println("  - Object pooling for memory management")

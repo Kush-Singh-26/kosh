@@ -3,6 +3,7 @@ package generators
 import (
 	"encoding/xml"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"time"
 
@@ -12,8 +13,8 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) {
-	fmt.Println("🗺️  Generating sitemap...")
+func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) (string, error) {
+	slog.Info("Generating sitemap")
 
 	var urls []models.Url
 
@@ -50,12 +51,12 @@ func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadat
 	// Marshaling
 	output, err := xml.MarshalIndent(models.UrlSet{Urls: urls}, "", "  ")
 	if err != nil {
-		fmt.Printf("Error marshaling sitemap: %v\n", err)
-		return
+		return "", err
 	}
 
 	finalOutput := []byte(xml.Header + string(output))
 	if err := utils.WriteFileVFS(destFs, outputPath, finalOutput); err != nil {
-		fmt.Printf("⚠️ Failed to write sitemap.xml: %v\n", err)
+		return "", err
 	}
+	return outputPath, nil
 }

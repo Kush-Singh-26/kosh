@@ -9,12 +9,14 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-// ContextKeyFilePath stores the current file path being parsed
+// ContextKeyFilePath stores the current file path being parsed.
+// Isolated via parser.NewContextKey() which guarantees global uniqueness.
 var ContextKeyFilePath = parser.NewContextKey()
 
 // urlTransformer intercepts links and images to rewrite URLs (e.g., .md -> .html).
 type urlTransformer struct {
-	BaseURL string
+	BaseURL  string
+	Compress bool
 }
 
 func (t *urlTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
@@ -35,22 +37,23 @@ func (t *urlTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 func (t *urlTransformer) processDestination(n ast.Node, dest []byte, pc parser.Context) {
 	href := string(dest)
 
+	idx := strings.IndexAny(href, "?#")
+	query := ""
+	if idx != -1 {
+		query = href[idx:]
+		href = href[:idx]
+	}
+
 	// Handle External Links
-	if strings.HasPrefix(href, "http") {
+	if strings.HasPrefix(href, "http") || strings.HasPrefix(string(dest), "http") {
 		if _, isLink := n.(*ast.Link); isLink {
 			n.SetAttribute([]byte("target"), []byte("_blank"))
 			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
 		}
-	} else {
+	} else if t.Compress {
 		ext := strings.ToLower(filepath.Ext(href))
 		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
 			href = href[:len(href)-len(ext)] + ".webp"
-			switch node := n.(type) {
-			case *ast.Link:
-				node.Destination = []byte(href)
-			case *ast.Image:
-				node.Destination = []byte(href)
-			}
 		}
 	}
 
@@ -77,9 +80,6 @@ func (t *urlTransformer) processDestination(n ast.Node, dest []byte, pc parser.C
 					// Keep as-is
 				} else {
 					// Same-version links: strip ../ prefix if present, keep relative
-					// e.g., ./new-in-v2.md → new-in-v2.html
-					// e.g., ./advanced/setup.md → advanced/setup.html
-					// e.g., ../advanced/config.md → advanced/config.html
 					href = strings.TrimPrefix(href, "../")
 					// Ensure forward slashes
 					href = strings.ReplaceAll(href, "\\", "/")
@@ -88,13 +88,15 @@ func (t *urlTransformer) processDestination(n ast.Node, dest []byte, pc parser.C
 		}
 	}
 
+	fullHref := href + query
+
 	// Apply the href changes to the node
 	if !strings.HasPrefix(string(dest), "http") {
 		switch node := n.(type) {
 		case *ast.Link:
-			node.Destination = []byte(href)
+			node.Destination = []byte(fullHref)
 		case *ast.Image:
-			node.Destination = []byte(href)
+			node.Destination = []byte(fullHref)
 		}
 	}
 
@@ -103,7 +105,7 @@ func (t *urlTransformer) processDestination(n ast.Node, dest []byte, pc parser.C
 	}
 
 	if strings.HasPrefix(href, "/") && t.BaseURL != "" {
-		newDest := []byte(t.BaseURL + href)
+		newDest := []byte(t.BaseURL + fullHref)
 		switch node := n.(type) {
 		case *ast.Link:
 			node.Destination = newDest

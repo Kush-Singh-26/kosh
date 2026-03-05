@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
@@ -16,11 +17,10 @@ type PostResult struct {
 	Has404         bool
 }
 
-// PostService defines operations for processing markdown posts
 type PostService interface {
 	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) (*PostResult, error)
-	ProcessSingle(ctx context.Context, path string) error
-	RenderCachedPosts()
+	ProcessSingle(ctx context.Context, path string, source []byte) error
+	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
 }
 
 // CacheService abstracts the caching layer
@@ -50,6 +50,7 @@ type CacheService interface {
 	// Dirty tracking
 	MarkDirty(postID string)
 	IsDirty(postID string) bool
+	ClearDirty()
 
 	// Lifecycle
 	Stats() (*cache.CacheStats, error)
@@ -73,4 +74,5 @@ type RenderService interface {
 	GetAssets() map[string]string
 	GetRenderedFiles() map[string]bool
 	ClearRenderedFiles()
+	ReloadTemplates()
 }

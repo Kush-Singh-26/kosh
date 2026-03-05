@@ -267,7 +267,8 @@ func TestParseQuery(t *testing.T) {
 			for _, want := range tt.wantPhrases {
 				found := false
 				for _, got := range result.Phrases {
-					if got == want {
+					// Compare tokenized phrase
+					if strings.Join(got, " ") == strings.Join(DefaultAnalyzer.Analyze(want), " ") {
 						found = true
 						break
 					}
@@ -303,6 +304,31 @@ func TestTrigramGeneration(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAnalyzerWithPositions(t *testing.T) {
+	input := "the quick brown fox"
+	_, _, positions := DefaultAnalyzer.AnalyzeWithPositions(input)
+
+	// "the" is a stop word, it should have a position (0) but not be in the results?
+	// Wait, my implementation skips stop words from results but INCREMENTS idx.
+	// So "quick" should be at pos 1.
+
+	if pos, ok := positions["quick"]; ok {
+		if pos[0] != 1 {
+			t.Errorf("Expected 'quick' at position 1, got %d", pos[0])
+		}
+	} else {
+		t.Error("Expected 'quick' in positional index")
+	}
+
+	if pos, ok := positions["brown"]; ok {
+		if pos[0] != 2 {
+			t.Errorf("Expected 'brown' at position 2, got %d", pos[0])
+		}
+	} else {
+		t.Error("Expected 'brown' in positional index")
 	}
 }
 

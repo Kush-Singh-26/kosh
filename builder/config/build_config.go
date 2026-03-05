@@ -38,7 +38,6 @@ type BuildConfig struct {
 	MaxSearchResults        int     `yaml:"maxSearchResults"`        // Max search results (default: 100)
 }
 
-// DefaultBuildConfig returns the default build configuration
 func DefaultBuildConfig() *BuildConfig {
 	return &BuildConfig{
 		// Workers

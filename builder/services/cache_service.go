@@ -111,8 +111,11 @@ func (s *cacheServiceImpl) IsDirty(postID string) bool {
 }
 
 func (s *cacheServiceImpl) ClearDirty() {
-	// Fresh map allocation is faster than Range+Delete for bulk clear
-	s.dirty = sync.Map{}
+	// Use Range+Delete instead of reassignment to prevent lost dirty marks
+	s.dirty.Range(func(key, value interface{}) bool {
+		s.dirty.Delete(key)
+		return true
+	})
 }
 
 func (s *cacheServiceImpl) Stats() (*cache.CacheStats, error) {

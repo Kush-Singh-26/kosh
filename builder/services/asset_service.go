@@ -35,6 +35,8 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
+	errChan := make(chan error, 10) // Increased capacity for multiple error sources
+
 	// 1. Static Copy (excluding source CSS/JS handled by esbuild)
 	go func() {
 		defer wg.Done()
@@ -48,11 +50,17 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		}
 
 		// Theme Static
-		if exists, _ := afero.Exists(s.sourceFs, s.cfg.StaticDir); exists {
+		exists, err := afero.Exists(s.sourceFs, s.cfg.StaticDir)
+		if err != nil {
+			s.logger.Warn("Failed to check theme static dir", "path", s.cfg.StaticDir, "error", err)
+		}
+		if exists {
 			// Exclude .css and .js files from raw copy (they're handled by esbuild)
 			destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
-			if err := utils.CopyDirVFS(s.sourceFs, s.destFs, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers); err != nil {
+			if err := utils.CopyDirVFS(ctx, s.sourceFs, s.destFs, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality); err != nil {
 				s.logger.Warn("Failed to copy theme static assets", "error", err)
+				errChan <- err
+				return
 			}
 		}
 
@@ -64,176 +72,239 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		}
 
 		// Site Static (Root 'static' folder)
-		if exists, _ := afero.Exists(s.sourceFs, "static"); exists {
+		exists, err = afero.Exists(s.sourceFs, "static")
+		if err != nil {
+			s.logger.Warn("Failed to check site static dir", "path", "static", "error", err)
+		}
+		if exists {
 			destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
-			if err := utils.CopyDirVFS(s.sourceFs, s.destFs, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers); err != nil {
+			if err := utils.CopyDirVFS(ctx, s.sourceFs, s.destFs, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality); err != nil {
 				s.logger.Warn("Failed to copy site static assets", "error", err)
+				errChan <- err
+				return
 			}
 		}
 
 		// Copy wasm_exec.js separately (it's needed by the WASM search but shouldn't be processed by esbuild)
-		wasmExecPath := s.cfg.StaticDir + "/js/wasm_exec.js"
-		if exists, _ := afero.Exists(s.sourceFs, wasmExecPath); exists {
+		wasmExecPath := filepath.Join(s.cfg.StaticDir, "js/wasm_exec.js")
+		exists, err = afero.Exists(s.sourceFs, wasmExecPath)
+		if err != nil {
+			s.logger.Warn("Failed to check wasm_exec.js", "path", wasmExecPath, "error", err)
+		}
+		if exists {
 			src, err := s.sourceFs.Open(wasmExecPath)
 			if err == nil {
-				defer func() {
-					if cerr := src.Close(); cerr != nil {
-						s.logger.Warn("Failed to close source file", "path", wasmExecPath, "error", cerr)
-					}
-				}()
+				defer src.Close()
 				wasmExecDestPath := filepath.Join(s.cfg.OutputDir, "static/js/wasm_exec.js")
-				_ = s.destFs.MkdirAll(filepath.Join(s.cfg.OutputDir, "static/js"), 0755)
+				if err := s.destFs.MkdirAll(filepath.Dir(wasmExecDestPath), 0755); err != nil {
+					s.logger.Warn("Failed to create wasm_exec.js directory", "path", filepath.Dir(wasmExecDestPath), "error", err)
+				}
 				dest, err := s.destFs.Create(wasmExecDestPath)
 				if err == nil {
-					defer func() {
-						if cerr := dest.Close(); cerr != nil {
-							s.logger.Warn("Failed to close destination file", "path", wasmExecDestPath, "error", cerr)
-						}
-					}()
+					defer dest.Close()
 					if _, err := io.Copy(dest, src); err != nil {
 						s.logger.Warn("Failed to copy wasm_exec.js", "path", wasmExecDestPath, "error", err)
+						errChan <- err
+						return
 					} else {
 						s.renderer.RegisterFile(wasmExecDestPath)
 					}
+				} else {
+					errChan <- err
+					return
 				}
+			} else {
+				errChan <- err
+				return
 			}
 		}
 
-		// Copy wasm_engine.js separately (needed for interactive math simulations, shouldn't be processed by esbuild)
-		wasmEngineSitePath := "static/js/wasm_engine.js"
-		wasmEngineThemePath := filepath.Join(s.cfg.StaticDir, "js/wasm_engine.js")
+		// Copy wasm_engine.js separately
+		wasmEngineSitePath := filepath.Join("static", "js", "wasm_engine.js")
+		wasmEngineThemePath := filepath.Join(s.cfg.StaticDir, "js", "wasm_engine.js")
 		var wasmEngineSourcePath string
-		if exists, _ := afero.Exists(s.sourceFs, wasmEngineSitePath); exists {
+		exists, err = afero.Exists(s.sourceFs, wasmEngineSitePath)
+		if err != nil {
+			s.logger.Warn("Failed to check wasm_engine.js site path", "path", wasmEngineSitePath, "error", err)
+		}
+		if exists {
 			wasmEngineSourcePath = wasmEngineSitePath
-		} else if exists, _ := afero.Exists(s.sourceFs, wasmEngineThemePath); exists {
-			wasmEngineSourcePath = wasmEngineThemePath
+		} else {
+			exists, err = afero.Exists(s.sourceFs, wasmEngineThemePath)
+			if err != nil {
+				s.logger.Warn("Failed to check wasm_engine.js theme path", "path", wasmEngineThemePath, "error", err)
+			}
+			if exists {
+				wasmEngineSourcePath = wasmEngineThemePath
+			}
 		}
 		if wasmEngineSourcePath != "" {
 			src, err := s.sourceFs.Open(wasmEngineSourcePath)
 			if err == nil {
-				defer func() {
-					if cerr := src.Close(); cerr != nil {
-						s.logger.Warn("Failed to close source file", "path", wasmEngineSourcePath, "error", cerr)
-					}
-				}()
-				wasmEngineDestPath := filepath.Join(s.cfg.OutputDir, "static/js/wasm_engine.js")
-				_ = s.destFs.MkdirAll(filepath.Dir(wasmEngineDestPath), 0755)
+				defer src.Close()
+				wasmEngineDestPath := filepath.Join(s.cfg.OutputDir, "static", "js", "wasm_engine.js")
+				if err := s.destFs.MkdirAll(filepath.Dir(wasmEngineDestPath), 0755); err != nil {
+					s.logger.Warn("Failed to create wasm_engine.js directory", "path", filepath.Dir(wasmEngineDestPath), "error", err)
+				}
 				dest, err := s.destFs.Create(wasmEngineDestPath)
 				if err == nil {
-					defer func() {
-						if cerr := dest.Close(); cerr != nil {
-							s.logger.Warn("Failed to close destination file", "path", wasmEngineDestPath, "error", cerr)
-						}
-					}()
+					defer dest.Close()
 					if _, err := io.Copy(dest, src); err != nil {
 						s.logger.Warn("Failed to copy wasm_engine.js", "path", wasmEngineDestPath, "error", err)
+						errChan <- err
+						return
 					} else {
 						s.renderer.RegisterFile(wasmEngineDestPath)
 					}
+				} else {
+					errChan <- err
+					return
 				}
+			} else {
+				errChan <- err
+				return
 			}
 		}
 
-		// Copy engine.js separately (needed by wasm_engine.js, must keep original filename)
-		engineSitePath := "static/wasm/engine.js"
-		engineThemePath := filepath.Join(s.cfg.StaticDir, "wasm/engine.js")
+		// Copy engine.js separately
+		engineSitePath := filepath.Join("static", "wasm", "engine.js")
+		engineThemePath := filepath.Join(s.cfg.StaticDir, "wasm", "engine.js")
 		var engineSourcePath string
-		if exists, _ := afero.Exists(s.sourceFs, engineSitePath); exists {
+		exists, err = afero.Exists(s.sourceFs, engineSitePath)
+		if err != nil {
+			s.logger.Warn("Failed to check engine.js site path", "path", engineSitePath, "error", err)
+		}
+		if exists {
 			engineSourcePath = engineSitePath
-		} else if exists, _ := afero.Exists(s.sourceFs, engineThemePath); exists {
-			engineSourcePath = engineThemePath
+		} else {
+			exists, err = afero.Exists(s.sourceFs, engineThemePath)
+			if err != nil {
+				s.logger.Warn("Failed to check engine.js theme path", "path", engineThemePath, "error", err)
+			}
+			if exists {
+				engineSourcePath = engineThemePath
+			}
 		}
 		if engineSourcePath != "" {
 			src, err := s.sourceFs.Open(engineSourcePath)
 			if err == nil {
-				defer func() {
-					if cerr := src.Close(); cerr != nil {
-						s.logger.Warn("Failed to close source file", "path", engineSourcePath, "error", cerr)
-					}
-				}()
-				engineDestPath := filepath.Join(s.cfg.OutputDir, "static/wasm/engine.js")
-				_ = s.destFs.MkdirAll(filepath.Dir(engineDestPath), 0755)
+				defer src.Close()
+				engineDestPath := filepath.Join(s.cfg.OutputDir, "static", "wasm", "engine.js")
+				if err := s.destFs.MkdirAll(filepath.Dir(engineDestPath), 0755); err != nil {
+					s.logger.Warn("Failed to create engine.js directory", "path", filepath.Dir(engineDestPath), "error", err)
+				}
 				dest, err := s.destFs.Create(engineDestPath)
 				if err == nil {
-					defer func() {
-						if cerr := dest.Close(); cerr != nil {
-							s.logger.Warn("Failed to close destination file", "path", engineDestPath, "error", cerr)
-						}
-					}()
+					defer dest.Close()
 					if _, err := io.Copy(dest, src); err != nil {
 						s.logger.Warn("Failed to copy engine.js", "path", engineDestPath, "error", err)
+						errChan <- err
+						return
 					} else {
 						s.renderer.RegisterFile(engineDestPath)
 					}
+				} else {
+					errChan <- err
+					return
 				}
+			} else {
+				errChan <- err
+				return
 			}
 		}
 
 		// WASM Search Engine Fallback logic
-		// 1. Check site root: static/wasm/search.wasm
-		// 2. Check theme: themes/<theme>/static/wasm/search.wasm
-		wasmSitePath := "static/wasm/search.wasm"
-		wasmThemePath := filepath.Join(s.cfg.StaticDir, "wasm/search.wasm")
-		wasmDestPath := filepath.Join(s.cfg.OutputDir, "static/wasm/search.wasm")
+		wasmSitePath := filepath.Join("static", "wasm", "search.wasm")
+		wasmThemePath := filepath.Join(s.cfg.StaticDir, "wasm", "search.wasm")
+		wasmDestPath := filepath.Join(s.cfg.OutputDir, "static", "wasm", "search.wasm")
 
 		var wasmSourcePath string
-		if exists, _ := afero.Exists(s.sourceFs, wasmSitePath); exists {
+		exists, err = afero.Exists(s.sourceFs, wasmSitePath)
+		if err != nil {
+			s.logger.Warn("Failed to check search.wasm site path", "path", wasmSitePath, "error", err)
+		}
+		if exists {
 			wasmSourcePath = wasmSitePath
-		} else if exists, _ := afero.Exists(s.sourceFs, wasmThemePath); exists {
-			wasmSourcePath = wasmThemePath
+		} else {
+			exists, err = afero.Exists(s.sourceFs, wasmThemePath)
+			if err != nil {
+				s.logger.Warn("Failed to check search.wasm theme path", "path", wasmThemePath, "error", err)
+			}
+			if exists {
+				wasmSourcePath = wasmThemePath
+			}
 		}
 
 		if wasmSourcePath != "" {
 			src, err := s.sourceFs.Open(wasmSourcePath)
 			if err == nil {
-				defer func() {
-					if cerr := src.Close(); cerr != nil {
-						s.logger.Warn("Failed to close source file", "path", wasmSourcePath, "error", cerr)
-					}
-				}()
-				_ = s.destFs.MkdirAll(filepath.Dir(wasmDestPath), 0755)
+				defer src.Close()
+				if err := s.destFs.MkdirAll(filepath.Dir(wasmDestPath), 0755); err != nil {
+					s.logger.Warn("Failed to create search.wasm directory", "path", filepath.Dir(wasmDestPath), "error", err)
+				}
 				dest, err := s.destFs.Create(wasmDestPath)
 				if err == nil {
-					defer func() {
-						if cerr := dest.Close(); cerr != nil {
-							s.logger.Warn("Failed to close destination file", "path", wasmDestPath, "error", cerr)
-						}
-					}()
+					defer dest.Close()
 					if _, err := io.Copy(dest, src); err != nil {
 						s.logger.Warn("Failed to copy search.wasm", "path", wasmDestPath, "error", err)
+						errChan <- err
+						return
 					} else {
 						s.renderer.RegisterFile(wasmDestPath)
 					}
+				} else {
+					errChan <- err
+					return
 				}
+			} else {
+				errChan <- err
+				return
 			}
 		}
 
-		// Ensure Site Logo is copied exactly (no WebP compression)
+		// Ensure Site Logo is copied exactly
 		if s.cfg.Logo != "" {
 			if exists, _ := afero.Exists(s.sourceFs, s.cfg.Logo); exists {
 				src, err := s.sourceFs.Open(s.cfg.Logo)
 				if err == nil {
-					defer func() {
-						if cerr := src.Close(); cerr != nil {
-							s.logger.Warn("Failed to close source file", "path", s.cfg.Logo, "error", cerr)
-						}
-					}()
+					defer src.Close()
 					destPath := filepath.Join(s.cfg.OutputDir, s.cfg.Logo)
-					_ = s.destFs.MkdirAll(filepath.Dir(destPath), 0755)
+					if err := s.destFs.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+						s.logger.Warn("Failed to create logo directory", "path", filepath.Dir(destPath), "error", err)
+					}
 					dest, err := s.destFs.Create(destPath)
 					if err == nil {
-						defer func() {
-							if cerr := dest.Close(); cerr != nil {
-								s.logger.Warn("Failed to close destination file", "path", destPath, "error", cerr)
-							}
-						}()
+						defer dest.Close()
 						if _, err := io.Copy(dest, src); err != nil {
 							s.logger.Warn("Failed to copy logo", "path", destPath, "error", err)
+							errChan <- err
+							return
 						} else {
 							s.renderer.RegisterFile(destPath)
 						}
+					} else {
+						errChan <- err
+						return
 					}
+				} else {
+					errChan <- err
+					return
 				}
+			}
+		}
+
+		// Site Content Assets (Colocated images/files)
+		exists, err = afero.Exists(s.sourceFs, s.cfg.ContentDir)
+		if err != nil {
+			s.logger.Warn("Failed to check content dir", "path", s.cfg.ContentDir, "error", err)
+		}
+		if exists {
+			// Copy everything from content/ to outputDir, excluding .md files
+			// This preserves the directory structure for colocated assets
+			if err := utils.CopyDirVFS(ctx, s.sourceFs, s.destFs, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, []string{".md"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality); err != nil {
+				s.logger.Warn("Failed to copy content assets", "error", err)
+				errChan <- err
+				return
 			}
 		}
 	}()
@@ -251,11 +322,13 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		}
 
 		destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
-		// Force rebuild in dev mode to ensure changes are picked up
-		force := s.cfg.IsDev
+		// Use hash-based check even in dev mode to avoid redundant esbuild runs
+		// force is now only true if explicitly requested via some other mechanism (currently false)
+		force := false
 		assets, assetErr := utils.BuildAssetsEsbuild(s.sourceFs, s.destFs, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
 		if assetErr != nil {
 			s.logger.Error("Failed to build assets", "error", assetErr)
+			errChan <- assetErr
 			return
 		}
 		s.renderer.SetAssets(assets)
@@ -272,6 +345,8 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 	case <-ctx.Done():
 		s.logger.Warn("Asset build interrupted", "reason", ctx.Err())
 		return ctx.Err()
+	case err := <-errChan:
+		return err
 	case <-done:
 		return nil
 	}

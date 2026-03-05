@@ -2,9 +2,9 @@ package generators
 
 import (
 	"compress/gzip"
+	"log/slog"
 	"path/filepath"
-	"runtime"
-	"sync"
+	"strconv"
 
 	"github.com/spf13/afero"
 	"github.com/vmihailenco/msgpack/v5"
@@ -13,81 +13,51 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search"
 )
 
-func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []models.IndexedPost) error {
+func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
 	totalDocs := len(indexedPosts)
 	estimatedUniqueWords := totalDocs * 100
 
 	index := models.SearchIndex{
-		Posts:    make([]models.PostRecord, totalDocs),
-		Inverted: make(map[string]map[int]int, estimatedUniqueWords),
-		DocLens:  make(map[int]int, totalDocs),
-		StemMap:  make(map[string][]string),
+		SchemaVersion: models.CurrentSchemaVersion,
+		Posts:         make([]models.PostRecord, totalDocs),
+		Inverted:      make(map[string]map[string][]int, estimatedUniqueWords),
+		DocLens:       make(map[string]int64, totalDocs),
+		StemMap:       make(map[string][]string),
 	}
-
-	analyzer := search.NewAnalyzer(true, true)
 
 	totalLen := 0
 	for i, ip := range indexedPosts {
+		idStr := strconv.Itoa(i)
 		index.Posts[i] = ip.Record
-		index.DocLens[i] = ip.DocLen
+		index.Posts[i].Content = ip.Record.Content // Explicitly ensure Content is set
+		index.DocLens[idStr] = int64(ip.DocLen)
 		totalLen += ip.DocLen
 
-		for word, freq := range ip.WordFreqs {
+		// Populate unified inverted index with positions
+		for word, positions := range ip.PositionalIndex {
 			postMap, ok := index.Inverted[word]
 			if !ok {
-				postMap = make(map[int]int, 4)
+				postMap = make(map[string][]int, 4)
 				index.Inverted[word] = postMap
 			}
-			postMap[i] = freq
+			postMap[idStr] = positions
 		}
 	}
 
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 4 {
-		numWorkers = 4
-	}
-	if totalDocs < 10 {
-		numWorkers = 1
+	index.TotalDocs = int64(len(indexedPosts))
+	if index.TotalDocs > 0 {
+		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
 	}
 
-	type stemResult struct {
-		stem   string
-		origin string
-	}
-
-	stemChan := make(chan stemResult, totalDocs*10)
-	var wg sync.WaitGroup
-
-	for w := 0; w < numWorkers; w++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			for i := workerID; i < totalDocs; i += numWorkers {
-				ip := indexedPosts[i]
-				stemmed, originals := analyzer.AnalyzeWithOriginals(ip.Record.Content)
-				for j, stem := range stemmed {
-					if j < len(originals) {
-						orig := originals[j]
-						if stem != orig {
-							stemChan <- stemResult{stem: stem, origin: orig}
-						}
-					}
-				}
-			}
-		}(w)
-	}
-
-	go func() {
-		wg.Wait()
-		close(stemChan)
-	}()
-
+	// Populate global stem map from pre-computed per-post mappings
 	stemMap := make(map[string]map[string]bool)
-	for sr := range stemChan {
-		if _, ok := stemMap[sr.stem]; !ok {
-			stemMap[sr.stem] = make(map[string]bool)
+	for _, ip := range indexedPosts {
+		for orig, stem := range ip.StemMap {
+			if _, ok := stemMap[stem]; !ok {
+				stemMap[stem] = make(map[string]bool)
+			}
+			stemMap[stem][orig] = true
 		}
-		stemMap[sr.stem][sr.origin] = true
 	}
 
 	for stem, originMap := range stemMap {
@@ -96,26 +66,34 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 		}
 	}
 
-	index.TotalDocs = len(indexedPosts)
-	if index.TotalDocs > 0 {
-		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
-	}
-
 	index.NgramIndex = search.BuildNgramIndex(index.Inverted)
 
 	if err := destFs.MkdirAll(outputDir, 0755); err != nil {
-		return err
+		return "", err
 	}
 
-	file, err := destFs.Create(filepath.Join(outputDir, "search.bin"))
+	outputPath := filepath.ToSlash(filepath.Join(outputDir, "search.bin"))
+	file, err := destFs.Create(outputPath)
 	if err != nil {
-		return err
+		return "", err
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		if err := file.Close(); err != nil {
+			slog.Error("Failed to close search index file", "error", err)
+		}
+	}()
 
 	gw := gzip.NewWriter(file)
-	defer func() { _ = gw.Close() }()
+	defer func() {
+		if err := gw.Close(); err != nil {
+			slog.Error("Failed to close gzip writer", "error", err)
+		}
+	}()
 
 	enc := msgpack.NewEncoder(gw)
-	return enc.Encode(&index)
+	if err := enc.Encode(&index); err != nil {
+		return "", err
+	}
+
+	return outputPath, nil
 }

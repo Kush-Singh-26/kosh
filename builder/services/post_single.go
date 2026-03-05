@@ -1,28 +1,34 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"html/template"
-	"math"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
-	"time"
 
 	"github.com/spf13/afero"
-	meta "github.com/yuin/goldmark-meta"
-	gParser "github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
-	"github.com/Kush-Singh-26/kosh/builder/search"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error {
+func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string, source []byte) error {
+	return s.ProcessSingleWithResult(ctx, path, source, nil)
+}
+
+func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path string, source []byte, preParsed *ParsedMarkdownResult) error {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("PANIC recovered in ProcessSingle",
+				"path", path,
+				"error", r,
+				"stack", string(debug.Stack()))
+		}
+	}()
+
 	info, err := s.sourceFs.Stat(path)
 	if err != nil {
 		s.logger.Error("Error stating file", "path", path, "error", err)
@@ -35,10 +41,13 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 		return fmt.Errorf("file size %d exceeds limit %d", info.Size(), utils.MaxFileSize)
 	}
 
-	source, err := afero.ReadFile(s.sourceFs, path)
-	if err != nil {
-		s.logger.Error("Error reading file", "path", path, "error", err)
-		return err
+	// source is already read and passed in to avoid TOCTOU race condition
+	if source == nil {
+		source, err = afero.ReadFile(s.sourceFs, path)
+		if err != nil {
+			s.logger.Error("Error reading file", "path", path, "error", err)
+			return err
+		}
 	}
 
 	version, relPath := utils.GetVersionFromPath(path)
@@ -55,69 +64,44 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 	} else {
 		destPath = filepath.Join(s.cfg.OutputDir, htmlRelPath)
 	}
-	fullLink := utils.BuildURL(s.cfg.BaseURL, version, cleanHtmlRelPath)
 
-	context := gParser.NewContext()
-	context.Set(mdParser.ContextKeyFilePath, path)
-	reader := text.NewReader(source)
-	docNode := s.md.Parser().Parse(reader, gParser.WithContext(context))
-
-	buf := utils.SharedBufferPool.Get()
-	defer utils.SharedBufferPool.Put(buf)
-
-	if err := s.md.Renderer().Render(buf, source, docNode); err != nil {
-		s.logger.Error("Failed to render markdown", "path", path, "error", err)
-		return err
+	var parseRes *ParsedMarkdownResult
+	if preParsed != nil {
+		parseRes = preParsed
+	} else {
+		// Parse if not provided
+		parseRes, err = ParseMarkdown(
+			ctx,
+			source,
+			path,
+			version,
+			cleanHtmlRelPath,
+			htmlRelPath,
+			s.mdPool,
+			s.cfg,
+			s.nativeRenderer,
+			s.diagramAdapter,
+			&s.mu,
+		)
+		if err != nil {
+			return err
+		}
 	}
-	htmlContent := buf.String()
 
-	if pairs := mdParser.GetD2SVGPairSlice(context); pairs != nil {
-		htmlContent = mdParser.ReplaceD2BlocksWithThemeSupport(htmlContent, pairs)
-	}
-
-	var diagramCache map[string]string
-	if s.diagramAdapter != nil {
-		diagramCache = s.diagramAdapter.AsMap()
-	}
-
-	ssrHashes := mdParser.GetSSRHashes(context)
-
-	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) {
-		var mathHashes []string
-		htmlContent, mathHashes = mdParser.RenderMathForHTML(htmlContent, s.nativeRenderer, diagramCache, &s.mu)
-		ssrHashes = append(ssrHashes, mathHashes...)
-	}
-	if s.cfg.CompressImages {
-		htmlContent = utils.ReplaceToWebP(htmlContent)
-	}
+	htmlContent := parseRes.HTMLContent
+	metaData := parseRes.MetaData
+	post := parseRes.Post
+	toc := parseRes.TOC
+	ssrHashes := parseRes.SSRHashes
+	wordFreqs := parseRes.WordFreqs
+	docLen := parseRes.DocLen
+	stemMap := parseRes.StemMap
+	posIndex := parseRes.PositionalIndex
 
 	if s.cfg.Features.RawMarkdown {
 		mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
 		_ = s.destFs.MkdirAll(filepath.Dir(mdDestPath), 0755)
 		_ = afero.WriteFile(s.destFs, mdDestPath, source, 0644)
-	}
-
-	metaData := meta.Get(context)
-	plainText := mdParser.ExtractPlainText(docNode, source)
-	wordCount := len(strings.Fields(string(source)))
-	readTime := int(math.Ceil(float64(wordCount) / 120.0))
-	isPinned, _ := metaData["pinned"].(bool)
-	dateStr := utils.GetString(metaData, "date")
-	dateObj, _ := time.Parse("2006-01-02", dateStr)
-	isDraft := utils.GetBool(metaData, "draft")
-
-	toc := mdParser.GetTOC(context)
-
-	post := models.PostMetadata{
-		Title:       utils.GetString(metaData, "title"),
-		Link:        fullLink,
-		Description: utils.GetString(metaData, "description"),
-		Tags:        utils.GetSlice(metaData, "tags"),
-		ReadingTime: readTime,
-		Pinned:      isPinned,
-		Draft:       isDraft,
-		DateObj:     dateObj,
-		Version:     version,
 	}
 
 	var versionPosts []models.PostMetadata
@@ -159,57 +143,73 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string) error 
 		normalizedTags[i] = strings.ToLower(t)
 	}
 
-	var sb strings.Builder
-	sb.Grow(len(post.Title) + len(post.Description) + len(plainText) + 200)
-	sb.WriteString(post.Title)
-	sb.WriteByte(' ')
-	sb.WriteString(post.Description)
-	sb.WriteByte(' ')
-	for _, t := range post.Tags {
-		sb.WriteString(t)
-		sb.WriteByte(' ')
-	}
-	sb.WriteString(plainText)
-
-	// Analyze with stemming and stop words
-	words := search.DefaultAnalyzer.Analyze(sb.String())
-	docLen := len(words)
-	wordFreqs := make(map[string]int)
-	for _, w := range words {
-		if len(w) >= 2 {
-			wordFreqs[w]++
-		}
-	}
-
 	if s.cache != nil {
-		htmlHash, _ := s.cache.StoreHTML([]byte(htmlContent))
-
 		postID := cache.GeneratePostID("", relPath)
 		cacheTOC := make([]models.TOCEntry, len(toc))
 		for i, t := range toc {
 			cacheTOC[i] = models.TOCEntry{ID: t.ID, Text: t.Text, Level: t.Level}
 		}
 
-		frontmatterHash, _ := utils.GetFrontmatterHash(metaData)
+		frontmatterHash := parseRes.FrontmatterHash
 		bodyHash := utils.GetBodyHash(source)
 
 		newMeta := &cache.PostMeta{
 			PostID: postID, Path: relPath, ModTime: info.ModTime().Unix(),
-			ContentHash: frontmatterHash, BodyHash: bodyHash, HTMLHash: htmlHash,
+			ContentHash: frontmatterHash, BodyHash: bodyHash,
 			Title: post.Title, Date: post.DateObj, Tags: post.Tags,
 			ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight,
 			Draft: post.Draft, Meta: metaData, TOC: cacheTOC, Version: version,
 			SSRInputHashes: ssrHashes,
 		}
+		// Use StoreHTMLForPost to properly inline small posts (<32KB), consistent with full builds
+		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
+			s.logger.Error("Failed to store HTML in cache", "path", relPath, "error", err)
+		}
 
 		newSearch := &cache.SearchRecord{
-			Title: post.Title, NormalizedTitle: strings.ToLower(post.Title),
-			BM25Data: wordFreqs, DocLen: docLen, Content: plainText,
-			NormalizedTags: normalizedTags,
+			Title:           post.Title,
+			NormalizedTitle: strings.ToLower(post.Title),
+			BM25Data:        wordFreqs,
+			DocLen:          docLen,
+			Content:         parseRes.PlainText,
+			NormalizedTags:  normalizedTags,
+			StemMap:         stemMap,
+			PositionalIndex: posIndex,
 		}
 		newDep := &cache.Dependencies{Tags: post.Tags}
-		_ = s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*cache.Dependencies{postID: newDep})
+		if err := s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*cache.Dependencies{postID: newDep}); err != nil {
+			s.logger.Error("Failed to commit post to cache", "path", path, "error", err)
+		}
+		// 2. Generate/Copy Social Card
+		cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
+		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", cardRelPath))
+
+		// Check if card exists in physical cache or destFs
+		cardExists := false
+		if info, err := s.destFs.Stat(cardDestPath); err == nil && !info.IsDir() {
+			if sourceInfo, err := s.sourceFs.Stat(path); err == nil {
+				if info.ModTime().After(sourceInfo.ModTime()) {
+					cardExists = true
+				}
+			}
+		}
+
+		// Always update social card if frontmatter changed OR it doesn't exist
+		if !cardExists || s.cache != nil {
+			cachedHash, _ := s.cache.GetSocialCardHash(relPath)
+			if cachedHash != parseRes.FrontmatterHash || !cardExists {
+				if err := s.destFs.MkdirAll(filepath.Dir(cardDestPath), 0755); err == nil {
+					s.generateSocialCard(socialCardTask{
+						path:            relPath,
+						relPath:         cardRelPath,
+						cardDestPath:    cardDestPath,
+						metaData:        metaData,
+						frontmatterHash: parseRes.FrontmatterHash,
+					})
+				}
+			}
+		}
 	}
 
 	cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"

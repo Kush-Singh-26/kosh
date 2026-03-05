@@ -3,6 +3,7 @@ package cache
 import (
 	"bytes"
 	"path/filepath"
+	"sync"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -123,32 +124,80 @@ func (m *Manager) GetPostByID(postID string) (*PostMeta, error) {
 }
 
 // GetPostsByIDs retrieves multiple posts by their PostIDs in a single transaction
+// Uses parallel decoding for better performance with large batches
 func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*PostMeta, error) {
 	result := make(map[string]*PostMeta, len(postIDs))
 	if len(postIDs) == 0 {
 		return result, nil
 	}
 
+	// First, fetch all raw data within a single transaction
+	type rawData struct {
+		id   string
+		data []byte
+	}
+	rawItems := make([]rawData, 0, len(postIDs))
+
 	err := m.db.View(func(tx *bolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(BucketPosts))
 
 		for _, id := range postIDs {
 			data := postsBucket.Get([]byte(id))
-			if data == nil {
-				continue
+			if data != nil {
+				// Copy data out of transaction (BoltDB mmap is valid only during tx)
+				copied := make([]byte, len(data))
+				copy(copied, data)
+				rawItems = append(rawItems, rawData{id: id, data: copied})
 			}
-
-			// Allocate directly on heap to avoid value-to-pointer conversion
-			postMeta := new(PostMeta)
-			if err := Decode(data, postMeta); err != nil {
-				continue
-			}
-			result[id] = postMeta
 		}
 		return nil
 	})
+	if err != nil {
+		return result, err
+	}
 
-	return result, err
+	// Decode in parallel for large batches
+	if len(rawItems) > 10 {
+		var wg sync.WaitGroup
+		resultChan := make(chan struct {
+			id   string
+			meta *PostMeta
+		}, len(rawItems))
+
+		for _, item := range rawItems {
+			wg.Add(1)
+			go func(it rawData) {
+				defer wg.Done()
+				postMeta := new(PostMeta)
+				if err := Decode(it.data, postMeta); err == nil {
+					resultChan <- struct {
+						id   string
+						meta *PostMeta
+					}{id: it.id, meta: postMeta}
+				}
+			}(item)
+		}
+
+		// Close channel when all workers done
+		go func() {
+			wg.Wait()
+			close(resultChan)
+		}()
+
+		for r := range resultChan {
+			result[r.id] = r.meta
+		}
+	} else {
+		// Sequential for small batches (avoids goroutine overhead)
+		for _, item := range rawItems {
+			postMeta := new(PostMeta)
+			if err := Decode(item.data, postMeta); err == nil {
+				result[item.id] = postMeta
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // GetPostsByTemplate retrieves all PostIDs associated with a template
@@ -158,6 +207,9 @@ func (m *Manager) GetPostsByTemplate(templatePath string) ([]string, error) {
 
 	err := m.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(BucketDepsTemplates))
+		if bucket == nil {
+			return nil
+		}
 		c := bucket.Cursor()
 		prefix := append(key, '/')
 		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
@@ -225,13 +277,15 @@ func (m *Manager) GetHTMLContent(post *PostMeta) ([]byte, error) {
 	return m.store.Get("html", post.HTMLHash, true)
 }
 
-// GetPostsByTag returns all PostIDs with a given tag
 func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
 	prefix := []byte(tag + "/")
 	var ids []string
 
 	err := m.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(BucketTags))
+		if bucket == nil {
+			return nil
+		}
 		c := bucket.Cursor()
 		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
 			postID := string(k[len(prefix):])
@@ -249,25 +303,33 @@ func (m *Manager) GetPostsMetadataByVersion(version string) ([]PostListMeta, err
 	var result []PostListMeta
 
 	err := m.db.View(func(tx *bolt.Tx) error {
+		versionsBucket := tx.Bucket([]byte(BucketVersions))
+		if versionsBucket == nil {
+			return nil
+		}
+
 		postsBucket := tx.Bucket([]byte(BucketPosts))
 		if postsBucket == nil {
 			return nil
 		}
 
-		c := postsBucket.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var meta PostMeta
-			if err := Decode(v, &meta); err != nil {
-				continue
-			}
-			if meta.Version == version {
-				result = append(result, PostListMeta{
-					Title:   meta.Title,
-					Link:    meta.Link,
-					Weight:  meta.Weight,
-					Version: meta.Version,
-					Date:    meta.Date,
-				})
+		prefix := []byte(version + "/")
+		c := versionsBucket.Cursor()
+		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
+			postID := k[len(prefix):]
+
+			v := postsBucket.Get(postID)
+			if v != nil {
+				var meta PostMeta
+				if err := Decode(v, &meta); err == nil {
+					result = append(result, PostListMeta{
+						Title:   meta.Title,
+						Link:    meta.Link,
+						Weight:  meta.Weight,
+						Version: meta.Version,
+						Date:    meta.Date,
+					})
+				}
 			}
 		}
 		return nil

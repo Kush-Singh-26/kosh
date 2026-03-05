@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -76,6 +77,7 @@ type Config struct {
 	CompressImages  bool              `yaml:"compressImages"`
 	ImageWorkers    int               `yaml:"imageWorkers"`    // Number of parallel image workers (default: 24)
 	VipsConcurrency int               `yaml:"vipsConcurrency"` // libvips worker threads (0 = auto, default: 0)
+	WebPQuality     int               `yaml:"webpQuality"`     // WebP image compression quality (1-100, default: 80)
 	ParserWorkers   int               `yaml:"parserWorkers"`   // Number of parallel parser workers (0 = auto, default: 0)
 	Theme           string            `yaml:"theme"`
 	ThemeDir        string            `yaml:"themeDir"`
@@ -94,6 +96,7 @@ type Config struct {
 
 	// Internal / Runtime fields
 	ForceRebuild  bool  `yaml:"-"`
+	ForceLock     bool  `yaml:"-"`
 	IncludeDrafts bool  `yaml:"-"`
 	BuildVersion  int64 `yaml:"-"`
 	IsDev         bool  `yaml:"-"`
@@ -110,6 +113,7 @@ func Load(args []string) *Config {
 		PostsPerPage:   10,
 		CompressImages: true, // Always compress for performance
 		ImageWorkers:   24,   // Default 24 parallel workers for image processing
+		WebPQuality:    80,   // Default WebP quality is 80
 		ParserWorkers:  0,    // 0 = auto (use GetDefaultWorkerCount)
 		BuildVersion:   time.Now().Unix(),
 		Theme:          "blog",
@@ -223,6 +227,7 @@ func Load(args []string) *Config {
 	baseUrlFlag := fs.String("baseurl", "", "Base URL (overrides config file)")
 	draftsFlag := fs.Bool("drafts", false, "Include draft posts in the build")
 	themeFlag := fs.String("theme", "", "Theme to use (overrides config file)")
+	forceLockFlag := fs.Bool("force-lock", false, "Acquire build lock even if another build is running")
 
 	_ = fs.Parse(args)
 
@@ -232,11 +237,54 @@ func Load(args []string) *Config {
 	if *draftsFlag {
 		cfg.IncludeDrafts = true
 	}
+	if *forceLockFlag {
+		cfg.ForceLock = true
+	}
 	if *themeFlag != "" {
 		cfg.Theme = *themeFlag
 		// Re-apply smart defaults and absolute resolution since theme changed
 		cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
+	}
+
+	if cfg.WebPQuality < 1 || cfg.WebPQuality > 100 {
+		cfg.WebPQuality = 80 // enforce valid range
+	}
+
+	// Consider libvips threads when setting image workers to prevent overwhelming the CPU
+	if cfg.VipsConcurrency == 0 {
+		// If auto, libvips typically uses min(CPU count, 4) threads
+		estimatedVipsThreads := runtime.NumCPU()
+		if estimatedVipsThreads > 4 {
+			estimatedVipsThreads = 4
+		}
+
+		// If image workers is default (24), it might be too high. Cap it so total concurrency <= CPU * 2
+		totalExpectedThreads := cfg.ImageWorkers * estimatedVipsThreads
+		maxRecommendedThreads := runtime.NumCPU() * 2
+
+		if totalExpectedThreads > maxRecommendedThreads {
+			// Adjust image workers down
+			cfg.ImageWorkers = maxRecommendedThreads / estimatedVipsThreads
+			if cfg.ImageWorkers < 1 {
+				cfg.ImageWorkers = 1
+			}
+		}
+	} else {
+		// User specified vips concurrency
+		totalExpectedThreads := cfg.ImageWorkers * cfg.VipsConcurrency
+		maxRecommendedThreads := runtime.NumCPU() * 2
+
+		if totalExpectedThreads > maxRecommendedThreads {
+			// Log a warning, but let the user shoot themselves in the foot since they explicitly configured it
+			// We can't log here easily without adding a logger to Load(), but we can cap it slightly to prevent complete system freeze
+			if totalExpectedThreads > runtime.NumCPU()*4 {
+				cfg.ImageWorkers = (runtime.NumCPU() * 4) / cfg.VipsConcurrency
+				if cfg.ImageWorkers < 1 {
+					cfg.ImageWorkers = 1
+				}
+			}
+		}
 	}
 
 	return cfg
@@ -248,7 +296,6 @@ func SetDevMode(cfg *Config, isDev bool) {
 	isDevMode.Store(isDev)
 }
 
-// GetVersionsMetadata returns a list of version information for templates
 // currentPath is the current page path (e.g., "getting-started.html") to preserve across version switches
 func (cfg *Config) GetVersionsMetadata(currentVersion, currentPath string) []models.VersionInfo {
 	if len(cfg.Versions) == 0 {

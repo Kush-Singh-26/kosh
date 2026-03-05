@@ -5,7 +5,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"syscall/js"
 
 	"github.com/vmihailenco/msgpack/v5"
@@ -18,12 +17,12 @@ var index models.SearchIndex
 
 func main() {
 	c := make(chan struct{}, 0)
-	fmt.Println("WASM Search Engine Initializing...")
+	println("WASM Search Engine Initializing (Schema v6)...")
 
 	js.Global().Set("initSearch", js.FuncOf(initSearch))
 	js.Global().Set("searchPosts", js.FuncOf(searchPosts))
 
-	fmt.Println("WASM Search Engine Ready")
+	println("WASM Search Engine Ready")
 	<-c
 }
 
@@ -40,13 +39,19 @@ func initSearch(this js.Value, args []js.Value) interface{} {
 		go func() {
 			data, err := fetchAndDecompress(url)
 			if err != nil {
-				reject.Invoke(fmt.Sprintf("Fetch/Decompress error: %v", err))
+				reject.Invoke("Fetch/Decompress error: " + err.Error())
 				return
 			}
 
 			dec := msgpack.NewDecoder(bytes.NewReader(data))
 			if err := dec.Decode(&index); err != nil {
-				reject.Invoke(fmt.Sprintf("Decode error: %v", err))
+				reject.Invoke("Decode error: " + err.Error())
+				return
+			}
+
+			// Validate schema version
+			if index.SchemaVersion != models.CurrentSchemaVersion {
+				reject.Invoke("Incompatible index schema: please rebuild your site")
 				return
 			}
 
@@ -69,13 +74,13 @@ func fetchAndDecompress(url string) ([]byte, error) {
 	success := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		resp := args[0]
 		if !resp.Get("ok").Bool() {
-			ch <- fmt.Errorf("bad status: %s", resp.Get("statusText").String())
+			ch <- "bad status: " + resp.Get("statusText").String()
 			return nil
 		}
 
 		dsCtor := window.Get("DecompressionStream")
 		if dsCtor.IsUndefined() {
-			ch <- fmt.Errorf("DecompressionStream not supported in this browser")
+			ch <- "DecompressionStream not supported in this browser"
 			return nil
 		}
 
@@ -96,7 +101,7 @@ func fetchAndDecompress(url string) ([]byte, error) {
 			return nil
 		})
 		bufFailure := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-			ch <- fmt.Errorf("failed to read array buffer: %v", args[0])
+			ch <- "failed to read array buffer"
 			return nil
 		})
 		bufPromise.Call("then", bufSuccess, bufFailure)
@@ -104,17 +109,25 @@ func fetchAndDecompress(url string) ([]byte, error) {
 	})
 
 	failure := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		ch <- fmt.Errorf("fetch failed")
+		ch <- "fetch failed"
 		return nil
 	})
 
 	promise.Call("then", success, failure)
 
 	result := <-ch
-	if err, ok := result.(error); ok {
-		return nil, err
+	if s, ok := result.(string); ok {
+		return nil, &jsError{msg: s}
 	}
 	return result.([]byte), nil
+}
+
+type jsError struct {
+	msg string
+}
+
+func (e *jsError) Error() string {
+	return e.msg
 }
 
 func searchPosts(this js.Value, args []js.Value) interface{} {

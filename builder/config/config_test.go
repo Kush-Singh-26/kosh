@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -44,8 +45,24 @@ func TestLoad_Defaults(t *testing.T) {
 		t.Errorf("PostsPerPage = %d, want 10", cfg.PostsPerPage)
 	}
 
-	if cfg.ImageWorkers != 24 {
-		t.Errorf("ImageWorkers = %d, want 24", cfg.ImageWorkers)
+	expectedWorkers := 24
+	estimatedVipsThreads := runtime.NumCPU()
+	if estimatedVipsThreads > 4 {
+		estimatedVipsThreads = 4
+	}
+
+	totalExpectedThreads := expectedWorkers * estimatedVipsThreads
+	maxRecommendedThreads := runtime.NumCPU() * 2
+
+	if totalExpectedThreads > maxRecommendedThreads {
+		expectedWorkers = maxRecommendedThreads / estimatedVipsThreads
+		if expectedWorkers < 1 {
+			expectedWorkers = 1
+		}
+	}
+
+	if cfg.ImageWorkers != expectedWorkers {
+		t.Errorf("ImageWorkers = %d, want %d", cfg.ImageWorkers, expectedWorkers)
 	}
 
 	if cfg.Theme != "blog" {
@@ -272,11 +289,11 @@ func TestLoad_ImageWorkersValidation(t *testing.T) {
 		workers  int
 		expected int
 	}{
-		{"zero defaults to 24", 0, 24},
-		{"negative defaults to 24", -1, 24},
-		{"valid value", 16, 16},
-		{"maximum cap", 50, 32},
-		{"at maximum", 32, 32},
+		{"zero_defaults_to_24", 0, 24},
+		{"negative_defaults_to_24", -5, 24},
+		{"valid_value", 16, 16},
+		{"maximum_cap", 100, 32},
+		{"at_maximum", 32, 32},
 	}
 
 	for _, tt := range tests {
@@ -294,8 +311,63 @@ func TestLoad_ImageWorkersValidation(t *testing.T) {
 
 			cfg := Load([]string{})
 
-			if cfg.ImageWorkers != tt.expected {
-				t.Errorf("ImageWorkers = %d, want %d", cfg.ImageWorkers, tt.expected)
+			// If the dynamic CPU check kicked in, adjust the expected value
+			expected := tt.expected
+			estimatedVipsThreads := runtime.NumCPU()
+			if estimatedVipsThreads > 4 {
+				estimatedVipsThreads = 4
+			}
+
+			totalExpectedThreads := expected * estimatedVipsThreads
+			maxRecommendedThreads := runtime.NumCPU() * 2
+
+			if totalExpectedThreads > maxRecommendedThreads {
+				expected = maxRecommendedThreads / estimatedVipsThreads
+				if expected < 1 {
+					expected = 1
+				}
+			}
+
+			if cfg.ImageWorkers != expected {
+				t.Errorf("ImageWorkers = %d, want %d", cfg.ImageWorkers, expected)
+			}
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanup := changeToTempDir(t)
+			defer cleanup()
+
+			yamlContent := ""
+			if tt.workers != 0 {
+				yamlContent = fmt.Sprintf("imageWorkers: %d", tt.workers)
+			}
+			if err := os.WriteFile("kosh.yaml", []byte(yamlContent), 0644); err != nil {
+				t.Fatalf("Failed to create test kosh.yaml: %v", err)
+			}
+
+			cfg := Load([]string{})
+
+			// If the dynamic CPU check kicked in, adjust the expected value
+			expected := tt.expected
+			estimatedVipsThreads := runtime.NumCPU()
+			if estimatedVipsThreads > 4 {
+				estimatedVipsThreads = 4
+			}
+
+			totalExpectedThreads := expected * estimatedVipsThreads
+			maxRecommendedThreads := runtime.NumCPU() * 2
+
+			if totalExpectedThreads > maxRecommendedThreads {
+				expected = maxRecommendedThreads / estimatedVipsThreads
+				if expected < 1 {
+					expected = 1
+				}
+			}
+
+			if cfg.ImageWorkers != expected {
+				t.Errorf("ImageWorkers = %d, want %d", cfg.ImageWorkers, expected)
 			}
 		})
 	}

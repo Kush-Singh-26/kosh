@@ -1,7 +1,7 @@
 package renderer
 
 import (
-	"io"
+	"bytes"
 	"path/filepath"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -9,7 +9,9 @@ import (
 )
 
 func (r *Renderer) RenderPage(path string, data models.PageData) {
-	data.Assets = r.GetAssets()
+	if data.Assets == nil {
+		data.Assets = r.GetAssets()
+	}
 
 	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		r.logger.Error("Failed to create directory", "path", path, "error", err)
@@ -21,24 +23,51 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 		r.logger.Error("Failed to create file", "path", path, "error", err)
 		return
 	}
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if err := f.Close(); err != nil {
+			r.recordError("Failed to close file", path, err)
+		}
+	}()
 
 	bw := utils.SharedBufioWriterPool.Get(f)
 	defer func() {
-		_ = bw.Flush()
+		if err := bw.Flush(); err != nil {
+			r.recordError("Failed to flush buffer", path, err)
+		}
 		utils.SharedBufioWriterPool.Put(bw)
 	}()
 
-	var w io.Writer = bw
+	r.mu.RLock()
+	layout := r.Layout
+	r.mu.RUnlock()
 
-	if r.Compress {
-		mw := utils.Minifier.Writer("text/html", bw)
-		defer func() { _ = mw.Close() }()
-		w = mw
+	if layout == nil {
+		r.logger.Error("Layout template not loaded", "path", path)
+		return
 	}
 
-	if err := r.Layout.Execute(w, data); err != nil {
+	// 1. Execute template to buffer
+	var buf bytes.Buffer
+	if err := layout.Execute(&buf, data); err != nil {
 		r.logger.Error("Failed to render layout", "path", path, "error", err)
+		return
+	}
+
+	// 2. Process HTML (Fix images and internal paths)
+	processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
+
+	// 3. Optional Minification
+	finalBytes := []byte(processedHTML)
+	if r.Compress {
+		minified, err := utils.Minifier.Bytes("text/html", finalBytes)
+		if err == nil {
+			finalBytes = minified
+		}
+	}
+
+	// 4. Final Write
+	if _, err := bw.Write(finalBytes); err != nil {
+		r.logger.Error("Failed to write processed HTML", "path", path, "error", err)
 	} else {
 		r.RegisterFile(path)
 	}

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -12,60 +13,67 @@ import (
 	"strings"
 	"sync"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
 	"github.com/twincats/golibvips/libvips"
 	"github.com/zeebo/blake3"
 )
 
 type imageCache struct {
-	mu   sync.RWMutex
-	data map[string][]byte
-	keys []string
-	size int
-	cap  int
+	cache    *lru.Cache[string, []byte]
+	mu       sync.RWMutex
+	size     int
+	capacity int
 }
 
-func newImageCache(capacity int) *imageCache {
-	return &imageCache{
-		data: make(map[string][]byte),
-		keys: make([]string, 0, 128),
-		cap:  capacity,
+func newImageCache(maxItems int, maxBytes int) *imageCache {
+	ic := &imageCache{
+		capacity: maxBytes,
 	}
+
+	onEvict := func(key string, value []byte) {
+		ic.mu.Lock()
+		// Calculate roughly same size as when it was added
+		overhead := 64 + len(key) // map entry overhead + string length
+		ic.size -= (cap(value) + overhead)
+		ic.mu.Unlock()
+	}
+
+	c, _ := lru.NewWithEvict[string, []byte](maxItems, onEvict)
+	ic.cache = c
+
+	return ic
 }
 
 func (c *imageCache) get(key string) ([]byte, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	data, ok := c.data[key]
-	return data, ok
+	return c.cache.Get(key)
 }
 
 func (c *imageCache) set(key string, data []byte) {
+	// Calculate size with overhead
+	overhead := 64 + len(key)
+	itemSize := cap(data) + overhead
+
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.size += itemSize
 
-	if existing, ok := c.data[key]; ok {
-		c.size -= len(existing)
-		delete(c.data, key)
-	}
-
-	for c.size+len(data) > c.cap && len(c.keys) > 0 {
-		oldKey := c.keys[0]
-		c.keys = c.keys[1:]
-		if oldData, ok := c.data[oldKey]; ok {
-			c.size -= len(oldData)
-			delete(c.data, oldKey)
+	// Strict size-based eviction: remove oldest items until under capacity
+	// We use a safe loop to prevent infinite eviction if a single item > capacity
+	for c.size > c.capacity && c.cache.Len() > 0 {
+		_, _, ok := c.cache.RemoveOldest()
+		if !ok {
+			break
 		}
 	}
+	c.mu.Unlock()
 
-	c.data[key] = data
-	c.keys = append(c.keys, key)
-	c.size += len(data)
+	c.cache.Add(key, data)
 }
 
-var globalImageCache = newImageCache(50 * 1024 * 1024)
+// globalImageCache limits to 200 items or ~50MB of memory
+var globalImageCache = newImageCache(200, 50*1024*1024)
 
-func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string, imageWorkers int) error {
+func CopyDirVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string, imageWorkers int, webpQuality int) error {
 	srcDir = NormalizePath(srcDir)
 	dstDir = NormalizePath(dstDir)
 	if err := destFs.MkdirAll(dstDir, 0755); err != nil {
@@ -79,7 +87,8 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 	}
 
 	taskQueue := make(chan fileTask, 100)
-	errChan := make(chan error, 100)
+	var errs []error
+	var errMu sync.Mutex
 	var wg sync.WaitGroup
 
 	numWorkers := imageWorkers
@@ -90,48 +99,69 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for task := range taskQueue {
-				ext := strings.ToLower(filepath.Ext(task.path))
-				isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
-
-				if compress && isImage {
-					target := filepath.Join(dstDir, task.relPath)
-					if err := processImageVFS(srcFs, destFs, task.path, target, cacheDir); err != nil {
-						errChan <- fmt.Errorf("failed to process image %s: %w", task.path, err)
-					} else if onWrite != nil {
-						onWrite(target)
+			defer libvips.ShutdownThread() // Ensure C-side thread-local caches are released
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case task, ok := <-taskQueue:
+					if !ok {
+						return
 					}
-				} else {
-					destPath := filepath.Join(dstDir, task.relPath)
-					err := func() error {
-						destDir := filepath.Dir(destPath)
-						if err := destFs.MkdirAll(destDir, 0755); err != nil {
-							return fmt.Errorf("failed to create directory %s: %w", destDir, err)
-						}
+					// Recover from panics to prevent worker crashes
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								slog.Error("Image worker panic recovered", "panic", r)
+							}
+						}()
+						ext := strings.ToLower(filepath.Ext(task.path))
+						isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
 
-						in, err := srcFs.Open(task.path)
-						if err != nil {
-							return fmt.Errorf("failed to open source file %s: %w", task.path, err)
-						}
-						defer func() { _ = in.Close() }()
+						if compress && isImage {
+							target := filepath.Join(dstDir, task.relPath)
+							if err := processImageVFS(ctx, srcFs, destFs, task.path, target, cacheDir, webpQuality); err != nil {
+								errMu.Lock()
+								errs = append(errs, fmt.Errorf("failed to process image %s: %w", task.path, err))
+								errMu.Unlock()
+							} else if onWrite != nil {
+								onWrite(target)
+							}
+						} else {
+							destPath := filepath.Join(dstDir, task.relPath)
+							err := func() error {
+								destDir := filepath.Dir(destPath)
+								if err := destFs.MkdirAll(destDir, 0755); err != nil {
+									return fmt.Errorf("failed to create directory %s: %w", destDir, err)
+								}
 
-						out, err := destFs.Create(destPath)
-						if err != nil {
-							return fmt.Errorf("failed to create destination file %s: %w", destPath, err)
-						}
-						defer func() { _ = out.Close() }()
+								in, err := srcFs.Open(task.path)
+								if err != nil {
+									return fmt.Errorf("failed to open source file %s: %w", task.path, err)
+								}
+								defer func() { _ = in.Close() }()
 
-						if _, err := io.Copy(out, in); err != nil {
-							return fmt.Errorf("failed to copy file %s: %w", task.path, err)
+								out, err := destFs.Create(destPath)
+								if err != nil {
+									return fmt.Errorf("failed to create destination file %s: %w", destPath, err)
+								}
+								defer func() { _ = out.Close() }()
+
+								if _, err := io.Copy(out, in); err != nil {
+									return fmt.Errorf("failed to copy file %s: %w", task.path, err)
+								}
+								if onWrite != nil {
+									onWrite(destPath)
+								}
+								return nil
+							}()
+							if err != nil {
+								errMu.Lock()
+								errs = append(errs, err)
+								errMu.Unlock()
+							}
 						}
-						if onWrite != nil {
-							onWrite(destPath)
-						}
-						return nil
-					}()
-					if err != nil {
-						errChan <- err
-					}
+					}() // Close panic recovery wrapper
 				}
 			}
 		}()
@@ -147,11 +177,18 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 
 		relPath, _ := SafeRel(srcDir, path)
 		ext := strings.ToLower(filepath.Ext(path))
-
-		for _, exclude := range excludeExts {
-			if ext == exclude {
-				return nil
+		baseName := filepath.Base(path)
+		isExcluded := false
+		if baseName != "wasm_engine.js" && baseName != "engine.js" && baseName != "force-graph.js" {
+			for _, exclude := range excludeExts {
+				if ext == exclude {
+					isExcluded = true
+					break
+				}
 			}
+		}
+		if isExcluded {
+			return nil
 		}
 
 		isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
@@ -166,22 +203,19 @@ func CopyDirVFS(srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress
 
 	close(taskQueue)
 	wg.Wait()
-	close(errChan)
 
 	if err != nil {
 		return err
 	}
 
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
+	if len(errs) > 0 {
+		return errs[0] // Return first error
 	}
 
 	return nil
 }
 
-func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string, cacheDir string) error {
+func processImageVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string, cacheDir string, webpQuality int) error {
 	srcInfo, err := srcFs.Stat(srcPath)
 	if err != nil {
 		return fmt.Errorf("failed to stat source image %s: %w", srcPath, err)
@@ -220,9 +254,21 @@ func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string, c
 		}
 	}
 
-	img, err := libvips.NewImageFromFile(srcPath)
+	// Check context before heavy image operation
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	imgData, err := afero.ReadFile(srcFs, srcPath)
 	if err != nil {
-		return fmt.Errorf("failed to load image %s: %w", srcPath, err)
+		return fmt.Errorf("failed to read image %s from srcFs: %w", srcPath, err)
+	}
+
+	img, err := libvips.NewImageFromBuffer(imgData)
+	if err != nil {
+		return fmt.Errorf("failed to parse image buffer %s: %w", srcPath, err)
 	}
 	defer img.Close()
 
@@ -237,20 +283,40 @@ func processImageVFS(srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string, c
 	}
 
 	webpParams := libvips.NewWebpExportParams()
-	webpParams.Quality = 80
+	if webpQuality < 1 || webpQuality > 100 {
+		webpQuality = 80 // fallback to default
+	}
+	webpParams.Quality = webpQuality
 
 	encodedData, _, err := img.ExportWebp(webpParams)
 	if err != nil {
 		return fmt.Errorf("failed to encode webp %s: %w", dstPath, err)
 	}
 
-	globalImageCache.set(memCacheKey, encodedData)
+	// Copy to pooled slice before libvips frees the memory
+	pooledBytes := SharedByteSlicePool.Get()
+	defer SharedByteSlicePool.Put(pooledBytes)
+
+	if cap(*pooledBytes) < len(encodedData) {
+		*pooledBytes = make([]byte, len(encodedData))
+	} else {
+		*pooledBytes = (*pooledBytes)[:len(encodedData)]
+	}
+	copy(*pooledBytes, encodedData)
+	finalData := *pooledBytes
+
+	// Clone exact-sized slice for the LRU cache so we don't pin the massive pooled slice array in RAM
+	cacheData := make([]byte, len(finalData))
+	copy(cacheData, finalData)
+	globalImageCache.set(memCacheKey, cacheData)
 
 	if cacheFile != "" {
-		if err := os.WriteFile(cacheFile, encodedData, 0644); err != nil {
+		if err := os.WriteFile(cacheFile, finalData, 0644); err != nil {
 			slog.Warn("Failed to write image cache file", "path", cacheFile, "error", err)
 		}
 	}
 
-	return afero.WriteFile(destFs, dstPath, encodedData, 0644)
+	err = afero.WriteFile(destFs, dstPath, finalData, 0644)
+
+	return err
 }

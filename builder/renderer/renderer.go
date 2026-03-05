@@ -1,8 +1,10 @@
 package renderer
 
 import (
+	"fmt"
 	"html/template"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,132 +12,210 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 type Renderer struct {
-	Layout      *template.Template
-	Index       *template.Template
-	Graph       *template.Template
-	NotFound    *template.Template
-	Assets      map[string]string
-	AssetsMu    sync.RWMutex
-	Compress    bool
-	DestFs      afero.Fs
-	RenderedMu  sync.RWMutex
-	RenderedSet map[string]bool
-	logger      *slog.Logger
+	Layout       *template.Template
+	Index        *template.Template
+	Graph        *template.Template
+	NotFound     *template.Template
+	Assets       map[string]string
+	AssetsMu     sync.RWMutex
+	Compress     bool
+	DestFs       afero.Fs
+	RenderedMu   sync.RWMutex
+	RenderedSet  map[string]bool
+	logger       *slog.Logger
+	templateDir  string
+	mu           sync.RWMutex // Added for thread-safe template access
+	devMode      bool
+	renderErrors []renderError
+	errMu        sync.Mutex
 }
 
-func New(compress bool, destFs afero.Fs, templateDir string, logger *slog.Logger) *Renderer {
+type renderError struct {
+	msg  string
+	path string
+	err  error
+}
+
+func New(compress bool, destFs afero.Fs, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
+	r := &Renderer{
+		Compress:    compress,
+		DestFs:      destFs,
+		RenderedSet: make(map[string]bool),
+		logger:      logger,
+		templateDir: templateDir,
+		devMode:     devMode,
+	}
+	r.ReloadTemplates()
+	return r
+}
+
+func (r *Renderer) ReloadTemplates() {
+	tc := getGlobalCache(r.templateDir, r.devMode)
+
+	tc.mu.RLock()
+	hasTemplates := len(tc.templates) > 0
+	tc.mu.RUnlock()
+
+	// Do not hold any locks when calling hasTemplatesChanged() to avoid deadlock
+	cacheValid := hasTemplates && !tc.hasTemplatesChanged()
+
+	if cacheValid {
+		r.mu.Lock()
+		r.Layout = tc.templates["layout"]
+		r.Index = tc.templates["index"]
+		r.Graph = tc.templates["graph"]
+		r.NotFound = tc.templates["404"]
+		r.mu.Unlock()
+		return
+	}
+
 	funcMap := template.FuncMap{
 		"lower":     strings.ToLower,
 		"hasPrefix": strings.HasPrefix,
 		"replace": func(from, to, input string) string {
 			return strings.ReplaceAll(input, from, to)
 		},
-		"now": time.Now,
+		"trimPrefix": strings.TrimPrefix,
+		"relativize": func(baseURL, prefix, link string) string {
+			if strings.HasPrefix(link, "http") || strings.HasPrefix(link, "//") {
+				return link
+			}
+			// Clean the link
+			link = "/" + strings.TrimPrefix(link, "/")
+
+			if baseURL != "" {
+				res := strings.TrimSuffix(baseURL, "/") + link
+				if strings.Contains(res, "http://localhost:2604http") {
+					fmt.Printf("DEBUG: Doubled URL detected! baseURL=%s, link=%s\n", baseURL, link)
+				}
+				return res
+			}
+			// If baseURL is empty, use RelativePrefix
+			res := prefix + strings.TrimPrefix(link, "/")
+			if res == "" || res == "/" {
+				return "./"
+			}
+			return res
+		},
+		"now":       time.Now,
+		"urlEscape": url.PathEscape,
+		"slugify":   utils.Slugify,
 	}
 
-	tc := getGlobalCache(templateDir)
+	var (
+		layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl *template.Template
+		mu                                             sync.Mutex
+	)
 
-	tc.mu.RLock()
-	cacheValid := len(tc.templates) > 0 && !tc.hasTemplatesChanged()
-	if cacheValid {
-		r := &Renderer{
-			Layout:      tc.templates["layout"],
-			Index:       tc.templates["index"],
-			Graph:       tc.templates["graph"],
-			NotFound:    tc.templates["404"],
-			Compress:    compress,
-			DestFs:      destFs,
-			RenderedSet: make(map[string]bool),
-			logger:      logger,
+	g := new(errgroup.Group)
+
+	// Layout (Essential)
+	g.Go(func() error {
+		path := filepath.Join(r.templateDir, "layout.html")
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read layout template: %w", err)
 		}
-		tc.mu.RUnlock()
-		return r
-	}
-	tc.mu.RUnlock()
+		tmpl, err := template.New("layout.html").Funcs(funcMap).Parse(string(content))
+		if err != nil {
+			return fmt.Errorf("failed to parse layout template: %w", err)
+		}
+		info, _ := os.Stat(path)
+		mu.Lock()
+		layoutTmpl = tmpl
+		if info != nil {
+			tc.setTemplate("layout", tmpl, info.ModTime(), content)
+		}
+		mu.Unlock()
+		return nil
+	})
 
-	layoutPath := filepath.Join(templateDir, "layout.html")
-	layoutContent, err := os.ReadFile(layoutPath)
-	if err != nil {
-		logger.Error("Failed to read layout template", "path", layoutPath, "error", err)
+	// Index
+	g.Go(func() error {
+		path := filepath.Join(r.templateDir, "index.html")
+		content, err := os.ReadFile(path)
+		if err != nil {
+			r.logger.Warn("Index template not found, falling back to layout", "dir", r.templateDir)
+			return nil
+		}
+		tmpl, err := template.New("index.html").Funcs(funcMap).Parse(string(content))
+		if err != nil {
+			r.logger.Warn("Failed to parse index template", "path", path, "error", err)
+			return nil
+		}
+		info, _ := os.Stat(path)
+		mu.Lock()
+		indexTmpl = tmpl
+		if info != nil {
+			tc.setTemplate("index", tmpl, info.ModTime(), content)
+		}
+		mu.Unlock()
+		return nil
+	})
+
+	// Graph
+	g.Go(func() error {
+		path := filepath.Join(r.templateDir, "graph.html")
+		content, err := os.ReadFile(path)
+		if err != nil {
+			r.logger.Warn("Graph template not found, skipping graph page", "dir", r.templateDir)
+			return nil
+		}
+		tmpl, err := template.New("graph.html").Funcs(funcMap).Parse(string(content))
+		if err != nil {
+			r.logger.Warn("Failed to parse graph template", "path", path, "error", err)
+			return nil
+		}
+		info, _ := os.Stat(path)
+		mu.Lock()
+		graphTmpl = tmpl
+		if info != nil {
+			tc.setTemplate("graph", tmpl, info.ModTime(), content)
+		}
+		mu.Unlock()
+		return nil
+	})
+
+	// 404
+	g.Go(func() error {
+		path := filepath.Join(r.templateDir, "404.html")
+		content, err := os.ReadFile(path)
+		if err != nil {
+			r.logger.Warn("404 template not found, falling back to layout", "dir", r.templateDir)
+			return nil
+		}
+		tmpl, err := template.New("404.html").Funcs(funcMap).Parse(string(content))
+		if err != nil {
+			r.logger.Warn("Failed to parse 404 template", "path", path, "error", err)
+			return nil
+		}
+		info, _ := os.Stat(path)
+		mu.Lock()
+		notFoundTmpl = tmpl
+		if info != nil {
+			tc.setTemplate("404", tmpl, info.ModTime(), content)
+		}
+		mu.Unlock()
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		r.logger.Error("Template parsing failed", "error", err)
 		os.Exit(1)
 	}
-	tmpl, err := template.New("layout.html").Funcs(funcMap).Parse(string(layoutContent))
-	if err != nil {
-		logger.Error("Failed to parse layout template", "path", layoutPath, "error", err)
-		if strings.Contains(err.Error(), "template") && strings.Contains(err.Error(), "not defined") {
-			logger.Error("Possible template cycle detected - check for circular {{ template }} references")
-		}
-		os.Exit(1)
-	}
-	layoutInfo, _ := os.Stat(layoutPath)
-	if layoutInfo != nil {
-		tc.setTemplate("layout", tmpl, layoutInfo.ModTime(), layoutContent)
-	}
 
-	indexPath := filepath.Join(templateDir, "index.html")
-	var indexTmpl *template.Template
-	indexContent, err := os.ReadFile(indexPath)
-	if err != nil {
-		logger.Warn("Index template not found, falling back to layout", "dir", templateDir, "error", err)
-	} else {
-		indexTmpl, err = template.New("index.html").Funcs(funcMap).Parse(string(indexContent))
-		if err != nil {
-			logger.Warn("Failed to parse index template", "dir", templateDir, "error", err)
-		} else {
-			indexInfo, _ := os.Stat(indexPath)
-			if indexInfo != nil {
-				tc.setTemplate("index", indexTmpl, indexInfo.ModTime(), indexContent)
-			}
-		}
-	}
-
-	graphPath := filepath.Join(templateDir, "graph.html")
-	var graphTmpl *template.Template
-	graphContent, err := os.ReadFile(graphPath)
-	if err != nil {
-		logger.Warn("Graph template not found, skipping graph page", "dir", templateDir, "error", err)
-	} else {
-		graphTmpl, err = template.ParseFiles(graphPath)
-		if err != nil {
-			logger.Warn("Failed to parse graph template", "dir", templateDir, "error", err)
-		} else {
-			graphInfo, _ := os.Stat(graphPath)
-			if graphInfo != nil {
-				tc.setTemplate("graph", graphTmpl, graphInfo.ModTime(), graphContent)
-			}
-		}
-	}
-
-	notFoundPath := filepath.Join(templateDir, "404.html")
-	var notFoundTmpl *template.Template
-	notFoundContent, err := os.ReadFile(notFoundPath)
-	if err != nil {
-		logger.Warn("404 template not found, falling back to layout", "dir", templateDir, "error", err)
-	} else {
-		notFoundTmpl, err = template.New("404.html").Funcs(funcMap).Parse(string(notFoundContent))
-		if err != nil {
-			logger.Warn("Failed to parse 404 template", "dir", templateDir, "error", err)
-		} else {
-			notFoundInfo, _ := os.Stat(notFoundPath)
-			if notFoundInfo != nil {
-				tc.setTemplate("404", notFoundTmpl, notFoundInfo.ModTime(), notFoundContent)
-			}
-		}
-	}
-
-	return &Renderer{
-		Layout:      tmpl,
-		Index:       indexTmpl,
-		Graph:       graphTmpl,
-		NotFound:    notFoundTmpl,
-		Compress:    compress,
-		DestFs:      destFs,
-		RenderedSet: make(map[string]bool),
-		logger:      logger,
-	}
+	r.mu.Lock()
+	r.Layout = layoutTmpl
+	r.Index = indexTmpl
+	r.Graph = graphTmpl
+	r.NotFound = notFoundTmpl
+	r.mu.Unlock()
 }
 
 func (r *Renderer) RegisterFile(path string) {
@@ -174,4 +254,27 @@ func (r *Renderer) GetAssets() map[string]string {
 		copy[k] = v
 	}
 	return copy
+}
+
+// recordError logs a render error and stores it for later retrieval
+func (r *Renderer) recordError(msg string, path string, err error) {
+	r.errMu.Lock()
+	defer r.errMu.Unlock()
+	r.renderErrors = append(r.renderErrors, renderError{msg: msg, path: path, err: err})
+	r.logger.Error(msg, "path", path, "error", err)
+}
+
+// GetErrors returns all accumulated render errors and clears the error list
+func (r *Renderer) GetErrors() []error {
+	r.errMu.Lock()
+	defer r.errMu.Unlock()
+	if len(r.renderErrors) == 0 {
+		return nil
+	}
+	result := make([]error, len(r.renderErrors))
+	for i, e := range r.renderErrors {
+		result[i] = fmt.Errorf("%s (path: %s): %w", e.msg, e.path, e.err)
+	}
+	r.renderErrors = nil // Clear after retrieval
+	return result
 }

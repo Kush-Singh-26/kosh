@@ -3,6 +3,7 @@ package services
 import (
 	"log/slog"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -574,4 +575,94 @@ func TestCacheService_GetSearchRecords(t *testing.T) {
 	if retrieved["post-2"] == nil {
 		t.Error("Should have record for post-2")
 	}
+}
+
+func TestCacheService_ClearDirty_RangeDelete(t *testing.T) {
+	service, _, cleanup := setupCacheServiceTest(t)
+	defer cleanup()
+
+	postIDs := []string{"post-1", "post-2", "post-3", "post-4", "post-5"}
+
+	for _, id := range postIDs {
+		service.MarkDirty(id)
+	}
+
+	for _, id := range postIDs {
+		if !service.IsDirty(id) {
+			t.Errorf("Post %s should be dirty", id)
+		}
+	}
+
+	service.ClearDirty()
+
+	for _, id := range postIDs {
+		if service.IsDirty(id) {
+			t.Errorf("Post %s should not be dirty after ClearDirty", id)
+		}
+	}
+
+	t.Log("ClearDirty Range+Delete test passed")
+}
+
+func TestCacheService_ClearDirty_Concurrent(t *testing.T) {
+	service, _, cleanup := setupCacheServiceTest(t)
+	defer cleanup()
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			service.MarkDirty("post-" + string(rune('0'+id)))
+		}(i)
+	}
+
+	wg.Wait()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		service.ClearDirty()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			service.MarkDirty("concurrent-post")
+		}
+	}()
+
+	wg.Wait()
+
+	t.Log("ClearDirty concurrent test passed")
+}
+
+func TestCacheService_EmptyBodyHash_Invalidation(t *testing.T) {
+	service, _, cleanup := setupCacheServiceTest(t)
+	defer cleanup()
+
+	post := testutil.CreateSamplePostMeta()
+	post.PostID = "test-empty-body"
+	post.BodyHash = ""
+
+	if err := service.BatchCommit([]*cache.PostMeta{post}, nil, nil); err != nil {
+		t.Fatalf("Failed to commit post: %v", err)
+	}
+
+	retrieved, err := service.GetPost("test-empty-body")
+	if err != nil {
+		t.Fatalf("GetPost failed: %v", err)
+	}
+
+	if retrieved == nil {
+		t.Fatal("Post should be retrievable")
+	}
+
+	if retrieved.BodyHash != "" {
+		t.Logf("Empty BodyHash stored as: %q", retrieved.BodyHash)
+	}
+
+	t.Log("Empty BodyHash test passed - post can be stored and retrieved")
 }

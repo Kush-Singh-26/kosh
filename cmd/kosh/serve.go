@@ -13,11 +13,12 @@ import (
 )
 
 var (
-	serveDev     bool
-	serveHost    string
-	servePort    string
-	serveDrafts  bool
-	serveBaseURL string
+	serveDev       bool
+	serveHost      string
+	servePort      string
+	serveDrafts    bool
+	serveBaseURL   string
+	serveForceLock bool
 )
 
 var serveCmd = &cobra.Command{
@@ -35,6 +36,7 @@ func init() {
 	serveCmd.Flags().StringVar(&servePort, "port", "2604", "Port to listen on")
 	serveCmd.Flags().BoolVarP(&serveDrafts, "drafts", "", false, "Include draft posts in development mode")
 	serveCmd.Flags().StringVarP(&serveBaseURL, "baseurl", "", "", "Override base URL from config")
+	serveCmd.Flags().BoolVar(&serveForceLock, "force-lock", false, "Acquire build lock even if another build is running")
 }
 
 func runServe(cmd *cobra.Command, args []string) {
@@ -53,6 +55,9 @@ func runServe(cmd *cobra.Command, args []string) {
 	if servePort != "2604" {
 		filteredArgs = append(filteredArgs, "-port", servePort)
 	}
+	if serveForceLock {
+		filteredArgs = append(filteredArgs, "-force-lock")
+	}
 
 	if serveDev {
 		fmt.Println("🚀 Starting Kosh in Development Mode...")
@@ -69,9 +74,11 @@ func runServe(cmd *cobra.Command, args []string) {
 		}
 
 		go func() {
-			w, err := watch.New([]string{"content", b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
+			w, err := watch.New([]string{b.Config().ContentDir, b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
 				fmt.Printf("\n⚡ Change detected: %s | Rebuilding...\n", event.Name)
+				server.SetBuildActive(true)
 				b.BuildChanged(ctx, event.Name, event.Op)
+				server.SetBuildActive(false)
 			})
 			if err != nil {
 				fmt.Printf("❌ Watcher failed: %v\n", err)
@@ -80,9 +87,9 @@ func runServe(cmd *cobra.Command, args []string) {
 			w.Start()
 		}()
 
-		server.Run(ctx, filteredArgs, b.Config().OutputDir, b.Config().Build)
+		server.Run(ctx, filteredArgs, b.Config().OutputDir, b.Config().BaseURL, b.Config().Build)
 	} else {
 		cfg := config.Load(filteredArgs)
-		server.Run(ctx, filteredArgs, cfg.OutputDir, cfg.Build)
+		server.Run(ctx, filteredArgs, cfg.OutputDir, cfg.BaseURL, cfg.Build)
 	}
 }

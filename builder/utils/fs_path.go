@@ -53,3 +53,20 @@ func WriteFileVFS(fs afero.Fs, path string, data []byte) error {
 	}
 	return nil
 }
+
+func GetRelativePrefix(htmlPath string) string {
+	htmlPath = filepath.ToSlash(htmlPath)
+	// If path is absolute or has a drive letter, it's not a relative path from output root
+	if filepath.IsAbs(htmlPath) || (len(htmlPath) > 1 && htmlPath[1] == ':') || strings.HasPrefix(htmlPath, "C:") || strings.HasPrefix(htmlPath, "c:") {
+		return ""
+	}
+
+	htmlPath = strings.TrimPrefix(htmlPath, "./")
+	htmlPath = strings.TrimPrefix(htmlPath, "/")
+
+	depth := strings.Count(htmlPath, "/")
+	if depth == 0 {
+		return ""
+	}
+	return strings.Repeat("../", depth)
+}

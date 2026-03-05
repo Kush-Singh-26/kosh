@@ -151,10 +151,8 @@ func TestGetSearchRecord(t *testing.T) {
 	record := &SearchRecord{
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
-		Tokens:          []string{"test", "post"},
 		BM25Data:        map[string]int{"test": 1, "post": 2},
 		DocLen:          10,
-		Content:         "This is test content",
 		NormalizedTags:  []string{"test", "go"},
 	}
 
@@ -206,8 +204,8 @@ func TestGetSearchRecords(t *testing.T) {
 	post2 := createSamplePostMeta()
 	post2.PostID = "post-2"
 
-	record1 := &SearchRecord{Title: "Post 1", Content: "Content 1"}
-	record2 := &SearchRecord{Title: "Post 2", Content: "Content 2"}
+	record1 := &SearchRecord{Title: "Post 1"}
+	record2 := &SearchRecord{Title: "Post 2"}
 
 	records := map[string]*SearchRecord{
 		"post-1": record1,
@@ -236,10 +234,6 @@ func TestGetSearchRecords(t *testing.T) {
 		t.Error("Should have record for post-2")
 	}
 }
-
-// Tests for GetDependencies removed as method is unused and deleted
-// func TestGetDependencies(t *testing.T) { ... }
-// func TestGetDependencies_NotFound(t *testing.T) { ... }
 
 func TestGetHTMLContent_Inline(t *testing.T) {
 	m, cleanup := createTestCache(t)

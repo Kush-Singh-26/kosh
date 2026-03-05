@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -26,8 +27,10 @@ func (b *Builder) Build(ctx context.Context) error {
 	// Acquire build lock to prevent concurrent builds
 	buildLock, lockErr := utils.AcquireBuildLock(b.cfg.OutputDir)
 	if lockErr != nil {
-		b.logger.Warn("Could not acquire build lock - another build may be in progress", "error", lockErr)
-		// Continue anyway - warn but don't block
+		if !b.cfg.ForceLock {
+			return fmt.Errorf("could not acquire build lock: %w (use --force-lock to override)", lockErr)
+		}
+		b.logger.Warn("Acquiring build lock failed, but continuing due to --force-lock", "error", lockErr)
 	} else {
 		defer func() { _ = buildLock.Release() }()
 	}
@@ -41,7 +44,23 @@ func (b *Builder) Build(ctx context.Context) error {
 	cfg := b.cfg
 	// Build started - minimal logging
 
+	// Clear stale sync cache
+	utils.ClearSyncCache()
+
+	outputMissing := false
+	if _, err := os.Stat(b.cfg.OutputDir); os.IsNotExist(err) {
+		outputMissing = true
+	}
+
 	// 1. Setup & Cache Invalidation
+	// Use a channel to signal when templates are fully loaded.
+	// This prevents rehydration from reading partially-loaded templates.
+	templateReady := make(chan struct{})
+	go func() {
+		b.renderService.ReloadTemplates()
+		close(templateReady)
+	}()
+
 	var setupWg sync.WaitGroup
 	setupWg.Add(1)
 	go func() {
@@ -99,18 +118,18 @@ func (b *Builder) Build(ctx context.Context) error {
 		}
 	}
 
-	b.cfg.ForceRebuild = false
+	// Note: ForceRebuild is NOT reset here. It's reset after setup tasks complete
+	// to avoid a race with async checks (WASM, template invalidation) that may set it.
 
-	if err := b.DestFs.MkdirAll(filepath.Join(b.cfg.OutputDir, "tags"), 0755); err != nil {
-		b.logger.Error("Failed to create tags directory", "error", err)
+	// Pre-create output directories in VFS
+	for _, dir := range []string{"tags", "static/images/cards", "sitemap"} {
+		if err := b.DestFs.MkdirAll(filepath.Join(b.cfg.OutputDir, dir), 0755); err != nil {
+			b.logger.Error("Failed to create directory", "dir", dir, "error", err)
+		}
 	}
 
-	if err := b.DestFs.MkdirAll(filepath.Join(b.cfg.OutputDir, "static/images/cards"), 0755); err != nil {
-		b.logger.Error("Failed to create static images cards directory", "error", err)
-	}
-	if err := b.DestFs.MkdirAll(filepath.Join(b.cfg.OutputDir, "sitemap"), 0755); err != nil {
-		b.logger.Error("Failed to create sitemap directory", "error", err)
-	}
+	// Wait for background setup (WASM compilation, etc.) to complete before asset building
+	setupWg.Wait()
 
 	// 2. Static Assets (MUST complete before posts to populate Assets map)
 	fmt.Println("📦 Building assets...")
@@ -131,194 +150,99 @@ func (b *Builder) Build(ctx context.Context) error {
 	}
 
 	// 3. Process Content (Posts)
-	var (
-		allPosts, pinnedPosts []models.PostMetadata
-		tagMap                map[string][]models.PostMetadata
-		indexedPosts          []models.IndexedPost
-		anyPostChanged        bool
-		has404                bool
-	)
-
-	// Template-only change detection logic
-	isTemplateOnly := false // Default to false to ensure content changes are detected
-
-	if shouldForce || len(affectedPosts) > 0 {
-		isTemplateOnly = false
-	} else if len(globalDependencies) > 0 {
-		for _, dep := range globalDependencies {
-			if info, err := os.Stat(dep); err == nil {
-				if info.ModTime().After(lastBuildTime) {
-					// Check if it's a template
-					if strings.HasSuffix(dep, ".html") || strings.HasSuffix(dep, ".css") {
-						isTemplateOnly = true
-					} else {
-						isTemplateOnly = false
-						break
-					}
-				}
-			}
-		}
+	allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404, err := b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing)
+	if err != nil {
+		return err
 	}
+	_ = anyPostChanged
 
-	cachedCount := 0
-	if b.cacheService != nil {
-		if stats, err := b.cacheService.Stats(); err == nil {
-			cachedCount = stats.TotalPosts
-		}
-	}
+	fmt.Println("   ✅ Content processed.")
 
-	// Use fast path if:
-	// 1. Template-only changes AND we have a valid lastBuildTime, OR
-	// 2. Output is missing (cleaned) AND we have cached data
-	outputMissing := lastBuildTime.IsZero()
-	if isTemplateOnly && ((!lastBuildTime.IsZero()) || outputMissing) && cachedCount > 0 {
-		fmt.Println("📝 Rehydrating from cache...")
-		b.renderCachedPosts()
+	// Store indexed posts for incremental builds
+	b.indexedPosts = indexedPosts
 
-		// Hydrate data for global pages from cache
-		tagMap = make(map[string][]models.PostMetadata)
-		ids, _ := b.cacheService.ListAllPosts()
+	// 4. Generate Global Pages (Parallelized)
+	g, gCtx := errgroup.WithContext(ctx)
 
-		// Batch fetch all posts and search records in single transactions (avoids N+1 queries)
-		cachedPosts, _ := b.cacheService.GetPostsByIDs(ids)
-		searchRecords, _ := b.cacheService.GetSearchRecords(ids)
-
-		for _, id := range ids {
-			cached, ok := cachedPosts[id]
-			if !ok || cached == nil {
-				continue
-			}
-
-			// Reconstruct models.PostMetadata
-			post := models.PostMetadata{
-				Title:       cached.Title,
-				Link:        cached.Link,
-				Description: cached.Description,
-				Tags:        cached.Tags,
-				ReadingTime: cached.ReadingTime,
-				Pinned:      cached.Pinned,
-				Draft:       cached.Draft,
-				DateObj:     cached.Date,
-				Version:     cached.Version,
-			}
-
-			if post.Pinned {
-				pinnedPosts = append(pinnedPosts, post)
-			} else {
-				allPosts = append(allPosts, post)
-			}
-			for _, t := range post.Tags {
-				tagMap[strings.ToLower(strings.TrimSpace(t))] = append(tagMap[strings.ToLower(strings.TrimSpace(t))], post)
-			}
-
-			// Indexed Posts - use batch-fetched search records
-			if searchMeta, ok := searchRecords[id]; ok && searchMeta != nil {
-				// Reconstruct PostRecord with relative link (not full URL)
-				relLink := strings.ToLower(strings.Replace(cached.Path, ".md", ".html", 1))
-
-				// Pre-compute normalized fields
-				normalizedTags := make([]string, len(cached.Tags))
-				for i, t := range cached.Tags {
-					normalizedTags[i] = strings.ToLower(t)
-				}
-
-				rec := models.PostRecord{
-					Title:           searchMeta.Title,
-					NormalizedTitle: searchMeta.NormalizedTitle,
-					Link:            relLink,
-					Description:     cached.Description,
-					Tags:            cached.Tags,
-					NormalizedTags:  normalizedTags,
-					Content:         searchMeta.Content,
-					Version:         cached.Version,
-				}
-				rec.ID = len(indexedPosts)
-
-				indexedPosts = append(indexedPosts, models.IndexedPost{
-					Record:    rec,
-					WordFreqs: searchMeta.BM25Data,
-					DocLen:    searchMeta.DocLen,
-				})
-			}
-		}
-
-		utils.SortPosts(allPosts)
-		utils.SortPosts(pinnedPosts)
-		anyPostChanged = true
-	} else {
-		fmt.Println("📝 Processing content...")
-		contentTimer := utils.StartPhase("Content processing")
-		allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404 = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing)
-		contentTimer.Stop()
-		fmt.Println("   ✅ Content processed.")
-	}
-
-	// 4. Generate Global Pages
-	if shouldForce || anyPostChanged {
+	// 4. Global Pages (Always run to ensure consistency and prevent orphan deletion)
+	g.Go(func() error {
 		fmt.Println("📄 Rendering pagination...")
 		paginationTimer := utils.StartPhase("Pagination")
-		b.renderPagination(allPosts, pinnedPosts, shouldForce)
-		paginationTimer.Stop()
-	}
+		defer paginationTimer.Stop()
+		return b.renderPagination(gCtx, allPosts, pinnedPosts, shouldForce)
+	})
 
 	if !has404 {
-		b.renderService.Render404(filepath.Join(b.cfg.OutputDir, "404.html"), models.PageData{
-			BaseURL:      cfg.BaseURL,
-			BuildVersion: cfg.BuildVersion,
-			Config:       cfg,
-			TabTitle:     "404 - Page Not Found | " + cfg.Title,
+		g.Go(func() error {
+			b.renderService.Render404(filepath.Join(b.cfg.OutputDir, "404.html"), models.PageData{
+				BaseURL:        cfg.BaseURL,
+				BuildVersion:   cfg.BuildVersion,
+				Config:         cfg,
+				TabTitle:       "404 - Page Not Found | " + cfg.Title,
+				RelativePrefix: "",
+			})
+			return nil
 		})
 	}
 
-	if shouldForce || anyPostChanged || forceSocialRebuild {
+	g.Go(func() error {
 		fmt.Println("🏷️  Rendering tags...")
 		tagsTimer := utils.StartPhase("Tags rendering")
-		b.renderTags(tagMap, forceSocialRebuild)
-		tagsTimer.Stop()
-	}
+		defer tagsTimer.Stop()
+		return b.renderTags(gCtx, tagMap, forceSocialRebuild)
+	})
 
-	if shouldForce || anyPostChanged {
+	g.Go(func() error {
 		fmt.Println("🕸️  Rendering graph and metadata...")
 		graphTimer := utils.StartPhase("Graph and metadata")
+		defer graphTimer.Stop()
 		b.renderService.RenderGraph(filepath.Join(b.cfg.OutputDir, "graph.html"), models.PageData{
-			Title:        "Graph View",
-			TabTitle:     "Knowledge Graph | " + cfg.Title,
-			BaseURL:      cfg.BaseURL,
-			BuildVersion: cfg.BuildVersion,
-			Config:       cfg,
+			Title:          "Graph View",
+			TabTitle:       "Knowledge Graph | " + cfg.Title,
+			BaseURL:        cfg.BaseURL,
+			BuildVersion:   cfg.BuildVersion,
+			Config:         cfg,
+			Assets:         b.renderService.GetAssets(),
+			RelativePrefix: "",
 		})
-		allContent := append(allPosts, pinnedPosts...)
-		b.generateMetadata(allContent, tagMap, indexedPosts, shouldForce)
-		graphTimer.Stop()
-	}
+		allContent := make([]models.PostMetadata, 0, len(allPosts)+len(pinnedPosts))
+		allContent = append(allContent, allPosts...)
+		allContent = append(allContent, pinnedPosts...)
+		return b.generateMetadata(gCtx, allContent, tagMap, indexedPosts, shouldForce)
+	})
 
 	// 5. PWA (Run concurrently)
 	if cfg.Features.Generators.PWA {
-		setupWg.Add(1)
-		go func() {
-			defer setupWg.Done()
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				fmt.Println("📱 Generating PWA...")
-				pwaTimer := utils.StartPhase("PWA generation")
-				b.generatePWA(shouldForce)
-				pwaTimer.Stop()
-			}
-		}()
+		g.Go(func() error {
+			fmt.Println("📱 Generating PWA...")
+			pwaTimer := utils.StartPhase("PWA generation")
+			defer pwaTimer.Stop()
+			return b.generatePWA(gCtx, shouldForce)
+		})
 	}
 
-	// Ensure setup tasks (WASM check + PWA) are complete
-	setupWg.Wait()
+	// Wait for all parallel tasks (Global pages + PWA) to complete
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("parallel build tasks failed: %w", err)
+	}
+
+	// Reset ForceRebuild AFTER all async checks have completed
+	b.cfg.ForceRebuild = false
 
 	// Now sync VFS to disk (includes completed social cards)
 	fmt.Println("💾 Syncing to disk...")
 	syncTimer := utils.StartPhase("VFS sync to disk")
-	if err := utils.SyncVFS(b.DestFs, b.cfg.OutputDir, b.renderService.GetRenderedFiles()); err != nil {
+	renderedFiles := b.renderService.GetRenderedFiles()
+	if err := utils.SyncVFS(ctx, b.DestFs, b.cfg.OutputDir, renderedFiles, outputMissing); err != nil {
 		b.logger.Error("Failed to sync VFS to disk", "error", err)
 	}
 	syncTimer.Stop()
+
+	// Clean orphans if configured or in production
+	if !cfg.IsDev {
+		b.cleanOrphans(b.DestFs, renderedFiles)
+	}
+
 	b.renderService.ClearRenderedFiles()
 
 	// Build complete
@@ -331,15 +255,10 @@ func (b *Builder) copyStaticAndBuildAssets(ctx context.Context) {
 	}
 }
 
-func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool) {
+func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool, error) {
 	result, err := b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing)
 	if err != nil {
-		b.logger.Error("Failed to process posts", "error", err)
-		return nil, nil, nil, nil, false, false
+		return nil, nil, nil, nil, false, false, err
 	}
-	return result.AllPosts, result.PinnedPosts, result.TagMap, result.IndexedPosts, result.AnyPostChanged, result.Has404
-}
-
-func (b *Builder) renderCachedPosts() {
-	b.postService.RenderCachedPosts()
+	return result.AllPosts, result.PinnedPosts, result.TagMap, result.IndexedPosts, result.AnyPostChanged, result.Has404, nil
 }

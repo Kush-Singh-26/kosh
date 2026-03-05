@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -32,13 +33,15 @@ func AcquireBuildLock(outputDir string) (*FileLock, error) {
 
 	// Write PID for debugging
 	pid := fmt.Sprintf("%d\n%s", os.Getpid(), time.Now().Format(time.RFC3339))
-	_, _ = file.WriteAt([]byte(pid), 0)
+	if _, err := file.WriteAt([]byte(pid), 0); err != nil {
+		slog.Warn("Failed to write PID to lock file", "path", lockPath, "error", err)
+	}
 
 	return &FileLock{file: file, path: lockPath}, nil
 }
 
 func (fl *FileLock) Release() error {
-	if fl.file == nil {
+	if fl == nil || fl.file == nil {
 		return nil
 	}
 
