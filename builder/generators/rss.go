@@ -2,17 +2,16 @@ package generators
 
 import (
 	"encoding/xml"
-	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-func GenerateRSS(destFs afero.Fs, baseURL string, posts []models.PostMetadata, title, description string, outputPath string) {
-	fmt.Println("📡 Generating RSS feed...")
+func GenerateRSS(destFs afero.Fs, baseURL string, posts []models.PostMetadata, title, description string, outputPath string) (string, error) {
+	slog.Info("Generating RSS feed")
 
 	var items []models.Item
 	for _, p := range posts {
@@ -33,8 +32,20 @@ func GenerateRSS(destFs afero.Fs, baseURL string, posts []models.PostMetadata, t
 			Items:       items,
 		},
 	}
-	output, _ := xml.MarshalIndent(rss, "", "  ")
-	if err := utils.WriteFileVFS(destFs, outputPath, []byte(xml.Header+string(output))); err != nil {
-		fmt.Printf("⚠️ Failed to write rss.xml: %v\n", err)
+	file, err := destFs.Create(outputPath)
+	if err != nil {
+		return "", err
 	}
+	defer file.Close()
+
+	if _, err := file.Write([]byte(xml.Header)); err != nil {
+		return "", err
+	}
+
+	enc := xml.NewEncoder(file)
+	enc.Indent("", "  ")
+	if err := enc.Encode(rss); err != nil {
+		return "", err
+	}
+	return outputPath, nil
 }

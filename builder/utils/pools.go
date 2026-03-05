@@ -4,16 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"io"
+	"strings"
 	"sync"
 )
 
 // BufferPool manages a pool of reusable bytes.Buffer objects
-// to reduce memory allocations during high-throughput operations.
 type BufferPool struct {
 	pool sync.Pool
 }
 
-// NewBufferPool creates a new BufferPool
 func NewBufferPool() *BufferPool {
 	return &BufferPool{
 		pool: sync.Pool{
@@ -24,13 +23,10 @@ func NewBufferPool() *BufferPool {
 	}
 }
 
-// Get retrieves a buffer from the pool
 func (p *BufferPool) Get() *bytes.Buffer {
 	return p.pool.Get().(*bytes.Buffer)
 }
 
-// Put returns a buffer to the pool, resetting it for reuse.
-// If the buffer is too large, it is discarded to prevent memory hoarding.
 func (p *BufferPool) Put(buf *bytes.Buffer) {
 	if buf.Cap() > MaxBufferSize {
 		return
@@ -39,23 +35,48 @@ func (p *BufferPool) Put(buf *bytes.Buffer) {
 	p.pool.Put(buf)
 }
 
-// BufioWriterPool manages a pool of reusable bufio.Writer objects
-type BufioWriterPool struct {
+// StringBuilderPool manages a pool of reusable strings.Builder objects
+type StringBuilderPool struct {
 	pool sync.Pool
 }
 
-// NewBufioWriterPool creates a new BufioWriterPool
-func NewBufioWriterPool() *BufioWriterPool {
-	return &BufioWriterPool{
+func NewStringBuilderPool() *StringBuilderPool {
+	return &StringBuilderPool{
 		pool: sync.Pool{
 			New: func() interface{} {
-				return nil
+				return new(strings.Builder)
 			},
 		},
 	}
 }
 
-// Get retrieves a bufio.Writer from the pool, configured with the target writer
+func (p *StringBuilderPool) Get() *strings.Builder {
+	return p.pool.Get().(*strings.Builder)
+}
+
+func (p *StringBuilderPool) Put(sb *strings.Builder) {
+	if sb.Cap() > MaxBufferSize {
+		return
+	}
+	sb.Reset()
+	p.pool.Put(sb)
+}
+
+// BufioWriterPool manages a pool of reusable bufio.Writer objects
+type BufioWriterPool struct {
+	pool sync.Pool
+}
+
+func NewBufioWriterPool() *BufioWriterPool {
+	return &BufioWriterPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				return bufio.NewWriterSize(nil, MaxBufferSize)
+			},
+		},
+	}
+}
+
 func (p *BufioWriterPool) Get(w io.Writer) *bufio.Writer {
 	if bw := p.pool.Get(); bw != nil {
 		writer := bw.(*bufio.Writer)
@@ -65,7 +86,6 @@ func (p *BufioWriterPool) Get(w io.Writer) *bufio.Writer {
 	return bufio.NewWriterSize(w, MaxBufferSize)
 }
 
-// Put returns a bufio.Writer to the pool
 func (p *BufioWriterPool) Put(bw *bufio.Writer) {
 	p.pool.Put(bw)
 }
@@ -73,5 +93,36 @@ func (p *BufioWriterPool) Put(bw *bufio.Writer) {
 // Global shared pool instances
 var (
 	SharedBufferPool      = NewBufferPool()
+	SharedStringBuilderPool = NewStringBuilderPool()
 	SharedBufioWriterPool = NewBufioWriterPool()
 )
+
+// ByteSlicePool manages a pool of byte slices
+type ByteSlicePool struct {
+	pool sync.Pool
+}
+
+func NewByteSlicePool() *ByteSlicePool {
+	return &ByteSlicePool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				b := make([]byte, 0, 1024*10) // 10KB
+				return &b
+			},
+		},
+	}
+}
+
+func (p *ByteSlicePool) Get() *[]byte {
+	return p.pool.Get().(*[]byte)
+}
+
+func (p *ByteSlicePool) Put(b *[]byte) {
+	if b == nil || cap(*b) > 5*1024*1024 {
+		return
+	}
+	*b = (*b)[:0]
+	p.pool.Put(b)
+}
+
+var SharedByteSlicePool = NewByteSlicePool()

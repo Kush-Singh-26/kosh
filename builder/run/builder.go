@@ -120,9 +120,10 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 	// Create core components mapping pool
 	mdPool := &sync.Pool{
 		New: func() interface{} {
-			return mdParser.New(cfg.BaseURL, nativeRenderer, diagramCache)
+			return mdParser.New(cfg, nativeRenderer, diagramCache)
 		},
 	}
+
 	rnd := renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir, cfg.IsDev, logger)
 
 	// Create Services

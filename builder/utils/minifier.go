@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -21,14 +22,41 @@ func InitMinifier() {
 	Minifier.Add("text/html", htmlMinifier)
 }
 
-var imgRe = regexp.MustCompile(`(?i)(<img[^>]+src=["'])([^"']+)((?:\.jpg|\.jpeg|\.png))(["'])`)
+var imgRe = regexp.MustCompile(`(?i)(<img[^>]+src=["'])([^"']*)(["'])`)
 
-func ReplaceToWebP(html string) string {
-	return imgRe.ReplaceAllStringFunc(html, func(m string) string {
+func ProcessHTML(htmlStr string, baseURL string, prefix string, compress bool) string {
+	return imgRe.ReplaceAllStringFunc(htmlStr, func(m string) string {
 		parts := imgRe.FindStringSubmatch(m)
-		if strings.HasPrefix(parts[2], "http") || strings.HasPrefix(parts[2], "//") {
+		if len(parts) < 4 {
 			return m
 		}
-		return parts[1] + parts[2] + ".webp" + parts[4]
+		src := parts[2]
+
+		if src == "" || strings.HasPrefix(src, "http") || strings.HasPrefix(src, "//") || strings.HasPrefix(src, "data:") {
+			return m
+		}
+
+		// 1. WebP conversion (only for local images)
+		ext := strings.ToLower(filepath.Ext(src))
+		if compress && (ext == ".jpg" || ext == ".jpeg" || ext == ".png") {
+			src = src[:len(src)-len(ext)] + ".webp"
+		}
+
+		// 2. Path correction (Relativize or Prepend BaseURL)
+		if strings.HasPrefix(src, "/") {
+			if baseURL == "" {
+				src = prefix + strings.TrimPrefix(src, "/")
+			} else {
+				src = baseURL + src
+			}
+		}
+
+		// 3. Lowercase local images to match NormalizePath behavior on Windows
+		// This ensures /static/images/CNN1.webp matches cnn1.webp
+		if !strings.HasPrefix(src, "http") && !strings.HasPrefix(src, "//") {
+			src = strings.ToLower(src)
+		}
+
+		return parts[1] + src + parts[3]
 	})
 }

@@ -109,6 +109,9 @@ type PageData struct {
 	PrevPage    *NavPage
 	NextPage    *NavPage
 
+	// Depth-aware pathing
+	RelativePrefix string // e.g., "../" for depth 1
+
 	// Versioning
 	CurrentVersion string
 	Versions       []VersionInfo
@@ -189,17 +192,25 @@ type PostRecord struct {
 
 // IndexedPost bundles a search record with pre-computed word frequencies for BM25
 type IndexedPost struct {
-	Record    PostRecord     `msgpack:"rec"`
-	WordFreqs map[string]int `msgpack:"freqs"`
-	DocLen    int            `msgpack:"len"`
+	Record          PostRecord        `msgpack:"rec"`
+	WordFreqs       map[string]int    `msgpack:"freqs"`
+	DocLen          int               `msgpack:"len"`
+	StemMap         map[string]string `msgpack:"stem_map,omitempty"` // original word -> stem
+	PositionalIndex map[string][]int  `msgpack:"pos_index,omitempty"`
 }
 
+const CurrentSchemaVersion = 6
+
 type SearchIndex struct {
-	Posts      []PostRecord           `msgpack:"posts"`
-	Inverted   map[string]map[int]int `msgpack:"inv"`  // word -> postID -> frequency
-	DocLens    map[int]int            `msgpack:"lens"` // postID -> word count
-	AvgDocLen  float64                `msgpack:"avg"`
-	TotalDocs  int                    `msgpack:"total"`
-	StemMap    map[string][]string    `msgpack:"stem,omitempty"`  // stemmed -> original forms
-	NgramIndex map[string][]string    `msgpack:"ngram,omitempty"` // trigram -> terms (for fuzzy search)
+	SchemaVersion int64               `msgpack:"ver"`
+	Posts         []PostRecord        `msgpack:"posts"`
+	DocLens       map[string]int64    `msgpack:"lens"` // postID (string) -> word count
+	AvgDocLen     float64             `msgpack:"avg"`
+	TotalDocs     int64               `msgpack:"total"`
+	StemMap       map[string][]string `msgpack:"stem,omitempty"`  // stemmed -> original forms
+	NgramIndex    map[string][]string `msgpack:"ngram,omitempty"` // trigram -> terms (for fuzzy search)
+
+	// Unified Inverted Index: word -> postID (string) -> [positions]
+	// Frequency is simply len(positions)
+	Inverted map[string]map[string][]int `msgpack:"inv"`
 }

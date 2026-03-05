@@ -1,13 +1,23 @@
 package search
 
-import "sync"
+import (
+	"github.com/hashicorp/golang-lru/v2"
+)
 
 // Porter Stemmer implementation for English
 // Based on the Porter Stemming Algorithm: https://tartarus.org/martin/PorterStemmer/
 
 // stemCache caches stemmed words to avoid redundant computation
-// Most content has many repeated words (articles, prepositions, etc.)
-var stemCache sync.Map
+// Using LRU cache to prevent unbounded memory growth
+var stemCache *lru.Cache[string, string]
+
+func init() {
+	var err error
+	stemCache, err = lru.New[string, string](10000)
+	if err != nil {
+		panic("failed to create stem cache: " + err.Error())
+	}
+}
 
 // StemCached returns the stemmed form of word, using a cache for efficiency
 func StemCached(word string) string {
@@ -16,13 +26,13 @@ func StemCached(word string) string {
 	}
 
 	// Check cache first
-	if cached, ok := stemCache.Load(word); ok {
-		return cached.(string)
+	if cached, ok := stemCache.Get(word); ok {
+		return cached
 	}
 
 	// Compute and cache
 	result := stem(word)
-	stemCache.Store(word, result)
+	stemCache.Add(word, result)
 	return result
 }
 
@@ -153,13 +163,14 @@ func endsWithCVC(runes []rune) bool {
 
 func step1a(runes []rune) []rune {
 	n := len(runes)
-	if n >= 4 && string(runes[n-4:]) == "sses" {
+	// Compare runes directly without string conversion
+	if n >= 4 && runes[n-4] == 's' && runes[n-3] == 's' && runes[n-2] == 'e' && runes[n-1] == 's' {
 		return append(runes[:n-2], 's')
 	}
-	if n >= 3 && string(runes[n-3:]) == "ies" {
+	if n >= 3 && runes[n-3] == 'i' && runes[n-2] == 'e' && runes[n-1] == 's' {
 		return append(runes[:n-2], 'i')
 	}
-	if n >= 2 && string(runes[n-2:]) == "ss" {
+	if n >= 2 && runes[n-2] == 's' && runes[n-1] == 's' {
 		return runes
 	}
 	if n >= 1 && runes[n-1] == 's' {
@@ -171,8 +182,8 @@ func step1a(runes []rune) []rune {
 func step1b(runes []rune) []rune {
 	n := len(runes)
 
-	// -eed
-	if n >= 4 && string(runes[n-4:]) == "eed" {
+	// -eed (compare runes directly)
+	if n >= 4 && runes[n-4] == 'e' && runes[n-3] == 'e' && runes[n-2] == 'd' {
 		stem := runes[:n-3]
 		if measure(stem) > 0 {
 			return append(stem, 'e', 'e')
@@ -180,8 +191,8 @@ func step1b(runes []rune) []rune {
 		return runes
 	}
 
-	// -ed
-	if n >= 3 && string(runes[n-3:]) == "ed" {
+	// -ed (compare runes directly)
+	if n >= 3 && runes[n-3] == 'e' && runes[n-2] == 'd' {
 		stem := runes[:n-2]
 		if hasVowel(stem) {
 			runes = stem
@@ -190,8 +201,8 @@ func step1b(runes []rune) []rune {
 		return runes
 	}
 
-	// -ing
-	if n >= 4 && string(runes[n-4:]) == "ing" {
+	// -ing (compare runes directly)
+	if n >= 4 && runes[n-4] == 'i' && runes[n-3] == 'n' && runes[n-2] == 'g' {
 		stem := runes[:n-3]
 		if hasVowel(stem) {
 			runes = stem
@@ -203,13 +214,30 @@ func step1b(runes []rune) []rune {
 	return runes
 }
 
+// hasSuffix checks if the rune slice ends with the given string suffix
+func hasSuffix(runes []rune, suffix string) bool {
+	n := len(runes)
+	sLen := len(suffix)
+	if n < sLen {
+		return false
+	}
+	suffixRunes := []rune(suffix)
+	for i := 0; i < sLen; i++ {
+		if runes[n-sLen+i] != suffixRunes[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func step1bHelper(runes []rune) []rune {
 	n := len(runes)
 
 	// -at, -bl, -iz -> add 'e'
 	if n >= 2 {
-		suffix := string(runes[n-2:])
-		if suffix == "at" || suffix == "bl" || suffix == "iz" {
+		if (runes[n-2] == 'a' && runes[n-1] == 't') ||
+			(runes[n-2] == 'b' && runes[n-1] == 'l') ||
+			(runes[n-2] == 'i' && runes[n-1] == 'z') {
 			return append(runes, 'e')
 		}
 	}
@@ -253,7 +281,7 @@ func step2(runes []rune) []rune {
 	}
 
 	for _, s := range suffixes {
-		if n >= len(s.suffix) && string(runes[n-len(s.suffix):]) == s.suffix {
+		if hasSuffix(runes, s.suffix) {
 			stem := runes[:n-len(s.suffix)]
 			if measure(stem) > 0 {
 				return append(stem, []rune(s.replacement)...)
@@ -277,7 +305,7 @@ func step3(runes []rune) []rune {
 	}
 
 	for _, s := range suffixes {
-		if n >= len(s.suffix) && string(runes[n-len(s.suffix):]) == s.suffix {
+		if hasSuffix(runes, s.suffix) {
 			stem := runes[:n-len(s.suffix)]
 			if measure(stem) > 0 {
 				return append(stem, []rune(s.replacement)...)
@@ -298,8 +326,8 @@ func step4(runes []rune) []rune {
 	}
 
 	for _, suffix := range suffixes {
-		slen := len(suffix)
-		if n >= slen && string(runes[n-slen:]) == suffix {
+		if hasSuffix(runes, suffix) {
+			slen := len(suffix)
 			stem := runes[:n-slen]
 			m := measure(stem)
 

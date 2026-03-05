@@ -2,7 +2,7 @@ package watch
 
 import (
 	"io/fs"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -19,9 +19,12 @@ type Event struct {
 
 // Watcher handles filesystem events and triggers builds
 type Watcher struct {
-	watcher *fsnotify.Watcher
-	Dirs    []string
-	OnEvent func(Event)
+	watcher  *fsnotify.Watcher
+	Dirs     []string
+	OnEvent  func(Event)
+	timerMu  sync.Mutex
+	timer    *time.Timer
+	duration time.Duration
 }
 
 // New creates a new watcher for the specified directories
@@ -32,10 +35,39 @@ func New(dirs []string, onEvent func(Event)) (*Watcher, error) {
 	}
 
 	return &Watcher{
-		watcher: w,
-		Dirs:    dirs,
-		OnEvent: onEvent,
+		watcher:  w,
+		Dirs:     dirs,
+		OnEvent:  onEvent,
+		duration: 50 * time.Millisecond, // 50ms debounce for fast dev response
 	}, nil
+}
+
+// resetTimer safely stops the existing timer and creates a new one.
+// This method is thread-safe and properly drains the timer channel if needed.
+func (w *Watcher) resetTimer(pendingMu *sync.Mutex, pendingEvents *map[string]fsnotify.Op) {
+	w.timerMu.Lock()
+	defer w.timerMu.Unlock()
+
+	if w.timer != nil {
+		if !w.timer.Stop() {
+			// Timer already fired, drain the channel to prevent goroutine leak
+			select {
+			case <-w.timer.C:
+			default:
+			}
+		}
+	}
+
+	w.timer = time.AfterFunc(w.duration, func() {
+		pendingMu.Lock()
+		eventsToProcess := *pendingEvents
+		*pendingEvents = make(map[string]fsnotify.Op)
+		pendingMu.Unlock()
+
+		for name, op := range eventsToProcess {
+			w.OnEvent(Event{Name: name, Op: op})
+		}
+	})
 }
 
 // Start begins watching for events
@@ -61,15 +93,11 @@ func (w *Watcher) Start() {
 			return nil
 		})
 		if err != nil {
-			log.Printf("Error walking %s: %v", dir, err)
+			slog.Error("Error walking directory", "dir", dir, "error", err)
 		}
 	}
 
-	log.Println("👀 Watch mode active. Waiting for changes...")
-
-	// Debounce timer - reduced to 50ms for faster response in dev mode
-	var timer *time.Timer
-	const debounceDuration = 50 * time.Millisecond
+	slog.Info("👀 Watch mode active. Waiting for changes...")
 
 	var pendingMu sync.Mutex
 	pendingEvents := make(map[string]fsnotify.Op)
@@ -103,25 +131,14 @@ func (w *Watcher) Start() {
 			}
 			pendingMu.Unlock()
 
-			if timer != nil {
-				timer.Stop()
-			}
-			timer = time.AfterFunc(debounceDuration, func() {
-				pendingMu.Lock()
-				eventsToProcess := pendingEvents
-				pendingEvents = make(map[string]fsnotify.Op)
-				pendingMu.Unlock()
-
-				for name, op := range eventsToProcess {
-					w.OnEvent(Event{Name: name, Op: op})
-				}
-			})
+			// Safely reset the debounce timer
+			w.resetTimer(&pendingMu, &pendingEvents)
 
 		case err, ok := <-w.watcher.Errors:
 			if !ok {
 				return
 			}
-			log.Println("error:", err)
+			slog.Error("Watcher error", "error", err)
 		}
 	}
 }

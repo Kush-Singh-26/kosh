@@ -73,10 +73,25 @@ func FuzzyMatch(term, target string, maxDist int) bool {
 
 // FuzzyExpand generates candidate terms for fuzzy matching
 // Returns terms within the inverted index that are similar to the input
-func FuzzyExpand(term string, inverted map[string]map[int]int, maxDist int) []string {
+func FuzzyExpand(term string, inverted map[string]map[string][]int, maxDist int) []string {
 	var candidates []string
+	termLen := len([]rune(term))
 
 	for idxTerm := range inverted {
+		// Length-based filtering: skip impossible matches early
+		idxLen := len([]rune(idxTerm))
+
+		// 1. Live Prefix Matching (crucial for live search bars)
+		// If user typed "prog" and index has "program", match it immediately
+		if termLen >= 3 && strings.HasPrefix(idxTerm, term) {
+			candidates = append(candidates, idxTerm)
+			continue
+		}
+
+		// 2. Levenshtein Distance (Fuzzy match for typos)
+		if idxLen < termLen-maxDist || idxLen > termLen+maxDist {
+			continue
+		}
 		if FuzzyMatch(term, idxTerm, maxDist) {
 			candidates = append(candidates, idxTerm)
 		}
@@ -116,25 +131,49 @@ func FuzzyExpandWithNgrams(term string, ngramIndex map[string][]string, maxDist 
 }
 
 // generateTrigrams creates trigram (3-character) sequences from a word
+// Uses a byte-slice approach for ASCII strings to reduce allocations
 func generateTrigrams(word string) []string {
-	runes := []rune(word)
-	n := len(runes)
+	n := len(word)
 
+	// Fast path for ASCII strings (common case)
+	if n < 3 {
+		return []string{word}
+	}
+
+	// Check if ASCII
+	isASCII := true
+	for i := 0; i < n; i++ {
+		if word[i] >= 128 {
+			isASCII = false
+			break
+		}
+	}
+
+	if isASCII {
+		// Fast path: use byte slices for ASCII
+		trigrams := make([]string, 0, n-2)
+		for i := 0; i <= n-3; i++ {
+			trigrams = append(trigrams, word[i:i+3])
+		}
+		return trigrams
+	}
+
+	// Slow path: use runes for Unicode
+	runes := []rune(word)
+	n = len(runes)
 	if n < 3 {
 		return []string{word}
 	}
 
 	trigrams := make([]string, 0, n-2)
-
 	for i := 0; i <= n-3; i++ {
 		trigrams = append(trigrams, string(runes[i:i+3]))
 	}
-
 	return trigrams
 }
 
 // BuildNgramIndex builds a trigram index for fast fuzzy lookups
-func BuildNgramIndex(inverted map[string]map[int]int) map[string][]string {
+func BuildNgramIndex(inverted map[string]map[string][]int) map[string][]string {
 	ngramIndex := make(map[string][]string)
 
 	for term := range inverted {
@@ -147,7 +186,6 @@ func BuildNgramIndex(inverted map[string]map[int]int) map[string][]string {
 	return ngramIndex
 }
 
-// min3 returns the minimum of three integers
 func min3(a, b, c int) int {
 	if a < b {
 		if a < c {
@@ -164,9 +202,9 @@ func min3(a, b, c int) int {
 // ParseQuery parses a search query into terms and phrases
 // Phrases are enclosed in quotes: "machine learning"
 type ParsedQuery struct {
-	Terms   []string // Individual terms
-	Phrases []string // Quoted phrases
-	Raw     string   // Original query
+	Terms   []string   // Individual terms
+	Phrases [][]string // Quoted phrases (tokenized)
+	Raw     string     // Original query
 }
 
 // ParseQuery extracts terms and phrases from a query string
@@ -179,13 +217,19 @@ func ParseQuery(query string) ParsedQuery {
 	var phraseBuf strings.Builder
 	inPhrase := false
 
+	var rawPhrases []string
 	for _, r := range query {
 		if r == '"' {
 			if inPhrase {
 				// End phrase
 				phrase := strings.TrimSpace(phraseBuf.String())
 				if phrase != "" {
-					result.Phrases = append(result.Phrases, strings.ToLower(phrase))
+					rawPhrases = append(rawPhrases, phrase)
+					// Tokenize phrase
+					tokens := DefaultAnalyzer.Analyze(phrase)
+					if len(tokens) > 0 {
+						result.Phrases = append(result.Phrases, tokens)
+					}
 				}
 				phraseBuf.Reset()
 			}
@@ -197,7 +241,7 @@ func ParseQuery(query string) ParsedQuery {
 
 	// Remove quoted phrases from query to extract individual terms
 	cleaned := query
-	for _, phrase := range result.Phrases {
+	for _, phrase := range rawPhrases {
 		cleaned = strings.ReplaceAll(cleaned, `"`+phrase+`"`, " ")
 	}
 

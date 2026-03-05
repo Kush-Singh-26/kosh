@@ -2,15 +2,17 @@ package metrics
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
 type BuildMetrics struct {
-	StartTime      time.Time
-	EndTime        time.Time
-	PostsProcessed int
-	CacheHits      int
-	CacheMisses    int
+	StartTime       time.Time
+	EndTime         time.Time
+	PostsProcessed  atomic.Int64 // atomic — safe for concurrent goroutine access
+	CacheHits       atomic.Int64 // atomic — safe for concurrent goroutine access
+	CacheMisses     atomic.Int64 // atomic — safe for concurrent goroutine access
+	PanicsRecovered int32        // atomic — safe for concurrent goroutine access
 }
 
 func NewBuildMetrics() *BuildMetrics {
@@ -31,32 +33,45 @@ func (m *BuildMetrics) TotalDuration() time.Duration {
 }
 
 func (m *BuildMetrics) IncrementPostsProcessed() {
-	m.PostsProcessed++
+	m.PostsProcessed.Add(1)
 }
 
 func (m *BuildMetrics) IncrementCacheHit() {
-	m.CacheHits++
+	m.CacheHits.Add(1)
 }
 
 func (m *BuildMetrics) IncrementCacheMiss() {
-	m.CacheMisses++
+	m.CacheMisses.Add(1)
+}
+
+func (m *BuildMetrics) IncrementPanicsRecovered() {
+	atomic.AddInt32(&m.PanicsRecovered, 1)
 }
 
 func (m *BuildMetrics) String() string {
 	duration := m.TotalDuration()
-	total := m.CacheHits + m.CacheMisses
+	hits := m.CacheHits.Load()
+	misses := m.CacheMisses.Load()
+	total := hits + misses
 	hitRate := float64(0)
 	if total > 0 {
-		hitRate = float64(m.CacheHits) / float64(total) * 100
+		hitRate = float64(hits) / float64(total) * 100
 	}
 
-	return fmt.Sprintf("📊 Built %d posts in %v (cache: %d/%d hits, %.0f%%)\n",
-		m.PostsProcessed,
+	result := fmt.Sprintf("📊 Built %d posts in %v (cache: %d/%d hits, %.0f%%)\n",
+		m.PostsProcessed.Load(),
 		duration,
-		m.CacheHits,
+		hits,
 		total,
 		hitRate,
 	)
+
+	panics := atomic.LoadInt32(&m.PanicsRecovered)
+	if panics > 0 {
+		result += fmt.Sprintf("⚠️  %d panic(s) recovered during build\n", panics)
+	}
+
+	return result
 }
 
 func (m *BuildMetrics) Print() {

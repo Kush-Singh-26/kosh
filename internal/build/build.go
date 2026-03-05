@@ -2,11 +2,13 @@ package build
 
 import (
 	"compress/gzip"
+	"context"
 	_ "embed"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/zeebo/blake3"
@@ -50,12 +52,42 @@ func CheckWASM(_ string) bool {
 
 	// Compress WASM
 	fmt.Println("📦 Compressing WASM...")
-	if err := compressGzip(wasmOut, wasmOut+".gz"); err != nil {
+	if err := CompressGzip(wasmOut, wasmOut+".gz"); err != nil {
 		fmt.Printf("⚠️ Failed to compress WASM: %v\n", err)
 	} else {
 		fmt.Printf("✅ WASM compressed: %s\n", getFileSize(wasmOut+".gz"))
 	}
 	return true
+}
+
+// CompileWASMFromSource builds the search engine WASM from Go source.
+// This is used for developer convenience during development.
+func CompileWASMFromSource(ctx context.Context, srcPath string, destPath string) error {
+	if _, err := exec.LookPath("go"); err != nil {
+		return fmt.Errorf("go compiler not found in PATH")
+	}
+
+	absSrc, _ := filepath.Abs(srcPath)
+	absDest, _ := filepath.Abs(destPath)
+
+	fmt.Printf("🚀 Rebuilding Search WASM from source (%s)... \n", srcPath)
+
+	// Ensure destination directory exists
+	if err := os.MkdirAll(filepath.Dir(absDest), 0755); err != nil {
+		return err
+	}
+
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", absDest, absSrc)
+	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to compile WASM: %w", err)
+	}
+
+	fmt.Println("✅ Search WASM rebuilt successfully.")
+	return nil
 }
 
 // hashBytes computes BLAKE3 hash of byte slice (first 16 hex chars)
@@ -76,7 +108,7 @@ func hashFile(path string) (string, error) {
 	return hashBytes(data), nil
 }
 
-func compressGzip(src, dst string) error {
+func CompressGzip(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -90,10 +122,13 @@ func compressGzip(src, dst string) error {
 	defer func() { _ = out.Close() }()
 
 	gw := gzip.NewWriter(out)
-	defer func() { _ = gw.Close() }()
+	_, copyErr := io.Copy(gw, in)
+	closeErr := gw.Close()
 
-	_, err = io.Copy(gw, in)
-	return err
+	if copyErr != nil {
+		return copyErr
+	}
+	return closeErr
 }
 
 func getFileSize(path string) string {

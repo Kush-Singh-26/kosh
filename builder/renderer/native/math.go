@@ -2,7 +2,7 @@ package native
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 )
 
@@ -10,9 +10,26 @@ import (
 func (r *Renderer) RenderMath(latex string, displayMode bool) (string, error) {
 	r.ensureInitialized()
 
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return "", fmt.Errorf("renderer is closed")
+	}
+	r.wg.Add(1)
+	r.mu.Unlock()
+
+	defer r.wg.Done()
+
 	// Acquire worker
 	instance := <-r.pool
-	defer func() { r.pool <- instance }() // Release worker
+	defer func() {
+		r.mu.Lock()
+		isClosed := r.closed
+		r.mu.Unlock()
+		if !isClosed {
+			r.pool <- instance
+		}
+	}()
 
 	if instance.vm == nil || instance.renderFn == nil {
 		return "", fmt.Errorf("KaTeX not initialized in worker")
@@ -51,17 +68,36 @@ func (r *Renderer) RenderAllMath(expressions []MathExpression, cache map[string]
 	var wg sync.WaitGroup
 
 	for _, expr := range expressions {
-		if _, exists := cache[expr.Hash]; exists {
+		if val, ok := cache[expr.Hash]; ok {
+			mu.Lock()
+			results[expr.Hash] = val
+			mu.Unlock()
 			continue
 		}
+
+		r.mu.Lock()
+		if r.closed {
+			r.mu.Unlock()
+			break
+		}
+		r.wg.Add(1)
+		r.mu.Unlock()
 
 		wg.Add(1)
 		go func(e MathExpression) {
 			defer wg.Done()
+			defer r.wg.Done()
 
 			// Acquire worker from pool
 			instance := <-r.pool
-			defer func() { r.pool <- instance }()
+			defer func() {
+				r.mu.Lock()
+				isClosed := r.closed
+				r.mu.Unlock()
+				if !isClosed {
+					r.pool <- instance
+				}
+			}()
 
 			if instance.vm == nil || instance.renderFn == nil {
 				return
@@ -74,7 +110,7 @@ func (r *Renderer) RenderAllMath(expressions []MathExpression, cache map[string]
 
 			res, err := instance.renderFn(instance.katex, instance.vm.ToValue(e.LaTeX), opts)
 			if err != nil {
-				log.Printf("   ⚠️  LaTeX render failed for %s: %v", e.Hash[:8], err)
+				slog.Warn("   ⚠️  LaTeX render failed", "hash", e.Hash[:8], "error", err)
 				return
 			}
 

@@ -1,44 +1,40 @@
 package run
 
 import (
+	"context"
 	"fmt"
-	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"os"
 	"path/filepath"
 
-	"github.com/Kush-Singh-26/kosh/builder/generators"
-	"sync"
+	"golang.org/x/sync/errgroup"
 
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/spf13/afero"
 )
 
-func (b *Builder) generatePWA(shouldForce bool) {
-	var wg sync.WaitGroup
-	wg.Add(3)
-	go func() {
-		defer wg.Done()
-		if b.cfg.IsDev {
-			return
-		}
-		_ = generators.GenerateSW(b.DestFs, b.cfg.OutputDir, b.cfg.BuildVersion, shouldForce, b.cfg.BaseURL, b.renderService.GetAssets())
-	}()
-	go func() {
-		defer wg.Done()
-		if b.cfg.IsDev {
-			return
-		}
-		_ = generators.GenerateManifest(b.DestFs, b.cfg.OutputDir, b.cfg.BaseURL, b.cfg.Title, b.cfg.Description, shouldForce)
-	}()
-	go func() {
-		defer wg.Done()
-		if b.cfg.IsDev {
-			return
-		}
+func (b *Builder) generatePWA(ctx context.Context, shouldForce bool) error {
+	if b.cfg.IsDev {
+		return nil
+	}
+
+	g, _ := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		return generators.GenerateSW(b.DestFs, b.cfg.OutputDir, b.cfg.BuildVersion, shouldForce, b.cfg.BaseURL, b.renderService.GetAssets())
+	})
+
+	g.Go(func() error {
+		return generators.GenerateManifest(b.DestFs, b.cfg.OutputDir, b.cfg.BaseURL, b.cfg.Title, b.cfg.Description, shouldForce)
+	})
+
+	g.Go(func() error {
 		faviconPath := b.getFaviconPath()
 
 		// Ensure info is available
-		if exists, _ := afero.Exists(b.SourceFs, faviconPath); !exists {
-			return
+		exists, _ := afero.Exists(b.SourceFs, faviconPath)
+		if !exists {
+			return nil
 		}
 		srcInfo, _ := b.SourceFs.Stat(faviconPath)
 
@@ -83,12 +79,18 @@ func (b *Builder) generatePWA(shouldForce bool) {
 
 			// Copy cached icons to VFS
 			if data, err := os.ReadFile(cache192); err == nil {
-				_ = afero.WriteFile(b.DestFs, filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png"), data, 0644)
+				iconPath := filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png")
+				_ = afero.WriteFile(b.DestFs, iconPath, data, 0644)
+				b.renderService.RegisterFile(iconPath)
 			}
 			if data, err := os.ReadFile(cache512); err == nil {
-				_ = afero.WriteFile(b.DestFs, filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png"), data, 0644)
+				iconPath := filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png")
+				_ = afero.WriteFile(b.DestFs, iconPath, data, 0644)
+				b.renderService.RegisterFile(iconPath)
 			}
 		}
-	}()
-	wg.Wait()
+		return nil
+	})
+
+	return g.Wait()
 }

@@ -16,7 +16,7 @@ jobs:
           go-version: '1.23'
       
       - name: Run Tests
-        run: go test ./...
+        run: go test -race ./...
       
       - name: Build CLI
-        run: go build -o kosh ./cmd/kosh
+        run: go build -race -o kosh ./cmd/kosh

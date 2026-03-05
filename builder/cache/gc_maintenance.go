@@ -21,6 +21,8 @@ func (m *Manager) Clear() error {
 	m.db = newManager.db
 	m.store = newManager.store
 	m.dirty = make(map[string]bool)
+	m.refCount = newRefCountManager(m.db)
+	m.memCache.Purge()
 
 	return nil
 }

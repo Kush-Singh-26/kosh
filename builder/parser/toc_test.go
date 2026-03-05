@@ -3,6 +3,7 @@ package parser
 import (
 	"testing"
 
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
@@ -91,5 +92,32 @@ func TestGetTOCNil(t *testing.T) {
 	toc := GetTOC(context)
 	if toc != nil {
 		t.Error("GetTOC should return nil when key is missing")
+	}
+}
+
+func TestContextKeyIsolation(t *testing.T) {
+	// Verify that the contextual package keys are globally distinct
+	if tocKey == ssrHashesKey {
+		t.Error("Context keys collide! They must be unique.")
+	}
+
+	ctx := parser.NewContext()
+
+	// Set mock data
+	mockTOC := []models.TOCEntry{{ID: "hello", Text: "Hello"}}
+	mockSSR := []string{"hash1"}
+
+	ctx.Set(tocKey, mockTOC)
+	ctx.Set(ssrHashesKey, mockSSR)
+
+	// Retrieve uniquely
+	resTOC := GetTOC(ctx)
+	if len(resTOC) != 1 || resTOC[0].ID != "hello" {
+		t.Errorf("TOC isolation failed")
+	}
+
+	resSSR := GetSSRHashes(ctx)
+	if len(resSSR) != 1 || resSSR[0] != "hash1" {
+		t.Errorf("SSR isolation failed")
 	}
 }

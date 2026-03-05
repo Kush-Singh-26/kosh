@@ -4,7 +4,7 @@ package native
 import (
 	_ "embed"
 	"encoding/hex"
-	"log"
+	"log/slog"
 	"runtime"
 	"sync"
 
@@ -31,6 +31,9 @@ type Renderer struct {
 	numWorkers int
 	initOnce   sync.Once
 	katexProg  *goja.Program // Pre-compiled program to share across workers
+	wg         sync.WaitGroup
+	mu         sync.Mutex
+	closed     bool
 }
 
 type RendererOption func(*Renderer)
@@ -70,30 +73,42 @@ func New(opts ...RendererOption) *Renderer {
 // ensureInitialized lazily creates worker instances on first use
 func (r *Renderer) ensureInitialized() {
 	r.initOnce.Do(func() {
-		log.Printf("⚙️  Initializing Renderer Pool with %d workers...", r.numWorkers)
+		slog.Info("Initializing Renderer Pool", "workers", r.numWorkers)
 
 		// 1. Compile KaTeX once
-		log.Printf("   📝 Compiling KaTeX script...")
+		slog.Info("Compiling KaTeX script")
 		prog, err := goja.Compile("katex.min.js", katexJS, true)
 		if err != nil {
-			log.Printf("❌ Failed to compile KaTeX: %v", err)
+			slog.Error("Failed to compile KaTeX", "error", err)
 			return
 		}
-		r.katexProg = prog
 
 		// Start workers in background without blocking
+		// Pass program directly to workers to ensure happens-before guarantee
+		r.wg.Add(r.numWorkers)
 		for i := 0; i < r.numWorkers; i++ {
-			go func(id int) {
+			go func(id int, p *goja.Program) {
+				defer r.wg.Done()
 				instance := newinstance()
 				if instance != nil {
-					// Pass the program to the instance (we could store it in instance or pass it during ensureInitialized)
-					instance.ensureInitialized(r.katexProg)
-					r.pool <- instance
+					instance.ensureInitialized(p)
+
+					r.mu.Lock()
+					isClosed := r.closed
+					r.mu.Unlock()
+
+					if !isClosed {
+						r.pool <- instance
+					}
 				} else {
-					log.Printf("⚠️ Failed to initialize worker %d", id)
+					slog.Warn("Failed to initialize worker", "id", id)
 				}
-			}(i)
+			}(i, prog)
 		}
+
+		// Set katexProg after spawning workers (not needed by workers anymore since they have direct parameter)
+		r.katexProg = prog
+
 		// We DO NOT wait for workers to be ready.
 		// The pool channel will block consumers until at least one worker is available.
 		// This "streams" workers as they come online, improving start time.
@@ -103,7 +118,7 @@ func (r *Renderer) ensureInitialized() {
 func newinstance() *instance {
 	ruler, err := textmeasure.NewRuler()
 	if err != nil {
-		log.Printf("⚠️ Failed to initialize text ruler: %v", err)
+		slog.Warn("Failed to initialize text ruler", "error", err)
 	}
 
 	return &instance{
@@ -136,13 +151,13 @@ func (i *instance) ensureInitialized(prog *goja.Program) {
 		// Load KaTeX (Use pre-compiled program)
 		_, err := vm.RunProgram(prog)
 		if err != nil {
-			log.Printf("⚠️ Failed to load KaTeX: %v", err)
+			slog.Warn("Failed to load KaTeX", "error", err)
 			return
 		}
 
 		katex := vm.Get("katex")
 		if katex == nil || goja.IsUndefined(katex) {
-			log.Printf("⚠️ KaTeX not found in VM")
+			slog.Warn("KaTeX not found in VM")
 			return
 		}
 
@@ -150,7 +165,7 @@ func (i *instance) ensureInitialized(prog *goja.Program) {
 		renderToString := katexObj.Get("renderToString")
 		renderFn, ok := goja.AssertFunction(renderToString)
 		if !ok {
-			log.Printf("⚠️ katex.renderToString is not a function")
+			slog.Warn("katex.renderToString is not a function")
 			return
 		}
 
@@ -158,6 +173,34 @@ func (i *instance) ensureInitialized(prog *goja.Program) {
 		i.katex = katex
 		i.renderFn = renderFn
 	})
+}
+
+// Close shuts down the renderer and cleans up worker resources.
+// Safe to call multiple times.
+func (r *Renderer) Close() error {
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return nil
+	}
+	r.closed = true
+	r.mu.Unlock()
+
+	r.initOnce.Do(func() {
+		// Ensure initialization doesn't happen during close
+	})
+
+	// Wait for all workers to be initialized AND all active tasks to complete
+	r.wg.Wait()
+
+	// Drain any workers that were back in the pool
+	// They won't be reused since r.closed is true
+	for i := 0; i < len(r.pool); i++ {
+		<-r.pool
+	}
+
+	close(r.pool)
+	return nil
 }
 
 // HashContent generates a BLAKE3 hash for cache keys

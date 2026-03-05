@@ -16,6 +16,7 @@ import (
 	"github.com/chai2010/webp"
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
+	"github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
 )
 
@@ -34,11 +35,18 @@ const (
 )
 
 var (
-	fontCache    = make(map[string]*truetype.Font)
-	fontMu       sync.RWMutex
+	fontCache    *lru.Cache[string, *truetype.Font]
 	faviconImage image.Image
 	faviconOnce  sync.Once
 )
+
+func init() {
+	var err error
+	fontCache, err = lru.New[string, *truetype.Font](20)
+	if err != nil {
+		panic("failed to create font cache: " + err.Error())
+	}
+}
 
 func getFaviconImage(fs afero.Fs, path string) image.Image {
 	faviconOnce.Do(func() {
@@ -56,17 +64,7 @@ func getFaviconImage(fs afero.Fs, path string) image.Image {
 }
 
 func loadFont(name string) (*truetype.Font, error) {
-	fontMu.RLock()
-	if f, ok := fontCache[name]; ok {
-		fontMu.RUnlock()
-		return f, nil
-	}
-	fontMu.RUnlock()
-
-	fontMu.Lock()
-	defer fontMu.Unlock()
-
-	if f, ok := fontCache[name]; ok {
+	if f, ok := fontCache.Get(name); ok {
 		return f, nil
 	}
 
@@ -78,7 +76,7 @@ func loadFont(name string) (*truetype.Font, error) {
 	if err != nil {
 		return nil, err
 	}
-	fontCache[name] = f
+	fontCache.Add(name, f)
 	return f, nil
 }
 

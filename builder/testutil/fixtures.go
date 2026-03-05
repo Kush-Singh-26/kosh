@@ -53,12 +53,9 @@ func CreateSampleSearchRecord() *cache.SearchRecord {
 	return &cache.SearchRecord{
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
-		Tokens:          []string{"test", "post"},
 		BM25Data:        map[string]int{"test": 1, "post": 1},
 		DocLen:          10,
-		Content:         "This is test content for search indexing",
 		NormalizedTags:  []string{"test", "go"},
-		Words:           []string{"this", "is", "test", "content"},
 	}
 }
 

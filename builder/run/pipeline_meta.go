@@ -1,46 +1,53 @@
 package run
 
 import (
+	"context"
 	"os"
 	"path/filepath"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, shouldForce bool) {
+func (b *Builder) generateMetadata(ctx context.Context, allContent []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, shouldForce bool) error {
 	cfg := b.cfg
-	var genWg sync.WaitGroup
 	outputDir := cfg.OutputDir
 
+	g, _ := errgroup.WithContext(ctx)
+
 	if cfg.Features.Generators.Sitemap {
-		genWg.Add(1)
-		go func() {
-			defer genWg.Done()
-			generators.GenerateSitemap(b.DestFs, cfg.BaseURL, allContent, tagMap, filepath.Join(outputDir, "sitemap", "sitemap.xml"))
-		}()
+		g.Go(func() error {
+			path, err := generators.GenerateSitemap(b.DestFs, cfg.BaseURL, allContent, tagMap, filepath.Join(outputDir, "sitemap", "sitemap.xml"))
+			if err == nil {
+				b.renderService.RegisterFile(path)
+			}
+			return err
+		})
 	}
 
 	if cfg.Features.Generators.RSS {
-		genWg.Add(1)
-		go func() {
-			defer genWg.Done()
-			generators.GenerateRSS(b.DestFs, cfg.BaseURL, allContent, cfg.Title, cfg.Description, filepath.Join(outputDir, "rss.xml"))
-		}()
+		g.Go(func() error {
+			path, err := generators.GenerateRSS(b.DestFs, cfg.BaseURL, allContent, cfg.Title, cfg.Description, filepath.Join(outputDir, "rss.xml"))
+			if err == nil {
+				b.renderService.RegisterFile(path)
+			}
+			return err
+		})
 	}
 
 	if cfg.Features.Generators.Search {
-		genWg.Add(1)
-		go func() {
-			defer genWg.Done()
+		g.Go(func() error {
 			searchTimer := utils.StartPhase("Search index generation")
-			if err := generators.GenerateSearchIndex(b.DestFs, outputDir, indexedPosts); err != nil {
-				b.logger.Error("Failed to generate search index", "error", err)
+			defer searchTimer.Stop()
+			path, err := generators.GenerateSearchIndex(b.DestFs, outputDir, indexedPosts)
+			if err == nil {
+				b.renderService.RegisterFile(path)
 			}
-			searchTimer.Stop()
-		}()
+			return err
+		})
 	}
 
 	if cfg.Features.Generators.Graph {
@@ -57,15 +64,17 @@ func (b *Builder) generateMetadata(allContent []models.PostMetadata, tagMap map[
 		}
 
 		if shouldForce || !graphExists || cachedGraphHash != graphHash {
-			genWg.Add(1)
-			go func() {
-				defer genWg.Done()
-				generators.GenerateGraph(b.DestFs, cfg.BaseURL, allContent, filepath.Join(outputDir, "graph.json"))
-				if b.cacheService != nil {
-					_ = b.cacheService.SetGraphHash(graphHash)
+			g.Go(func() error {
+				path, err := generators.GenerateGraph(b.DestFs, cfg.BaseURL, allContent, filepath.Join(outputDir, "graph.json"))
+				if err == nil {
+					b.renderService.RegisterFile(path)
+					if b.cacheService != nil {
+						_ = b.cacheService.SetGraphHash(graphHash)
+					}
 				}
-			}()
+				return err
+			})
 		}
 	}
-	genWg.Wait()
+	return g.Wait()
 }

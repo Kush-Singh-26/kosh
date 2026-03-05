@@ -2,7 +2,7 @@ package renderer
 
 import (
 	"bufio"
-	"io"
+	"bytes"
 	"path/filepath"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -10,7 +10,7 @@ import (
 )
 
 func (r *Renderer) RenderIndex(path string, data models.PageData) {
-	data.Assets = r.Assets
+	data.Assets = r.GetAssets()
 
 	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		r.logger.Error("Failed to create directory", "path", path, "error", err)
@@ -26,32 +26,55 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 	bw := bufio.NewWriterSize(f, utils.MaxBufferSize)
 	defer func() { _ = bw.Flush() }()
 
-	var w io.Writer = bw
+	r.mu.RLock()
+	index := r.Index
+	layout := r.Layout
+	r.mu.RUnlock()
 
-	if r.Compress {
-		mw := utils.Minifier.Writer("text/html", bw)
-		defer func() { _ = mw.Close() }()
-		w = mw
-	}
-
+	var buf bytes.Buffer
 	var errExec error
-	if r.Index != nil {
-		errExec = r.Index.Execute(w, data)
+	if index != nil {
+		errExec = index.Execute(&buf, data)
+	} else if layout != nil {
+		errExec = layout.Execute(&buf, data)
 	} else {
-		errExec = r.Layout.Execute(w, data)
+		r.logger.Error("No template available for index", "path", path)
+		return
 	}
+
 	if errExec != nil {
 		r.logger.Error("Failed to render index", "path", path, "error", errExec)
+		return
+	}
+
+	// Process HTML
+	processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
+	finalBytes := []byte(processedHTML)
+
+	if r.Compress {
+		minified, err := utils.Minifier.Bytes("text/html", finalBytes)
+		if err == nil {
+			finalBytes = minified
+		}
+	}
+
+	if _, err := bw.Write(finalBytes); err != nil {
+		r.logger.Error("Failed to write processed index", "path", path, "error", err)
 	} else {
 		r.RegisterFile(path)
 	}
 }
 
 func (r *Renderer) RenderGraph(path string, data models.PageData) {
-	if r.Graph == nil {
+	r.mu.RLock()
+	graph := r.Graph
+	r.mu.RUnlock()
+
+	if graph == nil {
 		return
 	}
-	data.Assets = r.Assets
+
+	data.Assets = r.GetAssets()
 
 	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		r.logger.Error("Failed to create directory", "path", path, "error", err)
@@ -68,22 +91,32 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 	bw := bufio.NewWriterSize(f, utils.MaxBufferSize)
 	defer func() { _ = bw.Flush() }()
 
-	var w io.Writer = bw
-	if r.Compress {
-		mw := utils.Minifier.Writer("text/html", bw)
-		defer func() { _ = mw.Close() }()
-		w = mw
+	var buf bytes.Buffer
+	if err := graph.Execute(&buf, data); err != nil {
+		r.logger.Error("Failed to render graph", "path", path, "error", err)
+		return
 	}
 
-	if err := r.Graph.Execute(w, data); err != nil {
-		r.logger.Error("Failed to render graph", "path", path, "error", err)
+	// Process HTML
+	processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
+	finalBytes := []byte(processedHTML)
+
+	if r.Compress {
+		minified, err := utils.Minifier.Bytes("text/html", finalBytes)
+		if err == nil {
+			finalBytes = minified
+		}
+	}
+
+	if _, err := bw.Write(finalBytes); err != nil {
+		r.logger.Error("Failed to write processed graph", "path", path, "error", err)
 	} else {
 		r.RegisterFile(path)
 	}
 }
 
 func (r *Renderer) Render404(path string, data models.PageData) {
-	data.Assets = r.Assets
+	data.Assets = r.GetAssets()
 
 	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		r.logger.Error("Failed to create directory", "path", path, "error", err)
@@ -99,22 +132,40 @@ func (r *Renderer) Render404(path string, data models.PageData) {
 	bw := bufio.NewWriterSize(f, utils.MaxBufferSize)
 	defer func() { _ = bw.Flush() }()
 
-	var w io.Writer = bw
+	r.mu.RLock()
+	notFound := r.NotFound
+	layout := r.Layout
+	r.mu.RUnlock()
 
-	if r.Compress {
-		mw := utils.Minifier.Writer("text/html", bw)
-		defer func() { _ = mw.Close() }()
-		w = mw
-	}
-
+	var buf bytes.Buffer
 	var errExec error
-	if r.NotFound != nil {
-		errExec = r.NotFound.Execute(w, data)
+	if notFound != nil {
+		errExec = notFound.Execute(&buf, data)
+	} else if layout != nil {
+		errExec = layout.Execute(&buf, data)
 	} else {
-		errExec = r.Layout.Execute(w, data)
+		r.logger.Error("No template available for 404", "path", path)
+		return
 	}
+
 	if errExec != nil {
 		r.logger.Error("Failed to render 404", "path", path, "error", errExec)
+		return
+	}
+
+	// Process HTML
+	processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
+	finalBytes := []byte(processedHTML)
+
+	if r.Compress {
+		minified, err := utils.Minifier.Bytes("text/html", finalBytes)
+		if err == nil {
+			finalBytes = minified
+		}
+	}
+
+	if _, err := bw.Write(finalBytes); err != nil {
+		r.logger.Error("Failed to write processed 404", "path", path, "error", err)
 	} else {
 		r.RegisterFile(path)
 	}

@@ -2,29 +2,26 @@ package search
 
 import (
 	"math"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
-	"sync"
-	"unicode"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-	"golang.org/x/text/unicode/norm"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-// titleCaser is cached at package level to avoid recreation on every snippet extraction
-var titleCaser = cases.Title(language.English)
+// replacerCache caches regex patterns for snippet highlighting (thread-safe LRU)
+var replacerCache *lru.Cache[string, *regexp.Regexp]
 
-// lowerCaser for Unicode-aware lowercasing
-var lowerCaser = cases.Lower(language.Und) // Und = undefined language, uses default Unicode lowercasing
-
-// replacerCache caches string replacers for snippet highlighting
-var (
-	replacerCache   = make(map[string]*strings.Replacer)
-	replacerCacheMu sync.RWMutex
-)
+func init() {
+	var err error
+	replacerCache, err = lru.New[string, *regexp.Regexp](500)
+	if err != nil {
+		panic(err) // Should never happen with valid size
+	}
+}
 
 // Constants for snippet extraction optimization
 const (
@@ -52,14 +49,17 @@ type Result struct {
 	Score       float64
 }
 
-// PerformSearch executes a search query against the index with fuzzy and phrase support
+// PerformSearch executes a search query against the index with fuzzy, prefix and phrase support
 func PerformSearch(index *models.SearchIndex, query string, versionFilter string) []Result {
 	// Apply NFC normalization and Unicode-aware lowercasing
-	query = norm.NFC.String(query)
-	query = lowerCaser.String(strings.TrimSpace(query))
+	query = NormalizeNFC(query)
+	query = ToLower(strings.TrimSpace(query))
 	if query == "" {
 		return nil
 	}
+
+	// Capture original query for fallback and title boosting
+	originalQuery := query
 
 	// Parse query for tag filter
 	tagFilter := ""
@@ -88,13 +88,21 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 
 	postCache := make(map[int]*models.PostRecord, maxResults)
 
-	// Process individual terms with BM25
+	// Collect terms that actually matched in the index for high-fidelity highlighting
+	highlightTerms := make(map[string]bool)
+	for _, t := range queryTerms {
+		highlightTerms[t] = true
+	}
+
+	// 1.5 Process individual terms with BM25 (Exact + Fuzzy + Prefix)
 	for _, term := range queryTerms {
 		if posts, ok := index.Inverted[term]; ok {
+			// Exact match
 			df := len(posts)
 			idf := math.Log(1 + (float64(index.TotalDocs)-float64(df)+0.5)/(float64(df)+0.5))
 
-			for postID, freq := range posts {
+			for postIDStr, positions := range posts {
+				postID, _ := strconv.Atoi(postIDStr)
 				post, cached := postCache[postID]
 				if !cached {
 					post = &index.Posts[postID]
@@ -109,25 +117,29 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 					continue
 				}
 
-				docLen := float64(index.DocLens[postID])
+				freq := len(positions)
+				docLen := float64(index.DocLens[postIDStr])
 				score := idf * (float64(freq) * (k1 + 1)) / (float64(freq) + k1*(1-b+b*(docLen/index.AvgDocLen)))
 				scores[postID] += score
 			}
 		} else {
-			// Try fuzzy matching if exact term not found
-			// Use ngram index for fast candidate generation if available
-			var fuzzyCandidates []string
+			// Fallback: Try prefix and fuzzy matching if exact term not found
+			var candidates []string
 			if index.NgramIndex != nil {
-				fuzzyCandidates = FuzzyExpandWithNgrams(term, index.NgramIndex, MaxEditDistance)
+				candidates = FuzzyExpandWithNgrams(term, index.NgramIndex, MaxEditDistance)
 			} else {
-				fuzzyCandidates = FuzzyExpand(term, index.Inverted, MaxEditDistance)
+				candidates = FuzzyExpand(term, index.Inverted, MaxEditDistance)
 			}
-			for _, fuzzyTerm := range fuzzyCandidates {
-				if posts, ok := index.Inverted[fuzzyTerm]; ok {
+
+			for _, candTerm := range candidates {
+				highlightTerms[candTerm] = true // Match found, highlight it in the snippet
+
+				if posts, ok := index.Inverted[candTerm]; ok {
 					df := len(posts)
 					idf := math.Log(1 + (float64(index.TotalDocs)-float64(df)+0.5)/(float64(df)+0.5))
 
-					for postID, freq := range posts {
+					for postIDStr, positions := range posts {
+						postID, _ := strconv.Atoi(postIDStr)
 						post, cached := postCache[postID]
 						if !cached {
 							post = &index.Posts[postID]
@@ -142,60 +154,85 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 							continue
 						}
 
-						docLen := float64(index.DocLens[postID])
+						freq := len(positions)
+						docLen := float64(index.DocLens[postIDStr])
 						score := idf * (float64(freq) * (k1 + 1)) / (float64(freq) + k1*(1-b+b*(docLen/index.AvgDocLen)))
-						// Reduce score for fuzzy matches
-						scores[postID] += score * ScoreFuzzyModifier
+
+						// Prefix matches (distance usually high) get less penalty than pure fuzzy
+						modifier := ScoreFuzzyModifier
+						if strings.HasPrefix(candTerm, term) {
+							modifier = 0.9
+						}
+						scores[postID] += score * modifier
 					}
 				}
 			}
 		}
 	}
 
-	// Process phrase matches (higher score)
-	for _, phrase := range parsed.Phrases {
+	// 1.6 Implicit Phrase Boost
+	// If the query has multiple terms, check if they form a phrase in any document
+	if len(queryTerms) > 1 {
+		for id := range scores {
+			if checkPhraseUnified(index, id, queryTerms) {
+				scores[id] += ScorePhraseMatch * 1.2 // Give boost for exact sequence
+			}
+		}
+	}
+
+	// 2. Process phrase matches (higher score)
+	for _, phraseTerms := range parsed.Phrases {
 		for i, post := range index.Posts {
 			if versionFilter != "all" && post.Version != versionFilter {
 				continue
 			}
 
-			// Check if phrase appears in title (highest score)
-			if strings.Contains(post.NormalizedTitle, phrase) {
-				scores[i] += ScorePhraseMatch * 2
-				continue
-			}
-
-			// Check if phrase appears in content
-			if strings.Contains(strings.ToLower(post.Content), phrase) {
+			if checkPhraseUnified(index, i, phraseTerms) {
 				scores[i] += ScorePhraseMatch
+				for _, pt := range phraseTerms {
+					highlightTerms[pt] = true
+				}
 			}
 		}
 	}
 
-	// Handle tag-only queries
-	if len(queryTerms) == 0 && len(parsed.Phrases) == 0 && tagFilter != "" {
-		for i := range index.Posts {
-			post := &index.Posts[i]
+	// 3. Fallback for Empty Query Terms (e.g. stop words like "how to")
+	// If BM25 found nothing but the user typed something, do a direct substring scan
+	if len(scores) == 0 && originalQuery != "" {
+		for i, post := range index.Posts {
 			if versionFilter != "all" && post.Version != versionFilter {
 				continue
 			}
-			if HasTagNormalized(post.NormalizedTags, tagFilter) {
-				scores[i] = 1.0
+
+			match := false
+			if strings.Contains(post.NormalizedTitle, originalQuery) {
+				scores[i] += ScoreTitleMatch
+				match = true
+			}
+			if strings.Contains(ToLower(post.Description), originalQuery) {
+				scores[i] += 1.0
+				match = true
+			}
+
+			if match {
+				// Use the raw query words for highlighting in fallback mode
+				for _, word := range strings.Fields(originalQuery) {
+					if len(word) > 2 {
+						highlightTerms[word] = true
+					}
+				}
 			}
 		}
 	}
 
-	// Boost title and tag matches
-	originalQuery := strings.ToLower(query)
+	// 4. Boost title and tag matches for existing results
 	for id := range scores {
 		post := &index.Posts[id]
 
-		// Title match boost
 		if originalQuery != "" && strings.Contains(post.NormalizedTitle, originalQuery) {
 			scores[id] += ScoreTitleMatch
 		}
 
-		// Tag match boost
 		for _, tag := range post.NormalizedTags {
 			if tag == originalQuery || tag == tagFilter {
 				scores[id] += ScoreTagMatch
@@ -203,7 +240,12 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		}
 	}
 
-	// Build results
+	// Convert highlight map to slice
+	finalHighlightTerms := make([]string, 0, len(highlightTerms))
+	for t := range highlightTerms {
+		finalHighlightTerms = append(finalHighlightTerms, t)
+	}
+
 	results := make([]Result, 0, len(scores))
 	for id, score := range scores {
 		post := index.Posts[id]
@@ -217,18 +259,16 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 			Title:       title,
 			Link:        post.Link,
 			Description: post.Description,
-			Snippet:     ExtractSnippet(post.Content, queryTerms),
+			Snippet:     ExtractSnippet(post.Content, finalHighlightTerms),
 			Version:     post.Version,
 			Score:       score,
 		})
 	}
 
-	// Sort by score descending
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Score > results[j].Score
 	})
 
-	// Limit results
 	if len(results) > 10 {
 		results = results[:10]
 	}
@@ -236,25 +276,63 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 	return results
 }
 
-// Tokenize splits text into tokens (legacy function for compatibility)
-func Tokenize(text string) []string {
-	if len(text) == 0 {
-		return nil
+// checkPhraseUnified matches a phrase using the unified inverted index
+func checkPhraseUnified(index *models.SearchIndex, postID int, phraseTerms []string) bool {
+	if len(phraseTerms) == 0 {
+		return false
 	}
-	words := make([]string, 0, max(8, len(text)/5))
-	return append(words, strings.FieldsFunc(text, func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-	})...)
+	idStr := strconv.Itoa(postID)
+	if len(phraseTerms) == 1 {
+		if postMap, ok := index.Inverted[phraseTerms[0]]; ok {
+			_, found := postMap[idStr]
+			return found
+		}
+		return false
+	}
+
+	postMap, ok := index.Inverted[phraseTerms[0]]
+	if !ok {
+		return false
+	}
+	candidates, ok := postMap[idStr]
+	if !ok {
+		return false
+	}
+
+	for i := 1; i < len(phraseTerms); i++ {
+		nextWord := phraseTerms[i]
+		nextPostMap, ok := index.Inverted[nextWord]
+		if !ok {
+			return false
+		}
+		nextPositions, ok := nextPostMap[idStr]
+		if !ok {
+			return false
+		}
+
+		var newCandidates []int
+		p1, p2 := 0, 0
+		for p1 < len(candidates) && p2 < len(nextPositions) {
+			if nextPositions[p2] == candidates[p1]+1 {
+				newCandidates = append(newCandidates, nextPositions[p2])
+				p1++
+				p2++
+			} else if nextPositions[p2] < candidates[p1]+1 {
+				p2++
+			} else {
+				p1++
+			}
+		}
+
+		if len(newCandidates) == 0 {
+			return false
+		}
+		candidates = newCandidates
+	}
+
+	return true
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// HasTagNormalized checks tags against a pre-normalized target using exact match
 func HasTagNormalized(normalizedTags []string, target string) bool {
 	for _, t := range normalizedTags {
 		if t == target {
@@ -264,27 +342,53 @@ func HasTagNormalized(normalizedTags []string, target string) bool {
 	return false
 }
 
-// getReplacer returns a cached strings.Replacer for the given term
-func getReplacer(term string) *strings.Replacer {
-	replacerCacheMu.RLock()
-	if r, ok := replacerCache[term]; ok {
-		replacerCacheMu.RUnlock()
+// getHighlightRegex returns a compiled regex for case-insensitive, full-word highlighting
+func getHighlightRegex(terms []string) *regexp.Regexp {
+	if len(terms) == 0 {
+		return nil
+	}
+
+	// Sort terms for a consistent cache key
+	sortedTerms := make([]string, len(terms))
+	copy(sortedTerms, terms)
+	sort.Strings(sortedTerms)
+
+	key := strings.Join(sortedTerms, "|")
+	if r, ok := replacerCache.Get(key); ok {
 		return r
 	}
-	replacerCacheMu.RUnlock()
 
-	r := strings.NewReplacer(
-		term, "<b>"+term+"</b>",
-		titleCaser.String(term), "<b>"+titleCaser.String(term)+"</b>",
-	)
+	escaped := make([]string, 0, len(sortedTerms))
+	for _, term := range sortedTerms {
+		if len(term) < 2 {
+			continue // Skip tiny stems to avoid noise
+		}
+		escaped = append(escaped, regexp.QuoteMeta(term))
+	}
 
-	replacerCacheMu.Lock()
-	replacerCache[term] = r
-	replacerCacheMu.Unlock()
+	if len(escaped) == 0 {
+		return nil
+	}
+
+	// Capture group 1: the entire matched word
+	// \b: word boundary
+	// (term1|term2): the base terms / stems
+	// \w*: matches the rest of the word (e.g. 'ing' in 'programming' if 'program' is the stem)
+	pattern := "(?i)\\b((" + strings.Join(escaped, "|") + ")\\w*)\\b"
+	r, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil
+	}
+
+	replacerCache.Add(key, r)
 	return r
 }
 
+// ExtractSnippet finds the "densest" cluster of terms for a better snippet
 func ExtractSnippet(content string, terms []string) string {
+	if len(content) == 0 {
+		return ""
+	}
 	if len(content) > MaxSnippetContentLength {
 		content = content[:MaxSnippetContentLength]
 	}
@@ -296,40 +400,89 @@ func ExtractSnippet(content string, terms []string) string {
 		return content
 	}
 
-	contentLower := strings.ToLower(content)
-	firstPos := -1
+	contentLower := ToLower(content)
+
+	type match struct {
+		pos  int
+		term string
+	}
+	var matches []match
 	for _, term := range terms {
-		pos := strings.Index(contentLower, term)
-		if pos != -1 && (firstPos == -1 || pos < firstPos) {
-			firstPos = pos
+		if len(term) < 2 {
+			continue
+		}
+		curr := 0
+		for {
+			idx := strings.Index(contentLower[curr:], term)
+			if idx == -1 {
+				break
+			}
+			matches = append(matches, match{pos: curr + idx, term: term})
+			curr += idx + len(term)
 		}
 	}
 
-	if firstPos == -1 {
+	if len(matches) == 0 {
 		if len(content) > DefaultSnippetLength {
 			return content[:DefaultSnippetLength] + "..."
 		}
 		return content
 	}
 
-	start := firstPos - SnippetContextBefore
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].pos < matches[j].pos
+	})
+
+	bestStart := matches[0].pos
+	maxScore := 0
+
+	windowSize := DefaultSnippetLength
+	for i := 0; i < len(matches); i++ {
+		count := 0
+		uniqueTerms := make(map[string]bool)
+		for j := i; j < len(matches) && matches[j].pos < matches[i].pos+windowSize; j++ {
+			count++
+			uniqueTerms[matches[j].term] = true
+		}
+
+		score := len(uniqueTerms)*100 + count
+		if score > maxScore {
+			maxScore = score
+			bestStart = matches[i].pos
+		}
+	}
+
+	start := bestStart - SnippetContextBefore
 	if start < 0 {
 		start = 0
 	}
-	end := firstPos + SnippetContextAfter
+	end := start + windowSize + SnippetContextBefore
 	if end > len(content) {
 		end = len(content)
+		start = end - (windowSize + SnippetContextBefore)
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	// Align to word boundary at the start
+	if start > 0 {
+		idx := strings.Index(content[start:], " ")
+		if idx != -1 && idx < 15 {
+			start += idx + 1
+		}
 	}
 
 	snippet := content[start:end]
 
-	for _, term := range terms {
-		re := getReplacer(term)
-		snippet = re.Replace(snippet)
+	// Use regex for case-insensitive, full-word highlighting
+	re := getHighlightRegex(terms)
+	if re != nil {
+		snippet = re.ReplaceAllString(snippet, "<b>$1</b>")
 	}
 
 	var b strings.Builder
-	b.Grow(len(snippet) + 6)
+	b.Grow(len(snippet) + 10)
 	if start > 0 {
 		b.WriteString("...")
 	}

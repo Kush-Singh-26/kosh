@@ -4,19 +4,16 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-// FindPrevNext finds previous and next pages in version context
+// FindPrevNext finds previous and next pages in version context.
 // currentPost: the current post metadata
-// allPosts: all posts in the current version (including fallback posts)
+// allPosts: all posts in the current version, must be pre-sorted via SortPosts.
 // Returns: previous page, next page (nil if not found)
 func FindPrevNext(currentPost models.PostMetadata, allPosts []models.PostMetadata) (*models.NavPage, *models.NavPage) {
 	if len(allPosts) <= 1 {
 		return nil, nil
 	}
 
-	// Ensure posts are sorted using our robust logic
-	sortedPosts := make([]models.PostMetadata, len(allPosts))
-	copy(sortedPosts, allPosts)
-	SortPosts(sortedPosts)
+	sortedPosts := allPosts
 
 	// Find current post index
 	currentIdx := -1

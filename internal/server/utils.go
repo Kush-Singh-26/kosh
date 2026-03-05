@@ -38,8 +38,30 @@ func validatePath(baseDir, userPath string) (string, error) {
 	return absUserPath, nil
 }
 
-func normalizeRequestPath(rawPath string) string {
-	rawPath = strings.TrimPrefix(rawPath, "/blogs/")
+func normalizeRequestPath(rawPath, baseURL string) string {
+	prefix := ""
+	if baseURL != "" {
+		if strings.HasPrefix(baseURL, "http://") {
+			parts := strings.SplitN(strings.TrimPrefix(baseURL, "http://"), "/", 2)
+			if len(parts) > 1 {
+				prefix = "/" + parts[1]
+			}
+		} else if strings.HasPrefix(baseURL, "https://") {
+			parts := strings.SplitN(strings.TrimPrefix(baseURL, "https://"), "/", 2)
+			if len(parts) > 1 {
+				prefix = "/" + parts[1]
+			}
+		} else {
+			prefix = baseURL
+		}
+	}
+
+	if prefix != "" && prefix != "/" {
+		rawPath = strings.TrimPrefix(rawPath, prefix)
+	}
+	if !strings.HasPrefix(rawPath, "/") {
+		rawPath = "/" + rawPath
+	}
 	return filepath.ToSlash(filepath.Clean(rawPath))
 }
 
@@ -59,11 +81,20 @@ func (w *gzipResponseWriter) WriteHeader(code int) {
 
 func gzipHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Do not gzip if the client doesn't support it, or if it's a range request (breaks media seek/PDFs)
+		// Do not gzip if the client doesn't support it, or if it's a range request
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") || r.Header.Get("Range") != "" {
 			next(w, r)
 			return
 		}
+
+		// Skip compression for already compressed formats or the search index
+		// search.bin is internally gzipped and handled by WASM DecompressionStream
+		ext := strings.ToLower(filepath.Ext(r.URL.Path))
+		if ext == ".bin" || ext == ".gz" || ext == ".zip" || ext == ".png" || ext == ".webp" || ext == ".jpg" || ext == ".jpeg" {
+			next(w, r)
+			return
+		}
+
 		w.Header().Set("Content-Encoding", "gzip")
 		gz := gzip.NewWriter(w)
 		defer func() { _ = gz.Close() }()

@@ -210,10 +210,8 @@ func TestEncodeDecode(t *testing.T) {
 			data: &SearchRecord{
 				Title:           "Test",
 				NormalizedTitle: "test",
-				Tokens:          []string{"test", "record"},
 				BM25Data:        map[string]int{"test": 1, "record": 2},
 				DocLen:          10,
-				Content:         "test content",
 			},
 		},
 		{

@@ -11,7 +11,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 )
 
-func setupRenderServiceTest(t *testing.T) (*renderServiceImpl, afero.Fs) {
+func setupRenderServiceTest(t *testing.T) *renderServiceImpl {
 	t.Helper()
 
 	destFs := afero.NewMemMapFs()
@@ -26,7 +26,7 @@ func setupRenderServiceTest(t *testing.T) (*renderServiceImpl, afero.Fs) {
 	}
 
 	service := NewRenderService(rnd, logger).(*renderServiceImpl)
-	return service, destFs
+	return service
 }
 
 func TestNewRenderService(t *testing.T) {
@@ -50,7 +50,7 @@ func TestNewRenderService(t *testing.T) {
 }
 
 func TestRenderService_RegisterFile(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	service.RegisterFile("static/style.css")
 
@@ -61,7 +61,7 @@ func TestRenderService_RegisterFile(t *testing.T) {
 }
 
 func TestRenderService_SetAssets(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	assets := map[string]string{
 		"main.css": "main.abc123.css",
@@ -81,7 +81,7 @@ func TestRenderService_SetAssets(t *testing.T) {
 }
 
 func TestRenderService_GetAssets(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	// Set assets through the renderer
 	service.rnd.Assets = map[string]string{
@@ -96,7 +96,7 @@ func TestRenderService_GetAssets(t *testing.T) {
 }
 
 func TestRenderService_GetRenderedFiles(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	// Register some files
 	service.RegisterFile("file1.html")
@@ -114,7 +114,7 @@ func TestRenderService_GetRenderedFiles(t *testing.T) {
 }
 
 func TestRenderService_ClearRenderedFiles(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	// Register files
 	service.RegisterFile("file1.html")
@@ -130,7 +130,7 @@ func TestRenderService_ClearRenderedFiles(t *testing.T) {
 }
 
 func TestRenderService_MultipleOperations(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	// Perform multiple operations
 	service.RegisterFile("page1.html")
@@ -171,7 +171,7 @@ func TestRenderService_MultipleOperations(t *testing.T) {
 }
 
 func TestRenderService_RenderPage(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	// Note: This test requires actual template files to work properly
 	// Since we're using MemMapFs and no templates are set up,
@@ -190,16 +190,10 @@ func TestRenderService_RenderPage(t *testing.T) {
 	}()
 
 	service.RenderPage("test.html", data)
-
-	// If we had templates, we'd check:
-	// exists, _ := afero.Exists(destFs, "test.html")
-	// if !exists {
-	//     t.Error("RenderPage should create output file")
-	// }
 }
 
 func TestRenderService_RenderIndex(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	data := models.PageData{
 		Title:   "Index Page",
@@ -216,7 +210,7 @@ func TestRenderService_RenderIndex(t *testing.T) {
 }
 
 func TestRenderService_Render404(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	data := models.PageData{
 		Title:   "404 Page",
@@ -233,7 +227,7 @@ func TestRenderService_Render404(t *testing.T) {
 }
 
 func TestRenderService_RenderGraph(t *testing.T) {
-	service, _ := setupRenderServiceTest(t)
+	service := setupRenderServiceTest(t)
 
 	data := models.PageData{
 		Title:   "Graph Page",

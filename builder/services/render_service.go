@@ -54,3 +54,7 @@ func (s *renderServiceImpl) GetRenderedFiles() map[string]bool {
 func (s *renderServiceImpl) ClearRenderedFiles() {
 	s.rnd.ClearRenderedFiles()
 }
+
+func (s *renderServiceImpl) ReloadTemplates() {
+	s.rnd.ReloadTemplates()
+}

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"log/slog"
 	"runtime"
 	"sync"
 )
@@ -19,6 +20,8 @@ type WorkerPool[T any] struct {
 	wg        sync.WaitGroup
 	taskQueue chan T
 	handler   func(T)
+	stoppedMu sync.Mutex
+	stopped   bool
 }
 
 func NewWorkerPool[T any](ctx context.Context, workers int, handler func(T)) *WorkerPool[T] {
@@ -53,12 +56,28 @@ func (p *WorkerPool[T]) worker() {
 			if !ok {
 				return
 			}
-			p.handler(task)
+			// Recover from panics to prevent worker crashes
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("Worker panic recovered", "panic", r)
+					}
+				}()
+				p.handler(task)
+			}()
 		}
 	}
 }
 
 func (p *WorkerPool[T]) Submit(task T) {
+	p.stoppedMu.Lock()
+	stopped := p.stopped
+	p.stoppedMu.Unlock()
+
+	if stopped {
+		return
+	}
+
 	select {
 	case <-p.ctx.Done():
 		return
@@ -67,6 +86,9 @@ func (p *WorkerPool[T]) Submit(task T) {
 }
 
 func (p *WorkerPool[T]) Stop() {
+	p.stoppedMu.Lock()
+	p.stopped = true
 	close(p.taskQueue)
+	p.stoppedMu.Unlock()
 	p.wg.Wait()
 }

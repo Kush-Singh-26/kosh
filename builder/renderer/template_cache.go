@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,58 +22,69 @@ type templateCache struct {
 }
 
 var (
-	globalCache     *templateCache
-	globalCacheOnce sync.Once
+	globalCache   *templateCache
+	globalCacheMu sync.Mutex
 )
 
-func getGlobalCache(templateDir string) *templateCache {
-	globalCacheOnce.Do(func() {
+func getGlobalCache(templateDir string, devMode bool) *templateCache {
+	globalCacheMu.Lock()
+	defer globalCacheMu.Unlock()
+
+	ttl := 2 * time.Second
+	if devMode {
+		ttl = 100 * time.Millisecond
+	}
+
+	if globalCache == nil || globalCache.templateDir != templateDir {
 		globalCache = &templateCache{
 			templates:   make(map[string]*template.Template),
 			mtimes:      make(map[string]time.Time),
 			hashes:      make(map[string]string),
 			templateDir: templateDir,
-			checkTTL:    2 * time.Second,
+			checkTTL:    ttl,
 		}
-	})
+	} else {
+		// Update TTL in case devMode changed (though unlikely)
+		globalCache.mu.Lock()
+		globalCache.checkTTL = ttl
+		globalCache.mu.Unlock()
+	}
+
 	return globalCache
 }
 
 func (tc *templateCache) hasTemplatesChanged() bool {
+	tc.mu.Lock()
 	now := time.Now()
-
-	tc.mu.RLock()
 	if now.Sub(tc.lastCheck) < tc.checkTTL {
-		tc.mu.RUnlock()
+		tc.mu.Unlock()
 		return false
 	}
-	tc.mu.RUnlock()
+	// Update immediately to prevent stampede
+	tc.lastCheck = now
+	tc.mu.Unlock()
 
 	templateFiles := []string{"layout.html", "index.html", "graph.html", "404.html"}
 	changed := false
 
+	// Use read lock to check metadata first
+	tc.mu.RLock()
 	for _, fname := range templateFiles {
 		path := filepath.Join(tc.templateDir, fname)
-		content, err := os.ReadFile(path)
+		info, err := os.Stat(path)
 		if err != nil {
 			continue
 		}
 
-		hash := cache.HashContent(content)
+		name := strings.TrimSuffix(fname, ".html")
+		cachedMtime, exists := tc.mtimes[name]
 
-		tc.mu.RLock()
-		cachedHash, exists := tc.hashes[fname]
-		tc.mu.RUnlock()
-
-		if !exists || cachedHash != hash {
+		if !exists || !info.ModTime().Equal(cachedMtime) {
 			changed = true
 			break
 		}
 	}
-
-	tc.mu.Lock()
-	tc.lastCheck = now
-	tc.mu.Unlock()
+	tc.mu.RUnlock()
 
 	return changed
 }

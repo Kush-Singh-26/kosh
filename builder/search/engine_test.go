@@ -2,6 +2,7 @@ package search
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -58,7 +59,7 @@ func TestPerformSearch(t *testing.T) {
 			ID:              0,
 			Title:           "Go Guide",
 			NormalizedTitle: "go guide",
-			Content:         "A guide to Go programming language",
+			Description:     "A guide to Go programming language",
 			Version:         "v1",
 			NormalizedTags:  []string{"go", "programming"},
 		},
@@ -66,7 +67,7 @@ func TestPerformSearch(t *testing.T) {
 			ID:              1,
 			Title:           "Rust Guide",
 			NormalizedTitle: "rust guide",
-			Content:         "A guide to Rust programming",
+			Description:     "A guide to Rust programming",
 			Version:         "v1",
 			NormalizedTags:  []string{"rust", "programming"},
 		},
@@ -74,7 +75,7 @@ func TestPerformSearch(t *testing.T) {
 			ID:              2,
 			Title:           "Python Intro",
 			NormalizedTitle: "python intro",
-			Content:         "Introduction to Python",
+			Description:     "Introduction to Python",
 			Version:         "v2",
 			NormalizedTags:  []string{"python"},
 		},
@@ -82,34 +83,35 @@ func TestPerformSearch(t *testing.T) {
 
 	index := &models.SearchIndex{
 		Posts:     posts,
-		Inverted:  make(map[string]map[int]int),
-		DocLens:   make(map[int]int),
+		Inverted:  make(map[string]map[string][]int),
+		DocLens:   make(map[string]int64),
 		TotalDocs: 3,
 		AvgDocLen: 5.0,
 	}
 
 	// Helper to populate inverted index
-	addTerm := func(term string, postID int) {
+	addTerm := func(term string, postID int, pos int) {
+		idStr := strconv.Itoa(postID)
 		if index.Inverted[term] == nil {
-			index.Inverted[term] = make(map[int]int)
+			index.Inverted[term] = make(map[string][]int)
 		}
-		index.Inverted[term][postID]++
+		index.Inverted[term][idStr] = append(index.Inverted[term][idStr], pos)
 	}
 
 	// "guide" appears in 0 and 1
-	addTerm("guide", 0)
-	addTerm("guide", 1)
+	addTerm("guide", 0, 1)
+	addTerm("guide", 1, 1)
 	// "programming" appears in 0 and 1
-	addTerm("programming", 0)
-	addTerm("programming", 1)
+	addTerm("programming", 0, 3)
+	addTerm("programming", 1, 3)
 	// "go" appears in 0
-	addTerm("go", 0)
+	addTerm("go", 0, 2)
 	// "python" appears in 2
-	addTerm("python", 2)
+	addTerm("python", 2, 2)
 
-	index.DocLens[0] = 6
-	index.DocLens[1] = 5
-	index.DocLens[2] = 3
+	index.DocLens["0"] = 6
+	index.DocLens["1"] = 5
+	index.DocLens["2"] = 3
 
 	tests := []struct {
 		name          string
@@ -176,6 +178,35 @@ func TestPerformSearch(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPhraseAdjacency(t *testing.T) {
+	index := &models.SearchIndex{
+		Inverted: map[string]map[string][]int{
+			"quick": {"0": {1}},
+			"brown": {"0": {2}},
+			"fox":   {"0": {3}},
+			"jump":  {"0": {5}},
+		},
+	}
+
+	tests := []struct {
+		phrase []string
+		want   bool
+	}{
+		{[]string{"quick", "brown"}, true},
+		{[]string{"quick", "brown", "fox"}, true},
+		{[]string{"brown", "quick"}, false},
+		{[]string{"fox", "jump"}, false}, // gap at pos 4
+		{[]string{"quick"}, true},
+	}
+
+	for _, tt := range tests {
+		got := checkPhraseUnified(index, 0, tt.phrase)
+		if got != tt.want {
+			t.Errorf("checkPhraseUnified(%v) = %v, want %v", tt.phrase, got, tt.want)
+		}
 	}
 }
 

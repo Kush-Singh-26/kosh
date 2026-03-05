@@ -19,6 +19,7 @@ var (
 	buildBaseURL    string
 	buildDrafts     bool
 	buildTheme      string
+	buildForceLock  bool
 )
 
 var buildCmd = &cobra.Command{
@@ -37,6 +38,7 @@ func init() {
 	buildCmd.Flags().StringVarP(&buildBaseURL, "baseurl", "", "", "Override base URL from config")
 	buildCmd.Flags().BoolVarP(&buildDrafts, "drafts", "", false, "Include draft posts in build")
 	buildCmd.Flags().StringVarP(&buildTheme, "theme", "", "", "Override theme from config")
+	buildCmd.Flags().BoolVar(&buildForceLock, "force-lock", false, "Acquire build lock even if another build is running")
 }
 
 func runBuild(cmd *cobra.Command, args []string) {
@@ -51,6 +53,9 @@ func runBuild(cmd *cobra.Command, args []string) {
 	}
 	if buildTheme != "" {
 		filteredArgs = append(filteredArgs, "-theme", buildTheme)
+	}
+	if buildForceLock {
+		filteredArgs = append(filteredArgs, "-force-lock")
 	}
 
 	if buildCPUProfile != "" {

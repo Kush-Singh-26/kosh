@@ -3,6 +3,7 @@ package generators
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/spf13/afero"
@@ -11,7 +12,9 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata, outputPath string) {
+func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata, outputPath string) (string, error) {
+	slog.Info("Generating knowledge graph data")
+
 	nodes := []models.GraphNode{}
 	links := []models.GraphLink{}
 	nodeExists := make(map[string]bool)
@@ -35,8 +38,12 @@ func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata,
 			links = append(links, models.GraphLink{Source: p.Link, Target: tagID})
 		}
 	}
-	output, _ := json.Marshal(models.GraphData{Nodes: nodes, Links: links})
-	if err := utils.WriteFileVFS(destFs, outputPath, output); err != nil {
-		fmt.Printf("⚠️ Failed to write graph.json: %v\n", err)
+	output, err := json.Marshal(models.GraphData{Nodes: nodes, Links: links})
+	if err != nil {
+		return "", err
 	}
+	if err := utils.WriteFileVFS(destFs, outputPath, output); err != nil {
+		return "", err
+	}
+	return outputPath, nil
 }

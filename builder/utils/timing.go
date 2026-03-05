@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -10,7 +10,6 @@ import (
 type PhaseTimer struct {
 	name      string
 	start     time.Time
-	logger    *log.Logger
 	completed bool
 }
 
@@ -27,7 +26,7 @@ func (p *PhaseTimer) Stop() {
 	}
 	p.completed = true
 	elapsed := time.Since(p.start)
-	log.Printf("   ✅ %s completed in %s", p.name, formatDuration(elapsed))
+	slog.Info("Phase completed", "name", p.name, "duration", formatDuration(elapsed))
 }
 
 func (p *PhaseTimer) StopWithAddendum(addendum string) {
@@ -36,7 +35,7 @@ func (p *PhaseTimer) StopWithAddendum(addendum string) {
 	}
 	p.completed = true
 	elapsed := time.Since(p.start)
-	log.Printf("   ✅ %s completed in %s (%s)", p.name, formatDuration(elapsed), addendum)
+	slog.Info("Phase completed", "name", p.name, "duration", formatDuration(elapsed), "addendum", addendum)
 }
 
 type PhaseTracker struct {
@@ -74,13 +73,20 @@ func GetPhaseDurations() map[string]time.Duration {
 }
 
 func formatDuration(d time.Duration) string {
+	// Avoid fmt.Sprintf to prevent data races with global fmt buffer
 	if d < time.Millisecond {
-		return fmt.Sprintf("%.2fµs", float64(d.Microseconds()))
+		// Format as microseconds with 2 decimal places
+		val := float64(d.Microseconds()) / 1000.0
+		return strconv.FormatFloat(val, 'f', 2, 64) + "µs"
 	}
 	if d < time.Second {
-		return fmt.Sprintf("%.2fms", float64(d.Milliseconds()))
+		// Format as milliseconds with 2 decimal places
+		val := float64(d.Milliseconds()) / 1000.0
+		return strconv.FormatFloat(val, 'f', 2, 64) + "ms"
 	}
-	return fmt.Sprintf("%.2fs", d.Seconds())
+	// Format as seconds with 2 decimal places
+	val := d.Seconds()
+	return strconv.FormatFloat(val, 'f', 2, 64) + "s"
 }
 
 func FormatDurationShort(d time.Duration) string {

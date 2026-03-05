@@ -2,7 +2,6 @@
 package parser
 
 import (
-	"strings"
 	"sync"
 
 	chroma_html "github.com/alecthomas/chroma/v2/formatters/html"
@@ -11,12 +10,13 @@ import (
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	meta "github.com/yuin/goldmark-meta"
-	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	goldmarkRenderer "github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/util"
 
+	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
@@ -50,38 +50,11 @@ func codeBlockWrapper(w util.BufWriter, c highlighting.CodeBlockContext, enterin
 	}
 }
 
-// ExtractPlainText walks the AST and returns a clean string of all text content
-func ExtractPlainText(node ast.Node, source []byte) string {
-	var out strings.Builder
-	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-
-		switch n.Kind() {
-		case ast.KindText:
-			t := n.(*ast.Text)
-			out.Write(t.Segment.Value(source))
-			out.WriteString(" ")
-		case ast.KindCodeBlock, ast.KindFencedCodeBlock:
-			// Include code blocks in search
-			l := n.Lines().Len()
-			for i := 0; i < l; i++ {
-				line := n.Lines().At(i)
-				out.Write(line.Value(source))
-			}
-			out.WriteString(" ")
-		case ast.KindHeading:
-			// Ensure headings are separated
-			out.WriteString("\n")
-		}
-		return ast.WalkContinue, nil
-	})
-	return out.String()
-}
-
 // New creates a new Goldmark markdown parser with SSR support for diagrams
-func New(baseURL string, renderer *native.Renderer, diagramCache *sync.Map) goldmark.Markdown {
+func New(cfg *config.Config, renderer *native.Renderer, diagramCache *sync.Map) goldmark.Markdown {
+	baseURL := cfg.BaseURL
+	compress := cfg.CompressImages
+
 	return goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
@@ -102,15 +75,22 @@ func New(baseURL string, renderer *native.Renderer, diagramCache *sync.Map) gold
 		goldmark.WithParserOptions(
 			// Register Transformers
 			parser.WithASTTransformers(
-				util.Prioritized(&urlTransformer{BaseURL: baseURL}, 100),
+				util.Prioritized(&urlTransformer{BaseURL: baseURL, Compress: compress}, 100),
 				util.Prioritized(&tocTransformer{}, 200),
+				util.Prioritized(&webpTransformer{Compress: compress}, 300),
 				util.Prioritized(&ssrTransformer{
-					Renderer: renderer,
-					Cache:    diagramCache,
+					Renderer:    renderer,
+					Cache:       diagramCache,
+					renderingMu: &sync.Map{},
 				}, 50), // Run SSR early (lower priority = runs first)
 			),
 			parser.WithAutoHeadingID(),
 		),
-		goldmark.WithRendererOptions(html.WithUnsafe()),
+		goldmark.WithRendererOptions(
+			html.WithUnsafe(),
+			goldmarkRenderer.WithNodeRenderers(
+				util.Prioritized(&rawHTMLBlockRenderer{}, 500),
+			),
+		),
 	)
 }

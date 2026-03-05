@@ -3,9 +3,28 @@ package utils
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
+
+func Slugify(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var res strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			res.WriteRune(r)
+		} else if r == ' ' || r == '-' || r == '_' {
+			res.WriteRune('-')
+		}
+	}
+	// Replace double dashes
+	str := res.String()
+	for strings.Contains(str, "--") {
+		str = strings.ReplaceAll(str, "--", "-")
+	}
+	return strings.Trim(str, "-")
+}
 
 func SortPosts(posts []models.PostMetadata) {
 	sort.Slice(posts, func(i, j int) bool {
