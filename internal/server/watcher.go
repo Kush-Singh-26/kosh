@@ -12,6 +12,7 @@ var (
 	watcher        *fsnotify.Watcher
 	watcherMu      sync.RWMutex // Protects watcher variable
 	reloadChan     chan struct{}
+	reloadMu       sync.RWMutex
 	clientMu       sync.Mutex
 	clients        = make(map[chan struct{}]struct{})
 	watcherWg      sync.WaitGroup
@@ -22,21 +23,36 @@ var (
 	// Build coordination
 	buildMu       sync.Mutex
 	buildActive   bool
-	buildComplete *sync.Cond
+	buildWaitChan chan struct{}
 )
-
-func init() {
-	buildComplete = sync.NewCond(&buildMu)
-}
 
 // SetBuildActive marks the build as active or inactive
 func SetBuildActive(active bool) {
 	buildMu.Lock()
-	buildActive = active
-	if !active {
-		buildComplete.Broadcast()
+	defer buildMu.Unlock()
+
+	if active {
+		if !buildActive {
+			buildActive = true
+			buildWaitChan = make(chan struct{})
+		}
+	} else {
+		if buildActive {
+			buildActive = false
+			if buildWaitChan != nil {
+				close(buildWaitChan)
+				buildWaitChan = nil
+			}
+		}
 	}
-	buildMu.Unlock()
+}
+
+// waitForBuild returns a channel that will be closed when the current build completes.
+// If no build is active, it returns nil.
+func waitForBuild() chan struct{} {
+	buildMu.Lock()
+	defer buildMu.Unlock()
+	return buildWaitChan
 }
 
 // resetDebounceTimer safely stops and resets the debounce timer.
@@ -56,6 +72,11 @@ func resetDebounceTimer() {
 	}
 
 	debounceTimer = time.AfterFunc(debounceConfig, func() {
+		reloadMu.RLock()
+		defer reloadMu.RUnlock()
+		if reloadChan == nil {
+			return
+		}
 		select {
 		case reloadChan <- struct{}{}:
 		default:
@@ -63,26 +84,29 @@ func resetDebounceTimer() {
 	})
 }
 
-func startWatcherWithConfig(dir string, debounce time.Duration) {
+func startWatcherWithConfig(dir string, debounce time.Duration) chan struct{} {
 	debounceConfig = debounce
 
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		slog.Warn("Failed to create file watcher", "error", err)
-		return
+		return nil
 	}
 
 	if err := w.Add(dir); err != nil {
 		slog.Warn("Failed to watch directory", "dir", dir, "error", err)
 		_ = w.Close()
-		return
+		return nil
 	}
 
 	watcherMu.Lock()
 	watcher = w
 	watcherMu.Unlock()
 
+	reloadMu.Lock()
 	reloadChan = make(chan struct{}, 1)
+	currentReloadChan := reloadChan
+	reloadMu.Unlock()
 
 	watcherWg.Add(1)
 	go func() {
@@ -123,6 +147,8 @@ func startWatcherWithConfig(dir string, debounce time.Duration) {
 			}
 		}
 	}()
+
+	return currentReloadChan
 }
 
 func stopWatcher() {
@@ -144,4 +170,11 @@ func stopWatcher() {
 		}
 	}
 	watcherWg.Wait()
+
+	reloadMu.Lock()
+	if reloadChan != nil {
+		close(reloadChan)
+		reloadChan = nil
+	}
+	reloadMu.Unlock()
 }

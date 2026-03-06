@@ -95,17 +95,20 @@ func ParseMarkdown(
 	}
 	res.HTMLContent = buf.String()
 
-	var diagramCache map[string]string
-	if diagramAdapter != nil {
-		diagramCache = diagramAdapter.AsMap()
-	}
-
 	res.SSRHashes = mdParser.GetSSRHashes(mdCtx)
 
 	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) {
+		var cacheLookup func(string) (string, bool)
+		if diagramAdapter != nil {
+			cacheLookup = diagramAdapter.GetLocal
+		}
 		var mathHashes []string
-		res.HTMLContent, mathHashes = mdParser.RenderMathForHTML(res.HTMLContent, nativeRenderer, diagramCache, mu)
+		var renderedMath map[string]string
+		res.HTMLContent, mathHashes, renderedMath = mdParser.RenderMathForHTML(res.HTMLContent, nativeRenderer, cacheLookup)
 		res.SSRHashes = append(res.SSRHashes, mathHashes...)
+		if diagramAdapter != nil && len(renderedMath) > 0 {
+			diagramAdapter.Merge(renderedMath)
+		}
 	}
 
 	res.MetaData = meta.Get(mdCtx)
@@ -119,7 +122,7 @@ func ParseMarkdown(
 	wordCount := len(strings.Fields(string(source)))
 	res.TOC = mdParser.GetTOC(mdCtx)
 
-	postLink := "/" + strings.TrimPrefix(cleanHtmlRelPath, "/")
+	postLink := utils.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
 
 	res.Post = models.PostMetadata{
 		Title: utils.GetString(res.MetaData, "title"), Link: postLink,

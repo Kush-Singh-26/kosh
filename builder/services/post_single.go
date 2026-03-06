@@ -101,7 +101,9 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 	if s.cfg.Features.RawMarkdown {
 		mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
 		_ = s.destFs.MkdirAll(filepath.Dir(mdDestPath), 0755)
-		_ = afero.WriteFile(s.destFs, mdDestPath, source, 0644)
+		if err := afero.WriteFile(s.destFs, mdDestPath, source, 0644); err == nil {
+			s.renderer.RegisterFile(mdDestPath)
+		}
 	}
 
 	var versionPosts []models.PostMetadata

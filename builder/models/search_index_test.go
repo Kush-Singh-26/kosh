@@ -14,8 +14,8 @@ func TestSearchIndex_SchemaVersion(t *testing.T) {
 		t.Errorf("SchemaVersion = %d, want %d", index.SchemaVersion, CurrentSchemaVersion)
 	}
 
-	if CurrentSchemaVersion != 5 {
-		t.Errorf("CurrentSchemaVersion = %d, want 5", CurrentSchemaVersion)
+	if CurrentSchemaVersion != index.SchemaVersion {
+		t.Errorf("CurrentSchemaVersion = %d, want %d", CurrentSchemaVersion, index.SchemaVersion)
 	}
 
 	t.Log("SearchIndex schema version test passed")

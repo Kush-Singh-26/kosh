@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
@@ -15,7 +14,7 @@ var (
 	currencyPattern = regexp.MustCompile(`^\d`)
 )
 
-// ExtractMathExpressions finds all LaTeX expressions in HTML and returns them with metadata
+// ExtractMathExpressions finds all LaTeX expressions in HTML and returns them with metadata.
 func ExtractMathExpressions(html string) []native.MathExpression {
 	var expressions []native.MathExpression
 	seen := make(map[string]bool) // Deduplicate
@@ -56,36 +55,12 @@ func ExtractMathExpressions(html string) []native.MathExpression {
 	return expressions
 }
 
-// ReplaceMathExpressions replaces LaTeX expressions in HTML with rendered output
-func ReplaceMathExpressions(html string, rendered map[string]string, cache map[string]string, cacheMu *sync.Mutex) string {
+// ReplaceMathExpressions replaces LaTeX expressions in HTML with rendered output.
+func ReplaceMathExpressions(html string, rendered map[string]string) string {
 	lexer := NewMathLexer(html)
 	matches := lexer.Scan()
 	if len(matches) == 0 {
 		return html
-	}
-
-	// Ensure cache is not nil to avoid panic on assignment
-	if cache == nil {
-		cache = make(map[string]string)
-	}
-
-	getRendered := func(hash string) (string, bool) {
-		if h, ok := rendered[hash]; ok {
-			if cacheMu != nil {
-				cacheMu.Lock()
-				cache[hash] = h
-				cacheMu.Unlock()
-			}
-			return h, true
-		}
-		if cacheMu != nil {
-			cacheMu.Lock()
-			h, ok := cache[hash]
-			cacheMu.Unlock()
-			return h, ok
-		}
-		h, ok := cache[hash]
-		return h, ok
 	}
 
 	var sb strings.Builder
@@ -110,7 +85,7 @@ func ReplaceMathExpressions(html string, rendered map[string]string, cache map[s
 		}
 
 		hash := native.HashContent(typeStr, latex)
-		if renderedHTML, ok := getRendered(hash); ok {
+		if renderedHTML, ok := rendered[hash]; ok {
 			if m.Type == MathBlock || m.Type == MathDisplay {
 				sb.WriteString(`<div class="katex-display">`)
 				sb.WriteString(renderedHTML)
@@ -133,12 +108,12 @@ func ReplaceMathExpressions(html string, rendered map[string]string, cache map[s
 	return sb.String()
 }
 
-// RenderMathForHTML extracts, renders, and replaces all LaTeX in HTML
-// Returns the rendered HTML and a slice of SSR input hashes for cache tracking
-func RenderMathForHTML(html string, renderer *native.Renderer, cache map[string]string, cacheMu *sync.Mutex) (string, []string) {
+// RenderMathForHTML extracts, renders, and replaces all LaTeX in HTML.
+// It returns the rendered HTML, a slice of SSR input hashes, and newly rendered cache entries.
+func RenderMathForHTML(html string, renderer *native.Renderer, cacheLookup func(string) (string, bool)) (string, []string, map[string]string) {
 	expressions := ExtractMathExpressions(html)
 	if len(expressions) == 0 {
-		return html, nil
+		return html, nil, nil
 	}
 
 	hashes := make([]string, len(expressions))
@@ -146,17 +121,26 @@ func RenderMathForHTML(html string, renderer *native.Renderer, cache map[string]
 		hashes[i] = expr.Hash
 	}
 
-	cacheMu.Lock()
-	cachedCopy := make(map[string]string)
-	for k, v := range cache {
-		cachedCopy[k] = v
+	cachedSubset := make(map[string]string, len(expressions))
+	if cacheLookup != nil {
+		for _, expr := range expressions {
+			if v, ok := cacheLookup(expr.Hash); ok {
+				cachedSubset[expr.Hash] = v
+			}
+		}
 	}
-	cacheMu.Unlock()
 
-	rendered, err := renderer.RenderAllMath(expressions, cachedCopy)
+	rendered, err := renderer.RenderAllMath(expressions, cachedSubset)
 	if err != nil {
-		slog.Warn("   ⚠️  LaTeX batch render failed", "error", err)
+		slog.Warn("LaTeX batch render failed", "error", err)
 	}
 
-	return ReplaceMathExpressions(html, rendered, cache, cacheMu), hashes
+	newEntries := make(map[string]string)
+	for hash, value := range rendered {
+		if _, existed := cachedSubset[hash]; !existed {
+			newEntries[hash] = value
+		}
+	}
+
+	return ReplaceMathExpressions(html, rendered), hashes, newEntries
 }

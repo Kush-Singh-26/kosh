@@ -84,9 +84,9 @@ func InitLibvips(cfg *config.Config, logger *slog.Logger) {
 		}
 	}
 
-	maxCacheMem := 100 * 1024 * 1024
-	maxCacheFiles := 100
-	maxCacheSize := 100
+	var maxCacheMem int
+	var maxCacheFiles int
+	var maxCacheSize int
 
 	if cfg.IsDev {
 		maxCacheMem = 50 * 1024 * 1024

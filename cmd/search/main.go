@@ -62,7 +62,9 @@ func initSearch(this js.Value, args []js.Value) interface{} {
 	})
 
 	promiseConstructor := js.Global().Get("Promise")
-	return promiseConstructor.New(handler)
+	promise := promiseConstructor.New(handler)
+	handler.Release()
+	return promise
 }
 
 func fetchAndDecompress(url string) ([]byte, error) {
@@ -71,7 +73,12 @@ func fetchAndDecompress(url string) ([]byte, error) {
 	window := js.Global()
 	promise := window.Call("fetch", url)
 
-	success := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+	var success js.Func
+	var failure js.Func
+	success = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		defer success.Release()
+		defer failure.Release()
+
 		resp := args[0]
 		if !resp.Get("ok").Bool() {
 			ch <- "bad status: " + resp.Get("statusText").String()
@@ -92,7 +99,12 @@ func fetchAndDecompress(url string) ([]byte, error) {
 		newResp := newRespCtor.New(decompressedStream)
 
 		bufPromise := newResp.Call("arrayBuffer")
-		bufSuccess := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		var bufSuccess js.Func
+		var bufFailure js.Func
+		bufSuccess = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			defer bufSuccess.Release()
+			defer bufFailure.Release()
+
 			buf := args[0]
 			uint8Array := window.Get("Uint8Array").New(buf)
 			dst := make([]byte, uint8Array.Length())
@@ -100,7 +112,10 @@ func fetchAndDecompress(url string) ([]byte, error) {
 			ch <- dst
 			return nil
 		})
-		bufFailure := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		bufFailure = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			defer bufSuccess.Release()
+			defer bufFailure.Release()
+
 			ch <- "failed to read array buffer"
 			return nil
 		})
@@ -108,7 +123,10 @@ func fetchAndDecompress(url string) ([]byte, error) {
 		return nil
 	})
 
-	failure := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+	failure = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		defer success.Release()
+		defer failure.Release()
+
 		ch <- "fetch failed"
 		return nil
 	})

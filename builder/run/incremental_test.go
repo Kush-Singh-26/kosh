@@ -131,17 +131,14 @@ func TestModTimeQuickBail(t *testing.T) {
 	}
 
 	info := afero.NewMemMapFs()
-	afero.WriteFile(info, "post.md", []byte("content"), 0644)
+	_ = afero.WriteFile(info, "post.md", []byte("content"), 0644)
 	stat, _ := info.Stat("post.md")
 
 	shouldForce := false
 	exists := true
 
 	// If ModTime exactly matches, it can fast-bail
-	fastBail := false
-	if !shouldForce && exists && cachedMeta != nil && cachedMeta.BodyHash != "" && stat != nil && cachedMeta.ModTime == stat.ModTime().Unix() {
-		fastBail = true
-	}
+	fastBail := !shouldForce && exists && cachedMeta != nil && cachedMeta.BodyHash != "" && stat != nil && cachedMeta.ModTime == stat.ModTime().Unix()
 
 	// But in this synthetic test it won't be 1000, so it shouldn't fast-bail
 	if fastBail {

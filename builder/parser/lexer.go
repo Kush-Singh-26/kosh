@@ -80,7 +80,8 @@ func (l *MathLexer) Scan() []MathMatch {
 			}
 		} else if char == '\\' && l.pos+1 < n {
 			next := l.input[l.pos+1]
-			if next == '[' {
+			switch next {
+			case '[':
 				// Display math \[
 				startPos := l.pos
 				l.pos += 2
@@ -93,7 +94,7 @@ func (l *MathLexer) Scan() []MathMatch {
 						End:     l.pos,
 					})
 				}
-			} else if next == '(' {
+			case '(':
 				// Inline paren math \(
 				startPos := l.pos
 				l.pos += 2
@@ -106,7 +107,7 @@ func (l *MathLexer) Scan() []MathMatch {
 						End:     l.pos,
 					})
 				}
-			} else {
+			default:
 				l.pos++
 			}
 		} else {

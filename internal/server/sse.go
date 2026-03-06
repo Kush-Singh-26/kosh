@@ -7,6 +7,12 @@ import (
 )
 
 func handleSSE(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -24,7 +30,7 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	_, _ = fmt.Fprintf(w, "data: connected\n\n")
-	w.(http.Flusher).Flush()
+	flusher.Flush()
 
 	for {
 		select {
@@ -32,19 +38,17 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-clientChan:
 			_, _ = fmt.Fprintf(w, "data: reload\n\n")
-			w.(http.Flusher).Flush()
+			flusher.Flush()
 		}
 	}
 }
 
-func broadcastReload() {
-	for range reloadChan {
+func broadcastReload(ch <-chan struct{}) {
+	for range ch {
 		// Wait for active build to complete before broadcasting
-		buildMu.Lock()
-		for buildActive {
-			buildComplete.Wait()
+		if waitCh := waitForBuild(); waitCh != nil {
+			<-waitCh
 		}
-		buildMu.Unlock()
 
 		clientMu.Lock()
 		clientsSnapshot := make([]chan<- struct{}, 0, len(clients))

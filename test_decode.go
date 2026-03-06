@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package main
 
 import (
@@ -8,13 +11,13 @@ import (
 )
 
 type OldIndex struct {
-	DocLens  map[int]int                 `msgpack:"lens"`
-	Inverted map[string]map[int][]int    `msgpack:"inv"`
+	DocLens  map[int]int              `msgpack:"lens"`
+	Inverted map[string]map[int][]int `msgpack:"inv"`
 }
 
 type NewIndex struct {
-	DocLens  map[string]int                 `msgpack:"lens"`
-	Inverted map[string]map[string][]int    `msgpack:"inv"`
+	DocLens  map[string]int              `msgpack:"lens"`
+	Inverted map[string]map[string][]int `msgpack:"inv"`
 }
 
 func main() {

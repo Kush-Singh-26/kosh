@@ -49,8 +49,8 @@ func TestTemplateCache_HasTemplatesChanged_StampedePrevention(t *testing.T) {
 	templateDir := t.TempDir()
 
 	layoutContent := `<html><body>{{ .Title }}</body></html>`
-	os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte(layoutContent), 0644)
-	os.WriteFile(filepath.Join(templateDir, "index.html"), []byte("<html>Index</html>"), 0644)
+	_ = os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte(layoutContent), 0644)
+	_ = os.WriteFile(filepath.Join(templateDir, "index.html"), []byte("<html>Index</html>"), 0644)
 
 	tc := &templateCache{
 		templates:   make(map[string]*template.Template),
@@ -78,7 +78,7 @@ func TestTemplateCache_HasTemplatesChanged_StampedePrevention(t *testing.T) {
 
 func TestTemplateCache_SetAndGet(t *testing.T) {
 	templateDir := t.TempDir()
-	os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte("<html></html>"), 0644)
+	_ = os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte("<html></html>"), 0644)
 
 	tc := &templateCache{
 		templates:   make(map[string]*template.Template),
@@ -104,8 +104,8 @@ func TestTemplateCache_SetAndGet(t *testing.T) {
 
 func TestTemplateCache_ConcurrentAccess(t *testing.T) {
 	templateDir := t.TempDir()
-	os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte("<html></html>"), 0644)
-	os.WriteFile(filepath.Join(templateDir, "index.html"), []byte("<html></html>"), 0644)
+	_ = os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte("<html></html>"), 0644)
+	_ = os.WriteFile(filepath.Join(templateDir, "index.html"), []byte("<html></html>"), 0644)
 
 	tc := &templateCache{
 		templates:   make(map[string]*template.Template),

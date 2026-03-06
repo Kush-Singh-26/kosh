@@ -133,13 +133,13 @@ func streamCopyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	d, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 
 	// 64KB buffer for efficient file copying
 	bw := bufio.NewWriterSize(d, 64*1024)

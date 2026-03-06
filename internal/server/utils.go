@@ -87,10 +87,11 @@ func gzipHandler(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Skip compression for already compressed formats or the search index
+		// Skip compression for already compressed formats, large binary files, or the search index
 		// search.bin is internally gzipped and handled by WASM DecompressionStream
+		// search.wasm is large and gzipping it on every request is CPU intensive
 		ext := strings.ToLower(filepath.Ext(r.URL.Path))
-		if ext == ".bin" || ext == ".gz" || ext == ".zip" || ext == ".png" || ext == ".webp" || ext == ".jpg" || ext == ".jpeg" {
+		if ext == ".bin" || ext == ".wasm" || ext == ".gz" || ext == ".zip" || ext == ".png" || ext == ".webp" || ext == ".jpg" || ext == ".jpeg" {
 			next(w, r)
 			return
 		}

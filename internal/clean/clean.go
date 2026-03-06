@@ -13,7 +13,7 @@ func Run(cleanCache, cleanAllVersions bool) {
 	start := time.Now()
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Printf("❌ Failed to get current directory: %v\n", err)
+		fmt.Printf("Failed to get current directory: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -43,7 +43,7 @@ func Run(cleanCache, cleanAllVersions bool) {
 		cleanDirAsync(cachePath)
 	}
 
-	fmt.Printf("🧹 Clean initiated in %v (backgrounding deletion).\n", time.Since(start))
+	fmt.Printf("Clean initiated in %v (backgrounding deletion).\n", time.Since(start))
 }
 
 func cleanDirAsync(absPath string) {
@@ -56,11 +56,11 @@ func cleanDirAsync(absPath string) {
 	tempName := fmt.Sprintf("%s_deleting_%d", base, time.Now().UnixNano())
 	tempPath := filepath.Join(dir, tempName)
 
-	fmt.Printf("🧹 Moving '%s' to trash...\n", absPath)
+	fmt.Printf("Moving '%s' to trash...\n", absPath)
 	if err := os.Rename(absPath, tempPath); err != nil {
-		fmt.Printf("⚠️ Rename failed (%v), deleting synchronously...\n", err)
+		fmt.Printf("Rename failed (%v), deleting synchronously...\n", err)
 		if err := os.RemoveAll(absPath); err != nil {
-			fmt.Printf("❌ Failed to remove '%s': %v\n", absPath, err)
+			fmt.Printf("Failed to remove '%s': %v\n", absPath, err)
 		}
 		return
 	}
@@ -76,7 +76,7 @@ func cleanRootFilesOnly(absOutputPath string, cfg *config.Config) {
 	}
 
 	if cfg == nil {
-		fmt.Printf("⚠️ Failed to load config, cleaning entire %s/ directory\n", absOutputPath)
+		fmt.Printf("Failed to load config, cleaning entire %s directory\n", absOutputPath)
 		cleanDirAsync(absOutputPath)
 		return
 	}
@@ -89,14 +89,14 @@ func cleanRootFilesOnly(absOutputPath string, cfg *config.Config) {
 	}
 
 	if len(preservePaths) == 0 {
-		fmt.Printf("🧹 No versions configured, cleaning entire %s/ directory\n", absOutputPath)
+		fmt.Printf("No versions configured, cleaning entire %s directory\n", absOutputPath)
 		cleanDirAsync(absOutputPath)
 		return
 	}
 
 	files, err := os.ReadDir(absOutputPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to read output directory: %v\n", err)
+		fmt.Printf("Failed to read output directory: %v\n", err)
 		return
 	}
 
@@ -109,11 +109,11 @@ func cleanRootFilesOnly(absOutputPath string, cfg *config.Config) {
 	}
 
 	if len(toDelete) == 0 {
-		fmt.Println("🧹 No files to clean (only version folders present)")
+		fmt.Println("No files to clean (only version folders present)")
 		return
 	}
 
-	fmt.Printf("🧹 Cleaning root files (%d items), preserving %d version folders...\n", len(toDelete), len(preservePaths))
+	fmt.Printf("Cleaning root files (%d items), preserving %d version folders...\n", len(toDelete), len(preservePaths))
 
 	for _, name := range toDelete {
 		itemPath := filepath.Join(absOutputPath, name)

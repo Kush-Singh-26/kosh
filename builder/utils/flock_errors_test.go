@@ -25,7 +25,7 @@ func TestAcquireBuildLock_MkdirError(t *testing.T) {
 	if err := os.Chmod(parentDir, 0555); err != nil {
 		t.Skipf("Cannot set directory permissions: %v", err)
 	}
-	defer os.Chmod(parentDir, 0755) // Cleanup
+	defer func() { _ = os.Chmod(parentDir, 0755) }() // Cleanup
 
 	outputDir := filepath.Join(parentDir, "output")
 	_, err := AcquireBuildLock(outputDir)
@@ -51,7 +51,7 @@ func TestAcquireBuildLock_OpenFileError(t *testing.T) {
 	if err := os.Chmod(lockPath, 0444); err != nil {
 		t.Skipf("Cannot set file permissions: %v", err)
 	}
-	defer os.Chmod(lockPath, 0644) // Cleanup
+	defer func() { _ = os.Chmod(lockPath, 0644) }() // Cleanup
 
 	// Attempt to acquire lock should fail because OpenFile needs write access
 	_, err := AcquireBuildLock(outputDir)
@@ -77,10 +77,10 @@ func TestAcquireBuildLock_StaleLockFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AcquireBuildLock failed with stale lock file: %v", err)
 	}
-	defer lock.Release()
+	defer func() { _ = lock.Release() }()
 
 	// Read the lock file content directly from the locked file handle to avoid Windows sharing issues
-	lock.file.Seek(0, 0)
+	_, _ = lock.file.Seek(0, 0)
 	content := make([]byte, 100)
 	n, _ := lock.file.Read(content)
 	content = content[:n]
@@ -127,7 +127,7 @@ func TestAcquireBuildLock_LockContention(t *testing.T) {
 	if err != nil {
 		t.Fatalf("First AcquireBuildLock failed: %v", err)
 	}
-	defer lock1.Release()
+	defer func() { _ = lock1.Release() }()
 
 	// Second acquisition should fail with "another build is in progress"
 	_, err = AcquireBuildLock(outputDir)
@@ -150,7 +150,7 @@ func TestAcquireBuildLock_WindowsCompatibility(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AcquireBuildLock failed on Windows: %v", err)
 	}
-	defer lock.Release()
+	defer func() { _ = lock.Release() }()
 
 	if lock.file == nil {
 		t.Error("Lock should have file handle on Windows")

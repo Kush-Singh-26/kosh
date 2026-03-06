@@ -71,10 +71,9 @@ func (p *WorkerPool[T]) worker() {
 
 func (p *WorkerPool[T]) Submit(task T) {
 	p.stoppedMu.Lock()
-	stopped := p.stopped
-	p.stoppedMu.Unlock()
+	defer p.stoppedMu.Unlock()
 
-	if stopped {
+	if p.stopped {
 		return
 	}
 
@@ -87,6 +86,11 @@ func (p *WorkerPool[T]) Submit(task T) {
 
 func (p *WorkerPool[T]) Stop() {
 	p.stoppedMu.Lock()
+	if p.stopped {
+		p.stoppedMu.Unlock()
+		p.wg.Wait()
+		return
+	}
 	p.stopped = true
 	close(p.taskQueue)
 	p.stoppedMu.Unlock()

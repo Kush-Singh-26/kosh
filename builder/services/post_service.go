@@ -72,8 +72,8 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	var (
 		allPosts       []models.PostMetadata
 		pinnedPosts    []models.PostMetadata
-		tagMap         = make(map[string][]models.PostMetadata)
-		postsByVersion = make(map[string][]models.PostMetadata)
+		tagMap         map[string][]models.PostMetadata
+		postsByVersion map[string][]models.PostMetadata
 		has404         bool
 		anyPostChanged atomic.Bool
 		processedCount int32
@@ -177,7 +177,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				}
 				regeneratedLink := utils.BuildURL(s.cfg.BaseURL, cp.Version, cleanHtmlRelPath)
 
-				allMetadataMap.Store(regeneratedLink, models.PostMetadata{
+				allMetadataMap.Store(cp.Path, models.PostMetadata{
 					Title: cp.Title, Link: regeneratedLink, Weight: cp.Weight, Version: cp.Version,
 					DateObj: cp.Date, ReadingTime: cp.ReadingTime, Description: cp.Description,
 					Tags: cp.Tags, Pinned: cp.Pinned, Draft: cp.Draft,
@@ -250,10 +250,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 
 		// Fast-bail: if ModTime exactly matches and we have a valid body hash, skip computing hashes.
 		// ONLY do this if not forcing rebuild. If fastBail is true, useCache becomes true.
-		fastBail := false
-		if !shouldForce && exists && cachedMeta != nil && cachedMeta.BodyHash != "" && info != nil && cachedMeta.ModTime == info.ModTime().Unix() {
-			fastBail = true
-		}
+		fastBail := !shouldForce && exists && cachedMeta != nil && cachedMeta.BodyHash != "" && info != nil && cachedMeta.ModTime == info.ModTime().Unix()
 
 		if !fastBail {
 			// Always read source to compute body hash (CRITICAL for cache validity)
@@ -312,6 +309,17 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			}
 		}
 
+		if !useCache && len(source) == 0 {
+			source, err = afero.ReadFile(s.sourceFs, path)
+			if err != nil {
+				s.logger.Error("Failed to read file", "path", path, "error", err)
+				return
+			}
+			if bodyHash == "" {
+				bodyHash = utils.GetBodyHash(source)
+			}
+		}
+
 		var stemMap map[string]string
 		var posIndex map[string][]int
 		if useCache {
@@ -321,7 +329,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			frontmatterHash = cachedMeta.ContentHash
 			ssrHashes = cachedMeta.SSRInputHashes
 
-			if v, ok := allMetadataMap.Load(cachedMeta.Link); ok {
+			if v, ok := allMetadataMap.Load(cachedMeta.Path); ok {
 				if cachedPost, ok := v.(models.PostMetadata); ok {
 					post = cachedPost
 				}
@@ -357,6 +365,8 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				}
 				if err := afero.WriteFile(s.destFs, mdDestPath, source, 0644); err != nil {
 					s.logger.Error("Failed to write markdown file", "path", mdDestPath, "error", err)
+				} else {
+					s.renderer.RegisterFile(mdDestPath)
 				}
 			}
 
@@ -403,7 +413,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		}
 
 		if post.Draft && !s.cfg.IncludeDrafts {
-			allMetadataMap.Delete(post.Link)
+			allMetadataMap.Delete(relPath)
 			return
 		}
 
@@ -462,7 +472,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		// Copy raw markdown to output for "View Source" feature (for cached posts too)
 		if s.cfg.Features.RawMarkdown {
 			mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
-			if _, err := os.Stat(mdDestPath); os.IsNotExist(err) {
+			if ex, _ := afero.Exists(s.destFs, mdDestPath); !ex {
 				var sourceBytes []byte
 				var err error
 				if len(source) > 0 {
@@ -479,8 +489,12 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 					}
 					if err := afero.WriteFile(s.destFs, mdDestPath, sourceBytes, 0644); err != nil {
 						s.logger.Error("Failed to write raw markdown file", "path", mdDestPath, "error", err)
+					} else {
+						s.renderer.RegisterFile(mdDestPath)
 					}
 				}
+			} else {
+				s.renderer.RegisterFile(mdDestPath)
 			}
 		}
 
@@ -506,7 +520,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		}
 
 		// Use sync.Map for metadata (optimization: lock-free concurrent access)
-		allMetadataMap.Store(post.Link, post)
+		allMetadataMap.Store(relPath, post)
 
 		// Lock-free indexed post assignment using atomic index
 		id := int(atomic.AddInt32(&indexedPostIdx, 1))

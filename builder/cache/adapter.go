@@ -18,9 +18,11 @@ type writeRequest struct {
 type DiagramCacheAdapter struct {
 	manager    *Manager
 	local      map[string]string // In-memory buffer for current build
+	dirty      map[string]string // Entries not yet durably persisted
 	mu         sync.RWMutex
 	pending    sync.WaitGroup    // Tracks pending async writes to prevent goroutine leaks
 	closed     atomic.Bool       // Prevents new operations after Close() is called
+	persist    atomic.Bool       // Controls whether writes are persisted to disk
 	writeQueue chan writeRequest // Bounded queue for async writes
 	workers    int               // Number of worker goroutines
 	stopCh     chan struct{}     // Signal to stop workers
@@ -38,10 +40,12 @@ func NewDiagramCacheAdapter(manager *Manager) *DiagramCacheAdapter {
 	a := &DiagramCacheAdapter{
 		manager:    manager,
 		local:      make(map[string]string),
+		dirty:      make(map[string]string),
 		writeQueue: make(chan writeRequest, workers*4), // Buffered queue
 		workers:    workers,
 		stopCh:     make(chan struct{}),
 	}
+	a.persist.Store(true)
 
 	// Start worker pool
 	for i := 0; i < workers; i++ {
@@ -65,6 +69,8 @@ func (a *DiagramCacheAdapter) writeWorker() {
 			if _, err := a.manager.StoreSSR("d2", req.key, []byte(req.value)); err != nil {
 				// Log error but don't fail - the data is still in local cache
 				slog.Warn("Failed to store SSR cache", "key", req.key, "error", err)
+			} else {
+				a.clearDirtyIfUnchanged(req.key, req.value)
 			}
 			a.pending.Done()
 		case <-a.stopCh:
@@ -102,55 +108,84 @@ func (a *DiagramCacheAdapter) Get(key string) (string, bool) {
 	return "", false
 }
 
+// GetLocal retrieves a cached diagram from in-memory state only.
+// It avoids BoltDB lookups and is intended for hot-path render checks.
+func (a *DiagramCacheAdapter) GetLocal(key string) (string, bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	val, ok := a.local[key]
+	return val, ok
+}
+
 // Set stores a diagram in the cache
 // Uses bounded worker pool to prevent goroutine explosion with many diagrams
 func (a *DiagramCacheAdapter) Set(key string, value string) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	if a.closed.Load() {
+		a.mu.Unlock()
 		return
 	}
 
+	if existing, ok := a.local[key]; ok && existing == value {
+		a.mu.Unlock()
+		return
+	}
 	a.local[key] = value
+	managerAvailable := a.manager != nil
+	if managerAvailable && a.persist.Load() {
+		a.dirty[key] = value
+	}
+	a.mu.Unlock()
 
-	// Also store in BoltDB if manager is available using worker pool
-	if a.manager != nil {
-		a.pending.Add(1) // Increment before sending to prevent race
+	// Also store in BoltDB if manager is available using worker pool.
+	// Never block parse workers on cache I/O; unresolved entries remain dirty and are flushed later.
+	if managerAvailable && a.persist.Load() {
+		a.pending.Add(1)
 		select {
 		case a.writeQueue <- writeRequest{key: key, value: value}:
 		default:
-			// Queue full, process synchronously
-			a.pending.Done() // Decrement since we're doing it sync
-			if _, err := a.manager.StoreSSR("d2", key, []byte(value)); err != nil {
-				slog.Warn("Failed to store SSR cache", "key", key, "error", err)
-			}
+			a.pending.Done()
 		}
 	}
 }
 
-// Flush writes all local entries to BoltDB
+// Flush writes unresolved dirty entries to BoltDB.
 func (a *DiagramCacheAdapter) Flush() error {
 	if a.manager == nil {
 		return nil
 	}
 
-	// Copy data under lock, then release before I/O
+	a.pending.Wait()
+
+	// Copy only dirty entries under lock, then release before I/O.
 	a.mu.RLock()
-	localCopy := make(map[string]string, len(a.local))
-	for k, v := range a.local {
-		localCopy[k] = v
+	dirtyCopy := make(map[string]string, len(a.dirty))
+	for k, v := range a.dirty {
+		dirtyCopy[k] = v
 	}
 	a.mu.RUnlock()
 
-	for key, value := range localCopy {
+	for key, value := range dirtyCopy {
 		_, err := a.manager.StoreSSR("d2", key, []byte(value))
 		if err != nil {
 			return err
 		}
+		a.clearDirtyIfUnchanged(key, value)
 	}
 
 	return nil
+}
+
+// Merge stores a batch of values in the adapter and schedules persistence.
+func (a *DiagramCacheAdapter) Merge(entries map[string]string) {
+	for key, value := range entries {
+		a.Set(key, value)
+	}
+}
+
+// SetPersistenceEnabled controls whether Set() persists entries to disk.
+func (a *DiagramCacheAdapter) SetPersistenceEnabled(enabled bool) {
+	a.persist.Store(enabled)
 }
 
 // AsMap returns the local cache as a map (for compatibility)
@@ -179,6 +214,14 @@ func (a *DiagramCacheAdapter) Close() error {
 		close(a.stopCh)
 	})
 
-	// Flush any remaining local entries
-	return a.Flush()
+	// Flush is handled by SaveCaches() in the normal lifecycle.
+	return nil
+}
+
+func (a *DiagramCacheAdapter) clearDirtyIfUnchanged(key, value string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if current, ok := a.dirty[key]; ok && current == value {
+		delete(a.dirty, key)
+	}
 }

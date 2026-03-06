@@ -92,28 +92,29 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			s.logger.Warn("Failed to check wasm_exec.js", "path", wasmExecPath, "error", err)
 		}
 		if exists {
-			src, err := s.sourceFs.Open(wasmExecPath)
-			if err == nil {
-				defer src.Close()
+			err := func() error {
+				src, err := s.sourceFs.Open(wasmExecPath)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = src.Close() }()
 				wasmExecDestPath := filepath.Join(s.cfg.OutputDir, "static/js/wasm_exec.js")
 				if err := s.destFs.MkdirAll(filepath.Dir(wasmExecDestPath), 0755); err != nil {
 					s.logger.Warn("Failed to create wasm_exec.js directory", "path", filepath.Dir(wasmExecDestPath), "error", err)
 				}
 				dest, err := s.destFs.Create(wasmExecDestPath)
-				if err == nil {
-					defer dest.Close()
-					if _, err := io.Copy(dest, src); err != nil {
-						s.logger.Warn("Failed to copy wasm_exec.js", "path", wasmExecDestPath, "error", err)
-						errChan <- err
-						return
-					} else {
-						s.renderer.RegisterFile(wasmExecDestPath)
-					}
-				} else {
-					errChan <- err
-					return
+				if err != nil {
+					return err
 				}
-			} else {
+				defer func() { _ = dest.Close() }()
+				if _, err := io.Copy(dest, src); err != nil {
+					s.logger.Warn("Failed to copy wasm_exec.js", "path", wasmExecDestPath, "error", err)
+					return err
+				}
+				s.renderer.RegisterFile(wasmExecDestPath)
+				return nil
+			}()
+			if err != nil {
 				errChan <- err
 				return
 			}
@@ -139,28 +140,29 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			}
 		}
 		if wasmEngineSourcePath != "" {
-			src, err := s.sourceFs.Open(wasmEngineSourcePath)
-			if err == nil {
-				defer src.Close()
-				wasmEngineDestPath := filepath.Join(s.cfg.OutputDir, "static", "js", "wasm_engine.js")
+			err := func() error {
+				src, err := s.sourceFs.Open(wasmEngineSourcePath)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = src.Close() }()
+				wasmEngineDestPath := filepath.Join(s.cfg.OutputDir, "static/js/wasm_engine.js")
 				if err := s.destFs.MkdirAll(filepath.Dir(wasmEngineDestPath), 0755); err != nil {
 					s.logger.Warn("Failed to create wasm_engine.js directory", "path", filepath.Dir(wasmEngineDestPath), "error", err)
 				}
 				dest, err := s.destFs.Create(wasmEngineDestPath)
-				if err == nil {
-					defer dest.Close()
-					if _, err := io.Copy(dest, src); err != nil {
-						s.logger.Warn("Failed to copy wasm_engine.js", "path", wasmEngineDestPath, "error", err)
-						errChan <- err
-						return
-					} else {
-						s.renderer.RegisterFile(wasmEngineDestPath)
-					}
-				} else {
-					errChan <- err
-					return
+				if err != nil {
+					return err
 				}
-			} else {
+				defer func() { _ = dest.Close() }()
+				if _, err := io.Copy(dest, src); err != nil {
+					s.logger.Warn("Failed to copy wasm_engine.js", "path", wasmEngineDestPath, "error", err)
+					return err
+				}
+				s.renderer.RegisterFile(wasmEngineDestPath)
+				return nil
+			}()
+			if err != nil {
 				errChan <- err
 				return
 			}
@@ -186,28 +188,29 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			}
 		}
 		if engineSourcePath != "" {
-			src, err := s.sourceFs.Open(engineSourcePath)
-			if err == nil {
-				defer src.Close()
+			err := func() error {
+				src, err := s.sourceFs.Open(engineSourcePath)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = src.Close() }()
 				engineDestPath := filepath.Join(s.cfg.OutputDir, "static", "wasm", "engine.js")
 				if err := s.destFs.MkdirAll(filepath.Dir(engineDestPath), 0755); err != nil {
 					s.logger.Warn("Failed to create engine.js directory", "path", filepath.Dir(engineDestPath), "error", err)
 				}
 				dest, err := s.destFs.Create(engineDestPath)
-				if err == nil {
-					defer dest.Close()
-					if _, err := io.Copy(dest, src); err != nil {
-						s.logger.Warn("Failed to copy engine.js", "path", engineDestPath, "error", err)
-						errChan <- err
-						return
-					} else {
-						s.renderer.RegisterFile(engineDestPath)
-					}
-				} else {
-					errChan <- err
-					return
+				if err != nil {
+					return err
 				}
-			} else {
+				defer func() { _ = dest.Close() }()
+				if _, err := io.Copy(dest, src); err != nil {
+					s.logger.Warn("Failed to copy engine.js", "path", engineDestPath, "error", err)
+					return err
+				}
+				s.renderer.RegisterFile(engineDestPath)
+				return nil
+			}()
+			if err != nil {
 				errChan <- err
 				return
 			}
@@ -236,27 +239,28 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		}
 
 		if wasmSourcePath != "" {
-			src, err := s.sourceFs.Open(wasmSourcePath)
-			if err == nil {
-				defer src.Close()
+			err := func() error {
+				src, err := s.sourceFs.Open(wasmSourcePath)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = src.Close() }()
 				if err := s.destFs.MkdirAll(filepath.Dir(wasmDestPath), 0755); err != nil {
 					s.logger.Warn("Failed to create search.wasm directory", "path", filepath.Dir(wasmDestPath), "error", err)
 				}
 				dest, err := s.destFs.Create(wasmDestPath)
-				if err == nil {
-					defer dest.Close()
-					if _, err := io.Copy(dest, src); err != nil {
-						s.logger.Warn("Failed to copy search.wasm", "path", wasmDestPath, "error", err)
-						errChan <- err
-						return
-					} else {
-						s.renderer.RegisterFile(wasmDestPath)
-					}
-				} else {
-					errChan <- err
-					return
+				if err != nil {
+					return err
 				}
-			} else {
+				defer func() { _ = dest.Close() }()
+				if _, err := io.Copy(dest, src); err != nil {
+					s.logger.Warn("Failed to copy search.wasm", "path", wasmDestPath, "error", err)
+					return err
+				}
+				s.renderer.RegisterFile(wasmDestPath)
+				return nil
+			}()
+			if err != nil {
 				errChan <- err
 				return
 			}
@@ -265,28 +269,29 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		// Ensure Site Logo is copied exactly
 		if s.cfg.Logo != "" {
 			if exists, _ := afero.Exists(s.sourceFs, s.cfg.Logo); exists {
-				src, err := s.sourceFs.Open(s.cfg.Logo)
-				if err == nil {
-					defer src.Close()
+				err := func() error {
+					src, err := s.sourceFs.Open(s.cfg.Logo)
+					if err != nil {
+						return err
+					}
+					defer func() { _ = src.Close() }()
 					destPath := filepath.Join(s.cfg.OutputDir, s.cfg.Logo)
 					if err := s.destFs.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 						s.logger.Warn("Failed to create logo directory", "path", filepath.Dir(destPath), "error", err)
 					}
 					dest, err := s.destFs.Create(destPath)
-					if err == nil {
-						defer dest.Close()
-						if _, err := io.Copy(dest, src); err != nil {
-							s.logger.Warn("Failed to copy logo", "path", destPath, "error", err)
-							errChan <- err
-							return
-						} else {
-							s.renderer.RegisterFile(destPath)
-						}
-					} else {
-						errChan <- err
-						return
+					if err != nil {
+						return err
 					}
-				} else {
+					defer func() { _ = dest.Close() }()
+					if _, err := io.Copy(dest, src); err != nil {
+						s.logger.Warn("Failed to copy logo", "path", destPath, "error", err)
+						return err
+					}
+					s.renderer.RegisterFile(destPath)
+					return nil
+				}()
+				if err != nil {
 					errChan <- err
 					return
 				}
