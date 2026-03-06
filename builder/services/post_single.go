@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -100,8 +101,8 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 
 	if s.cfg.Features.RawMarkdown {
 		mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
-		_ = s.destFs.MkdirAll(filepath.Dir(mdDestPath), 0755)
-		if err := afero.WriteFile(s.destFs, mdDestPath, source, 0644); err == nil {
+		_ = s.sink.MkdirAll(filepath.Dir(mdDestPath))
+		if err := s.sink.WriteFile(mdDestPath, source); err == nil {
 			s.renderer.RegisterFile(mdDestPath)
 		}
 	}
@@ -187,9 +188,9 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 		cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
 		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", cardRelPath))
 
-		// Check if card exists in physical cache or destFs
+		// Check if card exists in physical cache or sink
 		cardExists := false
-		if info, err := s.destFs.Stat(cardDestPath); err == nil && !info.IsDir() {
+		if info, err := os.Stat(cardDestPath); err == nil && !info.IsDir() {
 			if sourceInfo, err := s.sourceFs.Stat(path); err == nil {
 				if info.ModTime().After(sourceInfo.ModTime()) {
 					cardExists = true
@@ -201,7 +202,7 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 		if !cardExists || s.cache != nil {
 			cachedHash, _ := s.cache.GetSocialCardHash(relPath)
 			if cachedHash != parseRes.FrontmatterHash || !cardExists {
-				if err := s.destFs.MkdirAll(filepath.Dir(cardDestPath), 0755); err == nil {
+				if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err == nil {
 					s.generateSocialCard(socialCardTask{
 						path:            relPath,
 						relPath:         cardRelPath,

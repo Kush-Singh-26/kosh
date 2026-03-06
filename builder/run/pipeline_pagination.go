@@ -15,7 +15,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
-	"github.com/spf13/afero"
 )
 
 func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []models.PostMetadata, force bool) error {
@@ -76,7 +75,7 @@ func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []
 			if pageIdx > 1 {
 				destPath = filepath.Join(b.cfg.OutputDir, fmt.Sprintf("page/%d/index.html", pageIdx))
 				permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, pageIdx)
-				_ = b.DestFs.MkdirAll(filepath.Dir(destPath), 0755)
+				_ = b.Sink.MkdirAll(filepath.Dir(destPath))
 			}
 			paginator := models.Paginator{
 				CurrentPage: pageIdx,
@@ -192,7 +191,7 @@ func (b *Builder) provideSocialCard(destPath string, cacheKey string, title, des
 	}
 
 	// 3. Ensure Dir in VFS
-	_ = b.DestFs.MkdirAll(filepath.Dir(destPath), 0755)
+	_ = b.Sink.MkdirAll(filepath.Dir(destPath))
 
 	if needsGen {
 		// Generate to disk (cache)
@@ -211,7 +210,7 @@ func (b *Builder) provideSocialCard(destPath string, cacheKey string, title, des
 	// 4. Copy from Cache (disk) to VFS
 	data, err := os.ReadFile(cachedCardPath)
 	if err == nil {
-		_ = afero.WriteFile(b.DestFs, destPath, data, 0644)
+		_ = b.Sink.WriteFile(destPath, data)
 		b.renderService.RegisterFile(destPath)
 	}
 }

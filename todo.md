@@ -1,5 +1,36 @@
 # Kosh vNext Performance Architecture Plan (Cold Build Throughput)
 
+## Working Instructions
+- Stay with the original phased plan in this file. Do not replace it with a different architecture track unless a new benchmark proves the original ordering is wrong.
+- Phase 0 is already implemented enough to provide real baselines. Do not redo Phase 0 instrumentation unless fixing a concrete bug in the harness or timings.
+- Benchmark using the installed `kosh` binary from the real site repo, not `go run` from this engine repo.
+- Canonical workflow:
+  - from `C:\Users\KIIT0001\blogs`: `go install ./cmd/kosh`
+  - from `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src`: `kosh clean --cache` then `kosh build --phase-timings`
+- Current measured baseline on `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src`:
+  - warm-cache cold-output average: `1334ms`
+  - clean-cache cold build average: `22916ms`
+- Current top clean-build hotspots:
+  - asset building: about `3.6s-4.2s`
+  - parse: about `4.4s-5.9s`
+  - sync-to-disk: about `0.7s-3.1s`
+- Render itself is not the dominant bottleneck. Prioritize publish/sync architecture before page-render micro-optimizations.
+- Before each phase:
+  - record a fresh benchmark run
+  - make the smallest change set that proves the phase
+  - rerun warm and clean baselines
+  - update `docs/perf-baseline.md`
+- After each phase:
+  - verify output parity against the previous build
+  - keep rollback/crash-safety intact
+  - avoid mixing unrelated refactors into the same phase
+- Immediate next implementation target: Phase 1 only.
+- Phase 1 scope discipline:
+  - replace `MemMapFs + SyncVFS` with staging-directory streaming publish
+  - preserve atomic publish semantics
+  - do not mix in DB migration, search schema migration, or scheduler redesign yet
+- Root helper files `prev_builder.go` and `test_decode.go` are `//go:build ignore` files. They are not part of production builds. Treat them as archival/debug helpers, not runtime code.
+
 ## Objective
 - Primary KPI: reduce full cold `kosh build` wall-clock time by **40-60%** on large sites.
 - Secondary KPI: keep output correctness, cache integrity, and publish safety unchanged or improved.
@@ -55,7 +86,7 @@
 
 ---
 
-## Phase 1: Streaming Output + Atomic Directory Publish (Highest ROI)
+## Phase 1: Streaming Output + Atomic Directory Publish (Highest ROI) [COMPLETED]
 
 ### Goal
 Eliminate end-of-build I/O wall from `MemMapFs -> SyncVFS` and distribute writes during build.

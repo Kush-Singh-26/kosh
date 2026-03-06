@@ -2,18 +2,19 @@ package generators
 
 import (
 	"compress/gzip"
+	"io"
 	"log/slog"
 	"path/filepath"
 	"strconv"
 
-	"github.com/spf13/afero"
 	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
+func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
 	totalDocs := len(indexedPosts)
 	estimatedUniqueWords := totalDocs * 100
 
@@ -68,30 +69,23 @@ func GenerateSearchIndex(destFs afero.Fs, outputDir string, indexedPosts []model
 
 	index.NgramIndex = search.BuildNgramIndex(index.Inverted)
 
-	if err := destFs.MkdirAll(outputDir, 0755); err != nil {
+	if err := sink.MkdirAll(outputDir); err != nil {
 		return "", err
 	}
 
 	outputPath := filepath.ToSlash(filepath.Join(outputDir, "search.bin"))
-	file, err := destFs.Create(outputPath)
+	err := sink.WriteStream(outputPath, func(w io.Writer) error {
+		gw := gzip.NewWriter(w)
+		defer func() {
+			if err := gw.Close(); err != nil {
+				slog.Error("Failed to close gzip writer", "error", err)
+			}
+		}()
+
+		enc := msgpack.NewEncoder(gw)
+		return enc.Encode(&index)
+	})
 	if err != nil {
-		return "", err
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			slog.Error("Failed to close search index file", "error", err)
-		}
-	}()
-
-	gw := gzip.NewWriter(file)
-	defer func() {
-		if err := gw.Close(); err != nil {
-			slog.Error("Failed to close gzip writer", "error", err)
-		}
-	}()
-
-	enc := msgpack.NewEncoder(gw)
-	if err := enc.Encode(&index); err != nil {
 		return "", err
 	}
 

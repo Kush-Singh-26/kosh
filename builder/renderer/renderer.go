@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
@@ -25,7 +24,7 @@ type Renderer struct {
 	Assets       map[string]string
 	AssetsMu     sync.RWMutex
 	Compress     bool
-	DestFs       afero.Fs
+	Sink         utils.ArtifactSink
 	RenderedMu   sync.RWMutex
 	RenderedSet  map[string]bool
 	logger       *slog.Logger
@@ -42,10 +41,10 @@ type renderError struct {
 	err  error
 }
 
-func New(compress bool, destFs afero.Fs, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
+func New(compress bool, sink utils.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
 	r := &Renderer{
 		Compress:    compress,
-		DestFs:      destFs,
+		Sink:        sink,
 		RenderedSet: make(map[string]bool),
 		logger:      logger,
 		templateDir: templateDir,
@@ -53,6 +52,10 @@ func New(compress bool, destFs afero.Fs, templateDir string, devMode bool, logge
 	}
 	r.ReloadTemplates()
 	return r
+}
+
+func (r *Renderer) SetSink(sink utils.ArtifactSink) {
+	r.Sink = sink
 }
 
 func (r *Renderer) ReloadTemplates() {

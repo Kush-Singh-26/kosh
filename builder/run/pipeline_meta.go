@@ -20,7 +20,7 @@ func (b *Builder) generateMetadata(ctx context.Context, allContent []models.Post
 
 	if cfg.Features.Generators.Sitemap {
 		g.Go(func() error {
-			path, err := generators.GenerateSitemap(b.DestFs, cfg.BaseURL, allContent, tagMap, filepath.Join(outputDir, "sitemap", "sitemap.xml"))
+			path, err := generators.GenerateSitemap(b.Sink, cfg.BaseURL, allContent, tagMap, filepath.Join(outputDir, "sitemap", "sitemap.xml"))
 			if err == nil {
 				b.renderService.RegisterFile(path)
 			}
@@ -30,7 +30,7 @@ func (b *Builder) generateMetadata(ctx context.Context, allContent []models.Post
 
 	if cfg.Features.Generators.RSS {
 		g.Go(func() error {
-			path, err := generators.GenerateRSS(b.DestFs, cfg.BaseURL, allContent, cfg.Title, cfg.Description, filepath.Join(outputDir, "rss.xml"))
+			path, err := generators.GenerateRSS(b.Sink, cfg.BaseURL, allContent, cfg.Title, cfg.Description, filepath.Join(outputDir, "rss.xml"))
 			if err == nil {
 				b.renderService.RegisterFile(path)
 			}
@@ -42,7 +42,7 @@ func (b *Builder) generateMetadata(ctx context.Context, allContent []models.Post
 		g.Go(func() error {
 			searchTimer := utils.StartPhase("Search index generation")
 			defer searchTimer.Stop()
-			path, err := generators.GenerateSearchIndex(b.DestFs, outputDir, indexedPosts)
+			path, err := generators.GenerateSearchIndex(b.Sink, outputDir, indexedPosts)
 			if err == nil {
 				b.renderService.RegisterFile(path)
 			}
@@ -65,7 +65,7 @@ func (b *Builder) generateMetadata(ctx context.Context, allContent []models.Post
 
 		if shouldForce || !graphExists || cachedGraphHash != graphHash {
 			g.Go(func() error {
-				path, err := generators.GenerateGraph(b.DestFs, cfg.BaseURL, allContent, filepath.Join(outputDir, "graph.json"))
+				path, err := generators.GenerateGraph(b.Sink, cfg.BaseURL, allContent, filepath.Join(outputDir, "graph.json"))
 				if err == nil {
 					b.renderService.RegisterFile(path)
 					if b.cacheService != nil {

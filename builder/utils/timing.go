@@ -1,8 +1,13 @@
 package utils
 
 import (
+	"encoding/json"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -26,6 +31,7 @@ func (p *PhaseTimer) Stop() {
 	}
 	p.completed = true
 	elapsed := time.Since(p.start)
+	TrackPhase(p.name, elapsed)
 	slog.Info("Phase completed", "name", p.name, "duration", formatDuration(elapsed))
 }
 
@@ -35,6 +41,7 @@ func (p *PhaseTimer) StopWithAddendum(addendum string) {
 	}
 	p.completed = true
 	elapsed := time.Since(p.start)
+	TrackPhase(p.name, elapsed)
 	slog.Info("Phase completed", "name", p.name, "duration", formatDuration(elapsed), "addendum", addendum)
 }
 
@@ -50,7 +57,21 @@ var globalTracker = &PhaseTracker{
 }
 
 func EnablePhaseTracking() {
+	globalTracker.mu.Lock()
+	defer globalTracker.mu.Unlock()
 	globalTracker.enabled = true
+}
+
+func DisablePhaseTracking() {
+	globalTracker.mu.Lock()
+	defer globalTracker.mu.Unlock()
+	globalTracker.enabled = false
+}
+
+func ResetPhaseTracking() {
+	globalTracker.mu.Lock()
+	defer globalTracker.mu.Unlock()
+	globalTracker.phases = make(map[string]time.Duration)
 }
 
 func TrackPhase(name string, duration time.Duration) {
@@ -72,19 +93,85 @@ func GetPhaseDurations() map[string]time.Duration {
 	return result
 }
 
+func IsPhaseTrackingEnabled() bool {
+	globalTracker.mu.Lock()
+	defer globalTracker.mu.Unlock()
+	return globalTracker.enabled
+}
+
+type PhaseDurationSnapshot struct {
+	Name         string `json:"name"`
+	Milliseconds int64  `json:"milliseconds"`
+	Formatted    string `json:"formatted"`
+}
+
+func GetSortedPhaseDurations() []PhaseDurationSnapshot {
+	phases := GetPhaseDurations()
+	result := make([]PhaseDurationSnapshot, 0, len(phases))
+	for name, duration := range phases {
+		result = append(result, PhaseDurationSnapshot{
+			Name:         name,
+			Milliseconds: duration.Milliseconds(),
+			Formatted:    FormatDurationShort(duration),
+		})
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Milliseconds == result[j].Milliseconds {
+			return result[i].Name < result[j].Name
+		}
+		return result[i].Milliseconds > result[j].Milliseconds
+	})
+
+	return result
+}
+
+func FormatPhaseSummary() string {
+	phases := GetSortedPhaseDurations()
+	if len(phases) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Phase timings:\n")
+	for _, phase := range phases {
+		sb.WriteString("  ")
+		sb.WriteString(phase.Name)
+		sb.WriteString(": ")
+		sb.WriteString(phase.Formatted)
+		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
+
+func WritePhaseDurationsJSON(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(struct {
+		GeneratedAt string                  `json:"generated_at"`
+		Phases      []PhaseDurationSnapshot `json:"phases"`
+	}{
+		GeneratedAt: time.Now().Format(time.RFC3339),
+		Phases:      GetSortedPhaseDurations(),
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0644)
+}
+
 func formatDuration(d time.Duration) string {
-	// Avoid fmt.Sprintf to prevent data races with global fmt buffer
 	if d < time.Millisecond {
-		// Format as microseconds with 2 decimal places
-		val := float64(d.Microseconds()) / 1000.0
-		return strconv.FormatFloat(val, 'f', 2, 64) + "µs"
+		val := float64(d.Nanoseconds()) / 1000.0
+		return strconv.FormatFloat(val, 'f', 2, 64) + "us"
 	}
 	if d < time.Second {
-		// Format as milliseconds with 2 decimal places
-		val := float64(d.Milliseconds()) / 1000.0
+		val := float64(d.Microseconds()) / 1000.0
 		return strconv.FormatFloat(val, 'f', 2, 64) + "ms"
 	}
-	// Format as seconds with 2 decimal places
 	val := d.Seconds()
 	return strconv.FormatFloat(val, 'f', 2, 64) + "s"
 }
