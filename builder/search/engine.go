@@ -94,6 +94,18 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		highlightTerms[t] = true
 	}
 
+	if tagFilter != "" && len(queryTerms) == 0 {
+		highlightTerms[tagFilter] = true
+		for i, post := range index.Posts {
+			if versionFilter != "all" && post.Version != versionFilter {
+				continue
+			}
+			if HasTagNormalized(post.NormalizedTags, tagFilter) {
+				scores[i] += ScoreTagMatch
+			}
+		}
+	}
+
 	// 1.5 Process individual terms with BM25 (Exact + Fuzzy + Prefix)
 	for _, term := range queryTerms {
 		if posts, ok := index.Inverted[term]; ok {

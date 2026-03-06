@@ -12,22 +12,22 @@ func TestTxSyncCommit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	tx := NewTxSync(slog.Default())
 
 	// Create a dummy existing file
 	existingPath := filepath.Join(dir, "existing.txt")
-	os.WriteFile(existingPath, []byte("old"), 0644)
+	_ = os.WriteFile(existingPath, []byte("old"), 0644)
 
 	// Track write (backs up automatically)
-	tx.TrackWrite(existingPath)
-	os.WriteFile(existingPath, []byte("new"), 0644)
+	_ = tx.TrackWrite(existingPath)
+	_ = os.WriteFile(existingPath, []byte("new"), 0644)
 
 	// Track a brand new file
 	newPath := filepath.Join(dir, "new.txt")
-	os.WriteFile(newPath, []byte("brand_new"), 0644)
-	tx.TrackWrite(newPath)
+	_ = os.WriteFile(newPath, []byte("brand_new"), 0644)
+	_ = tx.TrackWrite(newPath)
 
 	// Commit should remove backups and keep files
 	tx.Commit()
@@ -47,22 +47,22 @@ func TestTxSyncRollback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	tx := NewTxSync(slog.Default())
 
 	// Create a dummy existing file
 	existingPath := filepath.Join(dir, "existing.txt")
-	os.WriteFile(existingPath, []byte("old"), 0644)
+	_ = os.WriteFile(existingPath, []byte("old"), 0644)
 
 	// Track write (backs up automatically)
-	tx.TrackWrite(existingPath)
-	os.WriteFile(existingPath, []byte("new"), 0644)
+	_ = tx.TrackWrite(existingPath)
+	_ = os.WriteFile(existingPath, []byte("new"), 0644)
 
 	// Track a brand new file
 	newPath := filepath.Join(dir, "new.txt")
-	tx.TrackWrite(newPath)
-	os.WriteFile(newPath, []byte("brand_new"), 0644)
+	_ = tx.TrackWrite(newPath)
+	_ = os.WriteFile(newPath, []byte("brand_new"), 0644)
 
 	// Rollback should restore backups and delete brand new files
 	tx.Rollback()

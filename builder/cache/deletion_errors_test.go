@@ -93,7 +93,7 @@ func TestClearAll_FilesystemError(t *testing.T) {
 	if err := os.Chmod(storeDir, 0555); err != nil {
 		t.Skipf("Cannot set directory permissions: %v", err)
 	}
-	defer os.Chmod(storeDir, 0755) // Cleanup
+	defer func() { _ = os.Chmod(storeDir, 0755) }() // Cleanup
 
 	// ClearAll should log warnings but still succeed in clearing database
 	err := m.ClearAll()

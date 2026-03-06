@@ -27,7 +27,7 @@ func TestWatcher_ResetTimer_ThreadSafe(t *testing.T) {
 	go w.Start()
 	defer func() {
 		if w.watcher != nil {
-			w.watcher.Close()
+			_ = w.watcher.Close()
 		}
 	}()
 
@@ -74,7 +74,7 @@ func TestWatcher_ConcurrentFileEvents(t *testing.T) {
 	go w.Start()
 	defer func() {
 		if w.watcher != nil {
-			w.watcher.Close()
+			_ = w.watcher.Close()
 		}
 	}()
 

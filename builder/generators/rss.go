@@ -36,7 +36,7 @@ func GenerateRSS(destFs afero.Fs, baseURL string, posts []models.PostMetadata, t
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if _, err := file.Write([]byte(xml.Header)); err != nil {
 		return "", err

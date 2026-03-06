@@ -115,7 +115,8 @@
             }
 
             const fragment = document.createDocumentFragment();
-            results.forEach((res, i) => {
+            const limitedResults = results.slice(0, 20);
+            limitedResults.forEach((res, i) => {
                 const item = document.createElement('a');
                 // Construct full link
                 const link = res.link.startsWith('http') ? res.link : joinPath(baseURL, res.link);

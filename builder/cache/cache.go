@@ -130,7 +130,7 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		newVer, err := RunMigrations(m.db, currentVersion, nil)
 		if err != nil || newVer != uint32(SchemaVersion) {
 			_ = m.cleanupOnError()
-			return nil, fmt.Errorf("incompatible schema version: got %d, want %d (migration failed: %v)", currentVersion, SchemaVersion, err)
+			return nil, fmt.Errorf("incompatible schema version: got %d, want %d (migration failed: %w)", currentVersion, SchemaVersion, err)
 		}
 	}
 

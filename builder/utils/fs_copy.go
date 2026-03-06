@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -197,8 +196,12 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcDir, ds
 			finalRelPath = relPath[:len(relPath)-len(filepath.Ext(relPath))] + ".webp"
 		}
 
-		taskQueue <- fileTask{path, finalRelPath, info}
-		return nil
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case taskQueue <- fileTask{path, finalRelPath, info}:
+			return nil
+		}
 	})
 
 	close(taskQueue)
@@ -229,9 +232,9 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcPa
 		return afero.WriteFile(destFs, dstPath, cached, 0644)
 	}
 
-	if dstInfo, err := os.Stat(dstPath); err == nil {
+	if dstInfo, err := destFs.Stat(dstPath); err == nil {
 		if !srcInfo.ModTime().After(dstInfo.ModTime()) {
-			data, err := os.ReadFile(dstPath)
+			data, err := afero.ReadFile(destFs, dstPath)
 			if err == nil {
 				globalImageCache.set(memCacheKey, data)
 				return afero.WriteFile(destFs, dstPath, data, 0644)
@@ -240,12 +243,13 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcPa
 	}
 
 	var cacheFile string
+	cacheFs := afero.NewOsFs()
 	if cacheDir != "" {
 		hash := blake3.Sum256([]byte(memCacheKey))
 		hashStr := hex.EncodeToString(hash[:])
 		cacheFile = filepath.Join(cacheDir, hashStr+".webp")
 
-		if data, err := os.ReadFile(cacheFile); err == nil {
+		if data, err := afero.ReadFile(cacheFs, cacheFile); err == nil {
 			globalImageCache.set(memCacheKey, data)
 			if err := destFs.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
 				return fmt.Errorf("failed to create image directory: %w", err)
@@ -311,7 +315,7 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcPa
 	globalImageCache.set(memCacheKey, cacheData)
 
 	if cacheFile != "" {
-		if err := os.WriteFile(cacheFile, finalData, 0644); err != nil {
+		if err := afero.WriteFile(cacheFs, cacheFile, finalData, 0644); err != nil {
 			slog.Warn("Failed to write image cache file", "path", cacheFile, "error", err)
 		}
 	}

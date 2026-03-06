@@ -30,6 +30,6 @@ func init() {
 
 func runClean(cmd *cobra.Command, args []string) {
 	clean.Run(cleanCache, cleanAll)
-	fmt.Println("\n🔄 Rebuilding site...")
+	fmt.Println("\nRebuilding site...")
 	run.Run([]string{})
 }

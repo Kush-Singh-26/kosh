@@ -106,7 +106,7 @@ func TestAtomicWrite_OverwritesExisting(t *testing.T) {
 	outputDir := t.TempDir()
 	testFile := filepath.Join(outputDir, "test_overwrite.html")
 
-	os.WriteFile(testFile, []byte("old content"), 0644)
+	_ = os.WriteFile(testFile, []byte("old content"), 0644)
 
 	err := atomicWrite(testFile, []byte("new content"))
 	if err != nil {
@@ -176,7 +176,7 @@ func TestAcquireBuildLock_DoubleLockFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("First AcquireBuildLock failed: %v", err)
 	}
-	defer lock1.Release()
+	defer func() { _ = lock1.Release() }()
 
 	// Second lock should fail (non-blocking)
 	_, err = AcquireBuildLock(outputDir)
@@ -211,7 +211,7 @@ func TestAcquireBuildLock_ReleaseClearsLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Second AcquireBuildLock after release failed: %v", err)
 	}
-	defer lock2.Release()
+	defer func() { _ = lock2.Release() }()
 
 	t.Log("Release clears lock test passed")
 }
@@ -223,7 +223,7 @@ func TestAcquireBuildLock_PIDWritten(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AcquireBuildLock failed: %v", err)
 	}
-	defer lock.Release()
+	defer func() { _ = lock.Release() }()
 
 	// Lock file should exist
 	lockPath := filepath.Join(outputDir, ".kosh-build.lock")

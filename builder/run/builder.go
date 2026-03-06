@@ -64,6 +64,9 @@ type Builder struct {
 
 	// Cached data for incremental builds
 	indexedPosts []models.IndexedPost
+
+	// True when output directory did not exist at build start.
+	isCleanBuild bool
 }
 
 // NewBuilder initializes a new site builder
@@ -268,8 +271,12 @@ func (b *Builder) SetDevMode(isDev bool) {
 func (b *Builder) SaveCaches() {
 	// Flush diagram adapter to BoltDB
 	if b.diagramAdapter != nil {
-		if err := b.diagramAdapter.Close(); err != nil {
-			b.logger.Warn("Failed to flush diagram cache", "error", err)
+		if b.isCleanBuild {
+			b.logger.Info("Skipping diagram cache flush for clean build")
+		} else {
+			if err := b.diagramAdapter.Flush(); err != nil {
+				b.logger.Warn("Failed to flush diagram cache", "error", err)
+			}
 		}
 	}
 
@@ -295,6 +302,11 @@ func (b *Builder) SaveCaches() {
 
 // Close cleans up resources
 func (b *Builder) Close() {
+	if b.diagramAdapter != nil {
+		if err := b.diagramAdapter.Close(); err != nil {
+			b.logger.Warn("Failed to close diagram cache", "error", err)
+		}
+	}
 	if b.cacheService != nil {
 		_ = b.cacheService.Close()
 	}

@@ -17,11 +17,25 @@ import (
 
 // Build executes a single build pass
 func (b *Builder) Build(ctx context.Context) error {
+	b.buildMu.Lock()
+	defer b.buildMu.Unlock()
+
 	// Check for cancellation early
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
+	}
+
+	// Capture whether this is a clean build BEFORE lock acquisition.
+	// AcquireBuildLock may create outputDir, which would otherwise hide clean-build state.
+	outputMissing := false
+	if _, err := os.Stat(b.cfg.OutputDir); os.IsNotExist(err) {
+		outputMissing = true
+	}
+	b.isCleanBuild = outputMissing
+	if b.diagramAdapter != nil {
+		b.diagramAdapter.SetPersistenceEnabled(!outputMissing)
 	}
 
 	// Acquire build lock to prevent concurrent builds
@@ -46,11 +60,6 @@ func (b *Builder) Build(ctx context.Context) error {
 
 	// Clear stale sync cache
 	utils.ClearSyncCache()
-
-	outputMissing := false
-	if _, err := os.Stat(b.cfg.OutputDir); os.IsNotExist(err) {
-		outputMissing = true
-	}
 
 	// 1. Setup & Cache Invalidation
 	// Use a channel to signal when templates are fully loaded.
@@ -134,7 +143,10 @@ func (b *Builder) Build(ctx context.Context) error {
 	// 2. Static Assets (MUST complete before posts to populate Assets map)
 	fmt.Println("📦 Building assets...")
 	assetTimer := utils.StartPhase("Asset building")
-	b.copyStaticAndBuildAssets(ctx)
+	if err := b.copyStaticAndBuildAssets(ctx); err != nil {
+		assetTimer.Stop()
+		return err
+	}
 	assetTimer.Stop()
 	_ = utils.WriteFileVFS(b.DestFs, filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte(""))
 
@@ -234,12 +246,14 @@ func (b *Builder) Build(ctx context.Context) error {
 	syncTimer := utils.StartPhase("VFS sync to disk")
 	renderedFiles := b.renderService.GetRenderedFiles()
 	if err := utils.SyncVFS(ctx, b.DestFs, b.cfg.OutputDir, renderedFiles, outputMissing); err != nil {
-		b.logger.Error("Failed to sync VFS to disk", "error", err)
+		syncTimer.Stop()
+		return fmt.Errorf("failed to sync VFS to disk: %w", err)
 	}
 	syncTimer.Stop()
 
 	// Clean orphans if configured or in production
-	if !cfg.IsDev {
+	// Skip orphan scan on clean builds - there are no prior outputs to prune.
+	if !cfg.IsDev && !outputMissing {
 		b.cleanOrphans(b.DestFs, renderedFiles)
 	}
 
@@ -249,10 +263,11 @@ func (b *Builder) Build(ctx context.Context) error {
 	return nil
 }
 
-func (b *Builder) copyStaticAndBuildAssets(ctx context.Context) {
+func (b *Builder) copyStaticAndBuildAssets(ctx context.Context) error {
 	if err := b.assetService.Build(ctx); err != nil {
-		b.logger.Error("Failed to build assets", "error", err)
+		return fmt.Errorf("failed to build assets: %w", err)
 	}
+	return nil
 }
 
 func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool, error) {

@@ -12,13 +12,13 @@ func TestCleanOrphans(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(basePath)
+	defer func() { _ = os.RemoveAll(basePath) }()
 
 	store, err := NewStore(basePath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	cat := "html"
 	// 1. Create a "live" blob

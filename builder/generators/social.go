@@ -36,8 +36,7 @@ const (
 
 var (
 	fontCache    *lru.Cache[string, *truetype.Font]
-	faviconImage image.Image
-	faviconOnce  sync.Once
+	faviconCache sync.Map
 )
 
 func init() {
@@ -49,18 +48,25 @@ func init() {
 }
 
 func getFaviconImage(fs afero.Fs, path string) image.Image {
-	faviconOnce.Do(func() {
-		f, err := fs.Open(path)
-		if err != nil {
-			return
+	if cached, ok := faviconCache.Load(path); ok {
+		if img, ok := cached.(image.Image); ok {
+			return img
 		}
-		defer func() { _ = f.Close() }()
-		img, _, err := image.Decode(f)
-		if err == nil {
-			faviconImage = img
-		}
-	})
-	return faviconImage
+	}
+
+	f, err := fs.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil
+	}
+
+	faviconCache.Store(path, img)
+	return img
 }
 
 func loadFont(name string) (*truetype.Font, error) {

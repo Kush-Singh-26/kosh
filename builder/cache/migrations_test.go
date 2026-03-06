@@ -15,12 +15,12 @@ func TestRunMigrations_NoOp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open DB: %v", err)
 	}
-	defer db.Close()
-	defer os.Remove(dbPath)
+	defer func() { _ = db.Close() }()
+	defer func() { _ = os.Remove(dbPath) }()
 
 	// Ensure BucketMeta exists
-	db.Update(func(tx *bolt.Tx) error {
-		tx.CreateBucketIfNotExists([]byte(BucketMeta))
+	_ = db.Update(func(tx *bolt.Tx) error {
+		_, _ = tx.CreateBucketIfNotExists([]byte(BucketMeta))
 		return nil
 	})
 
@@ -41,10 +41,10 @@ func TestRunMigrations_V1ToV2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open DB: %v", err)
 	}
-	defer db.Close()
-	defer os.Remove(dbPath)
+	defer func() { _ = db.Close() }()
+	defer func() { _ = os.Remove(dbPath) }()
 
-	db.Update(func(tx *bolt.Tx) error {
+	_ = db.Update(func(tx *bolt.Tx) error {
 		meta, _ := tx.CreateBucketIfNotExists([]byte(BucketMeta))
 		v := make([]byte, 4)
 		binary.BigEndian.PutUint32(v, 1) // Start at version 1
@@ -82,7 +82,7 @@ func TestRunMigrations_V1ToV2(t *testing.T) {
 	}
 
 	// Verify schema version in DB was stored correctly
-	db.View(func(tx *bolt.Tx) error {
+	_ = db.View(func(tx *bolt.Tx) error {
 		v := tx.Bucket([]byte(BucketMeta)).Get([]byte(KeySchemaVersion))
 		storedVer := binary.BigEndian.Uint32(v)
 		if storedVer != 2 {

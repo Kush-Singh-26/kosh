@@ -47,7 +47,7 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 		debounceDuration = buildCfg.DebounceDuration
 	}
 
-	startWatcherWithConfig(staticDir, debounceDuration)
+	reloadEvents := startWatcherWithConfig(staticDir, debounceDuration)
 	defer stopWatcher()
 
 	go func() {
@@ -57,33 +57,22 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 	}()
 
 	fileServer := http.FileServer(http.Dir(staticDir))
+	mux := http.NewServeMux()
 
-	http.HandleFunc("/events", handleSSE)
+	mux.HandleFunc("/events", handleSSE)
 
-	http.HandleFunc("/", gzipHandler(func(w http.ResponseWriter, r *http.Request) {
-		// If build is active, wait briefly (5s max)
-		buildMu.Lock()
-		if buildActive {
-			// Use a channel to wait with timeout
-			waitDone := make(chan struct{})
-			go func() {
-				buildMu.Lock()
-				defer buildMu.Unlock()
-				for buildActive {
-					buildComplete.Wait()
-				}
-				close(waitDone)
-			}()
-			buildMu.Unlock()
-
+	mux.HandleFunc("/", gzipHandler(func(w http.ResponseWriter, r *http.Request) {
+		// If build is active, wait for it to complete or request cancellation
+		if ch := waitForBuild(); ch != nil {
 			select {
-			case <-waitDone:
+			case <-ch:
 				// Build finished, proceed
+			case <-r.Context().Done():
+				// Request cancelled (tab closed), exit immediately
+				return
 			case <-time.After(5 * time.Second):
 				slog.Warn("Wait for build timed out", "path", r.URL.Path)
 			}
-		} else {
-			buildMu.Unlock()
 		}
 
 		rawPath := r.URL.Path
@@ -143,11 +132,13 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 		fileServer.ServeHTTP(w, r)
 	}))
 
-	go broadcastReload()
+	if reloadEvents != nil {
+		go broadcastReload(reloadEvents)
+	}
 
 	httpServer := &http.Server{
 		Addr:    addr,
-		Handler: nil,
+		Handler: mux,
 	}
 
 	go func() {
