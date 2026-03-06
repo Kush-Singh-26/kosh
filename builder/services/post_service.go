@@ -32,8 +32,8 @@ type postServiceImpl struct {
 	mdPool         *sync.Pool // Replaces s.md and prevents contention via thread-local checkout
 	nativeRenderer *native.Renderer
 	sourceFs       afero.Fs
-	destFs         afero.Fs
-	diagramAdapter *cache.DiagramCacheAdapter // Kept as specific type or interface?
+	sink           utils.ArtifactSink
+	diagramAdapter *cache.DiagramCacheAdapter
 
 	// Mutex for D2/Math rendering safety if needed
 	mu sync.Mutex
@@ -47,7 +47,8 @@ func NewPostService(
 	metrics *metrics.BuildMetrics,
 	mdPool *sync.Pool,
 	nativeRenderer *native.Renderer,
-	sourceFs, destFs afero.Fs,
+	sourceFs afero.Fs,
+	sink utils.ArtifactSink,
 	diagramAdapter *cache.DiagramCacheAdapter,
 ) PostService {
 	return &postServiceImpl{
@@ -59,9 +60,13 @@ func NewPostService(
 		mdPool:         mdPool,
 		nativeRenderer: nativeRenderer,
 		sourceFs:       sourceFs,
-		destFs:         destFs,
+		sink:           sink,
 		diagramAdapter: diagramAdapter,
 	}
+}
+
+func (s *postServiceImpl) SetSink(sink utils.ArtifactSink) {
+	s.sink = sink
 }
 
 func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) (*PostResult, error) {
@@ -360,10 +365,10 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			if s.cfg.Features.RawMarkdown {
 				// Use filepath to handle OS-specific path separators correctly
 				mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
-				if err := s.destFs.MkdirAll(filepath.Dir(mdDestPath), 0755); err != nil {
+				if err := s.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
 					s.logger.Error("Failed to create markdown directory", "path", filepath.Dir(mdDestPath), "error", err)
 				}
-				if err := afero.WriteFile(s.destFs, mdDestPath, source, 0644); err != nil {
+				if err := s.sink.WriteFile(mdDestPath, source); err != nil {
 					s.logger.Error("Failed to write markdown file", "path", mdDestPath, "error", err)
 				} else {
 					s.renderer.RegisterFile(mdDestPath)
@@ -418,13 +423,13 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		}
 
 		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp"))
-		if err := s.destFs.MkdirAll(filepath.Dir(cardDestPath), 0755); err != nil {
+		if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err != nil {
 			s.logger.Error("Failed to create social card directory", "path", filepath.Dir(cardDestPath), "error", err)
 		}
 
-		// Check if card exists in destFs (virtual filesystem), not OS filesystem
+		// Check if card exists in OS filesystem (bypass VFS)
 		cardExists := false
-		if info, err := s.destFs.Stat(cardDestPath); err == nil && !info.IsDir() {
+		if info, err := os.Stat(cardDestPath); err == nil && !info.IsDir() {
 			if sourceInfo, err := s.sourceFs.Stat(path); err == nil {
 				if info.ModTime().After(sourceInfo.ModTime()) {
 					cardExists = true
@@ -472,7 +477,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		// Copy raw markdown to output for "View Source" feature (for cached posts too)
 		if s.cfg.Features.RawMarkdown {
 			mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
-			if ex, _ := afero.Exists(s.destFs, mdDestPath); !ex {
+			if _, err := os.Stat(mdDestPath); os.IsNotExist(err) {
 				var sourceBytes []byte
 				var err error
 				if len(source) > 0 {
@@ -484,10 +489,10 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				if err != nil {
 					s.logger.Error("Failed to read source file for raw markdown", "path", path, "error", err)
 				} else if len(sourceBytes) > 0 {
-					if err := s.destFs.MkdirAll(filepath.Dir(mdDestPath), 0755); err != nil {
+					if err := s.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
 						s.logger.Error("Failed to create markdown directory", "path", filepath.Dir(mdDestPath), "error", err)
 					}
-					if err := afero.WriteFile(s.destFs, mdDestPath, sourceBytes, 0644); err != nil {
+					if err := s.sink.WriteFile(mdDestPath, sourceBytes); err != nil {
 						s.logger.Error("Failed to write raw markdown file", "path", mdDestPath, "error", err)
 					} else {
 						s.renderer.RegisterFile(mdDestPath)

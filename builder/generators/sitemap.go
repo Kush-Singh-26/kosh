@@ -7,13 +7,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/spf13/afero"
-
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) (string, error) {
+func GenerateSitemap(sink utils.ArtifactSink, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) (string, error) {
 	slog.Info("Generating sitemap")
 
 	var urls []models.Url
@@ -55,7 +53,7 @@ func GenerateSitemap(destFs afero.Fs, baseURL string, posts []models.PostMetadat
 	}
 
 	finalOutput := []byte(xml.Header + string(output))
-	if err := utils.WriteFileVFS(destFs, outputPath, finalOutput); err != nil {
+	if err := sink.WriteFile(outputPath, finalOutput); err != nil {
 		return "", err
 	}
 	return outputPath, nil

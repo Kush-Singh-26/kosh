@@ -21,11 +21,11 @@ func (b *Builder) generatePWA(ctx context.Context, shouldForce bool) error {
 	g, _ := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return generators.GenerateSW(b.DestFs, b.cfg.OutputDir, b.cfg.BuildVersion, shouldForce, b.cfg.BaseURL, b.renderService.GetAssets())
+		return generators.GenerateSW(b.Sink, b.cfg.OutputDir, b.cfg.BuildVersion, shouldForce, b.cfg.BaseURL, b.renderService.GetAssets())
 	})
 
 	g.Go(func() error {
-		return generators.GenerateManifest(b.DestFs, b.cfg.OutputDir, b.cfg.BaseURL, b.cfg.Title, b.cfg.Description, shouldForce)
+		return generators.GenerateManifest(b.Sink, b.cfg.OutputDir, b.cfg.BaseURL, b.cfg.Title, b.cfg.Description, shouldForce)
 	})
 
 	g.Go(func() error {
@@ -59,16 +59,16 @@ func (b *Builder) generatePWA(ctx context.Context, shouldForce bool) error {
 
 		if needsGeneration {
 			// Generate icons only if source is newer or cache is missing
-			err := generators.GeneratePWAIcons(b.SourceFs, b.DestFs, faviconPath, filepath.Join(b.cfg.OutputDir, "static/images"))
+			err := generators.GeneratePWAIcons(b.SourceFs, b.Sink, faviconPath, filepath.Join(b.cfg.OutputDir, "static/images"))
 			if err == nil {
 				// Save hash to cache
 				_ = os.WriteFile(cacheHashFile, []byte(currentHash), 0644)
 
 				// Copy generated icons to cache for future reuse
-				if data, err := afero.ReadFile(b.DestFs, filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png")); err == nil {
+				if data, err := os.ReadFile(filepath.Join(b.Sink.GetOutputDir(), "static/images/icon-192.png")); err == nil {
 					_ = os.WriteFile(filepath.Join(cacheDir, currentHash+"-192.png"), data, 0644)
 				}
-				if data, err := afero.ReadFile(b.DestFs, filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png")); err == nil {
+				if data, err := os.ReadFile(filepath.Join(b.Sink.GetOutputDir(), "static/images/icon-512.png")); err == nil {
 					_ = os.WriteFile(filepath.Join(cacheDir, currentHash+"-512.png"), data, 0644)
 				}
 			}
@@ -80,12 +80,12 @@ func (b *Builder) generatePWA(ctx context.Context, shouldForce bool) error {
 			// Copy cached icons to VFS
 			if data, err := os.ReadFile(cache192); err == nil {
 				iconPath := filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png")
-				_ = afero.WriteFile(b.DestFs, iconPath, data, 0644)
+				_ = b.Sink.WriteFile(iconPath, data)
 				b.renderService.RegisterFile(iconPath)
 			}
 			if data, err := os.ReadFile(cache512); err == nil {
 				iconPath := filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png")
-				_ = afero.WriteFile(b.DestFs, iconPath, data, 0644)
+				_ = b.Sink.WriteFile(iconPath, data)
 				b.renderService.RegisterFile(iconPath)
 			}
 		}

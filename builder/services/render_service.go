@@ -5,6 +5,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 type renderServiceImpl struct {
@@ -17,6 +18,10 @@ func NewRenderService(rnd *renderer.Renderer, logger *slog.Logger) RenderService
 		rnd:    rnd,
 		logger: logger,
 	}
+}
+
+func (s *renderServiceImpl) SetSink(sink utils.ArtifactSink) {
+	s.rnd.SetSink(sink)
 }
 
 func (s *renderServiceImpl) RenderPage(path string, data models.PageData) {

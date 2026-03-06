@@ -48,7 +48,8 @@ type Builder struct {
 
 	// Filesystems
 	SourceFs afero.Fs
-	DestFs   afero.Fs
+	Sink     utils.ArtifactSink
+	Tx       utils.BuildTransaction
 
 	// Shared markdown parser pool for reuse in incremental builds
 	mdPool *sync.Pool
@@ -112,7 +113,6 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 
 	// Initialize Filesystems
 	sourceFs := afero.NewOsFs()
-	destFs := afero.NewMemMapFs()
 
 	// 3. Load theme metadata
 	LoadThemeMetadata(cfg, sourceFs, logger)
@@ -127,7 +127,8 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 		},
 	}
 
-	rnd := renderer.New(cfg.CompressImages, destFs, cfg.TemplateDir, cfg.IsDev, logger)
+	// Sink is initialized in Build() since it depends on clean/incremental state
+	rnd := renderer.New(cfg.CompressImages, nil, cfg.TemplateDir, cfg.IsDev, logger)
 
 	// Create Services
 	var cacheSvc services.CacheService
@@ -136,8 +137,8 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 	}
 
 	renderSvc := services.NewRenderService(rnd, logger)
-	assetSvc := services.NewAssetService(sourceFs, destFs, cfg, renderSvc, logger)
-	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, sourceFs, destFs, diagramAdapter)
+	assetSvc := services.NewAssetService(sourceFs, nil, cfg, renderSvc, logger)
+	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, sourceFs, nil, diagramAdapter)
 
 	builder := &Builder{
 		cfg:            cfg,
@@ -149,7 +150,6 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 		logger:         logger,
 		metrics:        buildMetrics,
 		SourceFs:       sourceFs,
-		DestFs:         destFs,
 		mdPool:         mdPool,
 		nativeRenderer: nativeRenderer,
 	}
@@ -316,11 +316,13 @@ func (b *Builder) Close() {
 // See initLibvips in setup.go
 
 // Run executes the main build logic
-func Run(args []string) {
+func Run(args []string) error {
 	b := NewBuilder(args)
 	defer b.Close()
 	defer b.SaveCaches()
 	if err := b.Build(context.Background()); err != nil {
 		b.logger.Error("Build failed", "error", err)
+		return err
 	}
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	_ "image/png"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 
 	"github.com/chai2010/webp"
 	"github.com/fogleman/gg"
@@ -208,19 +210,15 @@ func GenerateSocialCardToDisk(srcFs afero.Fs, cfg *config.SocialCardsConfig, sit
 }
 
 // GenerateSocialCard creates a configurable gradient social card.
-func GenerateSocialCard(destFs afero.Fs, srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
+func GenerateSocialCard(sink utils.ArtifactSink, srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
 	img, err := generateSocialCardImage(srcFs, cfg, siteTitle, title, description, dateStr, faviconPath)
 	if err != nil {
 		return err
 	}
 
-	f, err := destFs.Create(destPath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	return webp.Encode(f, img, &webp.Options{Lossless: false, Quality: 85})
+	return sink.WriteStream(destPath, func(w io.Writer) error {
+		return webp.Encode(w, img, &webp.Options{Lossless: false, Quality: 85})
+	})
 }
 
 func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, faviconPath string) (image.Image, error) {

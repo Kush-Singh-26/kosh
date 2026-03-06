@@ -88,9 +88,15 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 
 	// Handle markdown files - single post rebuild
 	if strings.HasSuffix(changedPath, ".md") && strings.HasPrefix(changedPath, b.cfg.ContentDir) {
+		b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, false)
+		b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
+		b.renderService.SetSink(b.Sink)
+		b.assetService.SetSink(b.Sink)
+		b.postService.SetSink(b.Sink)
+
 		b.buildSinglePost(ctx, changedPath)
-		if err := utils.SyncVFS(ctx, b.DestFs, b.cfg.OutputDir, b.renderService.GetRenderedFiles(), false); err != nil {
-			b.logger.Error("Sync failed", "error", err)
+		if err := b.Tx.Commit(); err != nil {
+			b.logger.Error("Sync/Commit failed", "error", err)
 			b.deletePostFromCache(changedPath)
 			return
 		}
@@ -355,7 +361,7 @@ func (b *Builder) regenerateSearchIndex(ctx context.Context) error {
 
 	// Generate search index file
 	start := time.Now()
-	path, err := generators.GenerateSearchIndex(b.DestFs, b.cfg.OutputDir, indexedPosts)
+	path, err := generators.GenerateSearchIndex(b.Sink, b.cfg.OutputDir, indexedPosts)
 	if err != nil {
 		return err
 	}

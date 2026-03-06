@@ -2,6 +2,7 @@ package renderer
 
 import (
 	"bytes"
+	"io"
 	"path/filepath"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -13,29 +14,10 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 		data.Assets = r.GetAssets()
 	}
 
-	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := r.Sink.MkdirAll(filepath.Dir(path)); err != nil {
 		r.logger.Error("Failed to create directory", "path", path, "error", err)
 		return
 	}
-
-	f, err := r.DestFs.Create(path)
-	if err != nil {
-		r.logger.Error("Failed to create file", "path", path, "error", err)
-		return
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			r.recordError("Failed to close file", path, err)
-		}
-	}()
-
-	bw := utils.SharedBufioWriterPool.Get(f)
-	defer func() {
-		if err := bw.Flush(); err != nil {
-			r.recordError("Failed to flush buffer", path, err)
-		}
-		utils.SharedBufioWriterPool.Put(bw)
-	}()
 
 	r.mu.RLock()
 	layout := r.Layout
@@ -66,8 +48,14 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 	}
 
 	// 4. Final Write
-	if _, err := bw.Write(finalBytes); err != nil {
+	err := r.Sink.WriteStream(path, func(w io.Writer) error {
+		_, err := w.Write(finalBytes)
+		return err
+	})
+
+	if err != nil {
 		r.logger.Error("Failed to write processed HTML", "path", path, "error", err)
+		r.recordError("Failed to write processed HTML", path, err)
 	} else {
 		r.RegisterFile(path)
 	}

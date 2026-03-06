@@ -27,16 +27,40 @@ func (b *Builder) Build(ctx context.Context) error {
 	default:
 	}
 
-	// Capture whether this is a clean build BEFORE lock acquisition.
-	// AcquireBuildLock may create outputDir, which would otherwise hide clean-build state.
+	// Determine if we should use atomic staging directory
+	// Always use staging for production builds, or if output is missing.
 	outputMissing := false
 	if _, err := os.Stat(b.cfg.OutputDir); os.IsNotExist(err) {
 		outputMissing = true
 	}
-	b.isCleanBuild = outputMissing
+	useStaging := !b.cfg.IsDev || outputMissing
+	b.isCleanBuild = useStaging // using staging implies we are starting clean
 	if b.diagramAdapter != nil {
 		b.diagramAdapter.SetPersistenceEnabled(!outputMissing)
 	}
+
+	b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, useStaging)
+	b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
+
+	// Clean staging dir if it somehow exists from a crashed build
+	if useStaging {
+		_ = os.RemoveAll(b.Tx.StagingDir())
+	}
+
+	b.renderService.SetSink(b.Sink)
+	b.assetService.SetSink(b.Sink)
+	b.postService.SetSink(b.Sink)
+
+	defer func() {
+		if r := recover(); r != nil {
+			b.logger.Error("Panic during build, rolling back", "panic", r)
+			b.Tx.Rollback()
+			panic(r)
+		} else {
+			// Rollback only does something if not committed
+			b.Tx.Rollback()
+		}
+	}()
 
 	// Acquire build lock to prevent concurrent builds
 	buildLock, lockErr := utils.AcquireBuildLock(b.cfg.OutputDir)
@@ -132,7 +156,7 @@ func (b *Builder) Build(ctx context.Context) error {
 
 	// Pre-create output directories in VFS
 	for _, dir := range []string{"tags", "static/images/cards", "sitemap"} {
-		if err := b.DestFs.MkdirAll(filepath.Join(b.cfg.OutputDir, dir), 0755); err != nil {
+		if err := b.Sink.MkdirAll(filepath.Join(b.cfg.OutputDir, dir)); err != nil {
 			b.logger.Error("Failed to create directory", "dir", dir, "error", err)
 		}
 	}
@@ -148,7 +172,7 @@ func (b *Builder) Build(ctx context.Context) error {
 		return err
 	}
 	assetTimer.Stop()
-	_ = utils.WriteFileVFS(b.DestFs, filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte(""))
+	_ = b.Sink.WriteFile(filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte(""))
 
 	if len(affectedPosts) > 0 && b.cacheService != nil {
 		for _, postPath := range affectedPosts {
@@ -241,22 +265,15 @@ func (b *Builder) Build(ctx context.Context) error {
 	// Reset ForceRebuild AFTER all async checks have completed
 	b.cfg.ForceRebuild = false
 
-	// Now sync VFS to disk (includes completed social cards)
-	fmt.Println("💾 Syncing to disk...")
-	syncTimer := utils.StartPhase("VFS sync to disk")
-	renderedFiles := b.renderService.GetRenderedFiles()
-	if err := utils.SyncVFS(ctx, b.DestFs, b.cfg.OutputDir, renderedFiles, outputMissing); err != nil {
+	fmt.Println("💾 Publishing output...")
+	syncTimer := utils.StartPhase("Publish")
+	if err := b.Tx.Commit(); err != nil {
 		syncTimer.Stop()
-		return fmt.Errorf("failed to sync VFS to disk: %w", err)
+		return fmt.Errorf("failed to publish build transaction: %w", err)
 	}
 	syncTimer.Stop()
 
-	// Clean orphans if configured or in production
-	// Skip orphan scan on clean builds - there are no prior outputs to prune.
-	if !cfg.IsDev && !outputMissing {
-		b.cleanOrphans(b.DestFs, renderedFiles)
-	}
-
+	// Clear memory state
 	b.renderService.ClearRenderedFiles()
 
 	// Build complete

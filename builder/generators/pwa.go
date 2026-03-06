@@ -2,20 +2,23 @@ package generators
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"text/template"
 
 	"github.com/disintegration/imaging"
 	"github.com/spf13/afero"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // GenerateSW creates the service worker only if needed (smart build)
-func GenerateSW(destFs afero.Fs, destDir string, buildVersion int64, forceRebuild bool, baseURL string, assets map[string]string) error {
+func GenerateSW(sink utils.ArtifactSink, destDir string, buildVersion int64, forceRebuild bool, baseURL string, assets map[string]string) error {
 	swPath := filepath.Join(destDir, "sw.js")
 
 	// 1. Smart Check: If not forcing rebuild and SW exists, skip
 	if !forceRebuild {
-		if exists, _ := afero.Exists(destFs, swPath); exists {
+		if _, err := os.Stat(swPath); err == nil {
 			return nil
 		}
 	}
@@ -32,14 +35,9 @@ self.addEventListener('fetch', function(event) {
 		return err
 	}
 
-	if err := destFs.MkdirAll(filepath.Dir(swPath), 0755); err != nil {
+	if err := sink.MkdirAll(filepath.Dir(swPath)); err != nil {
 		return err
 	}
-	f, err := destFs.Create(swPath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
 
 	data := struct {
 		Version        int64
@@ -68,16 +66,18 @@ self.addEventListener('fetch', function(event) {
 		}
 	}
 
-	return tmpl.Execute(f, data)
+	return sink.WriteStream(swPath, func(w io.Writer) error {
+		return tmpl.Execute(w, data)
+	})
 }
 
 // GenerateManifest creates the manifest.json dynamically with a smart build check
-func GenerateManifest(destFs afero.Fs, destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool) error {
+func GenerateManifest(sink utils.ArtifactSink, destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool) error {
 	manifestPath := filepath.Join(destDir, "manifest.json")
 
 	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
 	if !forceRebuild {
-		if exists, _ := afero.Exists(destFs, manifestPath); exists {
+		if _, err := os.Stat(manifestPath); err == nil {
 			return nil
 		}
 	}
@@ -126,14 +126,9 @@ func GenerateManifest(destFs afero.Fs, destDir string, baseURL string, siteTitle
 		return err
 	}
 
-	if err := destFs.MkdirAll(filepath.Dir(manifestPath), 0755); err != nil {
+	if err := sink.MkdirAll(filepath.Dir(manifestPath)); err != nil {
 		return err
 	}
-	f, err := destFs.Create(manifestPath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
 
 	data := struct {
 		Title       string
@@ -145,11 +140,13 @@ func GenerateManifest(destFs afero.Fs, destDir string, baseURL string, siteTitle
 		BaseURL:     baseURL,
 	}
 
-	return tmpl.Execute(f, data)
+	return sink.WriteStream(manifestPath, func(w io.Writer) error {
+		return tmpl.Execute(w, data)
+	})
 }
 
 // GeneratePWAIcons generates 192x192 and 512x512 icons from favicon.png
-func GeneratePWAIcons(srcFs afero.Fs, destFs afero.Fs, srcPath, destDir string) error {
+func GeneratePWAIcons(srcFs afero.Fs, sink utils.ArtifactSink, srcPath, destDir string) error {
 	// Source must exist
 	srcFile, err := srcFs.Open(srcPath)
 	if err != nil {
@@ -164,7 +161,7 @@ func GeneratePWAIcons(srcFs afero.Fs, destFs afero.Fs, srcPath, destDir string) 
 	}
 
 	// Create dest dir if needed
-	if err := destFs.MkdirAll(destDir, 0755); err != nil {
+	if err := sink.MkdirAll(destDir); err != nil {
 		return err
 	}
 
@@ -173,25 +170,15 @@ func GeneratePWAIcons(srcFs afero.Fs, destFs afero.Fs, srcPath, destDir string) 
 	for _, size := range sizes {
 		destFile := filepath.Join(destDir, fmt.Sprintf("icon-%d.png", size))
 
-		// Check if destination exists in VFS.
-		// Note: We don't check modtime here easily against source stream without Stat'ing source path again.
-		// For simplicity in VFS build (which might be fresh), just generate.
-		// If we want incremental, we rely on checking if file exists in VFS (it won't if VFS is fresh).
-
 		fmt.Printf("   🎨 Generating PWA Icon: %dx%d\n", size, size)
 
 		// Resize
 		dst := imaging.Resize(src, size, size, imaging.Lanczos)
 
-		// Save to VFS
-		f, err := destFs.Create(destFile)
-		if err != nil {
-			return err
-		}
-
-		// Encode as PNG
-		err = imaging.Encode(f, dst, imaging.PNG)
-		_ = f.Close()
+		// Save to Sink
+		err = sink.WriteStream(destFile, func(w io.Writer) error {
+			return imaging.Encode(w, dst, imaging.PNG)
+		})
 		if err != nil {
 			return err
 		}

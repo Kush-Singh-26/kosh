@@ -72,10 +72,10 @@ func (c *imageCache) set(key string, data []byte) {
 // globalImageCache limits to 200 items or ~50MB of memory
 var globalImageCache = newImageCache(200, 50*1024*1024)
 
-func CopyDirVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string, imageWorkers int, webpQuality int) error {
+func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string, imageWorkers int, webpQuality int) error {
 	srcDir = NormalizePath(srcDir)
 	dstDir = NormalizePath(dstDir)
-	if err := destFs.MkdirAll(dstDir, 0755); err != nil {
+	if err := sink.MkdirAll(dstDir); err != nil {
 		return fmt.Errorf("failed to create destination directory %s: %w", dstDir, err)
 	}
 
@@ -119,7 +119,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcDir, ds
 
 						if compress && isImage {
 							target := filepath.Join(dstDir, task.relPath)
-							if err := processImageVFS(ctx, srcFs, destFs, task.path, target, cacheDir, webpQuality); err != nil {
+							if err := processImageVFS(ctx, srcFs, sink, task.path, target, cacheDir, webpQuality); err != nil {
 								errMu.Lock()
 								errs = append(errs, fmt.Errorf("failed to process image %s: %w", task.path, err))
 								errMu.Unlock()
@@ -129,9 +129,8 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcDir, ds
 						} else {
 							destPath := filepath.Join(dstDir, task.relPath)
 							err := func() error {
-								destDir := filepath.Dir(destPath)
-								if err := destFs.MkdirAll(destDir, 0755); err != nil {
-									return fmt.Errorf("failed to create directory %s: %w", destDir, err)
+								if err := sink.MkdirAll(filepath.Dir(destPath)); err != nil {
+									return fmt.Errorf("failed to create directory %s: %w", filepath.Dir(destPath), err)
 								}
 
 								in, err := srcFs.Open(task.path)
@@ -140,15 +139,14 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcDir, ds
 								}
 								defer func() { _ = in.Close() }()
 
-								out, err := destFs.Create(destPath)
-								if err != nil {
-									return fmt.Errorf("failed to create destination file %s: %w", destPath, err)
+								errWrite := sink.WriteStream(destPath, func(w io.Writer) error {
+									_, err := io.Copy(w, in)
+									return err
+								})
+								if errWrite != nil {
+									return fmt.Errorf("failed to copy file %s: %w", task.path, errWrite)
 								}
-								defer func() { _ = out.Close() }()
 
-								if _, err := io.Copy(out, in); err != nil {
-									return fmt.Errorf("failed to copy file %s: %w", task.path, err)
-								}
 								if onWrite != nil {
 									onWrite(destPath)
 								}
@@ -218,7 +216,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcDir, ds
 	return nil
 }
 
-func processImageVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcPath, dstPath string, cacheDir string, webpQuality int) error {
+func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcPath, dstPath string, cacheDir string, webpQuality int) error {
 	srcInfo, err := srcFs.Stat(srcPath)
 	if err != nil {
 		return fmt.Errorf("failed to stat source image %s: %w", srcPath, err)
@@ -226,21 +224,14 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcPa
 
 	memCacheKey := fmt.Sprintf("%s-%d-%d", srcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())
 	if cached, ok := globalImageCache.get(memCacheKey); ok {
-		if err := destFs.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
+		if err := sink.MkdirAll(filepath.Dir(dstPath)); err != nil {
 			return fmt.Errorf("failed to create image directory: %w", err)
 		}
-		return afero.WriteFile(destFs, dstPath, cached, 0644)
+		return sink.WriteFile(dstPath, cached)
 	}
 
-	if dstInfo, err := destFs.Stat(dstPath); err == nil {
-		if !srcInfo.ModTime().After(dstInfo.ModTime()) {
-			data, err := afero.ReadFile(destFs, dstPath)
-			if err == nil {
-				globalImageCache.set(memCacheKey, data)
-				return afero.WriteFile(destFs, dstPath, data, 0644)
-			}
-		}
-	}
+	// We cannot safely read from Sink to check dstInfo. 
+	// We will just process if it's not in cache.
 
 	var cacheFile string
 	cacheFs := afero.NewOsFs()
@@ -251,10 +242,10 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcPa
 
 		if data, err := afero.ReadFile(cacheFs, cacheFile); err == nil {
 			globalImageCache.set(memCacheKey, data)
-			if err := destFs.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
+			if err := sink.MkdirAll(filepath.Dir(dstPath)); err != nil {
 				return fmt.Errorf("failed to create image directory: %w", err)
 			}
-			return WriteFileVFS(destFs, dstPath, data)
+			return sink.WriteFile(dstPath, data)
 		}
 	}
 
@@ -282,7 +273,7 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcPa
 		}
 	}
 
-	if err := destFs.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
+	if err := sink.MkdirAll(filepath.Dir(dstPath)); err != nil {
 		return fmt.Errorf("failed to create image directory: %w", err)
 	}
 
@@ -320,7 +311,7 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, destFs afero.Fs, srcPa
 		}
 	}
 
-	err = afero.WriteFile(destFs, dstPath, finalData, 0644)
+	err = sink.WriteFile(dstPath, finalData)
 
 	return err
 }

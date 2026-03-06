@@ -15,7 +15,7 @@ import (
 	"github.com/zeebo/blake3"
 )
 
-func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool) (map[string]string, error) {
+func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool) (map[string]string, error) {
 	srcDir = NormalizePath(srcDir)
 	destDir = NormalizePath(destDir)
 	assets := make(map[string]string)
@@ -91,14 +91,14 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 								return err
 							}
 
-							// Write to destFs
+							// Write to sink
 							// destDir is public/static
 							// relPath is css/main.css
 							destPath := filepath.Join(destDir, relPath)
-							if err := destFs.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+							if err := sink.MkdirAll(filepath.Dir(destPath)); err != nil {
 								return err
 							}
-							if err := afero.WriteFile(destFs, destPath, data, 0644); err != nil {
+							if err := sink.WriteFile(destPath, data); err != nil {
 								return err
 							}
 							if onWrite != nil {
@@ -163,10 +163,10 @@ func BuildAssetsEsbuild(srcFs afero.Fs, destFs afero.Fs, srcDir, destDir string,
 			vfsPath := filepath.Join(destDir, relPath)
 
 			dir := filepath.Dir(vfsPath)
-			if err := destFs.MkdirAll(dir, 0755); err != nil {
+			if err := sink.MkdirAll(dir); err != nil {
 				return err
 			}
-			if err := afero.WriteFile(destFs, vfsPath, outFile.Contents, 0644); err != nil {
+			if err := sink.WriteFile(vfsPath, outFile.Contents); err != nil {
 				return err
 			}
 			if onWrite != nil {

@@ -15,20 +15,24 @@ import (
 
 type assetServiceImpl struct {
 	sourceFs afero.Fs
-	destFs   afero.Fs
+	sink     utils.ArtifactSink
 	cfg      *config.Config
 	renderer RenderService
 	logger   *slog.Logger
 }
 
-func NewAssetService(sourceFs, destFs afero.Fs, cfg *config.Config, renderer RenderService, logger *slog.Logger) AssetService {
+func NewAssetService(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger) AssetService {
 	return &assetServiceImpl{
 		sourceFs: sourceFs,
-		destFs:   destFs,
+		sink:     sink,
 		cfg:      cfg,
 		renderer: renderer,
 		logger:   logger,
 	}
+}
+
+func (s *assetServiceImpl) SetSink(sink utils.ArtifactSink) {
+	s.sink = sink
 }
 
 func (s *assetServiceImpl) Build(ctx context.Context) error {
@@ -57,7 +61,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		if exists {
 			// Exclude .css and .js files from raw copy (they're handled by esbuild)
 			destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
-			if err := utils.CopyDirVFS(ctx, s.sourceFs, s.destFs, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality); err != nil {
+			if err := utils.CopyDirVFS(ctx, s.sourceFs, s.sink, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality); err != nil {
 				s.logger.Warn("Failed to copy theme static assets", "error", err)
 				errChan <- err
 				return
@@ -78,7 +82,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		}
 		if exists {
 			destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
-			if err := utils.CopyDirVFS(ctx, s.sourceFs, s.destFs, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality); err != nil {
+			if err := utils.CopyDirVFS(ctx, s.sourceFs, s.sink, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality); err != nil {
 				s.logger.Warn("Failed to copy site static assets", "error", err)
 				errChan <- err
 				return
@@ -99,17 +103,16 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 				}
 				defer func() { _ = src.Close() }()
 				wasmExecDestPath := filepath.Join(s.cfg.OutputDir, "static/js/wasm_exec.js")
-				if err := s.destFs.MkdirAll(filepath.Dir(wasmExecDestPath), 0755); err != nil {
+				if err := s.sink.MkdirAll(filepath.Dir(wasmExecDestPath)); err != nil {
 					s.logger.Warn("Failed to create wasm_exec.js directory", "path", filepath.Dir(wasmExecDestPath), "error", err)
 				}
-				dest, err := s.destFs.Create(wasmExecDestPath)
-				if err != nil {
+				errWrite := s.sink.WriteStream(wasmExecDestPath, func(w io.Writer) error {
+					_, err := io.Copy(w, src)
 					return err
-				}
-				defer func() { _ = dest.Close() }()
-				if _, err := io.Copy(dest, src); err != nil {
-					s.logger.Warn("Failed to copy wasm_exec.js", "path", wasmExecDestPath, "error", err)
-					return err
+				})
+				if errWrite != nil {
+					s.logger.Warn("Failed to copy wasm_exec.js", "path", wasmExecDestPath, "error", errWrite)
+					return errWrite
 				}
 				s.renderer.RegisterFile(wasmExecDestPath)
 				return nil
@@ -147,17 +150,16 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 				}
 				defer func() { _ = src.Close() }()
 				wasmEngineDestPath := filepath.Join(s.cfg.OutputDir, "static/js/wasm_engine.js")
-				if err := s.destFs.MkdirAll(filepath.Dir(wasmEngineDestPath), 0755); err != nil {
+				if err := s.sink.MkdirAll(filepath.Dir(wasmEngineDestPath)); err != nil {
 					s.logger.Warn("Failed to create wasm_engine.js directory", "path", filepath.Dir(wasmEngineDestPath), "error", err)
 				}
-				dest, err := s.destFs.Create(wasmEngineDestPath)
-				if err != nil {
+				errWrite := s.sink.WriteStream(wasmEngineDestPath, func(w io.Writer) error {
+					_, err := io.Copy(w, src)
 					return err
-				}
-				defer func() { _ = dest.Close() }()
-				if _, err := io.Copy(dest, src); err != nil {
-					s.logger.Warn("Failed to copy wasm_engine.js", "path", wasmEngineDestPath, "error", err)
-					return err
+				})
+				if errWrite != nil {
+					s.logger.Warn("Failed to copy wasm_engine.js", "path", wasmEngineDestPath, "error", errWrite)
+					return errWrite
 				}
 				s.renderer.RegisterFile(wasmEngineDestPath)
 				return nil
@@ -195,17 +197,16 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 				}
 				defer func() { _ = src.Close() }()
 				engineDestPath := filepath.Join(s.cfg.OutputDir, "static", "wasm", "engine.js")
-				if err := s.destFs.MkdirAll(filepath.Dir(engineDestPath), 0755); err != nil {
+				if err := s.sink.MkdirAll(filepath.Dir(engineDestPath)); err != nil {
 					s.logger.Warn("Failed to create engine.js directory", "path", filepath.Dir(engineDestPath), "error", err)
 				}
-				dest, err := s.destFs.Create(engineDestPath)
-				if err != nil {
+				errWrite := s.sink.WriteStream(engineDestPath, func(w io.Writer) error {
+					_, err := io.Copy(w, src)
 					return err
-				}
-				defer func() { _ = dest.Close() }()
-				if _, err := io.Copy(dest, src); err != nil {
-					s.logger.Warn("Failed to copy engine.js", "path", engineDestPath, "error", err)
-					return err
+				})
+				if errWrite != nil {
+					s.logger.Warn("Failed to copy engine.js", "path", engineDestPath, "error", errWrite)
+					return errWrite
 				}
 				s.renderer.RegisterFile(engineDestPath)
 				return nil
@@ -245,17 +246,16 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 					return err
 				}
 				defer func() { _ = src.Close() }()
-				if err := s.destFs.MkdirAll(filepath.Dir(wasmDestPath), 0755); err != nil {
+				if err := s.sink.MkdirAll(filepath.Dir(wasmDestPath)); err != nil {
 					s.logger.Warn("Failed to create search.wasm directory", "path", filepath.Dir(wasmDestPath), "error", err)
 				}
-				dest, err := s.destFs.Create(wasmDestPath)
-				if err != nil {
+				errWrite := s.sink.WriteStream(wasmDestPath, func(w io.Writer) error {
+					_, err := io.Copy(w, src)
 					return err
-				}
-				defer func() { _ = dest.Close() }()
-				if _, err := io.Copy(dest, src); err != nil {
-					s.logger.Warn("Failed to copy search.wasm", "path", wasmDestPath, "error", err)
-					return err
+				})
+				if errWrite != nil {
+					s.logger.Warn("Failed to copy search.wasm", "path", wasmDestPath, "error", errWrite)
+					return errWrite
 				}
 				s.renderer.RegisterFile(wasmDestPath)
 				return nil
@@ -276,17 +276,16 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 					}
 					defer func() { _ = src.Close() }()
 					destPath := filepath.Join(s.cfg.OutputDir, s.cfg.Logo)
-					if err := s.destFs.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+					if err := s.sink.MkdirAll(filepath.Dir(destPath)); err != nil {
 						s.logger.Warn("Failed to create logo directory", "path", filepath.Dir(destPath), "error", err)
 					}
-					dest, err := s.destFs.Create(destPath)
-					if err != nil {
+					errWrite := s.sink.WriteStream(destPath, func(w io.Writer) error {
+						_, err := io.Copy(w, src)
 						return err
-					}
-					defer func() { _ = dest.Close() }()
-					if _, err := io.Copy(dest, src); err != nil {
-						s.logger.Warn("Failed to copy logo", "path", destPath, "error", err)
-						return err
+					})
+					if errWrite != nil {
+						s.logger.Warn("Failed to copy logo", "path", destPath, "error", errWrite)
+						return errWrite
 					}
 					s.renderer.RegisterFile(destPath)
 					return nil
@@ -306,7 +305,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		if exists {
 			// Copy everything from content/ to outputDir, excluding .md files
 			// This preserves the directory structure for colocated assets
-			if err := utils.CopyDirVFS(ctx, s.sourceFs, s.destFs, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, []string{".md"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality); err != nil {
+			if err := utils.CopyDirVFS(ctx, s.sourceFs, s.sink, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, []string{".md"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality); err != nil {
 				s.logger.Warn("Failed to copy content assets", "error", err)
 				errChan <- err
 				return
@@ -330,7 +329,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		// Use hash-based check even in dev mode to avoid redundant esbuild runs
 		// force is now only true if explicitly requested via some other mechanism (currently false)
 		force := false
-		assets, assetErr := utils.BuildAssetsEsbuild(s.sourceFs, s.destFs, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
+		assets, assetErr := utils.BuildAssetsEsbuild(s.sourceFs, s.sink, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
 		if assetErr != nil {
 			s.logger.Error("Failed to build assets", "error", assetErr)
 			errChan <- assetErr

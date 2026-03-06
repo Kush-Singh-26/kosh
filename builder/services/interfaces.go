@@ -5,6 +5,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // PostResult contains the aggregated results of post processing
@@ -18,6 +19,7 @@ type PostResult struct {
 }
 
 type PostService interface {
+	SetSink(sink utils.ArtifactSink)
 	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
@@ -60,11 +62,13 @@ type CacheService interface {
 
 // AssetService handles static asset processing
 type AssetService interface {
+	SetSink(sink utils.ArtifactSink)
 	Build(ctx context.Context) error
 }
 
 // RenderService handles rendering logic
 type RenderService interface {
+	SetSink(sink utils.ArtifactSink)
 	RenderPage(path string, data models.PageData)
 	RenderIndex(path string, data models.PageData)
 	Render404(path string, data models.PageData)

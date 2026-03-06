@@ -14,10 +14,13 @@ type FileLock struct {
 }
 
 func AcquireBuildLock(outputDir string) (*FileLock, error) {
-	lockPath := filepath.Join(outputDir, ".kosh-build.lock")
+	// Place the lock file adjacent to the output directory to prevent file locking
+	// issues when renaming the output directory during atomic publish.
+	lockPath := filepath.Clean(outputDir) + ".lock"
 
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create output directory: %w", err)
+	// Ensure the parent directory of the lock file exists
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0755); err != nil {
+		return nil, fmt.Errorf("failed to create lock directory: %w", err)
 	}
 
 	file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)

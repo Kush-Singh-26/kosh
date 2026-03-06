@@ -6,13 +6,11 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/spf13/afero"
-
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata, outputPath string) (string, error) {
+func GenerateGraph(sink utils.ArtifactSink, baseURL string, posts []models.PostMetadata, outputPath string) (string, error) {
 	slog.Info("Generating knowledge graph data")
 
 	nodes := []models.GraphNode{}
@@ -42,7 +40,7 @@ func GenerateGraph(destFs afero.Fs, baseURL string, posts []models.PostMetadata,
 	if err != nil {
 		return "", err
 	}
-	if err := utils.WriteFileVFS(destFs, outputPath, output); err != nil {
+	if err := sink.WriteFile(outputPath, output); err != nil {
 		return "", err
 	}
 	return outputPath, nil

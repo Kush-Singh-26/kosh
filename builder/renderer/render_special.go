@@ -1,9 +1,8 @@
 package renderer
 
 import (
-	"bufio"
 	"bytes"
-	"path/filepath"
+	"io"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
@@ -11,20 +10,6 @@ import (
 
 func (r *Renderer) RenderIndex(path string, data models.PageData) {
 	data.Assets = r.GetAssets()
-
-	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		r.logger.Error("Failed to create directory", "path", path, "error", err)
-		return
-	}
-	f, err := r.DestFs.Create(path)
-	if err != nil {
-		r.logger.Error("Failed to create file", "path", path, "error", err)
-		return
-	}
-	defer func() { _ = f.Close() }()
-
-	bw := bufio.NewWriterSize(f, utils.MaxBufferSize)
-	defer func() { _ = bw.Flush() }()
 
 	r.mu.RLock()
 	index := r.Index
@@ -58,8 +43,13 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 		}
 	}
 
-	if _, err := bw.Write(finalBytes); err != nil {
-		r.logger.Error("Failed to write processed index", "path", path, "error", err)
+	errExec = r.Sink.WriteStream(path, func(w io.Writer) error {
+		_, err := w.Write(finalBytes)
+		return err
+	})
+
+	if errExec != nil {
+		r.logger.Error("Failed to write processed index", "path", path, "error", errExec)
 	} else {
 		r.RegisterFile(path)
 	}
@@ -75,21 +65,6 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 	}
 
 	data.Assets = r.GetAssets()
-
-	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		r.logger.Error("Failed to create directory", "path", path, "error", err)
-		return
-	}
-
-	f, err := r.DestFs.Create(path)
-	if err != nil {
-		r.logger.Error("Failed to create file", "path", path, "error", err)
-		return
-	}
-	defer func() { _ = f.Close() }()
-
-	bw := bufio.NewWriterSize(f, utils.MaxBufferSize)
-	defer func() { _ = bw.Flush() }()
 
 	var buf bytes.Buffer
 	if err := graph.Execute(&buf, data); err != nil {
@@ -108,8 +83,13 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 		}
 	}
 
-	if _, err := bw.Write(finalBytes); err != nil {
-		r.logger.Error("Failed to write processed graph", "path", path, "error", err)
+	errWrite := r.Sink.WriteStream(path, func(w io.Writer) error {
+		_, err := w.Write(finalBytes)
+		return err
+	})
+
+	if errWrite != nil {
+		r.logger.Error("Failed to write processed graph", "path", path, "error", errWrite)
 	} else {
 		r.RegisterFile(path)
 	}
@@ -117,20 +97,6 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 
 func (r *Renderer) Render404(path string, data models.PageData) {
 	data.Assets = r.GetAssets()
-
-	if err := r.DestFs.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		r.logger.Error("Failed to create directory", "path", path, "error", err)
-		return
-	}
-	f, err := r.DestFs.Create(path)
-	if err != nil {
-		r.logger.Error("Failed to create file", "path", path, "error", err)
-		return
-	}
-	defer func() { _ = f.Close() }()
-
-	bw := bufio.NewWriterSize(f, utils.MaxBufferSize)
-	defer func() { _ = bw.Flush() }()
 
 	r.mu.RLock()
 	notFound := r.NotFound
@@ -164,8 +130,13 @@ func (r *Renderer) Render404(path string, data models.PageData) {
 		}
 	}
 
-	if _, err := bw.Write(finalBytes); err != nil {
-		r.logger.Error("Failed to write processed 404", "path", path, "error", err)
+	errWrite := r.Sink.WriteStream(path, func(w io.Writer) error {
+		_, err := w.Write(finalBytes)
+		return err
+	})
+
+	if errWrite != nil {
+		r.logger.Error("Failed to write processed 404", "path", path, "error", errWrite)
 	} else {
 		r.RegisterFile(path)
 	}
