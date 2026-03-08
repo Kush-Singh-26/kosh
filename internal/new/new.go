@@ -2,23 +2,20 @@ package new
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"time"
-)
 
-// slugRegex matches characters that are unsafe for filenames/URLs
-var slugRegex = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
+	"github.com/spf13/afero"
+)
 
 // sanitizeSlug converts a title to a safe filename slug
 func sanitizeSlug(title string) string {
 	// Convert to lowercase
 	slug := strings.ToLower(title)
-	// Replace spaces with hyphens
-	slug = strings.ReplaceAll(slug, " ", "-")
-	// Remove or replace unsafe characters
-	slug = slugRegex.ReplaceAllString(slug, "")
+	// Replace non-alphanumeric with hyphens
+	reg := regexp.MustCompile(`[^a-z0-9]+`)
+	slug = reg.ReplaceAllString(slug, "-")
 	// Remove consecutive hyphens
 	for strings.Contains(slug, "--") {
 		slug = strings.ReplaceAll(slug, "--", "-")
@@ -34,6 +31,11 @@ func sanitizeSlug(title string) string {
 
 // Run creates a new blog post file
 func Run(args []string) {
+	RunFs(afero.NewOsFs(), args)
+}
+
+// RunFs creates a new blog post file using the provided filesystem
+func RunFs(fs afero.Fs, args []string) {
 	if len(args) < 1 {
 		fmt.Println("Usage: kosh new \"My New Post Title\"")
 		return
@@ -64,12 +66,13 @@ Start writing here...
 `, title, time.Now().Format("2006-01-02"))
 
 	// Check if file exists to avoid overwriting
-	if _, err := os.Stat(filename); err == nil {
+	exists, _ := afero.Exists(fs, filename)
+	if exists {
 		fmt.Println("❌ Error: File already exists:", filename)
 		return
 	}
 
-	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+	if err := afero.WriteFile(fs, filename, []byte(content), 0644); err != nil {
 		fmt.Println("Error creating file:", err)
 		return
 	}

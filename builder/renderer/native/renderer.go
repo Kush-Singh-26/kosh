@@ -9,7 +9,8 @@ import (
 	"sync"
 
 	"github.com/dop251/goja"
-	"github.com/zeebo/blake3"
+	"github.com/zeebo/xxh3"
+	"golang.org/x/sync/singleflight"
 	"oss.terrastruct.com/d2/lib/textmeasure"
 )
 
@@ -34,6 +35,7 @@ type Renderer struct {
 	wg         sync.WaitGroup
 	mu         sync.Mutex
 	closed     bool
+	mathGroup  singleflight.Group
 }
 
 type RendererOption func(*Renderer)
@@ -113,6 +115,13 @@ func (r *Renderer) ensureInitialized() {
 		// The pool channel will block consumers until at least one worker is available.
 		// This "streams" workers as they come online, improving start time.
 	})
+}
+
+// EnsureInitialized triggers lazy worker initialization eagerly.
+// Call this during setup to overlap KaTeX compilation with other init work.
+// Safe to call concurrently or multiple times (guarded by sync.Once).
+func (r *Renderer) EnsureInitialized() {
+	r.ensureInitialized()
 }
 
 func newinstance() *instance {
@@ -203,9 +212,11 @@ func (r *Renderer) Close() error {
 	return nil
 }
 
-// HashContent generates a BLAKE3 hash for cache keys
+// HashContent generates a XXH3 hash for cache keys
 func HashContent(contentType, content string) string {
-	h := blake3.New()
+	h := xxh3.New()
 	_, _ = h.WriteString(contentType + ":" + content)
-	return hex.EncodeToString(h.Sum(nil))[:16]
+	sum := h.Sum128()
+	b := sum.Bytes()
+	return hex.EncodeToString(b[:])[:16]
 }

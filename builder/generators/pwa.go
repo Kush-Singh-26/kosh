@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"text/template"
 
 	"github.com/disintegration/imaging"
@@ -17,7 +18,7 @@ func GenerateSW(sink utils.ArtifactSink, destDir string, buildVersion int64, for
 	swPath := filepath.Join(destDir, "sw.js")
 
 	// 1. Smart Check: If not forcing rebuild and SW exists, skip
-	if !forceRebuild {
+	if !forceRebuild && !TestingMode {
 		if _, err := os.Stat(swPath); err == nil {
 			return nil
 		}
@@ -76,7 +77,7 @@ func GenerateManifest(sink utils.ArtifactSink, destDir string, baseURL string, s
 	manifestPath := filepath.Join(destDir, "manifest.json")
 
 	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
-	if !forceRebuild {
+	if !forceRebuild && !TestingMode {
 		if _, err := os.Stat(manifestPath); err == nil {
 			return nil
 		}
@@ -167,18 +168,23 @@ func GeneratePWAIcons(srcFs afero.Fs, sink utils.ArtifactSink, srcPath, destDir 
 
 	sizes := []int{192, 512}
 
-	for _, size := range sizes {
-		destFile := filepath.Join(destDir, fmt.Sprintf("icon-%d.png", size))
+	var wg sync.WaitGroup
+	errs := make([]error, len(sizes))
+	for i, size := range sizes {
+		wg.Add(1)
+		go func(idx, sz int) {
+			defer wg.Done()
+			destFile := filepath.Join(destDir, fmt.Sprintf("icon-%d.png", sz))
+			fmt.Printf("   🎨 Generating PWA Icon: %dx%d\n", sz, sz)
+			dst := imaging.Resize(src, sz, sz, imaging.Lanczos)
+			errs[idx] = sink.WriteStream(destFile, func(w io.Writer) error {
+				return imaging.Encode(w, dst, imaging.PNG)
+			})
+		}(i, size)
+	}
+	wg.Wait()
 
-		fmt.Printf("   🎨 Generating PWA Icon: %dx%d\n", size, size)
-
-		// Resize
-		dst := imaging.Resize(src, size, size, imaging.Lanczos)
-
-		// Save to Sink
-		err = sink.WriteStream(destFile, func(w io.Writer) error {
-			return imaging.Encode(w, dst, imaging.PNG)
-		})
+	for _, err := range errs {
 		if err != nil {
 			return err
 		}

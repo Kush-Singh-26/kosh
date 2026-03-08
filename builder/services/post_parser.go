@@ -24,6 +24,34 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
+type parsedFrontmatter struct {
+	Title       string
+	Description string
+	DateObj     time.Time
+	Tags        []string
+	Pinned      bool
+	Weight      int
+	Draft       bool
+}
+
+func extractFrontmatter(metaData map[string]interface{}) parsedFrontmatter {
+	dateStr := utils.GetString(metaData, "date")
+	dateObj, _ := time.Parse("2006-01-02", dateStr)
+	weight, _ := metaData["weight"].(int)
+	if w, ok := metaData["weight"].(float64); ok && weight == 0 {
+		weight = int(w)
+	}
+	return parsedFrontmatter{
+		Title:       utils.GetString(metaData, "title"),
+		Description: utils.GetString(metaData, "description"),
+		DateObj:     dateObj,
+		Tags:        utils.GetSlice(metaData, "tags"),
+		Pinned:      utils.GetBool(metaData, "pinned"),
+		Weight:      weight,
+		Draft:       utils.GetBool(metaData, "draft"),
+	}
+}
+
 // ParsedMarkdownResult holds the output of the markdown parsing phase
 type ParsedMarkdownResult struct {
 	HTMLContent     string
@@ -38,6 +66,7 @@ type ParsedMarkdownResult struct {
 	DocLen          int
 	StemMap         map[string]string
 	PositionalIndex map[string][]int
+	ByteOffsets     map[string][]int
 }
 
 // ParseMarkdown handles the safe parsing and processing of markdown files
@@ -76,24 +105,21 @@ func ParseMarkdown(
 		defer mdPool.Put(mdEngine)
 
 		docNode = mdEngine.Parser().Parse(text.NewReader(source), parser.WithContext(mdCtx))
+
+		// Render with the same engine instance to reduce pool churn/alloc pressure.
+		buf := utils.SharedBufferPool.Get()
+		defer utils.SharedBufferPool.Put(buf)
+
+		if err := mdEngine.Renderer().Render(buf, source, docNode); err != nil {
+			parseErr = fmt.Errorf("failed to render markdown: %w", err)
+			return
+		}
+		res.HTMLContent = buf.String()
 	}()
 
 	if parseErr != nil {
 		return nil, parseErr
 	}
-
-	// Use BufferPool
-	buf := utils.SharedBufferPool.Get()
-	defer utils.SharedBufferPool.Put(buf)
-
-	mdEngineForRender := mdPool.Get().(goldmark.Markdown)
-	errRender := mdEngineForRender.Renderer().Render(buf, source, docNode)
-	mdPool.Put(mdEngineForRender)
-
-	if errRender != nil {
-		return nil, fmt.Errorf("failed to render markdown: %w", errRender)
-	}
-	res.HTMLContent = buf.String()
 
 	res.SSRHashes = mdParser.GetSSRHashes(mdCtx)
 
@@ -112,23 +138,17 @@ func ParseMarkdown(
 	}
 
 	res.MetaData = meta.Get(mdCtx)
-	dateStr := utils.GetString(res.MetaData, "date")
-	dateObj, _ := time.Parse("2006-01-02", dateStr)
-	isPinned, _ := res.MetaData["pinned"].(bool)
-	weight, _ := res.MetaData["weight"].(int)
-	if w, ok := res.MetaData["weight"].(float64); ok && weight == 0 {
-		weight = int(w)
-	}
-	wordCount := len(strings.Fields(string(source)))
+	fm := extractFrontmatter(res.MetaData)
+	wordCount := utils.CountWords(source)
 	res.TOC = mdParser.GetTOC(mdCtx)
 
 	postLink := utils.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
 
 	res.Post = models.PostMetadata{
-		Title: utils.GetString(res.MetaData, "title"), Link: postLink,
-		Description: utils.GetString(res.MetaData, "description"), Tags: utils.GetSlice(res.MetaData, "tags"),
-		ReadingTime: int(math.Ceil(float64(wordCount) / wordsPerMinute)), Pinned: isPinned, Weight: weight,
-		DateObj: dateObj, Draft: utils.GetBool(res.MetaData, "draft"), Version: version,
+		Title: fm.Title, Link: postLink,
+		Description: fm.Description, Tags: fm.Tags,
+		ReadingTime: int(math.Ceil(float64(wordCount) / wordsPerMinute)), Pinned: fm.Pinned, Weight: fm.Weight,
+		DateObj: fm.DateObj, Draft: fm.Draft, Version: version,
 	}
 
 	res.PlainText = mdParser.GetPlainText(mdCtx)
@@ -151,8 +171,10 @@ func ParseMarkdown(
 		Version:         res.Post.Version,
 	}
 
-	// Use analyzer for tokenization with stemming and stop word removal
-	var sb strings.Builder
+	// Use pooled analyzer for tokenization with stemming and stop word removal
+	sb := utils.SharedStringBuilderPool.Get()
+	defer utils.SharedStringBuilderPool.Put(sb)
+
 	sb.Grow(len(res.SearchRecord.Title) + len(res.SearchRecord.Description) + len(res.PlainText) + 200)
 	sb.WriteString(res.SearchRecord.Title)
 	sb.WriteByte(' ')
@@ -168,16 +190,18 @@ func ParseMarkdown(
 	var freshStemMap map[string]string
 	var words []string
 	var positions map[string][]int
-	words, freshStemMap, positions = search.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
+	var offsets map[string][]int
+	words, freshStemMap, positions, offsets = search.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
+
+	res.WordFreqs = make(map[string]int, len(words)/2)
+	for _, w := range words {
+		res.WordFreqs[w]++
+	}
+	res.DocLen = len(words)
 	res.StemMap = freshStemMap
 	res.PositionalIndex = positions
-	res.DocLen = len(words)
-	res.WordFreqs = make(map[string]int)
-	for _, w := range words {
-		if len(w) >= 2 {
-			res.WordFreqs[w]++
-		}
-	}
+	res.ByteOffsets = offsets
+
 	res.FrontmatterHash, _ = utils.GetFrontmatterHash(res.MetaData)
 
 	return res, nil

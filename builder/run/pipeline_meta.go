@@ -57,13 +57,17 @@ func (b *Builder) generateMetadata(ctx context.Context, allContent []models.Post
 			cachedGraphHash, _ = b.cacheService.GetGraphHash()
 		}
 
-		// Check if graph.json exists on disk
+		// Check if both graph.json and graph.html exist on disk
 		graphExists := false
+		graphHTMLExists := false
 		if _, err := os.Stat(filepath.Join(cfg.OutputDir, "graph.json")); err == nil {
 			graphExists = true
 		}
+		if _, err := os.Stat(filepath.Join(cfg.OutputDir, "graph.html")); err == nil {
+			graphHTMLExists = true
+		}
 
-		if shouldForce || !graphExists || cachedGraphHash != graphHash {
+		if shouldForce || !graphExists || !graphHTMLExists || cachedGraphHash != graphHash {
 			g.Go(func() error {
 				path, err := generators.GenerateGraph(b.Sink, cfg.BaseURL, allContent, filepath.Join(outputDir, "graph.json"))
 				if err == nil {
@@ -72,6 +76,15 @@ func (b *Builder) generateMetadata(ctx context.Context, allContent []models.Post
 						_ = b.cacheService.SetGraphHash(graphHash)
 					}
 				}
+				// Always render the HTML shell alongside the data file
+				b.renderService.RenderGraph(filepath.Join(outputDir, "graph.html"), models.PageData{
+					Title:          "Graph View",
+					TabTitle:       "Knowledge Graph | " + cfg.Title,
+					BaseURL:        cfg.BaseURL,
+					BuildVersion:   cfg.BuildVersion,
+					Config:         cfg,
+					RelativePrefix: "",
+				})
 				return err
 			})
 		}

@@ -2,8 +2,9 @@ package scaffold
 
 import (
 	"fmt"
-	"os"
 	"time"
+
+	"github.com/spf13/afero"
 )
 
 const defaultKoshYaml = `# Site Configuration
@@ -71,6 +72,11 @@ This is your first post. You can edit this file in ` + "`content/hello-world.md`
 
 // Run initializes a new Kosh project
 func Run(args []string) {
+	RunFs(afero.NewOsFs(), args)
+}
+
+// RunFs initializes a new Kosh project using the provided filesystem
+func RunFs(fs afero.Fs, args []string) {
 	fmt.Println("🌱 Initializing new Kosh project...")
 
 	// 1. Create Directories
@@ -82,7 +88,7 @@ func Run(args []string) {
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := fs.MkdirAll(dir, 0755); err != nil {
 			fmt.Printf("❌ Failed to create directory '%s': %v\n", dir, err)
 			return
 		}
@@ -90,8 +96,9 @@ func Run(args []string) {
 	}
 
 	// 2. Create kosh.yaml
-	if _, err := os.Stat("kosh.yaml"); os.IsNotExist(err) {
-		if err := os.WriteFile("kosh.yaml", []byte(defaultKoshYaml), 0644); err != nil {
+	exists, _ := afero.Exists(fs, "kosh.yaml")
+	if !exists {
+		if err := afero.WriteFile(fs, "kosh.yaml", []byte(defaultKoshYaml), 0644); err != nil {
 			fmt.Printf("❌ Failed to create kosh.yaml: %v\n", err)
 			return
 		}
@@ -101,9 +108,10 @@ func Run(args []string) {
 	}
 
 	// 3. Create first post
-	if _, err := os.Stat("content/hello-world.md"); os.IsNotExist(err) {
+	exists, _ = afero.Exists(fs, "content/hello-world.md")
+	if !exists {
 		content := fmt.Sprintf(firstPost, time.Now().Format("2006-01-02"))
-		if err := os.WriteFile("content/hello-world.md", []byte(content), 0644); err != nil {
+		if err := afero.WriteFile(fs, "content/hello-world.md", []byte(content), 0644); err != nil {
 			fmt.Printf("❌ Failed to create first post: %v\n", err)
 		} else {
 			fmt.Println("   📝 Created 'content/hello-world.md'")

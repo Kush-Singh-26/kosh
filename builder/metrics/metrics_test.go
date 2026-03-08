@@ -27,3 +27,15 @@ func TestPanicsRecovered(t *testing.T) {
 		t.Errorf("Output misses panic tracking: %s", output)
 	}
 }
+
+func TestImageResizeSkippedMetric(t *testing.T) {
+	m := NewBuildMetrics()
+	m.RecordImageOptimization(1000, 600)
+	m.RecordImageResizeSkipped()
+	m.RecordImageResizeSkipped()
+
+	out := m.String()
+	if !strings.Contains(out, "Skipped resize for 2 small images") {
+		t.Fatalf("missing skipped resize metric in output: %s", out)
+	}
+}

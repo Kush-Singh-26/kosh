@@ -146,6 +146,17 @@ func (m *MockCacheService) SetSocialCardHash(path, hash string) error {
 	return nil
 }
 
+func (m *MockCacheService) BatchSetSocialCardHashes(hashes map[string]string) error {
+	m.recordCall("BatchSetSocialCardHashes")
+	if m.Err != nil {
+		return m.Err
+	}
+	for path, hash := range hashes {
+		m.SocialCardHashes[path] = hash
+	}
+	return nil
+}
+
 func (m *MockCacheService) GetGraphHash() (string, error) {
 	m.recordCall("GetGraphHash")
 	if m.Err != nil {

@@ -10,6 +10,51 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+func TestWatcher_BurstDebounce(t *testing.T) {
+	dir := t.TempDir()
+	eventCount := 0
+	var countMu sync.Mutex
+
+	w, err := New([]string{dir}, func(e Event) {
+		countMu.Lock()
+		eventCount++
+		countMu.Unlock()
+	})
+	if err != nil {
+		t.Fatalf("Failed to create watcher: %v", err)
+	}
+
+	// Set a slightly longer debounce for the test to be reliable
+	w.duration = 100 * time.Millisecond
+
+	pendingMu := &sync.Mutex{}
+	pendingEvents := make(map[string]fsnotify.Op)
+
+	// Simulate a burst of events
+	for i := 0; i < 50; i++ {
+		pendingMu.Lock()
+		pendingEvents["test.txt"] = fsnotify.Write
+		pendingMu.Unlock()
+		w.resetTimer(pendingMu, &pendingEvents)
+		time.Sleep(2 * time.Millisecond) // Total 100ms burst, right at the edge
+	}
+
+	// Wait for debounce
+	time.Sleep(300 * time.Millisecond)
+
+	countMu.Lock()
+	count := eventCount
+	countMu.Unlock()
+
+	// In a perfect debounce, we expect exactly 1 event for the same file
+	// But since the burst took ~100ms and debounce is 100ms, it might be 1 or 2
+	if count > 2 {
+		t.Errorf("Debounce failed: expected 1 or 2 events, got %d", count)
+	} else {
+		t.Logf("Debounce worked: captured %d events from 50 triggers", count)
+	}
+}
+
 func TestWatcher_ResetTimer_ThreadSafe(t *testing.T) {
 	dir := t.TempDir()
 	eventCount := 0

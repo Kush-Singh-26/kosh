@@ -3,7 +3,6 @@ package version
 import (
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -11,17 +10,22 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/spf13/afero"
 )
 
 func Run(args []string) {
+	RunFs(afero.NewOsFs(), args)
+}
+
+func RunFs(vfs afero.Fs, args []string) {
 	if len(args) < 1 {
-		printVersionInfo()
+		printVersionInfoFs(vfs)
 		return
 	}
 
 	versionName := args[0]
 
-	cfg := loadConfig()
+	cfg := loadConfigFs(vfs)
 	if cfg == nil {
 		fmt.Println("❌ Error: Could not load kosh.yaml")
 		return
@@ -74,21 +78,21 @@ func Run(args []string) {
 	// Handle frozen content copy (traditional style only)
 	if frozenSourceDir != "" {
 		frozenDestDir := filepath.Join("content", frozenPath)
-		if _, err := os.Stat(frozenDestDir); err == nil {
+		if exists, _ := afero.Exists(vfs, frozenDestDir); exists {
 			if versionPaths[frozenPath] {
 				fmt.Printf("❌ Error: Directory '%s' already exists and is registered as a version\n", frozenDestDir)
 				return
 			}
 			fmt.Printf("⚠️  Warning: Directory '%s' exists but is not registered. Renaming to backup...\n", frozenDestDir)
 			backupDir := frozenDestDir + ".backup"
-			if err := os.Rename(frozenDestDir, backupDir); err != nil {
+			if err := vfs.Rename(frozenDestDir, backupDir); err != nil {
 				fmt.Printf("❌ Error: Could not rename existing directory: %v\n", err)
 				return
 			}
 			fmt.Printf("   Backup created at: %s\n", backupDir)
 		}
 		fmt.Printf("📸 Freezing version %s to content/%s/...\n", latestVersion.Name, frozenPath)
-		if err := snapshotContent(frozenDestDir, frozenSourceDir, cfg); err != nil {
+		if err := snapshotContentFs(vfs, frozenDestDir, frozenSourceDir, cfg); err != nil {
 			fmt.Printf("❌ Error during snapshot: %v\n", err)
 			return
 		}
@@ -96,14 +100,14 @@ func Run(args []string) {
 
 	// Handle new version folder creation (all-in-folders style)
 	if newVersionDir != "" {
-		if _, err := os.Stat(newVersionDir); err == nil {
+		if exists, _ := afero.Exists(vfs, newVersionDir); exists {
 			fmt.Printf("❌ Error: Directory '%s' already exists\n", newVersionDir)
 			return
 		}
 		// Copy from current latest version
 		sourceDir := filepath.Join("content", latestVersion.Path)
 		fmt.Printf("📸 Creating new version %s at content/%s/...\n", versionName, versionName)
-		if err := snapshotContent(newVersionDir, sourceDir, cfg); err != nil {
+		if err := snapshotContentFs(vfs, newVersionDir, sourceDir, cfg); err != nil {
 			fmt.Printf("❌ Error creating new version: %v\n", err)
 			return
 		}
@@ -111,7 +115,7 @@ func Run(args []string) {
 
 	fmt.Printf("📝 Updating version configuration...\n")
 
-	if err := updateVersionConfig(cfg, latestIdx, versionName, frozenPath, newVersionPath); err != nil {
+	if err := updateVersionConfigFs(vfs, cfg, latestIdx, versionName, frozenPath, newVersionPath); err != nil {
 		fmt.Printf("❌ Error updating kosh.yaml: %v\n", err)
 		return
 	}
@@ -128,7 +132,11 @@ func Run(args []string) {
 }
 
 func printVersionInfo() {
-	cfg := loadConfig()
+	printVersionInfoFs(afero.NewOsFs())
+}
+
+func printVersionInfoFs(fs afero.Fs) {
+	cfg := loadConfigFs(fs)
 	if cfg == nil {
 		fmt.Println("❌ Error: Could not load kosh.yaml")
 		return
@@ -175,7 +183,11 @@ func findLatestVersion(cfg *config.Config) (int, *config.Version) {
 }
 
 func snapshotContent(destDir string, sourceDir string, cfg *config.Config) error {
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	return snapshotContentFs(afero.NewOsFs(), destDir, sourceDir, cfg)
+}
+
+func snapshotContentFs(vfs afero.Fs, destDir string, sourceDir string, cfg *config.Config) error {
+	if err := vfs.MkdirAll(destDir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
@@ -195,7 +207,7 @@ func snapshotContent(destDir string, sourceDir string, cfg *config.Config) error
 		}
 	}
 
-	return filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
+	return afero.Afero{Fs: vfs}.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -207,12 +219,12 @@ func snapshotContent(destDir string, sourceDir string, cfg *config.Config) error
 		relPath, _ := filepath.Rel(sourceDir, path)
 		parts := strings.Split(relPath, string(os.PathSeparator))
 
-		if d.IsDir() {
+		if info.IsDir() {
 			// Skip if this is another version's directory (when source is root)
 			if sourceDir == "content" && len(parts) > 0 && versionPaths[parts[0]] {
 				return filepath.SkipDir
 			}
-			return os.MkdirAll(filepath.Join(destDir, relPath), 0755)
+			return vfs.MkdirAll(filepath.Join(destDir, relPath), 0755)
 		}
 
 		if strings.HasSuffix(path, ".md") {
@@ -222,7 +234,7 @@ func snapshotContent(destDir string, sourceDir string, cfg *config.Config) error
 			}
 
 			destPath := filepath.Join(destDir, relPath)
-			if err := copyFile(path, destPath); err != nil {
+			if err := copyFileFs(vfs, path, destPath); err != nil {
 				return fmt.Errorf("failed to copy %s: %w", path, err)
 			}
 		}
@@ -232,7 +244,11 @@ func snapshotContent(destDir string, sourceDir string, cfg *config.Config) error
 }
 
 func copyFile(src, dst string) error {
-	source, err := os.Open(src)
+	return copyFileFs(afero.NewOsFs(), src, dst)
+}
+
+func copyFileFs(vfs afero.Fs, src, dst string) error {
+	source, err := vfs.Open(src)
 	if err != nil {
 		return err
 	}
@@ -242,7 +258,7 @@ func copyFile(src, dst string) error {
 		}
 	}()
 
-	destination, err := os.Create(dst)
+	destination, err := vfs.Create(dst)
 	if err != nil {
 		return err
 	}
@@ -257,7 +273,11 @@ func copyFile(src, dst string) error {
 }
 
 func loadConfig() *config.Config {
-	data, err := os.ReadFile("kosh.yaml")
+	return loadConfigFs(afero.NewOsFs())
+}
+
+func loadConfigFs(vfs afero.Fs) *config.Config {
+	data, err := afero.ReadFile(vfs, "kosh.yaml")
 	if err != nil {
 		return nil
 	}
@@ -269,7 +289,11 @@ func loadConfig() *config.Config {
 }
 
 func updateVersionConfig(cfg *config.Config, oldLatestIdx int, newVersionName, frozenPath string, newLatestPath string) error {
-	data, err := os.ReadFile("kosh.yaml")
+	return updateVersionConfigFs(afero.NewOsFs(), cfg, oldLatestIdx, newVersionName, frozenPath, newLatestPath)
+}
+
+func updateVersionConfigFs(vfs afero.Fs, cfg *config.Config, oldLatestIdx int, newVersionName, frozenPath string, newLatestPath string) error {
+	data, err := afero.ReadFile(vfs, "kosh.yaml")
 	if err != nil {
 		return err
 	}
@@ -351,5 +375,5 @@ func updateVersionConfig(cfg *config.Config, oldLatestIdx int, newVersionName, f
 		return err
 	}
 
-	return os.WriteFile("kosh.yaml", out, 0644)
+	return afero.WriteFile(vfs, "kosh.yaml", out, 0644)
 }

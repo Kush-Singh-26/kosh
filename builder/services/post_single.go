@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"html/template"
-	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -164,6 +163,7 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight,
 			Draft: post.Draft, Meta: metaData, TOC: cacheTOC, Version: version,
 			SSRInputHashes: ssrHashes,
+			CardHash:       frontmatterHash,
 		}
 		// Use StoreHTMLForPost to properly inline small posts (<32KB), consistent with full builds
 		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
@@ -181,36 +181,27 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 			PositionalIndex: posIndex,
 		}
 		newDep := &cache.Dependencies{Tags: post.Tags}
-		if err := s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*cache.Dependencies{postID: newDep}); err != nil {
+		cacheCommitTimer := utils.StartPhase("Cache commit (incremental)")
+		err := s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*cache.Dependencies{postID: newDep})
+		cacheCommitTimer.Stop()
+		if err != nil {
 			s.logger.Error("Failed to commit post to cache", "path", path, "error", err)
 		}
 		// 2. Generate/Copy Social Card
 		cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
 		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", cardRelPath))
 
-		// Check if card exists in physical cache or sink
-		cardExists := false
-		if info, err := os.Stat(cardDestPath); err == nil && !info.IsDir() {
-			if sourceInfo, err := s.sourceFs.Stat(path); err == nil {
-				if info.ModTime().After(sourceInfo.ModTime()) {
-					cardExists = true
-				}
-			}
-		}
-
-		// Always update social card if frontmatter changed OR it doesn't exist
-		if !cardExists || s.cache != nil {
-			cachedHash, _ := s.cache.GetSocialCardHash(relPath)
-			if cachedHash != parseRes.FrontmatterHash || !cardExists {
-				if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err == nil {
-					s.generateSocialCard(socialCardTask{
-						path:            relPath,
-						relPath:         cardRelPath,
-						cardDestPath:    cardDestPath,
-						metaData:        metaData,
-						frontmatterHash: parseRes.FrontmatterHash,
-					})
-				}
+		cachedHash, _ := s.cache.GetSocialCardHash(relPath)
+		cardExists := cachedHash != "" && cachedHash == parseRes.FrontmatterHash
+		if !cardExists {
+			if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err == nil {
+				s.generateSocialCard(socialCardTask{
+					path:            relPath,
+					relPath:         cardRelPath,
+					cardDestPath:    cardDestPath,
+					metaData:        metaData,
+					frontmatterHash: parseRes.FrontmatterHash,
+				})
 			}
 		}
 	}

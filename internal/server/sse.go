@@ -3,7 +3,6 @@ package server
 import (
 	"fmt"
 	"net/http"
-	"time"
 )
 
 func handleSSE(w http.ResponseWriter, r *http.Request) {
@@ -60,8 +59,8 @@ func broadcastReload(ch <-chan struct{}) {
 		for _, clientChan := range clientsSnapshot {
 			select {
 			case clientChan <- struct{}{}:
-			case <-time.After(100 * time.Millisecond):
-				// Client slow, skip this time
+			default:
+				// Client channel full; skip — channel already has buffer 5
 			}
 		}
 	}

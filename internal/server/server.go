@@ -61,7 +61,7 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 
 	mux.HandleFunc("/events", handleSSE)
 
-	mux.HandleFunc("/", gzipHandler(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", compressionHandler(func(w http.ResponseWriter, r *http.Request) {
 		// If build is active, wait for it to complete or request cancellation
 		if ch := waitForBuild(); ch != nil {
 			select {
@@ -86,6 +86,29 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte("403 - Forbidden: Invalid path"))
 			return
+		}
+
+		// Handle pre-compressed files.
+		// Skip WASM and binary files: WebAssembly.instantiateStreaming requires
+		// raw bytes — setting Content-Encoding on a WASM response causes the
+		// browser's Fetch decompression pipeline to abort with
+		// "Response body loading was aborted".
+		acceptEncoding := r.Header.Get("Accept-Encoding")
+		ext := strings.ToLower(filepath.Ext(normalizedPath))
+		if ext != ".wasm" && ext != ".bin" {
+			if strings.Contains(acceptEncoding, "br") {
+				if _, err := os.Stat(fullPath + ".br"); err == nil {
+					w.Header().Set("Content-Encoding", "br")
+					w.Header().Set("Vary", "Accept-Encoding")
+					fullPath += ".br"
+				}
+			} else if strings.Contains(acceptEncoding, "gzip") {
+				if _, err := os.Stat(fullPath + ".gz"); err == nil {
+					w.Header().Set("Content-Encoding", "gzip")
+					w.Header().Set("Vary", "Accept-Encoding")
+					fullPath += ".gz"
+				}
+			}
 		}
 
 		fileInfo, err := os.Stat(fullPath)

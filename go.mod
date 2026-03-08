@@ -23,7 +23,7 @@ require (
 	github.com/yuin/goldmark v1.7.16
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
 	github.com/yuin/goldmark-meta v1.1.0
-	github.com/zeebo/blake3 v0.2.4
+	github.com/zeebo/xxh3 v1.1.0
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/sync v0.19.0
 	golang.org/x/text v0.34.0

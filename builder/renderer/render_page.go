@@ -1,9 +1,7 @@
 package renderer
 
 import (
-	"bytes"
 	"io"
-	"path/filepath"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
@@ -14,10 +12,8 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 		data.Assets = r.GetAssets()
 	}
 
-	if err := r.Sink.MkdirAll(filepath.Dir(path)); err != nil {
-		r.logger.Error("Failed to create directory", "path", path, "error", err)
-		return
-	}
+	// Directory creation is handled by WriteStream → ensureDir (with dirCache).
+	// No explicit MkdirAll needed here — avoids redundant uncached syscalls.
 
 	r.mu.RLock()
 	layout := r.Layout
@@ -29,17 +25,24 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 	}
 
 	// 1. Execute template to buffer
-	var buf bytes.Buffer
-	if err := layout.Execute(&buf, data); err != nil {
+	buf := utils.SharedBufferPool.Get()
+	defer utils.SharedBufferPool.Put(buf)
+
+	if err := layout.Execute(buf, data); err != nil {
 		r.logger.Error("Failed to render layout", "path", path, "error", err)
 		return
 	}
 
-	// 2. Process HTML (Fix images and internal paths)
-	processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
+	// 2. Process HTML (Fix images and internal paths) - Legacy regex post-pass
+	var finalBytes []byte
+	if r.EnableLegacyProcessHTML {
+		processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
+		finalBytes = []byte(processedHTML)
+	} else {
+		finalBytes = buf.Bytes()
+	}
 
 	// 3. Optional Minification
-	finalBytes := []byte(processedHTML)
 	if r.Compress {
 		minified, err := utils.Minifier.Bytes("text/html", finalBytes)
 		if err == nil {

@@ -2,11 +2,14 @@ package utils
 
 import (
 	"bufio"
+	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ArtifactSink provides an interface for streaming file writes during the build process.
@@ -17,6 +20,8 @@ type ArtifactSink interface {
 	Register(path string)
 	GetWrittenFiles() map[string]bool
 	GetOutputDir() string
+	WriteHardlink(src, dst string) (bool, error)
+	SetMtime(path string, mtime time.Time) error
 }
 
 type DiskSink struct {
@@ -58,6 +63,44 @@ func (s *DiskSink) resolvePath(p string) string {
 	return filepath.Join(s.stagingDir, cleanP)
 }
 
+func isWithinPath(base, target string) bool {
+	base = filepath.Clean(base)
+	target = filepath.Clean(target)
+
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	if rel == ".." {
+		return false
+	}
+	return !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
+	cleanP := filepath.Clean(p)
+
+	if filepath.IsAbs(cleanP) {
+		// Absolute paths are only allowed when they target the configured output roots.
+		if isWithinPath(s.realOutputDir, cleanP) {
+			rel, err := filepath.Rel(s.realOutputDir, cleanP)
+			if err != nil {
+				return "", fmt.Errorf("failed to resolve output-relative path %s: %w", p, err)
+			}
+			return filepath.Join(s.stagingDir, rel), nil
+		}
+		if isWithinPath(s.stagingDir, cleanP) {
+			return cleanP, nil
+		}
+		return "", fmt.Errorf("refusing to write outside output roots: %s", p)
+	}
+
+	return filepath.Join(s.stagingDir, cleanP), nil
+}
+
 func (s *DiskSink) Register(p string) {
 	// Keep track of the final output path (real path) for orphan cleanup and syncing
 	cleanP := filepath.Clean(p)
@@ -85,17 +128,23 @@ func (s *DiskSink) ensureDir(path string) error {
 }
 
 func (s *DiskSink) MkdirAll(p string) error {
-	target := s.resolvePath(p)
+	target, err := s.resolvePathForWrite(p)
+	if err != nil {
+		return err
+	}
 	return os.MkdirAll(target, 0755)
 }
 
 func (s *DiskSink) WriteFile(p string, data []byte) error {
-	target := s.resolvePath(p)
+	target, err := s.resolvePathForWrite(p)
+	if err != nil {
+		return err
+	}
 	if err := s.ensureDir(target); err != nil {
 		return err
 	}
 
-	err := os.WriteFile(target, data, 0644)
+	err = os.WriteFile(target, data, 0644)
 	if err == nil {
 		s.Register(p)
 	}
@@ -103,7 +152,10 @@ func (s *DiskSink) WriteFile(p string, data []byte) error {
 }
 
 func (s *DiskSink) WriteStream(p string, fn func(io.Writer) error) error {
-	target := s.resolvePath(p)
+	target, err := s.resolvePathForWrite(p)
+	if err != nil {
+		return err
+	}
 	if err := s.ensureDir(target); err != nil {
 		return err
 	}
@@ -151,4 +203,72 @@ func (s *DiskSink) GetWrittenFiles() map[string]bool {
 
 func (s *DiskSink) GetOutputDir() string {
 	return s.stagingDir
+}
+
+func (s *DiskSink) GetRealOutputDir() string {
+	return s.realOutputDir
+}
+
+func (s *DiskSink) WriteHardlink(src, dst string) (bool, error) {
+	target, err := s.resolvePathForWrite(dst)
+	if err != nil {
+		return false, err
+	}
+
+	// Construct real output path for comparison
+	realOutputPath := dst
+	if !filepath.IsAbs(realOutputPath) {
+		realOutputPath = filepath.Join(s.realOutputDir, realOutputPath)
+	} else if isWithinPath(s.stagingDir, realOutputPath) {
+		rel, err := filepath.Rel(s.stagingDir, realOutputPath)
+		if err != nil {
+			return false, err
+		}
+		realOutputPath = filepath.Join(s.realOutputDir, rel)
+	} else if !isWithinPath(s.realOutputDir, realOutputPath) {
+		return false, fmt.Errorf("refusing to hardlink outside output roots: %s", dst)
+	}
+
+	// Compare source against previous build's output
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return false, nil
+	}
+
+	realInfo, err := os.Stat(realOutputPath)
+	if err == nil {
+		if srcInfo.Size() == realInfo.Size() {
+			timeDiff := srcInfo.ModTime().Unix() - realInfo.ModTime().Unix()
+			if timeDiff < 0 {
+				timeDiff = -timeDiff
+			}
+			if timeDiff <= 1 {
+				if err := s.ensureDir(target); err != nil {
+					return false, err
+				}
+				if err := os.Link(src, target); err == nil {
+					s.Register(dst)
+					return true, nil
+				} else {
+					slog.Debug("Hardlink failed", "src", src, "target", target, "error", err)
+				}
+			} else {
+				slog.Debug("Mtime mismatch", "src", src, "srcMtime", srcInfo.ModTime(), "realMtime", realInfo.ModTime(), "diff", timeDiff)
+			}
+		} else {
+			slog.Debug("Size mismatch", "src", src, "srcSize", srcInfo.Size(), "realSize", realInfo.Size())
+		}
+	} else {
+		slog.Debug("Real output not found", "path", realOutputPath)
+	}
+
+	return false, nil
+}
+
+func (s *DiskSink) SetMtime(path string, mtime time.Time) error {
+	target, err := s.resolvePathForWrite(path)
+	if err != nil {
+		return err
+	}
+	return os.Chtimes(target, mtime, mtime)
 }

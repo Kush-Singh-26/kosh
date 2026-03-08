@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
@@ -18,16 +20,15 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 	// Pre-allocate slice for parallel encoding results
 	encoded := make([]EncodedPost, len(posts))
 
-	// Parallelize encoding for better performance
-	var encodeWg sync.WaitGroup
+	// Parallelize encoding with bounded concurrency
 	var encodeMu sync.Mutex
 	var encodeErr error
+	var g errgroup.Group
+	g.SetLimit(runtime.NumCPU())
 
 	for i, post := range posts {
-		encodeWg.Add(1)
-		go func(idx int, p *PostMeta) {
-			defer encodeWg.Done()
-
+		idx, p := i, post
+		g.Go(func() error {
 			postData, err := Encode(p)
 			if err != nil {
 				encodeMu.Lock()
@@ -35,7 +36,7 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 					encodeErr = err
 				}
 				encodeMu.Unlock()
-				return
+				return nil
 			}
 
 			ep := EncodedPost{
@@ -53,7 +54,7 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 						encodeErr = err
 					}
 					encodeMu.Unlock()
-					return
+					return nil
 				}
 				ep.SearchData = srData
 			}
@@ -66,7 +67,7 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 						encodeErr = err
 					}
 					encodeMu.Unlock()
-					return
+					return nil
 				}
 				ep.DepsData = depsData
 				ep.Tags = d.Tags
@@ -75,9 +76,10 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 			}
 
 			encoded[idx] = ep
-		}(i, post)
+			return nil
+		})
 	}
-	encodeWg.Wait()
+	_ = g.Wait()
 
 	if encodeErr != nil {
 		return encodeErr
@@ -156,6 +158,16 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 		}
 
 		// Phase 2: Write all bucket operations
+		// Sort operations by key for sequential write performance in BoltDB
+		sortOps(ops.posts)
+		sortOps(ops.paths)
+		sortOps(ops.search)
+		sortOps(ops.deps)
+		sortOps(ops.tags)
+		sortOps(ops.templates)
+		sortOps(ops.includes)
+		sortOps(ops.versions)
+
 		if err := writeOps(postsBucket, ops.posts); err != nil {
 			return err
 		}

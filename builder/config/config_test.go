@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/spf13/afero"
 )
 
 // changeToTempDir changes to a temp directory and returns a cleanup function
@@ -532,6 +533,33 @@ func TestGetVersionsMetadata(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLoad_CLIOverrides_Afero(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	// Create a test kosh.yaml in VFS
+	yamlContent := `
+title: "VFS Site"
+baseURL: "https://vfs.example.com"
+`
+	_ = afero.WriteFile(fs, "kosh.yaml", []byte(yamlContent), 0644)
+
+	// Override with CLI flags
+	args := []string{"-baseurl", "https://override.vfs.com", "-drafts", "-theme", "my-theme"}
+	cfg := LoadFs(fs, args)
+
+	if cfg.BaseURL != "https://override.vfs.com" {
+		t.Errorf("BaseURL = %q, want %q", cfg.BaseURL, "https://override.vfs.com")
+	}
+
+	if !cfg.IncludeDrafts {
+		t.Error("IncludeDrafts should be true")
+	}
+
+	if cfg.Theme != "my-theme" {
+		t.Errorf("Theme = %q, want %q", cfg.Theme, "my-theme")
 	}
 }
 

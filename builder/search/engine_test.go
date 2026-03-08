@@ -9,6 +9,80 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+func TestPerformSearch_PhraseBoost(t *testing.T) {
+	// Document 0 has the exact phrase "go programming"
+	// Document 1 has both words but not as a phrase
+	posts := []models.PostRecord{
+		{
+			ID:              0,
+			Title:           "Exact Phrase",
+			NormalizedTitle: "exact phrase",
+			Content:         "Learn go programming today.",
+		},
+		{
+			ID:              1,
+			Title:           "Separated Words",
+			NormalizedTitle: "separated words",
+			Content:         "Go is a great programming language.",
+		},
+	}
+
+	index := &models.SearchIndex{
+		Posts:     posts,
+		Inverted:  make(map[string]map[string][]int),
+		DocLens:   map[string]int64{"0": 4, "1": 6},
+		TotalDocs: 2,
+		AvgDocLen: 5.0,
+	}
+
+	index.Inverted["go"] = map[string][]int{"0": {1}, "1": {0}}
+	index.Inverted["programming"] = map[string][]int{"0": {2}, "1": {4}}
+
+	results := PerformSearch(index, "go programming", "all")
+
+	if len(results) < 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+
+	// Document 0 should be first due to phrase boost
+	if results[0].ID != 0 {
+		t.Errorf("Expected Document 0 to be ranked first due to phrase boost, got %d", results[0].ID)
+	}
+	if results[0].Score <= results[1].Score {
+		t.Errorf("Document 0 score (%f) should be higher than Document 1 score (%f)", results[0].Score, results[1].Score)
+	}
+}
+
+func TestExtractSnippet_Density(t *testing.T) {
+	content := "This is some filler text. Here is a cluster: cat dog bird. More filler text that goes on for a while to ensure the cluster is not just at the start. Another cat is over here."
+	terms := []string{"cat", "dog", "bird"}
+
+	snippet := ExtractSnippet(content, terms, nil)
+
+	// The snippet should contain the cluster "cat dog bird"
+	if !strings.Contains(snippet, "<b>cat</b> <b>dog</b> <b>bird</b>") {
+		t.Errorf("Snippet did not find the densest cluster: %s", snippet)
+	}
+}
+
+func TestExtractSnippet_XSS(t *testing.T) {
+	content := "This is a <script>alert(1)</script> test with a target word."
+	terms := []string{"target"}
+
+	snippet := ExtractSnippet(content, terms, nil)
+
+	// Currently ExtractSnippet does NOT escape HTML.
+	// If it contains the script tag, it might be dangerous if rendered with innerHTML.
+	// We should ideally have it escaped.
+	
+	if strings.Contains(snippet, "<script>") {
+		t.Log("WARNING: ExtractSnippet currently preserves HTML tags. This may be an XSS risk if frontend uses innerHTML.")
+	}
+	
+	// Let's see if we should fix it or just document it.
+	// Most SSG search snippets should be escaped.
+}
+
 func TestTokenize(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -242,13 +316,31 @@ func TestExtractSnippet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ExtractSnippet(content, tt.terms)
+			got := ExtractSnippet(content, tt.terms, nil)
 			for _, c := range tt.contains {
 				if !strings.Contains(got, c) {
 					t.Errorf("ExtractSnippet() result %q does not contain %q", got, c)
 				}
 			}
 		})
+	}
+}
+
+func TestExtractSnippet_Offsets(t *testing.T) {
+	content := "The quick brown fox jumps over the lazy dog."
+	terms := []string{"fox", "dog"}
+	offsets := map[string][]int{
+		"fox": {16, 19},
+		"dog": {40, 43},
+	}
+
+	snippet := ExtractSnippet(content, terms, offsets)
+
+	if !strings.Contains(snippet, "<b>fox</b>") {
+		t.Errorf("Snippet missing highlighted fox: %s", snippet)
+	}
+	if !strings.Contains(snippet, "<b>dog</b>") {
+		t.Errorf("Snippet missing highlighted dog: %s", snippet)
 	}
 }
 

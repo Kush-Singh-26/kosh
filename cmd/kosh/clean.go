@@ -31,5 +31,7 @@ func init() {
 func runClean(cmd *cobra.Command, args []string) {
 	clean.Run(cleanCache, cleanAll)
 	fmt.Println("\nRebuilding site...")
-	run.Run([]string{})
+	if err := run.Run([]string{}); err != nil {
+		fmt.Printf("rebuild failed: %v\n", err)
+	}
 }

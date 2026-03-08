@@ -93,6 +93,25 @@ func (m *Manager) SetSocialCardHash(path, hash string) error {
 	})
 }
 
+// BatchSetSocialCardHashes stores multiple social card hashes in a single transaction
+func (m *Manager) BatchSetSocialCardHashes(hashes map[string]string) error {
+	if len(hashes) == 0 {
+		return nil
+	}
+	return m.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(BucketSocialCard))
+		if bucket == nil {
+			return nil
+		}
+		for path, hash := range hashes {
+			if err := bucket.Put([]byte(path), []byte(hash)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // GetGraphHash retrieves the graph data hash
 func (m *Manager) GetGraphHash() (string, error) {
 	var hash string

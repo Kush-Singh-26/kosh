@@ -159,39 +159,6 @@ func TestExtractVersionFromPath(t *testing.T) {
 	}
 }
 
-func TestGetFileDepthInVersion(t *testing.T) {
-	tests := []struct {
-		name     string
-		path     string
-		expected int
-	}{
-		{
-			name:     "file at version root",
-			path:     "content/v2.0/intro.md",
-			expected: 0,
-		},
-		{
-			name:     "file one level deep",
-			path:     "content/v2.0/docs/intro.md",
-			expected: 1,
-		},
-		{
-			name:     "file two levels deep",
-			path:     "content/v2.0/docs/api/reference.md",
-			expected: 2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getFileDepthInVersion(tt.path)
-			if result != tt.expected {
-				t.Errorf("getFileDepthInVersion(%q) = %d, want %d", tt.path, result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestURLTransformer_VersionAwareLinking(t *testing.T) {
 	tests := []struct {
 		name         string

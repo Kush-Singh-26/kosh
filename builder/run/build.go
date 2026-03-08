@@ -10,15 +10,17 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-// Build executes a single build pass
-func (b *Builder) Build(ctx context.Context) error {
-	b.buildMu.Lock()
-	defer b.buildMu.Unlock()
+// build executes the build logic without locking (internal use)
+func (b *Builder) build(ctx context.Context) error {
+	if b.metrics != nil {
+		b.metrics.Reset()
+	}
 
 	// Check for cancellation early
 	select {
@@ -27,246 +29,170 @@ func (b *Builder) Build(ctx context.Context) error {
 	default:
 	}
 
-	// Determine if we should use atomic staging directory
-	// Always use staging for production builds, or if output is missing.
-	outputMissing := false
-	if _, err := os.Stat(b.cfg.OutputDir); os.IsNotExist(err) {
-		outputMissing = true
-	}
-	useStaging := !b.cfg.IsDev || outputMissing
-	b.isCleanBuild = useStaging // using staging implies we are starting clean
-	if b.diagramAdapter != nil {
-		b.diagramAdapter.SetPersistenceEnabled(!outputMissing)
-	}
-
-	b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, useStaging)
-	b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
-
-	// Clean staging dir if it somehow exists from a crashed build
-	if useStaging {
-		_ = os.RemoveAll(b.Tx.StagingDir())
-	}
-
-	b.renderService.SetSink(b.Sink)
-	b.assetService.SetSink(b.Sink)
-	b.postService.SetSink(b.Sink)
-
-	defer func() {
-		if r := recover(); r != nil {
-			b.logger.Error("Panic during build, rolling back", "panic", r)
-			b.Tx.Rollback()
-			panic(r)
-		} else {
-			// Rollback only does something if not committed
-			b.Tx.Rollback()
-		}
-	}()
-
-	// Acquire build lock to prevent concurrent builds
-	buildLock, lockErr := utils.AcquireBuildLock(b.cfg.OutputDir)
-	if lockErr != nil {
-		if !b.cfg.ForceLock {
-			return fmt.Errorf("could not acquire build lock: %w (use --force-lock to override)", lockErr)
-		}
-		b.logger.Warn("Acquiring build lock failed, but continuing due to --force-lock", "error", lockErr)
-	} else {
-		defer func() { _ = buildLock.Release() }()
-	}
-
-	// Warn about empty baseURL in production mode
-	if b.cfg.BaseURL == "" && !b.cfg.IsDev {
-		b.logger.Warn("baseURL is empty in production mode - links will be relative and may not work correctly")
-		b.logger.Info("Set baseURL in kosh.yaml or use -baseurl flag for production builds")
-	}
-
-	cfg := b.cfg
-	// Build started - minimal logging
-
-	// Clear stale sync cache
-	utils.ClearSyncCache()
-
-	// 1. Setup & Cache Invalidation
-	// Use a channel to signal when templates are fully loaded.
-	// This prevents rehydration from reading partially-loaded templates.
-	templateReady := make(chan struct{})
+	// 1. Project-wide setup
+	// Launch WASM deployment asynchronously — it writes to staging dir and
+	// has no dependencies on other build phases. We only need it complete
+	// before Tx.Commit() publishes the staging directory.
+	var wasmWg sync.WaitGroup
+	wasmWg.Add(1)
 	go func() {
-		b.renderService.ReloadTemplates()
-		close(templateReady)
+		defer wasmWg.Done()
+		b.checkWasmUpdate()
 	}()
 
-	var setupWg sync.WaitGroup
-	setupWg.Add(1)
-	go func() {
-		defer setupWg.Done()
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			b.checkWasmUpdate()
-		}
-	}()
-
-	globalDependencies := []string{
-		filepath.Join(cfg.TemplateDir, "layout.html"),
-		filepath.Join(cfg.TemplateDir, "index.html"),
-		filepath.Join(cfg.TemplateDir, "404.html"),
-		filepath.Join(cfg.TemplateDir, "graph.html"),
-		filepath.Join(cfg.StaticDir, "css/layout.css"),
-		filepath.Join(cfg.StaticDir, "css/theme.css"),
-		"kosh.yaml",
-		"builder/generators/pwa.go",
-	}
-	forceSocialRebuild := false
-	shouldForce := b.cfg.ForceRebuild
-	var affectedPosts []string
-	var lastBuildTime time.Time
-
-	if indexInfo, err := os.Stat(filepath.Join(b.cfg.OutputDir, "index.html")); err == nil {
-		lastBuildTime = indexInfo.ModTime()
-
-		// Parallelize dependency checks for better performance
-		var depMu sync.Mutex
-		var depWg sync.WaitGroup
-
-		for _, dep := range globalDependencies {
-			depWg.Add(1)
-			go func(depPath string) {
-				defer depWg.Done()
-				if info, err := os.Stat(depPath); err == nil && info.ModTime().After(lastBuildTime) {
-					affected := b.invalidateForTemplate(depPath)
-					depMu.Lock()
-					if affected != nil {
-						affectedPosts = append(affectedPosts, affected...)
-					} else {
-						shouldForce = true
-					}
-					depMu.Unlock()
-				}
-			}(dep)
-		}
-		depWg.Wait()
-
+	// Handle incremental social card rebuild if needed
+	var forceSocialRebuild bool
+	lastBuildTime := b.Tx.GetLastBuildTime()
+	if !b.cfg.ForceRebuild && !lastBuildTime.IsZero() {
+		// If generator binary or source changed, force social card update
 		if info, err := os.Stat("builder/generators/social.go"); err == nil && info.ModTime().After(lastBuildTime) {
 			forceSocialRebuild = true
 		}
 	}
 
-	// Note: ForceRebuild is NOT reset here. It's reset after setup tasks complete
-	// to avoid a race with async checks (WASM, template invalidation) that may set it.
+	if b.cfg.IsDev {
+		b.cfg.BuildVersion = time.Now().UnixNano()
+	}
 
-	// Pre-create output directories in VFS
+	// Pre-create output directories
 	for _, dir := range []string{"tags", "static/images/cards", "sitemap"} {
 		if err := b.Sink.MkdirAll(filepath.Join(b.cfg.OutputDir, dir)); err != nil {
 			b.logger.Error("Failed to create directory", "dir", dir, "error", err)
 		}
 	}
 
-	// Wait for background setup (WASM compilation, etc.) to complete before asset building
-	setupWg.Wait()
-
-	// 2. Static Assets (MUST complete before posts to populate Assets map)
+	// 2. Static Assets + Metadata Scanner + Post Parsing overlap
+	//
+	// The parse phase (markdown parsing, KaTeX SSR, BM25 analysis) has no
+	// dependency on asset building (image optimization, esbuild bundling).
+	// Only the render phase needs the Assets map (hashed CSS/JS filenames).
+	// We launch asset building in a goroutine and gate the render phase
+	// inside Process() via the assetsReady channel.
 	fmt.Println("📦 Building assets...")
 	assetTimer := utils.StartPhase("Asset building")
-	if err := b.copyStaticAndBuildAssets(ctx); err != nil {
-		assetTimer.Stop()
-		return err
-	}
-	assetTimer.Stop()
-	_ = b.Sink.WriteFile(filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte(""))
+	b.renderService.SetAssets(map[string]string{})
 
-	if len(affectedPosts) > 0 && b.cacheService != nil {
-		for _, postPath := range affectedPosts {
-			relPath, _ := utils.SafeRel(b.cfg.ContentDir, postPath)
-			// Need PostID to delete.
-			// invalidateForTemplate returns paths.
-			// We can generate ID from path (empty UUID).
-			postID := cache.GeneratePostID("", relPath)
-			_ = b.cacheService.DeletePost(postID)
+	assetsReady := make(chan struct{})
+	var assetErr error
+	go func() {
+		defer close(assetsReady)
+		if err := b.copyStaticAndBuildAssets(ctx); err != nil {
+			assetErr = err
+		}
+		assetTimer.Stop()
+	}()
+
+	// Tell the post service to wait for assets before entering render phase
+	b.postService.SetAssetsGate(assetsReady)
+
+	// Set up the site-wide rendering callback. When post metadata becomes
+	// available inside Process() (after parse, before render), this callback
+	// fires the site-wide errgroup so it overlaps with the render phase.
+	var siteWideGroup *errgroup.Group
+	var siteWideCtx context.Context
+	var siteTimer *utils.PhaseTimer
+	var siteWideHas404 bool
+
+	b.postService.SetMetadataCallback(func(
+		cbAllPosts []models.PostMetadata,
+		cbPinnedPosts []models.PostMetadata,
+		cbTagMap map[string][]models.PostMetadata,
+		cbIndexedPosts []models.IndexedPost,
+		cbAnyChanged bool,
+	) {
+		if !cbAnyChanged && !b.isCleanBuild {
+			return
+		}
+		fmt.Println("📄 Rendering pagination, tags, metadata and PWA...")
+		siteTimer = utils.StartPhase("Site-wide rendering")
+		siteWideGroup, siteWideCtx = errgroup.WithContext(ctx)
+
+		// Pagination and Tags render HTML pages (need assets for CSS/JS paths).
+		// Proceed once hashed assets are available (or build channel closes).
+		siteWideGroup.Go(func() error {
+			b.waitForAssetsAvailability(siteWideCtx, assetsReady)
+			return b.renderPagination(siteWideCtx, cbAllPosts, cbPinnedPosts, b.cfg.ForceRebuild)
+		})
+		siteWideGroup.Go(func() error {
+			b.waitForAssetsAvailability(siteWideCtx, assetsReady)
+			return b.renderTags(siteWideCtx, cbTagMap, forceSocialRebuild)
+		})
+		// Sitemap, RSS, Search are pure data generators (no HTML assets needed).
+		// Graph HTML rendering needs assets — renderSiteMetadata waits internally.
+		siteWideGroup.Go(func() error {
+			return b.renderSiteMetadata(cbAllPosts, cbTagMap, cbIndexedPosts, assetsReady)
+		})
+		// PWA: SW needs assets, manifest and icons don't.
+		siteWideGroup.Go(func() error {
+			b.waitForAssetsAvailability(siteWideCtx, assetsReady)
+			return b.generatePWA(siteWideCtx, b.cfg.ForceRebuild)
+		})
+	})
+
+	var metadataResult *services.MetadataScannerResult
+	var scannerErr error
+
+	// Run metadata scanner in parallel with both assets and parsing
+	scannerReady := make(chan struct{})
+	go func() {
+		defer close(scannerReady)
+		metadataResult, scannerErr = b.metadataScanner.Scan(ctx, b.cfg.ContentDir, b.SourceFs, b.cfg)
+	}()
+
+	// Wait for scanner (needed before post processing starts)
+	<-scannerReady
+	if scannerErr != nil {
+		return fmt.Errorf("metadata scan failed: %w", scannerErr)
+	}
+
+	// 3. Process Posts — parse phase overlaps with asset building,
+	//    render phase gates on assetsReady channel inside Process().
+	//    Site-wide tasks start via the metadata callback above, overlapping
+	//    with the render phase for faster cold builds.
+	_, _, _, _, _, has404, err := b.processPosts(ctx, b.cfg.ForceRebuild, forceSocialRebuild, b.isCleanBuild, metadataResult)
+	if err != nil {
+		return fmt.Errorf("post processing failed: %w", err)
+	}
+	siteWideHas404 = has404
+
+	// Ensure asset goroutine completed and check for errors
+	<-assetsReady
+	if assetErr != nil {
+		return fmt.Errorf("failed to build assets: %w", assetErr)
+	}
+
+	// 4. Wait for site-wide rendering to complete (started by metadata callback
+	//    inside Process(), overlapping with the render phase)
+	if siteWideGroup != nil {
+		if err := siteWideGroup.Wait(); err != nil {
+			if siteTimer != nil {
+				siteTimer.Stop()
+			}
+			return err
+		}
+		if siteTimer != nil {
+			siteTimer.Stop()
+		}
+
+		if siteWideHas404 {
+			b.renderService.Render404(filepath.Join(b.cfg.OutputDir, "404.html"), models.PageData{
+				Title: "404 Not Found", BaseURL: b.cfg.BaseURL, TabTitle: "404 Not Found",
+				Config: b.cfg, RelativePrefix: "",
+			})
 		}
 	}
 
-	// 3. Process Content (Posts)
-	allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged, has404, err := b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing)
-	if err != nil {
-		return err
-	}
-	_ = anyPostChanged
-
-	fmt.Println("   ✅ Content processed.")
-
-	// Store indexed posts for incremental builds
-	b.indexedPosts = indexedPosts
-
-	// 4. Generate Global Pages (Parallelized)
-	g, gCtx := errgroup.WithContext(ctx)
-
-	// 4. Global Pages (Always run to ensure consistency and prevent orphan deletion)
-	g.Go(func() error {
-		fmt.Println("📄 Rendering pagination...")
-		paginationTimer := utils.StartPhase("Pagination")
-		defer paginationTimer.Stop()
-		return b.renderPagination(gCtx, allPosts, pinnedPosts, shouldForce)
-	})
-
-	if !has404 {
-		g.Go(func() error {
-			b.renderService.Render404(filepath.Join(b.cfg.OutputDir, "404.html"), models.PageData{
-				BaseURL:        cfg.BaseURL,
-				BuildVersion:   cfg.BuildVersion,
-				Config:         cfg,
-				TabTitle:       "404 - Page Not Found | " + cfg.Title,
-				RelativePrefix: "",
-			})
-			return nil
-		})
-	}
-
-	g.Go(func() error {
-		fmt.Println("🏷️  Rendering tags...")
-		tagsTimer := utils.StartPhase("Tags rendering")
-		defer tagsTimer.Stop()
-		return b.renderTags(gCtx, tagMap, forceSocialRebuild)
-	})
-
-	g.Go(func() error {
-		fmt.Println("🕸️  Rendering graph and metadata...")
-		graphTimer := utils.StartPhase("Graph and metadata")
-		defer graphTimer.Stop()
-		b.renderService.RenderGraph(filepath.Join(b.cfg.OutputDir, "graph.html"), models.PageData{
-			Title:          "Graph View",
-			TabTitle:       "Knowledge Graph | " + cfg.Title,
-			BaseURL:        cfg.BaseURL,
-			BuildVersion:   cfg.BuildVersion,
-			Config:         cfg,
-			Assets:         b.renderService.GetAssets(),
-			RelativePrefix: "",
-		})
-		allContent := make([]models.PostMetadata, 0, len(allPosts)+len(pinnedPosts))
-		allContent = append(allContent, allPosts...)
-		allContent = append(allContent, pinnedPosts...)
-		return b.generateMetadata(gCtx, allContent, tagMap, indexedPosts, shouldForce)
-	})
-
-	// 5. PWA (Run concurrently)
-	if cfg.Features.Generators.PWA {
-		g.Go(func() error {
-			fmt.Println("📱 Generating PWA...")
-			pwaTimer := utils.StartPhase("PWA generation")
-			defer pwaTimer.Stop()
-			return b.generatePWA(gCtx, shouldForce)
-		})
-	}
-
-	// Wait for all parallel tasks (Global pages + PWA) to complete
-	if err := g.Wait(); err != nil {
-		return fmt.Errorf("parallel build tasks failed: %w", err)
-	}
+	// 5. Post-build files
+	_ = b.Sink.WriteFile(filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte{})
+	b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, ".nojekyll"))
 
 	// Reset ForceRebuild AFTER all async checks have completed
 	b.cfg.ForceRebuild = false
 
 	fmt.Println("💾 Publishing output...")
 	syncTimer := utils.StartPhase("Publish")
+	// Ensure WASM deployment finished before publishing (it runs in parallel since step 1)
+	wasmWg.Wait()
 	if err := b.Tx.Commit(); err != nil {
 		syncTimer.Stop()
 		return fmt.Errorf("failed to publish build transaction: %w", err)
@@ -277,7 +203,70 @@ func (b *Builder) Build(ctx context.Context) error {
 	b.renderService.ClearRenderedFiles()
 
 	// Build complete
+	b.metrics.RecordEnd()
+	fmt.Printf("\n✨ Build complete!\n")
+	b.metrics.Print()
+
 	return nil
+}
+
+func (b *Builder) waitForAssetsAvailability(ctx context.Context, assetsReady <-chan struct{}) {
+	if len(b.renderService.GetAssets()) > 0 {
+		return
+	}
+	if assetsReady == nil {
+		return
+	}
+	select {
+	case <-assetsReady:
+	case <-ctx.Done():
+	}
+}
+
+func (b *Builder) Build(ctx context.Context) error {
+	// Prevent concurrent builds
+	b.buildMu.Lock()
+	defer b.buildMu.Unlock()
+
+	// Reset per-build metrics so watch-mode rebuilds don't accumulate counters.
+	if b.metrics != nil {
+		b.metrics.Reset()
+	}
+
+	// Setup Build Transaction
+	useStaging := !b.cfg.IsDev || b.isCleanBuild
+	if b.Tx == nil {
+		b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, useStaging)
+	}
+	if b.Sink == nil {
+		b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
+	}
+
+	// Inject sink into services
+	b.postService.SetSink(b.Sink)
+	b.assetService.SetSink(b.Sink)
+	b.renderService.SetSink(b.Sink)
+
+	// Acquire build lock to prevent concurrent builds (skip in tests)
+	var buildLock *utils.FileLock
+	var lockErr error
+	if !utils.TestingMode {
+		buildLock, lockErr = utils.AcquireBuildLock(b.cfg.OutputDir)
+		if lockErr != nil {
+			if !b.cfg.ForceLock {
+				return fmt.Errorf("could not acquire build lock: %w (use --force-lock to override)", lockErr)
+			}
+			b.logger.Warn("Acquiring build lock failed, but continuing due to --force-lock", "error", lockErr)
+		} else {
+			defer func() {
+				if buildLock != nil {
+					_ = buildLock.Release()
+				}
+			}()
+		}
+	}
+
+	return b.build(ctx)
 }
 
 func (b *Builder) copyStaticAndBuildAssets(ctx context.Context) error {
@@ -287,10 +276,71 @@ func (b *Builder) copyStaticAndBuildAssets(ctx context.Context) error {
 	return nil
 }
 
-func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool, error) {
-	result, err := b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing)
+func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, earlyMetadata *services.MetadataScannerResult) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool, error) {
+	result, err := b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, earlyMetadata)
 	if err != nil {
 		return nil, nil, nil, nil, false, false, err
 	}
 	return result.AllPosts, result.PinnedPosts, result.TagMap, result.IndexedPosts, result.AnyPostChanged, result.Has404, nil
+}
+
+func (b *Builder) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, assetsReady <-chan struct{}) error {
+	g := new(errgroup.Group)
+
+	// Sitemap
+	if b.cfg.Features.Generators.Sitemap {
+		g.Go(func() error {
+			_, err := generators.GenerateSitemap(b.Sink, b.cfg.BaseURL, allPosts, tagMap, filepath.Join(b.cfg.OutputDir, "sitemap/sitemap.xml"))
+			if err != nil {
+				b.logger.Error("Failed to generate sitemap", "error", err)
+			}
+			return nil
+		})
+	}
+
+	// RSS
+	if b.cfg.Features.Generators.RSS {
+		g.Go(func() error {
+			_, err := generators.GenerateRSS(b.Sink, b.cfg.BaseURL, allPosts, b.cfg.Title, b.cfg.Description, filepath.Join(b.cfg.OutputDir, "rss.xml"))
+			if err != nil {
+				b.logger.Error("Failed to generate RSS feed", "error", err)
+			}
+			return nil
+		})
+	}
+
+	// Search Index
+	if b.cfg.Features.Generators.Search {
+		g.Go(func() error {
+			_, err := generators.GenerateSearchIndex(b.Sink, b.cfg.OutputDir, indexedPosts)
+			if err != nil {
+				b.logger.Error("Failed to generate search index", "error", err)
+			}
+			return nil
+		})
+	}
+
+	// Knowledge Graph
+	if b.cfg.Features.Generators.Graph {
+		g.Go(func() error {
+			_, err := generators.GenerateGraph(b.Sink, b.cfg.BaseURL, allPosts, filepath.Join(b.cfg.OutputDir, "graph.json"))
+			if err != nil {
+				b.logger.Error("Failed to generate knowledge graph data", "error", err)
+			}
+
+			// Render the HTML shell page — needs assets for CSS/JS paths
+			<-assetsReady
+			b.renderService.RenderGraph(filepath.Join(b.cfg.OutputDir, "graph.html"), models.PageData{
+				Title:          "Graph View",
+				TabTitle:       "Knowledge Graph | " + b.cfg.Title,
+				BaseURL:        b.cfg.BaseURL,
+				BuildVersion:   b.cfg.BuildVersion,
+				Config:         b.cfg,
+				RelativePrefix: "",
+			})
+			return nil
+		})
+	}
+
+	return g.Wait()
 }

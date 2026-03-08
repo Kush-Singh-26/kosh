@@ -12,17 +12,13 @@ import (
 
 func NormalizePath(path string) string {
 	// Apply NFC normalization for consistent Unicode handling across platforms
-	// This ensures accented characters are handled consistently (e.g., é vs é)
 	path = norm.NFC.String(path)
 
-	// Convert backslashes to forward slashes for consistency
-	path = strings.ReplaceAll(path, "\\", "/")
+	// Clean the path and convert to forward slashes for internal consistency
+	path = filepath.ToSlash(filepath.Clean(path))
 
-	// Only lowercase on Windows (case-insensitive filesystem)
-	// Keep original case on Linux/macOS (case-sensitive filesystems)
+	// On Windows, capitalize drive letter for consistency (e.g., "c:" -> "C:")
 	if runtime.GOOS == "windows" {
-		path = strings.ToLower(path)
-		// Capitalize drive letter for Windows (e.g., "c:" -> "C:")
 		if len(path) >= 2 && path[1] == ':' {
 			path = strings.ToUpper(path[:1]) + path[1:]
 		}

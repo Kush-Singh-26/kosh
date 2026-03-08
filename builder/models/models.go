@@ -99,6 +99,7 @@ type PageData struct {
 	Image        string
 	TOC          []TOCEntry
 	SiteTree     []*TreeNode
+	SidebarHTML  template.HTML
 	Paginator    Paginator
 	Assets       map[string]string
 	Weight       int
@@ -197,9 +198,10 @@ type IndexedPost struct {
 	DocLen          int               `msgpack:"len"`
 	StemMap         map[string]string `msgpack:"stem_map,omitempty"` // original word -> stem
 	PositionalIndex map[string][]int  `msgpack:"pos_index,omitempty"`
+	ByteOffsets     map[string][]int  `msgpack:"offsets,omitempty"` // word -> [start, end, start, end...]
 }
 
-const CurrentSchemaVersion = 6
+const CurrentSchemaVersion = 7
 
 type SearchIndex struct {
 	SchemaVersion int64               `msgpack:"ver"`
@@ -213,4 +215,8 @@ type SearchIndex struct {
 	// Unified Inverted Index: word -> postID (string) -> [positions]
 	// Frequency is simply len(positions)
 	Inverted map[string]map[string][]int `msgpack:"inv"`
+
+	// Word to byte offsets map: word -> postID (string) -> [start, end, start, end...]
+	// This allows near-instant snippet extraction without re-scanning body text.
+	Offsets map[string]map[string][]int `msgpack:"off,omitempty"`
 }

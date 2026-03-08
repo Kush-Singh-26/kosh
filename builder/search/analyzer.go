@@ -61,20 +61,24 @@ func (a *Analyzer) Analyze(text string) []string {
 
 // AnalyzeWithMapping processes text and returns tokens plus a word->stem mapping
 func (a *Analyzer) AnalyzeWithMapping(text string) ([]string, map[string]string) {
-	tokens, mapping, _ := a.AnalyzeWithPositions(text)
+	tokens, mapping, _, _ := a.AnalyzeWithPositions(text)
 	return tokens, mapping
 }
 
-// AnalyzeWithPositions processes text and returns tokens, mapping, and positional data
-func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]string, map[string][]int) {
+// AnalyzeWithPositions processes text and returns tokens, mapping, and positional data including offsets
+func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]string, map[string][]int, map[string][]int) {
 	tokens := TokenizeWithUnicode(text)
+	if len(tokens) == 0 {
+		return nil, nil, nil, nil
+	}
 	result := make([]string, 0, len(tokens))
 	mapping := make(map[string]string)
 	positions := make(map[string][]int)
+	offsets := make(map[string][]int)
 
 	idx := 0
 	for _, token := range tokens {
-		orig := strings.ToLower(token)
+		orig := strings.ToLower(token.Value)
 		if len(orig) < 2 {
 			idx++
 			continue
@@ -87,18 +91,23 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 		stem := orig
 		if a.useStemming {
 			stem = StemCached(orig)
-			if stem != "" {
-				mapping[orig] = stem
-			}
 		}
 
 		if stem != "" {
 			result = append(result, stem)
+			if positions[stem] == nil {
+				positions[stem] = make([]int, 0, 1)
+				offsets[stem] = make([]int, 0, 2)
+			}
 			positions[stem] = append(positions[stem], idx)
+			offsets[stem] = append(offsets[stem], token.Start, token.End)
+			if a.useStemming {
+				mapping[orig] = stem
+			}
 		}
 		idx++
 	}
-	return result, mapping, positions
+	return result, mapping, positions, offsets
 }
 
 // AnalyzeWithOriginals returns both stemmed and original forms
@@ -107,20 +116,20 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, original
 	tokens := TokenizeWithUnicode(text)
 
 	for _, token := range tokens {
-		token = strings.ToLower(token)
-		if len(token) < 2 {
+		orig := strings.ToLower(token.Value)
+		if len(orig) < 2 {
 			continue
 		}
-		if a.useStopWords && stopWords[token] {
+		if a.useStopWords && stopWords[orig] {
 			continue
 		}
 
-		originals = append(originals, token)
+		originals = append(originals, orig)
 
 		if a.useStemming {
-			stemmed = append(stemmed, StemCached(token))
+			stemmed = append(stemmed, StemCached(orig))
 		} else {
-			stemmed = append(stemmed, token)
+			stemmed = append(stemmed, orig)
 		}
 	}
 	return stemmed, originals
@@ -128,11 +137,23 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, original
 
 // Tokenize splits text into tokens (deprecated: use TokenizeWithUnicode)
 func Tokenize(text string) []string {
-	return TokenizeWithUnicode(text)
+	tokens := TokenizeWithUnicode(text)
+	res := make([]string, len(tokens))
+	for i, t := range tokens {
+		res[i] = t.Value
+	}
+	return res
 }
 
-// TokenizeWithUnicode splits text into tokens with Unicode support
-func TokenizeWithUnicode(text string) []string {
+// Token represents a word with its byte offsets in the original text
+type Token struct {
+	Value string
+	Start int
+	End   int
+}
+
+// TokenizeWithUnicode splits text into tokens with Unicode support and returns offsets
+func TokenizeWithUnicode(text string) []Token {
 	if len(text) == 0 {
 		return nil
 	}
@@ -141,22 +162,32 @@ func TokenizeWithUnicode(text string) []string {
 	if estimatedTokens < 8 {
 		estimatedTokens = 8
 	}
-	tokens := make([]string, 0, estimatedTokens)
+	tokens := make([]Token, 0, estimatedTokens)
 
-	var buf strings.Builder
-	buf.Grow(32)
-
-	for _, r := range text {
+	start := -1
+	for i, r := range text {
 		if unicode.IsLetter(r) || unicode.IsNumber(r) {
-			buf.WriteRune(r)
-		} else if buf.Len() > 0 {
-			tokens = append(tokens, buf.String())
-			buf.Reset()
+			if start == -1 {
+				start = i
+			}
+		} else {
+			if start != -1 {
+				tokens = append(tokens, Token{
+					Value: text[start:i],
+					Start: start,
+					End:   i,
+				})
+				start = -1
+			}
 		}
 	}
 
-	if buf.Len() > 0 {
-		tokens = append(tokens, buf.String())
+	if start != -1 {
+		tokens = append(tokens, Token{
+			Value: text[start:],
+			Start: start,
+			End:   len(text),
+		})
 	}
 
 	return tokens

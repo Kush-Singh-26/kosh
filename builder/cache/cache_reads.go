@@ -3,10 +3,12 @@ package cache
 import (
 	"bytes"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
@@ -158,35 +160,23 @@ func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*PostMeta, error) 
 
 	// Decode in parallel for large batches
 	if len(rawItems) > 10 {
-		var wg sync.WaitGroup
-		resultChan := make(chan struct {
-			id   string
-			meta *PostMeta
-		}, len(rawItems))
+		var mu sync.Mutex
+		var g errgroup.Group
+		g.SetLimit(runtime.NumCPU())
 
 		for _, item := range rawItems {
-			wg.Add(1)
-			go func(it rawData) {
-				defer wg.Done()
+			it := item
+			g.Go(func() error {
 				postMeta := new(PostMeta)
 				if err := Decode(it.data, postMeta); err == nil {
-					resultChan <- struct {
-						id   string
-						meta *PostMeta
-					}{id: it.id, meta: postMeta}
+					mu.Lock()
+					result[it.id] = postMeta
+					mu.Unlock()
 				}
-			}(item)
+				return nil
+			})
 		}
-
-		// Close channel when all workers done
-		go func() {
-			wg.Wait()
-			close(resultChan)
-		}()
-
-		for r := range resultChan {
-			result[r.id] = r.meta
-		}
+		_ = g.Wait()
 	} else {
 		// Sequential for small batches (avoids goroutine overhead)
 		for _, item := range rawItems {

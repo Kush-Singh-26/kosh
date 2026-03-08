@@ -5,8 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spf13/afero"
-
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 )
@@ -14,12 +12,10 @@ import (
 func setupRenderServiceTest(t *testing.T) *renderServiceImpl {
 	t.Helper()
 
-	destFs := afero.NewMemMapFs()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	// Create a renderer with in-memory filesystem
+	// Create a renderer with in-memory mock sink (via a dummy sink implementation)
 	rnd := &renderer.Renderer{
-		DestFs:      destFs,
 		Assets:      make(map[string]string),
 		RenderedSet: make(map[string]bool),
 		Compress:    false,
@@ -30,10 +26,8 @@ func setupRenderServiceTest(t *testing.T) *renderServiceImpl {
 }
 
 func TestNewRenderService(t *testing.T) {
-	destFs := afero.NewMemMapFs()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	rnd := &renderer.Renderer{
-		DestFs:      destFs,
 		Assets:      make(map[string]string),
 		RenderedSet: make(map[string]bool),
 	}
@@ -83,10 +77,10 @@ func TestRenderService_SetAssets(t *testing.T) {
 func TestRenderService_GetAssets(t *testing.T) {
 	service := setupRenderServiceTest(t)
 
-	// Set assets through the renderer
-	service.rnd.Assets = map[string]string{
+	// Set assets through the service (which updates the snapshot)
+	service.SetAssets(map[string]string{
 		"app.css": "app.xyz789.css",
-	}
+	})
 
 	assets := service.GetAssets()
 

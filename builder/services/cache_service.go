@@ -63,6 +63,10 @@ func (s *cacheServiceImpl) SetSocialCardHash(path, hash string) error {
 	return s.manager.SetSocialCardHash(path, hash)
 }
 
+func (s *cacheServiceImpl) BatchSetSocialCardHashes(hashes map[string]string) error {
+	return s.manager.BatchSetSocialCardHashes(hashes)
+}
+
 func (s *cacheServiceImpl) GetGraphHash() (string, error) {
 	return s.manager.GetGraphHash()
 }

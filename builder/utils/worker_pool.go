@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"runtime"
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -20,8 +21,7 @@ type WorkerPool[T any] struct {
 	wg        sync.WaitGroup
 	taskQueue chan T
 	handler   func(T)
-	stoppedMu sync.Mutex
-	stopped   bool
+	stopped atomic.Bool
 }
 
 func NewWorkerPool[T any](ctx context.Context, workers int, handler func(T)) *WorkerPool[T] {
@@ -70,10 +70,7 @@ func (p *WorkerPool[T]) worker() {
 }
 
 func (p *WorkerPool[T]) Submit(task T) {
-	p.stoppedMu.Lock()
-	defer p.stoppedMu.Unlock()
-
-	if p.stopped {
+	if p.stopped.Load() {
 		return
 	}
 
@@ -85,14 +82,10 @@ func (p *WorkerPool[T]) Submit(task T) {
 }
 
 func (p *WorkerPool[T]) Stop() {
-	p.stoppedMu.Lock()
-	if p.stopped {
-		p.stoppedMu.Unlock()
+	if !p.stopped.CompareAndSwap(false, true) {
 		p.wg.Wait()
 		return
 	}
-	p.stopped = true
 	close(p.taskQueue)
-	p.stoppedMu.Unlock()
 	p.wg.Wait()
 }

@@ -58,3 +58,34 @@ func TestBroadcastReloadStopsWhenChannelCloses(t *testing.T) {
 		t.Fatal("broadcastReload did not exit after channel close")
 	}
 }
+
+func TestBroadcastReload_Functional(t *testing.T) {
+	ch := make(chan struct{})
+	go func() {
+		// Wait a bit to ensure clients are registered
+		time.Sleep(50 * time.Millisecond)
+		ch <- struct{}{}
+		close(ch)
+	}()
+
+	// Register a mock client
+	clientChan := make(chan struct{}, 1)
+	clientMu.Lock()
+	clients[clientChan] = struct{}{}
+	clientMu.Unlock()
+
+	defer func() {
+		clientMu.Lock()
+		delete(clients, clientChan)
+		clientMu.Unlock()
+	}()
+
+	broadcastReload(ch)
+
+	select {
+	case <-clientChan:
+		// Success
+	case <-time.After(500 * time.Millisecond):
+		t.Error("Timed out waiting for reload broadcast")
+	}
+}

@@ -47,9 +47,9 @@ func TestHashContent(t *testing.T) {
 			if hash == "" && !tt.empty {
 				t.Error("HashContent() returned empty string")
 			}
-			// BLAKE3 produces 32 bytes = 64 hex characters
-			if len(hash) != 64 {
-				t.Errorf("HashContent() returned hash of length %d, want 64", len(hash))
+			// XXH3-128 produces 16 bytes = 32 hex characters
+			if len(hash) != 32 {
+				t.Errorf("HashContent() returned hash of length %d, want 32", len(hash))
 			}
 		})
 	}
@@ -100,8 +100,8 @@ func TestHashString(t *testing.T) {
 			if hash == "" && tt.s != "" {
 				t.Error("HashString() returned empty string for non-empty input")
 			}
-			if len(hash) != 64 {
-				t.Errorf("HashString() returned hash of length %d, want 64", len(hash))
+			if len(hash) != 32 {
+				t.Errorf("HashString() returned hash of length %d, want 32", len(hash))
 			}
 		})
 	}
@@ -157,8 +157,8 @@ func TestGeneratePostID(t *testing.T) {
 			if id == "" && !tt.wantEmpty {
 				t.Error("GeneratePostID() returned empty string")
 			}
-			if len(id) != 64 {
-				t.Errorf("GeneratePostID() returned ID of length %d, want 64", len(id))
+			if len(id) != 32 {
+				t.Errorf("GeneratePostID() returned ID of length %d, want 32", len(id))
 			}
 		})
 	}

@@ -5,7 +5,9 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"sync"
 
 	"github.com/vmihailenco/msgpack/v5"
 
@@ -16,55 +18,150 @@ import (
 
 func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
 	totalDocs := len(indexedPosts)
-	estimatedUniqueWords := totalDocs * 100
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 8 {
+		numWorkers = 8 // Cap concurrency to avoid too many small maps
+	}
 
 	index := models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         make([]models.PostRecord, totalDocs),
-		Inverted:      make(map[string]map[string][]int, estimatedUniqueWords),
+		Inverted:      make(map[string]map[string][]int),
 		DocLens:       make(map[string]int64, totalDocs),
 		StemMap:       make(map[string][]string),
+		TotalDocs:     int64(totalDocs),
+		Offsets:       make(map[string]map[string][]int),
 	}
 
-	totalLen := 0
-	for i, ip := range indexedPosts {
-		idStr := strconv.Itoa(i)
-		index.Posts[i] = ip.Record
-		index.Posts[i].Content = ip.Record.Content // Explicitly ensure Content is set
-		index.DocLens[idStr] = int64(ip.DocLen)
-		totalLen += ip.DocLen
+	// Pre-compute document ID strings to avoid repeated strconv.Itoa in workers
+	idStrings := make([]string, totalDocs)
+	for i := 0; i < totalDocs; i++ {
+		idStrings[i] = strconv.Itoa(i)
+	}
 
-		// Populate unified inverted index with positions
-		for word, positions := range ip.PositionalIndex {
-			postMap, ok := index.Inverted[word]
-			if !ok {
-				postMap = make(map[string][]int, 4)
-				index.Inverted[word] = postMap
+	// 1. Parallel collection of posts, doc lengths, and doc-word positions
+	var totalLen int64
+
+	// We can't easily parallelize the inverted index creation without a concurrent map or sharding.
+	// Let's use sharding by word.
+
+	type partialResult struct {
+		inverted map[string]map[string][]int
+		offsets  map[string]map[string][]int
+		docLens  map[string]int64
+		stemMap  map[string]map[string]bool
+		totalLen int64
+	}
+
+	results := make([]partialResult, numWorkers)
+	var wg sync.WaitGroup
+
+	chunkSize := (totalDocs + numWorkers - 1) / numWorkers
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			start := workerID * chunkSize
+			end := start + chunkSize
+			if end > totalDocs {
+				end = totalDocs
 			}
-			postMap[idStr] = positions
+
+			localInverted := make(map[string]map[string][]int)
+			localOffsets := make(map[string]map[string][]int)
+			localDocLens := make(map[string]int64)
+			localStemMap := make(map[string]map[string]bool)
+			var localTotalLen int64
+
+			for j := start; j < end; j++ {
+				ip := indexedPosts[j]
+				idStr := idStrings[j]
+				index.Posts[j] = ip.Record
+				localDocLens[idStr] = int64(ip.DocLen)
+				localTotalLen += int64(ip.DocLen)
+
+				for word, positions := range ip.PositionalIndex {
+					if _, ok := localInverted[word]; !ok {
+						localInverted[word] = make(map[string][]int)
+					}
+					localInverted[word][idStr] = positions
+				}
+
+				for word, off := range ip.ByteOffsets {
+					if _, ok := localOffsets[word]; !ok {
+						localOffsets[word] = make(map[string][]int)
+					}
+					localOffsets[word][idStr] = off
+				}
+
+				for orig, stem := range ip.StemMap {
+					if _, ok := localStemMap[stem]; !ok {
+						localStemMap[stem] = make(map[string]bool)
+					}
+					localStemMap[stem][orig] = true
+				}
+			}
+			results[workerID] = partialResult{
+				inverted: localInverted,
+				offsets:  localOffsets,
+				docLens:  localDocLens,
+				stemMap:  localStemMap,
+				totalLen: localTotalLen,
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	// 2. Merge results
+	for _, r := range results {
+		totalLen += r.totalLen
+		for idStr, length := range r.docLens {
+			index.DocLens[idStr] = length
+		}
+		for word, docs := range r.inverted {
+			if _, ok := index.Inverted[word]; !ok {
+				index.Inverted[word] = docs
+			} else {
+				for docID, positions := range docs {
+					index.Inverted[word][docID] = positions
+				}
+			}
+		}
+		for word, docs := range r.offsets {
+			if _, ok := index.Offsets[word]; !ok {
+				index.Offsets[word] = docs
+			} else {
+				for docID, off := range docs {
+					index.Offsets[word][docID] = off
+				}
+			}
 		}
 	}
 
-	index.TotalDocs = int64(len(indexedPosts))
 	if index.TotalDocs > 0 {
 		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
 	}
 
-	// Populate global stem map from pre-computed per-post mappings
+	// Global stem map merge
 	stemMap := make(map[string]map[string]bool)
-	for _, ip := range indexedPosts {
-		for orig, stem := range ip.StemMap {
+	for _, r := range results {
+		for stem, origins := range r.stemMap {
 			if _, ok := stemMap[stem]; !ok {
-				stemMap[stem] = make(map[string]bool)
+				stemMap[stem] = origins
+			} else {
+				for orig := range origins {
+					stemMap[stem][orig] = true
+				}
 			}
-			stemMap[stem][orig] = true
 		}
 	}
 
 	for stem, originMap := range stemMap {
+		origins := make([]string, 0, len(originMap))
 		for origin := range originMap {
-			index.StemMap[stem] = append(index.StemMap[stem], origin)
+			origins = append(origins, origin)
 		}
+		index.StemMap[stem] = origins
 	}
 
 	index.NgramIndex = search.BuildNgramIndex(index.Inverted)
@@ -75,7 +172,7 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 
 	outputPath := filepath.ToSlash(filepath.Join(outputDir, "search.bin"))
 	err := sink.WriteStream(outputPath, func(w io.Writer) error {
-		gw := gzip.NewWriter(w)
+		gw, _ := gzip.NewWriterLevel(w, gzip.BestSpeed)
 		defer func() {
 			if err := gw.Close(); err != nil {
 				slog.Error("Failed to close gzip writer", "error", err)

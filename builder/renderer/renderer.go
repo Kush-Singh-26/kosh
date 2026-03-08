@@ -9,30 +9,38 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 type Renderer struct {
-	Layout       *template.Template
-	Index        *template.Template
-	Graph        *template.Template
-	NotFound     *template.Template
-	Assets       map[string]string
-	AssetsMu     sync.RWMutex
-	Compress     bool
-	Sink         utils.ArtifactSink
-	RenderedMu   sync.RWMutex
-	RenderedSet  map[string]bool
-	logger       *slog.Logger
-	templateDir  string
-	mu           sync.RWMutex // Added for thread-safe template access
-	devMode      bool
-	renderErrors []renderError
-	errMu        sync.Mutex
+	Layout                   *template.Template
+	Index                    *template.Template
+	Graph                    *template.Template
+	NotFound                 *template.Template
+	Sidebar                  *template.Template
+	Assets                   map[string]string
+	AssetsMu                 sync.RWMutex
+	assetsSnapshot           atomic.Pointer[map[string]string]
+	Compress                 bool
+	EnableLegacyProcessHTML  bool
+	Sink                     utils.ArtifactSink
+	SourceFs                 afero.Fs
+	RenderedMu               sync.RWMutex
+	RenderedSet              map[string]bool
+	renderedSnapshot         atomic.Pointer[map[string]bool]
+	logger                   *slog.Logger
+	templateDir              string
+	mu                       sync.RWMutex // Added for thread-safe template access
+	devMode                  bool
+	renderErrors             []renderError
+	errMu                    sync.Mutex
 }
 
 type renderError struct {
@@ -42,9 +50,14 @@ type renderError struct {
 }
 
 func New(compress bool, sink utils.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
+	return NewWithFs(afero.NewOsFs(), compress, sink, templateDir, devMode, logger)
+}
+
+func NewWithFs(sourceFs afero.Fs, compress bool, sink utils.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
 	r := &Renderer{
 		Compress:    compress,
 		Sink:        sink,
+		SourceFs:    sourceFs,
 		RenderedSet: make(map[string]bool),
 		logger:      logger,
 		templateDir: templateDir,
@@ -74,6 +87,7 @@ func (r *Renderer) ReloadTemplates() {
 		r.Index = tc.templates["index"]
 		r.Graph = tc.templates["graph"]
 		r.NotFound = tc.templates["404"]
+		r.Sidebar = tc.templates["sidebar"]
 		r.mu.Unlock()
 		return
 	}
@@ -94,9 +108,6 @@ func (r *Renderer) ReloadTemplates() {
 
 			if baseURL != "" {
 				res := strings.TrimSuffix(baseURL, "/") + link
-				if strings.Contains(res, "http://localhost:2604http") {
-					fmt.Printf("DEBUG: Doubled URL detected! baseURL=%s, link=%s\n", baseURL, link)
-				}
 				return res
 			}
 			// If baseURL is empty, use RelativePrefix
@@ -121,7 +132,7 @@ func (r *Renderer) ReloadTemplates() {
 	// Layout (Essential)
 	g.Go(func() error {
 		path := filepath.Join(r.templateDir, "layout.html")
-		content, err := os.ReadFile(path)
+		content, err := afero.ReadFile(r.SourceFs, path)
 		if err != nil {
 			return fmt.Errorf("failed to read layout template: %w", err)
 		}
@@ -129,7 +140,7 @@ func (r *Renderer) ReloadTemplates() {
 		if err != nil {
 			return fmt.Errorf("failed to parse layout template: %w", err)
 		}
-		info, _ := os.Stat(path)
+		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
 		layoutTmpl = tmpl
 		if info != nil {
@@ -142,7 +153,7 @@ func (r *Renderer) ReloadTemplates() {
 	// Index
 	g.Go(func() error {
 		path := filepath.Join(r.templateDir, "index.html")
-		content, err := os.ReadFile(path)
+		content, err := afero.ReadFile(r.SourceFs, path)
 		if err != nil {
 			r.logger.Warn("Index template not found, falling back to layout", "dir", r.templateDir)
 			return nil
@@ -152,7 +163,7 @@ func (r *Renderer) ReloadTemplates() {
 			r.logger.Warn("Failed to parse index template", "path", path, "error", err)
 			return nil
 		}
-		info, _ := os.Stat(path)
+		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
 		indexTmpl = tmpl
 		if info != nil {
@@ -165,7 +176,7 @@ func (r *Renderer) ReloadTemplates() {
 	// Graph
 	g.Go(func() error {
 		path := filepath.Join(r.templateDir, "graph.html")
-		content, err := os.ReadFile(path)
+		content, err := afero.ReadFile(r.SourceFs, path)
 		if err != nil {
 			r.logger.Warn("Graph template not found, skipping graph page", "dir", r.templateDir)
 			return nil
@@ -175,7 +186,7 @@ func (r *Renderer) ReloadTemplates() {
 			r.logger.Warn("Failed to parse graph template", "path", path, "error", err)
 			return nil
 		}
-		info, _ := os.Stat(path)
+		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
 		graphTmpl = tmpl
 		if info != nil {
@@ -188,7 +199,7 @@ func (r *Renderer) ReloadTemplates() {
 	// 404
 	g.Go(func() error {
 		path := filepath.Join(r.templateDir, "404.html")
-		content, err := os.ReadFile(path)
+		content, err := afero.ReadFile(r.SourceFs, path)
 		if err != nil {
 			r.logger.Warn("404 template not found, falling back to layout", "dir", r.templateDir)
 			return nil
@@ -198,11 +209,34 @@ func (r *Renderer) ReloadTemplates() {
 			r.logger.Warn("Failed to parse 404 template", "path", path, "error", err)
 			return nil
 		}
-		info, _ := os.Stat(path)
+		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
 		notFoundTmpl = tmpl
 		if info != nil {
 			tc.setTemplate("404", tmpl, info.ModTime(), content)
+		}
+		mu.Unlock()
+		return nil
+	})
+
+	// Sidebar (Optional Component)
+	var sidebarTmpl *template.Template
+	g.Go(func() error {
+		path := filepath.Join(r.templateDir, "sidebar.html")
+		content, err := afero.ReadFile(r.SourceFs, path)
+		if err != nil {
+			return nil // Optional
+		}
+		tmpl, err := template.New("sidebar.html").Funcs(funcMap).Parse(string(content))
+		if err != nil {
+			r.logger.Warn("Failed to parse sidebar template", "path", path, "error", err)
+			return nil
+		}
+		info, _ := r.SourceFs.Stat(path)
+		mu.Lock()
+		sidebarTmpl = tmpl
+		if info != nil {
+			tc.setTemplate("sidebar", tmpl, info.ModTime(), content)
 		}
 		mu.Unlock()
 		return nil
@@ -218,45 +252,84 @@ func (r *Renderer) ReloadTemplates() {
 	r.Index = indexTmpl
 	r.Graph = graphTmpl
 	r.NotFound = notFoundTmpl
+	r.Sidebar = sidebarTmpl
 	r.mu.Unlock()
 }
 
 func (r *Renderer) RegisterFile(path string) {
 	r.RenderedMu.Lock()
-	defer r.RenderedMu.Unlock()
-	r.RenderedSet[filepath.ToSlash(path)] = true
+	r.RenderedSet[path] = true
+	// Invalidate snapshot so GetRenderedFiles rebuilds it lazily
+	r.renderedSnapshot.Store(nil)
+	r.RenderedMu.Unlock()
 }
 
 func (r *Renderer) GetRenderedFiles() map[string]bool {
-	r.RenderedMu.RLock()
-	defer r.RenderedMu.RUnlock()
-	copy := make(map[string]bool, len(r.RenderedSet))
-	for k, v := range r.RenderedSet {
-		copy[k] = v
+	// Fast path: valid snapshot already exists
+	if s := r.renderedSnapshot.Load(); s != nil {
+		return *s
 	}
-	return copy
+	// Slow path: build snapshot under lock, then cache it
+	r.RenderedMu.Lock()
+	snapshot := make(map[string]bool, len(r.RenderedSet))
+	for k, v := range r.RenderedSet {
+		snapshot[k] = v
+	}
+	r.renderedSnapshot.Store(&snapshot)
+	r.RenderedMu.Unlock()
+	return snapshot
 }
 
 func (r *Renderer) ClearRenderedFiles() {
 	r.RenderedMu.Lock()
-	defer r.RenderedMu.Unlock()
 	r.RenderedSet = make(map[string]bool)
+	r.renderedSnapshot.Store(nil)
+	r.RenderedMu.Unlock()
 }
 
 func (r *Renderer) SetAssets(assets map[string]string) {
 	r.AssetsMu.Lock()
-	defer r.AssetsMu.Unlock()
 	r.Assets = assets
+	// Create snapshot
+	snapshot := make(map[string]string, len(assets))
+	for k, v := range assets {
+		snapshot[k] = v
+	}
+	r.assetsSnapshot.Store(&snapshot)
+	r.AssetsMu.Unlock()
 }
 
 func (r *Renderer) GetAssets() map[string]string {
-	r.AssetsMu.RLock()
-	defer r.AssetsMu.RUnlock()
-	copy := make(map[string]string, len(r.Assets))
-	for k, v := range r.Assets {
-		copy[k] = v
+	s := r.assetsSnapshot.Load()
+	if s == nil {
+		return make(map[string]string)
 	}
-	return copy
+	return *s
+}
+
+func (r *Renderer) RenderSidebar(tree []*models.TreeNode) template.HTML {
+	r.mu.RLock()
+	sidebar := r.Sidebar
+	r.mu.RUnlock()
+
+	if sidebar == nil {
+		return ""
+	}
+
+	buf := utils.SharedBufferPool.Get()
+	defer utils.SharedBufferPool.Put(buf)
+
+	// Wrap in a map so we can add other global context if needed
+	data := map[string]interface{}{
+		"SiteTree": tree,
+	}
+
+	if err := sidebar.Execute(buf, data); err != nil {
+		r.logger.Error("Failed to render sidebar component", "error", err)
+		return ""
+	}
+
+	return template.HTML(buf.String())
 }
 
 // recordError logs a render error and stores it for later retrieval

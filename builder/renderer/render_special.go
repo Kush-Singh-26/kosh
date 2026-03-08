@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"bytes"
 	"io"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -16,12 +15,14 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 	layout := r.Layout
 	r.mu.RUnlock()
 
-	var buf bytes.Buffer
+	buf := utils.SharedBufferPool.Get()
+	defer utils.SharedBufferPool.Put(buf)
+
 	var errExec error
 	if index != nil {
-		errExec = index.Execute(&buf, data)
+		errExec = index.Execute(buf, data)
 	} else if layout != nil {
-		errExec = layout.Execute(&buf, data)
+		errExec = layout.Execute(buf, data)
 	} else {
 		r.logger.Error("No template available for index", "path", path)
 		return
@@ -33,8 +34,13 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 	}
 
 	// Process HTML
-	processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
-	finalBytes := []byte(processedHTML)
+	var finalBytes []byte
+	if r.EnableLegacyProcessHTML {
+		processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
+		finalBytes = []byte(processedHTML)
+	} else {
+		finalBytes = buf.Bytes()
+	}
 
 	if r.Compress {
 		minified, err := utils.Minifier.Bytes("text/html", finalBytes)
@@ -66,15 +72,22 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 
 	data.Assets = r.GetAssets()
 
-	var buf bytes.Buffer
-	if err := graph.Execute(&buf, data); err != nil {
+	buf := utils.SharedBufferPool.Get()
+	defer utils.SharedBufferPool.Put(buf)
+
+	if err := graph.Execute(buf, data); err != nil {
 		r.logger.Error("Failed to render graph", "path", path, "error", err)
 		return
 	}
 
 	// Process HTML
-	processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
-	finalBytes := []byte(processedHTML)
+	var finalBytes []byte
+	if r.EnableLegacyProcessHTML {
+		processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
+		finalBytes = []byte(processedHTML)
+	} else {
+		finalBytes = buf.Bytes()
+	}
 
 	if r.Compress {
 		minified, err := utils.Minifier.Bytes("text/html", finalBytes)
@@ -103,12 +116,14 @@ func (r *Renderer) Render404(path string, data models.PageData) {
 	layout := r.Layout
 	r.mu.RUnlock()
 
-	var buf bytes.Buffer
+	buf := utils.SharedBufferPool.Get()
+	defer utils.SharedBufferPool.Put(buf)
+
 	var errExec error
 	if notFound != nil {
-		errExec = notFound.Execute(&buf, data)
+		errExec = notFound.Execute(buf, data)
 	} else if layout != nil {
-		errExec = layout.Execute(&buf, data)
+		errExec = layout.Execute(buf, data)
 	} else {
 		r.logger.Error("No template available for 404", "path", path)
 		return
@@ -120,8 +135,13 @@ func (r *Renderer) Render404(path string, data models.PageData) {
 	}
 
 	// Process HTML
-	processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
-	finalBytes := []byte(processedHTML)
+	var finalBytes []byte
+	if r.EnableLegacyProcessHTML {
+		processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
+		finalBytes = []byte(processedHTML)
+	} else {
+		finalBytes = buf.Bytes()
+	}
 
 	if r.Compress {
 		minified, err := utils.Minifier.Bytes("text/html", finalBytes)

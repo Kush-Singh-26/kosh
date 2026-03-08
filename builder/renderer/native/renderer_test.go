@@ -1,10 +1,86 @@
 package native
 
 import (
+	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestRenderer_RenderD2(t *testing.T) {
+	r := New(WithWorkers(1))
+	defer r.Close()
+
+	ctx := context.Background()
+	code := "x -> y: hello world"
+	svg, err := r.RenderD2(ctx, code, 0)
+	if err != nil {
+		t.Fatalf("RenderD2 failed: %v", err)
+	}
+
+	if !strings.Contains(svg, "<svg") {
+		t.Error("RenderD2 result does not contain <svg tag")
+	}
+	if !strings.Contains(svg, "hello world") {
+		t.Error("RenderD2 result does not contain label text")
+	}
+}
+
+func TestRenderer_RenderMath(t *testing.T) {
+	r := New(WithWorkers(1))
+	defer r.Close()
+
+	latex := "E = mc^2"
+	html, err := r.RenderMath(latex, true)
+	if err != nil {
+		t.Fatalf("RenderMath failed: %v", err)
+	}
+
+	// t.Logf("Actual HTML: %s", html)
+
+	if !strings.Contains(html, "katex") {
+		t.Error("RenderMath result does not contain 'katex' class")
+	}
+	// m and c might be wrapped in tags
+	if !strings.Contains(html, "m") || !strings.Contains(html, "c") {
+		t.Error("RenderMath result does not contain 'm' or 'c'")
+	}
+}
+
+func TestRenderer_RenderAllMath(t *testing.T) {
+	r := New(WithWorkers(2))
+	defer r.Close()
+
+	expressions := []MathExpression{
+		{LaTeX: "a^2 + b^2 = c^2", DisplayMode: true, Hash: "hash1"},
+		{LaTeX: "\\sum_{i=1}^n i", DisplayMode: false, Hash: "hash2"},
+	}
+
+	cache := make(map[string]string)
+	results, err := r.RenderAllMath(expressions, cache)
+	if err != nil {
+		t.Fatalf("RenderAllMath failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Errorf("Expected 2 results, got %d", len(results))
+	}
+
+	if !strings.Contains(results["hash1"], "katex") || !strings.Contains(results["hash1"], "a") {
+		t.Errorf("Result for hash1 looks wrong: %s", results["hash1"])
+	}
+
+	// Test cache hit
+	cache["hash1"] = "cached-result"
+	results2, err := r.RenderAllMath(expressions, cache)
+	if err != nil {
+		t.Fatalf("RenderAllMath with cache failed: %v", err)
+	}
+	if results2["hash1"] != "cached-result" {
+		t.Error("Cache hit failed for RenderAllMath")
+	}
+}
 
 func TestRenderer_ConcurrentInitialization(t *testing.T) {
 	r := New(WithWorkers(2))

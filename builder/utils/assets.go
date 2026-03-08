@@ -12,10 +12,11 @@ import (
 
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/spf13/afero"
-	"github.com/zeebo/blake3"
+	"github.com/zeebo/xxh3"
 )
 
 func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool) (map[string]string, error) {
+	// slog.Info("Building assets", "srcDir", srcDir, "destDir", destDir)
 	srcDir = NormalizePath(srcDir)
 	destDir = NormalizePath(destDir)
 	assets := make(map[string]string)
@@ -24,10 +25,10 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 	var cssEntryPoints []string
 
 	// Calculate input hash
-	inputHash := blake3.New()
+	inputHash := xxh3.New()
 
 	// Find entry points
-	err := afero.Walk(srcFs, srcDir, func(path string, info fs.FileInfo, err error) error {
+	err := afero.Walk(srcFs, filepath.FromSlash(srcDir), func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -61,7 +62,9 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 		return nil, fmt.Errorf("failed to scan for assets: %w", err)
 	}
 
-	currentHash := hex.EncodeToString(inputHash.Sum(nil))
+	sum := inputHash.Sum128()
+	b := sum.Bytes()
+	currentHash := hex.EncodeToString(b[:])
 	cachePath := ""
 	if cacheDir != "" {
 		cachePath = filepath.Join(cacheDir, currentHash)
@@ -154,6 +157,9 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 		}
 
 		for _, outFile := range result.OutputFiles {
+			if len(outFile.Contents) == 0 && !strings.HasSuffix(strings.ToLower(outFile.Path), ".map") {
+				return fmt.Errorf("esbuild produced empty output for %s", outFile.Path)
+			}
 			fullPath := NormalizePath(outFile.Path)
 			// Compute relative path from destDir for VFS
 			relPath, err := filepath.Rel(destDir, fullPath)

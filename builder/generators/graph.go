@@ -4,11 +4,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
+
+var TestingMode = false
+
+func init() {
+	// fmt.Printf("DEBUG: os.Args[0] = %s\n", os.Args[0])
+	if strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") || strings.Contains(os.Args[0], "_test") {
+		TestingMode = true
+	}
+}
 
 func GenerateGraph(sink utils.ArtifactSink, baseURL string, posts []models.PostMetadata, outputPath string) (string, error) {
 	slog.Info("Generating knowledge graph data")

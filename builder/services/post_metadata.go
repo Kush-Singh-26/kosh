@@ -26,11 +26,16 @@ func GroupMetadata(cfg *config.Config, allMetadataMap *sync.Map) *GroupMetadataR
 		postsByVersion = make(map[string][]models.PostMetadata)
 	)
 
-	type tagEntry struct {
-		tag  string
-		post models.PostMetadata
+	// Pre-calculate latest version name for O(1) lookup
+	latestVerName := ""
+	if len(cfg.Versions) > 0 {
+		for _, v := range cfg.Versions {
+			if v.IsLatest {
+				latestVerName = v.Name
+				break
+			}
+		}
 	}
-	var tagEntries []tagEntry
 
 	allMetadataMap.Range(func(key, value interface{}) bool {
 		p := value.(models.PostMetadata)
@@ -38,21 +43,13 @@ func GroupMetadata(cfg *config.Config, allMetadataMap *sync.Map) *GroupMetadataR
 
 		for _, t := range p.Tags {
 			key := strings.ToLower(strings.TrimSpace(t))
-			tagEntries = append(tagEntries, tagEntry{key, p})
+			tagMap[key] = append(tagMap[key], p)
 		}
 
 		// Determine if this post belongs to the main feed:
 		// - Unversioned posts for non-versioned sites
 		// - Latest version posts for versioned sites
-		isLatestOrUnversioned := p.Version == ""
-		if len(cfg.Versions) > 0 {
-			for _, v := range cfg.Versions {
-				if v.IsLatest && p.Version == v.Name {
-					isLatestOrUnversioned = true
-					break
-				}
-			}
-		}
+		isLatestOrUnversioned := (p.Version == "" && latestVerName == "") || (p.Version == latestVerName && latestVerName != "")
 
 		if isLatestOrUnversioned {
 			if p.Pinned {
@@ -63,10 +60,6 @@ func GroupMetadata(cfg *config.Config, allMetadataMap *sync.Map) *GroupMetadataR
 		}
 		return true
 	})
-
-	for _, e := range tagEntries {
-		tagMap[e.tag] = append(tagMap[e.tag], e.post)
-	}
 
 	return &GroupMetadataResult{
 		AllPosts:       allPosts,

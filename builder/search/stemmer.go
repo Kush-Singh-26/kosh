@@ -221,9 +221,9 @@ func hasSuffix(runes []rune, suffix string) bool {
 	if n < sLen {
 		return false
 	}
-	suffixRunes := []rune(suffix)
+	// Fast ASCII path: all Porter stemmer suffixes are ASCII, so rune index == byte index
 	for i := 0; i < sLen; i++ {
-		if runes[n-sLen+i] != suffixRunes[i] {
+		if runes[n-sLen+i] != rune(suffix[i]) {
 			return false
 		}
 	}

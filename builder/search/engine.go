@@ -88,6 +88,14 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 
 	postCache := make(map[int]*models.PostRecord, maxResults)
 
+	// Pre-build integer-indexed docLens slice to avoid strconv.Atoi + map lookup in hot BM25 loops
+	docLens := make([]int64, len(index.Posts))
+	for idStr, dl := range index.DocLens {
+		if id, err := strconv.Atoi(idStr); err == nil && id < len(docLens) {
+			docLens[id] = dl
+		}
+	}
+
 	// Collect terms that actually matched in the index for high-fidelity highlighting
 	highlightTerms := make(map[string]bool)
 	for _, t := range queryTerms {
@@ -130,7 +138,7 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 				}
 
 				freq := len(positions)
-				docLen := float64(index.DocLens[postIDStr])
+				docLen := float64(docLens[postID])
 				score := idf * (float64(freq) * (k1 + 1)) / (float64(freq) + k1*(1-b+b*(docLen/index.AvgDocLen)))
 				scores[postID] += score
 			}
@@ -167,7 +175,7 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 						}
 
 						freq := len(positions)
-						docLen := float64(index.DocLens[postIDStr])
+						docLen := float64(docLens[postID])
 						score := idf * (float64(freq) * (k1 + 1)) / (float64(freq) + k1*(1-b+b*(docLen/index.AvgDocLen)))
 
 						// Prefix matches (distance usually high) get less penalty than pure fuzzy
@@ -271,7 +279,6 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 			Title:       title,
 			Link:        post.Link,
 			Description: post.Description,
-			Snippet:     ExtractSnippet(post.Content, finalHighlightTerms),
 			Version:     post.Version,
 			Score:       score,
 		})
@@ -281,8 +288,26 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		return results[i].Score > results[j].Score
 	})
 
+	// 5. Limit results and extract snippets ONLY for top 10
 	if len(results) > 10 {
 		results = results[:10]
+	}
+
+	for i := range results {
+		post := &index.Posts[results[i].ID]
+		idStr := strconv.Itoa(results[i].ID)
+
+		// Collect term offsets for this document
+		termOffsets := make(map[string][]int)
+		for _, term := range finalHighlightTerms {
+			if docMap, ok := index.Offsets[term]; ok {
+				if offsets, found := docMap[idStr]; found {
+					termOffsets[term] = offsets
+				}
+			}
+		}
+
+		results[i].Snippet = ExtractSnippet(post.Content, finalHighlightTerms, termOffsets)
 	}
 
 	return results
@@ -397,7 +422,7 @@ func getHighlightRegex(terms []string) *regexp.Regexp {
 }
 
 // ExtractSnippet finds the "densest" cluster of terms for a better snippet
-func ExtractSnippet(content string, terms []string) string {
+func ExtractSnippet(content string, terms []string, termOffsets map[string][]int) string {
 	if len(content) == 0 {
 		return ""
 	}
@@ -412,25 +437,42 @@ func ExtractSnippet(content string, terms []string) string {
 		return content
 	}
 
-	contentLower := ToLower(content)
-
 	type match struct {
 		pos  int
 		term string
 	}
 	var matches []match
-	for _, term := range terms {
-		if len(term) < 2 {
-			continue
-		}
-		curr := 0
-		for {
-			idx := strings.Index(contentLower[curr:], term)
-			if idx == -1 {
-				break
+
+	// If we have pre-computed offsets, use them! (Schema v7+)
+	if len(termOffsets) > 0 {
+		for _, term := range terms {
+			if offsets, ok := termOffsets[term]; ok {
+				for i := 0; i < len(offsets); i += 2 {
+					start := offsets[i]
+					if start < len(content) {
+						matches = append(matches, match{pos: start, term: term})
+					}
+				}
 			}
-			matches = append(matches, match{pos: curr + idx, term: term})
-			curr += idx + len(term)
+		}
+	}
+
+	// Fallback to scanning if no offsets or no matches found via offsets
+	if len(matches) == 0 {
+		contentLower := ToLower(content)
+		for _, term := range terms {
+			if len(term) < 2 {
+				continue
+			}
+			curr := 0
+			for {
+				idx := strings.Index(contentLower[curr:], term)
+				if idx == -1 {
+					break
+				}
+				matches = append(matches, match{pos: curr + idx, term: term})
+				curr += idx + len(term)
+			}
 		}
 	}
 

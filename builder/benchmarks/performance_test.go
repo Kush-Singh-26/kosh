@@ -1,0 +1,97 @@
+package benchmarks
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/spf13/afero"
+	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/renderer"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
+)
+
+func BenchmarkMarkdownParsing(b *testing.B) {
+	cfg := &config.Config{}
+	r := native.New()
+	diagramCache := &sync.Map{}
+	parser := mdParser.New(cfg, r, diagramCache)
+
+	// Create a large markdown content (approx 10,000 words)
+	word := "word "
+	content := strings.Repeat(word, 10000)
+	markdown := []byte("# Large Post\n\n" + content)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var buf bytes.Buffer
+		if err := parser.Convert(markdown, &buf); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkFullBuild(b *testing.B) {
+	// Setup a 100-post site
+	fs := afero.NewMemMapFs()
+	testutil.ScaffoldTestSite(fs)
+	
+	// Add 99 more posts
+	for i := 1; i < 100; i++ {
+		postContent := fmt.Sprintf(`---
+title: "Post %d"
+date: 2026-03-06
+tags: ["test"]
+---
+# Post %d
+This is post number %d.
+`, i, i, i)
+		_ = afero.WriteFile(fs, fmt.Sprintf("content/posts/post%d.md", i), []byte(postContent), 0644)
+	}
+
+	cfg := config.LoadFs(fs, []string{})
+	cfg.OutputDir = "public"
+	cfg.Features.Generators.Search = true
+	cfg.Features.Generators.RSS = true
+	cfg.Features.Generators.Sitemap = true
+
+	logger := run.InitLogger()
+	buildMetrics := metrics.NewBuildMetrics()
+	nativeRenderer := native.New()
+	diagramCache := &sync.Map{}
+	mdPool := &sync.Pool{
+		New: func() interface{} {
+			return mdParser.New(cfg, nativeRenderer, diagramCache)
+		},
+	}
+
+	sink := testutil.NewMemSink()
+	tx := testutil.NewMockTransaction("public")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// We need fresh services for each run or at least reset them
+		renderSvc := services.NewRenderService(renderer.NewWithFs(fs, false, sink, cfg.TemplateDir, true, logger), logger)
+		assetSvc := &mocks.MockAssetService{}
+		assetSvc.SetMetrics(buildMetrics)
+		postSvc := services.NewPostService(cfg, nil, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
+		metadataScanner := services.NewMetadataScanner()
+
+		builder := run.NewBuilderFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, logger, buildMetrics, fs, mdPool, nativeRenderer)
+		builder.Sink = sink
+		builder.Tx = tx
+
+		if err := builder.Build(context.Background()); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

@@ -12,6 +12,7 @@ type BuildTransaction interface {
 	StagingDir() string
 	Commit() error
 	Rollback() error
+	GetLastBuildTime() time.Time
 }
 
 type DirectoryTx struct {
@@ -83,6 +84,14 @@ func (tx *DirectoryTx) Rollback() error {
 	}
 	// Clean up staging dir on failure
 	return os.RemoveAll(tx.stagingDir)
+}
+
+func (tx *DirectoryTx) GetLastBuildTime() time.Time {
+	info, err := os.Stat(tx.realOutputDir)
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
 }
 
 // RenameWithRetry attempts to rename a path with exponential backoff.

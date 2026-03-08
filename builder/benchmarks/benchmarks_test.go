@@ -99,13 +99,26 @@ func BenchmarkTokenize(b *testing.B) {
 
 // BenchmarkExtractSnippet tests snippet extraction
 func BenchmarkExtractSnippet(b *testing.B) {
-	content := `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`
-	terms := []string{"consequat", "exercitation", "aliqua"}
+	content := strings.Repeat("This is some text with keywords. ", 100)
+	terms := []string{"keywords", "text"}
 
 	b.ResetTimer()
-
 	for i := 0; i < b.N; i++ {
-		_ = search.ExtractSnippet(content, terms)
+		_ = search.ExtractSnippet(content, terms, nil)
+	}
+}
+
+func BenchmarkExtractSnippet_WithOffsets(b *testing.B) {
+	content := strings.Repeat("This is some text with keywords. ", 100)
+	terms := []string{"keywords", "text"}
+	offsets := map[string][]int{
+		"keywords": {23, 31},
+		"text":     {13, 17},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = search.ExtractSnippet(content, terms, offsets)
 	}
 }
 

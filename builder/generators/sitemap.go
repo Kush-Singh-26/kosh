@@ -3,6 +3,7 @@ package generators
 import (
 	"encoding/xml"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"time"
@@ -46,14 +47,16 @@ func GenerateSitemap(sink utils.ArtifactSink, baseURL string, posts []models.Pos
 		})
 	}
 
-	// Marshaling
-	output, err := xml.MarshalIndent(models.UrlSet{Urls: urls}, "", "  ")
+	// Streaming encode: write XML header then encode each URL entry directly to the sink writer
+	err := sink.WriteStream(outputPath, func(w io.Writer) error {
+		if _, err := io.WriteString(w, xml.Header); err != nil {
+			return err
+		}
+		enc := xml.NewEncoder(w)
+		enc.Indent("", "  ")
+		return enc.Encode(models.UrlSet{Urls: urls})
+	})
 	if err != nil {
-		return "", err
-	}
-
-	finalOutput := []byte(xml.Header + string(output))
-	if err := sink.WriteFile(outputPath, finalOutput); err != nil {
 		return "", err
 	}
 	return outputPath, nil

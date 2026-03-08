@@ -1,7 +1,9 @@
 package search
 
 import (
+	"runtime"
 	"strings"
+	"sync"
 )
 
 // MaxEditDistance is the maximum Levenshtein distance for fuzzy matching
@@ -174,12 +176,50 @@ func generateTrigrams(word string) []string {
 
 // BuildNgramIndex builds a trigram index for fast fuzzy lookups
 func BuildNgramIndex(inverted map[string]map[string][]int) map[string][]string {
-	ngramIndex := make(map[string][]string)
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 8 {
+		numWorkers = 8
+	}
 
+	terms := make([]string, 0, len(inverted))
 	for term := range inverted {
-		trigrams := generateTrigrams(term)
-		for _, tg := range trigrams {
-			ngramIndex[tg] = append(ngramIndex[tg], term)
+		terms = append(terms, term)
+	}
+
+	totalTerms := len(terms)
+	chunkSize := (totalTerms + numWorkers - 1) / numWorkers
+
+	var wg sync.WaitGroup
+	results := make([]map[string][]string, numWorkers)
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			localNgram := make(map[string][]string)
+			start := workerID * chunkSize
+			end := start + chunkSize
+			if end > totalTerms {
+				end = totalTerms
+			}
+
+			for j := start; j < end; j++ {
+				term := terms[j]
+				trigrams := generateTrigrams(term)
+				for _, tg := range trigrams {
+					localNgram[tg] = append(localNgram[tg], term)
+				}
+			}
+			results[workerID] = localNgram
+		}(i)
+	}
+	wg.Wait()
+
+	// Merge results
+	ngramIndex := make(map[string][]string)
+	for _, r := range results {
+		for tg, termList := range r {
+			ngramIndex[tg] = append(ngramIndex[tg], termList...)
 		}
 	}
 

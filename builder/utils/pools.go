@@ -87,6 +87,9 @@ func (p *BufioWriterPool) Get(w io.Writer) *bufio.Writer {
 }
 
 func (p *BufioWriterPool) Put(bw *bufio.Writer) {
+	if bw.Size() > MaxBufferSize {
+		return // Don't return oversized writers to the pool
+	}
 	p.pool.Put(bw)
 }
 
