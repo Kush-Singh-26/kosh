@@ -2,8 +2,11 @@ package services
 
 import (
 	"context"
+	"html/template"
 
+	"github.com/spf13/afero"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
@@ -18,9 +21,17 @@ type PostResult struct {
 	Has404         bool
 }
 
+// MetadataReadyFunc is called when post metadata becomes available (after parse,
+// before render). This allows site-wide tasks (sitemap, RSS, search, pagination,
+// tags, PWA) to overlap with the post render phase.
+type MetadataReadyFunc func(allPosts []models.PostMetadata, pinnedPosts []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, anyChanged bool)
+
 type PostService interface {
 	SetSink(sink utils.ArtifactSink)
-	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) (*PostResult, error)
+	SetSourceFs(fs afero.Fs)
+	SetAssetsGate(ch <-chan struct{})
+	SetMetadataCallback(fn MetadataReadyFunc)
+	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, earlyMetadata *MetadataScannerResult) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
 }
@@ -37,6 +48,7 @@ type CacheService interface {
 	GetHTMLContent(post *cache.PostMeta) ([]byte, error)
 	GetSocialCardHash(path string) (string, error)
 	SetSocialCardHash(path, hash string) error
+	BatchSetSocialCardHashes(hashes map[string]string) error
 	GetGraphHash() (string, error)
 	SetGraphHash(hash string) error
 	GetWasmHash() (string, error)
@@ -63,16 +75,20 @@ type CacheService interface {
 // AssetService handles static asset processing
 type AssetService interface {
 	SetSink(sink utils.ArtifactSink)
+	SetSourceFs(fs afero.Fs)
+	SetMetrics(m *metrics.BuildMetrics)
 	Build(ctx context.Context) error
 }
 
 // RenderService handles rendering logic
 type RenderService interface {
 	SetSink(sink utils.ArtifactSink)
+	SetSourceFs(fs afero.Fs)
 	RenderPage(path string, data models.PageData)
 	RenderIndex(path string, data models.PageData)
 	Render404(path string, data models.PageData)
 	RenderGraph(path string, data models.PageData)
+	RenderSidebar(tree []*models.TreeNode) template.HTML
 	RegisterFile(path string)
 	SetAssets(assets map[string]string)
 	GetAssets() map[string]string

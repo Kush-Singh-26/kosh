@@ -9,17 +9,20 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/Kush-Singh-26/kosh/internal/watch"
 )
 
 var (
-	buildWatch      bool
-	buildCPUProfile string
-	buildMemProfile string
-	buildBaseURL    string
-	buildDrafts     bool
-	buildTheme      string
-	buildForceLock  bool
+	buildWatch            bool
+	buildCPUProfile       string
+	buildMemProfile       string
+	buildBaseURL          string
+	buildDrafts           bool
+	buildTheme            string
+	buildForceLock        bool
+	buildPhaseTimings     bool
+	buildPhaseTimingsFile string
 )
 
 var buildCmd = &cobra.Command{
@@ -39,10 +42,17 @@ func init() {
 	buildCmd.Flags().BoolVarP(&buildDrafts, "drafts", "", false, "Include draft posts in build")
 	buildCmd.Flags().StringVarP(&buildTheme, "theme", "", "", "Override theme from config")
 	buildCmd.Flags().BoolVar(&buildForceLock, "force-lock", false, "Acquire build lock even if another build is running")
+	buildCmd.Flags().BoolVar(&buildPhaseTimings, "phase-timings", false, "Print per-phase build timings")
+	buildCmd.Flags().StringVar(&buildPhaseTimingsFile, "phase-timings-file", "", "Write per-phase timings to a JSON file")
 }
 
 func runBuild(cmd *cobra.Command, args []string) {
 	ctx := getContext()
+	utils.ResetPhaseTracking()
+	if buildPhaseTimings || buildPhaseTimingsFile != "" {
+		utils.EnablePhaseTracking()
+		defer utils.DisablePhaseTracking()
+	}
 
 	var filteredArgs []string
 	if buildBaseURL != "" {
@@ -75,21 +85,30 @@ func runBuild(cmd *cobra.Command, args []string) {
 	if buildWatch {
 		b := run.NewBuilder(filteredArgs)
 		if err := b.Build(ctx); err != nil {
-			fmt.Printf("❌ Initial build failed: %v\n", err)
+			fmt.Printf("initial build failed: %v\n", err)
 			os.Exit(1)
 		}
+		maybePrintPhaseTimings()
+		maybeWritePhaseTimings()
 
 		w, err := watch.New([]string{"content", b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
-			fmt.Printf("\n⚡ Change detected: %s | Rebuilding...\n", event.Name)
+			fmt.Printf("\nChange detected: %s | Rebuilding...\n", event.Name)
+			utils.ResetPhaseTracking()
 			b.BuildChanged(ctx, event.Name, event.Op)
+			maybePrintPhaseTimings()
+			maybeWritePhaseTimings()
 		})
 		if err != nil {
-			fmt.Printf("❌ Watcher failed: %v\n", err)
+			fmt.Printf("watcher failed: %v\n", err)
 			os.Exit(1)
 		}
 		w.Start()
 	} else {
-		run.Run(filteredArgs)
+		if err := run.Run(filteredArgs); err != nil {
+			os.Exit(1)
+		}
+		maybePrintPhaseTimings()
+		maybeWritePhaseTimings()
 
 		if buildMemProfile != "" {
 			f, err := os.Create(buildMemProfile)
@@ -104,5 +123,24 @@ func runBuild(cmd *cobra.Command, args []string) {
 				os.Exit(1)
 			}
 		}
+	}
+}
+
+func maybePrintPhaseTimings() {
+	if !buildPhaseTimings {
+		return
+	}
+	summary := utils.FormatPhaseSummary()
+	if summary != "" {
+		fmt.Print(summary)
+	}
+}
+
+func maybeWritePhaseTimings() {
+	if buildPhaseTimingsFile == "" {
+		return
+	}
+	if err := utils.WritePhaseDurationsJSON(buildPhaseTimingsFile); err != nil {
+		fmt.Printf("failed to write phase timings: %v\n", err)
 	}
 }

@@ -272,3 +272,27 @@ func TestGetBool(t *testing.T) {
 		})
 	}
 }
+
+func TestCountWords(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int
+	}{
+		{"Hello world", 2},
+		{"  Multiple   spaces  ", 2},
+		{"Line\nbreaks\rand\ttabs", 4},
+		{"", 0},
+		{"OneWord", 1},
+		{"!@#$% ^&*()", 2}, // basic non-space counting
+		{"Unicode 🚀 rocks", 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := CountWords([]byte(tt.input))
+			if got != tt.expected {
+				t.Errorf("CountWords(%q) = %d, want %d", tt.input, got, tt.expected)
+			}
+		})
+	}
+}

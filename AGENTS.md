@@ -5,7 +5,7 @@ This repository contains **Kosh**, a high-performance Static Site Generator (SSG
 ## Project Status: v1.3.9 ✅
 
 All phases of development have been completed:
-- **Phase 1**: Security & Stability (BLAKE3, graceful shutdown, error handling)
+- **Phase 1**: Security & Stability (XXH3, graceful shutdown, error handling)
 - **Phase 2**: Architecture Refactoring (Service Layer, Dependency Injection)
 - **Phase 3**: Performance Optimization (Memory pools, pre-computed search)
 - **Phase 4**: Modernization (Go 1.23, Generics, dependency updates)

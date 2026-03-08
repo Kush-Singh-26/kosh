@@ -16,22 +16,22 @@ func TestGetBodyHash(t *testing.T) {
 		{
 			name:    "markdown with frontmatter",
 			source:  []byte("---\ntitle: Test\n---\nThis is the body content."),
-			wantLen: 64,
+			wantLen: 32,
 		},
 		{
 			name:    "markdown without frontmatter",
 			source:  []byte("Just plain markdown content."),
-			wantLen: 64,
+			wantLen: 32,
 		},
 		{
 			name:    "empty content",
 			source:  []byte(""),
-			wantLen: 64,
+			wantLen: 32,
 		},
 		{
 			name:    "frontmatter only",
 			source:  []byte("---\ntitle: Test\n---\n"),
-			wantLen: 64,
+			wantLen: 32,
 		},
 	}
 
@@ -145,8 +145,8 @@ func TestGetFrontmatterHash(t *testing.T) {
 			if hash == "" {
 				t.Error("GetFrontmatterHash() returned empty hash")
 			}
-			if len(hash) != 64 { // SHA256 hex string length
-				t.Errorf("GetFrontmatterHash() returned hash of length %d, want 64", len(hash))
+			if len(hash) != 32 { // XXH3-128 hex string length
+				t.Errorf("GetFrontmatterHash() returned hash of length %d, want 32", len(hash))
 			}
 		})
 	}
@@ -247,8 +247,8 @@ func TestGetGraphHash(t *testing.T) {
 			if tt.wantHash && hash == "" {
 				t.Error("GetGraphHash() returned empty hash")
 			}
-			if len(hash) != 64 {
-				t.Errorf("GetGraphHash() returned hash of length %d, want 64", len(hash))
+			if len(hash) != 32 {
+				t.Errorf("GetGraphHash() returned hash of length %d, want 32", len(hash))
 			}
 		})
 	}

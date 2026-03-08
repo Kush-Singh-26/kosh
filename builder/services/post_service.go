@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"html/template"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -37,6 +36,19 @@ type postServiceImpl struct {
 
 	// Mutex for D2/Math rendering safety if needed
 	mu sync.Mutex
+
+	// Collected social card hashes for batch write after cardPool completes
+	cardHashes sync.Map
+
+	// assetsReady is closed when asset building completes. The render phase
+	// waits on this channel before reading the Assets map, allowing the
+	// parse phase to overlap with asset building for faster cold builds.
+	assetsReady <-chan struct{}
+
+	// metadataCallback is invoked when post metadata becomes available
+	// (after parse completes, before render starts), allowing site-wide
+	// tasks to overlap with the render phase.
+	metadataCallback MetadataReadyFunc
 }
 
 func NewPostService(
@@ -69,7 +81,19 @@ func (s *postServiceImpl) SetSink(sink utils.ArtifactSink) {
 	s.sink = sink
 }
 
-func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool) (*PostResult, error) {
+func (s *postServiceImpl) SetSourceFs(fs afero.Fs) {
+	s.sourceFs = fs
+}
+
+func (s *postServiceImpl) SetAssetsGate(ch <-chan struct{}) {
+	s.assetsReady = ch
+}
+
+func (s *postServiceImpl) SetMetadataCallback(fn MetadataReadyFunc) {
+	s.metadataCallback = fn
+}
+
+func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, earlyMetadata *MetadataScannerResult) (*PostResult, error) {
 	if os.Getenv("KOSH_FORCE_REBUILD") == "1" {
 		shouldForce = true
 	}
@@ -84,60 +108,95 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		processedCount int32
 	)
 
-	var files []string
-	var fileVersions []string
-	if err := afero.Walk(s.sourceFs, s.cfg.ContentDir, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			s.logger.Error("Error walking content directory", "path", path, "error", err)
-			return nil
-		}
-		if !info.IsDir() && strings.HasSuffix(path, ".md") && !strings.Contains(path, "_index.md") {
-			if strings.Contains(path, "404.md") {
-				has404 = true
-			} else {
-				ver, _ := utils.GetVersionFromPath(path)
-				files = append(files, path)
-				fileVersions = append(fileVersions, ver)
-			}
-		}
-		return nil
-	}); err != nil {
-		s.logger.Error("Failed to walk content directory", "error", err)
-	}
+    type walkFile struct {
+        path    string
+        version string
+        info    os.FileInfo
+    }
+
+    var files []walkFile
+    if earlyMetadata != nil && len(earlyMetadata.Files) > 0 {
+        // Reuse the scanner's file list to avoid a second walk and extra stats.
+        for _, f := range earlyMetadata.Files {
+            // Skip 404 here; scanner already marked Has404.
+            if strings.Contains(f.Path, "404.md") {
+                has404 = has404 || earlyMetadata.Has404
+                continue
+            }
+            files = append(files, walkFile{path: f.Path, version: f.Version, info: f.Info})
+        }
+        has404 = has404 || earlyMetadata.Has404
+    } else {
+        if err := afero.Walk(s.sourceFs, s.cfg.ContentDir, func(path string, info os.FileInfo, err error) error {
+            if err != nil {
+                s.logger.Error("Error walking content directory", "path", path, "error", err)
+                return nil
+            }
+            if !info.IsDir() && strings.HasSuffix(path, ".md") && !strings.Contains(path, "_index.md") {
+                if strings.Contains(path, "404.md") {
+                    has404 = true
+                } else {
+                    ver, _ := utils.GetVersionFromPath(path)
+                    files = append(files, walkFile{path: path, version: ver, info: info})
+                }
+            }
+            return nil
+        }); err != nil {
+            s.logger.Error("Failed to walk content directory", "error", err)
+        }
+    }
 
 	existingFiles := make(map[string]bool)
 	for _, f := range files {
-		relPath, err := utils.SafeRel(s.cfg.ContentDir, f)
+		relPath, err := utils.SafeRel(s.cfg.ContentDir, f.path)
 		if err != nil {
-			s.logger.Error("Failed to get relative path", "file", f, "error", err)
+			s.logger.Error("Failed to get relative path", "file", f.path, "error", err)
 			continue
 		}
 		existingFiles[relPath] = true
 	}
 
+	var allMetadataMap sync.Map
+
+	// Phase 0: Load all cached post IDs once, use for both stale-purge and global metadata loading
 	if s.cache != nil {
 		if lister, ok := s.cache.(interface{ ListAllPosts() ([]string, error) }); ok {
-			ids, err := lister.ListAllPosts()
+			allCachedIDs, err := lister.ListAllPosts()
 			if err != nil {
 				s.logger.Error("Failed to list cached posts", "error", err)
 			} else {
-				for _, id := range ids {
-					meta, err := s.cache.GetPost(id)
-					if err != nil || meta == nil {
+				// Batch-load all metadata for stale purge + metadata map population
+				cachedPosts, _ := s.cache.GetPostsByIDs(allCachedIDs)
+
+				for _, id := range allCachedIDs {
+					cp, ok := cachedPosts[id]
+					if !ok || cp == nil {
 						continue
 					}
-					if !existingFiles[meta.Path] {
-						s.logger.Info("🗑️ Purging stale cache entry", "path", meta.Path)
+					// Stale cache purge
+					if !existingFiles[cp.Path] {
+						s.logger.Info("🗑️ Purging stale cache entry", "path", cp.Path)
 						if err := s.cache.DeletePost(id); err != nil {
 							s.logger.Error("Failed to delete stale cache entry", "id", id, "error", err)
 						}
+						continue
 					}
+					// Phase 0: Populate allMetadataMap for sidebar/neighbor context
+					htmlRelPath := strings.ToLower(strings.Replace(cp.Path, ".md", ".html", 1))
+					cleanHtmlRelPath := htmlRelPath
+					if cp.Version != "" {
+						cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(cp.Version)+"/")
+					}
+					regeneratedLink := utils.BuildURL(s.cfg.BaseURL, cp.Version, cleanHtmlRelPath)
+					allMetadataMap.Store(cp.Path, models.PostMetadata{
+						Title: cp.Title, Link: regeneratedLink, Weight: cp.Weight, Version: cp.Version,
+						DateObj: cp.Date, ReadingTime: cp.ReadingTime, Description: cp.Description,
+						Tags: cp.Tags, Pinned: cp.Pinned, Draft: cp.Draft,
+					})
 				}
 			}
 		}
 	}
-
-	var allMetadataMap sync.Map
 
 	var (
 		batchMu          sync.Mutex
@@ -152,11 +211,14 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		Version  string
 	}
 
-	// Pre-allocate indexed posts slice and use atomic index for lock-free writes
 	indexedPosts := make([]models.IndexedPost, len(files))
-	var indexedPostIdx int32 = -1 // Start at -1 so first AddInt32 returns 0
+	var indexedPostIdx int32 = -1
 
-	renderQueue := make([]RenderContext, len(files))
+    // renderQueue is built via append to avoid sparse slots when posts are skipped
+    renderQueue := make([]RenderContext, 0, len(files))
+
+    // destExistsCache avoids repeated os.Stat calls for the same output path
+    var destExistsCache sync.Map
 
 	numWorkers := utils.GetDefaultWorkerCount()
 	if s.cfg.ParserWorkers > 0 {
@@ -168,39 +230,17 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	})
 	cardPool.Start()
 
-	// Phase 0: Load global metadata from cache for complete sidebar/neighbor context
-	if s.cache != nil {
-		if lister, ok := s.cache.(interface{ ListAllPosts() ([]string, error) }); ok {
-			ids, _ := lister.ListAllPosts()
-			cachedPosts, _ := s.cache.GetPostsByIDs(ids)
-			for _, cp := range cachedPosts {
-				// Reconstruct correct link for the current BaseURL
-				htmlRelPath := strings.ToLower(strings.Replace(cp.Path, ".md", ".html", 1))
-				cleanHtmlRelPath := htmlRelPath
-				if cp.Version != "" {
-					cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(cp.Version)+"/")
-				}
-				regeneratedLink := utils.BuildURL(s.cfg.BaseURL, cp.Version, cleanHtmlRelPath)
-
-				allMetadataMap.Store(cp.Path, models.PostMetadata{
-					Title: cp.Title, Link: regeneratedLink, Weight: cp.Weight, Version: cp.Version,
-					DateObj: cp.Date, ReadingTime: cp.ReadingTime, Description: cp.Description,
-					Tags: cp.Tags, Pinned: cp.Pinned, Draft: cp.Draft,
-				})
-			}
-		}
-	}
-
 	s.logger.Info("Parsing posts", "count", len(files))
 	parsePhaseName := fmt.Sprintf("Parse %d posts", len(files))
 	parseTimer := utils.StartPhase(parsePhaseName)
-	parsePool := utils.NewWorkerPool(ctx, numWorkers, func(pt struct {
-		idx          int
-		path         string
-		version      string
-		versionLower string
-	}) {
-		idx, path, version, versionLower := pt.idx, pt.path, pt.version, pt.versionLower
+    type parseTask struct {
+        f            walkFile
+        versionLower string
+    }
+
+    parsePool := utils.NewWorkerPool(ctx, numWorkers, func(pt parseTask) {
+        f, versionLower := pt.f, pt.versionLower
+		path, version := f.path, f.version
 
 		defer func() {
 			if r := recover(); r != nil {
@@ -231,7 +271,6 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		var cachedSearch *cache.SearchRecord
 		var cachedHTML []byte
 		var err error
-		var info os.FileInfo
 		var source []byte
 		var bodyHash string
 		exists := false
@@ -243,11 +282,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			}
 		}
 
-		info, err = s.sourceFs.Stat(path)
-		if err != nil {
-			s.logger.Error("Failed to stat file", "path", path, "error", err)
-			return
-		}
+		info := f.info
 		if info.Size() > utils.MaxFileSize {
 			s.logger.Warn("File exceeds size limit, skipping", "path", path, "size", info.Size(), "limit", utils.MaxFileSize)
 			return
@@ -289,10 +324,15 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		if s.cache != nil && !useCache {
 			cachedHash, _ = s.cache.GetSocialCardHash(relPath)
 		} else if useCache && cachedMeta != nil {
-			cachedHash = cachedMeta.ContentHash
+			cachedHash = cachedMeta.CardHash
+			if cachedHash == "" {
+				// Backward-compat for old cache entries that don't have CardHash in PostMeta.
+				cachedHash, _ = s.cache.GetSocialCardHash(relPath)
+			}
 		}
 
 		var htmlContent string
+		var htmlFromCache []byte // set in cache-hit path to avoid string([]byte) round-trip
 		var metaData map[string]interface{}
 		var post models.PostMetadata
 		var searchRecord models.PostRecord
@@ -301,6 +341,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		var toc []models.TOCEntry
 		var frontmatterHash string
 		var ssrHashes []string
+		var offsets map[string][]int
 
 		if useCache {
 			cachedHTML, err = s.cache.GetHTMLContent(cachedMeta)
@@ -314,22 +355,22 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			}
 		}
 
-		if !useCache && len(source) == 0 {
-			source, err = afero.ReadFile(s.sourceFs, path)
-			if err != nil {
-				s.logger.Error("Failed to read file", "path", path, "error", err)
-				return
-			}
-			if bodyHash == "" {
-				bodyHash = utils.GetBodyHash(source)
-			}
-		}
+        if !useCache && len(source) == 0 {
+            source, err = afero.ReadFile(s.sourceFs, path)
+            if err != nil {
+                s.logger.Error("Failed to read file", "path", path, "error", err)
+                return
+            }
+            if bodyHash == "" {
+                bodyHash = utils.GetBodyHash(source)
+            }
+        }
 
 		var stemMap map[string]string
 		var posIndex map[string][]int
 		if useCache {
 			s.metrics.IncrementCacheHit()
-			htmlContent = string(cachedHTML)
+			htmlFromCache = cachedHTML
 			metaData = cachedMeta.Meta
 			frontmatterHash = cachedMeta.ContentHash
 			ssrHashes = cachedMeta.SSRInputHashes
@@ -340,9 +381,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				}
 			}
 
-			for _, t := range cachedMeta.TOC {
-				toc = append(toc, models.TOCEntry{ID: t.ID, Text: t.Text, Level: t.Level})
-			}
+			toc = cachedMeta.TOC
 
 			searchRecord = models.PostRecord{
 				Title:           cachedSearch.Title,
@@ -358,22 +397,23 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			wordFreqs = cachedSearch.BM25Data
 			stemMap = cachedSearch.StemMap
 			posIndex = cachedSearch.PositionalIndex
+			offsets = cachedSearch.ByteOffsets
 		} else {
 			s.metrics.IncrementCacheMiss()
 
-			// Copy raw markdown to output for "View Source" feature
-			if s.cfg.Features.RawMarkdown {
-				// Use filepath to handle OS-specific path separators correctly
-				mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
-				if err := s.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
-					s.logger.Error("Failed to create markdown directory", "path", filepath.Dir(mdDestPath), "error", err)
-				}
-				if err := s.sink.WriteFile(mdDestPath, source); err != nil {
-					s.logger.Error("Failed to write markdown file", "path", mdDestPath, "error", err)
-				} else {
-					s.renderer.RegisterFile(mdDestPath)
-				}
-			}
+        // Copy raw markdown to output for "View Source" feature (reuse already-read buffer)
+        if s.cfg.Features.RawMarkdown && len(source) > 0 {
+            // Use filepath to handle OS-specific path separators correctly
+            mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
+            if err := s.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
+                s.logger.Error("Failed to create markdown directory", "path", filepath.Dir(mdDestPath), "error", err)
+            }
+            if err := s.sink.WriteFile(mdDestPath, source); err != nil {
+                s.logger.Error("Failed to write markdown file", "path", mdDestPath, "error", err)
+            } else {
+                s.renderer.RegisterFile(mdDestPath)
+            }
+        }
 
 			parseRes, parseErr := ParseMarkdown(
 				ctx,
@@ -405,16 +445,6 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			docLen = parseRes.DocLen
 			stemMap = parseRes.StemMap
 			posIndex = parseRes.PositionalIndex
-
-			indexedPost := models.IndexedPost{
-				Record:          searchRecord,
-				WordFreqs:       wordFreqs,
-				DocLen:          docLen,
-				StemMap:         stemMap,
-				PositionalIndex: posIndex,
-			}
-			// (Optimization check: we'll assign it to the slice later)
-			_ = indexedPost
 		}
 
 		if post.Draft && !s.cfg.IncludeDrafts {
@@ -422,34 +452,35 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			return
 		}
 
-		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp"))
-		if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err != nil {
-			s.logger.Error("Failed to create social card directory", "path", filepath.Dir(cardDestPath), "error", err)
-		}
+        cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp"))
+        if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err != nil {
+            s.logger.Error("Failed to create social card directory", "path", filepath.Dir(cardDestPath), "error", err)
+        }
 
-		// Check if card exists in OS filesystem (bypass VFS)
-		cardExists := false
-		if info, err := os.Stat(cardDestPath); err == nil && !info.IsDir() {
-			if sourceInfo, err := s.sourceFs.Stat(path); err == nil {
-				if info.ModTime().After(sourceInfo.ModTime()) {
+		// Prefer cache hash to avoid repeated fs.Stat on card files.
+		cardExists := cachedHash != "" && cachedHash == frontmatterHash && !forceSocialRebuild
+		// For clean builds/output-missing, skip expensive per-post stat checks.
+		if !outputMissing && !cardExists && !(useCache && cachedHash == "") {
+			if info, err := os.Stat(cardDestPath); err == nil && !info.IsDir() {
+				if info.ModTime().After(f.info.ModTime()) {
 					cardExists = true
 				}
 			}
 		}
 
 		if forceSocialRebuild || (cachedHash != frontmatterHash || !cardExists) {
-			cardPool.Submit(socialCardTask{
-				path:            relPath,
-				relPath:         strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
-				cardDestPath:    cardDestPath,
-				metaData:        metaData,
-				frontmatterHash: frontmatterHash,
-			})
+			if !utils.TestingMode {
+				cardPool.Submit(socialCardTask{
+					path:            relPath,
+					relPath:         strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
+					cardDestPath:    cardDestPath,
+					metaData:        metaData,
+					frontmatterHash: frontmatterHash,
+				})
+			}
 		} else if cardExists {
 			if s.cache != nil && cachedHash == "" {
-				if err := s.cache.SetSocialCardHash(relPath, frontmatterHash); err != nil {
-					s.logger.Error("Failed to set social card hash", "path", relPath, "error", err)
-				}
+				s.cardHashes.Store(relPath, frontmatterHash)
 			}
 		}
 
@@ -465,64 +496,74 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		}
 
 		willRender := false
-		if outputMissing || !useCache {
+		if outputMissing || !useCache || s.cfg.IsDev {
 			willRender = true
-		} else {
-			// useCache is true, only render if output file doesn't exist
-			if _, err := os.Stat(destPath); os.IsNotExist(err) {
-				willRender = true
-			}
-		}
+		} else if useCache {
+            if v, ok := destExistsCache.Load(destPath); ok {
+                willRender = !v.(bool)
+            } else {
+                _, statErr := os.Stat(destPath)
+                exists := statErr == nil
+                destExistsCache.Store(destPath, exists)
+                willRender = !exists
+            }
+        }
 
-		// Copy raw markdown to output for "View Source" feature (for cached posts too)
-		if s.cfg.Features.RawMarkdown {
-			mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
-			if _, err := os.Stat(mdDestPath); os.IsNotExist(err) {
-				var sourceBytes []byte
-				var err error
-				if len(source) > 0 {
-					sourceBytes = source
-				} else {
-					sourceBytes, err = afero.ReadFile(s.sourceFs, path)
-				}
+        // Copy raw markdown to output for "View Source" feature (for cached posts too)
+        if s.cfg.Features.RawMarkdown {
+            mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
+            // Avoid extra stat/read: if we already have source bytes, reuse; otherwise read once.
+            if willRender || !useCache || outputMissing {
+                sourceBytes := source
+                if len(sourceBytes) == 0 {
+                    sourceBytes, err = afero.ReadFile(s.sourceFs, path)
+                }
+                if err != nil {
+                    s.logger.Error("Failed to read source file for raw markdown", "path", path, "error", err)
+                } else if len(sourceBytes) > 0 {
+                    if err := s.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
+                        s.logger.Error("Failed to create markdown directory", "path", filepath.Dir(mdDestPath), "error", err)
+                    }
+                    if err := s.sink.WriteFile(mdDestPath, sourceBytes); err != nil {
+                        s.logger.Error("Failed to write raw markdown file", "path", mdDestPath, "error", err)
+                    } else {
+                        s.renderer.RegisterFile(mdDestPath)
+                    }
+                }
+            } else {
+                // Cache hit with existing output assumed; just register to prevent cleanup
+                s.renderer.RegisterFile(mdDestPath)
+            }
+        }
 
-				if err != nil {
-					s.logger.Error("Failed to read source file for raw markdown", "path", path, "error", err)
-				} else if len(sourceBytes) > 0 {
-					if err := s.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
-						s.logger.Error("Failed to create markdown directory", "path", filepath.Dir(mdDestPath), "error", err)
-					}
-					if err := s.sink.WriteFile(mdDestPath, sourceBytes); err != nil {
-						s.logger.Error("Failed to write raw markdown file", "path", mdDestPath, "error", err)
-					} else {
-						s.renderer.RegisterFile(mdDestPath)
-					}
-				}
-			} else {
-				s.renderer.RegisterFile(mdDestPath)
-			}
-		}
-
-		if willRender {
-			renderQueue[idx] = RenderContext{
-				DestPath: destPath,
-				Version:  version,
-				Data: models.PageData{
-					Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
-					Meta: metaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
-					TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
-					TOC: toc, Config: s.cfg,
-					CurrentVersion: version,
-					IsOutdated:     s.isOutdatedVersion(version),
-					Versions:       s.cfg.GetVersionsMetadata(version, cleanHtmlRelPath),
-					RelativePrefix: utils.GetRelativePrefix(htmlRelPath),
-				},
-			}
-			anyPostChanged.Store(true)
-		} else {
-			// Even if not re-rendering, register the file so it's not cleaned up as orphan
-			s.renderer.RegisterFile(destPath)
-		}
+        if willRender {
+            // Use cached bytes directly to avoid string↔[]byte round-trip
+            var contentHTML template.HTML
+            if htmlFromCache != nil {
+                contentHTML = template.HTML(htmlFromCache)
+            } else {
+                contentHTML = template.HTML(htmlContent)
+            }
+            renderQueue = append(renderQueue, RenderContext{
+                DestPath: destPath,
+                Version:  version,
+                Data: models.PageData{
+                    Title: post.Title, Description: post.Description, Content: contentHTML,
+                    Meta: metaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
+                    TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
+                    TOC: toc, Config: s.cfg,
+                    CurrentVersion: version,
+                    IsOutdated:     s.isOutdatedVersion(version),
+                    Versions:       s.cfg.GetVersionsMetadata(version, cleanHtmlRelPath),
+                    RelativePrefix: utils.GetRelativePrefix(htmlRelPath),
+                    ReadingTime:    post.ReadingTime,
+                },
+            })
+            anyPostChanged.Store(true)
+        } else {
+            // Even if not re-rendering, register the file so it's not cleaned up as orphan
+            s.renderer.RegisterFile(destPath)
+        }
 
 		// Use sync.Map for metadata (optimization: lock-free concurrent access)
 		allMetadataMap.Store(relPath, post)
@@ -536,6 +577,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			DocLen:          docLen,
 			StemMap:         stemMap, // Passed from either useCache or fresh analyze
 			PositionalIndex: posIndex,
+			ByteOffsets:     offsets,
 		}
 
 		// Check for cancellation
@@ -554,6 +596,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
 				Meta: metaData, TOC: toc, Version: version,
 				SSRInputHashes: ssrHashes,
+				CardHash:       frontmatterHash,
 			}
 			if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
 				s.logger.Error("Failed to store HTML in cache", "path", relPath, "error", err)
@@ -567,6 +610,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				NormalizedTags:  searchRecord.NormalizedTags,
 				StemMap:         stemMap,
 				PositionalIndex: posIndex,
+				ByteOffsets:     offsets,
 			}
 			newDep := &cache.Dependencies{Tags: post.Tags}
 
@@ -583,61 +627,173 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	parsePool.Start()
 
 Loop:
-	for i, path := range files {
-		select {
-		case <-ctx.Done():
-			break Loop
-		default:
-			parsePool.Submit(struct {
-				idx          int
-				path         string
-				version      string
-				versionLower string
-			}{i, path, fileVersions[i], strings.ToLower(fileVersions[i])})
-		}
-	}
+    for _, f := range files {
+        select {
+        case <-ctx.Done():
+            break Loop
+        default:
+            parsePool.Submit(parseTask{f: f, versionLower: strings.ToLower(f.version)})
+        }
+    }
 	parsePool.Stop()
 	parseTimer.Stop()
-	cardPool.Stop() // Wait for all social card generation to complete
+	// NOTE: cardPool is NOT stopped here — it continues generating social cards
+	// in parallel with the render phase below. Cards write to VFS/disk independently
+	// and the render phase only needs the imagePath URL string (already computed).
+	// cardPool.Stop() is called after renderPool.Stop() to overlap both phases.
 
 	// Final Metadata Grouping (merges Cache + Source)
-	groupRes := GroupMetadata(s.cfg, &allMetadataMap)
+	// Use early metadata from scanner if available, otherwise compute from scratch
+	var groupRes *GroupMetadataResult
+	if earlyMetadata != nil {
+		// Convert early metadata to PostMetadata and build tagMap
+		earlyTagMap := make(map[string][]models.PostMetadata)
+		earlyPostsByVersion := make(map[string][]models.PostMetadata)
+
+		for tag, lightPosts := range earlyMetadata.TagMap {
+			var posts []models.PostMetadata
+			for _, lp := range lightPosts {
+				if !lp.Draft || s.cfg.IncludeDrafts {
+					posts = append(posts, models.PostMetadata{
+						Title:       lp.Title,
+						Link:        lp.Link,
+						Weight:      lp.Weight,
+						Version:     lp.Version,
+						DateObj:     lp.DateObj,
+						Tags:        lp.Tags,
+						Pinned:      lp.Pinned,
+						Draft:       lp.Draft,
+						ReadingTime: lp.ReadingTime,
+						Description: lp.Description,
+					})
+				}
+			}
+			if len(posts) > 0 {
+				earlyTagMap[tag] = posts
+			}
+		}
+
+		for ver, lightPosts := range earlyMetadata.PostsByVersion {
+			var posts []models.PostMetadata
+			for _, lp := range lightPosts {
+				if !lp.Draft || s.cfg.IncludeDrafts {
+					posts = append(posts, models.PostMetadata{
+						Title:       lp.Title,
+						Link:        lp.Link,
+						Weight:      lp.Weight,
+						Version:     lp.Version,
+						DateObj:     lp.DateObj,
+						Tags:        lp.Tags,
+						Pinned:      lp.Pinned,
+						Draft:       lp.Draft,
+						ReadingTime: lp.ReadingTime,
+						Description: lp.Description,
+					})
+				}
+			}
+			if len(posts) > 0 {
+				earlyPostsByVersion[ver] = posts
+			}
+		}
+
+		// Build allPosts and pinnedPosts from early metadata
+		var earlyAllPosts []models.PostMetadata
+		var earlyPinnedPosts []models.PostMetadata
+		for _, posts := range earlyPostsByVersion {
+			for _, p := range posts {
+				isLatestOrUnversioned := p.Version == ""
+				if len(s.cfg.Versions) > 0 {
+					for _, v := range s.cfg.Versions {
+						if v.IsLatest && p.Version == v.Name {
+							isLatestOrUnversioned = true
+							break
+						}
+					}
+				}
+				if isLatestOrUnversioned {
+					if p.Pinned {
+						earlyPinnedPosts = append(earlyPinnedPosts, p)
+					} else {
+						earlyAllPosts = append(earlyAllPosts, p)
+					}
+				}
+			}
+		}
+
+		groupRes = &GroupMetadataResult{
+			AllPosts:       earlyAllPosts,
+			PinnedPosts:    earlyPinnedPosts,
+			TagMap:         earlyTagMap,
+			PostsByVersion: earlyPostsByVersion,
+		}
+	} else {
+		groupRes = GroupMetadata(s.cfg, &allMetadataMap)
+	}
 	allPosts = groupRes.AllPosts
 	pinnedPosts = groupRes.PinnedPosts
 	tagMap = groupRes.TagMap
 	postsByVersion = groupRes.PostsByVersion
 
-	siteTrees := BuildSiteTrees(postsByVersion)
+	// Sort posts for consistent ordering — needed by sitemap, RSS, pagination.
+	// Safe to do here because parse phase is complete and allPosts/pinnedPosts are final.
+	utils.SortPosts(allPosts)
+	utils.SortPosts(pinnedPosts)
 
-	renderPool := utils.NewWorkerPool(ctx, numWorkers, func(t RenderContext) {
-		t.Data.SiteTree = siteTrees[t.Version]
-		s.renderer.RenderPage(t.DestPath, t.Data)
-	})
+	// Compact indexedPosts early — parse is complete so indexedPostIdx is final.
+	// This is needed by the search index generator which may start via the callback below.
+	finalCount := int(indexedPostIdx + 1)
+	finalIndexedPosts := make([]models.IndexedPost, 0, finalCount)
+	for i := 0; i < finalCount; i++ {
+		if indexedPosts[i].Record.Title != "" {
+			indexedPosts[i].Record.ID = len(finalIndexedPosts)
+			finalIndexedPosts = append(finalIndexedPosts, indexedPosts[i])
+		}
+	}
+
+	// Notify build.go that metadata is ready — site-wide tasks (sitemap, RSS,
+	// search, pagination, tags, PWA) can now start in parallel with the render phase.
+	if s.metadataCallback != nil {
+		s.metadataCallback(allPosts, pinnedPosts, tagMap, finalIndexedPosts, anyPostChanged.Load())
+	}
+
+	siteTrees := BuildSiteTrees(postsByVersion)
+	sidebarCache := make(map[string]template.HTML)
+	for version, tree := range siteTrees {
+		sidebarCache[version] = s.renderer.RenderSidebar(tree)
+	}
+
+    renderPool := utils.NewWorkerPool(ctx, numWorkers, func(t RenderContext) {
+        t.Data.SiteTree = siteTrees[t.Version]
+        t.Data.SidebarHTML = sidebarCache[t.Version]
+        s.renderer.RenderPage(t.DestPath, t.Data)
+    })
 	renderPool.Start()
 
 	s.logger.Info("Rendering pages", "count", len(renderQueue))
 	renderPhaseName := fmt.Sprintf("Render %d pages", len(renderQueue))
 	renderTimer := utils.StartPhase(renderPhaseName)
 
+	// Only block on assets when they are not already available (helps incremental builds).
 	assets := s.renderer.GetAssets()
+	if s.assetsReady != nil && len(assets) == 0 {
+		<-s.assetsReady
+		assets = s.renderer.GetAssets()
+	}
 
-	postIndexByVersion := make(map[string]map[string]models.PostMetadata)
 	// Pre-index post positions for O(1) neighbor lookup
 	postPosByVersion := make(map[string]map[string]int)
 	for version, posts := range postsByVersion {
-		postIndexByVersion[version] = make(map[string]models.PostMetadata, len(posts))
 		postPosByVersion[version] = make(map[string]int, len(posts))
 		for i, p := range posts {
-			postIndexByVersion[version][p.Link] = p
 			postPosByVersion[version][p.Link] = i
 		}
 	}
 
-	for i := range renderQueue {
-		task := &renderQueue[i]
-		if task.DestPath == "" {
-			continue
-		}
+    for i := range renderQueue {
+        task := &renderQueue[i]
+        if task.DestPath == "" {
+            continue
+        }
 
 		// Inject neighbors (Prev/Next) using O(1) lookup
 		versionPosts := postsByVersion[task.Version]
@@ -667,23 +823,29 @@ Loop:
 	renderPool.Stop()
 	renderTimer.Stop()
 
-	if s.cache != nil && len(newPostsMeta) > 0 {
-		if err := s.cache.BatchCommit(newPostsMeta, newSearchRecords, newDeps); err != nil {
-			s.logger.Warn("Failed to commit cache batch", "error", err)
+	// Now wait for social card generation to complete (overlapped with render phase above)
+	cardPool.Stop()
+
+	// Batch-flush collected social card hashes in a single BoltDB transaction
+	if s.cache != nil {
+		pendingHashes := make(map[string]string)
+		s.cardHashes.Range(func(key, value any) bool {
+			pendingHashes[key.(string)] = value.(string)
+			return true
+		})
+		if len(pendingHashes) > 0 {
+			if err := s.cache.BatchSetSocialCardHashes(pendingHashes); err != nil {
+				s.logger.Warn("Failed to batch-set social card hashes", "error", err)
+			}
 		}
 	}
 
-	// Sort posts to ensure consistent ordering
-	utils.SortPosts(allPosts)
-	utils.SortPosts(pinnedPosts)
-
-	// Compact indexedPosts to remove zero-value entries from skipped files (drafts, oversized)
-	finalCount := int(indexedPostIdx + 1)
-	finalIndexedPosts := make([]models.IndexedPost, 0, finalCount)
-	for i := 0; i < finalCount; i++ {
-		if indexedPosts[i].Record.Title != "" {
-			indexedPosts[i].Record.ID = len(finalIndexedPosts)
-			finalIndexedPosts = append(finalIndexedPosts, indexedPosts[i])
+	if s.cache != nil && len(newPostsMeta) > 0 {
+		cacheCommitTimer := utils.StartPhase("Cache commit")
+		err := s.cache.BatchCommit(newPostsMeta, newSearchRecords, newDeps)
+		cacheCommitTimer.Stop()
+		if err != nil {
+			s.logger.Warn("Failed to commit cache batch", "error", err)
 		}
 	}
 

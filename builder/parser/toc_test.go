@@ -48,6 +48,15 @@ func TestTOCTransformer(t *testing.T) {
 `,
 			expected: 3,
 		},
+		{
+			name: "non-english headings",
+			input: `
+## 🛠️ Setup
+## 🚀 Quick Start
+### 📂 Project Structure
+`,
+			expected: 3,
+		},
 	}
 
 	for _, tt := range tests {

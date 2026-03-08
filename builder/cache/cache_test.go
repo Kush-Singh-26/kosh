@@ -323,9 +323,22 @@ func TestManager_MultipleDirtyPosts(t *testing.T) {
 	}
 }
 
-func TestWriteOps(t *testing.T) {
-	// This is tested indirectly through BatchCommit and other write operations
-	// The writeOps function is internal and tested through higher-level functions
+func TestSortOps(t *testing.T) {
+	ops := []batchOp{
+		{key: []byte("c"), value: nil},
+		{key: []byte("a"), value: nil},
+		{key: []byte("b"), value: nil},
+		{key: []byte("1"), value: nil},
+	}
+
+	sortOps(ops)
+
+	expected := []string{"1", "a", "b", "c"}
+	for i, op := range ops {
+		if string(op.key) != expected[i] {
+			t.Errorf("At index %d: got %s, want %s", i, string(op.key), expected[i])
+		}
+	}
 }
 
 func TestManager_Stats(t *testing.T) {

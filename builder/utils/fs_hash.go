@@ -7,11 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zeebo/blake3"
+	"github.com/zeebo/xxh3"
 )
 
 func HashDirsFast(dirs []string) (string, error) {
-	h := blake3.New()
+	h := xxh3.New()
 	for _, dir := range dirs {
 		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -33,5 +33,7 @@ func HashDirsFast(dirs []string) (string, error) {
 			return "", err
 		}
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	sum := h.Sum128()
+	b := sum.Bytes()
+	return hex.EncodeToString(b[:]), nil
 }

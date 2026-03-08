@@ -17,7 +17,7 @@ var index models.SearchIndex
 
 func main() {
 	c := make(chan struct{}, 0)
-	println("WASM Search Engine Initializing (Schema v6)...")
+	println("WASM Search Engine Initializing (Schema v7)...")
 
 	js.Global().Set("initSearch", js.FuncOf(initSearch))
 	js.Global().Set("searchPosts", js.FuncOf(searchPosts))

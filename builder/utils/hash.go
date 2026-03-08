@@ -6,20 +6,20 @@ import (
 	"encoding/json"
 	"sort"
 
-	"github.com/zeebo/blake3"
+	"github.com/zeebo/xxh3"
 	"gopkg.in/yaml.v3"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func GetFrontmatterHash(metaData map[string]interface{}) (string, error) {
-	h := blake3.New()
+	h := xxh3.New()
 
-	writeStringBlake3(h, GetString(metaData, "title"))
+	writeStringXXH3(h, GetString(metaData, "title"))
 	_, _ = h.Write([]byte{0})
-	writeStringBlake3(h, GetString(metaData, "description"))
+	writeStringXXH3(h, GetString(metaData, "description"))
 	_, _ = h.Write([]byte{0})
-	writeStringBlake3(h, GetString(metaData, "date"))
+	writeStringXXH3(h, GetString(metaData, "date"))
 	_, _ = h.Write([]byte{0})
 
 	// Sort in-place (caller shouldn't rely on original order)
@@ -27,7 +27,7 @@ func GetFrontmatterHash(metaData map[string]interface{}) (string, error) {
 	if len(tags) > 0 {
 		sort.Strings(tags)
 		for _, tag := range tags {
-			writeStringBlake3(h, tag)
+			writeStringXXH3(h, tag)
 			_, _ = h.Write([]byte{0})
 		}
 	}
@@ -39,18 +39,20 @@ func GetFrontmatterHash(metaData map[string]interface{}) (string, error) {
 		_, _ = h.Write([]byte{0})
 	}
 
-	return hex.EncodeToString(h.Sum(nil)), nil
+	sum := h.Sum128()
+	b := sum.Bytes()
+	return hex.EncodeToString(b[:]), nil
 }
 
-// writeStringBlake3 writes a string to the BLAKE3 hash
-func writeStringBlake3(h *blake3.Hasher, s string) {
+// writeStringXXH3 writes a string to the XXH3 hash
+func writeStringXXH3(h *xxh3.Hasher, s string) {
 	_, _ = h.Write([]byte(s))
 }
 
 // yamlDelim is the YAML frontmatter delimiter
 var yamlDelim = []byte("---")
 
-// GetBodyHash extracts the body content (after frontmatter) and returns its BLAKE3 hash
+// GetBodyHash extracts the body content (after frontmatter) and returns its XXH3 hash
 // This is CRITICAL for cache validity - body changes without frontmatter changes
 // would otherwise be silently ignored
 func GetBodyHash(source []byte) string {
@@ -58,11 +60,13 @@ func GetBodyHash(source []byte) string {
 	if len(parts) >= 3 {
 		body := parts[2]
 		body = bytes.TrimSpace(body)
-		hash := blake3.Sum256(body)
-		return hex.EncodeToString(hash[:])
+		hash := xxh3.Hash128(body)
+		b := hash.Bytes()
+		return hex.EncodeToString(b[:])
 	}
-	hash := blake3.Sum256(source)
-	return hex.EncodeToString(hash[:])
+	hash := xxh3.Hash128(source)
+	b := hash.Bytes()
+	return hex.EncodeToString(b[:])
 }
 
 // GetFrontmatterHashFromSource extracts frontmatter from raw source and computes its hash
@@ -113,6 +117,7 @@ func GetGraphHash(posts []models.PostMetadata) (string, error) {
 		return "", err
 	}
 
-	hash := blake3.Sum256(data)
-	return hex.EncodeToString(hash[:]), nil
+	hash := xxh3.Hash128(data)
+	b := hash.Bytes()
+	return hex.EncodeToString(b[:]), nil
 }

@@ -398,7 +398,7 @@ go install ./cmd/kosh
 ### Core
 - **Markdown**: `github.com/yuin/goldmark` v1.7.16
 - **Cache**: `go.etcd.io/bbolt` v1.4.3
-- **Hashing**: `github.com/zeebo/blake3` v0.2.4
+- **Hashing**: `github.com/zeebo/xxh3` v1.1.0 (XXH128)
 - **Compression**: `github.com/klauspost/compress` v1.18.4
 
 ### Extensions

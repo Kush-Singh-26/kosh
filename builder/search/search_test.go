@@ -309,7 +309,7 @@ func TestTrigramGeneration(t *testing.T) {
 
 func TestAnalyzerWithPositions(t *testing.T) {
 	input := "the quick brown fox"
-	_, _, positions := DefaultAnalyzer.AnalyzeWithPositions(input)
+	_, _, positions, offsets := DefaultAnalyzer.AnalyzeWithPositions(input)
 
 	// "the" is a stop word, it should have a position (0) but not be in the results?
 	// Wait, my implementation skips stop words from results but INCREMENTS idx.
@@ -321,6 +321,15 @@ func TestAnalyzerWithPositions(t *testing.T) {
 		}
 	} else {
 		t.Error("Expected 'quick' in positional index")
+	}
+
+	if off, ok := offsets["quick"]; ok {
+		// "the quick" -> "the " is 4 chars. quick starts at 4, ends at 9.
+		if off[0] != 4 || off[1] != 9 {
+			t.Errorf("Expected 'quick' offsets [4, 9], got %v", off)
+		}
+	} else {
+		t.Error("Expected 'quick' in offsets index")
 	}
 
 	if pos, ok := positions["brown"]; ok {

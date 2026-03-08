@@ -1,11 +1,13 @@
 package cache
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -234,13 +236,12 @@ func (m *Manager) ClearAll() error {
 			if name == BucketMeta {
 				continue // Keep metadata
 			}
-			bucket := tx.Bucket([]byte(name))
-			if bucket != nil {
-				if err := bucket.ForEach(func(k, v []byte) error {
-					return bucket.Delete(k)
-				}); err != nil {
-					return err
-				}
+			// Drop and recreate the bucket — O(1) vs O(N) key-by-key delete
+			if err := tx.DeleteBucket([]byte(name)); err != nil && err != bolt.ErrBucketNotFound {
+				return err
+			}
+			if _, err := tx.CreateBucket([]byte(name)); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -324,4 +325,11 @@ func writeOps(bucket *bolt.Bucket, ops []batchOp) error {
 		}
 	}
 	return nil
+}
+
+// sortOps sorts a slice of batch operations by key for sequential write performance
+func sortOps(ops []batchOp) {
+	sort.Slice(ops, func(i, j int) bool {
+		return bytes.Compare(ops[i].key, ops[j].key) < 0
+	})
 }

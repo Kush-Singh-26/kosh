@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -47,18 +48,16 @@ func TestBufferPoolPut(t *testing.T) {
 	}
 }
 
-func TestBufferPoolPutOversized(t *testing.T) {
-	pool := NewBufferPool()
+func TestStringBuilderPoolPutOversized(t *testing.T) {
+	pool := NewStringBuilderPool()
 
-	// Create a large buffer (> 64KB)
-	largeData := make([]byte, 65*1024)
-	buf := bytes.NewBuffer(largeData)
+	// Create a large builder (> 64KB)
+	var sb strings.Builder
+	sb.Grow(65 * 1024)
+	sb.WriteString(strings.Repeat("a", 65*1024))
 
-	// This should not panic and should discard the buffer
-	pool.Put(buf)
-
-	// We can't easily test that the buffer was actually discarded,
-	// but we can verify Put doesn't panic
+	// This should not panic and should discard the builder
+	pool.Put(&sb)
 }
 
 func TestBufferPoolReuse(t *testing.T) {

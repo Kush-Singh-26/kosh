@@ -13,6 +13,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // InitLogger creates a new structured logger
@@ -24,50 +25,69 @@ func InitLogger() *slog.Logger {
 
 // VerifyTheme checks if the theme directories exist
 func VerifyTheme(cfg *config.Config, logger *slog.Logger) {
+	VerifyThemeFs(afero.NewOsFs(), cfg, logger)
+}
+
+// VerifyThemeFs checks if the theme directories exist using the provided filesystem
+func VerifyThemeFs(fs afero.Fs, cfg *config.Config, logger *slog.Logger) {
 	themePath := filepath.Join(cfg.ThemeDir, cfg.Theme)
-	if _, err := os.Stat(themePath); os.IsNotExist(err) {
+	if exists, _ := afero.Exists(fs, themePath); !exists {
 		logger.Error("Theme not found",
 			"theme", cfg.Theme,
 			"path", themePath,
 			"hint", "Please ensure you have installed the theme into '"+cfg.ThemeDir+"/"+cfg.Theme+"/'")
 		logger.Info("Theme installation:", "example", "git clone <theme-repo-url> "+filepath.Join(cfg.ThemeDir, cfg.Theme))
-		os.Exit(1)
+		if !utils.TestingMode {
+			os.Exit(1)
+		}
+		return
 	}
 
 	templatePath := cfg.TemplateDir
-	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+	if exists, _ := afero.Exists(fs, templatePath); !exists {
 		logger.Error("Theme templates directory not found",
 			"theme", cfg.Theme,
 			"path", templatePath,
 			"hint", "Theme must have a 'templates' directory")
-		os.Exit(1)
+		if !utils.TestingMode {
+			os.Exit(1)
+		}
+		return
 	}
 
 	staticPath := cfg.StaticDir
-	if _, err := os.Stat(staticPath); os.IsNotExist(err) {
+	if exists, _ := afero.Exists(fs, staticPath); !exists {
 		logger.Warn("Theme static directory not found, creating empty",
 			"theme", cfg.Theme,
 			"path", staticPath)
-		_ = os.MkdirAll(staticPath, 0755)
+		_ = fs.MkdirAll(staticPath, 0755)
 	}
 }
 
 // SetupCacheDirectories creates required cache folders
 func SetupCacheDirectories(cfg *config.Config, logger *slog.Logger) {
-	if err := os.MkdirAll(cfg.CacheDir, 0755); err != nil {
+	SetupCacheDirectoriesFs(afero.NewOsFs(), cfg, logger)
+}
+
+// SetupCacheDirectoriesFs creates required cache folders using the provided filesystem
+func SetupCacheDirectoriesFs(fs afero.Fs, cfg *config.Config, logger *slog.Logger) {
+	if err := fs.MkdirAll(cfg.CacheDir, 0755); err != nil {
 		logger.Error("Failed to create cache directory", "path", cfg.CacheDir, "error", err)
-		os.Exit(1)
+		if !utils.TestingMode {
+			os.Exit(1)
+		}
+		return
 	}
-	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "social-cards"), 0755); err != nil {
+	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "social-cards"), 0755); err != nil {
 		logger.Error("Failed to create social-cards cache directory", "error", err)
 	}
-	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "assets"), 0755); err != nil {
+	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "assets"), 0755); err != nil {
 		logger.Error("Failed to create assets cache directory", "error", err)
 	}
-	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "images"), 0755); err != nil {
+	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "images"), 0755); err != nil {
 		logger.Error("Failed to create images cache directory", "error", err)
 	}
-	if err := os.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), 0755); err != nil {
+	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), 0755); err != nil {
 		logger.Error("Failed to create pwa-icons cache directory", "error", err)
 	}
 }

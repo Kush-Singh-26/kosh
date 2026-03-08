@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
@@ -146,8 +147,16 @@ func SyncVFS(ctx context.Context, srcFs afero.Fs, targetDir string, dirtyFiles m
 		numWorkers = 32
 	}
 
+	var syncErr error
+	var errMu sync.Mutex
+
 	pool := NewWorkerPool(ctx, numWorkers, func(task syncTask) {
 		if err := syncSingleFileTask(srcFs, task, isCleanBuild, tx); err != nil {
+			errMu.Lock()
+			if syncErr == nil {
+				syncErr = err
+			}
+			errMu.Unlock()
 			slog.Error("Error syncing file", "path", task.destPath, "error", err)
 		}
 	})
@@ -157,6 +166,10 @@ func SyncVFS(ctx context.Context, srcFs afero.Fs, targetDir string, dirtyFiles m
 		pool.Submit(task)
 	}
 	pool.Stop()
+
+	if syncErr != nil {
+		return fmt.Errorf("sync failed: %w", syncErr)
+	}
 
 	tx.Commit()
 	return nil

@@ -79,9 +79,8 @@ func New(cfg *config.Config, renderer *native.Renderer, diagramCache *sync.Map) 
 				util.Prioritized(&tocTransformer{}, 200),
 				util.Prioritized(&webpTransformer{Compress: compress}, 300),
 				util.Prioritized(&ssrTransformer{
-					Renderer:    renderer,
-					Cache:       diagramCache,
-					renderingMu: &sync.Map{},
+					Renderer: renderer,
+					Cache:    diagramCache,
 				}, 50), // Run SSR early (lower priority = runs first)
 			),
 			parser.WithAutoHeadingID(),

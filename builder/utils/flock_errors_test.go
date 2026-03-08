@@ -32,7 +32,7 @@ func TestAcquireBuildLock_MkdirError(t *testing.T) {
 	if err == nil {
 		t.Error("AcquireBuildLock should fail when cannot create output directory")
 	}
-	if !strings.Contains(err.Error(), "failed to create output directory") {
+	if !strings.Contains(err.Error(), "failed to create lock directory") {
 		t.Errorf("Unexpected error message: %v", err)
 	}
 }
@@ -42,7 +42,7 @@ func TestAcquireBuildLock_OpenFileError(t *testing.T) {
 	outputDir := t.TempDir()
 
 	// Create lock file manually with no write permissions
-	lockPath := filepath.Join(outputDir, ".kosh-build.lock")
+	lockPath := filepath.Clean(outputDir) + ".lock"
 	// Create the file first (as normal)
 	if err := os.WriteFile(lockPath, []byte{}, 0644); err != nil {
 		t.Fatalf("Failed to create lock file: %v", err)
@@ -67,7 +67,7 @@ func TestAcquireBuildLock_StaleLockFile(t *testing.T) {
 	outputDir := t.TempDir()
 
 	// Create a lock file manually without holding the lock
-	lockPath := filepath.Join(outputDir, ".kosh-build.lock")
+	lockPath := filepath.Clean(outputDir) + ".lock"
 	if err := os.WriteFile(lockPath, []byte("stale lock\n"), 0644); err != nil {
 		t.Fatalf("Failed to create lock file: %v", err)
 	}

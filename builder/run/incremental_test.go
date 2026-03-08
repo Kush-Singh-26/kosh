@@ -1,11 +1,25 @@
 package run
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/spf13/afero"
+	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/renderer"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
 func TestIsAssetPath(t *testing.T) {
@@ -60,6 +74,19 @@ func TestIsAssetPath(t *testing.T) {
 				t.Errorf("isAssetPath(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestNormalizeWatchPath_ProjectRelativeAbsolutePath(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	b := &Builder{}
+	abs := filepath.Join(wd, "themes", "test-theme", "static", "css", "style.css")
+	got := b.normalizeWatchPath(abs)
+	if got != "themes/test-theme/static/css/style.css" {
+		t.Fatalf("got %q", got)
 	}
 }
 
@@ -143,5 +170,195 @@ func TestModTimeQuickBail(t *testing.T) {
 	// But in this synthetic test it won't be 1000, so it shouldn't fast-bail
 	if fastBail {
 		t.Error("fastBail should be false when ModTime mismatches")
+	}
+}
+
+func TestIncrementalBuild(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	testutil.ScaffoldTestSite(fs)
+
+	cfg := &config.Config{
+		Title:        "Test Blog",
+		BaseURL:      "https://example.com",
+		Theme:        "test-theme",
+		ThemeDir:     "themes",
+		TemplateDir:  "themes/test-theme/templates",
+		StaticDir:    "themes/test-theme/static",
+		ContentDir:   "content",
+		OutputDir:    "public",
+		CacheDir:     ".kosh-cache",
+		PostsPerPage: 10,
+	}
+
+	logger := InitLogger()
+	buildMetrics := metrics.NewBuildMetrics()
+	nativeRenderer := native.New()
+	diagramCache := &sync.Map{}
+	mdPool := &sync.Pool{
+		New: func() interface{} {
+			return mdParser.New(cfg, nativeRenderer, diagramCache)
+		},
+	}
+
+	// Setup Cache
+	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
+	defer cm.Close()
+	cacheSvc := services.NewCacheService(cm, logger)
+
+	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	renderSvc := services.NewRenderService(rnd, logger)
+	assetSvc := &mocks.MockAssetService{}
+	assetSvc.SetMetrics(buildMetrics)
+	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
+	metadataScanner := services.NewMetadataScanner()
+
+	sink := testutil.NewMemSink()
+	tx := testutil.NewMockTransaction("public")
+
+	b := &Builder{
+		cfg:             cfg,
+		cacheService:    cacheSvc,
+		renderService:   renderSvc,
+		assetService:    assetSvc,
+		postService:     postSvc,
+		metadataScanner: metadataScanner,
+		logger:          logger,
+		metrics:         buildMetrics,
+		SourceFs:        fs,
+		mdPool:          mdPool,
+		nativeRenderer:  nativeRenderer,
+		Sink:            sink,
+		Tx:              tx,
+	}
+
+	ctx := context.Background()
+
+	// 1. Initial Build
+	err := b.Build(ctx)
+	if err != nil {
+		t.Fatalf("Initial build failed: %v", err)
+	}
+	b.SaveCaches()
+
+	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
+		t.Fatal("Initial build did not produce hello.html")
+	}
+
+	// 2. Modify content
+	updatedContent := `---
+title: "Updated Hello"
+date: 2026-03-06
+tags: ["test", "hello"]
+---
+# Updated Hello
+This post was modified.
+`
+	_ = afero.WriteFile(fs, "content/posts/hello.md", []byte(updatedContent), 0644)
+	// MemMapFs doesn't automatically update ModTime in a way that always works for our tests,
+	// so we manually bump it to ensure cache invalidation.
+	future := time.Now().Add(1 * time.Hour)
+	_ = fs.Chtimes("content/posts/hello.md", future, future)
+
+	// Clear sink files to verify only needed ones are re-written
+	sink.Files = make(map[string][]byte)
+
+	// 3. Incremental Build
+	err = b.Build(ctx)
+	if err != nil {
+		t.Fatalf("Incremental build failed: %v", err)
+	}
+
+	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
+		t.Error("Incremental build did not re-render modified post")
+	}
+
+	// Verify content was updated
+	if !strings.Contains(string(sink.Files["public/posts/hello.html"]), "Updated Hello") {
+		t.Error("Re-rendered post does not contain updated content")
+	}
+}
+
+func TestBuildSinglePostWithAbsolutePathUsesCachedRelativeLookup(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	testutil.ScaffoldTestSite(fs)
+
+	cfg := &config.Config{
+		Title:       "Test Blog",
+		BaseURL:     "https://example.com",
+		Theme:       "test-theme",
+		ThemeDir:    "themes",
+		TemplateDir: "themes/test-theme/templates",
+		StaticDir:   "themes/test-theme/static",
+		ContentDir:  "content",
+		OutputDir:   "public",
+		CacheDir:    ".kosh-cache",
+		IsDev:       true,
+	}
+
+	logger := InitLogger()
+	buildMetrics := metrics.NewBuildMetrics()
+	nativeRenderer := native.New()
+	diagramCache := &sync.Map{}
+	mdPool := &sync.Pool{New: func() interface{} { return mdParser.New(cfg, nativeRenderer, diagramCache) }}
+
+	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
+	defer cm.Close()
+	cacheSvc := services.NewCacheService(cm, logger)
+	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	renderSvc := services.NewRenderService(rnd, logger)
+	assetSvc := &mocks.MockAssetService{}
+	assetSvc.SetMetrics(buildMetrics)
+	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
+	metadataScanner := services.NewMetadataScanner()
+	sink := testutil.NewMemSink()
+	tx := testutil.NewMockTransaction("public")
+
+	b := &Builder{
+		cfg:             cfg,
+		cacheService:    cacheSvc,
+		renderService:   renderSvc,
+		assetService:    assetSvc,
+		postService:     postSvc,
+		metadataScanner: metadataScanner,
+		logger:          logger,
+		metrics:         buildMetrics,
+		SourceFs:        fs,
+		mdPool:          mdPool,
+		nativeRenderer:  nativeRenderer,
+		Sink:            sink,
+		Tx:              tx,
+	}
+
+	ctx := context.Background()
+	if err := b.Build(ctx); err != nil {
+		t.Fatalf("initial build failed: %v", err)
+	}
+	b.SaveCaches()
+
+	updatedContent := `---
+title: "Hello"
+date: 2026-03-06
+tags: ["test", "hello"]
+---
+# Hello
+This post changed body only.
+`
+	_ = afero.WriteFile(fs, "content/posts/hello.md", []byte(updatedContent), 0644)
+	future := time.Now().Add(2 * time.Hour)
+	_ = fs.Chtimes("content/posts/hello.md", future, future)
+
+	absPath, err := filepath.Abs("content/posts/hello.md")
+	if err != nil {
+		t.Fatalf("failed to create absolute path: %v", err)
+	}
+
+	sink.Files = make(map[string][]byte)
+	b.buildSinglePost(ctx, absPath)
+
+	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
+		t.Fatalf("expected single-post rebuild output for absolute path")
+	}
+	if buildMetrics.CacheHits.Load() == 0 && buildMetrics.CacheMisses.Load() == 0 {
+		t.Fatalf("expected incremental rebuild to consult cache metadata")
 	}
 }

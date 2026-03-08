@@ -14,6 +14,8 @@ const (
 	MaxFileSize         = 50 * 1024 * 1024 // 50MB
 )
 
+var TestingMode = false
+
 // Legacy constant for backward compatibility
 const DefaultWorkerCountMax = 32
 

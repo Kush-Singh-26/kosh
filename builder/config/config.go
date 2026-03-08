@@ -4,7 +4,6 @@ package config
 import (
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/spf13/afero"
 
 	"gopkg.in/yaml.v3"
 )
@@ -106,6 +106,10 @@ type Config struct {
 }
 
 func Load(args []string) *Config {
+	return LoadFs(afero.NewOsFs(), args)
+}
+
+func LoadFs(fs afero.Fs, args []string) *Config {
 	// 1. Default Configuration
 	cfg := &Config{
 		Title:          "Kosh Blog",
@@ -140,13 +144,13 @@ func Load(args []string) *Config {
 	}
 
 	// 2. Load from YAML file if exists
-	if data, err := os.ReadFile("kosh.yaml"); err == nil {
+	if data, err := afero.ReadFile(fs, "kosh.yaml"); err == nil {
 		if err := yaml.Unmarshal(data, cfg); err != nil {
 			fmt.Printf("⚠️ Failed to parse kosh.yaml: %v\n", err)
 		}
 	} else {
 		// Try fallback to config.yaml
-		if data, err := os.ReadFile("config.yaml"); err == nil {
+		if data, err := afero.ReadFile(fs, "config.yaml"); err == nil {
 			if err := yaml.Unmarshal(data, cfg); err != nil {
 				fmt.Printf("⚠️ Failed to parse config.yaml: %v\n", err)
 			}
@@ -168,20 +172,22 @@ func Load(args []string) *Config {
 	}
 
 	// Load build configuration from kosh.build.yaml
-	cfg.Build = LoadBuildConfig()
+	cfg.Build = LoadBuildConfigFs(fs)
 
 	// 3. Apply Smart Defaults and resolve to absolute paths
 	if cfg.ThemeDir == "" {
 		cfg.ThemeDir = "themes"
 	}
-	if abs, err := filepath.Abs(cfg.ThemeDir); err == nil {
-		cfg.ThemeDir = utils.NormalizePath(abs)
+	if !utils.TestingMode {
+		if abs, err := filepath.Abs(cfg.ThemeDir); err == nil {
+			cfg.ThemeDir = utils.NormalizePath(abs)
+		}
 	}
 
 	if cfg.TemplateDir == "" {
 		// Default: themes/<theme>/templates
 		cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
-	} else if !filepath.IsAbs(cfg.TemplateDir) {
+	} else if !filepath.IsAbs(cfg.TemplateDir) && !utils.TestingMode {
 		if abs, err := filepath.Abs(cfg.TemplateDir); err == nil {
 			cfg.TemplateDir = utils.NormalizePath(abs)
 		}
@@ -192,7 +198,7 @@ func Load(args []string) *Config {
 	if cfg.StaticDir == "" {
 		// Default: themes/<theme>/static
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
-	} else if !filepath.IsAbs(cfg.StaticDir) {
+	} else if !filepath.IsAbs(cfg.StaticDir) && !utils.TestingMode {
 		if abs, err := filepath.Abs(cfg.StaticDir); err == nil {
 			cfg.StaticDir = utils.NormalizePath(abs)
 		}
@@ -204,32 +210,38 @@ func Load(args []string) *Config {
 	if cfg.ContentDir == "" {
 		cfg.ContentDir = "content"
 	}
-	if abs, err := filepath.Abs(cfg.ContentDir); err == nil {
-		cfg.ContentDir = utils.NormalizePath(abs)
+	if !utils.TestingMode {
+		if abs, err := filepath.Abs(cfg.ContentDir); err == nil {
+			cfg.ContentDir = utils.NormalizePath(abs)
+		}
 	}
 
 	if cfg.OutputDir == "" {
 		cfg.OutputDir = "public"
 	}
-	if abs, err := filepath.Abs(cfg.OutputDir); err == nil {
-		cfg.OutputDir = utils.NormalizePath(abs)
+	if !utils.TestingMode {
+		if abs, err := filepath.Abs(cfg.OutputDir); err == nil {
+			cfg.OutputDir = utils.NormalizePath(abs)
+		}
 	}
 
 	if cfg.CacheDir == "" {
 		cfg.CacheDir = ".kosh-cache"
 	}
-	if abs, err := filepath.Abs(cfg.CacheDir); err == nil {
-		cfg.CacheDir = utils.NormalizePath(abs)
+	if !utils.TestingMode {
+		if abs, err := filepath.Abs(cfg.CacheDir); err == nil {
+			cfg.CacheDir = utils.NormalizePath(abs)
+		}
 	}
 
 	// 3. Override with CLI Flags
-	fs := flag.NewFlagSet("config", flag.ContinueOnError)
-	baseUrlFlag := fs.String("baseurl", "", "Base URL (overrides config file)")
-	draftsFlag := fs.Bool("drafts", false, "Include draft posts in the build")
-	themeFlag := fs.String("theme", "", "Theme to use (overrides config file)")
-	forceLockFlag := fs.Bool("force-lock", false, "Acquire build lock even if another build is running")
+	fset := flag.NewFlagSet("config", flag.ContinueOnError)
+	baseUrlFlag := fset.String("baseurl", "", "Base URL (overrides config file)")
+	draftsFlag := fset.Bool("drafts", false, "Include draft posts in the build")
+	themeFlag := fset.String("theme", "", "Theme to use (overrides config file)")
+	forceLockFlag := fset.Bool("force-lock", false, "Acquire build lock even if another build is running")
 
-	_ = fs.Parse(args)
+	_ = fset.Parse(args)
 
 	if *baseUrlFlag != "" {
 		cfg.BaseURL = strings.TrimSuffix(*baseUrlFlag, "/")
@@ -251,7 +263,9 @@ func Load(args []string) *Config {
 		cfg.WebPQuality = 80 // enforce valid range
 	}
 
-	// Consider libvips threads when setting image workers to prevent overwhelming the CPU
+	// Consider libvips threads when setting image workers to prevent overwhelming the CPU.
+	// Each image worker submits to a shared libvips thread pool, so total parallelism is
+	// workers * vipsThreads. Cap at 2x CPU count to allow reasonable oversubscription.
 	if cfg.VipsConcurrency == 0 {
 		// If auto, libvips typically uses min(CPU count, 4) threads
 		estimatedVipsThreads := runtime.NumCPU()
@@ -259,12 +273,13 @@ func Load(args []string) *Config {
 			estimatedVipsThreads = 4
 		}
 
-		// If image workers is default (24), it might be too high. Cap it so total concurrency <= CPU * 2
+		// Cap so total image threads (workers * vipsThreads) <= 2*NumCPU
 		totalExpectedThreads := cfg.ImageWorkers * estimatedVipsThreads
 		maxRecommendedThreads := runtime.NumCPU() * 2
 
 		if totalExpectedThreads > maxRecommendedThreads {
 			// Adjust image workers down
+			fmt.Printf("⚠️ imageWorkers (%d) reduced to avoid oversubscription with auto vipsConcurrency\n", cfg.ImageWorkers)
 			cfg.ImageWorkers = maxRecommendedThreads / estimatedVipsThreads
 			if cfg.ImageWorkers < 1 {
 				cfg.ImageWorkers = 1
@@ -279,6 +294,7 @@ func Load(args []string) *Config {
 			// Log a warning, but let the user shoot themselves in the foot since they explicitly configured it
 			// We can't log here easily without adding a logger to Load(), but we can cap it slightly to prevent complete system freeze
 			if totalExpectedThreads > runtime.NumCPU()*4 {
+				fmt.Printf("⚠️ imageWorkers (%d) reduced due to high vipsConcurrency (%d)\n", cfg.ImageWorkers, cfg.VipsConcurrency)
 				cfg.ImageWorkers = (runtime.NumCPU() * 4) / cfg.VipsConcurrency
 				if cfg.ImageWorkers < 1 {
 					cfg.ImageWorkers = 1

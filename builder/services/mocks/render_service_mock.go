@@ -1,10 +1,18 @@
 package mocks
 
 import (
+	"html/template"
+	"sync"
+
+	"github.com/spf13/afero"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 type MockRenderService struct {
+	mu              sync.Mutex
+	Sink            utils.ArtifactSink
+	SourceFs        afero.Fs
 	RenderedPages   map[string]models.PageData
 	RenderedIndex   map[string]models.PageData
 	Rendered404     map[string]models.PageData
@@ -33,47 +41,91 @@ func (m *MockRenderService) recordCall(method string) {
 	m.CallCount[method]++
 }
 
+func (m *MockRenderService) SetSink(sink utils.ArtifactSink) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.recordCall("SetSink")
+	m.Sink = sink
+}
+
+func (m *MockRenderService) SetSourceFs(fs afero.Fs) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.recordCall("SetSourceFs")
+	m.SourceFs = fs
+}
+
+func (m *MockRenderService) ReloadTemplates() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.recordCall("ReloadTemplates")
+}
+
 func (m *MockRenderService) RenderPage(path string, data models.PageData) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.recordCall("RenderPage")
 	m.RenderedPages[path] = data
 }
 
 func (m *MockRenderService) RenderIndex(path string, data models.PageData) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.recordCall("RenderIndex")
 	m.RenderedIndex[path] = data
 }
 
 func (m *MockRenderService) Render404(path string, data models.PageData) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.recordCall("Render404")
 	m.Rendered404[path] = data
 }
 
 func (m *MockRenderService) RenderGraph(path string, data models.PageData) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.recordCall("RenderGraph")
-	m.RenderedGraph[path] = data
+}
+
+func (m *MockRenderService) RenderSidebar(tree []*models.TreeNode) template.HTML {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.recordCall("RenderSidebar")
+	return ""
 }
 
 func (m *MockRenderService) RegisterFile(path string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.recordCall("RegisterFile")
 	m.RegisteredFiles[path] = true
 }
 
 func (m *MockRenderService) SetAssets(assets map[string]string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.recordCall("SetAssets")
 	m.Assets = assets
 }
 
 func (m *MockRenderService) GetAssets() map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.recordCall("GetAssets")
 	return m.Assets
 }
 
 func (m *MockRenderService) GetRenderedFiles() map[string]bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.recordCall("GetRenderedFiles")
 	return m.RegisteredFiles
 }
 
 func (m *MockRenderService) ClearRenderedFiles() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.recordCall("ClearRenderedFiles")
 	m.RegisteredFiles = make(map[string]bool)
 }

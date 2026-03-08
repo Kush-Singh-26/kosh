@@ -2,15 +2,14 @@ package run
 
 import (
 	"context"
-	"errors"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/spf13/afero"
-	"github.com/twincats/golibvips/libvips"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -24,18 +23,16 @@ import (
 	"github.com/Kush-Singh-26/kosh/internal/build"
 )
 
-// errFoundNewer is a sentinel error for WASM source freshness check
-var errFoundNewer = errors.New("source newer than WASM")
-
 // Builder maintains the state for site builds
 type Builder struct {
 	cfg *config.Config
 
 	// Services
-	cacheService  services.CacheService
-	postService   services.PostService
-	assetService  services.AssetService
-	renderService services.RenderService
+	cacheService    services.CacheService
+	postService     services.PostService
+	assetService    services.AssetService
+	renderService   services.RenderService
+	metadataScanner services.MetadataScanner
 
 	// Legacy access if needed (or for SaveCaches/Close)
 	diagramAdapter *cache.DiagramCacheAdapter
@@ -70,10 +67,32 @@ type Builder struct {
 	isCleanBuild bool
 }
 
+func init() {
+	if strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") {
+		utils.TestingMode = true
+	}
+}
+
 // NewBuilder initializes a new site builder
 func NewBuilder(args []string) *Builder {
 	cfg := config.Load(args)
 	return newBuilderWithConfig(cfg)
+}
+
+// NewBuilderFromManual creates a builder with manual service injection (for testing/benchmarks)
+func NewBuilderFromManual(cfg *config.Config, render services.RenderService, asset services.AssetService, post services.PostService, meta services.MetadataScanner, logger *slog.Logger, m *metrics.BuildMetrics, sourceFs afero.Fs, mdPool *sync.Pool, nativeRenderer *native.Renderer) *Builder {
+	return &Builder{
+		cfg:             cfg,
+		renderService:   render,
+		assetService:    asset,
+		postService:     post,
+		metadataScanner: meta,
+		logger:          logger,
+		metrics:         m,
+		SourceFs:        sourceFs,
+		mdPool:          mdPool,
+		nativeRenderer:  nativeRenderer,
+	}
 }
 
 // NewBuilderWithConfig initializes a new site builder with a pre-loaded config
@@ -81,27 +100,42 @@ func NewBuilderWithConfig(cfg *config.Config) *Builder {
 	return newBuilderWithConfig(cfg)
 }
 
-// newBuilderWithConfig is the internal implementation
-func newBuilderWithConfig(cfg *config.Config) *Builder {
+// NewBuilderWithFs initializes a new site builder with a pre-loaded config and custom filesystem
+func NewBuilderWithFs(vfs afero.Fs, cfg *config.Config) *Builder {
+	return newBuilderWithConfigFs(vfs, cfg)
+}
+
+// newBuilderWithConfigFs is the internal implementation with Fs
+func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	utils.InitMinifier()
 
 	// Initialize structured logger early
 	logger := InitLogger()
 
 	// Verify Theme Exists
-	VerifyTheme(cfg, logger)
+	VerifyThemeFs(vfs, cfg, logger)
 
 	// Initialize build metrics
 	buildMetrics := metrics.NewBuildMetrics()
 
-	// Create cache directory if it doesn't exist
-	SetupCacheDirectories(cfg, logger)
+	// Create cache directory if it doesn't exist (must complete before BoltDB open)
+	SetupCacheDirectoriesFs(vfs, cfg, logger)
 
-	// Initialize libvips with configured concurrency
-	InitLibvips(cfg, logger)
-
-	// Open BoltDB cache
-	cacheManager, diagramAdapter := SetupCacheManager(cfg, logger)
+	// Initialize libvips and open BoltDB cache in parallel — these are
+	// completely independent operations (CGO init vs file I/O).
+	var cacheManager *cache.Manager
+	var diagramAdapter *cache.DiagramCacheAdapter
+	var initWg sync.WaitGroup
+	initWg.Add(2)
+	go func() {
+		defer initWg.Done()
+		InitLibvips(cfg, logger)
+	}()
+	go func() {
+		defer initWg.Done()
+		cacheManager, diagramAdapter = SetupCacheManager(cfg, logger)
+	}()
+	initWg.Wait()
 
 	// Create native renderer (Worker Pool)
 	var nativeRenderer *native.Renderer
@@ -111,56 +145,74 @@ func newBuilderWithConfig(cfg *config.Config) *Builder {
 		nativeRenderer = native.New()
 	}
 
-	// Initialize Filesystems
-	sourceFs := afero.NewOsFs()
+	// Eagerly start KaTeX compilation in background — overlaps with
+	// remaining builder setup (template parsing, service creation)
+	// instead of blocking the first post that contains math.
+	go nativeRenderer.EnsureInitialized()
 
-	// 3. Load theme metadata
-	LoadThemeMetadata(cfg, sourceFs, logger)
-
-	// Create sync.Map for diagram cache (thread-safe, no mutex needed)
 	diagramCache := &sync.Map{}
-
-	// Create core components mapping pool
 	mdPool := &sync.Pool{
 		New: func() interface{} {
 			return mdParser.New(cfg, nativeRenderer, diagramCache)
 		},
 	}
 
-	// Sink is initialized in Build() since it depends on clean/incremental state
-	rnd := renderer.New(cfg.CompressImages, nil, cfg.TemplateDir, cfg.IsDev, logger)
-
-	// Create Services
+	rnd := renderer.NewWithFs(vfs, cfg.CompressImages, nil, cfg.TemplateDir, cfg.IsDev, logger)
+	rnd.EnableLegacyProcessHTML = cfg.Build.EnableLegacyProcessHTML
+	renderSvc := services.NewRenderService(rnd, logger)
+	assetSvc := services.NewAssetService(vfs, nil, cfg, renderSvc, logger)
+	assetSvc.SetMetrics(buildMetrics)
+	
 	var cacheSvc services.CacheService
 	if cacheManager != nil {
 		cacheSvc = services.NewCacheService(cacheManager, logger)
 	}
+	
+	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, vfs, nil, diagramAdapter)
+	metadataScanner := services.NewMetadataScanner()
 
-	renderSvc := services.NewRenderService(rnd, logger)
-	assetSvc := services.NewAssetService(sourceFs, nil, cfg, renderSvc, logger)
-	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, sourceFs, nil, diagramAdapter)
-
-	builder := &Builder{
-		cfg:            cfg,
-		cacheService:   cacheSvc,
-		postService:    postSvc,
-		assetService:   assetSvc,
-		renderService:  renderSvc,
-		diagramAdapter: diagramAdapter,
-		logger:         logger,
-		metrics:        buildMetrics,
-		SourceFs:       sourceFs,
-		mdPool:         mdPool,
-		nativeRenderer: nativeRenderer,
+	return &Builder{
+		cfg:             cfg,
+		cacheService:    cacheSvc,
+		renderService:   renderSvc,
+		assetService:    assetSvc,
+		postService:     postSvc,
+		metadataScanner: metadataScanner,
+		diagramAdapter:  diagramAdapter,
+		logger:          logger,
+		metrics:         buildMetrics,
+		SourceFs:        vfs,
+		mdPool:          mdPool,
+		nativeRenderer:  nativeRenderer,
 	}
-
-	return builder
 }
 
-// See generateCacheID in setup.go
+// newBuilderWithConfig is the internal implementation
+func newBuilderWithConfig(cfg *config.Config) *Builder {
+	return newBuilderWithConfigFs(afero.NewOsFs(), cfg)
+}
 
 func (b *Builder) Config() *config.Config {
 	return b.cfg
+}
+
+func (b *Builder) SetDevMode(isDev bool) {
+	config.SetDevMode(b.cfg, isDev)
+}
+
+func (b *Builder) SetSink(sink utils.ArtifactSink) {
+	b.Sink = sink
+}
+
+func (b *Builder) SetTx(tx utils.BuildTransaction) {
+	b.Tx = tx
+}
+
+func (b *Builder) SetSourceFs(fs afero.Fs) {
+	b.SourceFs = fs
+	b.postService.SetSourceFs(fs)
+	b.assetService.SetSourceFs(fs)
+	b.renderService.SetSourceFs(fs)
 }
 
 // getFaviconPath returns the favicon path - uses custom logo if set, otherwise defaults to theme favicon
@@ -168,152 +220,83 @@ func (b *Builder) getFaviconPath() string {
 	if b.cfg.Logo != "" {
 		return b.cfg.Logo
 	}
-	return filepath.Join(b.cfg.ThemeDir, b.cfg.Theme, "static", "images", "favicon.png")
+	// Fallback to static/favicon.ico or similar in theme
+	return filepath.Join(b.cfg.StaticDir, "favicon.ico")
 }
 
-// checkWasmUpdate checks if Search WASM needs rebuild based on source hash.
-func (b *Builder) checkWasmUpdate() {
-	wasmSrcDirs := []string{
-		"cmd/search",
-		"builder/search",
-		"builder/models",
-	}
-
-	// Detect if we are in the source tree
-	inSourceTree := false
-	if _, err := os.Stat(filepath.Join("cmd", "search", "main.go")); err == nil {
-		inSourceTree = true
-	}
-
-	if !inSourceTree {
-		build.CheckWASM("")
-		return
-	}
-
-	// Optimization: Check if WASM exists and is newer than source
-	// This skips hashing entirely if not needed
-	wasmPath := "static/wasm/search.wasm"
-	if wasmInfo, err := os.Stat(wasmPath); err == nil {
-		isFresh := true
-
-		for _, dir := range wasmSrcDirs {
-			err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					return err
-				}
-				if d.IsDir() {
-					return nil
-				}
-				info, err := d.Info()
-				if err != nil {
-					return err
-				}
-				if info.ModTime().After(wasmInfo.ModTime()) {
-					return errFoundNewer
-				}
-				return nil
-			})
-			if errors.Is(err, errFoundNewer) {
-				isFresh = false
-				break
-			}
-		}
-
-		if isFresh {
-			return
-		}
-	}
-
-	// Use Fast Hash (Metadata) for quick check
-	currentHash, err := utils.HashDirsFast(wasmSrcDirs)
-	if err != nil {
-		b.logger.Warn("Failed to calculate WASM source hash", "error", err)
-		return
-	}
-
-	// Use BoltDB if available
-	var storedHash string
-	if b.cacheService != nil {
-		storedHash, _ = b.cacheService.GetWasmHash()
-	}
-
-	if currentHash != storedHash {
-		// Only trigger rebuild if hash changed
-		if inSourceTree {
-			// Try to compile from source (developer mode)
-			if err := build.CompileWASMFromSource(context.Background(), "./cmd/search", "static/wasm/search.wasm"); err == nil {
-				if b.cacheService != nil {
-					_ = b.cacheService.SetWasmHash(currentHash)
-				}
-				// Also update the compressed version
-				_ = build.CompressGzip("static/wasm/search.wasm", "static/wasm/search.wasm.gz")
-				return
-			}
-			b.logger.Warn("Automatic WASM compilation failed, falling back to embedded version")
-		}
-
-		if build.CheckWASM("") {
-			if b.cacheService != nil {
-				if err := b.cacheService.SetWasmHash(currentHash); err != nil {
-					b.logger.Warn("Failed to store WASM hash", "error", err)
-				}
-			}
-		}
-	}
-}
-
-// SetDevMode enables/disables development mode (affects CSS hashing)
-func (b *Builder) SetDevMode(isDev bool) {
-	b.cfg.IsDev = isDev
-}
-
-// SaveCaches persists all caches
+// SaveCaches persists BoltDB changes
 func (b *Builder) SaveCaches() {
-	// Flush diagram adapter to BoltDB
-	if b.diagramAdapter != nil {
-		if b.isCleanBuild {
-			b.logger.Info("Skipping diagram cache flush for clean build")
-		} else {
-			if err := b.diagramAdapter.Flush(); err != nil {
-				b.logger.Warn("Failed to flush diagram cache", "error", err)
+	if b.cacheService != nil {
+		// Manager implementation handles the actual DB commit
+		if manager, ok := b.cacheService.(interface{ Save() error }); ok {
+			_ = manager.Save()
+		}
+		b.logger.Info("Saved caches", "path", b.cfg.CacheDir)
+	}
+}
+
+// Close releases build resources
+func (b *Builder) Close() {
+	if b.nativeRenderer != nil {
+		_ = b.nativeRenderer.Close()
+	}
+	// Note: cacheManager is closed when the service layer is shut down
+}
+
+func (b *Builder) checkWasmUpdate() {
+	if b.cfg.IsDev {
+		wasmBinary := build.RepoPath("static", "wasm", "search.wasm")
+		if srcMod, err := latestSearchSourceModTime(); err == nil {
+			wasmInfo, statErr := os.Stat(wasmBinary)
+			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
+				_ = build.CompileWASMFromSource(context.Background(), build.RepoPath("cmd", "search", "main.go"), wasmBinary)
 			}
 		}
 	}
 
-	// Increment build count
-	if b.cacheService != nil {
-		_ = b.cacheService.IncrementBuildCount()
-		b.cacheService.ClearDirty()
+	// Always ensure embedded WASM is deployed if missing or old.
+	// In dev mode prefer the locally compiled WASM so browser/runtime schema
+	// always matches the current search.bin generator.
+	if b.cfg.IsDev {
+		build.DeployWASMFromFile(afero.NewOsFs(), b.Tx.StagingDir(), build.RepoPath("static", "wasm", "search.wasm"))
+	} else {
+		// Write to the staging directory (not b.cfg.OutputDir) so the WASM
+		// files survive the atomic swap performed by Tx.Commit() on clean builds.
+		build.CheckWASM(b.Tx.StagingDir())
 	}
-
-	// Flush cache service if needed
-	// (Our current implementation just wraps Manager which is closed below)
-
-	// Record end time
-	b.metrics.RecordEnd()
-
-	// Only print metrics in non-dev mode or on full builds
-	if !b.cfg.IsDev {
-		b.metrics.Print()
-	}
-
-	b.logger.Info("Saved caches", "path", b.cfg.CacheDir)
 }
 
-// Close cleans up resources
-func (b *Builder) Close() {
-	if b.diagramAdapter != nil {
-		if err := b.diagramAdapter.Close(); err != nil {
-			b.logger.Warn("Failed to close diagram cache", "error", err)
+func latestSearchSourceModTime() (time.Time, error) {
+	paths := []string{
+		build.RepoPath("cmd", "search"),
+		build.RepoPath("builder", "search"),
+		build.RepoPath("builder", "models"),
+	}
+
+	latest := time.Time{}
+	for _, root := range paths {
+		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() || filepath.Ext(path) != ".go" {
+				return nil
+			}
+			if info.ModTime().After(latest) {
+				latest = info.ModTime()
+			}
+			return nil
+		})
+		if err != nil {
+			return time.Time{}, err
 		}
 	}
-	if b.cacheService != nil {
-		_ = b.cacheService.Close()
-	}
-	libvips.Shutdown()
-}
 
-// See initLibvips in setup.go
+	if latest.IsZero() {
+		return time.Time{}, os.ErrNotExist
+	}
+	return latest, nil
+}
 
 // Run executes the main build logic
 func Run(args []string) error {

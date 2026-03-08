@@ -23,6 +23,8 @@ func init() {
 
 func runNew(cmd *cobra.Command, args []string) {
 	new.Run(args)
-	fmt.Println("\n🔄 Building site with new post...")
-	run.Run([]string{})
+	fmt.Println("\nBuilding site with new post...")
+	if err := run.Run([]string{}); err != nil {
+		fmt.Printf("build failed: %v\n", err)
+	}
 }

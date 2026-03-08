@@ -88,35 +88,41 @@ func (r *Renderer) RenderAllMath(expressions []MathExpression, cache map[string]
 			defer wg.Done()
 			defer r.wg.Done()
 
-			// Acquire worker from pool
-			instance := <-r.pool
-			defer func() {
-				r.mu.Lock()
-				isClosed := r.closed
-				r.mu.Unlock()
-				if !isClosed {
-					r.pool <- instance
+			v, err, _ := r.mathGroup.Do(e.Hash, func() (interface{}, error) {
+				// Acquire worker from pool
+				instance := <-r.pool
+				defer func() {
+					r.mu.Lock()
+					isClosed := r.closed
+					r.mu.Unlock()
+					if !isClosed {
+						r.pool <- instance
+					}
+				}()
+
+				if instance.vm == nil || instance.renderFn == nil {
+					return "", fmt.Errorf("KaTeX not initialized")
 				}
-			}()
 
-			if instance.vm == nil || instance.renderFn == nil {
-				return
+				opts := instance.vm.NewObject()
+				_ = opts.Set("displayMode", e.DisplayMode)
+				_ = opts.Set("throwOnError", false)
+				_ = opts.Set("output", "html")
+
+				res, renderErr := instance.renderFn(instance.katex, instance.vm.ToValue(e.LaTeX), opts)
+				if renderErr != nil {
+					slog.Warn("   ⚠️  LaTeX render failed", "hash", e.Hash[:8], "error", renderErr)
+					return "", renderErr
+				}
+
+				return res.String(), nil
+			})
+
+			if err == nil {
+				mu.Lock()
+				results[e.Hash] = v.(string)
+				mu.Unlock()
 			}
-
-			opts := instance.vm.NewObject()
-			_ = opts.Set("displayMode", e.DisplayMode)
-			_ = opts.Set("throwOnError", false)
-			_ = opts.Set("output", "html")
-
-			res, err := instance.renderFn(instance.katex, instance.vm.ToValue(e.LaTeX), opts)
-			if err != nil {
-				slog.Warn("   ⚠️  LaTeX render failed", "hash", e.Hash[:8], "error", err)
-				return
-			}
-
-			mu.Lock()
-			results[e.Hash] = res.String()
-			mu.Unlock()
 		}(expr)
 	}
 

@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -18,6 +19,24 @@ import (
 
 	"github.com/spf13/afero"
 )
+
+func (b *Builder) normalizeWatchPath(path string) string {
+	path = filepath.Clean(path)
+	if filepath.IsAbs(path) {
+		if wd, err := os.Getwd(); err == nil {
+			if rel, err := filepath.Rel(wd, path); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+				path = rel
+			}
+		}
+	}
+	return filepath.ToSlash(path)
+}
+
+func (b *Builder) isContentPath(path string) bool {
+	path = b.normalizeWatchPath(path)
+	contentDir := filepath.ToSlash(filepath.Clean(b.cfg.ContentDir))
+	return strings.HasPrefix(path, contentDir+"/") || path == contentDir
+}
 
 // invalidateForTemplate determines which posts to invalidate based on changed template
 func (b *Builder) invalidateForTemplate(templatePath string) []string {
@@ -74,9 +93,9 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 
 	// Handle file deletion - remove from cache
 	if op&fsnotify.Remove == fsnotify.Remove || op&fsnotify.Rename == fsnotify.Rename {
-		if strings.HasSuffix(changedPath, ".md") && strings.HasPrefix(changedPath, b.cfg.ContentDir) {
+		if strings.HasSuffix(strings.ToLower(changedPath), ".md") && b.isContentPath(changedPath) {
 			b.deletePostFromCache(changedPath)
-			if err := b.Build(ctx); err != nil {
+			if err := b.build(ctx); err != nil {
 				b.logger.Error("Build failed after deletion", "error", err)
 				return
 			}
@@ -87,7 +106,10 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 	}
 
 	// Handle markdown files - single post rebuild
-	if strings.HasSuffix(changedPath, ".md") && strings.HasPrefix(changedPath, b.cfg.ContentDir) {
+	if strings.HasSuffix(strings.ToLower(changedPath), ".md") && b.isContentPath(changedPath) {
+		b.cfg.BuildVersion = time.Now().UnixNano()
+		b.renderService.ReloadTemplates()
+		b.postService.SetAssetsGate(nil)
 		b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, false)
 		b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
 		b.renderService.SetSink(b.Sink)
@@ -108,7 +130,10 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 	ext := strings.ToLower(filepath.Ext(changedPath))
 	if (ext == ".css" || ext == ".js") && b.isAssetPath(changedPath) {
 		b.logger.Info("🎨 CSS/JS changed, running full rebuild...")
-		if err := b.Build(ctx); err != nil {
+		b.cfg.BuildVersion = time.Now().UnixNano()
+		b.renderService.ReloadTemplates()
+		b.postService.SetAssetsGate(nil)
+		if err := b.build(ctx); err != nil {
 			b.logger.Error("Build failed", "error", err)
 			return
 		}
@@ -117,7 +142,10 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 	}
 
 	// Everything else - full rebuild
-	if err := b.Build(ctx); err != nil {
+	b.cfg.BuildVersion = time.Now().UnixNano()
+	b.renderService.ReloadTemplates()
+	b.postService.SetAssetsGate(nil)
+	if err := b.build(ctx); err != nil {
 		b.logger.Error("Build failed", "error", err)
 		return
 	}
@@ -126,11 +154,11 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 
 // isAssetPath checks if a path is within the static assets directories
 func (b *Builder) isAssetPath(path string) bool {
-	path = filepath.ToSlash(path)
-	staticDir := filepath.ToSlash(b.cfg.StaticDir)
+	path = b.normalizeWatchPath(path)
+	staticDir := filepath.ToSlash(filepath.Clean(b.cfg.StaticDir))
 	siteStaticDir := "static"
 
-	return strings.HasPrefix(path, staticDir) || strings.HasPrefix(path, siteStaticDir)
+	return strings.HasPrefix(path, staticDir+"/") || path == staticDir || strings.HasPrefix(path, siteStaticDir+"/") || path == siteStaticDir
 }
 
 // buildSinglePost rebuilds only the changed post with smart change detection
@@ -138,13 +166,30 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 	source, err := afero.ReadFile(b.SourceFs, path)
 	if err != nil {
 		b.logger.Error("Error reading file", "path", path, "error", err)
-		if buildErr := b.Build(ctx); buildErr != nil {
+		if buildErr := b.build(ctx); buildErr != nil {
 			b.logger.Error("Full build failed", "error", buildErr)
 		}
 		return
 	}
 
-	version, relPath := utils.GetVersionFromPath(path)
+	contentRoot, err := filepath.Abs(b.cfg.ContentDir)
+	if err != nil {
+		b.logger.Error("Failed to resolve content directory", "dir", b.cfg.ContentDir, "error", err)
+		return
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		b.logger.Error("Failed to resolve changed path", "path", path, "error", err)
+		return
+	}
+	relPath, err := filepath.Rel(contentRoot, absPath)
+	if err != nil {
+		b.logger.Error("Failed to compute content-relative path", "path", path, "error", err)
+		return
+	}
+	relPath = filepath.ToSlash(relPath)
+	version, relPath := utils.GetVersionFromPath(filepath.ToSlash(filepath.Join("content", relPath)))
+	b.logger.Debug("incremental content path resolved", "path", path, "relative", relPath, "version", version)
 	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 	cleanHtmlRelPath := htmlRelPath
 	if version != "" {
@@ -193,14 +238,14 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 
 	if !exists {
 		b.logger.Info("🆕 New post detected, running full build...")
-		if err := b.Build(ctx); err != nil {
+		if err := b.build(ctx); err != nil {
 			b.logger.Error("Build failed", "error", err)
 			return
 		}
 		b.SaveCaches()
 	} else if frontmatterChanged {
 		b.logger.Info("🏷️  Frontmatter changed, running full build...")
-		if err := b.Build(ctx); err != nil {
+		if err := b.build(ctx); err != nil {
 			b.logger.Error("Build failed", "error", err)
 			return
 		}
@@ -209,7 +254,7 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		b.logger.Info("📝 Content-only change detected, rebuilding single post (Zero-Double-Parse)...")
 		if err := b.postService.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
 			b.logger.Error("Failed to process single post", "error", err)
-			if err := b.Build(ctx); err != nil {
+			if err := b.build(ctx); err != nil {
 				b.logger.Error("Build failed", "error", err)
 				return
 			}
@@ -225,7 +270,7 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 			// Don't fail the build, just log the error
 		}
 	} else {
-		b.logger.Info("✅ No changes detected, skipping...")
+		b.logger.Info("✅ No changes detected, skipping...", "path", relPath)
 	}
 }
 

@@ -155,7 +155,7 @@ func TestAcquireBuildLock_Success(t *testing.T) {
 	}
 
 	// Lock file should exist
-	lockPath := filepath.Join(outputDir, ".kosh-build.lock")
+	lockPath := filepath.Clean(outputDir) + ".lock"
 	if _, err := os.Stat(lockPath); os.IsNotExist(err) {
 		t.Error("Lock file should exist")
 	}
@@ -201,7 +201,7 @@ func TestAcquireBuildLock_ReleaseClearsLock(t *testing.T) {
 	}
 
 	// Lock file should be cleaned up
-	lockPath := filepath.Join(outputDir, ".kosh-build.lock")
+	lockPath := filepath.Clean(outputDir) + ".lock"
 	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
 		t.Error("Lock file should be removed after release")
 	}
@@ -226,7 +226,7 @@ func TestAcquireBuildLock_PIDWritten(t *testing.T) {
 	defer func() { _ = lock.Release() }()
 
 	// Lock file should exist
-	lockPath := filepath.Join(outputDir, ".kosh-build.lock")
+	lockPath := filepath.Clean(outputDir) + ".lock"
 	info, err := os.Stat(lockPath)
 	if err != nil {
 		t.Fatalf("Lock file should exist: %v", err)

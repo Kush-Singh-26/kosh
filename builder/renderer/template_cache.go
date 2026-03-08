@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -17,7 +18,7 @@ type templateCache struct {
 	hashes      map[string]string
 	templateDir string
 	mu          sync.RWMutex
-	lastCheck   time.Time
+	lastCheckNs atomic.Int64 // UnixNano of last TTL check; atomic for lock-free reads
 	checkTTL    time.Duration
 }
 
@@ -54,15 +55,19 @@ func getGlobalCache(templateDir string, devMode bool) *templateCache {
 }
 
 func (tc *templateCache) hasTemplatesChanged() bool {
-	tc.mu.Lock()
 	now := time.Now()
-	if now.Sub(tc.lastCheck) < tc.checkTTL {
-		tc.mu.Unlock()
+	nowNs := now.UnixNano()
+	checkTTLNs := tc.checkTTL.Nanoseconds()
+
+	// Load the last check time atomically — no lock needed for TTL comparison
+	lastNs := tc.lastCheckNs.Load()
+	if nowNs-lastNs < checkTTLNs {
 		return false
 	}
-	// Update immediately to prevent stampede
-	tc.lastCheck = now
-	tc.mu.Unlock()
+	// CAS to prevent stampede: only one goroutine proceeds past TTL at a time
+	if !tc.lastCheckNs.CompareAndSwap(lastNs, nowNs) {
+		return false
+	}
 
 	templateFiles := []string{"layout.html", "index.html", "graph.html", "404.html"}
 	changed := false

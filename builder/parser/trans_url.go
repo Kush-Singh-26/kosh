@@ -29,9 +29,18 @@ func (t *urlTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			t.processDestination(target, target.Destination, pc)
 		case *ast.Image:
 			t.processDestination(target, target.Destination, pc)
+			t.processImageDestination(target, target.Destination)
 		}
 		return ast.WalkContinue, nil
 	})
+}
+
+func (t *urlTransformer) processImageDestination(img *ast.Image, dest []byte) {
+	src := string(dest)
+	if src == "" || strings.HasPrefix(src, "http") || strings.HasPrefix(src, "//") || strings.HasPrefix(src, "data:") {
+		return
+	}
+	img.Destination = []byte(strings.ToLower(src))
 }
 
 func (t *urlTransformer) processDestination(n ast.Node, dest []byte, pc parser.Context) {
@@ -45,7 +54,7 @@ func (t *urlTransformer) processDestination(n ast.Node, dest []byte, pc parser.C
 	}
 
 	// Handle External Links
-	if strings.HasPrefix(href, "http") || strings.HasPrefix(string(dest), "http") {
+	if strings.HasPrefix(href, "http") {
 		if _, isLink := n.(*ast.Link); isLink {
 			n.SetAttribute([]byte("target"), []byte("_blank"))
 			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
@@ -149,6 +158,18 @@ func isCrossVersionLink(href string) bool {
 	return false
 }
 
+// rootFileSet is a pre-computed set for O(1) lookup of root-level file names
+var rootFileSet = map[string]struct{}{
+	"index":           {},
+	"features":        {},
+	"getting-started": {},
+	"docs":            {},
+	"guide":           {},
+	"help":            {},
+	"readme":          {},
+	"intro":           {},
+}
+
 // isRootLevelLink checks if a link points to a root-level file
 // Root-level files like index.md, features.md, getting-started.md should link to root
 func isRootLevelLink(href string) bool {
@@ -162,34 +183,9 @@ func isRootLevelLink(href string) bool {
 
 	// Check if it points to a root-level file (no subdirectory)
 	if !strings.Contains(trimmed, "/") {
-		// Check if filename matches common root-level files
-		rootFiles := []string{
-			"index", "features", "getting-started",
-			"docs", "guide", "help", "readme", "intro",
-		}
-		for _, rf := range rootFiles {
-			if trimmed == rf {
-				return true
-			}
-		}
+		_, ok := rootFileSet[trimmed]
+		return ok
 	}
 	return false
 }
 
-// getFileDepthInVersion returns how many directories deep a file is within its version
-func getFileDepthInVersion(filePath string) int {
-	path := filepath.ToSlash(filePath)
-	parts := strings.Split(path, "/")
-	versionIdx := -1
-	for i, part := range parts {
-		if strings.HasPrefix(part, "v") && len(part) > 2 {
-			versionIdx = i
-			break
-		}
-	}
-	if versionIdx == -1 {
-		return 0
-	}
-	// Count directories after version (excluding filename)
-	return len(parts) - versionIdx - 2
-}

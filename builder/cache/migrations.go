@@ -16,7 +16,29 @@ type Migration struct {
 	Migrate     func(tx *bolt.Tx, logger *slog.Logger) error
 }
 
-var registeredMigrations = []Migration{}
+var registeredMigrations = []Migration{
+	{
+		FromVersion: 5,
+		ToVersion:   6,
+		Description: "Migration to XXH128 hashing (Clean Break)",
+		Migrate: func(tx *bolt.Tx, logger *slog.Logger) error {
+			logger.Info("Purging all cache buckets due to hash algorithm change (BLAKE3 -> XXH3)")
+			for _, b := range AllBuckets() {
+				// Don't delete the meta bucket itself, just its contents
+				if b == BucketMeta {
+					continue
+				}
+				if err := tx.DeleteBucket([]byte(b)); err != nil && err != bolt.ErrBucketNotFound {
+					return err
+				}
+				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	},
+}
 
 // RunMigrations runs all pending migrations for the current schema
 func RunMigrations(db *bolt.DB, currentVersion uint32, logger *slog.Logger) (uint32, error) {

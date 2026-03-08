@@ -1,9 +1,9 @@
 package config
 
 import (
-	"os"
 	"time"
 
+	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,6 +20,9 @@ type BuildConfig struct {
 	InlineHTMLThreshold int `yaml:"inlineHTMLThreshold"` // Size threshold for inline HTML storage (default: 32KB)
 	MaxFileSize         int `yaml:"maxFileSize"`         // Max file size to load in memory (default: 50MB)
 	FastZstdMax         int `yaml:"fastZstdMax"`         // Threshold for fast zstd compression (default: 64KB)
+
+	// Feature flags
+	EnableLegacyProcessHTML bool `yaml:"enableLegacyProcessHTML"` // Enable regex post-pass for HTML processing (default: true)
 
 	// Timeouts
 	ShutdownTimeout  time.Duration `yaml:"shutdownTimeout"`  // Server shutdown timeout (default: 5s)
@@ -51,6 +54,9 @@ func DefaultBuildConfig() *BuildConfig {
 		MaxFileSize:         50 * 1024 * 1024, // 50MB
 		FastZstdMax:         64 * 1024,        // 64KB
 
+		// Feature flags
+		EnableLegacyProcessHTML: true,
+
 		// Timeouts
 		ShutdownTimeout:  5 * time.Second,
 		DebounceDuration: 500 * time.Millisecond,
@@ -72,9 +78,14 @@ func DefaultBuildConfig() *BuildConfig {
 // LoadBuildConfig loads build configuration from kosh.build.yaml
 // Returns defaults if file doesn't exist
 func LoadBuildConfig() *BuildConfig {
+	return LoadBuildConfigFs(afero.NewOsFs())
+}
+
+// LoadBuildConfigFs loads build configuration from kosh.build.yaml using the provided filesystem
+func LoadBuildConfigFs(fs afero.Fs) *BuildConfig {
 	cfg := DefaultBuildConfig()
 
-	data, err := os.ReadFile("kosh.build.yaml")
+	data, err := afero.ReadFile(fs, "kosh.build.yaml")
 	if err != nil {
 		// File doesn't exist, use defaults
 		return cfg

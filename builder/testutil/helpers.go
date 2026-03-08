@@ -113,8 +113,97 @@ func CreateTempFile(t *testing.T, content string) string {
 	return tmpFile.Name()
 }
 
-// CleanupTemp removes temporary files
-func CleanupTemp(path string) {
-	//nolint:errcheck // Cleanup in test helper
-	_ = os.RemoveAll(path)
+// ScaffoldTestSite creates a minimal kosh site in the given filesystem
+func ScaffoldTestSite(fs afero.Fs) {
+	ScaffoldTestSiteWithVersions(fs, false)
+}
+
+// ScaffoldTestSiteWithVersions creates a kosh site, optionally with multiple versions
+func ScaffoldTestSiteWithVersions(fs afero.Fs, multiVersion bool) {
+	// 1. Create kosh.yaml
+	koshYaml := `
+title: "Test Blog"
+baseURL: "https://example.com"
+theme: "test-theme"
+themeDir: "themes"
+contentDir: "content"
+outputDir: "public"
+cacheDir: ".kosh-cache"
+`
+	if multiVersion {
+		koshYaml += `
+versions:
+  - name: "v2.0"
+    path: ""
+    isLatest: true
+  - name: "v1.0"
+    path: "v1.0"
+    isLatest: false
+`
+	}
+	_ = afero.WriteFile(fs, "kosh.yaml", []byte(koshYaml), 0644)
+
+	// 2. Create content
+	_ = fs.MkdirAll("content/posts", 0755)
+	postContent := `---
+title: "Latest Post"
+date: 2026-03-06
+tags: ["test"]
+---
+# Latest Post
+This is the latest version.
+`
+	_ = afero.WriteFile(fs, "content/posts/hello.md", []byte(postContent), 0644)
+
+	// Create 404 page
+	_ = afero.WriteFile(fs, "content/404.md", []byte("---\ntitle: \"404\"\n---\nPage not found."), 0644)
+
+	if multiVersion {
+		_ = fs.MkdirAll("content/v1.0/posts", 0755)
+		oldPostContent := `---
+title: "Old Post"
+date: 2025-03-06
+tags: ["test"]
+---
+# Old Post
+This is an old version.
+`
+		_ = afero.WriteFile(fs, "content/v1.0/posts/old.md", []byte(oldPostContent), 0644)
+	}
+
+	// 3. Create theme
+	themeDir := "themes/test-theme/templates"
+	_ = fs.MkdirAll(themeDir, 0755)
+
+	layoutTmpl := `
+<!DOCTYPE html>
+<html>
+<head><title>{{ .Title }}</title></head>
+<body>
+    {{ .Content }}
+</body>
+</html>
+`
+	_ = afero.WriteFile(fs, filepath.Join(themeDir, "layout.html"), []byte(layoutTmpl), 0644)
+
+	indexTmpl := `
+<!DOCTYPE html>
+<html>
+<head><title>{{ .Title }}</title></head>
+<body>
+    <h1>Index</h1>
+    {{ range .Posts }}
+        <a href="{{ .Link }}">{{ .Title }}</a>
+    {{ end }}
+</body>
+</html>
+`
+	_ = afero.WriteFile(fs, filepath.Join(themeDir, "index.html"), []byte(indexTmpl), 0644)
+
+	notFoundTmpl := `<html><body>404 Not Found</body></html>`
+	_ = afero.WriteFile(fs, filepath.Join(themeDir, "404.html"), []byte(notFoundTmpl), 0644)
+
+	// 4. Create static dir
+	_ = fs.MkdirAll("themes/test-theme/static/css", 0755)
+	_ = afero.WriteFile(fs, "themes/test-theme/static/css/style.css", []byte("body { color: red; }"), 0644)
 }

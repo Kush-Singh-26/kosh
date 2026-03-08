@@ -11,9 +11,10 @@ import (
 )
 
 // BuildSiteTree constructs a hierarchical tree from a flat list of posts
-// It infers structure from file paths (e.g., docs/section/page.md)
-// currentPath optionally specifies the current page to mark as Active
 func BuildSiteTree(posts []models.PostMetadata, currentPath string) []*models.TreeNode {
+	// Create a local titleCaser per call — cases.Caser is stateful (has internal
+	// buffers) and is NOT safe for concurrent use. The constructor is cheap.
+	titleCaser := cases.Title(language.English)
 	// Map to track created nodes by path -> node
 	// Path used here is the logical section path (e.g., "docs/section")
 	nodeMap := make(map[string]*models.TreeNode)
@@ -23,24 +24,7 @@ func BuildSiteTree(posts []models.PostMetadata, currentPath string) []*models.Tr
 
 	// 1. Create nodes for all posts
 	for _, p := range posts {
-		// remove baseurl to get relative link
-		// Link: https://example.com/docs/page.html -> /docs/page.html
-		// But better to use the file path or ID logic?
-		// PostMetadata doesn't strictly have the relative Source path here easily accessible
-		// unless we pass it. But we can infer from the Link if it follows structure.
-		// However, Link includes BaseURL.
-		// Let's rely on the fact that `posts` are usually sorted.
-
-		// Actually, we need the relative path to build the tree correctly.
-		// The Link might be permalinked differently.
-		// But for a Sidebar, we usually want to follow the URL structure.
-
-		// Let's assume the Link structure reflects the hierarchy.
-		// We'll strip BaseURL if present logic fails, but we can't easily.
-		// Standard way: Organize by implied path components.
-
-		// Parse URL path
-		// Remove protocol/domain
+		// ... existing path parsing ...
 		path := p.Link
 		if strings.HasPrefix(path, "http") {
 			// Find 3rd slash
@@ -78,29 +62,30 @@ func BuildSiteTree(posts []models.PostMetadata, currentPath string) []*models.Tr
 
 		// Find or Create Parent
 		var parent *models.TreeNode
-		currentPath := ""
+		currPathSB := SharedStringBuilderPool.Get()
+		currPathSB.Reset()
 
 		for i := 0; i < len(components)-1; i++ {
 			comp := components[i]
-			if currentPath == "" {
-				currentPath = comp
-			} else {
-				currentPath = currentPath + "/" + comp
+			if currPathSB.Len() > 0 {
+				currPathSB.WriteByte('/')
 			}
+			currPathSB.WriteString(comp)
+			currentPathStr := currPathSB.String()
 
 			// Check if this section already exists as a root or child
-			if existing, ok := nodeMap[currentPath]; ok {
+			if existing, ok := nodeMap[currentPathStr]; ok {
 				parent = existing
 			} else {
 				// Create virtual section node
 				newNode := &models.TreeNode{
-					Title:     cases.Title(language.English).String(comp), // Fallback title
-					Link:      "",                                         // Section might not have a link if no _index.md
+					Title:     titleCaser.String(comp), // Use global caser
+					Link:      "",                      // Section might not have a link if no _index.md
 					Weight:    0,
 					IsSection: true,
 					Children:  []*models.TreeNode{},
 				}
-				nodeMap[currentPath] = newNode
+				nodeMap[currentPathStr] = newNode
 
 				if parent == nil {
 					roots = append(roots, newNode)
@@ -110,6 +95,7 @@ func BuildSiteTree(posts []models.PostMetadata, currentPath string) []*models.Tr
 				parent = newNode
 			}
 		}
+		SharedStringBuilderPool.Put(currPathSB)
 
 		// Add the leaf node (the post itself)
 		leafNode := &models.TreeNode{
@@ -117,7 +103,8 @@ func BuildSiteTree(posts []models.PostMetadata, currentPath string) []*models.Tr
 			Link:      p.Link,
 			Weight:    p.Weight,
 			IsSection: false,
-			Active:    currentPath != "" && p.Link == currentPath,
+			// Active state is now handled client-side for better caching
+			Active: false,
 		}
 
 		// Check if this leaf is actually an _index for the parent?

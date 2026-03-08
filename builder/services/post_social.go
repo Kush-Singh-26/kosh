@@ -11,6 +11,9 @@ import (
 
 func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 	cachedCardPath := filepath.Join(s.cfg.CacheDir, "social-cards", t.frontmatterHash+".webp")
+	if err := os.MkdirAll(filepath.Dir(cachedCardPath), 0755); err != nil {
+		s.logger.Warn("Failed to create social card cache directory", "path", filepath.Dir(cachedCardPath), "error", err)
+	}
 
 	cachedFile, err := os.Open(cachedCardPath)
 	if err == nil && t.frontmatterHash != "" {
@@ -25,9 +28,7 @@ func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 		})
 		if errWrite == nil {
 			if s.cache != nil {
-				if err := s.cache.SetSocialCardHash(t.path, t.frontmatterHash); err != nil {
-					s.logger.Warn("Failed to set social card hash in cache", "path", t.path, "error", err)
-				}
+				s.cardHashes.Store(t.path, t.frontmatterHash)
 			}
 			s.renderer.RegisterFile(t.cardDestPath)
 			s.logger.Debug("Social card copied from cache", "path", t.cardDestPath)
@@ -72,9 +73,7 @@ func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 		}
 
 		if s.cache != nil && t.frontmatterHash != "" {
-			if err := s.cache.SetSocialCardHash(t.path, t.frontmatterHash); err != nil {
-				s.logger.Warn("Failed to set social card hash in cache", "path", t.path, "error", err)
-			}
+			s.cardHashes.Store(t.path, t.frontmatterHash)
 		}
 	} else {
 		s.logger.Error("Failed to generate social card to disk", "path", cachedCardPath, "error", err)

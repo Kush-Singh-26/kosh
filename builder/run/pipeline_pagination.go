@@ -17,16 +17,65 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
+const maxTagSocialCardWorkers = 8
+
+type tagSocialCardTask struct {
+	slug  string
+	title string
+	count int
+}
+
+func boundedTagSocialCardWorkers() int {
+	workers := runtime.NumCPU()
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > maxTagSocialCardWorkers {
+		workers = maxTagSocialCardWorkers
+	}
+	return workers
+}
+
+func (b *Builder) shouldGenerateSocialCard(cacheKey, currentHash, cachedCardPath string, force bool) bool {
+	if force {
+		return true
+	}
+	if _, err := os.Stat(cachedCardPath); os.IsNotExist(err) {
+		return true
+	}
+	if b.cacheService != nil {
+		storedHash, _ := b.cacheService.GetSocialCardHash(cacheKey)
+		return storedHash != currentHash
+	}
+	return false
+}
+
+func socialCardHash(title, description string) string {
+	cardContent := fmt.Sprintf("%s|%s", title, description)
+	return cache.HashString(cardContent)
+}
+
 func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []models.PostMetadata, force bool) error {
 	cfg := b.cfg
 
-	// Generate Home Social Card
 	homeCardPath := filepath.Join(b.cfg.OutputDir, "static/images/cards/home.webp")
 	desc := cfg.Description
 	if len(desc) > 100 {
 		desc = desc[:97] + "..."
 	}
-	b.provideSocialCard(homeCardPath, "home", cfg.Title, desc, "Latest Posts", force)
+	homeHash := socialCardHash(cfg.Title, desc)
+	homeCached := filepath.Join(b.cfg.CacheDir, "social-cards", homeHash+".webp")
+	if b.shouldGenerateSocialCard("home", homeHash, homeCached, force) {
+		homeCardTimer := utils.StartPhase("Home social card")
+		b.provideSocialCard(homeCardPath, "home", cfg.Title, desc, "Latest Posts", force)
+		homeCardTimer.Stop()
+	} else {
+		if data, err := os.ReadFile(homeCached); err == nil {
+			_ = b.Sink.MkdirAll(filepath.Dir(homeCardPath))
+			_ = b.Sink.WriteFile(homeCardPath, data)
+			b.renderService.RegisterFile(homeCardPath)
+		}
+	}
 
 	// For docs theme with versions, filter to only latest version posts for hub page
 	latestPosts := allPosts
@@ -59,6 +108,7 @@ func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []
 
 	// Build SiteTree once before the loop (optimization: avoids recalculating for each page)
 	siteTree := utils.BuildSiteTree(latestPosts, "")
+	sidebarHTML := b.renderService.RenderSidebar(siteTree)
 
 	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(runtime.NumCPU())
@@ -108,13 +158,14 @@ func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []
 				Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
-				Paginator: paginator, SiteTree: siteTree, Config: cfg, Versions: cfg.GetVersionsMetadata("", ""),
+				Paginator: paginator, SiteTree: siteTree, SidebarHTML: sidebarHTML, Config: cfg, Versions: cfg.GetVersionsMetadata("", ""),
 				RelativePrefix: utils.GetRelativePrefix(relPath),
 			})
 			return nil
 		})
 	}
-	return g.Wait()
+	err := g.Wait()
+	return err
 }
 
 func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.PostMetadata, forceSocialRebuild bool) error {
@@ -125,12 +176,30 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 
-	// Generate Tags Index Card
+	workers := boundedTagSocialCardWorkers()
+	tagCardsTimer := utils.StartPhase("Tags social cards")
+	tagCardPool := utils.NewWorkerPool(ctx, workers, func(task tagSocialCardTask) {
+		tagCard := filepath.Join(b.cfg.OutputDir, fmt.Sprintf("static/images/cards/tags/%s.webp", task.slug))
+		b.provideSocialCard(tagCard, "tags/"+task.slug, "#"+task.title, fmt.Sprintf("%d posts about %s", task.count, task.title), "Topic", forceSocialRebuild)
+	})
+	tagCardPool.Start()
+	tagsDesc := fmt.Sprintf("Browse all %d topics", len(tagMap))
+	tagsIndexHash := socialCardHash("All Topics", tagsDesc)
+	tagsIndexCache := filepath.Join(b.cfg.CacheDir, "social-cards", tagsIndexHash+".webp")
 	tagsIndexCard := filepath.Join(b.cfg.OutputDir, "static/images/cards/tags/index.webp")
-	b.provideSocialCard(tagsIndexCard, "tags/index", "All Topics", fmt.Sprintf("Browse all %d topics", len(tagMap)), "Topics", forceSocialRebuild)
+	if b.shouldGenerateSocialCard("tags/index", tagsIndexHash, tagsIndexCache, forceSocialRebuild) {
+		b.provideSocialCard(tagsIndexCard, "tags/index", "All Topics", tagsDesc, "Topics", forceSocialRebuild)
+	} else {
+		if data, err := os.ReadFile(tagsIndexCache); err == nil {
+			_ = b.Sink.MkdirAll(filepath.Dir(tagsIndexCard))
+			_ = b.Sink.WriteFile(tagsIndexCard, data)
+			b.renderService.RegisterFile(tagsIndexCard)
+		}
+	}
 
 	// Generate Tags Index
 	// Force Weight: 0 so layout doesn't crash
+	tagRenderTimer := utils.StartPhase("Tags HTML rendering")
 	b.renderService.RenderPage(filepath.Join(b.cfg.OutputDir, "tags/index.html"), models.PageData{
 		Title: "All Tags", IsTagsIndex: true, AllTags: allTags,
 		BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
@@ -146,13 +215,21 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 
 	for t, posts := range tagMap {
 		tagName := t
-		tagPosts := posts
-		g.Go(func() error {
-			slug := utils.Slugify(tagName)
-			// Generate Tag Card
+		tagPosts := make([]models.PostMetadata, len(posts))
+		copy(tagPosts, posts)
+		slug := utils.Slugify(tagName)
+		tagDesc := fmt.Sprintf("%d posts about %s", len(tagPosts), tagName)
+		hash := socialCardHash("#"+tagName, tagDesc)
+		cached := filepath.Join(b.cfg.CacheDir, "social-cards", hash+".webp")
+		if b.shouldGenerateSocialCard("tags/"+slug, hash, cached, forceSocialRebuild) {
+			tagCardPool.Submit(tagSocialCardTask{slug: slug, title: tagName, count: len(tagPosts)})
+		} else if data, err := os.ReadFile(cached); err == nil {
 			tagCard := filepath.Join(b.cfg.OutputDir, fmt.Sprintf("static/images/cards/tags/%s.webp", slug))
-			b.provideSocialCard(tagCard, "tags/"+slug, "#"+tagName, fmt.Sprintf("%d posts about %s", len(tagPosts), tagName), "Topic", forceSocialRebuild)
-
+			_ = b.Sink.MkdirAll(filepath.Dir(tagCard))
+			_ = b.Sink.WriteFile(tagCard, data)
+			b.renderService.RegisterFile(tagCard)
+		}
+		g.Go(func() error {
 			utils.SortPosts(tagPosts)
 			b.renderService.RenderPage(filepath.Join(b.cfg.OutputDir, fmt.Sprintf("tags/%s.html", slug)), models.PageData{
 				Title: "#" + tagName, IsIndex: true, Posts: tagPosts,
@@ -166,7 +243,11 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 			return nil
 		})
 	}
-	return g.Wait()
+	err := g.Wait()
+	tagRenderTimer.Stop()
+	tagCardPool.Stop()
+	tagCardsTimer.Stop()
+	return err
 }
 
 // provideSocialCard ensures a social card exists in the VFS, using cache if possible

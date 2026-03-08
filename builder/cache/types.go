@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/vmihailenco/msgpack/v5"
-	"github.com/zeebo/blake3"
+	"github.com/zeebo/xxh3"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
@@ -34,6 +34,7 @@ type PostMeta struct {
 	Meta           map[string]interface{} `msgpack:"meta"`
 	TOC            []models.TOCEntry      `msgpack:"toc"`
 	Version        string                 `msgpack:"version"`
+	CardHash       string                 `msgpack:"card_hash,omitempty"`
 }
 
 // SSRArtifact stores server-side rendered content (D2 diagrams, KaTeX math)
@@ -57,6 +58,7 @@ type SearchRecord struct {
 	NormalizedTags  []string          `msgpack:"norm_tags"`
 	StemMap         map[string]string `msgpack:"stem_map,omitempty"`
 	PositionalIndex map[string][]int  `msgpack:"pos_index,omitempty"`
+	ByteOffsets     map[string][]int  `msgpack:"offsets,omitempty"`
 }
 
 // Dependencies tracks what a post depends on
@@ -87,12 +89,13 @@ const (
 )
 
 const (
-	SchemaVersion = 5
+	SchemaVersion = 7
 )
 
 func HashContent(data []byte) string {
-	hash := blake3.Sum256(data)
-	return hex.EncodeToString(hash[:])
+	hash := xxh3.Hash128(data)
+	b := hash.Bytes()
+	return hex.EncodeToString(b[:])
 }
 
 func HashString(s string) string {

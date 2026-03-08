@@ -81,6 +81,32 @@ func extension(ct CompressionType) string {
 	return ".zst"
 }
 
+func renameWithRetry(tmpPath, finalPath string, maxRetries int, baseDelay time.Duration) error {
+	if maxRetries < 1 {
+		maxRetries = 1
+	}
+	var lastErr error
+	delay := baseDelay
+	if delay <= 0 {
+		delay = 10 * time.Millisecond
+	}
+
+	for i := 0; i < maxRetries; i++ {
+		if err := os.Rename(tmpPath, finalPath); err == nil {
+			return nil
+		} else {
+			lastErr = err
+			if i == maxRetries-1 {
+				break
+			}
+			time.Sleep(delay)
+			delay *= 2
+		}
+	}
+
+	return lastErr
+}
+
 // determineCompression decides compression strategy based on size
 func determineCompression(size int) CompressionType {
 	if size < utils.RawThreshold {
@@ -146,8 +172,8 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 		data = content
 	}
 
-	// Atomic write: .tmp -> fsync -> rename
-	tmpPath := path + ".tmp"
+	// Atomic write: unique .tmp -> close -> rename
+	tmpPath := path + "." + hash[:8] + ".tmp"
 	f, err := os.Create(tmpPath)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to create temp file: %w", err)
@@ -164,7 +190,11 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 		return "", 0, fmt.Errorf("failed to close file: %w", err)
 	}
 
-	if err := os.Rename(tmpPath, path); err != nil {
+	if _, err := os.Stat(tmpPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", 0, fmt.Errorf("temp file missing before rename: %w", err)
+	}
+	if err := renameWithRetry(tmpPath, path, 6, 10*time.Millisecond); err != nil {
 		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("failed to rename file: %w", err)
 	}

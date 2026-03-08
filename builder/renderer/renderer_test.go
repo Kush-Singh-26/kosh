@@ -7,17 +7,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/afero"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
 func setupRendererTest(t *testing.T) *Renderer {
 	t.Helper()
 
-	destFs := afero.NewMemMapFs()
+	sink := testutil.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+
 	return &Renderer{
-		DestFs:      destFs,
+		Sink:        sink,
 		Assets:      make(map[string]string),
 		RenderedSet: make(map[string]bool),
 		Compress:    false,
