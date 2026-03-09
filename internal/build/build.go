@@ -1,7 +1,6 @@
 package build
 
 import (
-	"compress/gzip"
 	"context"
 	_ "embed"
 	"encoding/hex"
@@ -53,7 +52,8 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, sourceWasm []byte) boo
 	}
 
 	// Check if deployed WASM matches embedded version
-	if deployedHash, err := hashFileFs(fs, wasmOut); err == nil {
+	brExists, _ := afero.Exists(fs, wasmOut+".br")
+	if deployedHash, err := hashFileFs(fs, wasmOut); err == nil && brExists {
 		if deployedHash == wasmHash {
 			// Already up-to-date, skip write
 			return false
@@ -72,12 +72,11 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, sourceWasm []byte) boo
 		return false
 	}
 
-	// Compress WASM — stream once through gzip and brotli to avoid duplicate reads
+	// Compress WASM
 	fmt.Println("📦 Compressing WASM...")
-	if err := CompressDualFs(fs, wasmOut, wasmOut+".gz", wasmOut+".br"); err != nil {
+	if err := CompressBrotliFsLevel(fs, wasmOut, wasmOut+".br", 4); err != nil {
 		fmt.Printf("⚠️ Failed to compress WASM: %v\n", err)
 	} else {
-		fmt.Printf("✅ WASM gzipped: %s\n", getFileSizeFs(fs, wasmOut+".gz"))
 		fmt.Printf("✅ WASM brotlied: %s\n", getFileSizeFs(fs, wasmOut+".br"))
 	}
 	return true
@@ -163,46 +162,19 @@ func hashFile(path string) (string, error) {
 }
 
 func hashFileFs(fs afero.Fs, path string) (string, error) {
-    f, err := fs.Open(path)
-    if err != nil {
-        return "", err
-    }
-    defer func() { _ = f.Close() }()
-
-    h := xxh3.New()
-    if _, err := io.Copy(h, f); err != nil {
-        return "", err
-    }
-    sum := h.Sum128()
-    b := sum.Bytes()
-    return hex.EncodeToString(b[:])[:16], nil
-}
-
-func CompressGzip(src, dst string) error {
-	return CompressGzipFs(afero.NewOsFs(), src, dst)
-}
-
-func CompressGzipFs(fs afero.Fs, src, dst string) error {
-	in, err := fs.Open(src)
+	f, err := fs.Open(path)
 	if err != nil {
-		return err
+		return "", err
 	}
-	defer func() { _ = in.Close() }()
+	defer func() { _ = f.Close() }()
 
-	out, err := fs.Create(dst)
-	if err != nil {
-		return err
+	h := xxh3.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
 	}
-	defer func() { _ = out.Close() }()
-
-	gw, _ := gzip.NewWriterLevel(out, gzip.BestSpeed)
-	_, copyErr := io.Copy(gw, in)
-	closeErr := gw.Close()
-
-	if copyErr != nil {
-		return copyErr
-	}
-	return closeErr
+	sum := h.Sum128()
+	b := sum.Bytes()
+	return hex.EncodeToString(b[:])[:16], nil
 }
 
 func CompressBrotli(src, dst string) error {
@@ -235,43 +207,6 @@ func CompressBrotliFsLevel(fs afero.Fs, src, dst string, level int) error {
 		return copyErr
 	}
 	return closeErr
-}
-
-// CompressDualFs streams the input once and writes both gzip (best speed) and brotli (level 4).
-func CompressDualFs(fs afero.Fs, src, dstGzip, dstBrotli string) error {
-	in, err := fs.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = in.Close() }()
-
-	gzOut, err := fs.Create(dstGzip)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = gzOut.Close() }()
-
-	brOut, err := fs.Create(dstBrotli)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = brOut.Close() }()
-
-	gzW, _ := gzip.NewWriterLevel(gzOut, gzip.BestSpeed)
-	brW := brotli.NewWriterLevel(brOut, 4)
-
-	tee := io.TeeReader(in, gzW)
-	_, copyErr := io.Copy(brW, tee)
-	brCloseErr := brW.Close()
-	gzCloseErr := gzW.Close()
-
-	if copyErr != nil {
-		return copyErr
-	}
-	if brCloseErr != nil {
-		return brCloseErr
-	}
-	return gzCloseErr
 }
 
 func getFileSize(path string) string {

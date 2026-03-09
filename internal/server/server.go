@@ -15,6 +15,19 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
+func recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				slog.Error("Server panic recovered", "error", err, "path", r.URL.Path)
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte("500 - Internal Server Error"))
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
 func Run(ctx context.Context, args []string, outputDir string, baseURL string, buildCfg *config.BuildConfig) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	host := fs.String("host", "localhost", "The host/IP to bind to")
@@ -102,12 +115,6 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 					w.Header().Set("Vary", "Accept-Encoding")
 					fullPath += ".br"
 				}
-			} else if strings.Contains(acceptEncoding, "gzip") {
-				if _, err := os.Stat(fullPath + ".gz"); err == nil {
-					w.Header().Set("Content-Encoding", "gzip")
-					w.Header().Set("Vary", "Accept-Encoding")
-					fullPath += ".gz"
-				}
 			}
 		}
 
@@ -161,7 +168,7 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 
 	httpServer := &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: recoveryMiddleware(mux),
 	}
 
 	go func() {

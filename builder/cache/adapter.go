@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // writeRequest represents a request to write SSR data to cache
@@ -27,6 +29,7 @@ type DiagramCacheAdapter struct {
 	workers    int               // Number of worker goroutines
 	stopCh     chan struct{}     // Signal to stop workers
 	closeOnce  sync.Once         // Ensures Close() is only called once
+	writeGroup singleflight.Group
 }
 
 // NewDiagramCacheAdapter creates a new adapter with a bounded worker pool
@@ -55,6 +58,20 @@ func NewDiagramCacheAdapter(manager *Manager) *DiagramCacheAdapter {
 	return a
 }
 
+func (a *DiagramCacheAdapter) persistSSRValue(key, value string) error {
+	if a.manager == nil {
+		return nil
+	}
+	_, err, _ := a.writeGroup.Do(key, func() (interface{}, error) {
+		_, err := a.manager.StoreSSR("d2", key, []byte(value))
+		if err == nil {
+			a.clearDirtyIfUnchanged(key, value)
+		}
+		return nil, err
+	})
+	return err
+}
+
 // writeWorker processes write requests from the queue
 func (a *DiagramCacheAdapter) writeWorker() {
 	defer func() {
@@ -66,11 +83,9 @@ func (a *DiagramCacheAdapter) writeWorker() {
 	for {
 		select {
 		case req := <-a.writeQueue:
-			if _, err := a.manager.StoreSSR("d2", req.key, []byte(req.value)); err != nil {
+			if err := a.persistSSRValue(req.key, req.value); err != nil {
 				// Log error but don't fail - the data is still in local cache
 				slog.Warn("Failed to store SSR cache", "key", req.key, "error", err)
-			} else {
-				a.clearDirtyIfUnchanged(req.key, req.value)
 			}
 			a.pending.Done()
 		case <-a.stopCh:
@@ -166,11 +181,9 @@ func (a *DiagramCacheAdapter) Flush() error {
 	a.mu.RUnlock()
 
 	for key, value := range dirtyCopy {
-		_, err := a.manager.StoreSSR("d2", key, []byte(value))
-		if err != nil {
+		if err := a.persistSSRValue(key, value); err != nil {
 			return err
 		}
-		a.clearDirtyIfUnchanged(key, value)
 	}
 
 	return nil

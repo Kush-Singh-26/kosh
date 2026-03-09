@@ -20,6 +20,39 @@ import (
 	"github.com/spf13/afero"
 )
 
+func indexedPostStableKey(ip models.IndexedPost) string {
+	if ip.SourcePath != "" {
+		return filepath.ToSlash(filepath.Clean(ip.SourcePath))
+	}
+	return filepath.ToSlash(filepath.Clean(ip.Record.Link))
+}
+
+func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
+	if len(posts) < 2 {
+		return posts
+	}
+	seen := make(map[string]int, len(posts))
+	result := make([]models.IndexedPost, 0, len(posts))
+	for _, ip := range posts {
+		key := indexedPostStableKey(ip)
+		if idx, ok := seen[key]; ok {
+			result[idx] = ip
+			continue
+		}
+		seen[key] = len(result)
+		result = append(result, ip)
+	}
+	for i := range result {
+		result[i].Record.ID = i
+	}
+	return result
+}
+
+func isSearchSourcePath(path string) bool {
+	path = filepath.ToSlash(filepath.Clean(path))
+	return strings.HasPrefix(path, "cmd/search/") || strings.HasPrefix(path, "builder/search/") || strings.HasPrefix(path, "builder/models/")
+}
+
 func (b *Builder) normalizeWatchPath(path string) string {
 	path = filepath.Clean(path)
 	if filepath.IsAbs(path) {
@@ -32,9 +65,19 @@ func (b *Builder) normalizeWatchPath(path string) string {
 	return filepath.ToSlash(path)
 }
 
+func normalizeAbsoluteWatchPath(path string) string {
+	path = filepath.Clean(path)
+	if !filepath.IsAbs(path) {
+		if abs, err := filepath.Abs(path); err == nil {
+			path = abs
+		}
+	}
+	return filepath.ToSlash(filepath.Clean(path))
+}
+
 func (b *Builder) isContentPath(path string) bool {
-	path = b.normalizeWatchPath(path)
-	contentDir := filepath.ToSlash(filepath.Clean(b.cfg.ContentDir))
+	path = normalizeAbsoluteWatchPath(path)
+	contentDir := normalizeAbsoluteWatchPath(b.cfg.ContentDir)
 	return strings.HasPrefix(path, contentDir+"/") || path == contentDir
 }
 
@@ -90,6 +133,10 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 	}
 
 	b.logger.Info("⚡ Change detected", "path", changedPath, "op", op.String())
+	b.logger.Info("incremental path classification", "isContent", b.isContentPath(changedPath), "isAsset", b.isAssetPath(changedPath))
+	if isSearchSourcePath(changedPath) {
+		b.searchSourceDirty = true
+	}
 
 	// Handle file deletion - remove from cache
 	if op&fsnotify.Remove == fsnotify.Remove || op&fsnotify.Rename == fsnotify.Rename {
@@ -133,7 +180,7 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 		b.cfg.BuildVersion = time.Now().UnixNano()
 		b.renderService.ReloadTemplates()
 		b.postService.SetAssetsGate(nil)
-		if err := b.build(ctx); err != nil {
+		if err := b.buildAssetOnly(ctx); err != nil {
 			b.logger.Error("Build failed", "error", err)
 			return
 		}
@@ -154,9 +201,9 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 
 // isAssetPath checks if a path is within the static assets directories
 func (b *Builder) isAssetPath(path string) bool {
-	path = b.normalizeWatchPath(path)
-	staticDir := filepath.ToSlash(filepath.Clean(b.cfg.StaticDir))
-	siteStaticDir := "static"
+	path = normalizeAbsoluteWatchPath(path)
+	staticDir := normalizeAbsoluteWatchPath(b.cfg.StaticDir)
+	siteStaticDir := normalizeAbsoluteWatchPath("static")
 
 	return strings.HasPrefix(path, staticDir+"/") || path == staticDir || strings.HasPrefix(path, siteStaticDir+"/") || path == siteStaticDir
 }
@@ -217,6 +264,9 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 	}
 
 	newFrontmatterHash := parseRes.FrontmatterHash
+	if newFrontmatterHash == "" {
+		newFrontmatterHash, _ = utils.GetFrontmatterHashFromSource(source)
+	}
 	newBodyHash := utils.GetBodyHash(source)
 
 	var exists bool
@@ -230,6 +280,15 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 			cachedBodyHash = meta.BodyHash
 		}
 	}
+
+	b.logger.Info("incremental rebuild classification",
+		"path", relPath,
+		"exists", exists,
+		"cachedFrontmatterHash", cachedFrontmatterHash,
+		"newFrontmatterHash", newFrontmatterHash,
+		"cachedBodyHash", cachedBodyHash,
+		"newBodyHash", newBodyHash,
+	)
 
 	// Check if frontmatter changed (requires full rebuild)
 	frontmatterChanged := exists && cachedFrontmatterHash != newFrontmatterHash
@@ -304,11 +363,13 @@ func (b *Builder) updateIndexedPostCache(relPath string, parseRes *services.Pars
 	}
 
 	found := false
+	targetKey := filepath.ToSlash(filepath.Clean(relPath))
 	for i, ip := range b.indexedPosts {
-		if ip.Record.Link == parseRes.SearchRecord.Link {
+		if indexedPostStableKey(ip) == targetKey {
 			// Update existing record
 			b.indexedPosts[i] = models.IndexedPost{
 				Record:          parseRes.SearchRecord,
+				SourcePath:      targetKey,
 				WordFreqs:       parseRes.WordFreqs,
 				DocLen:          parseRes.DocLen,
 				StemMap:         parseRes.StemMap,
@@ -323,6 +384,7 @@ func (b *Builder) updateIndexedPostCache(relPath string, parseRes *services.Pars
 		// New post added to existing cache
 		b.indexedPosts = append(b.indexedPosts, models.IndexedPost{
 			Record:          parseRes.SearchRecord,
+			SourcePath:      targetKey,
 			WordFreqs:       parseRes.WordFreqs,
 			DocLen:          parseRes.DocLen,
 			StemMap:         parseRes.StemMap,
@@ -390,6 +452,7 @@ func (b *Builder) regenerateSearchIndex(ctx context.Context) error {
 					NormalizedTags:  searchRec.NormalizedTags,
 					Version:         postMeta.Version,
 				},
+				SourcePath:      postMeta.Path,
 				WordFreqs:       searchRec.BM25Data,
 				DocLen:          searchRec.DocLen,
 				StemMap:         searchRec.StemMap,
@@ -403,6 +466,8 @@ func (b *Builder) regenerateSearchIndex(ctx context.Context) error {
 	if len(indexedPosts) == 0 {
 		return nil
 	}
+	indexedPosts = dedupeIndexedPosts(indexedPosts)
+	b.indexedPosts = indexedPosts
 
 	// Generate search index file
 	start := time.Now()

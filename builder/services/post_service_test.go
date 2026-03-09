@@ -39,7 +39,7 @@ type mockRenderService struct {
 }
 
 func (m *mockRenderService) SetSink(sink utils.ArtifactSink) {}
-func (m *mockRenderService) SetSourceFs(fs afero.Fs)          {}
+func (m *mockRenderService) SetSourceFs(fs afero.Fs)         {}
 
 func (m *mockRenderService) RenderPage(path string, data models.PageData) {
 	if m.shouldPanic {
@@ -47,17 +47,17 @@ func (m *mockRenderService) RenderPage(path string, data models.PageData) {
 	}
 }
 
-func (m *mockRenderService) RenderIndex(path string, data models.PageData) {}
-func (m *mockRenderService) Render404(path string, data models.PageData)   {}
-func (m *mockRenderService) RenderGraph(path string, data models.PageData) {}
+func (m *mockRenderService) RenderIndex(path string, data models.PageData)       {}
+func (m *mockRenderService) Render404(path string, data models.PageData)         {}
+func (m *mockRenderService) RenderGraph(path string, data models.PageData)       {}
 func (m *mockRenderService) RenderSidebar(tree []*models.TreeNode) template.HTML { return "" }
-func (m *mockRenderService) RegisterFile(path string)                      {}
-func (m *mockRenderService) SetAssets(assets map[string]string)            {}
-func (m *mockRenderService) GetAssets() map[string]string                  { return nil }
-func (m *mockRenderService) GetRenderedFiles() map[string]bool             { return nil }
-func (m *mockRenderService) ClearRenderedFiles()                           {}
-func (m *mockRenderService) ReloadTemplates()                              {}
-func (m *mockRenderService) GetErrors() []error                            { return nil }
+func (m *mockRenderService) RegisterFile(path string)                            {}
+func (m *mockRenderService) SetAssets(assets map[string]string)                  {}
+func (m *mockRenderService) GetAssets() map[string]string                        { return nil }
+func (m *mockRenderService) GetRenderedFiles() map[string]bool                   { return nil }
+func (m *mockRenderService) ClearRenderedFiles()                                 {}
+func (m *mockRenderService) ReloadTemplates()                                    {}
+func (m *mockRenderService) GetErrors() []error                                  { return nil }
 
 type mockArtifactSink struct {
 	utils.ArtifactSink
@@ -144,15 +144,15 @@ func (m *mockCacheService) GetPostsByTemplate(templatePath string) ([]string, er
 func (m *mockCacheService) GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error) {
 	return nil, nil
 }
-func (m *mockCacheService) GetSearchRecord(id string) (*cache.SearchRecord, error) { return nil, nil }
-func (m *mockCacheService) GetHTMLContent(post *cache.PostMeta) ([]byte, error)    { return nil, nil }
-func (m *mockCacheService) GetSocialCardHash(path string) (string, error)          { return "", nil }
-func (m *mockCacheService) SetSocialCardHash(path, hash string) error              { return nil }
+func (m *mockCacheService) GetSearchRecord(id string) (*cache.SearchRecord, error)  { return nil, nil }
+func (m *mockCacheService) GetHTMLContent(post *cache.PostMeta) ([]byte, error)     { return nil, nil }
+func (m *mockCacheService) GetSocialCardHash(path string) (string, error)           { return "", nil }
+func (m *mockCacheService) SetSocialCardHash(path, hash string) error               { return nil }
 func (m *mockCacheService) BatchSetSocialCardHashes(hashes map[string]string) error { return nil }
-func (m *mockCacheService) GetGraphHash() (string, error)                          { return "", nil }
-func (m *mockCacheService) SetGraphHash(hash string) error                         { return nil }
-func (m *mockCacheService) GetWasmHash() (string, error)                           { return "", nil }
-func (m *mockCacheService) SetWasmHash(hash string) error                          { return nil }
+func (m *mockCacheService) GetGraphHash() (string, error)                           { return "", nil }
+func (m *mockCacheService) SetGraphHash(hash string) error                          { return nil }
+func (m *mockCacheService) GetWasmHash() (string, error)                            { return "", nil }
+func (m *mockCacheService) SetWasmHash(hash string) error                           { return nil }
 func (m *mockCacheService) GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error) {
 	return nil, nil
 }
@@ -192,9 +192,10 @@ func setupPostServiceTest(t *testing.T) *postServiceImpl {
 
 	nativeRenderer := native.New()
 	diagramCache := &sync.Map{}
+	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() interface{} {
-			return mdParser.New(cfg, nativeRenderer, diagramCache)
+			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
 		},
 	}
 
@@ -204,6 +205,7 @@ func setupPostServiceTest(t *testing.T) *postServiceImpl {
 		renderer:       &mockRenderService{},
 		logger:         logger,
 		sourceFs:       sourceFs,
+		sink:           utils.NewMemSink(),
 		metrics:        metrics.NewBuildMetrics(),
 		mdPool:         mdPool,
 		nativeRenderer: nativeRenderer,
@@ -243,7 +245,10 @@ func TestPostService_PanicRecovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := s.Process(ctx, false, false, false, nil)
+	scanner := NewMetadataScanner()
+	meta, _ := scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg)
+
+	_, err := s.Process(ctx, false, false, false, meta)
 
 	// We expect successful completion (not a crash)
 	logf("Process completed with error: %v", err)
@@ -315,6 +320,47 @@ func TestPostService_ProcessSingle_PanicRecovery(t *testing.T) {
 	t.Logf("ProcessSingle completed with error: %v", err)
 }
 
+func TestDecoupledPipeline(t *testing.T) {
+	cfg := &config.Config{
+		ContentDir: "content",
+		OutputDir:  "public",
+	}
+	mdPool := &sync.Pool{
+		New: func() interface{} {
+			return mdParser.New(cfg, nil, nil, nil)
+		},
+	}
+
+	source := []byte("---\ntitle: Test\ndate: 2024-01-01\n---\n# Hello World\n\nThis is a test.")
+	ctx := context.Background()
+
+	// 1. Semantic Parse
+	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "", "test.html", "test.html", mdPool, cfg)
+	if err != nil {
+		t.Fatalf("ParseMarkdownMetadata failed: %v", err)
+	}
+
+	if res.Post.Title != "Test" {
+		t.Errorf("Expected title 'Test', got %q", res.Post.Title)
+	}
+	if res.PlainText == "" {
+		t.Error("Expected non-empty PlainText")
+	}
+	if res.AST == nil {
+		t.Error("Expected non-nil AST")
+	}
+
+	// 2. Render AST
+	err = RenderParsedMarkdown(source, res, mdPool, nil, nil)
+	if err != nil {
+		t.Fatalf("RenderParsedMarkdown failed: %v", err)
+	}
+
+	if !strings.Contains(res.HTMLContent, "Hello World</h1>") {
+		t.Errorf("Expected HTML to contain 'Hello World</h1>', got %q", res.HTMLContent)
+	}
+}
+
 func TestPostService_NeighborLookup(t *testing.T) {
 	s := setupPostServiceTest(t)
 	mockRend := &mockRenderServiceWithCapture{}
@@ -338,7 +384,10 @@ func TestPostService_NeighborLookup(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := s.Process(ctx, true, false, true, nil)
+	scanner := NewMetadataScanner()
+	meta, _ := scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg)
+
+	_, err := s.Process(ctx, true, false, true, meta)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}

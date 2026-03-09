@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/run"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/Kush-Singh-26/kosh/internal/watch"
@@ -81,6 +82,13 @@ func runBuild(cmd *cobra.Command, args []string) {
 		}
 		defer pprof.StopCPUProfile()
 	}
+
+	cfg := config.Load(filteredArgs)
+	mode := "Production Build"
+	if buildWatch {
+		mode = "Watch Build"
+	}
+	printStartupBanner(mode, cfg)
 
 	if buildWatch {
 		b := run.NewBuilder(filteredArgs)

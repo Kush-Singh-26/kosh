@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"sort"
+	"time"
 
 	"github.com/zeebo/xxh3"
 	"gopkg.in/yaml.v3"
@@ -19,7 +20,13 @@ func GetFrontmatterHash(metaData map[string]interface{}) (string, error) {
 	_, _ = h.Write([]byte{0})
 	writeStringXXH3(h, GetString(metaData, "description"))
 	_, _ = h.Write([]byte{0})
-	writeStringXXH3(h, GetString(metaData, "date"))
+
+	// Handle date explicitly to avoid timezone-related non-determinism
+	if dateVal, ok := metaData["date"].(time.Time); ok {
+		writeStringXXH3(h, dateVal.Format("2006-01-02"))
+	} else {
+		writeStringXXH3(h, GetString(metaData, "date"))
+	}
 	_, _ = h.Write([]byte{0})
 
 	// Sort in-place (caller shouldn't rely on original order)

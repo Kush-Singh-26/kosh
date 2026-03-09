@@ -3,8 +3,8 @@ package build
 import (
 	"testing"
 
-	"github.com/spf13/afero"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/spf13/afero"
 )
 
 func TestCheckWASMFs(t *testing.T) {
@@ -12,7 +12,7 @@ func TestCheckWASMFs(t *testing.T) {
 	defer func() { utils.TestingMode = false }()
 
 	fs := afero.NewMemMapFs()
-	
+
 	// Test initial write — files should land under outputDir, not CWD
 	changed := CheckWASMFs(fs, "public")
 	if !changed {
@@ -24,9 +24,9 @@ func TestCheckWASMFs(t *testing.T) {
 		t.Error("search.wasm was not created under outputDir")
 	}
 
-	exists, _ = afero.Exists(fs, "public/static/wasm/search.wasm.gz")
+	exists, _ = afero.Exists(fs, "public/static/wasm/search.wasm.br")
 	if !exists {
-		t.Error("search.wasm.gz was not created under outputDir")
+		t.Error("search.wasm.br was not created under outputDir")
 	}
 
 	// Verify nothing was written to the bare CWD-relative path (the old bug)

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -25,12 +26,23 @@ func InitMinifier() {
 var imgRe = regexp.MustCompile(`(?i)(<img[^>]+src=["'])([^"']*)(["'])`)
 
 func ProcessHTML(htmlStr string, baseURL string, prefix string, compress bool) string {
-	return imgRe.ReplaceAllStringFunc(htmlStr, func(m string) string {
-		parts := imgRe.FindStringSubmatch(m)
+	if !strings.Contains(htmlStr, "<img") {
+		return htmlStr
+	}
+	return string(ProcessHTMLBytes([]byte(htmlStr), baseURL, prefix, compress))
+}
+
+func ProcessHTMLBytes(htmlBytes []byte, baseURL string, prefix string, compress bool) []byte {
+	if !bytes.Contains(htmlBytes, []byte("<img")) {
+		return htmlBytes
+	}
+
+	return imgRe.ReplaceAllFunc(htmlBytes, func(m []byte) []byte {
+		parts := imgRe.FindSubmatch(m)
 		if len(parts) < 4 {
 			return m
 		}
-		src := parts[2]
+		src := string(parts[2])
 
 		if src == "" || strings.HasPrefix(src, "http") || strings.HasPrefix(src, "//") || strings.HasPrefix(src, "data:") {
 			return m
@@ -52,11 +64,14 @@ func ProcessHTML(htmlStr string, baseURL string, prefix string, compress bool) s
 		}
 
 		// 3. Lowercase local images to match NormalizePath behavior on Windows
-		// This ensures /static/images/CNN1.webp matches cnn1.webp
 		if !strings.HasPrefix(src, "http") && !strings.HasPrefix(src, "//") {
 			src = strings.ToLower(src)
 		}
 
-		return parts[1] + src + parts[3]
+		res := make([]byte, 0, len(parts[1])+len(src)+len(parts[3]))
+		res = append(res, parts[1]...)
+		res = append(res, src...)
+		res = append(res, parts[3]...)
+		return res
 	})
 }

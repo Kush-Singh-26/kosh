@@ -3,6 +3,7 @@ package cache
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -86,5 +87,33 @@ func TestCleanOrphans(t *testing.T) {
 	}
 	if store.Exists(cat, hashOldOrphan) {
 		t.Error("Old orphaned blob (outside TTL) should have been deleted")
+	}
+}
+
+func TestStorePut_ConcurrentSameContent(t *testing.T) {
+	basePath := t.TempDir()
+	store, err := NewStore(basePath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	const workers = 8
+	var wg sync.WaitGroup
+	errCh := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, err := store.Put("ssr/d2", []byte("same content"))
+			errCh <- err
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("expected concurrent Put success, got error: %v", err)
+		}
 	}
 }

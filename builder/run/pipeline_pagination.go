@@ -17,7 +17,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-const maxTagSocialCardWorkers = 8
+const maxTagSocialCardWorkers = 4
 
 type tagSocialCardTask struct {
 	slug  string

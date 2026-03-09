@@ -24,8 +24,11 @@ var (
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the preview server",
-	Long:  `Start the preview server. Use --dev for development mode with live reload.`,
-	Run:   runServe,
+	Long: `Start the preview server.
+
+Use --dev for build + watch + serve with live reload and incremental rebuilds.
+Without --dev, serve only hosts the current output directory.`,
+	Run: runServe,
 }
 
 func init() {
@@ -60,12 +63,11 @@ func runServe(cmd *cobra.Command, args []string) {
 	}
 
 	if serveDev {
-		fmt.Println("🚀 Starting Kosh in Development Mode...")
 		cfg := config.Load(filteredArgs)
 		if cfg.BaseURL == "" {
 			cfg.BaseURL = "http://localhost:2604"
-			fmt.Println("   📝 Auto-detected baseURL: http://localhost:2604")
 		}
+		printStartupBanner("Live Preview", cfg)
 		b := run.NewBuilderWithConfig(cfg)
 		b.SetDevMode(true)
 		if err := b.Build(ctx); err != nil {
@@ -90,6 +92,7 @@ func runServe(cmd *cobra.Command, args []string) {
 		server.Run(ctx, filteredArgs, b.Config().OutputDir, b.Config().BaseURL, b.Config().Build)
 	} else {
 		cfg := config.Load(filteredArgs)
+		printStartupBanner("Static Preview", cfg)
 		server.Run(ctx, filteredArgs, cfg.OutputDir, cfg.BaseURL, cfg.Build)
 	}
 }

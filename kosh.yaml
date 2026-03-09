@@ -49,6 +49,7 @@ socialCards:
 # Build Optimization
 postsPerPage: 10
 compressImages: true     # Auto-convert PNG/JPG to optimized WebP
+imageWorkers: 8
 
 # Theme Configuration
 theme: "blog"

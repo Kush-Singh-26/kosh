@@ -73,9 +73,10 @@ func (b *Builder) build(ctx context.Context) error {
 	b.renderService.SetAssets(map[string]string{})
 
 	assetsReady := make(chan struct{})
+	b.assetService.SetAssetsReadySignal(assetsReady)
+
 	var assetErr error
 	go func() {
-		defer close(assetsReady)
 		if err := b.copyStaticAndBuildAssets(ctx); err != nil {
 			assetErr = err
 		}
@@ -92,6 +93,7 @@ func (b *Builder) build(ctx context.Context) error {
 	var siteWideCtx context.Context
 	var siteTimer *utils.PhaseTimer
 	var siteWideHas404 bool
+	var siteWideOnce sync.Once
 
 	b.postService.SetMetadataCallback(func(
 		cbAllPosts []models.PostMetadata,
@@ -100,33 +102,49 @@ func (b *Builder) build(ctx context.Context) error {
 		cbIndexedPosts []models.IndexedPost,
 		cbAnyChanged bool,
 	) {
-		if !cbAnyChanged && !b.isCleanBuild {
+		// We must run site-wide generators if:
+		// 1. Something changed (anyPostChanged)
+		// 2. It's a clean build
+		// 3. We are using staging (production build) - because staging starts empty
+		//    and Commit() will replace the real output with staging contents.
+		useStaging := !b.cfg.IsDev || b.isCleanBuild
+		if !cbAnyChanged && !b.isCleanBuild && !useStaging {
 			return
 		}
-		fmt.Println("📄 Rendering pagination, tags, metadata and PWA...")
-		siteTimer = utils.StartPhase("Site-wide rendering")
-		siteWideGroup, siteWideCtx = errgroup.WithContext(ctx)
 
-		// Pagination and Tags render HTML pages (need assets for CSS/JS paths).
-		// Proceed once hashed assets are available (or build channel closes).
-		siteWideGroup.Go(func() error {
-			b.waitForAssetsAvailability(siteWideCtx, assetsReady)
-			return b.renderPagination(siteWideCtx, cbAllPosts, cbPinnedPosts, b.cfg.ForceRebuild)
+		siteWideOnce.Do(func() {
+			fmt.Println("📄 Rendering pagination, tags, metadata and PWA...")
+			siteTimer = utils.StartPhase("Site-wide rendering")
+			siteWideGroup, siteWideCtx = errgroup.WithContext(ctx)
+
+			// Pagination and Tags render HTML pages (need assets for CSS/JS paths).
+			// Proceed once hashed assets are available (or build channel closes).
+			siteWideGroup.Go(func() error {
+				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
+				return b.renderPagination(siteWideCtx, cbAllPosts, cbPinnedPosts, b.cfg.ForceRebuild)
+			})
+			siteWideGroup.Go(func() error {
+				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
+				return b.renderTags(siteWideCtx, cbTagMap, forceSocialRebuild)
+			})
+			// Sitemap, RSS, Search are pure data generators (no HTML assets needed).
+			// Graph HTML rendering needs assets — renderSiteMetadata waits internally.
+			siteWideGroup.Go(func() error {
+				return b.renderSiteMetadata(cbAllPosts, cbTagMap, cbIndexedPosts, assetsReady)
+			})
+			// PWA: SW needs assets, manifest and icons don't.
+			siteWideGroup.Go(func() error {
+				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
+				return b.generatePWA(siteWideCtx, b.cfg.ForceRebuild)
+			})
 		})
-		siteWideGroup.Go(func() error {
-			b.waitForAssetsAvailability(siteWideCtx, assetsReady)
-			return b.renderTags(siteWideCtx, cbTagMap, forceSocialRebuild)
-		})
-		// Sitemap, RSS, Search are pure data generators (no HTML assets needed).
-		// Graph HTML rendering needs assets — renderSiteMetadata waits internally.
-		siteWideGroup.Go(func() error {
-			return b.renderSiteMetadata(cbAllPosts, cbTagMap, cbIndexedPosts, assetsReady)
-		})
-		// PWA: SW needs assets, manifest and icons don't.
-		siteWideGroup.Go(func() error {
-			b.waitForAssetsAvailability(siteWideCtx, assetsReady)
-			return b.generatePWA(siteWideCtx, b.cfg.ForceRebuild)
-		})
+
+		// Handle search index specifically on the second call (when indexedPosts available)
+		if cbIndexedPosts != nil {
+			siteWideGroup.Go(func() error {
+				return b.renderSiteMetadata(nil, nil, cbIndexedPosts, nil)
+			})
+		}
 	})
 
 	var metadataResult *services.MetadataScannerResult
@@ -143,6 +161,9 @@ func (b *Builder) build(ctx context.Context) error {
 	<-scannerReady
 	if scannerErr != nil {
 		return fmt.Errorf("metadata scan failed: %w", scannerErr)
+	}
+	if setter, ok := b.assetService.(interface{ SetContentAssets([]services.ScannedAsset) }); ok {
+		setter.SetContentAssets(metadataResult.ContentAssets)
 	}
 
 	// 3. Process Posts — parse phase overlaps with asset building,
@@ -223,6 +244,52 @@ func (b *Builder) waitForAssetsAvailability(ctx context.Context, assetsReady <-c
 	}
 }
 
+func (b *Builder) buildAssetOnly(ctx context.Context) error {
+	if b.metrics != nil {
+		b.metrics.Reset()
+	}
+	b.renderService.SetAssets(map[string]string{})
+
+	fmt.Println("📦 Building assets...")
+	assetTimer := utils.StartPhase("Asset building")
+	b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, false)
+	b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
+	b.renderService.SetSink(b.Sink)
+	b.assetService.SetSink(b.Sink)
+	b.postService.SetSink(b.Sink)
+
+	assets, err := b.assetService.BuildForAssetChange(ctx)
+	assetTimer.Stop()
+	if err != nil {
+		return fmt.Errorf("failed to build assets: %w", err)
+	}
+
+	b.renderService.SetAssets(assets)
+	b.renderService.ClearRenderedFiles()
+	b.postService.SetAssetsGate(nil)
+	metadataResult, scanErr := b.metadataScanner.Scan(ctx, b.cfg.ContentDir, b.SourceFs, b.cfg)
+	if scanErr != nil {
+		return fmt.Errorf("metadata scan failed: %w", scanErr)
+	}
+
+	shouldForce := false
+	forceSocialRebuild := false
+	outputMissing := false
+	_, _, _, _, _, _, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, metadataResult)
+	if err != nil {
+		return fmt.Errorf("post processing failed: %w", err)
+	}
+
+	if err := b.Tx.Commit(); err != nil {
+		return fmt.Errorf("failed to publish build transaction: %w", err)
+	}
+
+	b.metrics.RecordEnd()
+	fmt.Printf("\n✨ Build complete!\n")
+	b.metrics.Print()
+	return nil
+}
+
 func (b *Builder) Build(ctx context.Context) error {
 	// Prevent concurrent builds
 	b.buildMu.Lock()
@@ -287,41 +354,47 @@ func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebu
 func (b *Builder) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, assetsReady <-chan struct{}) error {
 	g := new(errgroup.Group)
 
-	// Sitemap
-	if b.cfg.Features.Generators.Sitemap {
+	// Sitemap - only on early call (indexedPosts == nil) or if allPosts provided
+	if b.cfg.Features.Generators.Sitemap && allPosts != nil && indexedPosts == nil {
 		g.Go(func() error {
 			_, err := generators.GenerateSitemap(b.Sink, b.cfg.BaseURL, allPosts, tagMap, filepath.Join(b.cfg.OutputDir, "sitemap/sitemap.xml"))
-			if err != nil {
+			if err == nil {
+				b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, "sitemap/sitemap.xml"))
+			} else {
 				b.logger.Error("Failed to generate sitemap", "error", err)
 			}
 			return nil
 		})
 	}
 
-	// RSS
-	if b.cfg.Features.Generators.RSS {
+	// RSS - only on early call
+	if b.cfg.Features.Generators.RSS && allPosts != nil && indexedPosts == nil {
 		g.Go(func() error {
 			_, err := generators.GenerateRSS(b.Sink, b.cfg.BaseURL, allPosts, b.cfg.Title, b.cfg.Description, filepath.Join(b.cfg.OutputDir, "rss.xml"))
-			if err != nil {
+			if err == nil {
+				b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, "rss.xml"))
+			} else {
 				b.logger.Error("Failed to generate RSS feed", "error", err)
 			}
 			return nil
 		})
 	}
 
-	// Search Index
-	if b.cfg.Features.Generators.Search {
+	// Search Index - only when indexedPosts provided
+	if b.cfg.Features.Generators.Search && indexedPosts != nil {
 		g.Go(func() error {
 			_, err := generators.GenerateSearchIndex(b.Sink, b.cfg.OutputDir, indexedPosts)
-			if err != nil {
+			if err == nil {
+				b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, "search.bin"))
+			} else {
 				b.logger.Error("Failed to generate search index", "error", err)
 			}
 			return nil
 		})
 	}
 
-	// Knowledge Graph
-	if b.cfg.Features.Generators.Graph {
+	// Knowledge Graph - only on early call
+	if b.cfg.Features.Generators.Graph && len(allPosts) > 0 {
 		g.Go(func() error {
 			_, err := generators.GenerateGraph(b.Sink, b.cfg.BaseURL, allPosts, filepath.Join(b.cfg.OutputDir, "graph.json"))
 			if err != nil {
@@ -329,7 +402,9 @@ func (b *Builder) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[
 			}
 
 			// Render the HTML shell page — needs assets for CSS/JS paths
-			<-assetsReady
+			if assetsReady != nil {
+				<-assetsReady
+			}
 			b.renderService.RenderGraph(filepath.Join(b.cfg.OutputDir, "graph.html"), models.PageData{
 				Title:          "Graph View",
 				TabTitle:       "Knowledge Graph | " + b.cfg.Title,

@@ -4,11 +4,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/spf13/afero"
-	"github.com/twincats/golibvips/libvips"
 	"gopkg.in/yaml.v3"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -90,48 +88,6 @@ func SetupCacheDirectoriesFs(fs afero.Fs, cfg *config.Config, logger *slog.Logge
 	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), 0755); err != nil {
 		logger.Error("Failed to create pwa-icons cache directory", "error", err)
 	}
-}
-
-// InitLibvips initializes the image processing library
-func InitLibvips(cfg *config.Config, logger *slog.Logger) {
-	libvips.LoggingSettings(nil, libvips.LogLevelWarning)
-
-	concurrency := cfg.VipsConcurrency
-	if concurrency == 0 {
-		concurrency = runtime.NumCPU()
-		if concurrency > 4 {
-			concurrency = 4
-		}
-	}
-
-	var maxCacheMem int
-	var maxCacheFiles int
-	var maxCacheSize int
-
-	if cfg.IsDev {
-		maxCacheMem = 50 * 1024 * 1024
-		maxCacheFiles = 50
-		maxCacheSize = 50
-	} else {
-		// In production builds, disable internal Vips cache to prevent RAM spikes
-		// during high-throughput parallel image processing.
-		maxCacheMem = 0
-		maxCacheFiles = 0
-		maxCacheSize = 0
-	}
-
-	libvipsConfig := &libvips.Config{
-		ConcurrencyLevel: concurrency,
-		MaxCacheFiles:    maxCacheFiles,
-		MaxCacheMem:      maxCacheMem,
-		MaxCacheSize:     maxCacheSize,
-		ReportLeaks:      false,
-		CacheTrace:       false,
-		CollectStats:     false,
-	}
-
-	libvips.Startup(libvipsConfig)
-	logger.Info("libvips initialized", "concurrency", concurrency)
 }
 
 // SetupCacheManager opens and verifies the bolt DB cache

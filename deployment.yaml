@@ -38,11 +38,6 @@ jobs:
       - name: Install Kosh
         run: go install github.com/Kush-Singh-26/kosh/cmd/kosh@latest
 
-      - name: Install libvips
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips-dev
-
       - name: Restore File Timestamps
         uses: chetan/git-restore-mtime-action@v2
 

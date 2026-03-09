@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
 func TestSearchIndex_RoundTrip(t *testing.T) {
@@ -36,17 +35,15 @@ func TestSearchIndex_RoundTrip(t *testing.T) {
 
 	// Encode
 	var buf bytes.Buffer
-	enc := msgpack.NewEncoder(&buf)
-	// Use array encoding for maps to ensure cross-platform compatibility if needed, 
-	// though msgpack handles maps natively. v1.3.5 switched to stringified IDs.
-	if err := enc.Encode(original); err != nil {
+	encoded, err := original.MarshalMsg(nil)
+	if err != nil {
 		t.Fatalf("Failed to encode SearchIndex: %v", err)
 	}
+	buf.Write(encoded)
 
 	// Decode
 	var decoded models.SearchIndex
-	dec := msgpack.NewDecoder(&buf)
-	if err := dec.Decode(&decoded); err != nil {
+	if _, err := decoded.UnmarshalMsg(buf.Bytes()); err != nil {
 		t.Fatalf("Failed to decode SearchIndex: %v", err)
 	}
 

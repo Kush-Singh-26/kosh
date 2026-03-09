@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -75,7 +74,7 @@ type Config struct {
 	Menu            []MenuEntry       `yaml:"menu"`
 	PostsPerPage    int               `yaml:"postsPerPage"`
 	CompressImages  bool              `yaml:"compressImages"`
-	ImageWorkers    int               `yaml:"imageWorkers"`    // Number of parallel image workers (default: 24)
+	ImageWorkers    int               `yaml:"imageWorkers"`    // Number of parallel image workers (default: 8)
 	VipsConcurrency int               `yaml:"vipsConcurrency"` // libvips worker threads (0 = auto, default: 0)
 	WebPQuality     int               `yaml:"webpQuality"`     // WebP image compression quality (1-100, default: 80)
 	ParserWorkers   int               `yaml:"parserWorkers"`   // Number of parallel parser workers (0 = auto, default: 0)
@@ -116,7 +115,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 		BaseURL:        "",
 		PostsPerPage:   10,
 		CompressImages: true, // Always compress for performance
-		ImageWorkers:   24,   // Default 24 parallel workers for image processing
+		ImageWorkers:   8,    // Default 8 parallel workers for image processing (benchmarked optimum)
 		WebPQuality:    80,   // Default WebP quality is 80
 		ParserWorkers:  0,    // 0 = auto (use GetDefaultWorkerCount)
 		BuildVersion:   time.Now().Unix(),
@@ -159,7 +158,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 
 	// Validate and set defaults for ImageWorkers
 	if cfg.ImageWorkers <= 0 {
-		cfg.ImageWorkers = 24
+		cfg.ImageWorkers = 8
 	}
 	// Cap at reasonable maximum to prevent resource exhaustion
 	if cfg.ImageWorkers > 32 {
@@ -263,45 +262,9 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 		cfg.WebPQuality = 80 // enforce valid range
 	}
 
-	// Consider libvips threads when setting image workers to prevent overwhelming the CPU.
-	// Each image worker submits to a shared libvips thread pool, so total parallelism is
-	// workers * vipsThreads. Cap at 2x CPU count to allow reasonable oversubscription.
-	if cfg.VipsConcurrency == 0 {
-		// If auto, libvips typically uses min(CPU count, 4) threads
-		estimatedVipsThreads := runtime.NumCPU()
-		if estimatedVipsThreads > 4 {
-			estimatedVipsThreads = 4
-		}
-
-		// Cap so total image threads (workers * vipsThreads) <= 2*NumCPU
-		totalExpectedThreads := cfg.ImageWorkers * estimatedVipsThreads
-		maxRecommendedThreads := runtime.NumCPU() * 2
-
-		if totalExpectedThreads > maxRecommendedThreads {
-			// Adjust image workers down
-			fmt.Printf("⚠️ imageWorkers (%d) reduced to avoid oversubscription with auto vipsConcurrency\n", cfg.ImageWorkers)
-			cfg.ImageWorkers = maxRecommendedThreads / estimatedVipsThreads
-			if cfg.ImageWorkers < 1 {
-				cfg.ImageWorkers = 1
-			}
-		}
-	} else {
-		// User specified vips concurrency
-		totalExpectedThreads := cfg.ImageWorkers * cfg.VipsConcurrency
-		maxRecommendedThreads := runtime.NumCPU() * 2
-
-		if totalExpectedThreads > maxRecommendedThreads {
-			// Log a warning, but let the user shoot themselves in the foot since they explicitly configured it
-			// We can't log here easily without adding a logger to Load(), but we can cap it slightly to prevent complete system freeze
-			if totalExpectedThreads > runtime.NumCPU()*4 {
-				fmt.Printf("⚠️ imageWorkers (%d) reduced due to high vipsConcurrency (%d)\n", cfg.ImageWorkers, cfg.VipsConcurrency)
-				cfg.ImageWorkers = (runtime.NumCPU() * 4) / cfg.VipsConcurrency
-				if cfg.ImageWorkers < 1 {
-					cfg.ImageWorkers = 1
-				}
-			}
-		}
-	}
+	// Note: VipsConcurrency config is kept for backward compatibility but is no longer used.
+	// The native Go webp implementation (chai2010/webp) runs single-threaded per worker.
+	// Parallelism is handled by the ImageWorkers setting directly.
 
 	return cfg
 }

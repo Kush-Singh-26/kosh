@@ -11,16 +11,9 @@ import (
 	"testing"
 
 	"github.com/spf13/afero"
-	"github.com/twincats/golibvips/libvips"
 )
 
 func TestImageOptimizationStress(t *testing.T) {
-	// Initialize libvips
-	libvips.Startup(&libvips.Config{
-		ConcurrencyLevel: 4,
-	})
-	defer libvips.Shutdown()
-
 	tmpDir := t.TempDir()
 	srcDir := filepath.Join(tmpDir, "src")
 	destDir := filepath.Join(tmpDir, "dest")
@@ -45,15 +38,14 @@ func TestImageOptimizationStress(t *testing.T) {
 
 	srcFs := afero.NewOsFs()
 	sink := NewDiskSink(destDir, destDir)
-	
+
 	ctx := context.Background()
-	
+
 	// Process images in parallel
 	err := CopyDirVFS(ctx, srcFs, sink, srcDir, destDir, true, []string{}, func(s string) {}, cacheDir, 8, 80, nil)
 	if err != nil {
 		t.Fatalf("CopyDirVFS failed: %v", err)
 	}
-
 
 	// Verify all images were converted to webp
 	for i := 0; i < 20; i++ {

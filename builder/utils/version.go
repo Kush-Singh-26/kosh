@@ -11,6 +11,9 @@ import (
 func GetVersionFromPath(path string) (version, relPath string) {
 	// Normalize path separators
 	path = filepath.ToSlash(path)
+	if idx := strings.Index(path, "content/"); idx != -1 {
+		path = path[idx:]
+	}
 
 	// Check if path contains version folder
 	parts := strings.Split(path, "/")

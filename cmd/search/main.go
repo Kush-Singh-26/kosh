@@ -5,9 +5,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"syscall/js"
 
-	"github.com/vmihailenco/msgpack/v5"
+	"github.com/andybalholm/brotli"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
@@ -43,8 +45,7 @@ func initSearch(this js.Value, args []js.Value) interface{} {
 				return
 			}
 
-			dec := msgpack.NewDecoder(bytes.NewReader(data))
-			if err := dec.Decode(&index); err != nil {
+			if _, err := index.UnmarshalMsg(data); err != nil {
 				reject.Invoke("Decode error: " + err.Error())
 				return
 			}
@@ -85,20 +86,7 @@ func fetchAndDecompress(url string) ([]byte, error) {
 			return nil
 		}
 
-		dsCtor := window.Get("DecompressionStream")
-		if dsCtor.IsUndefined() {
-			ch <- "DecompressionStream not supported in this browser"
-			return nil
-		}
-
-		ds := dsCtor.New("gzip")
-		body := resp.Get("body")
-		decompressedStream := body.Call("pipeThrough", ds)
-
-		newRespCtor := window.Get("Response")
-		newResp := newRespCtor.New(decompressedStream)
-
-		bufPromise := newResp.Call("arrayBuffer")
+		bufPromise := resp.Call("arrayBuffer")
 		var bufSuccess js.Func
 		var bufFailure js.Func
 		bufSuccess = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
@@ -107,9 +95,27 @@ func fetchAndDecompress(url string) ([]byte, error) {
 
 			buf := args[0]
 			uint8Array := window.Get("Uint8Array").New(buf)
-			dst := make([]byte, uint8Array.Length())
-			js.CopyBytesToGo(dst, uint8Array)
-			ch <- dst
+			compressed := make([]byte, uint8Array.Length())
+			js.CopyBytesToGo(compressed, uint8Array)
+
+			// Log some bytes for debugging
+			hexStr := ""
+			for k := 0; k < len(compressed) && k < 16; k++ {
+				hexStr += fmt.Sprintf("%02X ", compressed[k])
+			}
+			println("WASM: Data fetched size:", len(compressed), "bytes. First 16 bytes:", hexStr)
+
+			// Decompress in Go with Brotli
+			br := brotli.NewReader(bytes.NewReader(compressed))
+			decompressed, err := io.ReadAll(br)
+			if err != nil {
+				println("WASM: Brotli decompression error:", err.Error(), "- using raw data fallback")
+				ch <- compressed
+				return nil
+			}
+
+			println("WASM: Successfully decompressed", len(decompressed), "bytes")
+			ch <- decompressed
 			return nil
 		})
 		bufFailure = js.FuncOf(func(this js.Value, args []js.Value) interface{} {

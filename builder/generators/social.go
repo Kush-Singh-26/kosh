@@ -37,8 +37,9 @@ const (
 )
 
 var (
-	fontCache    *lru.Cache[string, *truetype.Font]
-	faviconCache sync.Map
+	fontCache      *lru.Cache[string, *truetype.Font]
+	faviconCache   sync.Map
+	baseImageCache sync.Map
 )
 
 func init() {
@@ -221,7 +222,12 @@ func GenerateSocialCard(sink utils.ArtifactSink, srcFs afero.Fs, cfg *config.Soc
 	})
 }
 
-func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, faviconPath string) (image.Image, error) {
+func getBaseSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, faviconPath string) *image.RGBA {
+	cacheKey := fmt.Sprintf("%s|%s|%s|%d|%s", siteTitle, faviconPath, cfg.Background, cfg.Angle, strings.Join(cfg.Gradient, ","))
+	if cached, ok := baseImageCache.Load(cacheKey); ok {
+		return cached.(*image.RGBA)
+	}
+
 	dc := gg.NewContext(socialCardWidth, socialCardHeight)
 
 	// --- 1. Draw Gradient Background ---
@@ -231,19 +237,10 @@ func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, site
 	// --- 2. Draw Dot Pattern Overlay ---
 	drawDotPattern(dc, socialCardWidth, socialCardHeight)
 
-	// --- 3. Typography Setup ---
 	boldFont := "Inter-Bold.ttf"
-	mediumFont := "Inter-Medium.ttf"
-	regFont := "Inter-Regular.ttf"
-
-	maxWidth := float64(socialCardWidth) - (marginX * 2)
-
 	textColor := hexToRGBA(cfg.TextColor)
-	textColorSecondary := textColor
-	// Make secondary text 75% opacity (slightly darker)
-	textColorSecondary.A = uint8(float64(textColor.A) * 0.75)
 
-	// --- 4. Header: Logo + Brand (Top Left) ---
+	// --- 3. Header: Logo + Brand (Top Left) ---
 	currentX := marginX
 
 	if faviconPath != "" {
@@ -267,14 +264,41 @@ func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, site
 		dc.DrawString(siteTitle, currentX, headerY)
 	}
 
-	// --- 5. Header: Date (Top Right) ---
+	// We know Image() from gg context returns an *image.RGBA
+	baseImg := dc.Image().(*image.RGBA)
+	baseImageCache.Store(cacheKey, baseImg)
+	return baseImg
+}
+
+func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, faviconPath string) (image.Image, error) {
+	baseImg := getBaseSocialCardImage(srcFs, cfg, siteTitle, faviconPath)
+
+	// Clone the base image
+	clonedImg := image.NewRGBA(baseImg.Bounds())
+	copy(clonedImg.Pix, baseImg.Pix)
+
+	dc := gg.NewContextForRGBA(clonedImg)
+
+	// --- Typography Setup ---
+	boldFont := "Inter-Bold.ttf"
+	mediumFont := "Inter-Medium.ttf"
+	regFont := "Inter-Regular.ttf"
+
+	maxWidth := float64(socialCardWidth) - (marginX * 2)
+
+	textColor := hexToRGBA(cfg.TextColor)
+	textColorSecondary := textColor
+	// Make secondary text 75% opacity (slightly darker)
+	textColorSecondary.A = uint8(float64(textColor.A) * 0.75)
+
+	// --- Header: Date (Top Right) ---
 	if err := setFontFace(dc, mediumFont, dateFontSize); err == nil {
 		dc.SetColor(textColor)
 		w, _ := dc.MeasureString(dateStr)
 		dc.DrawString(dateStr, float64(socialCardWidth)-marginX-w, headerY)
 	}
 
-	// --- 6. The Title (Center-Left) ---
+	// --- The Title (Center-Left) ---
 	titleLineSpacing := 1.1
 
 	if err := setFontFace(dc, boldFont, titleFontSize); err != nil {
@@ -287,7 +311,7 @@ func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, site
 	titleLines := dc.WordWrap(title, maxWidth)
 	titleHeight := float64(len(titleLines)) * titleFontSize * titleLineSpacing
 
-	// --- 7. The Description ---
+	// --- The Description ---
 	if err := setFontFace(dc, regFont, descFontSize); err == nil {
 		dc.SetColor(textColorSecondary)
 		descY := titleStartY + titleHeight + 25

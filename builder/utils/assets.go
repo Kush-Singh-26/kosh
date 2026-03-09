@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -9,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
+	"golang.org/x/sync/errgroup"
 )
 
 func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool) (map[string]string, error) {
@@ -23,12 +26,13 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 
 	var jsEntryPoints []string
 	var cssEntryPoints []string
+	var walkMu sync.Mutex
 
 	// Calculate input hash
 	inputHash := xxh3.New()
 
 	// Find entry points
-	err := afero.Walk(srcFs, filepath.FromSlash(srcDir), func(path string, info fs.FileInfo, err error) error {
+	err := ParallelWalk(context.Background(), srcFs, filepath.FromSlash(srcDir), 0, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -39,11 +43,12 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 		baseName := filepath.Base(path)
 
 		// Skip files that must be copied directly without esbuild processing
-		// wasm_engine.js - loaded directly by HTML, defines global variables
-		// engine.js - loaded by wasm_engine.js, expects exact filename
 		if baseName == "wasm_engine.js" || baseName == "engine.js" || baseName == "force-graph.js" {
 			return nil
 		}
+
+		walkMu.Lock()
+		defer walkMu.Unlock()
 
 		switch ext {
 		case ".js":
@@ -117,6 +122,8 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			}
 		}
 	}
+
+	var assetsMu sync.Mutex
 
 	process := func(entryPoints []string, bundle bool) error {
 		if len(entryPoints) == 0 {
@@ -231,18 +238,29 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			// Normalize hash portion to lowercase for case-insensitive filesystems (Windows)
 			val = normalizeHashCase(val)
 
+			assetsMu.Lock()
 			assets[key] = val
+			assetsMu.Unlock()
 		}
 		return nil
 	}
 
-	// Process CSS with bundling (for @import and fonts)
-	if err := process(cssEntryPoints, true); err != nil {
-		return nil, err
+	// Process CSS and JS concurrently — esbuild is internally thread-safe
+	// and the two builds operate on different file types with no overlap.
+	buildGroup, _ := errgroup.WithContext(context.Background())
+
+	if len(cssEntryPoints) > 0 {
+		buildGroup.Go(func() error {
+			return process(cssEntryPoints, true)
+		})
+	}
+	if len(jsEntryPoints) > 0 {
+		buildGroup.Go(func() error {
+			return process(jsEntryPoints, true)
+		})
 	}
 
-	// Process JS with bundling (allows tree-shaking and reduces requests)
-	if err := process(jsEntryPoints, true); err != nil {
+	if err := buildGroup.Wait(); err != nil {
 		return nil, err
 	}
 

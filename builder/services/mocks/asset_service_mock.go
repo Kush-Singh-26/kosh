@@ -3,9 +3,9 @@ package mocks
 import (
 	"context"
 
-	"github.com/spf13/afero"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/spf13/afero"
 )
 
 type MockAssetService struct {
@@ -23,6 +23,12 @@ func (m *MockAssetService) SetMetrics(m2 *metrics.BuildMetrics) {
 	m.Metrics = m2
 }
 
+func (m *MockAssetService) SetAssetsReadySignal(ch chan struct{}) {}
+
 func (m *MockAssetService) Build(ctx context.Context) error {
 	return nil
+}
+
+func (m *MockAssetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
 }

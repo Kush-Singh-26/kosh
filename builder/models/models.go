@@ -1,19 +1,23 @@
 // defines the data structures used by templates and generators
 package models
 
+//go:generate msgp
+
 import (
 	"encoding/xml"
 	"html/template"
 	"time"
 )
 
+//msgp:ignore TreeNode Breadcrumb NavPage VersionInfo PostMetadata TagData Paginator PageData UrlSet Url Rss Channel Item GraphNode GraphLink GraphData
+
 // --- TOC Structure ---
 // TOCEntry represents a table of contents entry
 // This unified type is used by both models and cache packages to avoid conversions
 type TOCEntry struct {
-	ID    string `msgpack:"id" json:"id"`
-	Text  string `msgpack:"text" json:"text"`
-	Level int    `msgpack:"level" json:"level"`
+	ID    string `json:"id"`
+	Text  string `json:"text"`
+	Level int    `json:"level"`
 }
 
 // TreeNode represents a node in the site hierarchy (Sidebar)
@@ -180,43 +184,44 @@ type GraphData struct {
 // --- Search Structures ---
 
 type PostRecord struct {
-	ID              int      `msgpack:"id"`
-	Title           string   `msgpack:"title"`
-	NormalizedTitle string   `msgpack:"norm_title"` // Lowercase title for search
-	Link            string   `msgpack:"link"`
-	Description     string   `msgpack:"desc"`
-	Tags            []string `msgpack:"tags"`
-	NormalizedTags  []string `msgpack:"norm_tags"` // Lowercase tags for search
-	Content         string   `msgpack:"content"`   // Raw plain text for snippet extraction
-	Version         string   `msgpack:"ver"`       // Version scoping
+	ID              int
+	Title           string
+	NormalizedTitle string // Lowercase title for search
+	Link            string
+	Description     string
+	Tags            []string
+	NormalizedTags  []string // Lowercase tags for search
+	Content         string   // Raw plain text for snippet extraction
+	Version         string   // Version scoping
 }
 
 // IndexedPost bundles a search record with pre-computed word frequencies for BM25
 type IndexedPost struct {
-	Record          PostRecord        `msgpack:"rec"`
-	WordFreqs       map[string]int    `msgpack:"freqs"`
-	DocLen          int               `msgpack:"len"`
-	StemMap         map[string]string `msgpack:"stem_map,omitempty"` // original word -> stem
-	PositionalIndex map[string][]int  `msgpack:"pos_index,omitempty"`
-	ByteOffsets     map[string][]int  `msgpack:"offsets,omitempty"` // word -> [start, end, start, end...]
+	Record          PostRecord
+	SourcePath      string `msgp:"-"`
+	WordFreqs       map[string]int
+	DocLen          int
+	StemMap         map[string]string // original word -> stem
+	PositionalIndex map[string][]int
+	ByteOffsets     map[string][]int // word -> [start, end, start, end...]
 }
 
 const CurrentSchemaVersion = 7
 
 type SearchIndex struct {
-	SchemaVersion int64               `msgpack:"ver"`
-	Posts         []PostRecord        `msgpack:"posts"`
-	DocLens       map[string]int64    `msgpack:"lens"` // postID (string) -> word count
-	AvgDocLen     float64             `msgpack:"avg"`
-	TotalDocs     int64               `msgpack:"total"`
-	StemMap       map[string][]string `msgpack:"stem,omitempty"`  // stemmed -> original forms
-	NgramIndex    map[string][]string `msgpack:"ngram,omitempty"` // trigram -> terms (for fuzzy search)
+	SchemaVersion int64
+	Posts         []PostRecord
+	DocLens       map[string]int64 // postID (string) -> word count
+	AvgDocLen     float64
+	TotalDocs     int64
+	StemMap       map[string][]string // stemmed -> original forms
+	NgramIndex    map[string][]string // trigram -> terms (for fuzzy search)
 
 	// Unified Inverted Index: word -> postID (string) -> [positions]
 	// Frequency is simply len(positions)
-	Inverted map[string]map[string][]int `msgpack:"inv"`
+	Inverted map[string]map[string][]int
 
 	// Word to byte offsets map: word -> postID (string) -> [start, end, start, end...]
 	// This allows near-instant snippet extraction without re-scanning body text.
-	Offsets map[string]map[string][]int `msgpack:"off,omitempty"`
+	Offsets map[string]map[string][]int
 }

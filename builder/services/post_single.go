@@ -181,12 +181,21 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 			PositionalIndex: posIndex,
 		}
 		newDep := &cache.Dependencies{Tags: post.Tags}
-		cacheCommitTimer := utils.StartPhase("Cache commit (incremental)")
-		err := s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*cache.Dependencies{postID: newDep})
-		cacheCommitTimer.Stop()
-		if err != nil {
-			s.logger.Error("Failed to commit post to cache", "path", path, "error", err)
-		}
+
+		// Fire cache commit in the background -- best-effort, errors logged only.
+		commitMeta := []*cache.PostMeta{newMeta}
+		commitSearch := map[string]*cache.SearchRecord{postID: newSearch}
+		commitDeps := map[string]*cache.Dependencies{postID: newDep}
+
+		s.cacheWg.Add(1)
+		go func() {
+			defer s.cacheWg.Done()
+			cacheCommitTimer := utils.StartPhase("Cache commit (incremental)")
+			if err := s.cache.BatchCommit(commitMeta, commitSearch, commitDeps); err != nil {
+				s.logger.Error("Failed to commit post to cache", "path", path, "error", err)
+			}
+			cacheCommitTimer.Stop()
+		}()
 		// 2. Generate/Copy Social Card
 		cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
 		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", cardRelPath))

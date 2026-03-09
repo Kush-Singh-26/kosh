@@ -1,15 +1,14 @@
 package generators
 
 import (
-	"compress/gzip"
 	"io"
-	"log/slog"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"sync"
 
-	"github.com/vmihailenco/msgpack/v5"
+	"github.com/andybalholm/brotli"
+	"github.com/tinylib/msgp/msgp"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
@@ -172,15 +171,21 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 
 	outputPath := filepath.ToSlash(filepath.Join(outputDir, "search.bin"))
 	err := sink.WriteStream(outputPath, func(w io.Writer) error {
-		gw, _ := gzip.NewWriterLevel(w, gzip.BestSpeed)
-		defer func() {
-			if err := gw.Close(); err != nil {
-				slog.Error("Failed to close gzip writer", "error", err)
-			}
-		}()
+		bw := brotli.NewWriterLevel(w, 4)
 
-		enc := msgpack.NewEncoder(gw)
-		return enc.Encode(&index)
+		mw := msgp.NewWriter(bw)
+		if err := index.EncodeMsg(mw); err != nil {
+			_ = bw.Close()
+			return err
+		}
+
+		if err := mw.Flush(); err != nil {
+			_ = bw.Close()
+			return err
+		}
+
+		// Explicitly close to ensure footer is written before underlying stream finishes
+		return bw.Close()
 	})
 	if err != nil {
 		return "", err

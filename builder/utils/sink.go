@@ -7,9 +7,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zeebo/xxh3"
 )
 
 // ArtifactSink provides an interface for streaming file writes during the build process.
@@ -67,6 +70,19 @@ func isWithinPath(base, target string) bool {
 	base = filepath.Clean(base)
 	target = filepath.Clean(target)
 
+	// On Windows, paths are case-insensitive
+	if runtime.GOOS == "windows" {
+		if strings.HasPrefix(strings.ToLower(target), strings.ToLower(base)) {
+			// Ensure it's a full path component match
+			if len(target) == len(base) {
+				return true
+			}
+			if len(target) > len(base) && (target[len(base)] == filepath.Separator || base[len(base)-1] == filepath.Separator) {
+				return true
+			}
+		}
+	}
+
 	rel, err := filepath.Rel(base, target)
 	if err != nil {
 		return false
@@ -117,14 +133,7 @@ func (s *DiskSink) Register(p string) {
 
 func (s *DiskSink) ensureDir(path string) error {
 	dir := filepath.Dir(path)
-	if _, ok := s.dirCache.Load(dir); ok {
-		return nil
-	}
-	err := os.MkdirAll(dir, 0755)
-	if err == nil {
-		s.dirCache.Store(dir, true)
-	}
-	return err
+	return s.MkdirAll(dir)
 }
 
 func (s *DiskSink) MkdirAll(p string) error {
@@ -132,7 +141,50 @@ func (s *DiskSink) MkdirAll(p string) error {
 	if err != nil {
 		return err
 	}
-	return os.MkdirAll(target, 0755)
+
+	if _, ok := s.dirCache.Load(target); ok {
+		return nil
+	}
+
+	// Collect missing segments by walking upwards
+	var missing []string
+	curr := filepath.Clean(target)
+	for {
+		if _, ok := s.dirCache.Load(curr); ok {
+			break
+		}
+
+		parent := filepath.Dir(curr)
+		if curr == parent || curr == "." || curr == string(filepath.Separator) || curr == filepath.VolumeName(curr) {
+			break
+		}
+
+		missing = append(missing, curr)
+		curr = parent
+	}
+
+	// Create missing segments from top to bottom
+	for i := len(missing) - 1; i >= 0; i-- {
+		p := missing[i]
+		mu := s.getDirMutex(p)
+		mu.Lock()
+		if _, ok := s.dirCache.Load(p); !ok {
+			if err := os.Mkdir(p, 0755); err != nil && !os.IsExist(err) {
+				mu.Unlock()
+				return err
+			}
+			s.dirCache.Store(p, true)
+		}
+		mu.Unlock()
+	}
+	return nil
+}
+
+var dirMutexes [64]sync.Mutex
+
+func (s *DiskSink) getDirMutex(path string) *sync.Mutex {
+	h := xxh3.HashString(path)
+	return &dirMutexes[h%64]
 }
 
 func (s *DiskSink) WriteFile(p string, data []byte) error {

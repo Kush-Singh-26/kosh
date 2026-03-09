@@ -1,12 +1,13 @@
 package server
 
 import (
-	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"github.com/andybalholm/brotli"
 )
 
 func validatePath(baseDir, userPath string) (string, error) {
@@ -38,7 +39,7 @@ func validatePath(baseDir, userPath string) (string, error) {
 	}
 
 	// Ensure the resulting path is within the base directory
-	if !strings.HasPrefix(absUserPath, absBase) {
+	if absUserPath != absBase && !strings.HasPrefix(absUserPath, absBase+string(filepath.Separator)) {
 		return "", fmt.Errorf("path traversal attempt detected")
 	}
 
@@ -88,8 +89,8 @@ func (w *compressionResponseWriter) WriteHeader(code int) {
 
 func compressionHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Do not compress if the client doesn't support it, or if it's a range request
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") || r.Header.Get("Range") != "" {
+		// Do not compress if the client doesn't support it (Brotli), or if it's a range request
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "br") || r.Header.Get("Range") != "" {
 			next(w, r)
 			return
 		}
@@ -101,11 +102,11 @@ func compressionHandler(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Content-Encoding", "br")
 		w.Header().Set("Vary", "Accept-Encoding")
-		gz := gzip.NewWriter(w)
-		defer func() { _ = gz.Close() }()
-		cw := &compressionResponseWriter{Writer: gz, ResponseWriter: w}
+		bw := brotli.NewWriterLevel(w, 4)
+		defer func() { _ = bw.Close() }()
+		cw := &compressionResponseWriter{Writer: bw, ResponseWriter: w}
 		next(cw, r)
 	}
 }

@@ -21,8 +21,8 @@ import (
 // ssrTransformer handles server-side rendering of D2 diagrams and LaTeX math
 type ssrTransformer struct {
 	Renderer *native.Renderer
-	Cache    *sync.Map // Thread-safe cache for D2 diagrams
-	d2Group  singleflight.Group
+	Cache    *sync.Map           // Thread-safe cache for D2 diagrams
+	D2Group  *singleflight.Group // Shared singleflight group to deduplicate D2 rendering across posts
 }
 
 // themePair stores both light and dark versions together for atomic access
@@ -137,34 +137,53 @@ func (t *ssrTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 				return
 			}
 
-			v, err, _ := t.d2Group.Do(b.hash, func() (interface{}, error) {
+			// Use shared D2Group if provided, otherwise fall back to no singleflight (each render runs)
+			if t.D2Group != nil {
+				v, err, _ := t.D2Group.Do(b.hash, func() (interface{}, error) {
+					pairVal, exists := t.Cache.Load(b.hash)
+					if exists {
+						return pairVal.(themePair), nil
+					}
+
+					lightSVG, renderErr := t.Renderer.RenderD2(ctx, b.code, 0)
+					if renderErr != nil {
+						if !errors.Is(renderErr, context.Canceled) {
+							slog.Warn("D2 light theme render failed", "error", renderErr)
+						}
+						return themePair{}, renderErr
+					}
+					darkSVG, renderErr := t.Renderer.RenderD2(ctx, b.code, 200)
+					if renderErr != nil {
+						if !errors.Is(renderErr, context.Canceled) {
+							slog.Warn("D2 dark theme render failed", "error", renderErr)
+						}
+						return themePair{}, renderErr
+					}
+
+					pair := themePair{light: lightSVG, dark: darkSVG}
+					t.Cache.Store(b.hash, pair)
+					return pair, nil
+				})
+
+				if err == nil {
+					results[idx] = v.(themePair)
+				}
+			} else {
+				// No shared group - render directly (fallback for backward compatibility)
 				pairVal, exists := t.Cache.Load(b.hash)
 				if exists {
-					return pairVal.(themePair), nil
-				}
-
-				lightSVG, renderErr := t.Renderer.RenderD2(ctx, b.code, 0)
-				if renderErr != nil {
-					if !errors.Is(renderErr, context.Canceled) {
-						slog.Warn("D2 light theme render failed", "error", renderErr)
+					results[idx] = pairVal.(themePair)
+				} else if t.Renderer != nil {
+					lightSVG, renderErr := t.Renderer.RenderD2(ctx, b.code, 0)
+					if renderErr == nil {
+						darkSVG, renderErr := t.Renderer.RenderD2(ctx, b.code, 200)
+						if renderErr == nil {
+							pair := themePair{light: lightSVG, dark: darkSVG}
+							t.Cache.Store(b.hash, pair)
+							results[idx] = pair
+						}
 					}
-					return themePair{}, renderErr
 				}
-				darkSVG, renderErr := t.Renderer.RenderD2(ctx, b.code, 200)
-				if renderErr != nil {
-					if !errors.Is(renderErr, context.Canceled) {
-						slog.Warn("D2 dark theme render failed", "error", renderErr)
-					}
-					return themePair{}, renderErr
-				}
-
-				pair := themePair{light: lightSVG, dark: darkSVG}
-				t.Cache.Store(b.hash, pair)
-				return pair, nil
-			})
-
-			if err == nil {
-				results[idx] = v.(themePair)
 			}
 		}(i)
 	}
