@@ -133,10 +133,15 @@ func (b *Builder) build(ctx context.Context) error {
 				return b.renderSiteMetadata(cbAllPosts, cbTagMap, cbIndexedPosts, assetsReady)
 			})
 			// PWA: SW needs assets, manifest and icons don't.
-			siteWideGroup.Go(func() error {
-				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
-				return b.generatePWA(siteWideCtx, b.cfg.ForceRebuild)
-			})
+			// PWA icon generation can be slow (200-400ms) and has no dependency on HTML renders.
+			// We move it to the global wasmWg (which waits at Tx.Commit) rather than the siteWideGroup
+			// to remove it from the critical path of the site timer.
+			wasmWg.Add(1)
+			go func() {
+				defer wasmWg.Done()
+				b.waitForAssetsAvailability(context.Background(), assetsReady)
+				_ = b.generatePWA(context.Background(), b.cfg.ForceRebuild)
+			}()
 		})
 
 		// Handle search index specifically on the second call (when indexedPosts available)

@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"log/slog"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -112,10 +111,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	indexedPosts := make([]models.IndexedPost, len(filesToProcess))
 	var indexedPostIdx int32 = -1
 
-	numWorkers := 6
-	if numWorkers > runtime.NumCPU() {
-		numWorkers = runtime.NumCPU()
-	}
+	numWorkers := utils.GetDefaultWorkerCount()
 
 	cardPool := utils.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) {
 		s.generateSocialCard(task)

@@ -245,8 +245,15 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 	}
 	err := g.Wait()
 	tagRenderTimer.Stop()
-	tagCardPool.Stop()
-	tagCardsTimer.Stop()
+
+	// Tags social cards are slow and pure independent writes.
+	// We detach the wait for the worker pool so it doesn't block the site-wide rendering errgroup.
+	// The build's final Tx.Commit() will naturally wait for these Sink writes.
+	go func() {
+		tagCardPool.Stop()
+		tagCardsTimer.Stop()
+	}()
+
 	return err
 }
 
