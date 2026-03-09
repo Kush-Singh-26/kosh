@@ -6,11 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/zeebo/xxh3"
 )
 
 // level3EncoderPool pools level-3 zstd encoders for better performance
@@ -30,7 +32,10 @@ type Store struct {
 	basePath string
 	encoder  *zstd.Encoder
 	decoder  *zstd.Decoder
+	dirCache sync.Map
 }
+
+var storeTempCounter atomic.Uint64
 
 // NewStore creates a new content-addressed store
 func NewStore(basePath string) (*Store, error) {
@@ -66,12 +71,12 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// shardPath computes the two-tier shard path: hash[0:2]/hash[2:4]/hash
+// shardPath computes the two-tier shard path: hash[0:2]/hash
 func (s *Store) shardPath(category string, hash string) string {
-	if len(hash) < 4 {
+	if len(hash) < 2 {
 		return filepath.Join(s.basePath, category, hash)
 	}
-	return filepath.Join(s.basePath, category, hash[0:2], hash[2:4], hash)
+	return filepath.Join(s.basePath, category, hash[0:2], hash)
 }
 
 func extension(ct CompressionType) string {
@@ -107,6 +112,11 @@ func renameWithRetry(tmpPath, finalPath string, maxRetries int, baseDelay time.D
 	return lastErr
 }
 
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 // determineCompression decides compression strategy based on size
 func determineCompression(size int) CompressionType {
 	if size < utils.RawThreshold {
@@ -118,6 +128,60 @@ func determineCompression(size int) CompressionType {
 	return CompressionZstdLevel3
 }
 
+// ensureDir creates a directory and its parents if they haven't been created yet in this session.
+// It uses an in-memory cache to avoid expensive redundant syscalls for parent directories.
+func (s *Store) ensureDir(dir string) error {
+	if _, ok := s.dirCache.Load(dir); ok {
+		return nil
+	}
+
+	// Collect missing segments by walking upwards
+	var missing []string
+	curr := filepath.Clean(dir)
+	for {
+		// Stop if we hit a cached directory
+		if _, ok := s.dirCache.Load(curr); ok {
+			break
+		}
+
+		parent := filepath.Dir(curr)
+		// Stop if we reach the root or cannot go further
+		if curr == parent || curr == "." || curr == string(filepath.Separator) || curr == filepath.VolumeName(curr) {
+			break
+		}
+
+		missing = append(missing, curr)
+		curr = parent
+	}
+
+	// Create missing segments from top to bottom
+	for i := len(missing) - 1; i >= 0; i-- {
+		p := missing[i]
+
+		// To avoid complex per-path synchronization, we use a small pool of mutexes
+		// based on the path hash. This significantly reduces contention compared
+		// to a global lock while remaining simple and safe.
+		mu := s.getDirMutex(p)
+		mu.Lock()
+		if _, ok := s.dirCache.Load(p); !ok {
+			if err := os.Mkdir(p, 0755); err != nil && !os.IsExist(err) {
+				mu.Unlock()
+				return err
+			}
+			s.dirCache.Store(p, struct{}{})
+		}
+		mu.Unlock()
+	}
+	return nil
+}
+
+var dirMutexes [64]sync.Mutex
+
+func (s *Store) getDirMutex(path string) *sync.Mutex {
+	h := xxh3.HashString(path)
+	return &dirMutexes[h%64]
+}
+
 // Put stores content and returns its hash and compression type
 func (s *Store) Put(category string, content []byte) (hash string, ct CompressionType, err error) {
 	hash = HashContent(content)
@@ -127,7 +191,7 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 
 	// Ensure directory exists first (combine directory creation with existence check)
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := s.ensureDir(dir); err != nil {
 		return "", 0, fmt.Errorf("failed to create directory: %w", err)
 	}
 
@@ -173,7 +237,7 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 	}
 
 	// Atomic write: unique .tmp -> close -> rename
-	tmpPath := path + "." + hash[:8] + ".tmp"
+	tmpPath := fmt.Sprintf("%s.%s.%d.%d.tmp", path, hash[:8], os.Getpid(), storeTempCounter.Add(1))
 	f, err := os.Create(tmpPath)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to create temp file: %w", err)
@@ -190,11 +254,20 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 		return "", 0, fmt.Errorf("failed to close file: %w", err)
 	}
 
+	if fileExists(path) {
+		_ = os.Remove(tmpPath)
+		return hash, ct, nil
+	}
+
 	if _, err := os.Stat(tmpPath); err != nil {
 		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("temp file missing before rename: %w", err)
 	}
 	if err := renameWithRetry(tmpPath, path, 6, 10*time.Millisecond); err != nil {
+		if fileExists(path) {
+			_ = os.Remove(tmpPath)
+			return hash, ct, nil
+		}
 		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("failed to rename file: %w", err)
 	}

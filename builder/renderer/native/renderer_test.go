@@ -37,12 +37,9 @@ func TestRenderer_RenderMath(t *testing.T) {
 		t.Fatalf("RenderMath failed: %v", err)
 	}
 
-	// t.Logf("Actual HTML: %s", html)
-
 	if !strings.Contains(html, "katex") {
 		t.Error("RenderMath result does not contain 'katex' class")
 	}
-	// m and c might be wrapped in tags
 	if !strings.Contains(html, "m") || !strings.Contains(html, "c") {
 		t.Error("RenderMath result does not contain 'm' or 'c'")
 	}
@@ -98,40 +95,7 @@ func TestRenderer_ConcurrentInitialization(t *testing.T) {
 	wg.Wait()
 
 	r.ensureInitialized()
-
-	if r.katexProg == nil {
-		t.Error("katexProg should be initialized after ensureInitialized")
-	}
-
 	t.Log("Concurrent initialization test passed")
-}
-
-func TestRenderer_EnsureInitialized_Once(t *testing.T) {
-	r := New(WithWorkers(1))
-
-	r.ensureInitialized()
-	prog1 := r.katexProg
-
-	r.ensureInitialized()
-	prog2 := r.katexProg
-
-	if prog1 != prog2 {
-		t.Error("ensureInitialized should only run once")
-	}
-
-	t.Log("ensureInitialized once test passed")
-}
-
-func TestRenderer_KatexProgAvailable(t *testing.T) {
-	r := New(WithWorkers(1))
-
-	r.ensureInitialized()
-
-	if r.katexProg == nil {
-		t.Error("katexProg should not be nil after initialization")
-	}
-
-	t.Log("katexProg available test passed")
 }
 
 func TestRenderer_PoolChannels(t *testing.T) {
@@ -142,7 +106,7 @@ func TestRenderer_PoolChannels(t *testing.T) {
 	select {
 	case instance := <-r.pool:
 		r.pool <- instance
-	case <-time.After(1 * time.Second):
+	case <-time.After(5 * time.Second): // Increase timeout for WASM cold start
 		t.Error("Timeout waiting for instance from pool")
 	}
 

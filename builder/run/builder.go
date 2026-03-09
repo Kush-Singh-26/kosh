@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -61,7 +62,8 @@ type Builder struct {
 	buildMu sync.Mutex
 
 	// Cached data for incremental builds
-	indexedPosts []models.IndexedPost
+	indexedPosts      []models.IndexedPost
+	searchSourceDirty bool
 
 	// True when output directory did not exist at build start.
 	isCleanBuild bool
@@ -121,28 +123,23 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	// Create cache directory if it doesn't exist (must complete before BoltDB open)
 	SetupCacheDirectoriesFs(vfs, cfg, logger)
 
-	// Initialize libvips and open BoltDB cache in parallel — these are
-	// completely independent operations (CGO init vs file I/O).
-	var cacheManager *cache.Manager
-	var diagramAdapter *cache.DiagramCacheAdapter
-	var initWg sync.WaitGroup
-	initWg.Add(2)
-	go func() {
-		defer initWg.Done()
-		InitLibvips(cfg, logger)
-	}()
-	go func() {
-		defer initWg.Done()
-		cacheManager, diagramAdapter = SetupCacheManager(cfg, logger)
-	}()
-	initWg.Wait()
+	// Open BoltDB cache
+	cacheManager, diagramAdapter := SetupCacheManager(cfg, logger)
 
 	// Create native renderer (Worker Pool)
 	var nativeRenderer *native.Renderer
+	nativeWorkers := runtime.NumCPU() / 2
+	if nativeWorkers < 4 {
+		nativeWorkers = 4
+	}
+	if nativeWorkers > 8 {
+		nativeWorkers = 8
+	}
+
 	if cfg.ParserWorkers > 0 {
 		nativeRenderer = native.New(native.WithWorkers(cfg.ParserWorkers))
 	} else {
-		nativeRenderer = native.New()
+		nativeRenderer = native.New(native.WithWorkers(nativeWorkers))
 	}
 
 	// Eagerly start KaTeX compilation in background — overlaps with
@@ -151,9 +148,10 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	go nativeRenderer.EnsureInitialized()
 
 	diagramCache := &sync.Map{}
+	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() interface{} {
-			return mdParser.New(cfg, nativeRenderer, diagramCache)
+			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
 		},
 	}
 
@@ -162,12 +160,12 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	renderSvc := services.NewRenderService(rnd, logger)
 	assetSvc := services.NewAssetService(vfs, nil, cfg, renderSvc, logger)
 	assetSvc.SetMetrics(buildMetrics)
-	
+
 	var cacheSvc services.CacheService
 	if cacheManager != nil {
 		cacheSvc = services.NewCacheService(cacheManager, logger)
 	}
-	
+
 	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, vfs, nil, diagramAdapter)
 	metadataScanner := services.NewMetadataScanner()
 
@@ -224,8 +222,12 @@ func (b *Builder) getFaviconPath() string {
 	return filepath.Join(b.cfg.StaticDir, "favicon.ico")
 }
 
-// SaveCaches persists BoltDB changes
+// SaveCaches waits for any background cache writes and persists BoltDB changes
 func (b *Builder) SaveCaches() {
+	// Wait for background cache commit goroutines before closing BoltDB
+	if b.postService != nil {
+		b.postService.WaitForCacheCommit()
+	}
 	if b.cacheService != nil {
 		// Manager implementation handles the actual DB commit
 		if manager, ok := b.cacheService.(interface{ Save() error }); ok {
@@ -246,7 +248,10 @@ func (b *Builder) Close() {
 func (b *Builder) checkWasmUpdate() {
 	if b.cfg.IsDev {
 		wasmBinary := build.RepoPath("static", "wasm", "search.wasm")
-		if srcMod, err := latestSearchSourceModTime(); err == nil {
+		if b.searchSourceDirty {
+			_ = build.CompileWASMFromSource(context.Background(), build.RepoPath("cmd", "search", "main.go"), wasmBinary)
+			b.searchSourceDirty = false
+		} else if srcMod, err := latestSearchSourceModTime(); err == nil {
 			wasmInfo, statErr := os.Stat(wasmBinary)
 			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
 				_ = build.CompileWASMFromSource(context.Background(), build.RepoPath("cmd", "search", "main.go"), wasmBinary)

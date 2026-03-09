@@ -55,7 +55,7 @@ func TestNormalizeRequestPath(t *testing.T) {
 	}
 }
 
-func TestGzipHandler_RangeRequest(t *testing.T) {
+func TestBrotliHandler_RangeRequest(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("some data"))
 	})
@@ -63,18 +63,18 @@ func TestGzipHandler_RangeRequest(t *testing.T) {
 	handler := compressionHandler(next)
 
 	req := httptest.NewRequest("GET", "/video.mp4", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
+	req.Header.Set("Accept-Encoding", "br")
 	req.Header.Set("Range", "bytes=0-100")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
 
-	if w.Header().Get("Content-Encoding") == "gzip" {
-		t.Error("GzipHandler should NOT compress Range requests")
+	if w.Header().Get("Content-Encoding") == "br" {
+		t.Error("BrotliHandler should NOT compress Range requests")
 	}
 }
 
-func TestGzipHandler_NoGzipSupport(t *testing.T) {
+func TestBrotliHandler_NoBrotliSupport(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("some data"))
 	})
@@ -86,8 +86,8 @@ func TestGzipHandler_NoGzipSupport(t *testing.T) {
 
 	handler.ServeHTTP(w, req)
 
-	if w.Header().Get("Content-Encoding") == "gzip" {
-		t.Error("GzipHandler should NOT compress when Accept-Encoding does not include gzip")
+	if w.Header().Get("Content-Encoding") == "br" {
+		t.Error("BrotliHandler should NOT compress when Accept-Encoding does not include br")
 	}
 }
 
@@ -100,7 +100,7 @@ func TestIsHashedAsset(t *testing.T) {
 		{"main.deadbeef.js", true},
 		{"index.html", false},
 		{"style.css", false},
-		{"app.123.js", false}, // too short
+		{"app.123.js", false},           // too short
 		{"app.longhashvalue.js", false}, // too long
 		{"not.ahex.js", false},
 	}
@@ -115,7 +115,7 @@ func TestIsHashedAsset(t *testing.T) {
 
 func TestValidatePath_Security(t *testing.T) {
 	baseDir := t.TempDir()
-	
+
 	tests := []struct {
 		name     string
 		userPath string

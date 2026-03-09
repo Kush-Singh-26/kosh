@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -18,16 +20,41 @@ type BuildTransaction interface {
 type DirectoryTx struct {
 	realOutputDir string
 	stagingDir    string
+	backupDir     string
 	isCleanBuild  bool
 	committed     bool
+}
+
+var buildTxnCounter atomic.Uint64
+
+func cleanupStaleBuildDirs(outputDir string) {
+	parent := filepath.Dir(outputDir)
+	base := filepath.Base(outputDir)
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if name == base || name == base+".bak" {
+			continue
+		}
+		if strings.HasPrefix(name, base+".tmp-") || strings.HasPrefix(name, base+".bak-") {
+			_ = os.RemoveAll(filepath.Join(parent, name))
+		}
+	}
 }
 
 // NewBuildTransaction initializes a transaction. If isCleanBuild is true, it uses a .tmp directory for staging.
 func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
 	outputDir = filepath.Clean(outputDir)
 	var stagingDir string
+	var backupDir string
 	if isCleanBuild {
-		stagingDir = outputDir + ".tmp"
+		cleanupStaleBuildDirs(outputDir)
+		ts := fmt.Sprintf("%d-%d", time.Now().UnixNano(), buildTxnCounter.Add(1))
+		stagingDir = fmt.Sprintf("%s.tmp-%s", outputDir, ts)
+		backupDir = fmt.Sprintf("%s.bak-%s", outputDir, ts)
 	} else {
 		stagingDir = outputDir // directly write to output in watch mode
 	}
@@ -35,6 +62,7 @@ func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
 	return &DirectoryTx{
 		realOutputDir: outputDir,
 		stagingDir:    stagingDir,
+		backupDir:     backupDir,
 		isCleanBuild:  isCleanBuild,
 	}
 }
@@ -53,26 +81,30 @@ func (tx *DirectoryTx) Commit() error {
 	}
 
 	// 1. Rename outputDir -> outputDir.bak (if it exists)
-	backupDir := tx.realOutputDir + ".bak"
+	backupDir := tx.backupDir
 	if _, err := os.Stat(tx.realOutputDir); err == nil {
 		// Try to remove old backup if it somehow exists
 		_ = os.RemoveAll(backupDir)
-		if err := RenameWithRetry(tx.realOutputDir, backupDir, 5, 100*time.Millisecond); err != nil {
+		if err := RenameWithRetry(tx.realOutputDir, backupDir, 8, 100*time.Millisecond); err != nil {
 			return fmt.Errorf("failed to backup output directory: %w", err)
 		}
 	}
 
 	// 2. Rename outputDir.tmp -> outputDir
-	if err := RenameWithRetry(tx.stagingDir, tx.realOutputDir, 5, 100*time.Millisecond); err != nil {
+	if err := RenameWithRetry(tx.stagingDir, tx.realOutputDir, 8, 100*time.Millisecond); err != nil {
 		// Attempt to restore backup on failure
-		_ = RenameWithRetry(backupDir, tx.realOutputDir, 5, 100*time.Millisecond)
+		if backupDir != "" {
+			_ = RenameWithRetry(backupDir, tx.realOutputDir, 8, 100*time.Millisecond)
+		}
 		return fmt.Errorf("failed to publish staging directory: %w", err)
 	}
 
 	// 3. Delete backup dir in the background
-	go func() {
-		_ = os.RemoveAll(backupDir)
-	}()
+	if backupDir != "" {
+		go func() {
+			_ = os.RemoveAll(backupDir)
+		}()
+	}
 
 	tx.committed = true
 	return nil
@@ -103,7 +135,7 @@ func RenameWithRetry(oldPath, newPath string, maxRetries int, baseDelay time.Dur
 		if err == nil {
 			return nil
 		}
-		time.Sleep(baseDelay)
+		time.Sleep(baseDelay + time.Duration(i*25)*time.Millisecond)
 		baseDelay *= 2
 	}
 	return err

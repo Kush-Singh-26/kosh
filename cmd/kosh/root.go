@@ -13,14 +13,24 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "kosh",
-	Short: "Kosh - A high-performance Static Site Generator",
+	Short: "High-performance static site generator",
 	Long: `Kosh is a high-performance Static Site Generator built in Go.
-It features BLAKE3 hashing, object pooling, pre-computed search indexes,
-and generic cache operations for optimal performance.`,
+It supports full builds, incremental development rebuilds, CSS/JS asset fingerprinting,
+WebP image conversion for eligible local raster images, SSR for math and D2, and Go+WASM search.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		_ = cmd.Help()
+	},
 }
 
 func init() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = false
+	defaultHelp := rootCmd.HelpFunc()
+	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		if cmd == rootCmd {
+			printStartupBanner("CLI Help", nil)
+		}
+		defaultHelp(cmd, args)
+	})
 }
 
 func getContext() context.Context {

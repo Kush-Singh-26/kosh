@@ -4,11 +4,11 @@ import (
 	"context"
 	"html/template"
 
-	"github.com/spf13/afero"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/spf13/afero"
 )
 
 // PostResult contains the aggregated results of post processing
@@ -34,6 +34,7 @@ type PostService interface {
 	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, earlyMetadata *MetadataScannerResult) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
+	WaitForCacheCommit()
 }
 
 // CacheService abstracts the caching layer
@@ -77,7 +78,9 @@ type AssetService interface {
 	SetSink(sink utils.ArtifactSink)
 	SetSourceFs(fs afero.Fs)
 	SetMetrics(m *metrics.BuildMetrics)
+	SetAssetsReadySignal(ch chan struct{})
 	Build(ctx context.Context) error
+	BuildForAssetChange(ctx context.Context) (map[string]string, error)
 }
 
 // RenderService handles rendering logic

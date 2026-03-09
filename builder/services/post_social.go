@@ -46,9 +46,18 @@ func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 	}
 
 	if logoPath != "" {
-		if _, err := s.sourceFs.Stat(logoPath); err != nil {
-			s.logger.Warn("Logo/favicon not found, social card may not render correctly", "path", logoPath, "error", err)
-			logoPath = ""
+		if exists, ok := s.logoExists.Load(logoPath); ok {
+			if !exists.(bool) {
+				logoPath = ""
+			}
+		} else {
+			if _, err := s.sourceFs.Stat(logoPath); err != nil {
+				s.logger.Warn("Logo/favicon not found, social card may not render correctly", "path", logoPath, "error", err)
+				s.logoExists.Store(logoPath, false)
+				logoPath = ""
+			} else {
+				s.logoExists.Store(logoPath, true)
+			}
 		}
 	}
 

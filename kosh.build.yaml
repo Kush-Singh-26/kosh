@@ -5,7 +5,6 @@
 # Worker settings
 maxWorkers: 32        # Maximum worker pool size
 defaultWorkers: 12    # Default worker count (capped by CPU cores)
-imageWorkers: 24      # Parallel image processing workers
 
 # Buffer/Cache settings
 maxBufferSize: 65536          # 64KB - Max buffer size for pools

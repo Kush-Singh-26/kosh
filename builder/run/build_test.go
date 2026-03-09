@@ -23,7 +23,7 @@ func TestNewBuilder_Flags(t *testing.T) {
 	// Scaffold a minimal theme so NewBuilder doesn't exit
 	_ = fs.MkdirAll("themes/my-theme/templates", 0755)
 	_ = afero.WriteFile(fs, "themes/my-theme/templates/layout.html", []byte("<html>{{.Content}}</html>"), 0644)
-	
+
 	args := []string{
 		"-baseurl", "https://kosh.dev",
 		"-drafts",
@@ -31,10 +31,10 @@ func TestNewBuilder_Flags(t *testing.T) {
 	}
 
 	// We need to use LoadFs but NewBuilder calls Load(args) which uses OsFs.
-	// Since we can't easily inject Fs into NewBuilder without more refactoring, 
-	// let's just test LoadFs directly in config_test.go (already done) 
+	// Since we can't easily inject Fs into NewBuilder without more refactoring,
+	// let's just test LoadFs directly in config_test.go (already done)
 	// and here we just verify that NewBuilder with config works.
-	
+
 	cfg := config.LoadFs(fs, args)
 	b := NewBuilderWithFs(fs, cfg)
 
@@ -78,9 +78,10 @@ func TestFullBuild(t *testing.T) {
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	diagramCache := &sync.Map{}
+	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() interface{} {
-			return mdParser.New(cfg, nativeRenderer, diagramCache)
+			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
 		},
 	}
 
@@ -144,14 +145,15 @@ func TestMultiVersionBuild(t *testing.T) {
 
 	// Load config from our VFS
 	cfg := config.LoadFs(fs, []string{})
-	
+
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	diagramCache := &sync.Map{}
+	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() interface{} {
-			return mdParser.New(cfg, nativeRenderer, diagramCache)
+			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
 		},
 	}
 

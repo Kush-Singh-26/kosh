@@ -14,7 +14,8 @@ func TestAdmonitions(t *testing.T) {
 	cfg := &config.Config{}
 	r := native.New()
 	diagramCache := &sync.Map{}
-	md := New(cfg, r, diagramCache)
+	d2Group := r.GetD2Singleflight()
+	md := New(cfg, r, diagramCache, d2Group)
 
 	tests := []struct {
 		name     string

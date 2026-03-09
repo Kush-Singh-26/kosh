@@ -54,6 +54,8 @@ func extractFrontmatter(metaData map[string]interface{}) parsedFrontmatter {
 
 // ParsedMarkdownResult holds the output of the markdown parsing phase
 type ParsedMarkdownResult struct {
+	AST             ast.Node
+	Context         parser.Context
 	HTMLContent     string
 	MetaData        map[string]interface{}
 	Post            models.PostMetadata
@@ -69,8 +71,8 @@ type ParsedMarkdownResult struct {
 	ByteOffsets     map[string][]int
 }
 
-// ParseMarkdown handles the safe parsing and processing of markdown files
-func ParseMarkdown(
+// ParseMarkdownMetadata handles the semantic parsing and metadata extraction
+func ParseMarkdownMetadata(
 	ctx context.Context,
 	source []byte,
 	path string,
@@ -79,17 +81,13 @@ func ParseMarkdown(
 	htmlRelPath string,
 	mdPool *sync.Pool,
 	cfg *config.Config,
-	nativeRenderer *native.Renderer,
-	diagramAdapter *cache.DiagramCacheAdapter,
-	mu *sync.Mutex,
 ) (*ParsedMarkdownResult, error) {
-
 	res := &ParsedMarkdownResult{}
 
-	// Safe markdown parsing with panic recovery
 	var docNode ast.Node
-	var parseErr error
 	var mdCtx parser.Context
+	var parseErr error
+
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -105,38 +103,15 @@ func ParseMarkdown(
 		defer mdPool.Put(mdEngine)
 
 		docNode = mdEngine.Parser().Parse(text.NewReader(source), parser.WithContext(mdCtx))
-
-		// Render with the same engine instance to reduce pool churn/alloc pressure.
-		buf := utils.SharedBufferPool.Get()
-		defer utils.SharedBufferPool.Put(buf)
-
-		if err := mdEngine.Renderer().Render(buf, source, docNode); err != nil {
-			parseErr = fmt.Errorf("failed to render markdown: %w", err)
-			return
-		}
-		res.HTMLContent = buf.String()
 	}()
 
 	if parseErr != nil {
 		return nil, parseErr
 	}
 
+	res.AST = docNode
+	res.Context = mdCtx
 	res.SSRHashes = mdParser.GetSSRHashes(mdCtx)
-
-	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) {
-		var cacheLookup func(string) (string, bool)
-		if diagramAdapter != nil {
-			cacheLookup = diagramAdapter.GetLocal
-		}
-		var mathHashes []string
-		var renderedMath map[string]string
-		res.HTMLContent, mathHashes, renderedMath = mdParser.RenderMathForHTML(res.HTMLContent, nativeRenderer, cacheLookup)
-		res.SSRHashes = append(res.SSRHashes, mathHashes...)
-		if diagramAdapter != nil && len(renderedMath) > 0 {
-			diagramAdapter.Merge(renderedMath)
-		}
-	}
-
 	res.MetaData = meta.Get(mdCtx)
 	fm := extractFrontmatter(res.MetaData)
 	wordCount := utils.CountWords(source)
@@ -171,7 +146,7 @@ func ParseMarkdown(
 		Version:         res.Post.Version,
 	}
 
-	// Use pooled analyzer for tokenization with stemming and stop word removal
+	// Use pooled analyzer for tokenization
 	sb := utils.SharedStringBuilderPool.Get()
 	defer utils.SharedStringBuilderPool.Put(sb)
 
@@ -186,12 +161,7 @@ func ParseMarkdown(
 	}
 	sb.WriteString(res.PlainText)
 
-	// Analyze with stemming and stop words, and capture mapping and positions
-	var freshStemMap map[string]string
-	var words []string
-	var positions map[string][]int
-	var offsets map[string][]int
-	words, freshStemMap, positions, offsets = search.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
+	words, freshStemMap, positions, offsets := search.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
 
 	res.WordFreqs = make(map[string]int, len(words)/2)
 	for _, w := range words {
@@ -203,6 +173,75 @@ func ParseMarkdown(
 	res.ByteOffsets = offsets
 
 	res.FrontmatterHash, _ = utils.GetFrontmatterHash(res.MetaData)
+
+	return res, nil
+}
+
+// RenderParsedMarkdown converts the AST to HTML and performs Math SSR
+func RenderParsedMarkdown(
+	source []byte,
+	res *ParsedMarkdownResult,
+	mdPool *sync.Pool,
+	nativeRenderer *native.Renderer,
+	diagramAdapter *cache.DiagramCacheAdapter,
+) error {
+	if res.AST == nil || res.Context == nil {
+		return fmt.Errorf("missing AST or Context in ParsedMarkdownResult")
+	}
+
+	mdEngine := mdPool.Get().(goldmark.Markdown)
+	defer mdPool.Put(mdEngine)
+
+	buf := utils.SharedBufferPool.Get()
+	defer utils.SharedBufferPool.Put(buf)
+
+	if err := mdEngine.Renderer().Render(buf, source, res.AST); err != nil {
+		return fmt.Errorf("failed to render markdown: %w", err)
+	}
+	res.HTMLContent = buf.String()
+
+	// Math SSR
+	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) {
+		var cacheLookup func(string) (string, bool)
+		if diagramAdapter != nil {
+			cacheLookup = diagramAdapter.GetLocal
+		}
+		var mathHashes []string
+		var renderedMath map[string]string
+		// Use pre-collected expressions from AST
+		preCollected := mdParser.GetMathExpressions(res.Context)
+		res.HTMLContent, mathHashes, renderedMath = mdParser.RenderMathForHTML(res.HTMLContent, nativeRenderer, cacheLookup, preCollected)
+		res.SSRHashes = append(res.SSRHashes, mathHashes...)
+		if diagramAdapter != nil && len(renderedMath) > 0 {
+			diagramAdapter.Merge(renderedMath)
+		}
+	}
+
+	return nil
+}
+
+// ParseMarkdown handles the safe parsing and processing of markdown files (Legacy/Convenience)
+func ParseMarkdown(
+	ctx context.Context,
+	source []byte,
+	path string,
+	version string,
+	cleanHtmlRelPath string,
+	htmlRelPath string,
+	mdPool *sync.Pool,
+	cfg *config.Config,
+	nativeRenderer *native.Renderer,
+	diagramAdapter *cache.DiagramCacheAdapter,
+	mu *sync.Mutex,
+) (*ParsedMarkdownResult, error) {
+	res, err := ParseMarkdownMetadata(ctx, source, path, version, cleanHtmlRelPath, htmlRelPath, mdPool, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := RenderParsedMarkdown(source, res, mdPool, nativeRenderer, diagramAdapter); err != nil {
+		return nil, err
+	}
 
 	return res, nil
 }

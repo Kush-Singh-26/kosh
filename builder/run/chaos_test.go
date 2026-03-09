@@ -7,7 +7,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spf13/afero"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
@@ -16,6 +15,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/spf13/afero"
 )
 
 type diskFullFs struct {
@@ -48,9 +48,10 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	diagramCache := &sync.Map{}
+	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() interface{} {
-			return mdParser.New(cfg, nativeRenderer, diagramCache)
+			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
 		},
 	}
 

@@ -2,10 +2,8 @@ package services
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"path/filepath"
-	"sync"
 
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
@@ -15,39 +13,15 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-
-func (s *assetServiceImpl) copyFileOrLink(src, dst string) error {
-	srcFile, err := s.sourceFs.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = srcFile.Close() }()
-
-	if err := s.sink.MkdirAll(filepath.Dir(dst)); err != nil {
-		return err
-	}
-
-	errWrite := s.sink.WriteStream(dst, func(w io.Writer) error {
-		_, err := io.Copy(w, srcFile)
-		return err
-	})
-	if errWrite == nil {
-		s.renderer.RegisterFile(dst)
-		// Preserve mtime to enable future hardlink hits
-		if info, err := srcFile.Stat(); err == nil {
-			_ = s.sink.SetMtime(dst, info.ModTime())
-		}
-	}
-	return errWrite
-}
-
 type assetServiceImpl struct {
-	sourceFs afero.Fs
-	sink     utils.ArtifactSink
-	cfg      *config.Config
-	renderer RenderService
-	logger   *slog.Logger
-	metrics  *metrics.BuildMetrics
+	sourceFs      afero.Fs
+	sink          utils.ArtifactSink
+	cfg           *config.Config
+	renderer      RenderService
+	logger        *slog.Logger
+	metrics       *metrics.BuildMetrics
+	contentAssets []ScannedAsset
+	assetsReady   chan struct{}
 }
 
 func NewAssetService(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger) AssetService {
@@ -60,169 +34,131 @@ func NewAssetService(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Con
 	}
 }
 
-func (s *assetServiceImpl) SetSink(sink utils.ArtifactSink) {
-	s.sink = sink
-}
-
-func (s *assetServiceImpl) SetSourceFs(fs afero.Fs) {
-	s.sourceFs = fs
-}
-
-func (s *assetServiceImpl) SetMetrics(m *metrics.BuildMetrics) {
-	s.metrics = m
-}
+func (s *assetServiceImpl) SetSink(sink utils.ArtifactSink)        { s.sink = sink }
+func (s *assetServiceImpl) SetSourceFs(fs afero.Fs)                { s.sourceFs = fs }
+func (s *assetServiceImpl) SetMetrics(m *metrics.BuildMetrics)     { s.metrics = m }
+func (s *assetServiceImpl) SetAssetsReadySignal(ch chan struct{})  { s.assetsReady = ch }
+func (s *assetServiceImpl) SetContentAssets(assets []ScannedAsset) { s.contentAssets = assets }
 
 func (s *assetServiceImpl) Build(ctx context.Context) error {
-	var wg sync.WaitGroup
-	wg.Add(2)
+	g, gCtx := errgroup.WithContext(ctx)
+	utils.SetGlobalImageProcessingLimit(s.cfg.ImageWorkers)
 
-	errChan := make(chan error, 10) // Increased capacity for multiple error sources
+	destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
+	var m interface {
+		RecordImageOptimization(original, optimized int64)
+		RecordImageResizeSkipped()
+	}
+	if s.metrics != nil {
+		m = s.metrics
+	}
 
-	// 1. Static Copy (excluding source CSS/JS handled by esbuild)
-	// All three CopyDirVFS calls run concurrently via errgroup for maximum I/O overlap.
-	go func() {
-		defer wg.Done()
+	// 1. Static Copy
+	g.Go(func() error {
+		copyTimer := utils.StartPhase("Asset copy root/static")
+		defer copyTimer.Stop()
 
-		// Check for early cancellation
-		select {
-		case <-ctx.Done():
-			s.logger.Warn("Asset build cancelled", "reason", ctx.Err())
-			return
-		default:
-		}
-
-		destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
-
-		// Defense against typed nil interface
-		var metrics interface {
-			RecordImageOptimization(original, optimized int64)
-			RecordImageResizeSkipped()
-		}
-		if s.metrics != nil {
-			metrics = s.metrics
-		}
-
-		// Run all CopyDirVFS calls concurrently
-		g, gCtx := errgroup.WithContext(ctx)
-		utils.SetGlobalImageProcessingLimit(s.cfg.ImageWorkers)
-		copyThemeTimer := utils.StartPhase("Asset copy theme/static")
-		copyContentTimer := utils.StartPhase("Asset copy content")
-		copySiteStaticTimer := utils.StartPhase("Asset copy root/static")
-
-		themeExists, err := afero.Exists(s.sourceFs, s.cfg.StaticDir)
-		if err != nil {
-			s.logger.Warn("Failed to check theme static dir", "path", s.cfg.StaticDir, "error", err)
+		themeDir := s.cfg.StaticDir
+		if themeDir == "" {
+			themeDir = "themes/blog/static"
 		}
 
 		// A) Theme Static
 		g.Go(func() error {
-			defer copyThemeTimer.Stop()
-			if themeExists {
-				// Exclude .css/.js (handled by esbuild) and .gz/.br (pre-compressed
-				// variants written by CheckWASMFs belong only in the output dir —
-				// never copy them from the source tree into output).
-				return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".gz", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, metrics)
-			}
-			// If theme not found, try default static dir
-			if err := utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".gz", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, metrics); err != nil {
-				// Non-fatal if static doesn't exist
-				s.logger.Warn("Static directory not found", "dir", "static")
+			exists, _ := afero.Exists(s.sourceFs, themeDir)
+			if exists {
+				return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, themeDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
 			}
 			return nil
 		})
 
-		// B) Content Images (collocated images)
+		// B) Site Static (Root)
+		if themeDir != "static" {
+			g.Go(func() error {
+				exists, _ := afero.Exists(s.sourceFs, "static")
+				if exists {
+					return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
+				}
+				return nil
+			})
+		}
+
+		// C) Content Images
 		g.Go(func() error {
-			defer copyContentTimer.Stop()
-			return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, []string{".md"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, metrics)
+			if len(s.contentAssets) > 0 {
+				return s.copyContentAssetsFromManifest()
+			}
+			return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, []string{".md"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
 		})
 
-		// C) Site Static (Root 'static' folder) — only if it differs from theme static dir
-		if s.cfg.StaticDir != "static" {
-			siteStaticExists, err := afero.Exists(s.sourceFs, "static")
-			if err != nil {
-				s.logger.Warn("Failed to check site static dir", "path", "static", "error", err)
-			}
-			if siteStaticExists {
-				g.Go(func() error {
-					defer copySiteStaticTimer.Stop()
-					return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".gz", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, metrics)
-				})
-			} else {
-				copySiteStaticTimer.Stop()
-			}
-		} else {
-			copySiteStaticTimer.Stop()
-		}
+		s.copyCriticalAssets()
+		return nil
+	})
 
-		if err := g.Wait(); err != nil {
-			errChan <- err
-			return
-		}
-
-		// Post-copy: Ensure critical assets are copied exactly (after parallel copies complete)
-
-		// Ensure Site Logo is copied exactly (ignoring global compression for this critical asset)
-		if s.cfg.Logo != "" {
-			absLogo, _ := filepath.Abs(s.cfg.Logo)
-			if exists, _ := afero.Exists(s.sourceFs, absLogo); exists {
-				if err := s.copyFileOrLink(absLogo, s.cfg.Logo); err != nil {
-					s.logger.Warn("Failed to explicitly copy site logo", "path", s.cfg.Logo, "error", err)
-				}
-			}
-		}
-
-		// Also ensure favicon.png from theme is copied exactly if it exists
-		faviconPath := filepath.Join(s.cfg.StaticDir, "images/favicon.png")
-		if exists, _ := afero.Exists(s.sourceFs, faviconPath); exists {
-			destFavicon := "static/images/favicon.png"
-			if err := s.copyFileOrLink(faviconPath, destFavicon); err != nil {
-				s.logger.Warn("Failed to explicitly copy favicon", "path", faviconPath, "error", err)
-			}
-		}
-	}()
-
-	// 2. Esbuild Bundling (CSS/JS)
-	go func() {
-		defer wg.Done()
-
-		// Check for early cancellation
-		select {
-		case <-ctx.Done():
-			s.logger.Warn("Asset bundling cancelled", "reason", ctx.Err())
-			return
-		default:
-		}
-
-		destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
+	// 2. Esbuild
+	g.Go(func() error {
 		esbuildTimer := utils.StartPhase("Asset esbuild")
 		defer esbuildTimer.Stop()
-		// Use hash-based check even in dev mode to avoid redundant esbuild runs
-		// force is now only true if explicitly requested via some other mechanism (currently false)
-		force := false
-		assets, assetErr := utils.BuildAssetsEsbuild(s.sourceFs, s.sink, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
-		if assetErr != nil {
-			s.logger.Error("Failed to build assets", "error", assetErr)
-			errChan <- assetErr
-			return
+		_, err := s.buildEsbuildAssets(false)
+		if s.assetsReady != nil {
+			close(s.assetsReady)
+			s.assetsReady = nil
 		}
-		s.renderer.SetAssets(assets)
-	}()
-
-	// Wait for both goroutines or context cancellation
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-ctx.Done():
-		s.logger.Warn("Asset build interrupted", "reason", ctx.Err())
-		return ctx.Err()
-	case err := <-errChan:
 		return err
-	case <-done:
-		return nil
+	})
+
+	return g.Wait()
+}
+
+func (s *assetServiceImpl) copyContentAssetsFromManifest() error {
+	numWorkers := s.cfg.ImageWorkers
+	if numWorkers <= 0 {
+		numWorkers = 8
 	}
+
+	p, pCtx := errgroup.WithContext(context.Background())
+	p.SetLimit(numWorkers)
+
+	for _, asset := range s.contentAssets {
+		a := asset
+		p.Go(func() error {
+			rel, _ := utils.SafeRel(s.cfg.ContentDir, a.Path)
+			dst := filepath.Join(s.cfg.OutputDir, rel)
+			return utils.CopyFileWithOptionalImageProcessing(pCtx, s.sourceFs, s.sink, a.Path, dst, s.cfg.CompressImages, s.cfg.CacheDir+"/images", s.cfg.WebPQuality, a.Info, s.metrics, s.renderer.RegisterFile)
+		})
+	}
+	return p.Wait()
+}
+
+func (s *assetServiceImpl) copyCriticalAssets() {
+	if s.cfg.Logo != "" {
+		_ = s.copyFileOrLink(s.cfg.Logo, s.cfg.Logo)
+	}
+	faviconPath := filepath.Join(s.cfg.StaticDir, "images/favicon.png")
+	if exists, _ := afero.Exists(s.sourceFs, faviconPath); exists {
+		_ = s.copyFileOrLink(faviconPath, "static/images/favicon.png")
+	}
+}
+
+func (s *assetServiceImpl) copyFileOrLink(src, dst string) error {
+	info, err := s.sourceFs.Stat(src)
+	if err != nil {
+		return err
+	}
+	return utils.CopyFileVFS(s.sourceFs, s.sink, src, dst, info.ModTime().UnixNano(), s.renderer.RegisterFile)
+}
+
+func (s *assetServiceImpl) buildEsbuildAssets(force bool) (map[string]string, error) {
+	destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
+	assets, assetErr := utils.BuildAssetsEsbuild(s.sourceFs, s.sink, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
+	if assetErr == nil {
+		s.renderer.SetAssets(assets)
+	}
+	return assets, assetErr
+}
+
+func (s *assetServiceImpl) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
+	esbuildTimer := utils.StartPhase("Asset esbuild")
+	defer esbuildTimer.Stop()
+	return s.buildEsbuildAssets(true)
 }

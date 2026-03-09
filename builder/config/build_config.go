@@ -13,8 +13,6 @@ type BuildConfig struct {
 	// Worker settings
 	MaxWorkers     int `yaml:"maxWorkers"`     // Maximum worker pool size (default: 32)
 	DefaultWorkers int `yaml:"defaultWorkers"` // Default worker count (default: 12)
-	ImageWorkers   int `yaml:"imageWorkers"`   // Parallel image processing workers (default: 24)
-
 	// Buffer/Cache settings
 	MaxBufferSize       int `yaml:"maxBufferSize"`       // Max buffer size for pools (default: 64KB)
 	InlineHTMLThreshold int `yaml:"inlineHTMLThreshold"` // Size threshold for inline HTML storage (default: 32KB)
@@ -46,8 +44,6 @@ func DefaultBuildConfig() *BuildConfig {
 		// Workers
 		MaxWorkers:     32,
 		DefaultWorkers: 12,
-		ImageWorkers:   24,
-
 		// Buffers
 		MaxBufferSize:       64 * 1024,        // 64KB
 		InlineHTMLThreshold: 32 * 1024,        // 32KB
@@ -117,13 +113,6 @@ func (c *BuildConfig) validate() {
 	if c.DefaultWorkers > c.MaxWorkers {
 		c.DefaultWorkers = c.MaxWorkers
 	}
-	if c.ImageWorkers < 1 {
-		c.ImageWorkers = 1
-	}
-	if c.ImageWorkers > 64 {
-		c.ImageWorkers = 64
-	}
-
 	// Buffers
 	if c.MaxBufferSize < 1024 {
 		c.MaxBufferSize = 1024 // Minimum 1KB

@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/run"
 	"github.com/Kush-Singh-26/kosh/internal/clean"
 )
@@ -16,9 +17,12 @@ var (
 
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
-	Short: "Clean output directory",
-	Long:  `Clean output directory. Use --cache to also clean the cache, --all to clean all versions.`,
-	Run:   runClean,
+	Short: "Clean output and rebuild",
+	Long: `Clean the output directory and immediately rebuild the site.
+
+Use --cache to also remove .kosh-cache and force a true cold rebuild.
+Use --all to clean all versioned output folders instead of preserving configured versions.`,
+	Run: runClean,
 }
 
 func init() {
@@ -29,6 +33,11 @@ func init() {
 }
 
 func runClean(cmd *cobra.Command, args []string) {
+	mode := "Warm Rebuild"
+	if cleanCache {
+		mode = "Cold Rebuild"
+	}
+	printStartupBanner(mode, config.Load([]string{}))
 	clean.Run(cleanCache, cleanAll)
 	fmt.Println("\nRebuilding site...")
 	if err := run.Run([]string{}); err != nil {

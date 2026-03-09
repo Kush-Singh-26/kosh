@@ -1,0 +1,77 @@
+--- a/builder/services/post_service.go
++++ b/builder/services/post_service.go
+@@ -40,6 +40,10 @@ type postServiceImpl struct {
+ 	// Collected social card hashes for batch write after cardPool completes
+ 	cardHashes sync.Map
+ 
++	// cacheWg tracks background cache commit goroutines so callers can
++	// wait for them before closing BoltDB.
++	cacheWg sync.WaitGroup
++
+ 	// assetsReady is closed when asset building completes. The render phase
+ 	// waits on this channel before reading the Assets map, allowing the
+ 	// parse phase to overlap with asset building for faster cold builds.
+@@ -93,6 +97,12 @@ func (s *postServiceImpl) SetMetadataCallback(fn MetadataReadyFunc) {
+ 	s.metadataCallback = fn
+ }
+ 
++// WaitForCacheCommit blocks until any background cache commit goroutines
++// have finished. Must be called before closing the BoltDB database.
++func (s *postServiceImpl) WaitForCacheCommit() {
++	s.cacheWg.Wait()
++}
++
+ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, earlyMetadata *MetadataScannerResult) (*PostResult, error) {
+ 	if os.Getenv("KOSH_FORCE_REBUILD") == "1" {
+ 		shouldForce = true
+@@ -826,27 +836,36 @@ Loop:
+ 	// Now wait for social card generation to complete (overlapped with render phase above)
+ 	cardPool.Stop()
+ 
+-	// Batch-flush collected social card hashes in a single BoltDB transaction
++	// Batch-flush collected social card hashes + commit post cache in the
++	// background.  Cache writes are best-effort (errors are logged but do not
++	// fail the build), and nothing downstream reads from the data we are about
++	// to commit, so this safely overlaps with Tx.Commit/WASM-wait.
+ 	if s.cache != nil {
+ 		pendingHashes := make(map[string]string)
+ 		s.cardHashes.Range(func(key, value any) bool {
+ 			pendingHashes[key.(string)] = value.(string)
+ 			return true
+ 		})
+-		if len(pendingHashes) > 0 {
+-			if err := s.cache.BatchSetSocialCardHashes(pendingHashes); err != nil {
+-				s.logger.Warn("Failed to batch-set social card hashes", "error", err)
++		commitPosts := newPostsMeta // capture for goroutine
++		commitSearch := newSearchRecords
++		commitDeps := newDeps
++
++		s.cacheWg.Add(1)
++		go func() {
++			defer s.cacheWg.Done()
++			if len(pendingHashes) > 0 {
++				if err := s.cache.BatchSetSocialCardHashes(pendingHashes); err != nil {
++					s.logger.Warn("Failed to batch-set social card hashes", "error", err)
++				}
+ 			}
+-		}
+-	}
+-
+-	if s.cache != nil && len(newPostsMeta) > 0 {
+-		cacheCommitTimer := utils.StartPhase("Cache commit")
+-		err := s.cache.BatchCommit(newPostsMeta, newSearchRecords, newDeps)
+-		cacheCommitTimer.Stop()
+-		if err != nil {
+-			s.logger.Warn("Failed to commit cache batch", "error", err)
+-		}
++			if len(commitPosts) > 0 {
++				cacheCommitTimer := utils.StartPhase("Cache commit")
++				if err := s.cache.BatchCommit(commitPosts, commitSearch, commitDeps); err != nil {
++					s.logger.Warn("Failed to commit cache batch", "error", err)
++				}
++				cacheCommitTimer.Stop()
++			}
++		}()
+ 	}
+ 
+ 	return &PostResult{

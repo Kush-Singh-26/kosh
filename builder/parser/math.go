@@ -14,20 +14,30 @@ var (
 	currencyPattern = regexp.MustCompile(`^\d`)
 )
 
-// ExtractMathExpressions finds all LaTeX expressions in HTML and returns them with metadata.
-func ExtractMathExpressions(html string) []native.MathExpression {
-	var expressions []native.MathExpression
-	seen := make(map[string]bool) // Deduplicate
+type ScannedMathMatch struct {
+	Match       MathMatch
+	Latex       string
+	TypeStr     string
+	Hash        string
+	DisplayMode bool
+}
 
+func ScanMathExpressions(html string) ([]ScannedMathMatch, []native.MathExpression) {
 	lexer := NewMathLexer(html)
 	matches := lexer.Scan()
+	if len(matches) == 0 {
+		return nil, nil
+	}
+
+	seen := make(map[string]bool, len(matches))
+	processed := make([]ScannedMathMatch, 0, len(matches))
+	expressions := make([]native.MathExpression, 0, len(matches))
 
 	for _, m := range matches {
 		latex := htmlLib.UnescapeString(m.Content)
 		if m.Type == MathBlock || m.Type == MathDisplay {
 			latex = strings.TrimSpace(latex)
 		}
-
 		if m.Type == MathInline && currencyPattern.MatchString(latex) {
 			continue
 		}
@@ -46,19 +56,24 @@ func ExtractMathExpressions(html string) []native.MathExpression {
 		}
 
 		hash := native.HashContent(typeStr, latex)
+		processed = append(processed, ScannedMathMatch{Match: m, Latex: latex, TypeStr: typeStr, Hash: hash, DisplayMode: displayMode})
 		if !seen[hash] {
 			seen[hash] = true
 			expressions = append(expressions, native.MathExpression{LaTeX: latex, DisplayMode: displayMode, Hash: hash})
 		}
 	}
 
+	return processed, expressions
+}
+
+// ExtractMathExpressions finds all LaTeX expressions in HTML and returns them with metadata.
+func ExtractMathExpressions(html string) []native.MathExpression {
+	_, expressions := ScanMathExpressions(html)
 	return expressions
 }
 
 // ReplaceMathExpressions replaces LaTeX expressions in HTML with rendered output.
-func ReplaceMathExpressions(html string, rendered map[string]string) string {
-	lexer := NewMathLexer(html)
-	matches := lexer.Scan()
+func ReplaceMathExpressions(html string, matches []ScannedMathMatch, rendered map[string]string) string {
 	if len(matches) == 0 {
 		return html
 	}
@@ -67,25 +82,12 @@ func ReplaceMathExpressions(html string, rendered map[string]string) string {
 	sb.Grow(len(html) + 512)
 	lastPos := 0
 
-	for _, m := range matches {
+	for _, sm := range matches {
+		m := sm.Match
 		// Append text before match
 		sb.WriteString(html[lastPos:m.Start])
 
-		latex := htmlLib.UnescapeString(m.Content)
-		typeStr := "math-inline"
-		switch m.Type {
-		case MathBlock:
-			typeStr = "math-block"
-			latex = strings.TrimSpace(latex)
-		case MathDisplay:
-			typeStr = "math-display"
-			latex = strings.TrimSpace(latex)
-		case MathParen:
-			typeStr = "math-paren"
-		}
-
-		hash := native.HashContent(typeStr, latex)
-		if renderedHTML, ok := rendered[hash]; ok {
+		if renderedHTML, ok := rendered[sm.Hash]; ok {
 			if m.Type == MathBlock || m.Type == MathDisplay {
 				sb.WriteString(`<div class="katex-display">`)
 				sb.WriteString(renderedHTML)
@@ -110,8 +112,20 @@ func ReplaceMathExpressions(html string, rendered map[string]string) string {
 
 // RenderMathForHTML extracts, renders, and replaces all LaTeX in HTML.
 // It returns the rendered HTML, a slice of SSR input hashes, and newly rendered cache entries.
-func RenderMathForHTML(html string, renderer *native.Renderer, cacheLookup func(string) (string, bool)) (string, []string, map[string]string) {
-	expressions := ExtractMathExpressions(html)
+func RenderMathForHTML(html string, renderer *native.Renderer, cacheLookup func(string) (string, bool), preCollected []native.MathExpression) (string, []string, map[string]string) {
+	var matches []ScannedMathMatch
+	var expressions []native.MathExpression
+
+	if len(preCollected) > 0 {
+		// Use pre-collected expressions from AST to skip discovery, but we still need matches for replacement.
+		// Actually, we still need matches to know WHERE to replace.
+		// So we still call ScanMathExpressions, but we can skip the Hash calculation if we want.
+		// However, ScanMathExpressions is already fast. The bridge is the slow part.
+		matches, expressions = ScanMathExpressions(html)
+	} else {
+		matches, expressions = ScanMathExpressions(html)
+	}
+
 	if len(expressions) == 0 {
 		return html, nil, nil
 	}
@@ -142,5 +156,5 @@ func RenderMathForHTML(html string, renderer *native.Renderer, cacheLookup func(
 		}
 	}
 
-	return ReplaceMathExpressions(html, rendered), hashes, newEntries
+	return ReplaceMathExpressions(html, matches, rendered), hashes, newEntries
 }

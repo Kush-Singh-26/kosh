@@ -14,6 +14,8 @@ var (
 	versionInfo bool
 )
 
+const cliVersion = "v1.3.9"
+
 var versionCmd = &cobra.Command{
 	Use:   "version [vX.X]",
 	Short: "Version management commands",
@@ -47,14 +49,14 @@ func runVersion(cmd *cobra.Command, args []string) {
 
 func printVersionInfo() {
 	fmt.Println("Kosh Static Site Generator")
-	fmt.Println("Version: v1.3.9")
+	fmt.Println("Version: " + cliVersion)
 	fmt.Printf("Go Version: %s\n", runtime.Version())
-	fmt.Println("Build Date: 2026-03-05")
+	fmt.Println("Build Date: 2026-03-08")
 	fmt.Println("\nOptimized with:")
-	fmt.Println("  - BLAKE3 hashing (replaced MD5)")
-	fmt.Println("  - Object pooling for memory management")
-	fmt.Println("  - Pre-computed search indexes")
-	fmt.Println("  - Generic cache operations")
-	fmt.Println("  - Content-addressed template cache")
-	fmt.Println("  - HTML content deduplication with reference counting")
+	fmt.Println("  - XXH3 hashing")
+	fmt.Println("  - Incremental single-post rebuilds in dev mode")
+	fmt.Println("  - Atomic clean-build publish with staging directories")
+	fmt.Println("  - CSS/JS fingerprinting with esbuild")
+	fmt.Println("  - WebP conversion for eligible raster images")
+	fmt.Println("  - Go+WASM search with schema validation")
 }

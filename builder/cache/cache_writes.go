@@ -290,7 +290,7 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*SSRArtif
 		return nil, err
 	}
 
-	err = m.db.Update(func(tx *bolt.Tx) error {
+	err = m.db.Batch(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(BucketSSR))
 		return bucket.Put([]byte(key), data)
 	})

@@ -1,172 +1,380 @@
-# Agentic Development Guide
+# AGENTS.md
 
-This repository contains **Kosh**, a high-performance Static Site Generator (SSG) built in Go. This guide covers build processes, architecture, testing, and code conventions.
+This file is the detailed working guide for coding agents operating in the Kosh repository.
 
-## Project Status: v1.3.9 ✅
+## What Kosh Is
 
-All phases of development have been completed:
-- **Phase 1**: Security & Stability (XXH3, graceful shutdown, error handling)
-- **Phase 2**: Architecture Refactoring (Service Layer, Dependency Injection)
-- **Phase 3**: Performance Optimization (Memory pools, pre-computed search)
-- **Phase 4**: Modernization (Go 1.23, Generics, dependency updates)
-- **Phase 5**: Search Enhancement (Msgpack, stemming, fuzzy search, phrase matching)
-- **Phase 6**: Hugo-Style Distribution (detached themes, go install, custom outputDir)
-- **Phase 7**: Performance Audit & Dead Code Cleanup (body hash caching, LRU cache, race condition fixes)
-- **Phase 8**: libvips Integration (parallel image processing, 3x faster builds)
-- **Phase 9**: Advanced Reliability & Memory Profiling (CGO leak fixes, thread-safe debounce, strict LRU)
-- **Phase 10**: Deep Audit & Production Hardening (v1.3.0)
-- **Phase 11**: Tier 2 Advanced Optimizations (v1.3.1)
-- **Phase 12**: Tier 3 Final Production+ Polish (v1.3.2)
-- **Phase 13**: Search Encoding Robustness (v1.3.5)
-- **Phase 14**: Frontend Reliability (v1.3.6)
-- **Phase 15**: Search Relevance & Live Match (v1.3.8)
-- **Phase 16**: Search Snippet & Phrase Precision (v1.3.9)
-    - **Content Restoration:** Re-added the `Content` field to the search index (Schema v6) to allow snippet extraction from the full body of the post rather than just the description.
-    - **Implicit Phrase Boost:** Implemented automatic ranking boosts for multi-word queries that appear as exact phrases in the document, ensuring highly relevant posts appear at the top.
-    - **Full-Body Highlighting:** Enabled the regex highlighter to scan the entire post body, ensuring terms mentioned deep in the text are correctly highlighted in results.
+Kosh is a Go-based static site generator for blogs and documentation sites. It supports:
 
----
+- full static builds
+- incremental watch-mode rebuilds
+- CSS/JS bundling with hashed assets
+- WebP image conversion for eligible raster assets
+- BoltDB-backed caching
+- server-side rendering for LaTeX and D2
+- Go+WASM search
+- RSS, sitemap, graph, PWA, and social card generation
 
-### v1.3.9 (2026-03-05)
+Repository root:
 
-**Search Snippet & Phrase Precision:**
-- **Content Restoration**: Re-added `Content` to the index, enabling accurate snippets for any matched word in the post.
-- **Implicit Phrase Boost**: Applied a 1.2x score boost for documents containing the exact query phrase.
-- **Schema v6**: Upgraded indexing schema to support full-body text storage.
+- `C:\Users\KIIT0001\blogs`
 
----
+Typical consumer site repo example used during development:
 
-### v1.3.8 (2026-03-05)
+- `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src`
 
-**Search Relevance & Live Match:**
-- **Prefix Matching**: Added support for matching partial words in the inverted index, improving the "as-you-type" experience.
-- **Regex Highlighting**: Implemented a sophisticated regex highlighter that targets full words case-insensitively while preserving the document's original formatting.
-- **Stop Word Fallback**: Ensured queries containing only stop words still return results by falling back to a direct metadata scan.
+## Current Stable State
 
----
+- Version string in CLI: `v1.3.9`
+- Production-ready
+- Dev-mode correctness issues recently fixed:
+  - search schema mismatch in dev
+  - stale asset-map lag on CSS changes
+  - source-tree mutation from hardlink-based asset writes
+  - incremental markdown rebuild path using absolute watcher paths
+- Current recommended image settings:
 
-### v1.3.6 (2026-03-05)
+```yaml
+imageWorkers: 8
+```
 
-**Frontend Reliability:**
-- **Cache Busting**: Appended `?v={{ .BuildVersion }}` to `search.wasm`, `search.bin`, and `wasm_exec.js` fetches to prevent stale browser state.
-- **Global Build Metadata**: Exposed `window.buildVersion` to allow JavaScript-driven fetches to remain synchronized with the SSG build version.
+## Build Modes
 
----
+### 1. Full Build
 
-### v1.3.5 (2026-03-05)
+Entry path:
 
-**Search Encoding Robustness:**
-- **Stringified IDs**: Switched search index maps (`DocLens`, `Inverted`) to use string keys, ensuring perfect cross-platform MessagePack compatibility between encoding (Go/Win64) and decoding (WASM/Browser).
-- **Schema Validation**: Added explicit schema version checking in the browser to prevent stale cache issues.
-- **WASM Reliability**: Improved error reporting and state management in the search client.
+- `builder/run/build.go`
 
----
+This path is used by:
 
-### v1.3.2 (2026-03-05)
+- `kosh build`
+- `kosh clean`
+- `kosh clean --cache`
+- initial `kosh serve --dev`
 
-**Final Production+ Polish:**
-- **Density-Based Snippets**: Search results now highlight the 150-character window where query terms are most dense, significantly improving relevance.
-- **WASM binary size**: Reduced `search.wasm` by ~200KB by stripping `fmt` and implementing lightweight Unicode build tags for the browser.
-- **Incremental Social Cards**: Fixed a bug where social cards weren't refreshed in watch mode when metadata changed.
-- **Zero-Waste Cache**: Purged redundant `Content` and `Tokens` fields from the BoltDB schema, resulting in 20% smaller cache files.
-- **SSR Pre-allocation**: Improved D2 diagram and LaTeX math rendering speed by pre-allocating result slices.
+High-level phases:
 
----
+1. metadata scan
+2. asset build/copy
+3. markdown parse and page render
+4. site-wide generators
+5. publish transaction commit
 
-### v1.3.1 (2026-03-05)
+### 2. Incremental Dev Rebuild
 
-**Advanced Optimization Pass:**
-- **Lazy Backups**: `TxSync` now only creates rollback backups for files that are actually being modified, eliminating thousands of redundant disk operations.
-- **Smart Template Monitoring**: Replaced expensive content hashing with metadata-based monitoring for templates, significantly reducing I/O in watch mode.
-- **Unified Search Structure**: Merged inverted index and positional maps into a single `word -> postID -> [positions]` map, reducing serialization overhead and payload size.
-- **Search Content Removal**: Removed raw plain text from the search index, using the `Description` field for result snippets while keeping the full content searchable via the index.
-- **Single-Pass AST**: Unified multiple Markdown tree traversals into a single pass, improving parsing speed.
-- **AST Image Transformer**: Moved `.webp` transformation from a global regex pass to a specialized Goldmark AST transformer.
-- **Parallel Parsing**: Core templates are now parsed concurrently using `errgroup`.
-- **JS Bundling**: Enabled bundling for JavaScript to improve frontend performance.
+Entry path:
 
----
+- `builder/run/incremental.go`
 
-### v1.3.0 (2026-03-05)
+Important behavior:
 
-**Deep Audit & Production Hardening:**
-- **Critical Deadlock Fixes**: Resolved deadlocks in server build-wait loops and worker pool task submission.
-- **Neighbor Lookup Optimization**: Pre-indexed post positions within versions, reducing neighbor resolution from $O(N^2)$ to $O(N)$ for the full build.
-- **Truly Incremental Search**: Implemented in-memory `IndexedPost` caching, allowing watch-mode rebuilds to update the search index in milliseconds without BoltDB re-reads.
-- **Zero-Allocation Stemmer**: Optimized Porter stemmer to use direct rune-slice suffix checking, eliminating heavy string allocation pressure during indexing.
-- **Single-Pass Snippet Highlighting**: Replaced multiple regex passes with a single `strings.Replacer` pass for all search terms.
-- **Transactional VFS Sync**: Integrated `TxSync` properly into the build pipeline to allow atomic rollback of the entire physical output directory on sync failure.
-- **Strict Size-Aware LRU**: Enhanced `imageCache` to strictly enforce memory limits (50MB) by evicting based on byte size rather than just item count.
-- **Build Lock Enforcement**: Modified `kosh build` to fail by default if another instance is running, preventing concurrent output corruption (override via `--force-lock`).
-- **Dynamic Server Pathing**: Development server now dynamically calculates request path normalization based on `baseURL` instead of using a hardcoded prefix.
+- body-only markdown changes should use true single-post rebuild
+- CSS/JS changes should rebuild assets and rerender HTML with fresh asset hashes
+- search WASM should rebuild only if search source changed
 
----
+## Commands and Behavior
 
-### v1.2.3 (2026-03-01)
+### Main CLI
 
-**Stability & Reliability Optimizations:**
-- **Waitgroup Race Condition Fix**: Resolved a critical panic in `DiagramCacheAdapter` where async worker completion could outpace waitgroup incrementing.
-- **CGO Memory Leak Fix**: Addressed massive memory leaks during image optimization by ensuring `libvips.ImageRef` instances are explicitly closed after processing.
-- **Strict LRU Memory Cache**: Replaced standard Go map with `github.com/hashicorp/golang-lru/v2` to strictly enforce memory limits during long watch-mode sessions.
-- **Search Index Integrity**: Fixed an issue where incremental builds corrupted BM25 data for live-edited files by integrating proper analysis into the single-post processing pipeline.
-- **Ghost Drafts Fix**: Prevented drafts from appearing as broken 404 links in tags and pagination when drafts are excluded from the build.
+- `kosh build`
+- `kosh serve --dev`
+- `kosh clean`
+- `kosh clean --cache`
+- `kosh new "Title"`
+- `kosh version --info`
 
-**Server & Watcher Enhancements:**
-- **Thread-safe Debounce**: Files modified rapidly in succession are now correctly batched and triggered together instead of dropping intermediary events.
-- **SSE Broadcast Reliability**: Auto-reload events in watch mode are now buffered, preventing missed browser refreshes under high load.
-- **Gzip Range Fix**: Custom `gzipHandler` now bypasses compression for `Range` requests, restoring scrub support for large media and PDF files.
+### Important command semantics
 
-**Dependencies:**
-- Added `github.com/hashicorp/golang-lru/v2` for reliable memory management
+- `kosh clean`
+  - removes output and rebuilds
+  - preserves `.kosh-cache`
+- `kosh clean --cache`
+  - removes output and `.kosh-cache`
+  - forces a fully cold rebuild
+- `kosh serve --dev`
+  - build + watch + serve
+  - should not mutate source files
+  - should keep `window.buildVersion` fresh on rebuilds
 
----
+## Key Architectural Rules
 
-### v1.2.2 (2026-02-17)
+### 1. Source Tree Must Never Be Mutated
 
-**Performance Optimizations:**
-- **Parallel Index Building**: Search index now built in parallel using multiple goroutines for stem map generation, 2-4x faster for larger sites
-- **LRU Memory Cache for Images**: In-memory LRU cache (50MB) added for processed images, significantly faster in watch mode with repeated builds
-- **libvips Integration**: Switched from pure Go imaging libraries to libvips for 3-5x faster image processing
-  - Parallel processing with configurable concurrency (`vipsConcurrency` config option)
-  - Auto-detects CPU cores, defaults to min(CPU count, 4) threads
-  - Increased cache: 100MB memory, 100 files, 100 operations
+This is a hard rule.
 
-**Configuration:**
-- Added `vipsConcurrency` option to `kosh.yaml`:
-  ```yaml
-  vipsConcurrency: 0  # Auto-detect (default: uses CPU count, capped at 4)
-  vipsConcurrency: 4  # Use exactly 4 threads
-  ```
-- Suppressed verbose libvips logging (only warnings/errors shown)
+Never write into:
 
-**Dependencies:**
-- Added `github.com/twincats/golibvips` v0.1.2 for high-performance image processing
+- site `content/`
+- site `static/`
+- site theme assets/templates
 
----
+All build outputs must go through:
 
-### v1.2.1 (2026-02-16)
+- `builder/utils/transaction.go`
+- `builder/utils/sink.go`
 
-**Performance Optimizations:**
-- **Body Hash Caching**: Body content hashed separately from frontmatter, fixing a critical bug where body-only changes were silently ignored by the cache
-- **In-Memory LRU Cache**: Hot PostMeta data cached with 5-minute TTL, reducing BoltDB reads for frequently accessed posts
-- **SSR Hash Tracking**: D2 diagrams and LaTeX math hashes now tracked in `SSRInputHashes` field for proper cache management
-- **Stemming Cache**: `StemCached()` uses `sync.Map` for ~76x speedup on repeated words
-- **Ngram Index for Fuzzy Search**: Pre-built trigram index enables ~20% faster fuzzy queries
-- **Double ReadFile Fix**: Image encoding now done once to buffer, then written to both cache and destination
+Important related protections:
 
-**Bug Fixes:**
-- **Race Condition Fix**: Static assets now build synchronously before post rendering, ensuring `Assets` map is populated when templates render (previously caused CSS 404 errors on post pages)
-- **filepath.WalkDir**: More efficient than `filepath.Walk`, avoids extra stat calls
-- **bytes.Contains**: Avoids string allocation when checking frontmatter delimiters
+- source→output hardlinking was removed from asset copy paths
+- sink writes are restricted to staging/output roots
 
-**Dead Code Cleanup:**
-- Removed unused breadcrumb functionality
-- Removed unused pool instances (`SharedStringBuilderPool`, `SharedByteSlicePool`)
-- Cleaned up empty test functions
-- Removed duplicate code (favicon path helper, StoreHTML methods)
+### 2. Clean Build Publishing Must Be Atomic
 
----
+Clean builds use staging directories and publish via rename/swap.
 
-**Version:** v1.3.9  
-**Last Updated:** 2026-03-05  
-**Status:** Production Ready ✅
+Key file:
+
+- `builder/utils/transaction.go`
+
+Current state:
+
+- unique staging/backup dirs for clean builds
+- stale temp dir cleanup on startup
+- retry/jitter around Windows rename operations
+
+Do not break:
+
+- atomic publish guarantees
+- rollback behavior on publish failure
+
+### 3. Asset Hashes Must Match Rendered HTML
+
+CSS/JS changes must never leave HTML one build behind.
+
+Important files:
+
+- `builder/run/build.go`
+- `builder/run/incremental.go`
+- `builder/services/asset_service.go`
+- `builder/services/render_service.go`
+
+Important rule:
+
+- if hashed assets change, pages referencing them must rerender with the new asset map
+
+### 4. Search Runtime and Search Index Schema Must Match
+
+Important files:
+
+- `cmd/search/main.go`
+- `builder/models/models.go`
+- `themes/blog/static/js/search.js`
+- `internal/build/build.go`
+
+Critical invariant:
+
+- `search.wasm`, `search.bin`, and browser bootstrap must all be in sync
+
+### 5. Clean Builds vs Dev Builds Are Different
+
+Do not optimize one in a way that breaks the other.
+
+- clean/full builds care about staging correctness and reproducibility
+- dev builds care about incremental speed and live correctness
+
+## Important Subsystems
+
+### Asset Pipeline
+
+Files:
+
+- `builder/services/asset_service.go`
+- `builder/utils/assets.go`
+- `builder/utils/fs_copy.go`
+
+Current behavior:
+
+- esbuild handles CSS/JS and hashed assets
+- root/static and theme/static files are copied via `CopyDirVFS`
+- eligible local `.png/.jpg/.jpeg` are converted to `.webp`
+- `search.wasm` from source static trees must not overwrite deployed runtime WASM
+- logo/favicon may be exact-copied intentionally
+
+Current bottleneck for cold builds:
+
+- `Asset copy root/static`
+
+### Markdown Parse / Post Processing
+
+Files:
+
+- `builder/services/scanner.go`
+- `builder/services/post_service.go`
+- `builder/services/post_parser.go`
+- `builder/parser/*`
+
+Current notes:
+
+- scanner performs lightweight frontmatter extraction
+- parser is still the source of truth for full semantic parse
+- narrowed hash reuse was added, but reading-time reuse was intentionally deferred
+
+### Search
+
+Files:
+
+- `builder/search/*`
+- `builder/generators/search.go`
+- `cmd/search/main.go`
+
+Current notes:
+
+- schema validation exists and browser errors if stale
+- search snippets rely on stored content and offsets
+- search-analysis restructuring remains deferred because it is high risk
+
+### Math and D2 SSR
+
+Files:
+
+- `builder/parser/math.go`
+- `builder/parser/trans_ssr.go`
+- `builder/renderer/native/*`
+
+Current notes:
+
+- math SSR was narrowed to a single-scan match-list reuse approach
+- persisted D2 SSR cache is intentionally deferred / optional
+
+## Performance State
+
+### Warm Full Builds (`kosh clean`)
+
+Current state is good after recent fixes.
+
+### Cold Full Builds (`kosh clean --cache`)
+
+Still dominated by:
+
+- `Asset copy root/static`
+- `Parse 39 posts`
+
+This is expected because caches are removed.
+
+### Benchmarked Best Config
+
+From the benchmark matrix in the site repo:
+
+- best overall stable config:
+
+```yaml
+imageWorkers: 8
+```
+
+- this should remain the default recommendation in docs unless newer benchmark data proves otherwise
+
+## Recently Fixed Issues Agents Should Know About
+
+### Fixed
+
+- source static corruption caused by hardlink-based output writes
+- stale dev search WASM / schema mismatch
+- CSS changes lagging one build behind due to stale asset map reuse
+- font decode failures caused by zero-byte source fonts in site repo
+- absolute watcher path mismatch for markdown incremental rebuilds
+- Windows clean-build publish rename failures from fixed temp dir reuse
+
+### Still intentionally deferred / optional
+
+- search-analysis restructure
+- persisted D2 SSR cache
+
+## Safe Change Boundaries
+
+### Safe / low-risk
+
+- docs updates
+- CLI help text improvements
+- local AST pass cleanup when behavior is already duplicated elsewhere
+- duplicate write removal
+- Windows retry/backoff hardening
+
+### Medium risk
+
+- scanner/parser data reuse
+- asset-pipeline scheduling changes
+- math SSR refactors
+
+### High risk
+
+- search analysis / ranking / snippet changes
+- schema changes
+- anything that alters clean-build staging completeness
+
+## Things Agents Must Not Regress
+
+- no source-tree writes
+- no stale asset hashes in rendered HTML
+- no stale search runtime/index mismatch
+- no loss of incremental single-post rebuild for body-only content edits
+- no clean-build publish partial-output state
+- no broken `.webp` link rewriting for eligible local raster images
+
+## Testing Guidance
+
+### Fast targeted checks
+
+```bash
+go test ./builder/parser ./builder/services ./builder/run ./builder/utils
+go test ./builder/utils ./builder/services ./builder/run ./internal/clean
+```
+
+### Real-world verification against site repo
+
+From `blogs-src`:
+
+```powershell
+kosh clean --cache
+kosh serve --dev
+```
+
+Verify:
+
+- search works
+- CSS updates apply immediately
+- body-only markdown edits use incremental path
+- no source mutations in `content/` or `static/`
+
+### Hash-based source immutability check
+
+Use before/after file-hash snapshots on:
+
+- `static/`
+- `content/`
+
+## Benchmarking Guidance
+
+Site-side helper files:
+
+- `docs/build-benchmark-results.md`
+- `docs/build-benchmark-results-warm.md`
+- `scripts/benchmark-clean-warm.ps1`
+- `scripts/benchmark-clean-cache.ps1`
+
+Current recommendation after benchmarking:
+
+```yaml
+imageWorkers: 8
+vipsConcurrency: 4
+```
+
+## Documentation Expectations
+
+When updating docs, keep these accurate:
+
+- `clean` rebuilds immediately after cleaning
+- `clean --cache` is a true cold rebuild
+- best-known image settings are `8`
+- eligible raster image formats are `.png/.jpg/.jpeg` -> `.webp`
+- warm builds are fast; cold builds are dominated by real image work
+
+## Final Guidance For Agents
+
+When in doubt:
+
+1. protect correctness over speed
+2. protect source immutability over convenience
+3. keep search/schema/runtime in sync
+4. avoid broad refactors in search unless fully tested
+5. prefer small safe optimizations over large coupled rewrites

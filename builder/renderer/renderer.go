@@ -20,27 +20,27 @@ import (
 )
 
 type Renderer struct {
-	Layout                   *template.Template
-	Index                    *template.Template
-	Graph                    *template.Template
-	NotFound                 *template.Template
-	Sidebar                  *template.Template
-	Assets                   map[string]string
-	AssetsMu                 sync.RWMutex
-	assetsSnapshot           atomic.Pointer[map[string]string]
-	Compress                 bool
-	EnableLegacyProcessHTML  bool
-	Sink                     utils.ArtifactSink
-	SourceFs                 afero.Fs
-	RenderedMu               sync.RWMutex
-	RenderedSet              map[string]bool
-	renderedSnapshot         atomic.Pointer[map[string]bool]
-	logger                   *slog.Logger
-	templateDir              string
-	mu                       sync.RWMutex // Added for thread-safe template access
-	devMode                  bool
-	renderErrors             []renderError
-	errMu                    sync.Mutex
+	Layout                  *template.Template
+	Index                   *template.Template
+	Graph                   *template.Template
+	NotFound                *template.Template
+	Sidebar                 *template.Template
+	Assets                  map[string]string
+	AssetsMu                sync.RWMutex
+	assetsSnapshot          atomic.Pointer[map[string]string]
+	Compress                bool
+	EnableLegacyProcessHTML bool
+	Sink                    utils.ArtifactSink
+	SourceFs                afero.Fs
+	RenderedMu              sync.RWMutex
+	RenderedSet             map[string]bool
+	renderedSnapshot        atomic.Pointer[map[string]bool]
+	logger                  *slog.Logger
+	templateDir             string
+	mu                      sync.RWMutex // Added for thread-safe template access
+	devMode                 bool
+	renderErrors            []renderError
+	errMu                   sync.Mutex
 }
 
 type renderError struct {
@@ -100,22 +100,30 @@ func (r *Renderer) ReloadTemplates() {
 		},
 		"trimPrefix": strings.TrimPrefix,
 		"relativize": func(baseURL, prefix, link string) string {
-			if strings.HasPrefix(link, "http") || strings.HasPrefix(link, "//") {
+			if len(link) == 0 || link[0] == 'h' || (len(link) > 1 && link[0] == '/' && link[1] == '/') {
 				return link
 			}
+
+			// Fast path for absolute URLs
+			if strings.HasPrefix(link, "http") || strings.HasPrefix(link, "//") || strings.HasPrefix(link, "data:") {
+				return link
+			}
+
 			// Clean the link
-			link = "/" + strings.TrimPrefix(link, "/")
+			if link[0] != '/' {
+				link = "/" + link
+			}
 
 			if baseURL != "" {
-				res := strings.TrimSuffix(baseURL, "/") + link
-				return res
+				return strings.TrimSuffix(baseURL, "/") + link
 			}
+
 			// If baseURL is empty, use RelativePrefix
-			res := prefix + strings.TrimPrefix(link, "/")
-			if res == "" || res == "/" {
-				return "./"
+			if prefix == "" || prefix == "." || prefix == "./" {
+				return link[1:] // Just remove leading slash
 			}
-			return res
+
+			return prefix + link[1:]
 		},
 		"now":       time.Now,
 		"urlEscape": url.PathEscape,

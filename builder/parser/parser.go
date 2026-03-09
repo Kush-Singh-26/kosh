@@ -15,6 +15,7 @@ import (
 	goldmarkRenderer "github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/util"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
@@ -51,7 +52,7 @@ func codeBlockWrapper(w util.BufWriter, c highlighting.CodeBlockContext, enterin
 }
 
 // New creates a new Goldmark markdown parser with SSR support for diagrams
-func New(cfg *config.Config, renderer *native.Renderer, diagramCache *sync.Map) goldmark.Markdown {
+func New(cfg *config.Config, renderer *native.Renderer, diagramCache *sync.Map, d2Group *singleflight.Group) goldmark.Markdown {
 	baseURL := cfg.BaseURL
 	compress := cfg.CompressImages
 
@@ -77,10 +78,10 @@ func New(cfg *config.Config, renderer *native.Renderer, diagramCache *sync.Map) 
 			parser.WithASTTransformers(
 				util.Prioritized(&urlTransformer{BaseURL: baseURL, Compress: compress}, 100),
 				util.Prioritized(&tocTransformer{}, 200),
-				util.Prioritized(&webpTransformer{Compress: compress}, 300),
 				util.Prioritized(&ssrTransformer{
 					Renderer: renderer,
 					Cache:    diagramCache,
+					D2Group:  d2Group,
 				}, 50), // Run SSR early (lower priority = runs first)
 			),
 			parser.WithAutoHeadingID(),

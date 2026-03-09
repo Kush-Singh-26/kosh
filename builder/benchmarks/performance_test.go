@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spf13/afero"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
@@ -18,13 +17,15 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/spf13/afero"
 )
 
 func BenchmarkMarkdownParsing(b *testing.B) {
 	cfg := &config.Config{}
 	r := native.New()
 	diagramCache := &sync.Map{}
-	parser := mdParser.New(cfg, r, diagramCache)
+	d2Group := r.GetD2Singleflight()
+	parser := mdParser.New(cfg, r, diagramCache, d2Group)
 
 	// Create a large markdown content (approx 10,000 words)
 	word := "word "
@@ -44,7 +45,7 @@ func BenchmarkFullBuild(b *testing.B) {
 	// Setup a 100-post site
 	fs := afero.NewMemMapFs()
 	testutil.ScaffoldTestSite(fs)
-	
+
 	// Add 99 more posts
 	for i := 1; i < 100; i++ {
 		postContent := fmt.Sprintf(`---
@@ -68,9 +69,10 @@ This is post number %d.
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	diagramCache := &sync.Map{}
+	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() interface{} {
-			return mdParser.New(cfg, nativeRenderer, diagramCache)
+			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
 		},
 	}
 
