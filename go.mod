@@ -19,7 +19,6 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stefanfritsch/goldmark-admonitions v1.1.1
 	github.com/tdewolff/minify/v2 v2.24.8
-	github.com/a-h/templ v0.0.0-2024112200303-3e4f6c7a29f0
 	github.com/tinylib/msgp v1.2.4
 	github.com/yuin/goldmark v1.7.16
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc

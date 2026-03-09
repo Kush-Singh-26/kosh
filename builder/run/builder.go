@@ -157,7 +157,9 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 
 	rnd := renderer.NewWithFs(vfs, cfg.CompressImages, nil, cfg.TemplateDir, cfg.IsDev, logger)
 	rnd.EnableLegacyProcessHTML = cfg.Build.EnableLegacyProcessHTML
+
 	renderSvc := services.NewRenderService(rnd, logger)
+
 	assetSvc := services.NewAssetService(vfs, nil, cfg, renderSvc, logger)
 	assetSvc.SetMetrics(buildMetrics)
 
