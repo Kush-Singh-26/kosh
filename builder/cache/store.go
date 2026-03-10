@@ -87,29 +87,23 @@ func extension(ct CompressionType) string {
 }
 
 func renameWithRetry(tmpPath, finalPath string, maxRetries int, baseDelay time.Duration) error {
-	if maxRetries < 1 {
-		maxRetries = 1
-	}
-	var lastErr error
-	delay := baseDelay
-	if delay <= 0 {
-		delay = 10 * time.Millisecond
-	}
-
+	var err error
 	for i := 0; i < maxRetries; i++ {
-		if err := os.Rename(tmpPath, finalPath); err == nil {
+		err = os.Rename(tmpPath, finalPath)
+		if err == nil {
 			return nil
-		} else {
-			lastErr = err
-			if i == maxRetries-1 {
-				break
-			}
-			time.Sleep(delay)
-			delay *= 2
 		}
-	}
 
-	return lastErr
+		// Use a capped backoff with jitter
+		delay := baseDelay * time.Duration(1<<uint(i))
+		if delay > 2*time.Second {
+			delay = 2 * time.Second
+		}
+		// Simple jitter without math/rand: ±10%
+		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
+		time.Sleep(delay + jitter)
+	}
+	return err
 }
 
 func fileExists(path string) bool {

@@ -4,7 +4,6 @@ import (
 	"math"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -88,14 +87,6 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 
 	postCache := make(map[int]*models.PostRecord, maxResults)
 
-	// Pre-build integer-indexed docLens slice to avoid strconv.Atoi + map lookup in hot BM25 loops
-	docLens := make([]int64, len(index.Posts))
-	for idStr, dl := range index.DocLens {
-		if id, err := strconv.Atoi(idStr); err == nil && id < len(docLens) {
-			docLens[id] = dl
-		}
-	}
-
 	// Collect terms that actually matched in the index for high-fidelity highlighting
 	highlightTerms := make(map[string]bool)
 	for _, t := range queryTerms {
@@ -122,7 +113,13 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 			idf := math.Log(1 + (float64(index.TotalDocs)-float64(df)+0.5)/(float64(df)+0.5))
 
 			for postIDStr, positions := range posts {
-				postID, _ := strconv.Atoi(postIDStr)
+				// Search index posts are array indexed, but keys in DocLens/Inverted are strings for msgp stability
+				// Convert once per doc match
+				postID := 0
+				for j := 0; j < len(postIDStr); j++ {
+					postID = postID*10 + int(postIDStr[j]-'0')
+				}
+
 				post, cached := postCache[postID]
 				if !cached {
 					post = &index.Posts[postID]
@@ -138,7 +135,7 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 				}
 
 				freq := len(positions)
-				docLen := float64(docLens[postID])
+				docLen := float64(index.DocLens[postIDStr])
 				score := idf * (float64(freq) * (k1 + 1)) / (float64(freq) + k1*(1-b+b*(docLen/index.AvgDocLen)))
 				scores[postID] += score
 			}
@@ -159,7 +156,11 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 					idf := math.Log(1 + (float64(index.TotalDocs)-float64(df)+0.5)/(float64(df)+0.5))
 
 					for postIDStr, positions := range posts {
-						postID, _ := strconv.Atoi(postIDStr)
+						postID := 0
+						for j := 0; j < len(postIDStr); j++ {
+							postID = postID*10 + int(postIDStr[j]-'0')
+						}
+
 						post, cached := postCache[postID]
 						if !cached {
 							post = &index.Posts[postID]
@@ -175,7 +176,7 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 						}
 
 						freq := len(positions)
-						docLen := float64(docLens[postID])
+						docLen := float64(index.DocLens[postIDStr])
 						score := idf * (float64(freq) * (k1 + 1)) / (float64(freq) + k1*(1-b+b*(docLen/index.AvgDocLen)))
 
 						// Prefix matches (distance usually high) get less penalty than pure fuzzy
@@ -191,16 +192,15 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 	}
 
 	// 1.6 Implicit Phrase Boost
-	// If the query has multiple terms, check if they form a phrase in any document
 	if len(queryTerms) > 1 {
 		for id := range scores {
 			if checkPhraseUnified(index, id, queryTerms) {
-				scores[id] += ScorePhraseMatch * 1.2 // Give boost for exact sequence
+				scores[id] += ScorePhraseMatch * 1.2
 			}
 		}
 	}
 
-	// 2. Process phrase matches (higher score)
+	// 2. Process phrase matches
 	for _, phraseTerms := range parsed.Phrases {
 		for i, post := range index.Posts {
 			if versionFilter != "all" && post.Version != versionFilter {
@@ -216,8 +216,7 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		}
 	}
 
-	// 3. Fallback for Empty Query Terms (e.g. stop words like "how to")
-	// If BM25 found nothing but the user typed something, do a direct substring scan
+	// 3. Fallback for Empty Query Terms
 	if len(scores) == 0 && originalQuery != "" {
 		for i, post := range index.Posts {
 			if versionFilter != "all" && post.Version != versionFilter {
@@ -235,7 +234,6 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 			}
 
 			if match {
-				// Use the raw query words for highlighting in fallback mode
 				for _, word := range strings.Fields(originalQuery) {
 					if len(word) > 2 {
 						highlightTerms[word] = true
@@ -245,7 +243,7 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		}
 	}
 
-	// 4. Boost title and tag matches for existing results
+	// 4. Boost title and tag matches
 	for id := range scores {
 		post := &index.Posts[id]
 
@@ -260,7 +258,6 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		}
 	}
 
-	// Convert highlight map to slice
 	finalHighlightTerms := make([]string, 0, len(highlightTerms))
 	for t := range highlightTerms {
 		finalHighlightTerms = append(finalHighlightTerms, t)
@@ -288,16 +285,28 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		return results[i].Score > results[j].Score
 	})
 
-	// 5. Limit results and extract snippets ONLY for top 10
 	if len(results) > 10 {
 		results = results[:10]
 	}
 
 	for i := range results {
 		post := &index.Posts[results[i].ID]
-		idStr := strconv.Itoa(results[i].ID)
+		idStr := ""
+		id := results[i].ID
+		if id == 0 {
+			idStr = "0"
+		} else {
+			// Fast itoa
+			var b [20]byte
+			bp := len(b) - 1
+			for id > 0 {
+				b[bp] = byte(id%10) + '0'
+				bp--
+				id /= 10
+			}
+			idStr = string(b[bp+1:])
+		}
 
-		// Collect term offsets for this document
 		termOffsets := make(map[string][]int)
 		for _, term := range finalHighlightTerms {
 			if docMap, ok := index.Offsets[term]; ok {
@@ -313,12 +322,26 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 	return results
 }
 
-// checkPhraseUnified matches a phrase using the unified inverted index
 func checkPhraseUnified(index *models.SearchIndex, postID int, phraseTerms []string) bool {
 	if len(phraseTerms) == 0 {
 		return false
 	}
-	idStr := strconv.Itoa(postID)
+
+	idStr := ""
+	tempID := postID
+	if tempID == 0 {
+		idStr = "0"
+	} else {
+		var b [20]byte
+		bp := len(b) - 1
+		for tempID > 0 {
+			b[bp] = byte(tempID%10) + '0'
+			bp--
+			tempID /= 10
+		}
+		idStr = string(b[bp+1:])
+	}
+
 	if len(phraseTerms) == 1 {
 		if postMap, ok := index.Inverted[phraseTerms[0]]; ok {
 			_, found := postMap[idStr]
@@ -379,13 +402,11 @@ func HasTagNormalized(normalizedTags []string, target string) bool {
 	return false
 }
 
-// getHighlightRegex returns a compiled regex for case-insensitive, full-word highlighting
 func getHighlightRegex(terms []string) *regexp.Regexp {
 	if len(terms) == 0 {
 		return nil
 	}
 
-	// Sort terms for a consistent cache key
 	sortedTerms := make([]string, len(terms))
 	copy(sortedTerms, terms)
 	sort.Strings(sortedTerms)
@@ -398,7 +419,7 @@ func getHighlightRegex(terms []string) *regexp.Regexp {
 	escaped := make([]string, 0, len(sortedTerms))
 	for _, term := range sortedTerms {
 		if len(term) < 2 {
-			continue // Skip tiny stems to avoid noise
+			continue
 		}
 		escaped = append(escaped, regexp.QuoteMeta(term))
 	}
@@ -407,10 +428,6 @@ func getHighlightRegex(terms []string) *regexp.Regexp {
 		return nil
 	}
 
-	// Capture group 1: the entire matched word
-	// \b: word boundary
-	// (term1|term2): the base terms / stems
-	// \w*: matches the rest of the word (e.g. 'ing' in 'programming' if 'program' is the stem)
 	pattern := "(?i)\\b((" + strings.Join(escaped, "|") + ")\\w*)\\b"
 	r, err := regexp.Compile(pattern)
 	if err != nil {
@@ -421,7 +438,6 @@ func getHighlightRegex(terms []string) *regexp.Regexp {
 	return r
 }
 
-// ExtractSnippet finds the "densest" cluster of terms for a better snippet
 func ExtractSnippet(content string, terms []string, termOffsets map[string][]int) string {
 	if len(content) == 0 {
 		return ""
@@ -443,7 +459,6 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 	}
 	var matches []match
 
-	// If we have pre-computed offsets, use them! (Schema v7+)
 	if len(termOffsets) > 0 {
 		for _, term := range terms {
 			if offsets, ok := termOffsets[term]; ok {
@@ -457,7 +472,6 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 		}
 	}
 
-	// Fallback to scanning if no offsets or no matches found via offsets
 	if len(matches) == 0 {
 		contentLower := ToLower(content)
 		for _, term := range terms {
@@ -519,7 +533,6 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 		}
 	}
 
-	// Align to word boundary at the start
 	if start > 0 {
 		idx := strings.Index(content[start:], " ")
 		if idx != -1 && idx < 15 {
@@ -529,7 +542,6 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 
 	snippet := content[start:end]
 
-	// Use regex for case-insensitive, full-word highlighting
 	re := getHighlightRegex(terms)
 	if re != nil {
 		snippet = re.ReplaceAllString(snippet, "<b>$1</b>")

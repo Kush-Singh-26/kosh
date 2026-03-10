@@ -42,7 +42,6 @@ func (s *assetServiceImpl) SetContentAssets(assets []ScannedAsset) { s.contentAs
 
 func (s *assetServiceImpl) Build(ctx context.Context) error {
 	g, gCtx := errgroup.WithContext(ctx)
-	utils.SetGlobalImageProcessingLimit(s.cfg.ImageWorkers)
 
 	destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
 	var m interface {
@@ -88,7 +87,11 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			if len(s.contentAssets) > 0 {
 				return s.copyContentAssetsFromManifest()
 			}
-			return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, []string{".md"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
+			exclude := []string{}
+			if !s.cfg.Features.RawMarkdown {
+				exclude = append(exclude, ".md")
+			}
+			return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, exclude, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
 		})
 
 		s.copyCriticalAssets()

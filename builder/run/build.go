@@ -37,7 +37,7 @@ func (b *Builder) build(ctx context.Context) error {
 	wasmWg.Add(1)
 	go func() {
 		defer wasmWg.Done()
-		b.checkWasmUpdate()
+		b.checkWasmUpdate(ctx)
 	}()
 
 	// Handle incremental social card rebuild if needed
@@ -48,6 +48,11 @@ func (b *Builder) build(ctx context.Context) error {
 		if info, err := os.Stat("builder/generators/social.go"); err == nil && info.ModTime().After(lastBuildTime) {
 			forceSocialRebuild = true
 		}
+	}
+
+	// Warm up the JS renderer pool eagerly while other metadata tasks start
+	if b.nativeRenderer != nil {
+		b.nativeRenderer.EnsureInitialized(ctx)
 	}
 
 	if b.cfg.IsDev {
@@ -76,7 +81,10 @@ func (b *Builder) build(ctx context.Context) error {
 	b.assetService.SetAssetsReadySignal(assetsReady)
 
 	var assetErr error
+	var assetWg sync.WaitGroup
+	assetWg.Add(1)
 	go func() {
+		defer assetWg.Done()
 		if err := b.copyStaticAndBuildAssets(ctx); err != nil {
 			assetErr = err
 		}
@@ -84,7 +92,7 @@ func (b *Builder) build(ctx context.Context) error {
 	}()
 
 	// Tell the post service to wait for assets before entering render phase
-	b.postService.SetAssetsGate(assetsReady)
+	b.renderService.SetAssetsGate(assetsReady)
 
 	// Set up the site-wide rendering callback. When post metadata becomes
 	// available inside Process() (after parse, before render), this callback
@@ -139,8 +147,8 @@ func (b *Builder) build(ctx context.Context) error {
 			wasmWg.Add(1)
 			go func() {
 				defer wasmWg.Done()
-				b.waitForAssetsAvailability(context.Background(), assetsReady)
-				_ = b.generatePWA(context.Background(), b.cfg.ForceRebuild)
+				b.waitForAssetsAvailability(ctx, assetsReady)
+				_ = b.generatePWA(ctx, b.cfg.ForceRebuild)
 			}()
 		})
 
@@ -181,8 +189,8 @@ func (b *Builder) build(ctx context.Context) error {
 	}
 	siteWideHas404 = has404
 
-	// Ensure asset goroutine completed and check for errors
-	<-assetsReady
+	// Ensure all assets (including images) are finished before checking errors
+	assetWg.Wait()
 	if assetErr != nil {
 		return fmt.Errorf("failed to build assets: %w", assetErr)
 	}

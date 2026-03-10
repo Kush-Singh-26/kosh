@@ -12,32 +12,35 @@ import (
 	"github.com/zeebo/xxh3"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
 // PostMeta stores metadata about a cached post
 type PostMeta struct {
-	PostID         string
-	Path           string
-	ModTime        int64
-	ContentHash    string // Frontmatter hash
-	BodyHash       string // Body content hash
-	HTMLHash       string // Only for large posts
-	InlineHTML     []byte // < 32KB posts stored inline
-	SSRInputHashes []string
-	Title          string
-	Date           time.Time
-	Tags           []string
-	WordCount      int
-	ReadingTime    int
-	Description    string
-	Link           string
-	Weight         int
-	Pinned         bool
-	Draft          bool
-	Meta           map[string]interface{}
-	TOC            []models.TOCEntry
-	Version        string
-	CardHash       string
+	PostID          string
+	Path            string
+	ModTime         int64
+	ContentHash     string // Frontmatter hash
+	BodyHash        string // Body content hash
+	HTMLHash        string // Only for large posts
+	InlineHTML      []byte // < 32KB posts stored inline
+	SSRInputHashes  []string
+	Title           string
+	Date            time.Time
+	Tags            []string
+	WordCount       int
+	ReadingTime     int
+	Description     string
+	Link            string
+	Weight          int
+	Pinned          bool
+	Draft           bool
+	Meta            map[string]interface{}
+	TOC             []models.TOCEntry
+	Version         string
+	CardHash        string
+	HasImages       bool
+	MathExpressions []native.MathExpression
 }
 
 // SSRArtifact stores server-side rendered content (D2 diagrams, KaTeX math)

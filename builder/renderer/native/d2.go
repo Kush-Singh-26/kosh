@@ -4,16 +4,29 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"oss.terrastruct.com/d2/d2graph"
 	"oss.terrastruct.com/d2/d2layouts/d2dagrelayout"
 	"oss.terrastruct.com/d2/d2lib"
 	"oss.terrastruct.com/d2/d2renderers/d2svg"
 	d2log "oss.terrastruct.com/d2/lib/log"
+	"oss.terrastruct.com/d2/lib/textmeasure"
 	"oss.terrastruct.com/util-go/go2"
 )
 
 // RenderD2 renders a D2 diagram to SVG with the specified theme ID.
 func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if r.scheduler != nil {
+		if err := r.scheduler.Acquire(ctx, utils.TaskMath); err != nil {
+			return "", err
+		}
+		defer r.scheduler.Release(utils.TaskMath)
+	}
+
 	r.ensureInitialized()
 
 	r.mu.Lock()
@@ -26,21 +39,12 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 
 	defer r.wg.Done()
 
-	// Acquire worker with context awareness
-	var instance *instance
-	select {
-	case <-ctx.Done():
-		return "", ctx.Err()
-	case instance = <-r.pool:
+	ruler := r.rulerPool.Get().(*textmeasure.Ruler)
+	if ruler == nil {
+		// Fallback or error if ruler is nil
+		return "", fmt.Errorf("failed to get text ruler from pool")
 	}
-	defer func() {
-		r.mu.Lock()
-		isClosed := r.closed
-		r.mu.Unlock()
-		if !isClosed {
-			r.pool <- instance
-		}
-	}()
+	defer r.rulerPool.Put(ruler)
 
 	// Configure layout
 	layout := func(ctx context.Context, g *d2graph.Graph) error {
@@ -49,7 +53,7 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 
 	compileOpts := &d2lib.CompileOptions{
 		Layout: nil,
-		Ruler:  instance.ruler,
+		Ruler:  ruler,
 	}
 
 	compileOpts.LayoutResolver = func(engine string) (d2graph.LayoutGraph, error) {

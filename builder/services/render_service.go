@@ -11,8 +11,9 @@ import (
 )
 
 type renderServiceImpl struct {
-	rnd    *renderer.Renderer
-	logger *slog.Logger
+	rnd         *renderer.Renderer
+	logger      *slog.Logger
+	assetsReady <-chan struct{}
 }
 
 func NewRenderService(rnd *renderer.Renderer, logger *slog.Logger) RenderService {
@@ -31,11 +32,21 @@ func (s *renderServiceImpl) SetSourceFs(fs afero.Fs) {
 	s.rnd.ReloadTemplates()
 }
 
+func (s *renderServiceImpl) SetAssetsGate(ch <-chan struct{}) {
+	s.assetsReady = ch
+}
+
 func (s *renderServiceImpl) RenderPage(path string, data models.PageData) {
+	if s.assetsReady != nil {
+		<-s.assetsReady
+	}
 	s.rnd.RenderPage(path, data)
 }
 
 func (s *renderServiceImpl) RenderIndex(path string, data models.PageData) {
+	if s.assetsReady != nil {
+		<-s.assetsReady
+	}
 	s.rnd.RenderIndex(path, data)
 }
 
@@ -44,6 +55,9 @@ func (s *renderServiceImpl) Render404(path string, data models.PageData) {
 }
 
 func (s *renderServiceImpl) RenderGraph(path string, data models.PageData) {
+	if s.assetsReady != nil {
+		<-s.assetsReady
+	}
 	s.rnd.RenderGraph(path, data)
 }
 

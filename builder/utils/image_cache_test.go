@@ -9,21 +9,22 @@ import (
 func TestImageCache_LRUBehavior(t *testing.T) {
 	cache := newImageCache(100, 10*1024*1024)
 
-	cache.set("key1", []byte("value1"))
-	cache.set("key2", []byte("value2"))
-	cache.set("key3", []byte("value3"))
+	k1 := imageCacheKey{path: "key1", size: 100, modTime: 1}
+	k2 := imageCacheKey{path: "key2", size: 100, modTime: 2}
+	k3 := imageCacheKey{path: "key3", size: 100, modTime: 3}
 
-	if _, ok := cache.get("key1"); !ok {
+	cache.set(k1, []byte("value1"))
+	cache.set(k2, []byte("value2"))
+	cache.set(k3, []byte("value3"))
+
+	if _, ok := cache.get(k1); !ok {
 		t.Error("key1 should exist")
 	}
 
-	cache.set("key4", []byte("value4"))
-	cache.set("key5", []byte("value5"))
-	cache.set("key6", []byte("value6"))
-	cache.set("key7", []byte("value7"))
-	cache.set("key8", []byte("value8"))
-	cache.set("key9", []byte("value9"))
-	cache.set("key10", []byte("value10"))
+	for i := 4; i <= 10; i++ {
+		ki := imageCacheKey{path: "key", size: int64(i), modTime: int64(i)}
+		cache.set(ki, []byte("value"))
+	}
 
 	t.Log("LRU behavior test passed - no panic")
 }
@@ -35,7 +36,7 @@ func TestImageCache_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			for j := 0; j < 100; j++ {
-				key := string(rune('a'+id)) + string(rune('0'+j%10))
+				key := imageCacheKey{path: "key", size: int64(id), modTime: int64(j % 10)}
 				cache.set(key, []byte("data"))
 				cache.get(key)
 			}

@@ -87,18 +87,78 @@ func (p *BufioWriterPool) Get(w io.Writer) *bufio.Writer {
 }
 
 func (p *BufioWriterPool) Put(bw *bufio.Writer) {
-	if bw.Size() > MaxBufferSize {
-		return // Don't return oversized writers to the pool
-	}
+	bw.Reset(nil)
 	p.pool.Put(bw)
+}
+
+// BufioReaderPool manages a pool of reusable bufio.Reader objects
+type BufioReaderPool struct {
+	pool sync.Pool
+}
+
+func NewBufioReaderPool() *BufioReaderPool {
+	return &BufioReaderPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				return bufio.NewReaderSize(nil, MaxBufferSize)
+			},
+		},
+	}
+}
+
+func (p *BufioReaderPool) Get(r io.Reader) *bufio.Reader {
+	if br := p.pool.Get(); br != nil {
+		reader := br.(*bufio.Reader)
+		reader.Reset(r)
+		return reader
+	}
+	return bufio.NewReaderSize(r, MaxBufferSize)
+}
+
+func (p *BufioReaderPool) Put(br *bufio.Reader) {
+	br.Reset(nil)
+	p.pool.Put(br)
 }
 
 // Global shared pool instances
 var (
-	SharedBufferPool      = NewBufferPool()
+	SharedBufferPool        = NewBufferPool()
 	SharedStringBuilderPool = NewStringBuilderPool()
-	SharedBufioWriterPool = NewBufioWriterPool()
+	SharedBufioWriterPool   = NewBufioWriterPool()
+	SharedBufioReaderPool   = NewBufioReaderPool()
+	SharedLargeBufferPool   = NewLargeBufferPool()
 )
+
+// LargeBufferPool manages a pool of large bytes.Buffer objects (for images/social cards)
+type LargeBufferPool struct {
+	pool sync.Pool
+}
+
+func NewLargeBufferPool() *LargeBufferPool {
+	return &LargeBufferPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				// Pre-allocate 2MB
+				buf := new(bytes.Buffer)
+				buf.Grow(2 * 1024 * 1024)
+				return buf
+			},
+		},
+	}
+}
+
+func (p *LargeBufferPool) Get() *bytes.Buffer {
+	return p.pool.Get().(*bytes.Buffer)
+}
+
+func (p *LargeBufferPool) Put(buf *bytes.Buffer) {
+	// Safety cap: discard buffers larger than 8MB to prevent memory bloat
+	if buf == nil || buf.Cap() > 8*1024*1024 {
+		return
+	}
+	buf.Reset()
+	p.pool.Put(buf)
+}
 
 // ByteSlicePool manages a pool of byte slices
 type ByteSlicePool struct {

@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bytes"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -26,14 +25,36 @@ func InitMinifier() {
 var imgRe = regexp.MustCompile(`(?i)(<img[^>]+src=["'])([^"']*)(["'])`)
 
 func ProcessHTML(htmlStr string, baseURL string, prefix string, compress bool) string {
-	if !strings.Contains(htmlStr, "<img") {
+	// Case-insensitive check without full ToLower allocation
+	hasImg := false
+	for i := 0; i < len(htmlStr)-4; i++ {
+		if htmlStr[i] == '<' &&
+			(htmlStr[i+1] == 'i' || htmlStr[i+1] == 'I') &&
+			(htmlStr[i+2] == 'm' || htmlStr[i+2] == 'M') &&
+			(htmlStr[i+3] == 'g' || htmlStr[i+3] == 'G') {
+			hasImg = true
+			break
+		}
+	}
+	if !hasImg {
 		return htmlStr
 	}
 	return string(ProcessHTMLBytes([]byte(htmlStr), baseURL, prefix, compress))
 }
 
 func ProcessHTMLBytes(htmlBytes []byte, baseURL string, prefix string, compress bool) []byte {
-	if !bytes.Contains(htmlBytes, []byte("<img")) {
+	// Case-insensitive check without full ToLower allocation
+	hasImg := false
+	for i := 0; i < len(htmlBytes)-4; i++ {
+		if htmlBytes[i] == '<' &&
+			(htmlBytes[i+1] == 'i' || htmlBytes[i+1] == 'I') &&
+			(htmlBytes[i+2] == 'm' || htmlBytes[i+2] == 'M') &&
+			(htmlBytes[i+3] == 'g' || htmlBytes[i+3] == 'G') {
+			hasImg = true
+			break
+		}
+	}
+	if !hasImg {
 		return htmlBytes
 	}
 

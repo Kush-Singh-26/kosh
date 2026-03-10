@@ -69,6 +69,8 @@ type ParsedMarkdownResult struct {
 	StemMap         map[string]string
 	PositionalIndex map[string][]int
 	ByteOffsets     map[string][]int
+	MathExpressions []native.MathExpression
+	HasImages       bool
 }
 
 // ParseMarkdownMetadata handles the semantic parsing and metadata extraction
@@ -177,7 +179,7 @@ func ParseMarkdownMetadata(
 	return res, nil
 }
 
-// RenderParsedMarkdown converts the AST to HTML and performs Math SSR
+// RenderParsedMarkdown converts the AST to HTML and performs Math discovery
 func RenderParsedMarkdown(
 	source []byte,
 	res *ParsedMarkdownResult,
@@ -199,21 +201,13 @@ func RenderParsedMarkdown(
 		return fmt.Errorf("failed to render markdown: %w", err)
 	}
 	res.HTMLContent = buf.String()
+	res.HasImages = bytes.Contains(source, []byte("![")) || bytes.Contains(source, []byte("<img"))
 
-	// Math SSR
-	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) {
-		var cacheLookup func(string) (string, bool)
-		if diagramAdapter != nil {
-			cacheLookup = diagramAdapter.GetLocal
-		}
-		var mathHashes []string
-		var renderedMath map[string]string
-		// Use pre-collected expressions from AST
-		preCollected := mdParser.GetMathExpressions(res.Context)
-		res.HTMLContent, mathHashes, renderedMath = mdParser.RenderMathForHTML(res.HTMLContent, nativeRenderer, cacheLookup, preCollected)
-		res.SSRHashes = append(res.SSRHashes, mathHashes...)
-		if diagramAdapter != nil && len(renderedMath) > 0 {
-			diagramAdapter.Merge(renderedMath)
+	// Math discovery (deferred to global orchestration)
+	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) || bytes.Contains(source, []byte("\\[")) {
+		res.MathExpressions = mdParser.GetMathExpressions(res.Context)
+		for _, expr := range res.MathExpressions {
+			res.SSRHashes = append(res.SSRHashes, expr.Hash)
 		}
 	}
 
@@ -242,6 +236,10 @@ func ParseMarkdown(
 	if err := RenderParsedMarkdown(source, res, mdPool, nativeRenderer, diagramAdapter); err != nil {
 		return nil, err
 	}
+
+	// Nil out heavy objects to reduce peak RSS now that HTML is rendered
+	res.AST = nil
+	res.Context = nil
 
 	return res, nil
 }

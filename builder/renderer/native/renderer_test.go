@@ -31,8 +31,9 @@ func TestRenderer_RenderMath(t *testing.T) {
 	r := New(WithWorkers(1))
 	defer r.Close()
 
+	ctx := context.Background()
 	latex := "E = mc^2"
-	html, err := r.RenderMath(latex, true)
+	html, err := r.RenderMath(ctx, latex, true)
 	if err != nil {
 		t.Fatalf("RenderMath failed: %v", err)
 	}
@@ -49,13 +50,14 @@ func TestRenderer_RenderAllMath(t *testing.T) {
 	r := New(WithWorkers(2))
 	defer r.Close()
 
+	ctx := context.Background()
 	expressions := []MathExpression{
 		{LaTeX: "a^2 + b^2 = c^2", DisplayMode: true, Hash: "hash1"},
 		{LaTeX: "\\sum_{i=1}^n i", DisplayMode: false, Hash: "hash2"},
 	}
 
 	cache := make(map[string]string)
-	results, err := r.RenderAllMath(expressions, cache)
+	results, err := r.RenderAllMath(ctx, expressions, cache)
 	if err != nil {
 		t.Fatalf("RenderAllMath failed: %v", err)
 	}
@@ -70,7 +72,7 @@ func TestRenderer_RenderAllMath(t *testing.T) {
 
 	// Test cache hit
 	cache["hash1"] = "cached-result"
-	results2, err := r.RenderAllMath(expressions, cache)
+	results2, err := r.RenderAllMath(ctx, expressions, cache)
 	if err != nil {
 		t.Fatalf("RenderAllMath with cache failed: %v", err)
 	}

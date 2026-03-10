@@ -85,6 +85,7 @@ type AssetService interface {
 
 // RenderService handles rendering logic
 type RenderService interface {
+	SetAssetsGate(ch <-chan struct{})
 	SetSink(sink utils.ArtifactSink)
 	SetSourceFs(fs afero.Fs)
 	RenderPage(path string, data models.PageData)

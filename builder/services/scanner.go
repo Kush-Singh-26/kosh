@@ -167,6 +167,13 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 					case <-gCtx.Done():
 						return gCtx.Err()
 					}
+
+					// If raw markdown is enabled, also treat it as an asset to be copied
+					if cfg.Features.RawMarkdown {
+						mu.Lock()
+						assets = append(assets, ScannedAsset{Path: path, Info: info})
+						mu.Unlock()
+					}
 					return nil
 				}
 				mu.Lock()

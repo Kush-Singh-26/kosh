@@ -85,16 +85,16 @@ func (tx *DirectoryTx) Commit() error {
 	if _, err := os.Stat(tx.realOutputDir); err == nil {
 		// Try to remove old backup if it somehow exists
 		_ = os.RemoveAll(backupDir)
-		if err := RenameWithRetry(tx.realOutputDir, backupDir, 8, 100*time.Millisecond); err != nil {
+		if err := RenameWithRetry(tx.realOutputDir, backupDir, 12, 20*time.Millisecond); err != nil {
 			return fmt.Errorf("failed to backup output directory: %w", err)
 		}
 	}
 
 	// 2. Rename outputDir.tmp -> outputDir
-	if err := RenameWithRetry(tx.stagingDir, tx.realOutputDir, 8, 100*time.Millisecond); err != nil {
+	if err := RenameWithRetry(tx.stagingDir, tx.realOutputDir, 12, 20*time.Millisecond); err != nil {
 		// Attempt to restore backup on failure
 		if backupDir != "" {
-			_ = RenameWithRetry(backupDir, tx.realOutputDir, 8, 100*time.Millisecond)
+			_ = RenameWithRetry(backupDir, tx.realOutputDir, 12, 20*time.Millisecond)
 		}
 		return fmt.Errorf("failed to publish staging directory: %w", err)
 	}
@@ -135,8 +135,15 @@ func RenameWithRetry(oldPath, newPath string, maxRetries int, baseDelay time.Dur
 		if err == nil {
 			return nil
 		}
-		time.Sleep(baseDelay + time.Duration(i*25)*time.Millisecond)
-		baseDelay *= 2
+
+		// Use a capped backoff with jitter
+		delay := baseDelay * time.Duration(1<<uint(i))
+		if delay > 2*time.Second {
+			delay = 2 * time.Second
+		}
+		// Simple jitter without math/rand: ±10%
+		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
+		time.Sleep(delay + jitter)
 	}
 	return err
 }

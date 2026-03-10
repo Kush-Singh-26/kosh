@@ -1,7 +1,9 @@
+//go:build !wasm
+// +build !wasm
+
 package utils
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -15,6 +17,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,8 +29,14 @@ import (
 	"golang.org/x/image/draw"
 )
 
+type imageCacheKey struct {
+	path    string
+	size    int64
+	modTime int64
+}
+
 type imageCache struct {
-	cache    *lru.Cache[string, []byte]
+	cache    *lru.Cache[imageCacheKey, []byte]
 	mu       sync.RWMutex
 	size     int
 	capacity int
@@ -44,27 +53,27 @@ func newImageCache(maxItems int, maxBytes int) *imageCache {
 		capacity: maxBytes,
 	}
 
-	onEvict := func(key string, value []byte) {
+	onEvict := func(key imageCacheKey, value []byte) {
 		ic.mu.Lock()
 		// Calculate roughly same size as when it was added
-		overhead := 64 + len(key) // map entry overhead + string length
+		overhead := 128 + len(key.path) // struct overhead + string length
 		ic.size -= (cap(value) + overhead)
 		ic.mu.Unlock()
 	}
 
-	c, _ := lru.NewWithEvict[string, []byte](maxItems, onEvict)
+	c, _ := lru.NewWithEvict[imageCacheKey, []byte](maxItems, onEvict)
 	ic.cache = c
 
 	return ic
 }
 
-func (c *imageCache) get(key string) ([]byte, bool) {
+func (c *imageCache) get(key imageCacheKey) ([]byte, bool) {
 	return c.cache.Get(key)
 }
 
-func (c *imageCache) set(key string, data []byte) {
+func (c *imageCache) set(key imageCacheKey, data []byte) {
 	// Calculate size with overhead
-	overhead := 64 + len(key)
+	overhead := 128 + len(key.path)
 	itemSize := cap(data) + overhead
 
 	c.mu.Lock()
@@ -85,11 +94,45 @@ func (c *imageCache) set(key string, data []byte) {
 // globalImageCache limits to 200 items or ~50MB of memory
 var globalImageCache = newImageCache(200, 50*1024*1024)
 
-var copyBufferPool = sync.Pool{
+var keyBufPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, 64*1024)
+		b := make([]byte, 0, 512)
+		return &b
 	},
 }
+
+func getImageHash(key imageCacheKey) string {
+	bufPtr := keyBufPool.Get().(*[]byte)
+	buf := (*bufPtr)[:0]
+	defer func() {
+		*bufPtr = buf
+		keyBufPool.Put(bufPtr)
+	}()
+
+	buf = append(buf, key.path...)
+	buf = strconv.AppendInt(buf, key.size, 10)
+	buf = strconv.AppendInt(buf, key.modTime, 10)
+
+	h := xxh3.Hash128(buf)
+	res := h.Bytes()
+	return hex.EncodeToString(res[:])
+}
+
+var (
+	copyBufferPool = sync.Pool{
+		New: func() interface{} {
+			return make([]byte, 64*1024)
+		},
+	}
+
+	// rgbaPixPool reuses large byte slices for image resizing to reduce GC pressure
+	rgbaPixPool = sync.Pool{
+		New: func() interface{} {
+			// Pre-allocate for 1200px width * 1600px height * 4 bytes (RGBA)
+			return make([]byte, 1200*1600*4)
+		},
+	}
+)
 
 // Async image cache writer
 var imageCacheWriter struct {
@@ -104,7 +147,9 @@ type imageCacheEntry struct {
 
 func initImageCacheWriter() {
 	imageCacheWriter.once.Do(func() {
-		imageCacheWriter.ch = make(chan imageCacheEntry, 64)
+		// Increased channel depth to smooth out I/O spikes
+		imageCacheWriter.ch = make(chan imageCacheEntry, 256)
+		// Launch multiple workers for async writes if needed, but 1 is usually enough for sequential disk
 		go func() {
 			for entry := range imageCacheWriter.ch {
 				_ = os.MkdirAll(filepath.Dir(entry.path), 0755)
@@ -116,65 +161,28 @@ func initImageCacheWriter() {
 	})
 }
 
-func queueImageCacheWrite(path string, data []byte) {
+func queueImageCacheWrite(path string, data []byte, isCloned bool) {
 	initImageCacheWriter()
-	// Make a copy since the caller's data may be from a sync.Pool
-	dataCopy := make([]byte, len(data))
-	copy(dataCopy, data)
+
+	var dataCopy []byte
+	if isCloned {
+		dataCopy = data
+	} else {
+		// Make a copy since the caller's data may be from a sync.Pool
+		dataCopy = make([]byte, len(data))
+		copy(dataCopy, data)
+	}
+
 	select {
 	case imageCacheWriter.ch <- imageCacheEntry{path: path, data: dataCopy}:
 	default:
 		// Channel full — write synchronously as fallback
 		_ = os.MkdirAll(filepath.Dir(path), 0755)
-		_ = os.WriteFile(path, data, 0644)
+		_ = os.WriteFile(path, dataCopy, 0644)
 	}
 }
 
-var globalImageLimiter struct {
-	mu    sync.RWMutex
-	ch    chan struct{}
-	limit int
-}
-
-const smallImageResizeThresholdBytes int64 = 12 * 1024
-
-func SetGlobalImageProcessingLimit(limit int) {
-	if limit <= 0 {
-		limit = runtime.NumCPU()
-	}
-	if limit < 1 {
-		limit = 1
-	}
-
-	globalImageLimiter.mu.Lock()
-	defer globalImageLimiter.mu.Unlock()
-	if globalImageLimiter.limit == limit && globalImageLimiter.ch != nil {
-		return
-	}
-	globalImageLimiter.limit = limit
-	globalImageLimiter.ch = make(chan struct{}, limit)
-}
-
-func withImageToken(ctx context.Context, fn func() error) error {
-	globalImageLimiter.mu.RLock()
-	ch := globalImageLimiter.ch
-	globalImageLimiter.mu.RUnlock()
-	if ch == nil {
-		SetGlobalImageProcessingLimit(runtime.NumCPU())
-		globalImageLimiter.mu.RLock()
-		ch = globalImageLimiter.ch
-		globalImageLimiter.mu.RUnlock()
-	}
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case ch <- struct{}{}:
-	}
-	defer func() { <-ch }()
-
-	return fn()
-}
+const smallImageResizeThresholdBytes int64 = 32 * 1024
 
 func isNil(i interface{}) bool {
 	if i == nil {
@@ -228,9 +236,12 @@ func CopyFileWithOptionalImageProcessing(ctx context.Context, srcFs afero.Fs, si
 	ext := strings.ToLower(filepath.Ext(srcPath))
 	isImage := ext == ".jpg" || ext == ".jpeg" || ext == ".png"
 	if compress && isImage {
-		if err := withImageToken(ctx, func() error {
-			return processImageVFS(ctx, srcFs, sink, srcPath, destPath[:len(destPath)-len(filepath.Ext(destPath))]+".webp", cacheDir, webpQuality, info, m)
-		}); err != nil {
+		if err := GlobalScheduler.Acquire(ctx, TaskImage); err != nil {
+			return err
+		}
+		defer GlobalScheduler.Release(TaskImage)
+
+		if err := processImageVFS(ctx, srcFs, sink, srcPath, destPath[:len(destPath)-len(filepath.Ext(destPath))]+".webp", cacheDir, webpQuality, info, m); err != nil {
 			return err
 		}
 		if onWrite != nil {
@@ -263,8 +274,8 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 	if nonImageWorkers < 2 {
 		nonImageWorkers = 2
 	}
-	if nonImageWorkers > 16 {
-		nonImageWorkers = 16
+	if nonImageWorkers > 32 {
+		nonImageWorkers = 32
 	}
 
 	var errs []error
@@ -293,9 +304,15 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 							}
 						}()
 						target := filepath.Join(dstDir, task.relPath)
-						if err := withImageToken(ctx, func() error {
-							return processImageVFS(ctx, srcFs, sink, task.path, target, cacheDir, webpQuality, task.info, m)
-						}); err != nil {
+						if err := GlobalScheduler.Acquire(ctx, TaskImage); err != nil {
+							errMu.Lock()
+							errs = append(errs, err)
+							errMu.Unlock()
+							return
+						}
+						defer GlobalScheduler.Release(TaskImage)
+
+						if err := processImageVFS(ctx, srcFs, sink, task.path, target, cacheDir, webpQuality, task.info, m); err != nil {
 							errMu.Lock()
 							errs = append(errs, fmt.Errorf("failed to process image %s: %w", task.path, err))
 							errMu.Unlock()
@@ -330,8 +347,12 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 		}()
 	}
 
-	// Use low concurrency for discovery walk to avoid NTFS contention
-	walkErr := ParallelWalk(ctx, srcFs, srcDir, 2, func(path string, info fs.FileInfo, err error) error {
+	// Use higher concurrency for discovery walk on modern SSDs
+	walkConcurrency := numWorkers / 2
+	if walkConcurrency < 4 {
+		walkConcurrency = 4
+	}
+	walkErr := ParallelWalk(ctx, srcFs, srcDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -405,7 +426,12 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 
 	skipResize := srcInfo.Size() <= smallImageResizeThresholdBytes
 
-	memCacheKey := fmt.Sprintf("%s-%d-%d", srcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())
+	memCacheKey := imageCacheKey{
+		path:    srcPath,
+		size:    srcInfo.Size(),
+		modTime: srcInfo.ModTime().UnixNano(),
+	}
+
 	if cached, ok := globalImageCache.get(memCacheKey); ok {
 		if err := sink.MkdirAll(filepath.Dir(dstPath)); err != nil {
 			return fmt.Errorf("failed to create image directory: %w", err)
@@ -419,9 +445,7 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 	var cacheFile string
 	cacheFs := afero.NewOsFs()
 	if cacheDir != "" {
-		hash := xxh3.Hash128([]byte(memCacheKey))
-		b := hash.Bytes()
-		hashStr := hex.EncodeToString(b[:])
+		hashStr := getImageHash(memCacheKey)
 		cacheFile = filepath.Join(cacheDir, hashStr+".webp")
 
 		if cacheInfo, err := cacheFs.Stat(cacheFile); err == nil && !cacheInfo.IsDir() {
@@ -458,8 +482,12 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 	}
 	defer func() { _ = f.Close() }()
 
+	// Use pooled buffered reader to reduce syscalls
+	br := SharedBufioReaderPool.Get(f)
+	defer SharedBufioReaderPool.Put(br)
+
 	// Decode image
-	src, _, err := image.Decode(f)
+	src, _, err := image.Decode(br)
 	if err != nil {
 		return fmt.Errorf("failed to decode image %s: %w", srcPath, err)
 	}
@@ -472,7 +500,23 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 	if width > 1200 && !skipResize {
 		newWidth := 1200
 		newHeight := (height * newWidth) / width
-		dst := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+
+		// Use pooled pix buffer for resizing
+		neededSize := newWidth * newHeight * 4
+		var pix []byte
+		if neededSize <= 1200*1600*4 {
+			pix = rgbaPixPool.Get().([]byte)
+			defer rgbaPixPool.Put(pix)
+		} else {
+			pix = make([]byte, neededSize)
+		}
+
+		dst := &image.RGBA{
+			Pix:    pix[:neededSize],
+			Stride: newWidth * 4,
+			Rect:   image.Rect(0, 0, newWidth, newHeight),
+		}
+
 		draw.BiLinear.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
 		finalImg = dst
 	} else if skipResize && !isNil(m) {
@@ -487,9 +531,11 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 		webpQuality = 80
 	}
 
-	// Encode to WebP
-	var buf bytes.Buffer
-	err = webp.Encode(&buf, finalImg, &webp.Options{Quality: float32(webpQuality)})
+	// Encode to WebP using pooled buffer
+	buf := SharedLargeBufferPool.Get()
+	defer SharedLargeBufferPool.Put(buf)
+
+	err = webp.Encode(buf, finalImg, &webp.Options{Quality: float32(webpQuality)})
 	if err != nil {
 		return fmt.Errorf("failed to encode webp %s: %w", dstPath, err)
 	}
@@ -501,7 +547,7 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 	globalImageCache.set(memCacheKey, cacheData)
 
 	if cacheFile != "" {
-		queueImageCacheWrite(cacheFile, cacheData)
+		queueImageCacheWrite(cacheFile, cacheData, true)
 	}
 
 	if !isNil(m) {

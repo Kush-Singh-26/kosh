@@ -164,6 +164,7 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 			Draft: post.Draft, Meta: metaData, TOC: cacheTOC, Version: version,
 			SSRInputHashes: ssrHashes,
 			CardHash:       frontmatterHash,
+			HasImages:      parseRes.HasImages,
 		}
 		// Use StoreHTMLForPost to properly inline small posts (<32KB), consistent with full builds
 		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
@@ -234,7 +235,7 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 		TOC: toc, Config: s.cfg, SiteTree: siteTree,
 		CurrentVersion: version, IsOutdated: s.isOutdatedVersion(version),
 		Versions: s.cfg.GetVersionsMetadata(version, cleanHtmlRelPath),
-		PrevPage: prev, NextPage: next,
+		PrevPage: prev, NextPage: next, HasImages: parseRes.HasImages,
 	})
 
 	return nil

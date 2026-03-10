@@ -1,6 +1,7 @@
 package build
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/hex"
@@ -12,37 +13,49 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/andybalholm/brotli"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
 )
 
-//go:embed wasm/search.wasm
-var searchWasm []byte
+//go:embed wasm/search.wasm.br
+var searchWasmBr []byte
 
-// embeddedWasmHash caches the hash of embedded WASM (computed once at init)
+// embeddedWasmHash caches the hash of the raw (decompressed) embedded WASM
 var embeddedWasmHash string
 
 func init() {
-	embeddedWasmHash = hashBytes(searchWasm)
+	raw, err := decompressBrotli(searchWasmBr)
+	if err != nil {
+		// This should never happen if the build process is correct
+		panic(fmt.Sprintf("failed to decompress embedded WASM: %v", err))
+	}
+	embeddedWasmHash = hashBytes(raw)
 }
 
 // CheckWASM ensures the search engine WASM is present and up-to-date.
 // Uses hash comparison to avoid unnecessary writes when WASM hasn't changed.
-func CheckWASM(outputDir string) bool {
-	return CheckWASMFs(afero.NewOsFs(), outputDir)
+func CheckWASM(outputDir string, cacheDir string) bool {
+	return CheckWASMFs(afero.NewOsFs(), outputDir, cacheDir)
 }
 
-func CheckWASMFs(fs afero.Fs, outputDir string) bool {
-	return CheckWASMFsWithSource(fs, outputDir, nil)
+func CheckWASMFs(fs afero.Fs, outputDir string, cacheDir string) bool {
+	return CheckWASMFsWithSource(fs, outputDir, cacheDir, nil)
 }
 
-func CheckWASMFsWithSource(fs afero.Fs, outputDir string, sourceWasm []byte) bool {
+func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourceWasm []byte) bool {
 	wasmOut := filepath.Join(outputDir, "static/wasm/search.wasm")
-	wasmBytes := searchWasm
-	wasmHash := embeddedWasmHash
-	if len(sourceWasm) > 0 {
+	brOut := wasmOut + ".br"
+
+	var wasmBytes []byte
+	var wasmHash string
+	var wasmBrBytes []byte
+	isEmbedded := len(sourceWasm) == 0
+
+	if isEmbedded {
+		wasmHash = embeddedWasmHash
+		wasmBrBytes = searchWasmBr
+	} else {
 		wasmBytes = sourceWasm
 		wasmHash = hashBytes(sourceWasm)
 	}
@@ -51,47 +64,87 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, sourceWasm []byte) boo
 		fmt.Printf("⚠️ Failed to create WASM directory: %v\n", err)
 	}
 
-	// Check if deployed WASM matches embedded version
-	brExists, _ := afero.Exists(fs, wasmOut+".br")
+	// Check if deployed WASM matches current version
+	brExists, _ := afero.Exists(fs, brOut)
 	if deployedHash, err := hashFileFs(fs, wasmOut); err == nil && brExists {
 		if deployedHash == wasmHash {
-			// Already up-to-date, skip write
 			return false
 		}
 		fmt.Println("🔄 WASM updated, deploying new version...")
 	} else {
-		fmt.Println("🚀 Writing embedded Search WASM...")
+		// Check persistent cache for non-embedded source
+		if !isEmbedded && cacheDir != "" {
+			cachePath := filepath.Join(cacheDir, "wasm", wasmHash+".br")
+			if cachedBr, err := os.ReadFile(cachePath); err == nil {
+				fmt.Println("🚀 Using cached Search WASM...")
+				_ = afero.WriteFile(fs, wasmOut, wasmBytes, 0644)
+				_ = afero.WriteFile(fs, brOut, cachedBr, 0644)
+				return true
+			}
+		}
+		fmt.Println("🚀 Deploying Search WASM...")
 	}
 
-	// Write new WASM
+	// Deploy WASM and Brotli
+	if isEmbedded {
+		// For embedded, we have .br, need to decompress for .wasm
+		var err error
+		wasmBytes, err = decompressBrotli(wasmBrBytes)
+		if err != nil {
+			fmt.Printf("❌ Failed to decompress embedded WASM: %v\n", err)
+			return false
+		}
+	} else {
+		// For source, we have .wasm, need to compress for .br
+		fmt.Println("📦 Compressing WASM...")
+		var buf bytes.Buffer
+		bw := brotli.NewWriterLevel(&buf, 4)
+		_, _ = bw.Write(wasmBytes)
+		bw.Close()
+		wasmBrBytes = buf.Bytes()
+
+		// Save to persistent cache
+		if cacheDir != "" {
+			cacheDirFull := filepath.Join(cacheDir, "wasm")
+			_ = os.MkdirAll(cacheDirFull, 0755)
+			_ = os.WriteFile(filepath.Join(cacheDirFull, wasmHash+".br"), wasmBrBytes, 0644)
+		}
+	}
+
 	if err := afero.WriteFile(fs, wasmOut, wasmBytes, 0644); err != nil {
 		fmt.Printf("❌ Failed to write WASM: %v\n", err)
-		if !utils.TestingMode {
-			os.Exit(1)
-		}
+		return false
+	}
+	if err := afero.WriteFile(fs, brOut, wasmBrBytes, 0644); err != nil {
+		fmt.Printf("❌ Failed to write WASM.br: %v\n", err)
 		return false
 	}
 
-	// Compress WASM
-	fmt.Println("📦 Compressing WASM...")
-	if err := CompressBrotliFsLevel(fs, wasmOut, wasmOut+".br", 4); err != nil {
-		fmt.Printf("⚠️ Failed to compress WASM: %v\n", err)
-	} else {
-		fmt.Printf("✅ WASM brotlied: %s\n", getFileSizeFs(fs, wasmOut+".br"))
-	}
+	fmt.Printf("✅ WASM deployed: %s (compressed: %s)\n",
+		formatSize(len(wasmBytes)), formatSize(len(wasmBrBytes)))
+
 	return true
 }
 
-func DeployWASMFromFile(fs afero.Fs, outputDir, sourcePath string) bool {
+func decompressBrotli(data []byte) ([]byte, error) {
+	br := brotli.NewReader(bytes.NewReader(data))
+	return io.ReadAll(br)
+}
+
+func formatSize(size int) string {
+	return fmt.Sprintf("%.2f KB", float64(size)/1024)
+}
+
+func DeployWASMFromFile(fs afero.Fs, outputDir, cacheDir, sourcePath string) bool {
 	data, err := afero.ReadFile(fs, sourcePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return CheckWASMFs(fs, outputDir)
+			return CheckWASMFs(fs, outputDir, cacheDir)
 		}
 		fmt.Printf("⚠️ Failed to read source WASM %s: %v\n", sourcePath, err)
-		return CheckWASMFs(fs, outputDir)
+		return CheckWASMFs(fs, outputDir, cacheDir)
 	}
-	return CheckWASMFsWithSource(fs, outputDir, data)
+	return CheckWASMFsWithSource(fs, outputDir, cacheDir, data)
 }
 
 func RepoRoot() string {
@@ -133,7 +186,7 @@ func CompileWASMFromSource(ctx context.Context, srcPath string, destPath string)
 
 	cmd := exec.CommandContext(ctx, "go", "build", "-o", absDest, absSrc)
 	cmd.Dir = repoRoot
-	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
+	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm", "CGO_ENABLED=0")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

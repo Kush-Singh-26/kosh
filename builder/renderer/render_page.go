@@ -2,38 +2,13 @@ package renderer
 
 import (
 	"io"
-	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func (r *Renderer) RenderPage(path string, data models.PageData) {
-	if data.Assets == nil {
-		data.Assets = r.GetAssets()
-	}
-
-	// Optimization: Pre-relativize assets to save template execution time
-	if len(data.Assets) > 0 {
-		relativizedAssets := make(map[string]string, len(data.Assets))
-		prefix := data.RelativePrefix
-		baseURL := data.BaseURL
-		for k, v := range data.Assets {
-			// Fast path for relativize logic
-			link := v
-			if link[0] != '/' {
-				link = "/" + link
-			}
-			if baseURL != "" {
-				relativizedAssets[k] = strings.TrimSuffix(baseURL, "/") + link
-			} else if prefix == "" || prefix == "." || prefix == "./" {
-				relativizedAssets[k] = link[1:]
-			} else {
-				relativizedAssets[k] = prefix + link[1:]
-			}
-		}
-		data.Assets = relativizedAssets
-	}
+	r.PreparePageData(&data)
 
 	// Directory creation is handled by WriteStream → ensureDir (with dirCache).
 	// No explicit MkdirAll needed here — avoids redundant uncached syscalls.

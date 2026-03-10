@@ -201,13 +201,15 @@ func GenerateSocialCardToDisk(srcFs afero.Fs, cfg *config.SocialCardsConfig, sit
 		return err
 	}
 
-	f, err := os.Create(destPath)
-	if err != nil {
+	// Use pooled large buffer for encoding
+	buf := utils.SharedLargeBufferPool.Get()
+	defer utils.SharedLargeBufferPool.Put(buf)
+
+	if err := webp.Encode(buf, img, &webp.Options{Lossless: false, Quality: 85}); err != nil {
 		return err
 	}
-	defer func() { _ = f.Close() }()
 
-	return webp.Encode(f, img, &webp.Options{Lossless: false, Quality: 85})
+	return os.WriteFile(destPath, buf.Bytes(), 0644)
 }
 
 // GenerateSocialCard creates a configurable gradient social card.

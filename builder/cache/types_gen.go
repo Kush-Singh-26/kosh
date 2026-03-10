@@ -4,6 +4,7 @@ package cache
 
 import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -820,6 +821,31 @@ func (z *PostMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "CardHash")
 				return
 			}
+		case "HasImages":
+			z.HasImages, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "HasImages")
+				return
+			}
+		case "MathExpressions":
+			var zb0006 uint32
+			zb0006, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "MathExpressions")
+				return
+			}
+			if cap(z.MathExpressions) >= int(zb0006) {
+				z.MathExpressions = (z.MathExpressions)[:zb0006]
+			} else {
+				z.MathExpressions = make([]native.MathExpression, zb0006)
+			}
+			for za0006 := range z.MathExpressions {
+				err = z.MathExpressions[za0006].DecodeMsg(dc)
+				if err != nil {
+					err = msgp.WrapError(err, "MathExpressions", za0006)
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -833,9 +859,9 @@ func (z *PostMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *PostMeta) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 22
+	// map header, size 24
 	// write "PostID"
-	err = en.Append(0xde, 0x0, 0x16, 0xa6, 0x50, 0x6f, 0x73, 0x74, 0x49, 0x44)
+	err = en.Append(0xde, 0x0, 0x18, 0xa6, 0x50, 0x6f, 0x73, 0x74, 0x49, 0x44)
 	if err != nil {
 		return
 	}
@@ -1087,15 +1113,42 @@ func (z *PostMeta) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "CardHash")
 		return
 	}
+	// write "HasImages"
+	err = en.Append(0xa9, 0x48, 0x61, 0x73, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.HasImages)
+	if err != nil {
+		err = msgp.WrapError(err, "HasImages")
+		return
+	}
+	// write "MathExpressions"
+	err = en.Append(0xaf, 0x4d, 0x61, 0x74, 0x68, 0x45, 0x78, 0x70, 0x72, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.MathExpressions)))
+	if err != nil {
+		err = msgp.WrapError(err, "MathExpressions")
+		return
+	}
+	for za0006 := range z.MathExpressions {
+		err = z.MathExpressions[za0006].EncodeMsg(en)
+		if err != nil {
+			err = msgp.WrapError(err, "MathExpressions", za0006)
+			return
+		}
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *PostMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 22
+	// map header, size 24
 	// string "PostID"
-	o = append(o, 0xde, 0x0, 0x16, 0xa6, 0x50, 0x6f, 0x73, 0x74, 0x49, 0x44)
+	o = append(o, 0xde, 0x0, 0x18, 0xa6, 0x50, 0x6f, 0x73, 0x74, 0x49, 0x44)
 	o = msgp.AppendString(o, z.PostID)
 	// string "Path"
 	o = append(o, 0xa4, 0x50, 0x61, 0x74, 0x68)
@@ -1181,6 +1234,19 @@ func (z *PostMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "CardHash"
 	o = append(o, 0xa8, 0x43, 0x61, 0x72, 0x64, 0x48, 0x61, 0x73, 0x68)
 	o = msgp.AppendString(o, z.CardHash)
+	// string "HasImages"
+	o = append(o, 0xa9, 0x48, 0x61, 0x73, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x73)
+	o = msgp.AppendBool(o, z.HasImages)
+	// string "MathExpressions"
+	o = append(o, 0xaf, 0x4d, 0x61, 0x74, 0x68, 0x45, 0x78, 0x70, 0x72, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.MathExpressions)))
+	for za0006 := range z.MathExpressions {
+		o, err = z.MathExpressions[za0006].MarshalMsg(o)
+		if err != nil {
+			err = msgp.WrapError(err, "MathExpressions", za0006)
+			return
+		}
+	}
 	return
 }
 
@@ -1395,6 +1461,31 @@ func (z *PostMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "CardHash")
 				return
 			}
+		case "HasImages":
+			z.HasImages, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "HasImages")
+				return
+			}
+		case "MathExpressions":
+			var zb0006 uint32
+			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "MathExpressions")
+				return
+			}
+			if cap(z.MathExpressions) >= int(zb0006) {
+				z.MathExpressions = (z.MathExpressions)[:zb0006]
+			} else {
+				z.MathExpressions = make([]native.MathExpression, zb0006)
+			}
+			for za0006 := range z.MathExpressions {
+				bts, err = z.MathExpressions[za0006].UnmarshalMsg(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "MathExpressions", za0006)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1428,7 +1519,10 @@ func (z *PostMeta) Msgsize() (s int) {
 	for za0005 := range z.TOC {
 		s += z.TOC[za0005].Msgsize()
 	}
-	s += 8 + msgp.StringPrefixSize + len(z.Version) + 9 + msgp.StringPrefixSize + len(z.CardHash)
+	s += 8 + msgp.StringPrefixSize + len(z.Version) + 9 + msgp.StringPrefixSize + len(z.CardHash) + 10 + msgp.BoolSize + 16 + msgp.ArrayHeaderSize
+	for za0006 := range z.MathExpressions {
+		s += z.MathExpressions[za0006].Msgsize()
+	}
 	return
 }
 

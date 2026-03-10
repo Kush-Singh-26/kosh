@@ -108,6 +108,7 @@ type PageData struct {
 	Assets       map[string]string
 	Weight       int
 	ReadingTime  int
+	HasImages    bool
 
 	// Navigation
 	Breadcrumbs []Breadcrumb
@@ -206,7 +207,7 @@ type IndexedPost struct {
 	ByteOffsets     map[string][]int // word -> [start, end, start, end...]
 }
 
-const CurrentSchemaVersion = 7
+const CurrentSchemaVersion = 9
 
 type SearchIndex struct {
 	SchemaVersion int64

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -111,6 +112,9 @@ func NewBuilderWithFs(vfs afero.Fs, cfg *config.Config) *Builder {
 func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	utils.InitMinifier()
 
+	// Tune GC for SSG throughput (memory is pooled, so we can trade space for speed)
+	debug.SetGCPercent(200)
+
 	// Initialize structured logger early
 	logger := InitLogger()
 
@@ -128,24 +132,21 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 
 	// Create native renderer (Worker Pool)
 	var nativeRenderer *native.Renderer
-	nativeWorkers := runtime.NumCPU() / 2
+	nativeWorkers := runtime.NumCPU()
 	if nativeWorkers < 4 {
 		nativeWorkers = 4
 	}
-	if nativeWorkers > 8 {
-		nativeWorkers = 8
-	}
 
 	if cfg.ParserWorkers > 0 {
-		nativeRenderer = native.New(native.WithWorkers(cfg.ParserWorkers))
+		nativeRenderer = native.New(native.WithWorkers(cfg.ParserWorkers), native.WithScheduler(utils.GlobalScheduler))
 	} else {
-		nativeRenderer = native.New(native.WithWorkers(nativeWorkers))
+		nativeRenderer = native.New(native.WithWorkers(nativeWorkers), native.WithScheduler(utils.GlobalScheduler))
 	}
 
 	// Eagerly start KaTeX compilation in background — overlaps with
 	// remaining builder setup (template parsing, service creation)
 	// instead of blocking the first post that contains math.
-	go nativeRenderer.EnsureInitialized()
+	go nativeRenderer.EnsureInitialized(context.Background())
 
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
@@ -247,16 +248,20 @@ func (b *Builder) Close() {
 	// Note: cacheManager is closed when the service layer is shut down
 }
 
-func (b *Builder) checkWasmUpdate() {
+func (b *Builder) checkWasmUpdate(ctx context.Context) {
 	if b.cfg.IsDev {
 		wasmBinary := build.RepoPath("static", "wasm", "search.wasm")
 		if b.searchSourceDirty {
-			_ = build.CompileWASMFromSource(context.Background(), build.RepoPath("cmd", "search", "main.go"), wasmBinary)
+			if err := build.CompileWASMFromSource(ctx, build.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
+				b.logger.Warn("Failed to compile Search WASM", "error", err)
+			}
 			b.searchSourceDirty = false
 		} else if srcMod, err := latestSearchSourceModTime(); err == nil {
 			wasmInfo, statErr := os.Stat(wasmBinary)
 			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
-				_ = build.CompileWASMFromSource(context.Background(), build.RepoPath("cmd", "search", "main.go"), wasmBinary)
+				if err := build.CompileWASMFromSource(ctx, build.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
+					b.logger.Warn("Failed to compile Search WASM", "error", err)
+				}
 			}
 		}
 	}
@@ -265,11 +270,11 @@ func (b *Builder) checkWasmUpdate() {
 	// In dev mode prefer the locally compiled WASM so browser/runtime schema
 	// always matches the current search.bin generator.
 	if b.cfg.IsDev {
-		build.DeployWASMFromFile(afero.NewOsFs(), b.Tx.StagingDir(), build.RepoPath("static", "wasm", "search.wasm"))
+		build.DeployWASMFromFile(afero.NewOsFs(), b.Tx.StagingDir(), b.cfg.CacheDir, build.RepoPath("static", "wasm", "search.wasm"))
 	} else {
 		// Write to the staging directory (not b.cfg.OutputDir) so the WASM
 		// files survive the atomic swap performed by Tx.Commit() on clean builds.
-		build.CheckWASM(b.Tx.StagingDir())
+		build.CheckWASM(b.Tx.StagingDir(), b.cfg.CacheDir)
 	}
 }
 

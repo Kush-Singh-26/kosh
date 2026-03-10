@@ -2,12 +2,15 @@
 package native
 
 import (
+	"context"
 	_ "embed"
 	"encoding/hex"
 	"log/slog"
 	"runtime"
 	"sync"
+	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/fastschema/qjs"
 	"github.com/zeebo/xxh3"
 	"golang.org/x/sync/singleflight"
@@ -24,7 +27,6 @@ var katexBytecode []byte
 
 // instance represents a single isolated renderer worker
 type instance struct {
-	ruler         *textmeasure.Ruler
 	rt            *qjs.Runtime
 	ctx           *qjs.Context
 	katex         *qjs.Value
@@ -37,6 +39,7 @@ type instance struct {
 // Renderer manages a pool of native rendering instances for concurrency
 type Renderer struct {
 	pool           chan *instance
+	rulerPool      sync.Pool
 	numWorkers     int
 	initOnce       sync.Once
 	katexBytecode  []byte
@@ -45,6 +48,14 @@ type Renderer struct {
 	closed         bool
 	mathGroup      singleflight.Group
 	D2Singleflight singleflight.Group // Shared group to deduplicate D2 diagram rendering across posts
+	scheduler      utils.BuildScheduler
+	mathQueue      chan mathRequest
+}
+
+type mathRequest struct {
+	expr MathExpression
+	res  chan string
+	err  chan error
 }
 
 type RendererOption func(*Renderer)
@@ -57,6 +68,12 @@ func WithWorkers(n int) RendererOption {
 	}
 }
 
+func WithScheduler(s utils.BuildScheduler) RendererOption {
+	return func(r *Renderer) {
+		r.scheduler = s
+	}
+}
+
 // New creates a new Renderer - workers are lazy-initialized
 func New(opts ...RendererOption) *Renderer {
 	numWorkers := runtime.NumCPU()
@@ -65,8 +82,16 @@ func New(opts ...RendererOption) *Renderer {
 	}
 
 	r := &Renderer{
-		pool:       make(chan *instance, numWorkers),
+		pool: make(chan *instance, numWorkers),
+		rulerPool: sync.Pool{
+			New: func() interface{} {
+				ruler, _ := textmeasure.NewRuler()
+				return ruler
+			},
+		},
 		numWorkers: numWorkers,
+		scheduler:  utils.GlobalScheduler,
+		mathQueue:  make(chan mathRequest, 2048),
 	}
 
 	for _, opt := range opts {
@@ -78,7 +103,47 @@ func New(opts ...RendererOption) *Renderer {
 		r.pool = make(chan *instance, r.numWorkers)
 	}
 
+	// Start math batcher workers
+	for i := 0; i < r.numWorkers; i++ {
+		go r.mathBatchWorker()
+	}
+
 	return r
+}
+
+func (r *Renderer) mathBatchWorker() {
+	for req := range r.mathQueue {
+		// Collect a small batch
+		batch := []mathRequest{req}
+		timeout := time.After(2 * time.Millisecond)
+
+	loop:
+		for len(batch) < 64 {
+			select {
+			case next := <-r.mathQueue:
+				batch = append(batch, next)
+			case <-timeout:
+				break loop
+			}
+		}
+
+		exprs := make([]MathExpression, len(batch))
+		for i, b := range batch {
+			exprs[i] = b.expr
+		}
+
+		results, err := r.RenderMathBatch(context.Background(), exprs)
+		if err != nil {
+			for _, b := range batch {
+				b.err <- err
+			}
+			continue
+		}
+
+		for i, res := range results {
+			batch[i].res <- res
+		}
+	}
 }
 
 // ensureInitialized lazily creates worker instances on first use
@@ -111,7 +176,7 @@ func (r *Renderer) ensureInitialized() {
 		for i := 0; i < r.numWorkers; i++ {
 			go func(id int) {
 				defer r.wg.Done()
-				instance := newinstance()
+				instance := &instance{}
 				if instance != nil {
 					instance.ensureInitialized(r.katexBytecode)
 
@@ -130,19 +195,20 @@ func (r *Renderer) ensureInitialized() {
 	})
 }
 
-// EnsureInitialized triggers lazy worker initialization eagerly.
-func (r *Renderer) EnsureInitialized() {
+// EnsureInitialized triggers lazy worker initialization eagerly and blocks until complete.
+func (r *Renderer) EnsureInitialized(ctx context.Context) {
 	r.ensureInitialized()
-}
 
-func newinstance() *instance {
-	ruler, err := textmeasure.NewRuler()
-	if err != nil {
-		slog.Warn("Failed to initialize text ruler", "error", err)
-	}
+	// Wait for all workers to finish initialization
+	done := make(chan struct{})
+	go func() {
+		r.wg.Wait()
+		close(done)
+	}()
 
-	return &instance{
-		ruler: ruler,
+	select {
+	case <-done:
+	case <-ctx.Done():
 	}
 }
 
@@ -170,11 +236,11 @@ func (i *instance) ensureInitialized(bytecode []byte) {
 					};
 				}
 			};
-			var renderBatch = function(expressions) {
-				return expressions.map(function(e) {
+			var renderBatch = function(latexs, modes) {
+				return latexs.map(function(latex, i) {
 					try {
-						return katex.renderToString(e.latex, {
-							displayMode: e.displayMode,
+						return katex.renderToString(latex, {
+							displayMode: !!modes[i],
 							throwOnError: false,
 							output: 'html'
 						});
@@ -243,6 +309,9 @@ func (r *Renderer) Close() error {
 	}
 	r.closed = true
 	r.mu.Unlock()
+
+	// Stop math batchers
+	close(r.mathQueue)
 
 	// Wait for all workers to be initialized AND all active tasks to complete
 	r.wg.Wait()
