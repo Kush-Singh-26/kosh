@@ -2,7 +2,6 @@ package search
 
 import (
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -71,16 +70,9 @@ func TestExtractSnippet_XSS(t *testing.T) {
 
 	snippet := ExtractSnippet(content, terms, nil)
 
-	// Currently ExtractSnippet does NOT escape HTML.
-	// If it contains the script tag, it might be dangerous if rendered with innerHTML.
-	// We should ideally have it escaped.
-	
 	if strings.Contains(snippet, "<script>") {
 		t.Log("WARNING: ExtractSnippet currently preserves HTML tags. This may be an XSS risk if frontend uses innerHTML.")
 	}
-	
-	// Let's see if we should fix it or just document it.
-	// Most SSG search snippets should be escaped.
 }
 
 func TestTokenize(t *testing.T) {
@@ -165,7 +157,18 @@ func TestPerformSearch(t *testing.T) {
 
 	// Helper to populate inverted index
 	addTerm := func(term string, postID int, pos int) {
-		idStr := strconv.Itoa(postID)
+		idStr := "0"
+		if postID != 0 {
+			var b [20]byte
+			bp := len(b) - 1
+			for postID > 0 {
+				b[bp] = byte(postID%10) + '0'
+				bp--
+				postID /= 10
+			}
+			idStr = string(b[bp+1:])
+		}
+
 		if index.Inverted[term] == nil {
 			index.Inverted[term] = make(map[string][]int)
 		}

@@ -22,14 +22,26 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 		numWorkers = 8 // Cap concurrency to avoid too many small maps
 	}
 
+	// Heuristic: Sum of unique words in each post, adjusted by an overlap factor.
+	totalUniqueWordsEst := 0
+	for _, ip := range indexedPosts {
+		totalUniqueWordsEst += len(ip.PositionalIndex)
+	}
+
+	// Factor of 0.5 accounts for common words appearing in multiple posts.
+	globalCap := int(float64(totalUniqueWordsEst) * 0.5)
+	if globalCap < 500 {
+		globalCap = 500
+	}
+
 	index := models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         make([]models.PostRecord, totalDocs),
-		Inverted:      make(map[string]map[string][]int),
+		Inverted:      make(map[string]map[string][]int, globalCap),
 		DocLens:       make(map[string]int64, totalDocs),
-		StemMap:       make(map[string][]string),
+		StemMap:       make(map[string][]string, globalCap/2),
 		TotalDocs:     int64(totalDocs),
-		Offsets:       make(map[string]map[string][]int),
+		Offsets:       make(map[string]map[string][]int, globalCap),
 	}
 
 	// Pre-compute document ID strings to avoid repeated strconv.Itoa in workers
@@ -40,9 +52,6 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 
 	// 1. Parallel collection of posts, doc lengths, and doc-word positions
 	var totalLen int64
-
-	// We can't easily parallelize the inverted index creation without a concurrent map or sharding.
-	// Let's use sharding by word.
 
 	type partialResult struct {
 		inverted map[string]map[string][]int
@@ -66,10 +75,16 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 				end = totalDocs
 			}
 
-			localInverted := make(map[string]map[string][]int)
-			localOffsets := make(map[string]map[string][]int)
-			localDocLens := make(map[string]int64)
-			localStemMap := make(map[string]map[string]bool)
+			chunkUniqueWords := 0
+			for j := start; j < end; j++ {
+				chunkUniqueWords += len(indexedPosts[j].PositionalIndex)
+			}
+			workerCap := int(float64(chunkUniqueWords) * 0.7)
+
+			localInverted := make(map[string]map[string][]int, workerCap)
+			localOffsets := make(map[string]map[string][]int, workerCap)
+			localDocLens := make(map[string]int64, end-start)
+			localStemMap := make(map[string]map[string]bool, workerCap/2)
 			var localTotalLen int64
 
 			for j := start; j < end; j++ {
@@ -142,7 +157,11 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 	}
 
 	// Global stem map merge
-	stemMap := make(map[string]map[string]bool)
+	stemMapCap := globalCap / 2
+	if stemMapCap < 100 {
+		stemMapCap = 100
+	}
+	stemMap := make(map[string]map[string]bool, stemMapCap)
 	for _, r := range results {
 		for stem, origins := range r.stemMap {
 			if _, ok := stemMap[stem]; !ok {

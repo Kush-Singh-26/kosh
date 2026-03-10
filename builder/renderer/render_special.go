@@ -8,7 +8,7 @@ import (
 )
 
 func (r *Renderer) RenderIndex(path string, data models.PageData) {
-	data.Assets = r.GetAssets()
+	r.PreparePageData(&data)
 
 	r.mu.RLock()
 	index := r.Index
@@ -36,8 +36,7 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 	// Process HTML
 	var finalBytes []byte
 	if r.EnableLegacyProcessHTML {
-		processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
-		finalBytes = []byte(processedHTML)
+		finalBytes = utils.ProcessHTMLBytes(buf.Bytes(), data.BaseURL, data.RelativePrefix, r.Compress)
 	} else {
 		finalBytes = buf.Bytes()
 	}
@@ -62,6 +61,8 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) {
 }
 
 func (r *Renderer) RenderGraph(path string, data models.PageData) {
+	r.PreparePageData(&data)
+
 	r.mu.RLock()
 	graph := r.Graph
 	r.mu.RUnlock()
@@ -69,8 +70,6 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 	if graph == nil {
 		return
 	}
-
-	data.Assets = r.GetAssets()
 
 	buf := utils.SharedBufferPool.Get()
 	defer utils.SharedBufferPool.Put(buf)
@@ -83,8 +82,7 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 	// Process HTML
 	var finalBytes []byte
 	if r.EnableLegacyProcessHTML {
-		processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
-		finalBytes = []byte(processedHTML)
+		finalBytes = utils.ProcessHTMLBytes(buf.Bytes(), data.BaseURL, data.RelativePrefix, r.Compress)
 	} else {
 		finalBytes = buf.Bytes()
 	}
@@ -109,7 +107,7 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) {
 }
 
 func (r *Renderer) Render404(path string, data models.PageData) {
-	data.Assets = r.GetAssets()
+	r.PreparePageData(&data)
 
 	r.mu.RLock()
 	notFound := r.NotFound
@@ -137,8 +135,7 @@ func (r *Renderer) Render404(path string, data models.PageData) {
 	// Process HTML
 	var finalBytes []byte
 	if r.EnableLegacyProcessHTML {
-		processedHTML := utils.ProcessHTML(buf.String(), data.BaseURL, data.RelativePrefix, r.Compress)
-		finalBytes = []byte(processedHTML)
+		finalBytes = utils.ProcessHTMLBytes(buf.Bytes(), data.BaseURL, data.RelativePrefix, r.Compress)
 	} else {
 		finalBytes = buf.Bytes()
 	}

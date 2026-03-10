@@ -3,6 +3,9 @@ package search
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
+
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // English stop words - common words that don't contribute to search relevance
@@ -71,14 +74,39 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 	if len(tokens) == 0 {
 		return nil, nil, nil, nil
 	}
+
+	estUnique := len(tokens) / 2
+	if estUnique < 4 {
+		estUnique = 4
+	}
 	result := make([]string, 0, len(tokens))
-	mapping := make(map[string]string)
-	positions := make(map[string][]int)
-	offsets := make(map[string][]int)
+	mapping := make(map[string]string, estUnique)
+	positions := make(map[string][]int, estUnique)
+	offsets := make(map[string][]int, estUnique)
+
+	bufPtr := utils.SharedByteSlicePool.Get()
+	defer utils.SharedByteSlicePool.Put(bufPtr)
 
 	idx := 0
 	for _, token := range tokens {
-		orig := strings.ToLower(token.Value)
+		var orig string
+		if isLowerASCII(token.Value) {
+			orig = token.Value
+		} else {
+			lowered, hasUnicode := toLowerASCII(token.Value, *bufPtr)
+			if hasUnicode {
+				orig = strings.ToLower(token.Value)
+			} else {
+				// We use string(lowered) here for map lookup.
+				// Go compiler optimizes stopWords[string(lowered)] to avoid allocation.
+				if a.useStopWords && stopWords[string(lowered)] {
+					idx++
+					continue
+				}
+				orig = string(lowered)
+			}
+		}
+
 		if len(orig) < 2 {
 			idx++
 			continue
@@ -110,13 +138,56 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 	return result, mapping, positions, offsets
 }
 
+// isLowerASCII returns true if the string is already lowercase ASCII.
+func isLowerASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c&0x80 != 0 || (c >= 'A' && c <= 'Z') {
+			return false
+		}
+	}
+	return true
+}
+
+// toLowerASCII attempts to lowercase a string into buf.
+// Returns (result, hasUnicode)
+func toLowerASCII(s string, buf []byte) ([]byte, bool) {
+	buf = buf[:0]
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c&0x80 != 0 {
+			return nil, true
+		}
+		if c >= 'A' && c <= 'Z' {
+			buf = append(buf, c|0x20)
+		} else {
+			buf = append(buf, c)
+		}
+	}
+	return buf, false
+}
+
 // AnalyzeWithOriginals returns both stemmed and original forms
 // This enables fuzzy matching on original forms while using stemmed forms for indexing
 func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, originals []string) {
 	tokens := TokenizeWithUnicode(text)
 
+	bufPtr := utils.SharedByteSlicePool.Get()
+	defer utils.SharedByteSlicePool.Put(bufPtr)
+
 	for _, token := range tokens {
-		orig := strings.ToLower(token.Value)
+		var orig string
+		if isLowerASCII(token.Value) {
+			orig = token.Value
+		} else {
+			lowered, hasUnicode := toLowerASCII(token.Value, *bufPtr)
+			if hasUnicode {
+				orig = strings.ToLower(token.Value)
+			} else {
+				orig = string(lowered)
+			}
+		}
+
 		if len(orig) < 2 {
 			continue
 		}
@@ -152,6 +223,15 @@ type Token struct {
 	End   int
 }
 
+var isWordPartASCII [256]bool
+
+func init() {
+	for i := 0; i < 256; i++ {
+		r := rune(i)
+		isWordPartASCII[i] = (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+	}
+}
+
 // TokenizeWithUnicode splits text into tokens with Unicode support and returns offsets
 func TokenizeWithUnicode(text string) []Token {
 	if len(text) == 0 {
@@ -165,8 +245,20 @@ func TokenizeWithUnicode(text string) []Token {
 	tokens := make([]Token, 0, estimatedTokens)
 
 	start := -1
-	for i, r := range text {
-		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+	for i := 0; i < len(text); {
+		c := text[i]
+		var isWordPart bool
+		var size int
+		if c < 0x80 {
+			isWordPart = isWordPartASCII[c]
+			size = 1
+		} else {
+			r, sz := utf8.DecodeRuneInString(text[i:])
+			isWordPart = unicode.IsLetter(r) || unicode.IsNumber(r)
+			size = sz
+		}
+
+		if isWordPart {
 			if start == -1 {
 				start = i
 			}
@@ -180,6 +272,7 @@ func TokenizeWithUnicode(text string) []Token {
 				start = -1
 			}
 		}
+		i += size
 	}
 
 	if start != -1 {
@@ -195,5 +288,8 @@ func TokenizeWithUnicode(text string) []Token {
 
 // IsStopWord checks if a word is a stop word
 func IsStopWord(word string) bool {
+	if isLowerASCII(word) {
+		return stopWords[word]
+	}
 	return stopWords[strings.ToLower(word)]
 }

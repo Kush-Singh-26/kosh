@@ -1,150 +1,159 @@
 package parser
 
 import (
-	htmlLib "html"
+	"context"
 	"log/slog"
-	"regexp"
 	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
 )
 
-var (
-	// Currency pattern: starts with a digit (e.g., $5, $10.00)
-	currencyPattern = regexp.MustCompile(`^\d`)
-)
+var mathExpressionsKey = parser.NewContextKey()
 
-type ScannedMathMatch struct {
-	Match       MathMatch
-	Latex       string
-	TypeStr     string
-	Hash        string
-	DisplayMode bool
-}
+// MathTransformer walks the AST to collect all LaTeX expressions AND replaces them with placeholders.
+type MathTransformer struct{}
 
-func ScanMathExpressions(html string) ([]ScannedMathMatch, []native.MathExpression) {
-	lexer := NewMathLexer(html)
-	matches := lexer.Scan()
-	if len(matches) == 0 {
-		return nil, nil
+func (t *MathTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
+	var expressions []native.MathExpression
+	source := reader.Source()
+
+	type replacement struct {
+		old ast.Node
+		new ast.Node
 	}
+	var toReplace []replacement
 
-	seen := make(map[string]bool, len(matches))
-	processed := make([]ScannedMathMatch, 0, len(matches))
-	expressions := make([]native.MathExpression, 0, len(matches))
+	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
 
-	for _, m := range matches {
-		latex := htmlLib.UnescapeString(m.Content)
-		if m.Type == MathBlock || m.Type == MathDisplay {
+		var latex string
+		var typeStr string
+		var displayMode bool
+
+		if n.Kind() == passthrough.KindPassthroughInline {
+			m := n.(*passthrough.PassthroughInline)
+			val := string(m.Segment.Value(source))
+			// Strip delimiters $...$ or \(...\)
+			if strings.HasPrefix(val, "$") && strings.HasSuffix(val, "$") {
+				latex = val[1 : len(val)-1]
+			} else if strings.HasPrefix(val, `\(`) && strings.HasSuffix(val, `\)`) {
+				latex = val[2 : len(val)-2]
+			} else {
+				latex = val
+			}
 			latex = strings.TrimSpace(latex)
-		}
-		if m.Type == MathInline && currencyPattern.MatchString(latex) {
-			continue
-		}
-
-		typeStr := "math-inline"
-		displayMode := false
-		switch m.Type {
-		case MathBlock:
+			typeStr = "math-inline"
+			displayMode = false
+		} else if n.Kind() == passthrough.KindPassthroughBlock {
+			m := n.(*passthrough.PassthroughBlock)
+			var lines strings.Builder
+			l := m.Lines().Len()
+			for i := 0; i < l; i++ {
+				line := m.Lines().At(i)
+				lines.Write(line.Value(source))
+			}
+			val := lines.String()
+			// Strip delimiters $$...$$ or \[...\]
+			if strings.HasPrefix(val, "$$") && strings.HasSuffix(val, "$$") {
+				latex = val[2 : len(val)-2]
+			} else if strings.HasPrefix(val, `\[`) && strings.HasSuffix(val, `\]`) {
+				latex = val[2 : len(val)-2]
+			} else {
+				latex = val
+			}
+			latex = strings.TrimSpace(latex)
 			typeStr = "math-block"
 			displayMode = true
-		case MathDisplay:
-			typeStr = "math-display"
-			displayMode = true
-		case MathParen:
-			typeStr = "math-paren"
+		} else {
+			return ast.WalkContinue, nil
+		}
+
+		if latex == "" {
+			return ast.WalkContinue, nil
 		}
 
 		hash := native.HashContent(typeStr, latex)
-		processed = append(processed, ScannedMathMatch{Match: m, Latex: latex, TypeStr: typeStr, Hash: hash, DisplayMode: displayMode})
-		if !seen[hash] {
-			seen[hash] = true
-			expressions = append(expressions, native.MathExpression{LaTeX: latex, DisplayMode: displayMode, Hash: hash})
+		expressions = append(expressions, native.MathExpression{
+			LaTeX:       latex,
+			DisplayMode: displayMode,
+			Hash:        hash,
+		})
+
+		// Use RawHTMLInline for inline math, RawHTMLBlock for block math
+		placeholder := "<!--KOSH_MATH:" + hash + "-->"
+		var newNode ast.Node
+		if displayMode {
+			newNode = &RawHTMLBlock{Content: []byte(placeholder)}
+		} else {
+			newNode = &RawHTMLInline{Content: []byte(placeholder)}
+		}
+		toReplace = append(toReplace, replacement{old: n, new: newNode})
+
+		return ast.WalkSkipChildren, nil
+	})
+
+	// Perform replacements after the walk to avoid skipping siblings
+	for _, r := range toReplace {
+		parent := r.old.Parent()
+		if parent != nil {
+			parent.ReplaceChild(parent, r.old, r.new)
 		}
 	}
 
-	return processed, expressions
+	if len(expressions) > 0 {
+		pc.Set(mathExpressionsKey, expressions)
+	}
 }
 
-// ExtractMathExpressions finds all LaTeX expressions in HTML and returns them with metadata.
-func ExtractMathExpressions(html string) []native.MathExpression {
-	_, expressions := ScanMathExpressions(html)
-	return expressions
-}
-
-// ReplaceMathExpressions replaces LaTeX expressions in HTML with rendered output.
-func ReplaceMathExpressions(html string, matches []ScannedMathMatch, rendered map[string]string) string {
-	if len(matches) == 0 {
+// ReplaceMathExpressions replaces LaTeX placeholders in HTML with rendered output.
+func ReplaceMathExpressions(html string, expressions []native.MathExpression, rendered map[string]string) string {
+	if len(expressions) == 0 {
 		return html
 	}
 
-	var sb strings.Builder
-	sb.Grow(len(html) + 512)
-	lastPos := 0
-
-	for _, sm := range matches {
-		m := sm.Match
-		// Append text before match
-		sb.WriteString(html[lastPos:m.Start])
-
-		if renderedHTML, ok := rendered[sm.Hash]; ok {
-			if m.Type == MathBlock || m.Type == MathDisplay {
-				sb.WriteString(`<div class="katex-display">`)
-				sb.WriteString(renderedHTML)
-				sb.WriteString(`</div>`)
+	for _, expr := range expressions {
+		placeholder := "<!--KOSH_MATH:" + expr.Hash + "-->"
+		if renderedHTML, ok := rendered[expr.Hash]; ok {
+			var replacement string
+			if expr.DisplayMode {
+				replacement = `<div class="katex-display">` + renderedHTML + `</div>`
 			} else {
-				sb.WriteString(`<span class="katex-inline">`)
-				sb.WriteString(renderedHTML)
-				sb.WriteString(`</span>`)
+				replacement = `<span class="katex-inline">` + renderedHTML + `</span>`
 			}
-		} else {
-			// If not rendered, keep original
-			sb.WriteString(html[m.Start:m.End])
+			html = strings.ReplaceAll(html, placeholder, replacement)
 		}
-		lastPos = m.End
 	}
 
-	// Append remaining text
-	sb.WriteString(html[lastPos:])
-
-	return sb.String()
+	return html
 }
 
 // RenderMathForHTML extracts, renders, and replaces all LaTeX in HTML.
-// It returns the rendered HTML, a slice of SSR input hashes, and newly rendered cache entries.
-func RenderMathForHTML(html string, renderer *native.Renderer, cacheLookup func(string) (string, bool), preCollected []native.MathExpression) (string, []string, map[string]string) {
-	var matches []ScannedMathMatch
-	var expressions []native.MathExpression
-
-	if len(preCollected) > 0 {
-		// Use pre-collected expressions from AST to skip discovery, but we still need matches for replacement.
-		// Actually, we still need matches to know WHERE to replace.
-		// So we still call ScanMathExpressions, but we can skip the Hash calculation if we want.
-		// However, ScanMathExpressions is already fast. The bridge is the slow part.
-		matches, expressions = ScanMathExpressions(html)
-	} else {
-		matches, expressions = ScanMathExpressions(html)
-	}
-
-	if len(expressions) == 0 {
+func RenderMathForHTML(ctx context.Context, html string, renderer *native.Renderer, cacheLookup func(string) (string, bool), preCollected []native.MathExpression) (string, []string, map[string]string) {
+	if len(preCollected) == 0 {
 		return html, nil, nil
 	}
 
-	hashes := make([]string, len(expressions))
-	for i, expr := range expressions {
+	hashes := make([]string, len(preCollected))
+	for i, expr := range preCollected {
 		hashes[i] = expr.Hash
 	}
 
-	cachedSubset := make(map[string]string, len(expressions))
+	cachedSubset := make(map[string]string, len(preCollected))
 	if cacheLookup != nil {
-		for _, expr := range expressions {
+		for _, expr := range preCollected {
 			if v, ok := cacheLookup(expr.Hash); ok {
 				cachedSubset[expr.Hash] = v
 			}
 		}
 	}
 
-	rendered, err := renderer.RenderAllMath(expressions, cachedSubset)
+	rendered, err := renderer.RenderAllMath(ctx, preCollected, cachedSubset)
 	if err != nil {
 		slog.Warn("LaTeX batch render failed", "error", err)
 	}
@@ -156,5 +165,13 @@ func RenderMathForHTML(html string, renderer *native.Renderer, cacheLookup func(
 		}
 	}
 
-	return ReplaceMathExpressions(html, matches, rendered), hashes, newEntries
+	return ReplaceMathExpressions(html, preCollected, rendered), hashes, newEntries
+}
+
+// GetMathExpressions retrieves math from context
+func GetMathExpressions(pc parser.Context) []native.MathExpression {
+	if v := pc.Get(mathExpressionsKey); v != nil {
+		return v.([]native.MathExpression)
+	}
+	return nil
 }

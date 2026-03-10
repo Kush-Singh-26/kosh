@@ -14,7 +14,7 @@ func TestCheckWASMFs(t *testing.T) {
 	fs := afero.NewMemMapFs()
 
 	// Test initial write — files should land under outputDir, not CWD
-	changed := CheckWASMFs(fs, "public")
+	changed := CheckWASMFs(fs, "public", "")
 	if !changed {
 		t.Error("CheckWASMFs should return true on first write")
 	}
@@ -36,7 +36,7 @@ func TestCheckWASMFs(t *testing.T) {
 	}
 
 	// Test skip when identical
-	changed = CheckWASMFs(fs, "public")
+	changed = CheckWASMFs(fs, "public", "")
 	if changed {
 		t.Error("CheckWASMFs should return false when WASM is already up-to-date")
 	}

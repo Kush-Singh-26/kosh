@@ -21,7 +21,9 @@ type WorkerPool[T any] struct {
 	wg        sync.WaitGroup
 	taskQueue chan T
 	handler   func(T)
-	stopped atomic.Bool
+	stopped   atomic.Bool
+	scheduler BuildScheduler
+	taskType  TaskType
 }
 
 func NewWorkerPool[T any](ctx context.Context, workers int, handler func(T)) *WorkerPool[T] {
@@ -37,6 +39,13 @@ func NewWorkerPool[T any](ctx context.Context, workers int, handler func(T)) *Wo
 		taskQueue: make(chan T, workers*WorkerBufferSize),
 		handler:   handler,
 	}
+}
+
+// WithScheduler attaches a global scheduler to the pool.
+func (p *WorkerPool[T]) WithScheduler(s BuildScheduler, t TaskType) *WorkerPool[T] {
+	p.scheduler = s
+	p.taskType = t
+	return p
 }
 
 func (p *WorkerPool[T]) Start() {
@@ -56,9 +65,20 @@ func (p *WorkerPool[T]) worker() {
 			if !ok {
 				return
 			}
+
+			// If a scheduler is attached, acquire tokens before work
+			if p.scheduler != nil {
+				if err := p.scheduler.Acquire(p.ctx, p.taskType); err != nil {
+					return
+				}
+			}
+
 			// Recover from panics to prevent worker crashes
 			func() {
 				defer func() {
+					if p.scheduler != nil {
+						p.scheduler.Release(p.taskType)
+					}
 					if r := recover(); r != nil {
 						slog.Error("Worker panic recovered", "panic", r)
 					}

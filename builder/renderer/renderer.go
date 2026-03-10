@@ -41,6 +41,7 @@ type Renderer struct {
 	devMode                 bool
 	renderErrors            []renderError
 	errMu                   sync.Mutex
+	assetCache              sync.Map // Cache for relativized asset maps keyed by depth/prefix
 }
 
 type renderError struct {
@@ -100,7 +101,7 @@ func (r *Renderer) ReloadTemplates() {
 		},
 		"trimPrefix": strings.TrimPrefix,
 		"relativize": func(baseURL, prefix, link string) string {
-			if len(link) == 0 || link[0] == 'h' || (len(link) > 1 && link[0] == '/' && link[1] == '/') {
+			if len(link) == 0 {
 				return link
 			}
 
@@ -110,6 +111,7 @@ func (r *Renderer) ReloadTemplates() {
 			}
 
 			// Clean the link
+			isHome := link == "/"
 			if link[0] != '/' {
 				link = "/" + link
 			}
@@ -120,9 +122,15 @@ func (r *Renderer) ReloadTemplates() {
 
 			// If baseURL is empty, use RelativePrefix
 			if prefix == "" || prefix == "." || prefix == "./" {
+				if isHome {
+					return "index.html"
+				}
 				return link[1:] // Just remove leading slash
 			}
 
+			if isHome {
+				return prefix + "index.html"
+			}
 			return prefix + link[1:]
 		},
 		"now":       time.Now,
@@ -304,7 +312,46 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 		snapshot[k] = v
 	}
 	r.assetsSnapshot.Store(&snapshot)
+	// Invalidate relativization cache because assets have changed
+	r.assetCache.Range(func(key, value interface{}) bool {
+		r.assetCache.Delete(key)
+		return true
+	})
 	r.AssetsMu.Unlock()
+}
+
+// PreparePageData performs common optimizations like asset map relativization
+func (r *Renderer) PreparePageData(data *models.PageData) {
+	if data.Assets == nil {
+		data.Assets = r.GetAssets()
+	}
+
+	// Optimization: Use cached relativized asset maps to save massive allocation churn
+	if len(data.Assets) > 0 {
+		cacheKey := data.BaseURL + "|" + data.RelativePrefix
+		if cached, ok := r.assetCache.Load(cacheKey); ok {
+			data.Assets = cached.(map[string]string)
+		} else {
+			relativizedAssets := make(map[string]string, len(data.Assets))
+			prefix := data.RelativePrefix
+			baseURL := data.BaseURL
+			for k, v := range data.Assets {
+				link := v
+				if link[0] != '/' {
+					link = "/" + link
+				}
+				if baseURL != "" {
+					relativizedAssets[k] = strings.TrimSuffix(baseURL, "/") + link
+				} else if prefix == "" || prefix == "." || prefix == "./" {
+					relativizedAssets[k] = link[1:]
+				} else {
+					relativizedAssets[k] = prefix + link[1:]
+				}
+			}
+			r.assetCache.Store(cacheKey, relativizedAssets)
+			data.Assets = relativizedAssets
+		}
+	}
 }
 
 func (r *Renderer) GetAssets() map[string]string {

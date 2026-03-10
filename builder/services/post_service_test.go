@@ -38,8 +38,9 @@ type mockRenderService struct {
 	panicMsg    string
 }
 
-func (m *mockRenderService) SetSink(sink utils.ArtifactSink) {}
-func (m *mockRenderService) SetSourceFs(fs afero.Fs)         {}
+func (m *mockRenderService) SetSink(sink utils.ArtifactSink)  {}
+func (m *mockRenderService) SetSourceFs(fs afero.Fs)          {}
+func (m *mockRenderService) SetAssetsGate(ch <-chan struct{}) {}
 
 func (m *mockRenderService) RenderPage(path string, data models.PageData) {
 	if m.shouldPanic {

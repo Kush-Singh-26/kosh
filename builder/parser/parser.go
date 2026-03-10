@@ -78,6 +78,7 @@ func New(cfg *config.Config, renderer *native.Renderer, diagramCache *sync.Map, 
 			parser.WithASTTransformers(
 				util.Prioritized(&urlTransformer{BaseURL: baseURL, Compress: compress}, 100),
 				util.Prioritized(&tocTransformer{}, 200),
+				util.Prioritized(&MathTransformer{}, 150),
 				util.Prioritized(&ssrTransformer{
 					Renderer: renderer,
 					Cache:    diagramCache,

@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -28,17 +27,25 @@ type ArtifactSink interface {
 }
 
 type DiskSink struct {
-	stagingDir    string
-	realOutputDir string
-	writtenPaths  sync.Map
-	dirCache      sync.Map
-	bufPool       sync.Pool
+	stagingDir         string
+	realOutputDir      string
+	stagingDirLower    string
+	realOutputDirLower string
+	writtenPaths       sync.Map
+	dirCache           sync.Map
+	pathCache          sync.Map // raw input -> resolved staging path
+	regCache           sync.Map // raw input -> resolved real path
+	bufPool            sync.Pool
 }
 
 func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
+	sDir := filepath.Clean(stagingDir)
+	rDir := filepath.Clean(realOutputDir)
 	return &DiskSink{
-		stagingDir:    filepath.Clean(stagingDir),
-		realOutputDir: filepath.Clean(realOutputDir),
+		stagingDir:         sDir,
+		realOutputDir:      rDir,
+		stagingDirLower:    strings.ToLower(sDir),
+		realOutputDirLower: strings.ToLower(rDir),
 		bufPool: sync.Pool{
 			New: func() interface{} {
 				// 64KB buffer for streaming
@@ -48,40 +55,97 @@ func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
 	}
 }
 
-func (s *DiskSink) resolvePath(p string) string {
-	cleanP := filepath.Clean(p)
-
-	// If the path is absolute and starts with the real output dir, remap it to staging dir
-	if filepath.IsAbs(cleanP) {
-		if strings.HasPrefix(strings.ToLower(cleanP), strings.ToLower(s.realOutputDir)) {
-			rel, err := filepath.Rel(s.realOutputDir, cleanP)
-			if err == nil {
-				return filepath.Join(s.stagingDir, rel)
-			}
-		}
-		return cleanP
+func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
+	if cached, ok := s.pathCache.Load(p); ok {
+		return cached.(string), nil
 	}
 
-	// If it's a relative path, assume it's relative to stagingDir
-	return filepath.Join(s.stagingDir, cleanP)
+	cleanP := filepath.Clean(p)
+	var resolved string
+
+	if filepath.IsAbs(cleanP) {
+		// Absolute paths are only allowed when they target the configured output roots.
+		if hasPrefixCaseInsensitive(cleanP, s.realOutputDirLower) {
+			rel := cleanP[len(s.realOutputDir):]
+			if len(rel) > 0 && rel[0] == filepath.Separator {
+				rel = rel[1:]
+			}
+			resolved = s.fastJoinStaging(rel)
+		} else if hasPrefixCaseInsensitive(cleanP, s.stagingDirLower) {
+			resolved = cleanP
+		} else {
+			return "", fmt.Errorf("refusing to write outside output roots: %s", p)
+		}
+	} else {
+		resolved = s.fastJoinStaging(cleanP)
+	}
+
+	s.pathCache.Store(p, resolved)
+	return resolved, nil
+}
+
+func (s *DiskSink) fastJoinStaging(rel string) string {
+	sb := SharedStringBuilderPool.Get()
+	defer SharedStringBuilderPool.Put(sb)
+	sb.WriteString(s.stagingDir)
+	if len(rel) > 0 && rel[0] != filepath.Separator {
+		sb.WriteByte(filepath.Separator)
+	}
+	sb.WriteString(rel)
+	return sb.String()
+}
+
+// hasPrefixCaseInsensitive checks if s starts with prefixLower (which must be lowercase).
+func hasPrefixCaseInsensitive(s, prefixLower string) bool {
+	if len(s) < len(prefixLower) {
+		return false
+	}
+	for i := 0; i < len(prefixLower); i++ {
+		c := s[i]
+		if c >= 'A' && c <= 'Z' {
+			c |= 0x20 // Fast ASCII lowercase
+		}
+		if c != prefixLower[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// hasPrefixCaseInsensitiveBoth compares two dynamic strings for a prefix match case-insensitively.
+func hasPrefixCaseInsensitiveBoth(s, prefix string) bool {
+	if len(s) < len(prefix) {
+		return false
+	}
+	for i := 0; i < len(prefix); i++ {
+		c1, c2 := s[i], prefix[i]
+		if c1 >= 'A' && c1 <= 'Z' {
+			c1 |= 0x20
+		}
+		if c2 >= 'A' && c2 <= 'Z' {
+			c2 |= 0x20
+		}
+		if c1 != c2 {
+			return false
+		}
+	}
+	return true
 }
 
 func isWithinPath(base, target string) bool {
-	base = filepath.Clean(base)
-	target = filepath.Clean(target)
-
-	// On Windows, paths are case-insensitive
-	if runtime.GOOS == "windows" {
-		if strings.HasPrefix(strings.ToLower(target), strings.ToLower(base)) {
-			// Ensure it's a full path component match
-			if len(target) == len(base) {
-				return true
-			}
-			if len(target) > len(base) && (target[len(base)] == filepath.Separator || base[len(base)-1] == filepath.Separator) {
-				return true
-			}
+	// Fast path for prefix check without full Clean/Rel overhead
+	if hasPrefixCaseInsensitiveBoth(target, base) {
+		if len(target) == len(base) {
+			return true
+		}
+		if len(target) > len(base) && (target[len(base)] == filepath.Separator || base[len(base)-1] == filepath.Separator) {
+			return true
 		}
 	}
+
+	// Fallback to more robust check for complex paths
+	base = filepath.Clean(base)
+	target = filepath.Clean(target)
 
 	rel, err := filepath.Rel(base, target)
 	if err != nil {
@@ -96,39 +160,30 @@ func isWithinPath(base, target string) bool {
 	return !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
-func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
-	cleanP := filepath.Clean(p)
-
-	if filepath.IsAbs(cleanP) {
-		// Absolute paths are only allowed when they target the configured output roots.
-		if isWithinPath(s.realOutputDir, cleanP) {
-			rel, err := filepath.Rel(s.realOutputDir, cleanP)
-			if err != nil {
-				return "", fmt.Errorf("failed to resolve output-relative path %s: %w", p, err)
-			}
-			return filepath.Join(s.stagingDir, rel), nil
-		}
-		if isWithinPath(s.stagingDir, cleanP) {
-			return cleanP, nil
-		}
-		return "", fmt.Errorf("refusing to write outside output roots: %s", p)
+func (s *DiskSink) Register(p string) {
+	if cached, ok := s.regCache.Load(p); ok {
+		s.writtenPaths.Store(cached.(string), true)
+		return
 	}
 
-	return filepath.Join(s.stagingDir, cleanP), nil
-}
-
-func (s *DiskSink) Register(p string) {
 	// Keep track of the final output path (real path) for orphan cleanup and syncing
 	cleanP := filepath.Clean(p)
+	var finalPath string
 	if !filepath.IsAbs(cleanP) {
-		cleanP = filepath.Join(s.realOutputDir, cleanP)
-	} else if strings.HasPrefix(strings.ToLower(cleanP), strings.ToLower(s.stagingDir)) {
-		rel, err := filepath.Rel(s.stagingDir, cleanP)
-		if err == nil {
-			cleanP = filepath.Join(s.realOutputDir, rel)
+		finalPath = filepath.Join(s.realOutputDir, cleanP)
+	} else {
+		if hasPrefixCaseInsensitive(cleanP, s.stagingDirLower) {
+			rel := cleanP[len(s.stagingDir):]
+			if len(rel) > 0 && rel[0] == filepath.Separator {
+				rel = rel[1:]
+			}
+			finalPath = filepath.Join(s.realOutputDir, rel)
+		} else {
+			finalPath = cleanP
 		}
 	}
-	s.writtenPaths.Store(cleanP, true)
+	s.regCache.Store(p, finalPath)
+	s.writtenPaths.Store(finalPath, true)
 }
 
 func (s *DiskSink) ensureDir(path string) error {

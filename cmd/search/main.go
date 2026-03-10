@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 	"syscall/js"
 
 	"github.com/andybalholm/brotli"
@@ -19,7 +20,7 @@ var index models.SearchIndex
 
 func main() {
 	c := make(chan struct{}, 0)
-	println("WASM Search Engine Initializing (Schema v7)...")
+	println("WASM Search Engine Initializing (Schema v" + strconv.Itoa(models.CurrentSchemaVersion) + ")...")
 
 	js.Global().Set("initSearch", js.FuncOf(initSearch))
 	js.Global().Set("searchPosts", js.FuncOf(searchPosts))

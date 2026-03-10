@@ -16,6 +16,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
@@ -115,12 +116,12 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 
 	cardPool := utils.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) {
 		s.generateSocialCard(task)
-	})
+	}).WithScheduler(utils.GlobalScheduler, utils.TaskSocialCard)
 	cardPool.Start()
 
-	s.logger.Info("Parsing posts", "count", len(filesToProcess))
-	parseTimer := utils.StartPhase(fmt.Sprintf("Parse %d posts", len(filesToProcess)))
-	defer parseTimer.Stop()
+	s.logger.Info("Processing posts", "count", len(filesToProcess))
+	processTimer := utils.StartPhase(fmt.Sprintf("Process %d posts", len(filesToProcess)))
+	defer processTimer.Stop()
 
 	var (
 		batchMu          sync.Mutex
@@ -129,12 +130,13 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		newDeps          = make(map[string]*cache.Dependencies)
 	)
 
-	type parseTask struct {
+	type processTask struct {
 		f            ScannedFile
 		versionLower string
 	}
 
-	parsePool := utils.NewWorkerPool(ctx, numWorkers, func(pt parseTask) {
+	// Fluid Pipeline: One pool handles everything per post
+	pool := utils.NewWorkerPool(ctx, numWorkers, func(pt processTask) {
 		f := pt.f
 		path, version := f.Path, f.Version
 		relPath, _ := utils.SafeRel(s.cfg.ContentDir, path)
@@ -152,6 +154,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			destPath = filepath.Join(s.cfg.OutputDir, htmlRelPath)
 		}
 
+		// A) Check Cache
 		var cachedMeta *cache.PostMeta
 		var exists bool
 		var err error
@@ -166,17 +169,19 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		useCache := exists && !shouldForce && fastBail
 
 		var parseRes *ParsedMarkdownResult
-		var htmlFromCache []byte
+		var htmlContent string
+		var finalSSRHashes []string
 
 		if useCache {
 			cachedHTML, err := s.cache.GetHTMLContent(cachedMeta)
 			if err == nil && cachedHTML != nil {
-				htmlFromCache = cachedHTML
+				htmlContent = string(cachedHTML)
 				cachedSearch, err := s.cache.GetSearchRecord(cachedMeta.PostID)
 				if err == nil && cachedSearch != nil {
 					parseRes = &ParsedMarkdownResult{
 						MetaData: cachedMeta.Meta, TOC: cachedMeta.TOC,
 						FrontmatterHash: cachedMeta.ContentHash, SSRHashes: cachedMeta.SSRInputHashes,
+						HasImages: cachedMeta.HasImages, MathExpressions: cachedMeta.MathExpressions,
 						SearchRecord: models.PostRecord{
 							Title: cachedSearch.Title, NormalizedTitle: cachedSearch.NormalizedTitle,
 							Link: htmlRelPath, Content: cachedSearch.Content,
@@ -192,6 +197,8 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 							Draft: cachedMeta.Draft, Version: cachedMeta.Version,
 						},
 					}
+					finalSSRHashes = cachedMeta.SSRInputHashes
+					s.metrics.IncrementCacheHit()
 				} else {
 					useCache = false
 				}
@@ -200,17 +207,61 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			}
 		}
 
+		// Process math from cached HTML if present
+		if useCache && s.diagramAdapter != nil && len(parseRes.MathExpressions) > 0 {
+			renderedMath := make(map[string]string)
+			for _, expr := range parseRes.MathExpressions {
+				if v, ok := s.diagramAdapter.GetLocal(expr.Hash); ok {
+					renderedMath[expr.Hash] = v
+				}
+			}
+			if len(renderedMath) > 0 {
+				htmlContent = mdParser.ReplaceMathExpressions(htmlContent, parseRes.MathExpressions, renderedMath)
+			}
+		}
+
 		if !useCache {
 			s.metrics.IncrementCacheMiss()
-			// Combined Parse + Render (Fast baseline model)
 			parseRes, err = ParseMarkdown(ctx, f.Source, path, version, cleanHtmlRelPath, htmlRelPath, s.mdPool, s.cfg, s.nativeRenderer, s.diagramAdapter, &s.mu)
 			if err != nil {
 				s.logger.Error("Failed to parse markdown", "path", path, "error", err)
 				return
 			}
 			anyPostChanged.Store(true)
-		} else {
-			s.metrics.IncrementCacheHit()
+
+			// B) Inline Math Rendering (Batch for this post)
+			if len(parseRes.MathExpressions) > 0 {
+				cachedSubset := make(map[string]string)
+				if s.diagramAdapter != nil {
+					for _, e := range parseRes.MathExpressions {
+						if v, ok := s.diagramAdapter.GetLocal(e.Hash); ok {
+							cachedSubset[e.Hash] = v
+						}
+					}
+				}
+
+				rendered, err := s.nativeRenderer.RenderAllMath(ctx, parseRes.MathExpressions, cachedSubset)
+				if err != nil {
+					s.logger.Warn("Math render failed for post", "path", path, "error", err)
+				}
+
+				if s.diagramAdapter != nil && len(rendered) > 0 {
+					newMath := make(map[string]string)
+					for h, v := range rendered {
+						if _, ok := cachedSubset[h]; !ok {
+							newMath[h] = v
+						}
+					}
+					if len(newMath) > 0 {
+						s.diagramAdapter.Merge(newMath)
+					}
+				}
+
+				htmlContent = mdParser.ReplaceMathExpressions(parseRes.HTMLContent, parseRes.MathExpressions, rendered)
+			} else {
+				htmlContent = parseRes.HTMLContent
+			}
+			finalSSRHashes = parseRes.SSRHashes
 		}
 
 		post := parseRes.Post
@@ -218,7 +269,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			return
 		}
 
-		// Social Card
+		// C) Social Card
 		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp"))
 		cardHash, _ := s.cardHashes.Load(relPath)
 		if forceSocialRebuild || cardHash != parseRes.FrontmatterHash {
@@ -228,16 +279,8 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			})
 		}
 
-		// Rendering
-		var contentHTML template.HTML
-		if htmlFromCache != nil {
-			contentHTML = template.HTML(htmlFromCache)
-		} else {
-			contentHTML = template.HTML(parseRes.HTMLContent)
-		}
-
+		// D) Rendering
 		imagePath := s.cfg.BaseURL + "/static/images/cards/" + strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
-
 		var prev, next *models.NavPage
 		if pos, ok := postPosByVersion[version][post.Link]; ok {
 			vp := postsByVersion[version]
@@ -249,19 +292,14 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			}
 		}
 
-		// Wait for assets (Hashed CSS/JS) before final render
-		if s.assetsReady != nil && !useCache {
-			<-s.assetsReady
-		}
-
 		s.renderer.RenderPage(destPath, models.PageData{
-			Title: post.Title, Description: post.Description, Content: contentHTML,
+			Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
 			Meta: parseRes.MetaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
 			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
 			TOC: parseRes.TOC, Config: s.cfg, CurrentVersion: version, ReadingTime: post.ReadingTime,
 			PrevPage: prev, NextPage: next, RelativePrefix: utils.GetRelativePrefix(htmlRelPath),
+			HasImages: parseRes.HasImages,
 		})
-
 		id := int(atomic.AddInt32(&indexedPostIdx, 1))
 		searchRec := parseRes.SearchRecord
 		searchRec.ID = id
@@ -277,10 +315,10 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				ContentHash: parseRes.FrontmatterHash, BodyHash: f.BodyHash, Title: post.Title, Date: post.DateObj,
 				Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
 				Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
-				Meta: parseRes.MetaData, TOC: parseRes.TOC, Version: version, SSRInputHashes: parseRes.SSRHashes,
-				CardHash: parseRes.FrontmatterHash,
+				Meta: parseRes.MetaData, TOC: parseRes.TOC, Version: version, SSRInputHashes: finalSSRHashes,
+				CardHash: parseRes.FrontmatterHash, HasImages: parseRes.HasImages, MathExpressions: parseRes.MathExpressions,
 			}
-			_ = s.cache.StoreHTMLForPost(newMeta, []byte(contentHTML))
+			_ = s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent))
 			newSearch := &cache.SearchRecord{
 				Title: post.Title, NormalizedTitle: searchRec.NormalizedTitle,
 				BM25Data: parseRes.WordFreqs, DocLen: parseRes.DocLen, Content: searchRec.Content,
@@ -294,13 +332,13 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			batchMu.Unlock()
 		}
 		s.metrics.IncrementPostsProcessed()
-	})
+	}).WithScheduler(utils.GlobalScheduler, utils.TaskMarkdown)
 
-	parsePool.Start()
+	pool.Start()
 	for _, f := range filesToProcess {
-		parsePool.Submit(parseTask{f: f, versionLower: strings.ToLower(f.Version)})
+		pool.Submit(processTask{f: f, versionLower: strings.ToLower(f.Version)})
 	}
-	parsePool.Stop()
+	pool.Stop()
 
 	// Notify build loop that metadata is ready for site-wide generators
 	utils.SortPosts(allPosts)

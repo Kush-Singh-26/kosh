@@ -1,81 +1,31 @@
 package parser
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"strings"
 	"testing"
 )
 
-func TestMathLexer_Basic(t *testing.T) {
-	input := `
-		Inline math: $E=mc^2$
-		Block math:
-		$$
-		a^2 + b^2 = c^2
-		$$
-		Display math: \[ \int f(x) dx \]
-		Inline paren: \( \sqrt{2} \)
-		Escaped: \$100
-	`
-
-	lexer := NewMathLexer(input)
-	matches := lexer.Scan()
-
-	expectedCount := 4
-	if len(matches) != expectedCount {
-		t.Errorf("Expected %d matches, got %d", expectedCount, len(matches))
+func TestReplaceMathExpressions(t *testing.T) {
+	html := `<p>Solve <!--KOSH_MATH:hash1--> and <!--KOSH_MATH:hash2--></p>`
+	expressions := []native.MathExpression{
+		{LaTeX: "x+1=0", DisplayMode: false, Hash: "hash1"},
+		{LaTeX: "y^2=4", DisplayMode: true, Hash: "hash2"},
+	}
+	rendered := map[string]string{
+		"hash1": "<span>RENDERED_INLINE</span>",
+		"hash2": "<div>RENDERED_BLOCK</div>",
 	}
 
-	types := make(map[MathType]int)
-	for _, m := range matches {
-		types[m.Type]++
-	}
+	result := ReplaceMathExpressions(html, expressions, rendered)
 
-	if types[MathInline] != 1 {
-		t.Errorf("Expected 1 inline math, got %d", types[MathInline])
-	}
-	if types[MathBlock] != 1 {
-		t.Errorf("Expected 1 block math, got %d", types[MathBlock])
-	}
-	if types[MathDisplay] != 1 {
-		t.Errorf("Expected 1 display math, got %d", types[MathDisplay])
-	}
-	if types[MathParen] != 1 {
-		t.Errorf("Expected 1 paren math, got %d", types[MathParen])
-	}
-}
+	expected1 := `<span class="katex-inline"><span>RENDERED_INLINE</span></span>`
+	expected2 := `<div class="katex-display"><div>RENDERED_BLOCK</div></div>`
 
-func TestMathLexer_Escape(t *testing.T) {
-	input := `Price is \$5.00 and \$10.00`
-	lexer := NewMathLexer(input)
-	matches := lexer.Scan()
-
-	if len(matches) != 0 {
-		t.Errorf("Expected 0 matches (all escaped), got %d", len(matches))
+	if !strings.Contains(result, expected1) {
+		t.Errorf("Expected result to contain %q", expected1)
 	}
-}
-
-func TestExtractMathExpressions(t *testing.T) {
-	html := `<p>Solve $x+1=0$ and $$y^2=4$$</p>`
-	exprs := ExtractMathExpressions(html)
-
-	if len(exprs) != 2 {
-		t.Errorf("Expected 2 expressions, got %d", len(exprs))
-	}
-
-	if exprs[0].LaTeX != "x+1=0" {
-		t.Errorf("Expected 'x+1=0', got %q", exprs[0].LaTeX)
-	}
-	if exprs[1].LaTeX != "y^2=4" {
-		t.Errorf("Expected 'y^2=4', got %q", exprs[1].LaTeX)
-	}
-}
-
-func TestMathLexer_Currency(t *testing.T) {
-	// Original regex: inlineMathRegex = regexp.MustCompile(`\$((?:\\.|[^$\n<>])+?)\$`)
-	// We handle currency starting with digits in ExtractMathExpressions logic
-	html := `Price is $5 and $10`
-	exprs := ExtractMathExpressions(html)
-
-	if len(exprs) != 0 {
-		t.Errorf("Expected 0 expressions (currency filtered), got %d", len(exprs))
+	if !strings.Contains(result, expected2) {
+		t.Errorf("Expected result to contain %q", expected2)
 	}
 }

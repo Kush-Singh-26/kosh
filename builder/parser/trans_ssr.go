@@ -36,6 +36,9 @@ type themePair struct {
 // KindRawHTMLBlock is the NodeKind for RawHTMLBlock
 var KindRawHTMLBlock = ast.NewNodeKind("RawHTMLBlock")
 
+// KindRawHTMLInline is the NodeKind for RawHTMLInline
+var KindRawHTMLInline = ast.NewNodeKind("RawHTMLInline")
+
 // RawHTMLBlock is a custom AST node that holds pre-rendered HTML content.
 type RawHTMLBlock struct {
 	ast.BaseBlock
@@ -50,17 +53,37 @@ func (n *RawHTMLBlock) Dump(source []byte, level int) {
 	ast.DumpHelper(n, source, level, nil, nil)
 }
 
-// rawHTMLBlockRenderer renders RawHTMLBlock nodes by writing their content directly.
+// RawHTMLInline is a custom AST node that holds pre-rendered HTML content for inline elements.
+type RawHTMLInline struct {
+	ast.BaseInline
+	Content []byte
+}
+
+func (n *RawHTMLInline) Kind() ast.NodeKind {
+	return KindRawHTMLInline
+}
+
+func (n *RawHTMLInline) Dump(source []byte, level int) {
+	ast.DumpHelper(n, source, level, nil, nil)
+}
+
+// rawHTMLBlockRenderer renders RawHTMLBlock and RawHTMLInline nodes by writing their content directly.
 type rawHTMLBlockRenderer struct{}
 
 func (r *rawHTMLBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
-	reg.Register(KindRawHTMLBlock, r.renderRawHTMLBlock)
+	reg.Register(KindRawHTMLBlock, r.renderRawHTML)
+	reg.Register(KindRawHTMLInline, r.renderRawHTML)
 }
 
-func (r *rawHTMLBlockRenderer) renderRawHTMLBlock(w util.BufWriter, _ []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+func (r *rawHTMLBlockRenderer) renderRawHTML(w util.BufWriter, _ []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
 	if entering {
-		n := node.(*RawHTMLBlock)
-		_, _ = w.Write(n.Content)
+		var content []byte
+		if node.Kind() == KindRawHTMLBlock {
+			content = node.(*RawHTMLBlock).Content
+		} else {
+			content = node.(*RawHTMLInline).Content
+		}
+		_, _ = w.Write(content)
 	}
 	return ast.WalkContinue, nil
 }

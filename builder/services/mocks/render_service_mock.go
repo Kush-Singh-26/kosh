@@ -4,9 +4,9 @@ import (
 	"html/template"
 	"sync"
 
-	"github.com/spf13/afero"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/spf13/afero"
 )
 
 type MockRenderService struct {
@@ -53,6 +53,12 @@ func (m *MockRenderService) SetSourceFs(fs afero.Fs) {
 	defer m.mu.Unlock()
 	m.recordCall("SetSourceFs")
 	m.SourceFs = fs
+}
+
+func (m *MockRenderService) SetAssetsGate(ch <-chan struct{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.recordCall("SetAssetsGate")
 }
 
 func (m *MockRenderService) ReloadTemplates() {
