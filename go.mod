@@ -5,14 +5,13 @@ go 1.25.0
 require (
 	github.com/alecthomas/chroma/v2 v2.23.1
 	github.com/andybalholm/brotli v1.2.0
-	github.com/chai2010/webp v1.4.0
-	github.com/disintegration/imaging v1.6.2
 	github.com/evanw/esbuild v0.27.3
 	github.com/fastschema/qjs v0.0.6
 	github.com/fogleman/gg v1.3.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gohugoio/hugo-goldmark-extensions/passthrough v0.4.0
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
+	github.com/h2non/bimg v1.1.9
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/klauspost/compress v1.18.4
 	github.com/spf13/afero v1.15.0
@@ -25,7 +24,6 @@ require (
 	github.com/yuin/goldmark-meta v1.1.0
 	github.com/zeebo/xxh3 v1.1.0
 	go.etcd.io/bbolt v1.4.3
-	golang.org/x/image v0.36.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/text v0.34.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -50,6 +48,7 @@ require (
 	github.com/tdewolff/parse/v2 v2.8.10 // indirect
 	github.com/tetratelabs/wazero v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
+	golang.org/x/image v0.36.0 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect

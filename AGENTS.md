@@ -9,7 +9,7 @@ Kosh is a Go-based static site generator for blogs and documentation sites. It s
 - full static builds
 - incremental watch-mode rebuilds
 - CSS/JS bundling with hashed assets
-- WebP image conversion for eligible raster assets
+- WebP image conversion for eligible raster assets (requires `libvips` and CGO)
 - BoltDB-backed caching
 - server-side rendering for LaTeX and D2
 - Go+WASM search
