@@ -76,9 +76,9 @@ func ProcessHTMLBytes(htmlBytes []byte, baseURL string, prefix string, compress 
 		}
 
 		// 2. Path correction (Relativize or Prepend BaseURL)
-		if strings.HasPrefix(src, "/") {
+		if after, ok := strings.CutPrefix(src, "/"); ok {
 			if baseURL == "" {
-				src = prefix + strings.TrimPrefix(src, "/")
+				src = prefix + after
 			} else {
 				src = baseURL + src
 			}

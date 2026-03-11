@@ -43,11 +43,11 @@ func TestThemePair_ConcurrentAccess(t *testing.T) {
 	numGoroutines := 20
 	iterations := 100
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				hash := "hash-" + string(rune('0'+id%10))
 				pair := themePair{light: "light-" + string(rune('0'+id)), dark: "dark-" + string(rune('0'+id))}
 				cache.Store(hash, pair)

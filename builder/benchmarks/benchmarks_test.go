@@ -52,7 +52,7 @@ func BenchmarkPhraseSearch(b *testing.B) {
 
 // BenchmarkGetFrontmatterHash tests hash computation
 func BenchmarkGetFrontmatterHash(b *testing.B) {
-	metaData := map[string]interface{}{
+	metaData := map[string]any{
 		"title":       "Test Post Title",
 		"description": "This is a test description for benchmarking hash computation performance",
 		"date":        "2026-02-08",
@@ -164,7 +164,7 @@ func BenchmarkStemCachedRepeated(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < 100; j++ {
+		for range 100 {
 			_ = search.StemCached(word)
 		}
 	}
@@ -177,7 +177,7 @@ func BenchmarkStemUncachedRepeated(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < 100; j++ {
+		for range 100 {
 			_ = search.Stem(word)
 		}
 	}
@@ -273,7 +273,7 @@ func createMockSearchIndex(size int) *models.SearchIndex {
 	}
 
 	totalLen := 0
-	for i := 0; i < size; i++ {
+	for i := range size {
 		idStr := strconv.Itoa(i)
 		index.Posts[i] = models.PostRecord{
 			ID:          i,
@@ -311,7 +311,7 @@ func createMockSearchIndexWithNgrams(size int) *models.SearchIndex {
 
 func createMockPosts(count int) []models.PostMetadata {
 	posts := make([]models.PostMetadata, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		posts[i] = models.PostMetadata{
 			Title:   fmt.Sprintf("Post %d", i),
 			DateObj: time.Now().Add(-time.Duration(i) * time.Hour),

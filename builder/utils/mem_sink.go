@@ -33,7 +33,7 @@ func (s *MemSink) MkdirAll(path string) error { return nil }
 func (s *MemSink) Register(path string)       {}
 func (s *MemSink) GetWrittenFiles() map[string]bool {
 	res := make(map[string]bool)
-	s.Files.Range(func(k, v interface{}) bool {
+	s.Files.Range(func(k, v any) bool {
 		res[k.(string)] = true
 		return true
 	})

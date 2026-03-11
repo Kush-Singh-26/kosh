@@ -92,7 +92,7 @@ type PageData struct {
 	Description  string
 	BaseURL      string
 	Content      template.HTML
-	Meta         map[string]interface{}
+	Meta         map[string]any
 	IsIndex      bool
 	IsTagsIndex  bool
 	Posts        []PostMetadata
@@ -124,7 +124,7 @@ type PageData struct {
 	IsOutdated     bool
 
 	// Config-driven fields
-	Config interface{} // To access Config fields in templates (Menu, Author, etc.)
+	Config any // To access Config fields in templates (Menu, Author, etc.)
 }
 
 // --- Sitemap Structures ---

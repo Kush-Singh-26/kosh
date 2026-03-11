@@ -26,10 +26,7 @@ type tagSocialCardTask struct {
 }
 
 func boundedTagSocialCardWorkers() int {
-	workers := runtime.NumCPU()
-	if workers < 1 {
-		workers = 1
-	}
+	workers := max(runtime.NumCPU(), 1)
 	if workers > maxTagSocialCardWorkers {
 		workers = maxTagSocialCardWorkers
 	}

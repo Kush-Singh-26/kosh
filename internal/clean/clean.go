@@ -17,7 +17,7 @@ func Run(cleanCache, cleanAllVersions bool) {
 
 func RunFs(fs afero.Fs, cleanCache, cleanAllVersions bool) {
 	start := time.Now()
-	
+
 	// Get outputDir from config (fallback to "public")
 	outputDir := "public"
 	cfg := config.Load([]string{})
@@ -120,7 +120,7 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config) {
 
 	for _, name := range toDelete {
 		itemPath := filepath.Join(outputDir, name)
-		
+
 		if testingMode {
 			_ = fs.RemoveAll(itemPath)
 			continue

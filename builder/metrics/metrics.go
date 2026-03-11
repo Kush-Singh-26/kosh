@@ -15,7 +15,7 @@ type BuildMetrics struct {
 	PanicsRecovered int32        // atomic — safe for concurrent goroutine access
 
 	// Image optimization metrics
-	OriginalImageSize atomic.Int64
+	OriginalImageSize  atomic.Int64
 	OptimizedImageSize atomic.Int64
 	ImagesOptimized    atomic.Int64
 	ImageResizeSkipped atomic.Int64

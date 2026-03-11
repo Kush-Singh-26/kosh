@@ -69,7 +69,7 @@ func (t *tocTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			plainText.WriteString(" ")
 		case ast.KindCodeBlock, ast.KindFencedCodeBlock:
 			l := n.Lines().Len()
-			for i := 0; i < l; i++ {
+			for i := range l {
 				line := n.Lines().At(i)
 				plainText.Write(line.Value(reader.Source()))
 			}

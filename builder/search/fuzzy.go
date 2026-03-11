@@ -176,10 +176,7 @@ func generateTrigrams(word string) []string {
 
 // BuildNgramIndex builds a trigram index for fast fuzzy lookups
 func BuildNgramIndex(inverted map[string]map[string][]int) map[string][]string {
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 8 {
-		numWorkers = 8
-	}
+	numWorkers := min(runtime.NumCPU(), 8)
 
 	terms := make([]string, 0, len(inverted))
 	for term := range inverted {
@@ -198,10 +195,7 @@ func BuildNgramIndex(inverted map[string]map[string][]int) map[string][]string {
 			defer wg.Done()
 			localNgram := make(map[string][]string)
 			start := workerID * chunkSize
-			end := start + chunkSize
-			if end > totalTerms {
-				end = totalTerms
-			}
+			end := min(start+chunkSize, totalTerms)
 
 			for j := start; j < end; j++ {
 				term := terms[j]

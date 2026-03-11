@@ -2,6 +2,7 @@ package generators
 
 import (
 	"io"
+	"maps"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -17,10 +18,9 @@ import (
 
 func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
 	totalDocs := len(indexedPosts)
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 8 {
-		numWorkers = 8 // Cap concurrency to avoid too many small maps
-	}
+	numWorkers := min(runtime.NumCPU(),
+		// Cap concurrency to avoid too many small maps
+		8)
 
 	// Heuristic: Sum of unique words in each post, adjusted by an overlap factor.
 	totalUniqueWordsEst := 0
@@ -29,10 +29,7 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 	}
 
 	// Factor of 0.5 accounts for common words appearing in multiple posts.
-	globalCap := int(float64(totalUniqueWordsEst) * 0.5)
-	if globalCap < 500 {
-		globalCap = 500
-	}
+	globalCap := max(int(float64(totalUniqueWordsEst)*0.5), 500)
 
 	index := models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
@@ -46,7 +43,7 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 
 	// Pre-compute document ID strings to avoid repeated strconv.Itoa in workers
 	idStrings := make([]string, totalDocs)
-	for i := 0; i < totalDocs; i++ {
+	for i := range totalDocs {
 		idStrings[i] = strconv.Itoa(i)
 	}
 
@@ -70,10 +67,7 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 		go func(workerID int) {
 			defer wg.Done()
 			start := workerID * chunkSize
-			end := start + chunkSize
-			if end > totalDocs {
-				end = totalDocs
-			}
+			end := min(start+chunkSize, totalDocs)
 
 			chunkUniqueWords := 0
 			for j := start; j < end; j++ {
@@ -129,25 +123,19 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 	// 2. Merge results
 	for _, r := range results {
 		totalLen += r.totalLen
-		for idStr, length := range r.docLens {
-			index.DocLens[idStr] = length
-		}
+		maps.Copy(index.DocLens, r.docLens)
 		for word, docs := range r.inverted {
 			if _, ok := index.Inverted[word]; !ok {
 				index.Inverted[word] = docs
 			} else {
-				for docID, positions := range docs {
-					index.Inverted[word][docID] = positions
-				}
+				maps.Copy(index.Inverted[word], docs)
 			}
 		}
 		for word, docs := range r.offsets {
 			if _, ok := index.Offsets[word]; !ok {
 				index.Offsets[word] = docs
 			} else {
-				for docID, off := range docs {
-					index.Offsets[word][docID] = off
-				}
+				maps.Copy(index.Offsets[word], docs)
 			}
 		}
 	}
@@ -157,10 +145,7 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 	}
 
 	// Global stem map merge
-	stemMapCap := globalCap / 2
-	if stemMapCap < 100 {
-		stemMapCap = 100
-	}
+	stemMapCap := max(globalCap/2, 100)
 	stemMap := make(map[string]map[string]bool, stemMapCap)
 	for _, r := range results {
 		for stem, origins := range r.stemMap {

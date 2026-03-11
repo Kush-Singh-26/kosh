@@ -85,37 +85,37 @@ func TestSortPosts(t *testing.T) {
 func TestGetString(t *testing.T) {
 	tests := []struct {
 		name     string
-		m        map[string]interface{}
+		m        map[string]any
 		key      string
 		expected string
 	}{
 		{
 			name:     "string value",
-			m:        map[string]interface{}{"title": "Hello"},
+			m:        map[string]any{"title": "Hello"},
 			key:      "title",
 			expected: "Hello",
 		},
 		{
 			name:     "int value",
-			m:        map[string]interface{}{"count": 42},
+			m:        map[string]any{"count": 42},
 			key:      "count",
 			expected: "42",
 		},
 		{
 			name:     "bool value",
-			m:        map[string]interface{}{"active": true},
+			m:        map[string]any{"active": true},
 			key:      "active",
 			expected: "true",
 		},
 		{
 			name:     "missing key",
-			m:        map[string]interface{}{"other": "value"},
+			m:        map[string]any{"other": "value"},
 			key:      "missing",
 			expected: "",
 		},
 		{
 			name:     "empty map",
-			m:        map[string]interface{}{},
+			m:        map[string]any{},
 			key:      "anything",
 			expected: "",
 		},
@@ -127,7 +127,7 @@ func TestGetString(t *testing.T) {
 		},
 		{
 			name:     "slice value",
-			m:        map[string]interface{}{"tags": []string{"go", "ssg"}},
+			m:        map[string]any{"tags": []string{"go", "ssg"}},
 			key:      "tags",
 			expected: "[go ssg]",
 		},
@@ -146,31 +146,31 @@ func TestGetString(t *testing.T) {
 func TestGetSlice(t *testing.T) {
 	tests := []struct {
 		name     string
-		m        map[string]interface{}
+		m        map[string]any
 		key      string
 		expected []string
 	}{
 		{
 			name:     "valid slice",
-			m:        map[string]interface{}{"tags": []interface{}{"go", "ssg", "web"}},
+			m:        map[string]any{"tags": []any{"go", "ssg", "web"}},
 			key:      "tags",
 			expected: []string{"go", "ssg", "web"},
 		},
 		{
 			name:     "mixed types in slice",
-			m:        map[string]interface{}{"items": []interface{}{"string", 42, true}},
+			m:        map[string]any{"items": []any{"string", 42, true}},
 			key:      "items",
 			expected: []string{"string", "42", "true"},
 		},
 		{
 			name:     "missing key",
-			m:        map[string]interface{}{"other": "value"},
+			m:        map[string]any{"other": "value"},
 			key:      "tags",
 			expected: nil,
 		},
 		{
 			name:     "empty map",
-			m:        map[string]interface{}{},
+			m:        map[string]any{},
 			key:      "tags",
 			expected: nil,
 		},
@@ -182,13 +182,13 @@ func TestGetSlice(t *testing.T) {
 		},
 		{
 			name:     "wrong type (string instead of slice)",
-			m:        map[string]interface{}{"tags": "go,ssg"},
+			m:        map[string]any{"tags": "go,ssg"},
 			key:      "tags",
 			expected: nil,
 		},
 		{
 			name:     "empty slice",
-			m:        map[string]interface{}{"tags": []interface{}{}},
+			m:        map[string]any{"tags": []any{}},
 			key:      "tags",
 			expected: nil,
 		},
@@ -215,31 +215,31 @@ func TestGetSlice(t *testing.T) {
 func TestGetBool(t *testing.T) {
 	tests := []struct {
 		name     string
-		m        map[string]interface{}
+		m        map[string]any
 		key      string
 		expected bool
 	}{
 		{
 			name:     "true value",
-			m:        map[string]interface{}{"pinned": true},
+			m:        map[string]any{"pinned": true},
 			key:      "pinned",
 			expected: true,
 		},
 		{
 			name:     "false value",
-			m:        map[string]interface{}{"pinned": false},
+			m:        map[string]any{"pinned": false},
 			key:      "pinned",
 			expected: false,
 		},
 		{
 			name:     "missing key",
-			m:        map[string]interface{}{"other": "value"},
+			m:        map[string]any{"other": "value"},
 			key:      "pinned",
 			expected: false,
 		},
 		{
 			name:     "empty map",
-			m:        map[string]interface{}{},
+			m:        map[string]any{},
 			key:      "pinned",
 			expected: false,
 		},
@@ -251,13 +251,13 @@ func TestGetBool(t *testing.T) {
 		},
 		{
 			name:     "wrong type (string)",
-			m:        map[string]interface{}{"pinned": "true"},
+			m:        map[string]any{"pinned": "true"},
 			key:      "pinned",
 			expected: false,
 		},
 		{
 			name:     "wrong type (int)",
-			m:        map[string]interface{}{"pinned": 1},
+			m:        map[string]any{"pinned": 1},
 			key:      "pinned",
 			expected: false,
 		},

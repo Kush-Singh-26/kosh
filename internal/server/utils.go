@@ -49,13 +49,13 @@ func validatePath(baseDir, userPath string) (string, error) {
 func normalizeRequestPath(rawPath, baseURL string) string {
 	prefix := ""
 	if baseURL != "" {
-		if strings.HasPrefix(baseURL, "http://") {
-			parts := strings.SplitN(strings.TrimPrefix(baseURL, "http://"), "/", 2)
+		if after, ok := strings.CutPrefix(baseURL, "http://"); ok {
+			parts := strings.SplitN(after, "/", 2)
 			if len(parts) > 1 {
 				prefix = "/" + parts[1]
 			}
-		} else if strings.HasPrefix(baseURL, "https://") {
-			parts := strings.SplitN(strings.TrimPrefix(baseURL, "https://"), "/", 2)
+		} else if after, ok := strings.CutPrefix(baseURL, "https://"); ok {
+			parts := strings.SplitN(after, "/", 2)
 			if len(parts) > 1 {
 				prefix = "/" + parts[1]
 			}

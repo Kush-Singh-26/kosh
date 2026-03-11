@@ -191,7 +191,7 @@ func TestGeneratePostIDUUIDPriority(t *testing.T) {
 func TestEncodeDecode(t *testing.T) {
 	tests := []struct {
 		name string
-		data interface{}
+		data any
 	}{
 		{
 			name: "PostMeta",
@@ -306,7 +306,7 @@ func TestEncodeDecodeComplex(t *testing.T) {
 		Weight:         10,
 		Pinned:         true,
 		Draft:          false,
-		Meta:           map[string]interface{}{"author": "test", "category": "tech"},
+		Meta:           map[string]any{"author": "test", "category": "tech"},
 		TOC: []models.TOCEntry{
 			{ID: "intro", Text: "Introduction", Level: 1},
 			{ID: "body", Text: "Body", Level: 2},

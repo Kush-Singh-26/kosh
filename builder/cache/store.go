@@ -17,7 +17,7 @@ import (
 
 // level3EncoderPool pools level-3 zstd encoders for better performance
 var level3EncoderPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
 		if err != nil {
 			// Return a marker that creation failed - callers must check
@@ -88,17 +88,14 @@ func extension(ct CompressionType) string {
 
 func renameWithRetry(tmpPath, finalPath string, maxRetries int, baseDelay time.Duration) error {
 	var err error
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		err = os.Rename(tmpPath, finalPath)
 		if err == nil {
 			return nil
 		}
 
 		// Use a capped backoff with jitter
-		delay := baseDelay * time.Duration(1<<uint(i))
-		if delay > 2*time.Second {
-			delay = 2 * time.Second
-		}
+		delay := min(baseDelay*time.Duration(1<<uint(i)), 2*time.Second)
 		// Simple jitter without math/rand: ±10%
 		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
 		time.Sleep(delay + jitter)
@@ -169,11 +166,11 @@ func (s *Store) ensureDir(dir string) error {
 	return nil
 }
 
-var dirMutexes [64]sync.Mutex
+var dirMutexes [256]sync.Mutex
 
 func (s *Store) getDirMutex(path string) *sync.Mutex {
 	h := xxh3.HashString(path)
-	return &dirMutexes[h%64]
+	return &dirMutexes[h%256]
 }
 
 // Put stores content and returns its hash and compression type

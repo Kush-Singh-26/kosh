@@ -116,7 +116,7 @@ func (s *cacheServiceImpl) IsDirty(postID string) bool {
 
 func (s *cacheServiceImpl) ClearDirty() {
 	// Use Range+Delete instead of reassignment to prevent lost dirty marks
-	s.dirty.Range(func(key, value interface{}) bool {
+	s.dirty.Range(func(key, value any) bool {
 		s.dirty.Delete(key)
 		return true
 	})

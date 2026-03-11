@@ -125,7 +125,7 @@ func isVowel(runes []rune, i int) bool {
 
 // hasVowel checks if the stem contains a vowel
 func hasVowel(runes []rune) bool {
-	for i := 0; i < len(runes); i++ {
+	for i := range runes {
 		if isVowel(runes, i) {
 			return true
 		}
@@ -222,7 +222,7 @@ func hasSuffix(runes []rune, suffix string) bool {
 		return false
 	}
 	// Fast ASCII path: all Porter stemmer suffixes are ASCII, so rune index == byte index
-	for i := 0; i < sLen; i++ {
+	for i := range sLen {
 		if runes[n-sLen+i] != rune(suffix[i]) {
 			return false
 		}

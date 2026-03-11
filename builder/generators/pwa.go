@@ -1,6 +1,7 @@
 package generators
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -8,9 +9,9 @@ import (
 	"sync"
 	"text/template"
 
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/disintegration/imaging"
 	"github.com/spf13/afero"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // GenerateSW creates the service worker only if needed (smart build)
@@ -146,49 +147,88 @@ func GenerateManifest(sink utils.ArtifactSink, destDir string, baseURL string, s
 	})
 }
 
-// GeneratePWAIcons generates 192x192 and 512x512 icons from favicon.png
-func GeneratePWAIcons(srcFs afero.Fs, sink utils.ArtifactSink, srcPath, destDir string) error {
+// PWAIconsData holds encoded icon PNG bytes keyed by icon size.
+type PWAIconsData map[int][]byte
+
+// GeneratePWAIconBytes generates 192x192 and 512x512 icon PNG bytes from the source icon.
+func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string) (PWAIconsData, error) {
 	// Source must exist
 	srcFile, err := srcFs.Open(srcPath)
 	if err != nil {
-		return fmt.Errorf("source icon not found: %w", err)
+		return nil, fmt.Errorf("source icon not found: %w", err)
 	}
 	defer func() { _ = srcFile.Close() }()
 
 	// Open source image
 	src, err := imaging.Decode(srcFile)
 	if err != nil {
-		return err
-	}
-
-	// Create dest dir if needed
-	if err := sink.MkdirAll(destDir); err != nil {
-		return err
+		return nil, err
 	}
 
 	sizes := []int{192, 512}
+	out := make(PWAIconsData, len(sizes))
 
+	var mu sync.Mutex
 	var wg sync.WaitGroup
 	errs := make([]error, len(sizes))
+
 	for i, size := range sizes {
 		wg.Add(1)
 		go func(idx, sz int) {
 			defer wg.Done()
-			destFile := filepath.Join(destDir, fmt.Sprintf("icon-%d.png", sz))
+
 			fmt.Printf("   🎨 Generating PWA Icon: %dx%d\n", sz, sz)
 			dst := imaging.Resize(src, sz, sz, imaging.Lanczos)
-			errs[idx] = sink.WriteStream(destFile, func(w io.Writer) error {
-				return imaging.Encode(w, dst, imaging.PNG)
-			})
+
+			var buf bytes.Buffer
+			if err := imaging.Encode(&buf, dst, imaging.PNG); err != nil {
+				errs[idx] = err
+				return
+			}
+
+			encoded := make([]byte, buf.Len())
+			copy(encoded, buf.Bytes())
+
+			mu.Lock()
+			out[sz] = encoded
+			mu.Unlock()
 		}(i, size)
 	}
 	wg.Wait()
 
 	for _, err := range errs {
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
+	return out, nil
+}
+
+// WritePWAIcons writes pre-encoded icon bytes to the destination directory via sink.
+func WritePWAIcons(sink utils.ArtifactSink, destDir string, icons PWAIconsData) error {
+	if err := sink.MkdirAll(destDir); err != nil {
+		return err
+	}
+
+	for _, sz := range []int{192, 512} {
+		data, ok := icons[sz]
+		if !ok || len(data) == 0 {
+			return fmt.Errorf("missing encoded icon data for %d", sz)
+		}
+		destFile := filepath.Join(destDir, fmt.Sprintf("icon-%d.png", sz))
+		if err := sink.WriteFile(destFile, data); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// GeneratePWAIcons generates 192x192 and 512x512 icons from favicon.png
+func GeneratePWAIcons(srcFs afero.Fs, sink utils.ArtifactSink, srcPath, destDir string) error {
+	icons, err := GeneratePWAIconBytes(srcFs, srcPath)
+	if err != nil {
+		return err
+	}
+	return WritePWAIcons(sink, destDir, icons)
 }

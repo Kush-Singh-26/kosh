@@ -51,6 +51,7 @@ type ScannedFile struct {
 	Info            fs.FileInfo
 	BodyHash        string
 	FrontmatterHash string
+	ReadingTime     int
 	Source          []byte // Pre-read source bytes to avoid double-read
 }
 
@@ -80,10 +81,9 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 		allMetadata    []LightPostMetadata
 	)
 
-	workerCount := runtime.NumCPU()
-	if workerCount > 8 {
-		workerCount = 8 // Cap scanning workers to prevent I/O saturation
-	}
+	workerCount := min(runtime.NumCPU(),
+		// Cap scanning workers to prevent I/O saturation
+		8)
 	g, gCtx := errgroup.WithContext(ctx)
 
 	// Task channel for parsing workers
@@ -115,7 +115,7 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 					continue
 				}
 
-				meta := s.extractFrontmatter(source, relPath, t.version, cleanHtmlRelPath, htmlRelPath, cfg)
+				meta, frontmatterHash, readingTime := s.extractFrontmatter(source, relPath, t.version, cleanHtmlRelPath, htmlRelPath, cfg)
 				if meta.Path == "" {
 					continue
 				}
@@ -125,7 +125,8 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 					Version:         t.version,
 					Info:            t.info,
 					BodyHash:        utils.GetBodyHash(source),
-					FrontmatterHash: mustFrontmatterHash(source),
+					FrontmatterHash: frontmatterHash,
+					ReadingTime:     readingTime,
 					Source:          source,
 				}
 
@@ -198,21 +199,16 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 	}, nil
 }
 
-func mustFrontmatterHash(source []byte) string {
-	h, _ := utils.GetFrontmatterHashFromSource(source)
-	return h
-}
-
-func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cleanHtmlRelPath, htmlRelPath string, cfg *config.Config) LightPostMetadata {
+func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cleanHtmlRelPath, htmlRelPath string, cfg *config.Config) (LightPostMetadata, string, int) {
 	parts := bytes.SplitN(source, yamlDelim, 3)
 	if len(parts) < 3 {
-		return LightPostMetadata{}
+		return LightPostMetadata{}, "", 0
 	}
 
 	frontmatter := bytes.TrimSpace(parts[1])
 	fm, err := parseFrontmatterFast(frontmatter)
 	if err != nil || fm == nil {
-		return LightPostMetadata{}
+		return LightPostMetadata{}, "", 0
 	}
 
 	dateStr := fm.Date
@@ -228,6 +224,14 @@ func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cl
 
 	postLink := utils.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
 
+	frontmatterHash := utils.GetFrontmatterHashFromValues(
+		fm.Title,
+		fm.Description,
+		fm.Date,
+		fm.Tags,
+		fm.Pinned,
+	)
+
 	return LightPostMetadata{
 		Path:        relPath,
 		Version:     version,
@@ -241,7 +245,7 @@ func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cl
 		Description: fm.Description,
 		Link:        postLink,
 		HTMLPath:    htmlRelPath,
-	}
+	}, frontmatterHash, readingTime
 }
 
 type frontmatterLite struct {

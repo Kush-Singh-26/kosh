@@ -36,7 +36,7 @@ func (m *MemSink) WriteStream(path string, fn func(io.Writer) error) error {
 }
 
 func (m *MemSink) MkdirAll(path string) error { return nil }
-func (m *MemSink) Register(path string)     {}
+func (m *MemSink) Register(path string)       {}
 func (m *MemSink) GetWrittenFiles() map[string]bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -67,7 +67,7 @@ func (m *MockTransaction) Commit() error {
 	m.committed = true
 	return nil
 }
-func (m *MockTransaction) Rollback() error { return nil }
+func (m *MockTransaction) Rollback() error             { return nil }
 func (m *MockTransaction) GetLastBuildTime() time.Time { return time.Time{} }
 
 // FailingSink is a sink that always returns errors

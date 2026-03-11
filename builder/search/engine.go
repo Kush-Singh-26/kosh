@@ -3,6 +3,7 @@ package search
 import (
 	"math"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -76,10 +77,7 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 	parsed := ParseQuery(query)
 	queryTerms := parsed.Terms
 
-	maxResults := len(index.Posts)
-	if maxResults > 100 {
-		maxResults = 100
-	}
+	maxResults := min(len(index.Posts), 100)
 	scores := make(map[int]float64, maxResults)
 
 	k1 := 1.2
@@ -234,7 +232,7 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 			}
 
 			if match {
-				for _, word := range strings.Fields(originalQuery) {
+				for word := range strings.FieldsSeq(originalQuery) {
 					if len(word) > 2 {
 						highlightTerms[word] = true
 					}
@@ -394,12 +392,7 @@ func checkPhraseUnified(index *models.SearchIndex, postID int, phraseTerms []str
 }
 
 func HasTagNormalized(normalizedTags []string, target string) bool {
-	for _, t := range normalizedTags {
-		if t == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(normalizedTags, target)
 }
 
 func getHighlightRegex(terms []string) *regexp.Regexp {
@@ -520,17 +513,11 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 		}
 	}
 
-	start := bestStart - SnippetContextBefore
-	if start < 0 {
-		start = 0
-	}
+	start := max(bestStart-SnippetContextBefore, 0)
 	end := start + windowSize + SnippetContextBefore
 	if end > len(content) {
 		end = len(content)
-		start = end - (windowSize + SnippetContextBefore)
-		if start < 0 {
-			start = 0
-		}
+		start = max(end-(windowSize+SnippetContextBefore), 0)
 	}
 
 	if start > 0 {

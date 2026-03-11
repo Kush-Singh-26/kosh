@@ -16,7 +16,6 @@ func setupRendererTest(t *testing.T) *Renderer {
 	sink := testutil.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-
 	return &Renderer{
 		Sink:        sink,
 		Assets:      make(map[string]string),
@@ -115,7 +114,7 @@ func TestRenderer_GetErrors_ConcurrentAccess(t *testing.T) {
 	}()
 
 	// Wait for all goroutines
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		<-done
 	}
 

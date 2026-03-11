@@ -55,9 +55,7 @@ func ParallelWalk(ctx context.Context, sourceFs afero.Fs, root string, concurren
 	tasks <- dirTask{path: root}
 
 	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-ctx.Done():
@@ -107,7 +105,7 @@ func ParallelWalk(ctx context.Context, sourceFs afero.Fs, root string, concurren
 					}
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

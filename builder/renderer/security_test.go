@@ -32,7 +32,7 @@ func TestRenderer_XSSProtection(t *testing.T) {
 		Title:       "<script>alert('title')</script>",
 		Description: "\"> <script>alert('desc')</script>",
 		Content:     template.HTML("<div onclick=\"alert('content')\">Safe HTML</div>"),
-		Meta: map[string]interface{}{
+		Meta: map[string]any{
 			"author": "<b onmouseover=\"alert('author')\">Evil Author</b>",
 		},
 	}

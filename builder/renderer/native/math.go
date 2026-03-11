@@ -44,10 +44,7 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []MathExpr
 	defer timer.Stop()
 
 	// 2. Chunk expressions by number of workers
-	numWorkers := r.numWorkers
-	if numWorkers > len(uniqueExprs) {
-		numWorkers = len(uniqueExprs)
-	}
+	numWorkers := min(r.numWorkers, len(uniqueExprs))
 
 	chunkSize := (len(uniqueExprs) + numWorkers - 1) / numWorkers
 
@@ -61,10 +58,7 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []MathExpr
 		if start >= len(uniqueExprs) {
 			break
 		}
-		end := start + chunkSize
-		if end > len(uniqueExprs) {
-			end = len(uniqueExprs)
-		}
+		end := min(start+chunkSize, len(uniqueExprs))
 
 		wg.Add(1)
 		go func(chunk []MathExpression) {
@@ -285,7 +279,7 @@ func (r *Renderer) RenderAllMath(ctx context.Context, expressions []MathExpressi
 		go func(e MathExpression) {
 			defer wg.Done()
 
-			val, err, _ := r.mathGroup.Do(e.Hash, func() (interface{}, error) {
+			val, err, _ := r.mathGroup.Do(e.Hash, func() (any, error) {
 				singleResChan := make(chan string, 1)
 				singleErrChan := make(chan error, 1)
 

@@ -31,7 +31,7 @@ func TestWatcher_BurstDebounce(t *testing.T) {
 	pendingEvents := make(map[string]fsnotify.Op)
 
 	// Simulate a burst of events
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		pendingMu.Lock()
 		pendingEvents["test.txt"] = fsnotify.Write
 		pendingMu.Unlock()
@@ -79,17 +79,15 @@ func TestWatcher_ResetTimer_ThreadSafe(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < 20; j++ {
+	for range 10 {
+		wg.Go(func() {
+			for range 20 {
 				pendingMu := &sync.Mutex{}
 				pendingEvents := make(map[string]fsnotify.Op)
 				w.resetTimer(pendingMu, &pendingEvents)
 				time.Sleep(1 * time.Millisecond)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -125,7 +123,7 @@ func TestWatcher_ConcurrentFileEvents(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		tmpFile := filepath.Join(dir, "testfile.txt")
 		if err := os.WriteFile(tmpFile, []byte("content"), 0644); err != nil {
 			t.Logf("Warning: could not write test file: %v", err)

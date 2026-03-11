@@ -35,7 +35,7 @@ type PostMeta struct {
 	Weight          int
 	Pinned          bool
 	Draft           bool
-	Meta            map[string]interface{}
+	Meta            map[string]any
 	TOC             []models.TOCEntry
 	Version         string
 	CardHash        string
@@ -115,14 +115,14 @@ func GeneratePostID(uuid string, normalizedPath string) string {
 	return HashString(normalizedPath)
 }
 
-func Encode(v interface{}) ([]byte, error) {
+func Encode(v any) ([]byte, error) {
 	if m, ok := v.(msgp.Marshaler); ok {
 		return m.MarshalMsg(nil)
 	}
 	return nil, fmt.Errorf("type %T does not implement msgp.Marshaler", v)
 }
 
-func Decode(data []byte, v interface{}) error {
+func Decode(data []byte, v any) error {
 	if u, ok := v.(msgp.Unmarshaler); ok {
 		_, err := u.UnmarshalMsg(data)
 		return err

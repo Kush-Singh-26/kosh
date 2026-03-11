@@ -76,15 +76,12 @@ func WithScheduler(s utils.BuildScheduler) RendererOption {
 
 // New creates a new Renderer - workers are lazy-initialized
 func New(opts ...RendererOption) *Renderer {
-	numWorkers := runtime.NumCPU()
-	if numWorkers < 1 {
-		numWorkers = 1
-	}
+	numWorkers := max(runtime.NumCPU(), 1)
 
 	r := &Renderer{
 		pool: make(chan *instance, numWorkers),
 		rulerPool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				ruler, _ := textmeasure.NewRuler()
 				return ruler
 			},

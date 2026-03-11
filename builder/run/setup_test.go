@@ -21,7 +21,7 @@ func TestVerifyThemeFs_Detached(t *testing.T) {
 	externalThemeDir := "/external/themes"
 	themeName := "my-detached-theme"
 	themePath := filepath.Join(externalThemeDir, themeName)
-	
+
 	_ = fs.MkdirAll(filepath.Join(themePath, "templates"), 0755)
 	_ = afero.WriteFile(fs, filepath.Join(themePath, "templates", "layout.html"), []byte("<html></html>"), 0644)
 
@@ -55,6 +55,6 @@ func TestVerifyThemeFs_Invalid(t *testing.T) {
 
 	// VerifyThemeFs should log error and return (because TestingMode=true)
 	VerifyThemeFs(fs, cfg, logger)
-	
+
 	// If it didn't crash/exit, it passed the test of graceful failure in testing mode.
 }

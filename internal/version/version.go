@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/spf13/afero"
+	"gopkg.in/yaml.v3"
 )
 
 func Run(args []string) {

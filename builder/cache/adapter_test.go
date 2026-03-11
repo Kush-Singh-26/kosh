@@ -19,7 +19,7 @@ func TestDiagramCacheAdapter_ConcurrentSameKeyFlush(t *testing.T) {
 
 	const workers = 12
 	var wg sync.WaitGroup
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()

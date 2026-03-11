@@ -207,7 +207,7 @@ func TestIncrementalBuild(t *testing.T) {
 	nativeRenderer := native.New()
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
-	mdPool := &sync.Pool{New: func() interface{} { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
+	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer cm.Close()
@@ -293,7 +293,7 @@ func TestBuildSinglePost_BodyOnlyChangeDoesNotFallBackToFullBuild(t *testing.T) 
 	nativeRenderer := native.New()
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
-	mdPool := &sync.Pool{New: func() interface{} { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
+	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer cm.Close()

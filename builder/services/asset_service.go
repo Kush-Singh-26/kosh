@@ -62,40 +62,42 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			themeDir = "themes/blog/static"
 		}
 
+		copyGroup, copyCtx := errgroup.WithContext(gCtx)
+
 		// A) Theme Static
-		g.Go(func() error {
+		copyGroup.Go(func() error {
 			exists, _ := afero.Exists(s.sourceFs, themeDir)
 			if exists {
-				return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, themeDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
+				return utils.CopyDirVFS(copyCtx, s.sourceFs, s.sink, themeDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
 			}
 			return nil
 		})
 
 		// B) Site Static (Root)
 		if themeDir != "static" {
-			g.Go(func() error {
+			copyGroup.Go(func() error {
 				exists, _ := afero.Exists(s.sourceFs, "static")
 				if exists {
-					return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
+					return utils.CopyDirVFS(copyCtx, s.sourceFs, s.sink, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
 				}
 				return nil
 			})
 		}
 
 		// C) Content Images
-		g.Go(func() error {
+		copyGroup.Go(func() error {
 			if len(s.contentAssets) > 0 {
-				return s.copyContentAssetsFromManifest()
+				return s.copyContentAssetsFromManifest(copyCtx)
 			}
 			exclude := []string{}
 			if !s.cfg.Features.RawMarkdown {
 				exclude = append(exclude, ".md")
 			}
-			return utils.CopyDirVFS(gCtx, s.sourceFs, s.sink, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, exclude, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
+			return utils.CopyDirVFS(copyCtx, s.sourceFs, s.sink, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, exclude, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
 		})
 
 		s.copyCriticalAssets()
-		return nil
+		return copyGroup.Wait()
 	})
 
 	// 2. Esbuild
@@ -113,13 +115,13 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 	return g.Wait()
 }
 
-func (s *assetServiceImpl) copyContentAssetsFromManifest() error {
+func (s *assetServiceImpl) copyContentAssetsFromManifest(ctx context.Context) error {
 	numWorkers := s.cfg.ImageWorkers
 	if numWorkers <= 0 {
 		numWorkers = 8
 	}
 
-	p, pCtx := errgroup.WithContext(context.Background())
+	p, pCtx := errgroup.WithContext(ctx)
 	p.SetLimit(numWorkers)
 
 	for _, asset := range s.contentAssets {
