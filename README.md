@@ -16,7 +16,7 @@ Kosh is a high-performance static site generator written in Go for blogs and doc
 - Atomic full-build publishing with staging directories
 - BoltDB-backed metadata/search/html cache in `.kosh-cache`
 - CSS/JS bundling and fingerprinting via esbuild
-- Image optimization to WebP for eligible local `.png`, `.jpg`, `.jpeg`
+- Image optimization to WebP for eligible local `.png`, `.jpg`, `.jpeg` (powered by libvips)
 - Exact-copy exceptions for assets like logo/favicon where required
 - Server-side LaTeX and D2 rendering
 - Go+WASM search with schema validation and snippet extraction
@@ -24,7 +24,14 @@ Kosh is a high-performance static site generator written in Go for blogs and doc
 
 ## Install
 
+**Prerequisites:** Kosh requires `libvips` and CGO for high-performance image processing.
+- Linux: `apt-get install libvips-dev`
+- macOS: `brew install vips`
+- Windows: Install vips and set up a GCC toolchain (e.g., MSYS2).
+
+Enable CGO and install:
 ```bash
+export CGO_ENABLED=1
 go install ./cmd/kosh
 ```
 

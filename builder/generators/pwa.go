@@ -1,7 +1,6 @@
 package generators
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -10,7 +9,7 @@ import (
 	"text/template"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
-	"github.com/disintegration/imaging"
+	"github.com/h2non/bimg"
 	"github.com/spf13/afero"
 )
 
@@ -152,17 +151,10 @@ type PWAIconsData map[int][]byte
 
 // GeneratePWAIconBytes generates 192x192 and 512x512 icon PNG bytes from the source icon.
 func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string) (PWAIconsData, error) {
-	// Source must exist
-	srcFile, err := srcFs.Open(srcPath)
+	// Read source image
+	srcData, err := afero.ReadFile(srcFs, srcPath)
 	if err != nil {
 		return nil, fmt.Errorf("source icon not found: %w", err)
-	}
-	defer func() { _ = srcFile.Close() }()
-
-	// Open source image
-	src, err := imaging.Decode(srcFile)
-	if err != nil {
-		return nil, err
 	}
 
 	sizes := []int{192, 512}
@@ -178,16 +170,16 @@ func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string) (PWAIconsData, error) 
 			defer wg.Done()
 
 			fmt.Printf("   🎨 Generating PWA Icon: %dx%d\n", sz, sz)
-			dst := imaging.Resize(src, sz, sz, imaging.Lanczos)
-
-			var buf bytes.Buffer
-			if err := imaging.Encode(&buf, dst, imaging.PNG); err != nil {
+			img := bimg.NewImage(srcData)
+			encoded, err := img.Process(bimg.Options{
+				Width:  sz,
+				Height: sz,
+				Type:   bimg.PNG,
+			})
+			if err != nil {
 				errs[idx] = err
 				return
 			}
-
-			encoded := make([]byte, buf.Len())
-			copy(encoded, buf.Bytes())
 
 			mu.Lock()
 			out[sz] = encoded

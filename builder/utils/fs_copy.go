@@ -6,9 +6,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -22,11 +19,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chai2010/webp"
+	"github.com/h2non/bimg"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
-	"golang.org/x/image/draw"
 )
 
 type imageCacheKey struct {
@@ -122,14 +118,6 @@ var (
 	copyBufferPool = sync.Pool{
 		New: func() any {
 			return make([]byte, 64*1024)
-		},
-	}
-
-	// rgbaPixPool reuses large byte slices for image resizing to reduce GC pressure
-	rgbaPixPool = sync.Pool{
-		New: func() any {
-			// Pre-allocate for 1200px width * 1600px height * 4 bytes (RGBA)
-			return make([]byte, 1200*1600*4)
 		},
 	}
 )
@@ -283,7 +271,9 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 	var wg sync.WaitGroup
 
 	for i := 0; i < numWorkers; i++ {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			for {
 				select {
 				case <-ctx.Done():
@@ -317,10 +307,12 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 					}()
 				}
 			}
-		})
+		}()
 	}
 	for i := 0; i < nonImageWorkers; i++ {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			for {
 				select {
 				case <-ctx.Done():
@@ -337,7 +329,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 					}
 				}
 			}
-		})
+		}()
 	}
 
 	// Use higher concurrency for discovery walk on modern SSDs
@@ -462,50 +454,33 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 	default:
 	}
 
-	// Direct stream from filesystem
-	f, err := srcFs.Open(srcPath)
+	// Read the entire source file into memory
+	imgData, err := afero.ReadFile(srcFs, srcPath)
 	if err != nil {
-		return fmt.Errorf("failed to open image %s: %w", srcPath, err)
-	}
-	defer func() { _ = f.Close() }()
-
-	// Use pooled buffered reader to reduce syscalls
-	br := SharedBufioReaderPool.Get(f)
-	defer SharedBufioReaderPool.Put(br)
-
-	// Decode image
-	src, _, err := image.Decode(br)
-	if err != nil {
-		return fmt.Errorf("failed to decode image %s: %w", srcPath, err)
+		return fmt.Errorf("failed to read image %s: %w", srcPath, err)
 	}
 
-	// Resize if needed
-	bounds := src.Bounds()
-	width := bounds.Dx()
-	height := bounds.Dy()
-	var finalImg image.Image = src
-	if width > 1200 && !skipResize {
-		newWidth := 1200
-		newHeight := (height * newWidth) / width
+	// Initialize bimg
+	img := bimg.NewImage(imgData)
+	size, err := img.Size()
+	if err != nil {
+		return fmt.Errorf("failed to get image size: %w", err)
+	}
 
-		// Use pooled pix buffer for resizing
-		neededSize := newWidth * newHeight * 4
-		var pix []byte
-		if neededSize <= 1200*1600*4 {
-			pix = rgbaPixPool.Get().([]byte)
-			defer rgbaPixPool.Put(pix)
-		} else {
-			pix = make([]byte, neededSize)
-		}
+	if webpQuality < 1 || webpQuality > 100 {
+		webpQuality = 80
+	}
 
-		dst := &image.RGBA{
-			Pix:    pix[:neededSize],
-			Stride: newWidth * 4,
-			Rect:   image.Rect(0, 0, newWidth, newHeight),
-		}
+	// Setup processing options
+	opts := bimg.Options{
+		Type:    bimg.WEBP,
+		Quality: webpQuality,
+	}
 
-		draw.BiLinear.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
-		finalImg = dst
+	// Handle resizing
+	if size.Width > 1200 && !skipResize {
+		opts.Width = 1200
+		opts.Height = (size.Height * 1200) / size.Width
 	} else if skipResize && !isNil(m) {
 		m.RecordImageResizeSkipped()
 	}
@@ -514,19 +489,11 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 		return fmt.Errorf("failed to create image directory: %w", err)
 	}
 
-	if webpQuality < 1 || webpQuality > 100 {
-		webpQuality = 80
-	}
-
-	// Encode to WebP using pooled buffer
-	buf := SharedLargeBufferPool.Get()
-	defer SharedLargeBufferPool.Put(buf)
-
-	err = webp.Encode(buf, finalImg, &webp.Options{Quality: float32(webpQuality)})
+	// Process the image (C-level execution of decode, resize, encode)
+	encodedData, err := img.Process(opts)
 	if err != nil {
-		return fmt.Errorf("failed to encode webp %s: %w", dstPath, err)
+		return fmt.Errorf("failed to process image with libvips: %w", err)
 	}
-	encodedData := buf.Bytes()
 
 	// Clone exact-sized slice for the LRU cache
 	cacheData := make([]byte, len(encodedData))
