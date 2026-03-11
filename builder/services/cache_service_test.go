@@ -620,15 +620,19 @@ func TestCacheService_ClearDirty_Concurrent(t *testing.T) {
 
 	wg.Wait()
 
-	wg.Go(func() {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		service.ClearDirty()
-	})
+	}()
 
-	wg.Go(func() {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		for range 100 {
 			service.MarkDirty("concurrent-post")
 		}
-	})
+	}()
 
 	wg.Wait()
 

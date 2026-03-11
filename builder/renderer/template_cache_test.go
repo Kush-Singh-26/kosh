@@ -30,12 +30,14 @@ func TestRenderer_MutexProtection(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for range 10 {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			r.mu.RLock()
 			_ = r.Layout
 			_ = r.Index
 			r.mu.RUnlock()
-		})
+		}()
 	}
 
 	wg.Wait()
@@ -116,12 +118,14 @@ func TestTemplateCache_ConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for range 20 {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			for range 50 {
 				_ = tc.hasTemplatesChanged()
 				time.Sleep(1 * time.Millisecond)
 			}
-		})
+		}()
 	}
 
 	wg.Wait()

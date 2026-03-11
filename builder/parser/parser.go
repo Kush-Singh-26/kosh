@@ -9,7 +9,6 @@ import (
 	admonitions "github.com/stefanfritsch/goldmark-admonitions"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
-	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	goldmarkRenderer "github.com/yuin/goldmark/renderer"
@@ -59,7 +58,6 @@ func New(cfg *config.Config, renderer *native.Renderer, diagramCache *sync.Map, 
 	return goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
-			meta.Meta,
 			highlighting.NewHighlighting(
 				highlighting.WithStyle("nord"),
 				highlighting.WithFormatOptions(
@@ -74,16 +72,15 @@ func New(cfg *config.Config, renderer *native.Renderer, diagramCache *sync.Map, 
 			&admonitions.Extender{},
 		),
 		goldmark.WithParserOptions(
-			// Register Transformers
+			// Register Unified Transformer
 			parser.WithASTTransformers(
-				util.Prioritized(&urlTransformer{BaseURL: baseURL, Compress: compress}, 100),
-				util.Prioritized(&tocTransformer{}, 200),
-				util.Prioritized(&MathTransformer{}, 150),
-				util.Prioritized(&ssrTransformer{
+				util.Prioritized(&unifiedTransformer{
+					BaseURL:  baseURL,
+					Compress: compress,
 					Renderer: renderer,
 					Cache:    diagramCache,
 					D2Group:  d2Group,
-				}, 50), // Run SSR early (lower priority = runs first)
+				}, 100),
 			),
 			parser.WithAutoHeadingID(),
 		),

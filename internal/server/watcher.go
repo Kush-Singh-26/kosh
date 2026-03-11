@@ -108,7 +108,9 @@ func startWatcherWithConfig(dir string, debounce time.Duration) chan struct{} {
 	currentReloadChan := reloadChan
 	reloadMu.Unlock()
 
-	watcherWg.Go(func() {
+	watcherWg.Add(1)
+	go func() {
+		defer watcherWg.Done()
 		defer func() {
 			watcherMu.RLock()
 			w := watcher
@@ -144,7 +146,7 @@ func startWatcherWithConfig(dir string, debounce time.Duration) chan struct{} {
 				slog.Warn("Watcher error", "error", err)
 			}
 		}
-	})
+	}()
 
 	return currentReloadChan
 }

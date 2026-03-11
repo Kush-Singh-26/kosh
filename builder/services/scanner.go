@@ -52,7 +52,8 @@ type ScannedFile struct {
 	BodyHash        string
 	FrontmatterHash string
 	ReadingTime     int
-	Source          []byte // Pre-read source bytes to avoid double-read
+	Source          []byte         // Pre-read source bytes to avoid double-read
+	PreParsedMeta   map[string]any // Pre-parsed frontmatter to avoid double-parse
 }
 
 type ScannedAsset struct {
@@ -115,7 +116,7 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 					continue
 				}
 
-				meta, frontmatterHash, readingTime := s.extractFrontmatter(source, relPath, t.version, cleanHtmlRelPath, htmlRelPath, cfg)
+				meta, preParsedMeta, frontmatterHash, readingTime := s.extractFrontmatter(source, relPath, t.version, cleanHtmlRelPath, htmlRelPath, cfg)
 				if meta.Path == "" {
 					continue
 				}
@@ -128,6 +129,7 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 					FrontmatterHash: frontmatterHash,
 					ReadingTime:     readingTime,
 					Source:          source,
+					PreParsedMeta:   preParsedMeta,
 				}
 
 				mu.Lock()
@@ -199,24 +201,30 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 	}, nil
 }
 
-func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cleanHtmlRelPath, htmlRelPath string, cfg *config.Config) (LightPostMetadata, string, int) {
+func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cleanHtmlRelPath, htmlRelPath string, cfg *config.Config) (LightPostMetadata, map[string]any, string, int) {
 	parts := bytes.SplitN(source, yamlDelim, 3)
 	if len(parts) < 3 {
-		return LightPostMetadata{}, "", 0
+		return LightPostMetadata{}, nil, "", 0
 	}
 
 	frontmatter := bytes.TrimSpace(parts[1])
-	fm, err := parseFrontmatterFast(frontmatter)
-	if err != nil || fm == nil {
-		return LightPostMetadata{}, "", 0
+	var fmMap map[string]any
+	if err := yaml.Unmarshal(frontmatter, &fmMap); err != nil {
+		return LightPostMetadata{}, nil, "", 0
 	}
 
-	dateStr := fm.Date
-	dateObj, _ := time.Parse("2006-01-02", dateStr)
+	title := utils.GetString(fmMap, "title")
+	description := utils.GetString(fmMap, "description")
+	dateStr := utils.GetString(fmMap, "date")
+	tags := utils.GetSlice(fmMap, "tags")
+	isPinned := utils.GetBool(fmMap, "pinned")
+	weight, _ := fmMap["weight"].(int)
+	if w, ok := fmMap["weight"].(float64); ok && weight == 0 {
+		weight = int(w)
+	}
+	isDraft := utils.GetBool(fmMap, "draft")
 
-	isPinned := fm.Pinned
-	weight := fm.Weight
-	isDraft := fm.Draft
+	dateObj, _ := time.Parse("2006-01-02", dateStr)
 
 	// Calculate word count from the body (part 3)
 	wordCount := utils.CountWords(parts[2])
@@ -225,46 +233,25 @@ func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cl
 	postLink := utils.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
 
 	frontmatterHash := utils.GetFrontmatterHashFromValues(
-		fm.Title,
-		fm.Description,
-		fm.Date,
-		fm.Tags,
-		fm.Pinned,
+		title,
+		description,
+		dateStr,
+		tags,
+		isPinned,
 	)
 
 	return LightPostMetadata{
 		Path:        relPath,
 		Version:     version,
-		Title:       fm.Title,
+		Title:       title,
 		DateObj:     dateObj,
-		Tags:        fm.Tags,
+		Tags:        tags,
 		Pinned:      isPinned,
 		Weight:      weight,
 		ReadingTime: readingTime,
 		Draft:       isDraft,
-		Description: fm.Description,
+		Description: description,
 		Link:        postLink,
 		HTMLPath:    htmlRelPath,
-	}, frontmatterHash, readingTime
-}
-
-type frontmatterLite struct {
-	Title       string   `yaml:"title"`
-	Date        string   `yaml:"date"`
-	Tags        []string `yaml:"tags"`
-	Pinned      bool     `yaml:"pinned"`
-	Weight      int      `yaml:"weight"`
-	Draft       bool     `yaml:"draft"`
-	Description string   `yaml:"description"`
-}
-
-func parseFrontmatterFast(data []byte) (*frontmatterLite, error) {
-	if len(data) == 0 {
-		return nil, nil
-	}
-	fm := &frontmatterLite{}
-	if err := yaml.Unmarshal(data, fm); err != nil {
-		return nil, err
-	}
-	return fm, nil
+	}, fmMap, frontmatterHash, readingTime
 }

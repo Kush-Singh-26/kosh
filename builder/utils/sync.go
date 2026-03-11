@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
@@ -269,7 +270,7 @@ func atomicWrite(path string, data []byte) error {
 	}
 
 	// Atomic rename
-	err = os.Rename(tmpPath, path)
+	err = RenameWithRetry(tmpPath, path, 5, 10*time.Millisecond)
 	if err != nil {
 		_ = os.Remove(tmpPath)
 		return err

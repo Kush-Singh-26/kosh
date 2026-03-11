@@ -135,7 +135,7 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 	b.logger.Info("⚡ Change detected", "path", changedPath, "op", op.String())
 	b.logger.Info("incremental path classification", "isContent", b.isContentPath(changedPath), "isAsset", b.isAssetPath(changedPath))
 	if isSearchSourcePath(changedPath) {
-		b.searchSourceDirty = true
+		b.searchSourceDirty.Store(true)
 	}
 
 	// Handle file deletion - remove from cache
@@ -258,6 +258,7 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		&b.mu,
 		"",
 		0,
+		nil,
 	)
 
 	if err != nil {

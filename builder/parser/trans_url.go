@@ -4,125 +4,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
 )
 
 // ContextKeyFilePath stores the current file path being parsed.
 // Isolated via parser.NewContextKey() which guarantees global uniqueness.
 var ContextKeyFilePath = parser.NewContextKey()
-
-// urlTransformer intercepts links and images to rewrite URLs (e.g., .md -> .html).
-type urlTransformer struct {
-	BaseURL  string
-	Compress bool
-}
-
-func (t *urlTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
-	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		switch target := n.(type) {
-		case *ast.Link:
-			t.processDestination(target, target.Destination, pc)
-		case *ast.Image:
-			t.processDestination(target, target.Destination, pc)
-			t.processImageDestination(target, target.Destination)
-		}
-		return ast.WalkContinue, nil
-	})
-}
-
-func (t *urlTransformer) processImageDestination(img *ast.Image, dest []byte) {
-	src := string(dest)
-	if src == "" || strings.HasPrefix(src, "http") || strings.HasPrefix(src, "//") || strings.HasPrefix(src, "data:") {
-		return
-	}
-	img.Destination = []byte(strings.ToLower(src))
-}
-
-func (t *urlTransformer) processDestination(n ast.Node, dest []byte, pc parser.Context) {
-	href := string(dest)
-
-	idx := strings.IndexAny(href, "?#")
-	query := ""
-	if idx != -1 {
-		query = href[idx:]
-		href = href[:idx]
-	}
-
-	// Handle External Links
-	if strings.HasPrefix(href, "http") {
-		if _, isLink := n.(*ast.Link); isLink {
-			n.SetAttribute([]byte("target"), []byte("_blank"))
-			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
-		}
-	} else if t.Compress {
-		ext := strings.ToLower(filepath.Ext(href))
-		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
-			href = href[:len(href)-len(ext)] + ".webp"
-		}
-	}
-
-	// Convert .md to .html
-	if strings.HasSuffix(href, ".md") && !strings.HasPrefix(href, "http") {
-		href = strings.Replace(href, ".md", ".html", 1)
-		href = strings.ToLower(href)
-	}
-
-	// Clean up ./ prefix which is redundant
-	href = strings.TrimPrefix(href, "./")
-
-	// Version-aware linking: Handle relative links within versioned documentation
-	// Option A: Use relative paths without version prefix for same-version links
-	if !strings.HasPrefix(href, "/") && !strings.HasPrefix(href, "http") {
-		if filePath, ok := pc.Get(ContextKeyFilePath).(string); ok && filePath != "" {
-			version := extractVersionFromPath(filePath)
-			if version != "" {
-				// Don't modify cross-version links (../v1.0/, ../v3.0/, etc.)
-				if isCrossVersionLink(href) {
-					// Keep as-is (e.g., ../v1.0/page.md → ../v1.0/page.html)
-				} else if isRootLevelLink(href) {
-					// Root-level links go to root (e.g., ../index.md → ../index.html)
-					// Keep as-is
-				} else {
-					// Same-version links: strip ../ prefix if present, keep relative
-					href = strings.TrimPrefix(href, "../")
-					// Ensure forward slashes
-					href = strings.ReplaceAll(href, "\\", "/")
-				}
-			}
-		}
-	}
-
-	fullHref := href + query
-
-	// Apply the href changes to the node
-	if !strings.HasPrefix(string(dest), "http") {
-		switch node := n.(type) {
-		case *ast.Link:
-			node.Destination = []byte(fullHref)
-		case *ast.Image:
-			node.Destination = []byte(fullHref)
-		}
-	}
-
-	if _, isImage := n.(*ast.Image); isImage {
-		n.SetAttribute([]byte("loading"), []byte("lazy"))
-	}
-
-	if strings.HasPrefix(href, "/") && t.BaseURL != "" {
-		newDest := []byte(t.BaseURL + fullHref)
-		switch node := n.(type) {
-		case *ast.Link:
-			node.Destination = newDest
-		case *ast.Image:
-			node.Destination = newDest
-		}
-	}
-}
 
 // extractVersionFromPath extracts version from file path like "content/v2.0/page.md"
 func extractVersionFromPath(path string) string {

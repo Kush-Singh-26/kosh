@@ -336,7 +336,7 @@ func TestDecoupledPipeline(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Semantic Parse
-	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "", "test.html", "test.html", mdPool, cfg, "", 0)
+	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "", "test.html", "test.html", mdPool, cfg, "", 0, nil)
 	if err != nil {
 		t.Fatalf("ParseMarkdownMetadata failed: %v", err)
 	}

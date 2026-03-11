@@ -72,7 +72,7 @@ func TestD2ASTReplacement(t *testing.T) {
 	md := goldmark.New(
 		goldmark.WithParserOptions(
 			parser.WithASTTransformers(
-				util.Prioritized(&ssrTransformer{
+				util.Prioritized(&unifiedTransformer{
 					Renderer: nil,
 					Cache:    mockCache,
 				}, 50),

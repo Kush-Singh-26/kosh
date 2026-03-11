@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +21,6 @@ type ArtifactSink interface {
 	Register(path string)
 	GetWrittenFiles() map[string]bool
 	GetOutputDir() string
-	WriteHardlink(src, dst string) (bool, error)
 	SetMtime(path string, mtime time.Time) error
 }
 
@@ -314,62 +312,6 @@ func (s *DiskSink) GetOutputDir() string {
 
 func (s *DiskSink) GetRealOutputDir() string {
 	return s.realOutputDir
-}
-
-func (s *DiskSink) WriteHardlink(src, dst string) (bool, error) {
-	target, err := s.resolvePathForWrite(dst)
-	if err != nil {
-		return false, err
-	}
-
-	// Construct real output path for comparison
-	realOutputPath := dst
-	if !filepath.IsAbs(realOutputPath) {
-		realOutputPath = filepath.Join(s.realOutputDir, realOutputPath)
-	} else if isWithinPath(s.stagingDir, realOutputPath) {
-		rel, err := filepath.Rel(s.stagingDir, realOutputPath)
-		if err != nil {
-			return false, err
-		}
-		realOutputPath = filepath.Join(s.realOutputDir, rel)
-	} else if !isWithinPath(s.realOutputDir, realOutputPath) {
-		return false, fmt.Errorf("refusing to hardlink outside output roots: %s", dst)
-	}
-
-	// Compare source against previous build's output
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return false, nil
-	}
-
-	realInfo, err := os.Stat(realOutputPath)
-	if err == nil {
-		if srcInfo.Size() == realInfo.Size() {
-			timeDiff := srcInfo.ModTime().Unix() - realInfo.ModTime().Unix()
-			if timeDiff < 0 {
-				timeDiff = -timeDiff
-			}
-			if timeDiff <= 1 {
-				if err := s.ensureDir(target); err != nil {
-					return false, err
-				}
-				if err := os.Link(src, target); err == nil {
-					s.Register(dst)
-					return true, nil
-				} else {
-					slog.Debug("Hardlink failed", "src", src, "target", target, "error", err)
-				}
-			} else {
-				slog.Debug("Mtime mismatch", "src", src, "srcMtime", srcInfo.ModTime(), "realMtime", realInfo.ModTime(), "diff", timeDiff)
-			}
-		} else {
-			slog.Debug("Size mismatch", "src", src, "srcSize", srcInfo.Size(), "realSize", realInfo.Size())
-		}
-	} else {
-		slog.Debug("Real output not found", "path", realOutputPath)
-	}
-
-	return false, nil
 }
 
 func (s *DiskSink) SetMtime(path string, mtime time.Time) error {

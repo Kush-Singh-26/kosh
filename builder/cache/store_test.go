@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func TestRenameWithRetry_Succeeds(t *testing.T) {
@@ -16,8 +18,8 @@ func TestRenameWithRetry_Succeeds(t *testing.T) {
 		t.Fatalf("write tmp failed: %v", err)
 	}
 
-	if err := renameWithRetry(tmp, final, 3, 1*time.Millisecond); err != nil {
-		t.Fatalf("renameWithRetry should succeed: %v", err)
+	if err := utils.RenameWithRetry(tmp, final, 3, 1*time.Millisecond); err != nil {
+		t.Fatalf("RenameWithRetry should succeed: %v", err)
 	}
 	if _, err := os.Stat(final); err != nil {
 		t.Fatalf("expected final file to exist: %v", err)
@@ -29,9 +31,9 @@ func TestRenameWithRetry_FailsWhenMissing(t *testing.T) {
 	tmp := filepath.Join(d, "missing.tmp")
 	final := filepath.Join(d, "a.raw")
 
-	err := renameWithRetry(tmp, final, 2, 1*time.Millisecond)
+	err := utils.RenameWithRetry(tmp, final, 2, 1*time.Millisecond)
 	if err == nil {
-		t.Fatal("expected renameWithRetry to fail for missing temp file")
+		t.Fatal("expected RenameWithRetry to fail for missing temp file")
 	}
 }
 
@@ -60,8 +62,8 @@ func TestCleanOrphans(t *testing.T) {
 
 	// Manually force the old orphan to have an old modtime
 	oldTime := time.Now().Add(-10 * 24 * time.Hour)
-	oldPathRaw := filepath.Join(basePath, cat, hashOldOrphan[0:2], hashOldOrphan[2:4], hashOldOrphan+".raw")
-	oldPathZst := filepath.Join(basePath, cat, hashOldOrphan[0:2], hashOldOrphan[2:4], hashOldOrphan+".zst")
+	oldPathRaw := filepath.Join(basePath, cat, hashOldOrphan[0:2], hashOldOrphan+".raw")
+	oldPathZst := filepath.Join(basePath, cat, hashOldOrphan[0:2], hashOldOrphan+".zst")
 	_ = os.Chtimes(oldPathRaw, oldTime, oldTime)
 	_ = os.Chtimes(oldPathZst, oldTime, oldTime)
 
@@ -102,10 +104,12 @@ func TestStorePut_ConcurrentSameContent(t *testing.T) {
 	var wg sync.WaitGroup
 	errCh := make(chan error, workers)
 	for range workers {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			_, _, err := store.Put("ssr/d2", []byte("same content"))
 			errCh <- err
-		})
+		}()
 	}
 	wg.Wait()
 	close(errCh)

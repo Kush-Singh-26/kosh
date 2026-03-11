@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"io/fs"
 	"log/slog"
 	"path/filepath"
 
@@ -52,9 +53,9 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		m = s.metrics
 	}
 
-	// 1. Static Copy
+	// 1. Static Discovery & Copy
 	g.Go(func() error {
-		copyTimer := utils.StartPhase("Asset copy root/static")
+		copyTimer := utils.StartPhase("Asset copy static")
 		defer copyTimer.Stop()
 
 		themeDir := s.cfg.StaticDir
@@ -62,29 +63,53 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			themeDir = "themes/blog/static"
 		}
 
-		copyGroup, copyCtx := errgroup.WithContext(gCtx)
+		type assetTask struct {
+			srcPath string
+			info    fs.FileInfo
+		}
+		assetMap := make(map[string]assetTask)
 
-		// A) Theme Static
-		copyGroup.Go(func() error {
-			exists, _ := afero.Exists(s.sourceFs, themeDir)
-			if exists {
-				return utils.CopyDirVFS(copyCtx, s.sourceFs, s.sink, themeDir, destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
-			}
-			return nil
-		})
-
-		// B) Site Static (Root)
-		if themeDir != "static" {
-			copyGroup.Go(func() error {
-				exists, _ := afero.Exists(s.sourceFs, "static")
-				if exists {
-					return utils.CopyDirVFS(copyCtx, s.sourceFs, s.sink, "static", destStaticDir, s.cfg.CompressImages, []string{".css", ".js", ".br"}, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
+		// A) Theme Static Discovery
+		exists, _ := afero.Exists(s.sourceFs, themeDir)
+		if exists {
+			_ = afero.Walk(s.sourceFs, themeDir, func(path string, info fs.FileInfo, err error) error {
+				if err != nil || info.IsDir() {
+					return nil
 				}
+				rel, _ := utils.SafeRel(themeDir, path)
+				assetMap[rel] = assetTask{srcPath: path, info: info}
 				return nil
 			})
 		}
 
-		// C) Content Images
+		// B) Site Static Discovery (Deterministic Overwrite)
+		if themeDir != "static" {
+			exists, _ := afero.Exists(s.sourceFs, "static")
+			if exists {
+				_ = afero.Walk(s.sourceFs, "static", func(path string, info fs.FileInfo, err error) error {
+					if err != nil || info.IsDir() {
+						return nil
+					}
+					rel, _ := utils.SafeRel("static", path)
+					assetMap[rel] = assetTask{srcPath: path, info: info}
+					return nil
+				})
+			}
+		}
+
+		// C) Dispatch deduplicated assets
+		copyGroup, copyCtx := errgroup.WithContext(gCtx)
+		copyGroup.SetLimit(s.cfg.ImageWorkers)
+
+		for rel, task := range assetMap {
+			r, t := rel, task
+			copyGroup.Go(func() error {
+				dst := filepath.Join(destStaticDir, r)
+				return utils.CopyFileWithOptionalImageProcessing(copyCtx, s.sourceFs, s.sink, t.srcPath, dst, s.cfg.CompressImages, s.cfg.CacheDir+"/images", s.cfg.WebPQuality, t.info, m, s.renderer.RegisterFile)
+			})
+		}
+
+		// D) Content Images
 		copyGroup.Go(func() error {
 			if len(s.contentAssets) > 0 {
 				return s.copyContentAssetsFromManifest(copyCtx)
