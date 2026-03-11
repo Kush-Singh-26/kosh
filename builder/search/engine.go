@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
@@ -514,10 +515,23 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 	}
 
 	start := max(bestStart-SnippetContextBefore, 0)
+	// Align to rune boundary to avoid panic
+	for start > 0 && !utf8.RuneStart(content[start]) {
+		start--
+	}
+
 	end := start + windowSize + SnippetContextBefore
 	if end > len(content) {
 		end = len(content)
 		start = max(end-(windowSize+SnippetContextBefore), 0)
+		for start > 0 && !utf8.RuneStart(content[start]) {
+			start--
+		}
+	} else {
+		// Align end to rune boundary
+		for end < len(content) && !utf8.RuneStart(content[end]) {
+			end++
+		}
 	}
 
 	if start > 0 {

@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/spf13/afero"
@@ -64,7 +65,7 @@ type Builder struct {
 
 	// Cached data for incremental builds
 	indexedPosts      []models.IndexedPost
-	searchSourceDirty bool
+	searchSourceDirty atomic.Bool
 
 	// True when output directory did not exist at build start.
 	isCleanBuild bool
@@ -242,17 +243,19 @@ func (b *Builder) Close() {
 	if b.nativeRenderer != nil {
 		_ = b.nativeRenderer.Close()
 	}
-	// Note: cacheManager is closed when the service layer is shut down
+	if b.cacheService != nil {
+		_ = b.cacheService.Close()
+	}
 }
 
 func (b *Builder) checkWasmUpdate(ctx context.Context) {
 	if b.cfg.IsDev {
 		wasmBinary := build.RepoPath("static", "wasm", "search.wasm")
-		if b.searchSourceDirty {
+		if b.searchSourceDirty.Load() {
 			if err := build.CompileWASMFromSource(ctx, build.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
 				b.logger.Warn("Failed to compile Search WASM", "error", err)
 			}
-			b.searchSourceDirty = false
+			b.searchSourceDirty.Store(false)
 		} else if srcMod, err := latestSearchSourceModTime(); err == nil {
 			wasmInfo, statErr := os.Stat(wasmBinary)
 			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {

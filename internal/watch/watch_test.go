@@ -80,14 +80,16 @@ func TestWatcher_ResetTimer_ThreadSafe(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 10 {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			for range 20 {
 				pendingMu := &sync.Mutex{}
 				pendingEvents := make(map[string]fsnotify.Op)
 				w.resetTimer(pendingMu, &pendingEvents)
 				time.Sleep(1 * time.Millisecond)
 			}
-		})
+		}()
 	}
 
 	wg.Wait()

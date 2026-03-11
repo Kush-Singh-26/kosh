@@ -84,6 +84,7 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 			&s.mu,
 			"",
 			0,
+			nil,
 		)
 		if err != nil {
 			return err
@@ -190,13 +191,15 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 		commitSearch := map[string]*cache.SearchRecord{postID: newSearch}
 		commitDeps := map[string]*cache.Dependencies{postID: newDep}
 
-		s.cacheWg.Go(func() {
+		s.cacheWg.Add(1)
+		go func() {
+			defer s.cacheWg.Done()
 			cacheCommitTimer := utils.StartPhase("Cache commit (incremental)")
 			if err := s.cache.BatchCommit(commitMeta, commitSearch, commitDeps); err != nil {
 				s.logger.Error("Failed to commit post to cache", "path", path, "error", err)
 			}
 			cacheCommitTimer.Stop()
-		})
+		}()
 		// 2. Generate/Copy Social Card
 		cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
 		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", cardRelPath))

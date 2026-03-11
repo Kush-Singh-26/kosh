@@ -126,39 +126,7 @@ var (
 	SharedStringBuilderPool = NewStringBuilderPool()
 	SharedBufioWriterPool   = NewBufioWriterPool()
 	SharedBufioReaderPool   = NewBufioReaderPool()
-	SharedLargeBufferPool   = NewLargeBufferPool()
 )
-
-// LargeBufferPool manages a pool of large bytes.Buffer objects (for images/social cards)
-type LargeBufferPool struct {
-	pool sync.Pool
-}
-
-func NewLargeBufferPool() *LargeBufferPool {
-	return &LargeBufferPool{
-		pool: sync.Pool{
-			New: func() any {
-				// Pre-allocate 2MB
-				buf := new(bytes.Buffer)
-				buf.Grow(2 * 1024 * 1024)
-				return buf
-			},
-		},
-	}
-}
-
-func (p *LargeBufferPool) Get() *bytes.Buffer {
-	return p.pool.Get().(*bytes.Buffer)
-}
-
-func (p *LargeBufferPool) Put(buf *bytes.Buffer) {
-	// Safety cap: discard buffers larger than 8MB to prevent memory bloat
-	if buf == nil || buf.Cap() > 8*1024*1024 {
-		return
-	}
-	buf.Reset()
-	p.pool.Put(buf)
-}
 
 // ByteSlicePool manages a pool of byte slices
 type ByteSlicePool struct {

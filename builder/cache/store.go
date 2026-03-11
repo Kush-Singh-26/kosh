@@ -86,23 +86,6 @@ func extension(ct CompressionType) string {
 	return ".zst"
 }
 
-func renameWithRetry(tmpPath, finalPath string, maxRetries int, baseDelay time.Duration) error {
-	var err error
-	for i := range maxRetries {
-		err = os.Rename(tmpPath, finalPath)
-		if err == nil {
-			return nil
-		}
-
-		// Use a capped backoff with jitter
-		delay := min(baseDelay*time.Duration(1<<uint(i)), 2*time.Second)
-		// Simple jitter without math/rand: ±10%
-		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
-		time.Sleep(delay + jitter)
-	}
-	return err
-}
-
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
@@ -254,7 +237,7 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("temp file missing before rename: %w", err)
 	}
-	if err := renameWithRetry(tmpPath, path, 6, 10*time.Millisecond); err != nil {
+	if err := utils.RenameWithRetry(tmpPath, path, 6, 10*time.Millisecond); err != nil {
 		if fileExists(path) {
 			_ = os.Remove(tmpPath)
 			return hash, ct, nil

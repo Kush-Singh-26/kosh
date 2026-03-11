@@ -227,7 +227,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 
 		if !useCache {
 			s.metrics.IncrementCacheMiss()
-			parseRes, err = ParseMarkdown(ctx, f.Source, path, version, cleanHtmlRelPath, htmlRelPath, s.mdPool, s.cfg, s.nativeRenderer, s.diagramAdapter, &s.mu, f.FrontmatterHash, f.ReadingTime)
+			parseRes, err = ParseMarkdown(ctx, f.Source, path, version, cleanHtmlRelPath, htmlRelPath, s.mdPool, s.cfg, s.nativeRenderer, s.diagramAdapter, &s.mu, f.FrontmatterHash, f.ReadingTime, f.PreParsedMeta)
 			if err != nil {
 				s.logger.Error("Failed to parse markdown", "path", path, "error", err)
 				return
@@ -362,9 +362,11 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	cardPool.Stop()
 
 	if len(newPostsMeta) > 0 && s.cache != nil {
-		s.cacheWg.Go(func() {
+		s.cacheWg.Add(1)
+		go func() {
+			defer s.cacheWg.Done()
 			_ = s.cache.BatchCommit(newPostsMeta, newSearchRecords, newDeps)
-		})
+		}()
 	}
 
 	return &PostResult{

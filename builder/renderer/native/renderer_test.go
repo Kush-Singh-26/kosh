@@ -87,9 +87,11 @@ func TestRenderer_ConcurrentInitialization(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for range 10 {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			r.ensureInitialized()
-		})
+		}()
 	}
 
 	wg.Wait()

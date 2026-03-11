@@ -71,6 +71,7 @@ type ParsedMarkdownResult struct {
 	ByteOffsets     map[string][]int
 	MathExpressions []native.MathExpression
 	HasImages       bool
+	BodyOnly        []byte
 }
 
 // ParseMarkdownMetadata handles the semantic parsing and metadata extraction
@@ -85,8 +86,18 @@ func ParseMarkdownMetadata(
 	cfg *config.Config,
 	knownFrontmatterHash string,
 	knownReadingTime int,
+	preParsedMeta map[string]any,
 ) (*ParsedMarkdownResult, error) {
 	res := &ParsedMarkdownResult{}
+
+	// Strip frontmatter to avoid double parse
+	bodyOnly := source
+	if bytes.HasPrefix(source, []byte("---")) {
+		if idx := bytes.Index(source[3:], []byte("---")); idx != -1 {
+			bodyOnly = source[idx+6:]
+		}
+	}
+	res.BodyOnly = bodyOnly
 
 	var docNode ast.Node
 	var mdCtx parser.Context
@@ -106,7 +117,7 @@ func ParseMarkdownMetadata(
 		mdEngine := mdPool.Get().(goldmark.Markdown)
 		defer mdPool.Put(mdEngine)
 
-		docNode = mdEngine.Parser().Parse(text.NewReader(source), parser.WithContext(mdCtx))
+		docNode = mdEngine.Parser().Parse(text.NewReader(bodyOnly), parser.WithContext(mdCtx))
 	}()
 
 	if parseErr != nil {
@@ -116,7 +127,13 @@ func ParseMarkdownMetadata(
 	res.AST = docNode
 	res.Context = mdCtx
 	res.SSRHashes = mdParser.GetSSRHashes(mdCtx)
-	res.MetaData = meta.Get(mdCtx)
+
+	if preParsedMeta != nil {
+		res.MetaData = preParsedMeta
+	} else {
+		res.MetaData = meta.Get(mdCtx)
+	}
+
 	fm := extractFrontmatter(res.MetaData)
 	res.TOC = mdParser.GetTOC(mdCtx)
 
@@ -202,17 +219,22 @@ func RenderParsedMarkdown(
 		return fmt.Errorf("missing AST or Context in ParsedMarkdownResult")
 	}
 
+	body := res.BodyOnly
+	if len(body) == 0 {
+		body = source
+	}
+
 	mdEngine := mdPool.Get().(goldmark.Markdown)
 	defer mdPool.Put(mdEngine)
 
 	buf := utils.SharedBufferPool.Get()
 	defer utils.SharedBufferPool.Put(buf)
 
-	if err := mdEngine.Renderer().Render(buf, source, res.AST); err != nil {
+	if err := mdEngine.Renderer().Render(buf, body, res.AST); err != nil {
 		return fmt.Errorf("failed to render markdown: %w", err)
 	}
 	res.HTMLContent = buf.String()
-	res.HasImages = bytes.Contains(source, []byte("![")) || bytes.Contains(source, []byte("<img"))
+	res.HasImages = bytes.Contains(body, []byte("![")) || bytes.Contains(body, []byte("<img"))
 
 	// Math discovery (deferred to global orchestration)
 	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) || bytes.Contains(source, []byte("\\[")) {
@@ -240,8 +262,9 @@ func ParseMarkdown(
 	mu *sync.Mutex,
 	knownFrontmatterHash string,
 	knownReadingTime int,
+	preParsedMeta map[string]any,
 ) (*ParsedMarkdownResult, error) {
-	res, err := ParseMarkdownMetadata(ctx, source, path, version, cleanHtmlRelPath, htmlRelPath, mdPool, cfg, knownFrontmatterHash, knownReadingTime)
+	res, err := ParseMarkdownMetadata(ctx, source, path, version, cleanHtmlRelPath, htmlRelPath, mdPool, cfg, knownFrontmatterHash, knownReadingTime, preParsedMeta)
 	if err != nil {
 		return nil, err
 	}

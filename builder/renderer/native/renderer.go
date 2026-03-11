@@ -154,7 +154,9 @@ func (r *Renderer) ensureInitialized() {
 			r.katexBytecode = katexBytecode
 		} else {
 			slog.Info("Pre-compiling KaTeX to bytecode (fallback)")
-			rt, err := qjs.New()
+			rt, err := qjs.New(qjs.Option{
+				MaxExecutionTime: 2000, // 2s safety timeout per task
+			})
 			if err == nil {
 				bc, err := rt.Compile("katex.min.js", qjs.Code(katexJS))
 				if err == nil {
@@ -212,7 +214,9 @@ func (r *Renderer) EnsureInitialized(ctx context.Context) {
 // ensureInitialized performs lazy initialization of the JS engine
 func (i *instance) ensureInitialized(bytecode []byte) {
 	i.initOnce.Do(func() {
-		rt, err := qjs.New()
+		rt, err := qjs.New(qjs.Option{
+			MaxExecutionTime: 2000, // 2s safety timeout per task
+		})
 		if err != nil {
 			slog.Warn("Failed to create QJS runtime", "error", err)
 			return

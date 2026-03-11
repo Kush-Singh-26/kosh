@@ -40,7 +40,13 @@ func cleanupStaleBuildDirs(outputDir string) {
 			continue
 		}
 		if strings.HasPrefix(name, base+".tmp-") || strings.HasPrefix(name, base+".bak-") {
-			_ = os.RemoveAll(filepath.Join(parent, name))
+			fullPath := filepath.Join(parent, name)
+			if info, err := os.Stat(fullPath); err == nil {
+				// Only cleanup if older than 1 hour to avoid deleting active staging dirs from other processes
+				if time.Since(info.ModTime()) > time.Hour {
+					_ = os.RemoveAll(fullPath)
+				}
+			}
 		}
 	}
 }

@@ -34,9 +34,11 @@ func (b *Builder) build(ctx context.Context) error {
 	// has no dependencies on other build phases. We only need it complete
 	// before Tx.Commit() publishes the staging directory.
 	var wasmWg sync.WaitGroup
-	wasmWg.Go(func() {
+	wasmWg.Add(1)
+	go func() {
+		defer wasmWg.Done()
 		b.checkWasmUpdate(ctx)
-	})
+	}()
 
 	// Handle incremental social card rebuild if needed
 	var forceSocialRebuild bool
@@ -80,12 +82,14 @@ func (b *Builder) build(ctx context.Context) error {
 
 	var assetErr error
 	var assetWg sync.WaitGroup
-	assetWg.Go(func() {
+	assetWg.Add(1)
+	go func() {
+		defer assetWg.Done()
 		if err := b.copyStaticAndBuildAssets(ctx); err != nil {
 			assetErr = err
 		}
 		assetTimer.Stop()
-	})
+	}()
 
 	// Tell the post service to wait for assets before entering render phase
 	b.renderService.SetAssetsGate(assetsReady)
@@ -140,10 +144,12 @@ func (b *Builder) build(ctx context.Context) error {
 			// PWA icon generation can be slow (200-400ms) and has no dependency on HTML renders.
 			// We move it to the global wasmWg (which waits at Tx.Commit) rather than the siteWideGroup
 			// to remove it from the critical path of the site timer.
-			wasmWg.Go(func() {
+			wasmWg.Add(1)
+			go func() {
+				defer wasmWg.Done()
 				b.waitForAssetsAvailability(ctx, assetsReady)
 				_ = b.generatePWA(ctx, b.cfg.ForceRebuild)
-			})
+			}()
 		})
 
 		// Handle search index specifically on the second call (when indexedPosts available)
