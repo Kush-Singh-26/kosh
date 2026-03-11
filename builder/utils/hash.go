@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/zeebo/xxh3"
@@ -13,7 +14,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-func GetFrontmatterHash(metaData map[string]interface{}) (string, error) {
+func GetFrontmatterHash(metaData map[string]any) (string, error) {
 	h := xxh3.New()
 
 	writeStringXXH3(h, GetString(metaData, "title"))
@@ -49,6 +50,49 @@ func GetFrontmatterHash(metaData map[string]interface{}) (string, error) {
 	sum := h.Sum128()
 	b := sum.Bytes()
 	return hex.EncodeToString(b[:]), nil
+}
+
+// GetFrontmatterHashFromValues computes the canonical frontmatter hash from already-parsed values.
+// This avoids reparsing YAML when scanner-stage frontmatter is already available.
+func GetFrontmatterHashFromValues(title, description, date string, tags []string, pinned bool) string {
+	h := xxh3.New()
+
+	writeStringXXH3(h, title)
+	_, _ = h.Write([]byte{0})
+	writeStringXXH3(h, description)
+	_, _ = h.Write([]byte{0})
+
+	// Keep date canonicalization aligned with GetFrontmatterHash:
+	// normalize to YYYY-MM-DD when parseable, otherwise use raw string.
+	if t, err := time.Parse("2006-01-02", date); err == nil {
+		writeStringXXH3(h, t.Format("2006-01-02"))
+	} else {
+		writeStringXXH3(h, date)
+	}
+	_, _ = h.Write([]byte{0})
+
+	if len(tags) > 0 {
+		normalized := make([]string, len(tags))
+		copy(normalized, tags)
+		for i := range normalized {
+			normalized[i] = strings.TrimSpace(normalized[i])
+		}
+		sort.Strings(normalized)
+		for _, tag := range normalized {
+			writeStringXXH3(h, tag)
+			_, _ = h.Write([]byte{0})
+		}
+	}
+
+	if pinned {
+		_, _ = h.Write([]byte{1})
+	} else {
+		_, _ = h.Write([]byte{0})
+	}
+
+	sum := h.Sum128()
+	b := sum.Bytes()
+	return hex.EncodeToString(b[:])
 }
 
 // writeStringXXH3 writes a string to the XXH3 hash
@@ -92,11 +136,11 @@ func GetFrontmatterHashFromSource(source []byte) (string, error) {
 	return GetFrontmatterHash(metaData)
 }
 
-func parseFrontmatter(data []byte) (map[string]interface{}, error) {
+func parseFrontmatter(data []byte) (map[string]any, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	metaData := make(map[string]interface{})
+	metaData := make(map[string]any)
 	if err := yaml.Unmarshal(data, &metaData); err != nil {
 		return nil, err
 	}

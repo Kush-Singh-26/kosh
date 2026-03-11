@@ -256,6 +256,8 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		b.nativeRenderer,
 		b.diagramAdapter,
 		&b.mu,
+		"",
+		0,
 	)
 
 	if err != nil {

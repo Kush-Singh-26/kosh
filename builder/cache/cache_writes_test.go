@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -157,13 +158,7 @@ func TestBatchCommit_WithDependencies(t *testing.T) {
 		t.Fatalf("GetPostsByTag failed: %v", err)
 	}
 
-	found := false
-	for _, id := range tagPosts {
-		if id == post.PostID {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(tagPosts, post.PostID)
 
 	if !found {
 		t.Error("Post should be indexed by tag 'go'")

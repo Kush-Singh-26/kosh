@@ -162,7 +162,7 @@ func (t *ssrTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 
 			// Use shared D2Group if provided, otherwise fall back to no singleflight (each render runs)
 			if t.D2Group != nil {
-				v, err, _ := t.D2Group.Do(b.hash, func() (interface{}, error) {
+				v, err, _ := t.D2Group.Do(b.hash, func() (any, error) {
 					pairVal, exists := t.Cache.Load(b.hash)
 					if exists {
 						return pairVal.(themePair), nil

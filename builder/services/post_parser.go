@@ -34,7 +34,7 @@ type parsedFrontmatter struct {
 	Draft       bool
 }
 
-func extractFrontmatter(metaData map[string]interface{}) parsedFrontmatter {
+func extractFrontmatter(metaData map[string]any) parsedFrontmatter {
 	dateStr := utils.GetString(metaData, "date")
 	dateObj, _ := time.Parse("2006-01-02", dateStr)
 	weight, _ := metaData["weight"].(int)
@@ -57,7 +57,7 @@ type ParsedMarkdownResult struct {
 	AST             ast.Node
 	Context         parser.Context
 	HTMLContent     string
-	MetaData        map[string]interface{}
+	MetaData        map[string]any
 	Post            models.PostMetadata
 	SearchRecord    models.PostRecord
 	TOC             []models.TOCEntry
@@ -83,6 +83,8 @@ func ParseMarkdownMetadata(
 	htmlRelPath string,
 	mdPool *sync.Pool,
 	cfg *config.Config,
+	knownFrontmatterHash string,
+	knownReadingTime int,
 ) (*ParsedMarkdownResult, error) {
 	res := &ParsedMarkdownResult{}
 
@@ -116,15 +118,20 @@ func ParseMarkdownMetadata(
 	res.SSRHashes = mdParser.GetSSRHashes(mdCtx)
 	res.MetaData = meta.Get(mdCtx)
 	fm := extractFrontmatter(res.MetaData)
-	wordCount := utils.CountWords(source)
 	res.TOC = mdParser.GetTOC(mdCtx)
 
 	postLink := utils.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
 
+	readingTime := knownReadingTime
+	if readingTime <= 0 {
+		wordCount := utils.CountWords(source)
+		readingTime = int(math.Ceil(float64(wordCount) / wordsPerMinute))
+	}
+
 	res.Post = models.PostMetadata{
 		Title: fm.Title, Link: postLink,
 		Description: fm.Description, Tags: fm.Tags,
-		ReadingTime: int(math.Ceil(float64(wordCount) / wordsPerMinute)), Pinned: fm.Pinned, Weight: fm.Weight,
+		ReadingTime: readingTime, Pinned: fm.Pinned, Weight: fm.Weight,
 		DateObj: fm.DateObj, Draft: fm.Draft, Version: version,
 	}
 
@@ -174,7 +181,11 @@ func ParseMarkdownMetadata(
 	res.PositionalIndex = positions
 	res.ByteOffsets = offsets
 
-	res.FrontmatterHash, _ = utils.GetFrontmatterHash(res.MetaData)
+	if knownFrontmatterHash != "" {
+		res.FrontmatterHash = knownFrontmatterHash
+	} else {
+		res.FrontmatterHash, _ = utils.GetFrontmatterHash(res.MetaData)
+	}
 
 	return res, nil
 }
@@ -227,8 +238,10 @@ func ParseMarkdown(
 	nativeRenderer *native.Renderer,
 	diagramAdapter *cache.DiagramCacheAdapter,
 	mu *sync.Mutex,
+	knownFrontmatterHash string,
+	knownReadingTime int,
 ) (*ParsedMarkdownResult, error) {
-	res, err := ParseMarkdownMetadata(ctx, source, path, version, cleanHtmlRelPath, htmlRelPath, mdPool, cfg)
+	res, err := ParseMarkdownMetadata(ctx, source, path, version, cleanHtmlRelPath, htmlRelPath, mdPool, cfg, knownFrontmatterHash, knownReadingTime)
 	if err != nil {
 		return nil, err
 	}

@@ -110,8 +110,7 @@ func fetchAndDecompress(url string) ([]byte, error) {
 			br := brotli.NewReader(bytes.NewReader(compressed))
 			decompressed, err := io.ReadAll(br)
 			if err != nil {
-				println("WASM: Brotli decompression error:", err.Error(), "- using raw data fallback")
-				ch <- compressed
+				ch <- "brotli: " + err.Error()
 				return nil
 			}
 

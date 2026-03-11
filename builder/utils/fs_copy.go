@@ -1,5 +1,4 @@
 //go:build !wasm
-// +build !wasm
 
 package utils
 
@@ -17,6 +16,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,7 +95,7 @@ func (c *imageCache) set(key imageCacheKey, data []byte) {
 var globalImageCache = newImageCache(200, 50*1024*1024)
 
 var keyBufPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		b := make([]byte, 0, 512)
 		return &b
 	},
@@ -120,14 +120,14 @@ func getImageHash(key imageCacheKey) string {
 
 var (
 	copyBufferPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make([]byte, 64*1024)
 		},
 	}
 
 	// rgbaPixPool reuses large byte slices for image resizing to reduce GC pressure
 	rgbaPixPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			// Pre-allocate for 1200px width * 1600px height * 4 bytes (RGBA)
 			return make([]byte, 1200*1600*4)
 		},
@@ -184,12 +184,12 @@ func queueImageCacheWrite(path string, data []byte, isCloned bool) {
 
 const smallImageResizeThresholdBytes int64 = 32 * 1024
 
-func isNil(i interface{}) bool {
+func isNil(i any) bool {
 	if i == nil {
 		return true
 	}
 	v := reflect.ValueOf(i)
-	return v.Kind() == reflect.Ptr && v.IsNil()
+	return v.Kind() == reflect.Pointer && v.IsNil()
 }
 
 func CopyFileVFS(srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, modTime int64, onWrite func(string)) error {
@@ -270,10 +270,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 	if numWorkers <= 0 {
 		numWorkers = runtime.NumCPU()
 	}
-	nonImageWorkers := numWorkers
-	if nonImageWorkers < 2 {
-		nonImageWorkers = 2
-	}
+	nonImageWorkers := max(numWorkers, 2)
 	if nonImageWorkers > 32 {
 		nonImageWorkers = 32
 	}
@@ -286,9 +283,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 	var wg sync.WaitGroup
 
 	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-ctx.Done():
@@ -322,12 +317,10 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 					}()
 				}
 			}
-		}()
+		})
 	}
 	for i := 0; i < nonImageWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-ctx.Done():
@@ -344,14 +337,11 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 					}
 				}
 			}
-		}()
+		})
 	}
 
 	// Use higher concurrency for discovery walk on modern SSDs
-	walkConcurrency := numWorkers / 2
-	if walkConcurrency < 4 {
-		walkConcurrency = 4
-	}
+	walkConcurrency := max(numWorkers/2, 4)
 	walkErr := ParallelWalk(ctx, srcFs, srcDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -368,11 +358,8 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 		}
 		isExcluded := false
 		if baseName != "wasm_engine.js" && baseName != "engine.js" && baseName != "force-graph.js" && baseName != "wasm_exec.js" {
-			for _, exclude := range excludeExts {
-				if ext == exclude {
-					isExcluded = true
-					break
-				}
+			if slices.Contains(excludeExts, ext) {
+				isExcluded = true
 			}
 		}
 		if isExcluded {

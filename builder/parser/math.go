@@ -54,7 +54,7 @@ func (t *MathTransformer) Transform(node *ast.Document, reader text.Reader, pc p
 			m := n.(*passthrough.PassthroughBlock)
 			var lines strings.Builder
 			l := m.Lines().Len()
-			for i := 0; i < l; i++ {
+			for i := range l {
 				line := m.Lines().At(i)
 				lines.Write(line.Value(source))
 			}

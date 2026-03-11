@@ -610,7 +610,7 @@ func TestCacheService_ClearDirty_Concurrent(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
@@ -620,19 +620,15 @@ func TestCacheService_ClearDirty_Concurrent(t *testing.T) {
 
 	wg.Wait()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		service.ClearDirty()
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 100; i++ {
+	wg.Go(func() {
+		for range 100 {
 			service.MarkDirty("concurrent-post")
 		}
-	}()
+	})
 
 	wg.Wait()
 

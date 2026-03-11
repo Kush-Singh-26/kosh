@@ -40,7 +40,7 @@ func TestDeletePost_Concurrent(t *testing.T) {
 	// Create multiple posts
 	numPosts := 10
 	postIDs := make([]string, numPosts)
-	for i := 0; i < numPosts; i++ {
+	for i := range numPosts {
 		post := createSamplePostMeta()
 		post.PostID = "concurrent-post-" + string(rune(i))
 		postIDs[i] = post.PostID
@@ -58,7 +58,7 @@ func TestDeletePost_Concurrent(t *testing.T) {
 	}
 
 	// Collect results
-	for i := 0; i < numPosts; i++ {
+	for range numPosts {
 		err := <-errors
 		if err != nil {
 			t.Errorf("Concurrent delete failed: %v", err)

@@ -75,10 +75,7 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 		return nil, nil, nil, nil
 	}
 
-	estUnique := len(tokens) / 2
-	if estUnique < 4 {
-		estUnique = 4
-	}
+	estUnique := max(len(tokens)/2, 4)
 	result := make([]string, 0, len(tokens))
 	mapping := make(map[string]string, estUnique)
 	positions := make(map[string][]int, estUnique)
@@ -226,7 +223,7 @@ type Token struct {
 var isWordPartASCII [256]bool
 
 func init() {
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		r := rune(i)
 		isWordPartASCII[i] = (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
 	}
@@ -238,10 +235,7 @@ func TokenizeWithUnicode(text string) []Token {
 		return nil
 	}
 
-	estimatedTokens := len(text) / 5
-	if estimatedTokens < 8 {
-		estimatedTokens = 8
-	}
+	estimatedTokens := max(len(text)/5, 8)
 	tokens := make([]Token, 0, estimatedTokens)
 
 	start := -1

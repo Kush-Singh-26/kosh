@@ -37,7 +37,7 @@ func GroupMetadata(cfg *config.Config, allMetadataMap *sync.Map) *GroupMetadataR
 		}
 	}
 
-	allMetadataMap.Range(func(key, value interface{}) bool {
+	allMetadataMap.Range(func(key, value any) bool {
 		p := value.(models.PostMetadata)
 		postsByVersion[p.Version] = append(postsByVersion[p.Version], p)
 

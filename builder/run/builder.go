@@ -132,10 +132,7 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 
 	// Create native renderer (Worker Pool)
 	var nativeRenderer *native.Renderer
-	nativeWorkers := runtime.NumCPU()
-	if nativeWorkers < 4 {
-		nativeWorkers = 4
-	}
+	nativeWorkers := max(runtime.NumCPU(), 4)
 
 	if cfg.ParserWorkers > 0 {
 		nativeRenderer = native.New(native.WithWorkers(cfg.ParserWorkers), native.WithScheduler(utils.GlobalScheduler))
@@ -151,7 +148,7 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
 		},
 	}

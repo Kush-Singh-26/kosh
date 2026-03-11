@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -87,9 +88,7 @@ func GetPhaseDurations() map[string]time.Duration {
 	globalTracker.mu.Lock()
 	defer globalTracker.mu.Unlock()
 	result := make(map[string]time.Duration, len(globalTracker.phases))
-	for k, v := range globalTracker.phases {
-		result[k] = v
-	}
+	maps.Copy(result, globalTracker.phases)
 	return result
 }
 

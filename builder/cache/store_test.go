@@ -101,13 +101,11 @@ func TestStorePut_ConcurrentSameContent(t *testing.T) {
 	const workers = 8
 	var wg sync.WaitGroup
 	errCh := make(chan error, workers)
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range workers {
+		wg.Go(func() {
 			_, _, err := store.Put("ssr/d2", []byte("same content"))
 			errCh <- err
-		}()
+		})
 	}
 	wg.Wait()
 	close(errCh)

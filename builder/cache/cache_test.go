@@ -33,7 +33,7 @@ func createSamplePostMeta() *PostMeta {
 		Weight:      10,
 		WordCount:   150,
 		ReadingTime: 1,
-		Meta:        make(map[string]interface{}),
+		Meta:        make(map[string]any),
 	}
 }
 

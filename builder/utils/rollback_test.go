@@ -11,7 +11,7 @@ import (
 
 func TestSyncVFS_RollbackOnFailure(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	// Create an existing file that will be overwritten
 	existingFile := filepath.Join(tmpDir, "existing.html")
 	if err := os.WriteFile(existingFile, []byte("original content"), 0644); err != nil {
@@ -41,7 +41,7 @@ func TestSyncVFS_RollbackOnFailure(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	
+
 	err := SyncVFS(ctx, srcFs, tmpDir, dirtyFiles, false)
 	if err == nil {
 		t.Fatal("SyncVFS should have failed due to MkdirAll error")

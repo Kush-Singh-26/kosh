@@ -4,12 +4,12 @@ import "testing"
 
 func TestShouldGeneratePWAIcons(t *testing.T) {
 	tests := []struct {
-		name       string
-		force      bool
-		hash       bool
-		cache192   bool
-		cache512   bool
-		expected   bool
+		name     string
+		force    bool
+		hash     bool
+		cache192 bool
+		cache512 bool
+		expected bool
 	}{
 		{name: "force always generates", force: true, hash: true, cache192: true, cache512: true, expected: true},
 		{name: "all cache present skips", force: false, hash: true, cache192: true, cache512: true, expected: false},

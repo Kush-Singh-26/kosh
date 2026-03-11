@@ -83,43 +83,43 @@ func TestGetBodyHashIgnoresFrontmatter(t *testing.T) {
 func TestGetFrontmatterHash(t *testing.T) {
 	tests := []struct {
 		name     string
-		metaData map[string]interface{}
+		metaData map[string]any
 		wantErr  bool
 	}{
 		{
 			name: "complete metadata",
-			metaData: map[string]interface{}{
+			metaData: map[string]any{
 				"title":       "Test Post",
 				"description": "A test description",
 				"date":        "2026-02-12",
-				"tags":        []interface{}{"go", "testing", "ssg"},
+				"tags":        []any{"go", "testing", "ssg"},
 				"pinned":      true,
 			},
 			wantErr: false,
 		},
 		{
 			name:     "empty metadata",
-			metaData: map[string]interface{}{},
+			metaData: map[string]any{},
 			wantErr:  false,
 		},
 		{
 			name: "only title",
-			metaData: map[string]interface{}{
+			metaData: map[string]any{
 				"title": "Just a Title",
 			},
 			wantErr: false,
 		},
 		{
 			name: "tags unsorted",
-			metaData: map[string]interface{}{
+			metaData: map[string]any{
 				"title": "Post with Tags",
-				"tags":  []interface{}{"zebra", "alpha", "beta"},
+				"tags":  []any{"zebra", "alpha", "beta"},
 			},
 			wantErr: false,
 		},
 		{
 			name: "pinned false",
-			metaData: map[string]interface{}{
+			metaData: map[string]any{
 				"title":  "Not Pinned",
 				"pinned": false,
 			},
@@ -127,7 +127,7 @@ func TestGetFrontmatterHash(t *testing.T) {
 		},
 		{
 			name: "with special characters",
-			metaData: map[string]interface{}{
+			metaData: map[string]any{
 				"title":       "Post with <html> & \"quotes\"",
 				"description": "Description with unicode: ñ, 中文, 🎉",
 			},
@@ -153,11 +153,11 @@ func TestGetFrontmatterHash(t *testing.T) {
 }
 
 func TestGetFrontmatterHashDeterministic(t *testing.T) {
-	metaData := map[string]interface{}{
+	metaData := map[string]any{
 		"title":       "Test Post",
 		"description": "A test description",
 		"date":        "2026-02-12",
-		"tags":        []interface{}{"go", "testing"},
+		"tags":        []any{"go", "testing"},
 		"pinned":      true,
 	}
 
@@ -178,14 +178,14 @@ func TestGetFrontmatterHashDeterministic(t *testing.T) {
 
 func TestGetFrontmatterHashTagSorting(t *testing.T) {
 	// Same tags in different order should produce same hash
-	metaData1 := map[string]interface{}{
+	metaData1 := map[string]any{
 		"title": "Post",
-		"tags":  []interface{}{"zebra", "alpha", "beta"},
+		"tags":  []any{"zebra", "alpha", "beta"},
 	}
 
-	metaData2 := map[string]interface{}{
+	metaData2 := map[string]any{
 		"title": "Post",
-		"tags":  []interface{}{"alpha", "beta", "zebra"},
+		"tags":  []any{"alpha", "beta", "zebra"},
 	}
 
 	hash1, _ := GetFrontmatterHash(metaData1)

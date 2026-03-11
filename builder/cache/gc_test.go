@@ -21,7 +21,7 @@ func TestRunGC(t *testing.T) {
 	postID := "test-post"
 	htmlContent := []byte("<html><body>Hello</body></html>")
 	var htmlHash string
-	
+
 	// Manually store to have full control
 	err = m.db.Update(func(tx *bolt.Tx) error {
 		var err error

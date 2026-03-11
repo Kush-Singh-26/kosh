@@ -19,7 +19,7 @@ func GetVersionFromPath(path string) (version, relPath string) {
 	parts := strings.Split(path, "/")
 	for i, part := range parts {
 		// Version folders usually start with 'v' and followed by numbers (e.g. v1.0, v2.0)
-		// Or they might be just version numbers if configured that way, 
+		// Or they might be just version numbers if configured that way,
 		// but Kosh convention seems to be v-prefix.
 		if strings.HasPrefix(part, "v") && len(part) >= 2 {
 			// Check if it looks like a version (v followed by digit)

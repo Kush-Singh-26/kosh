@@ -33,9 +33,9 @@ func TestImageCache_ConcurrentAccess(t *testing.T) {
 	cache := newImageCache(1000, 50*1024*1024)
 
 	done := make(chan bool)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(id int) {
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				key := imageCacheKey{path: "key", size: int64(id), modTime: int64(j % 10)}
 				cache.set(key, []byte("data"))
 				cache.get(key)
@@ -44,7 +44,7 @@ func TestImageCache_ConcurrentAccess(t *testing.T) {
 		}(i)
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 

@@ -3,6 +3,7 @@ package testutil
 
 import (
 	"html/template"
+	"strings"
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -23,7 +24,7 @@ func CreateSamplePostMeta() *cache.PostMeta {
 		Weight:      10,
 		WordCount:   150,
 		ReadingTime: 1,
-		Meta:        make(map[string]interface{}),
+		Meta:        make(map[string]any),
 	}
 }
 
@@ -41,7 +42,7 @@ func CreateSamplePageData() models.PageData {
 		Title:       "Test Page",
 		Description: "Test page description",
 		Content:     template.HTML("<p>Test content</p>"),
-		Meta: map[string]interface{}{
+		Meta: map[string]any{
 			"title":       "Test Page",
 			"description": "Test page description",
 		},
@@ -142,11 +143,12 @@ func joinTags(tags []string) string {
 	if len(tags) == 0 {
 		return ""
 	}
-	result := tags[0]
+	var result strings.Builder
+	result.WriteString(tags[0])
 	for i := 1; i < len(tags); i++ {
-		result += `", "` + tags[i]
+		result.WriteString(`", "` + tags[i])
 	}
-	return result
+	return result.String()
 }
 
 // CreateSmallHTML creates HTML content smaller than InlineHTMLThreshold

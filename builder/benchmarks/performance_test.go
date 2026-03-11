@@ -71,7 +71,7 @@ This is post number %d.
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
 		},
 	}

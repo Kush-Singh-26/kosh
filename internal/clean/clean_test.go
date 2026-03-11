@@ -13,7 +13,7 @@ func TestRunFs_CleanAll(t *testing.T) {
 	defer func() { testingMode = false }()
 
 	fs := afero.NewMemMapFs()
-	
+
 	// Create Project structure
 	// We need to match what config.LoadFs returns
 	cfg := config.LoadFs(fs, []string{})
@@ -44,7 +44,7 @@ func TestRunFs_CleanRootOnly(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	_ = fs.MkdirAll("public/v1", 0755)
 	_ = afero.WriteFile(fs, "public/index.html", []byte("test"), 0644)
-	
+
 	// Create a dummy kosh.yaml to load config
 	koshYaml := `
 outputDir: "public"
@@ -58,9 +58,9 @@ versions:
 	// or ensure config.Load uses afero as well.
 	// For now, let's see if we can manually pass config if we refactor more.
 	// But let's try to use the existing structure.
-	
+
 	// If I can't easily mock config.Load, I'll just test the logic with a helper.
-	
+
 	cfg := &config.Config{
 		OutputDir: "public",
 		Versions: []config.Version{

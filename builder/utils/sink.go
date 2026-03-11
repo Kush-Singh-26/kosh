@@ -47,7 +47,7 @@ func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
 		stagingDirLower:    strings.ToLower(sDir),
 		realOutputDirLower: strings.ToLower(rDir),
 		bufPool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				// 64KB buffer for streaming
 				return bufio.NewWriterSize(nil, 64*1024)
 			},
@@ -235,11 +235,11 @@ func (s *DiskSink) MkdirAll(p string) error {
 	return nil
 }
 
-var dirMutexes [64]sync.Mutex
+var dirMutexes [256]sync.Mutex
 
 func (s *DiskSink) getDirMutex(path string) *sync.Mutex {
 	h := xxh3.HashString(path)
-	return &dirMutexes[h%64]
+	return &dirMutexes[h%256]
 }
 
 func (s *DiskSink) WriteFile(p string, data []byte) error {
@@ -301,7 +301,7 @@ func (s *DiskSink) WriteStream(p string, fn func(io.Writer) error) error {
 
 func (s *DiskSink) GetWrittenFiles() map[string]bool {
 	res := make(map[string]bool)
-	s.writtenPaths.Range(func(key, value interface{}) bool {
+	s.writtenPaths.Range(func(key, value any) bool {
 		res[key.(string)] = value.(bool)
 		return true
 	})

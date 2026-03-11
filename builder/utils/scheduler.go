@@ -34,12 +34,9 @@ func NewBuildScheduler() BuildScheduler {
 	cpuCount := runtime.NumCPU()
 	// Total tokens = Cores * 1000.
 	// Large pool to allow high concurrency while still capping peak bursts.
-	totalTokens := int64(cpuCount * 1000)
-
-	// Ensure a minimum floor to prevent deadlocks
-	if totalTokens < 4000 {
-		totalTokens = 4000
-	}
+	totalTokens := max(
+		// Ensure a minimum floor to prevent deadlocks
+		int64(cpuCount*1000), 4000)
 
 	return &weightedScheduler{
 		sem: semaphore.NewWeighted(totalTokens),

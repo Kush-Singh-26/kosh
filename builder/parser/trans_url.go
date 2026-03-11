@@ -146,10 +146,10 @@ func isCrossVersionLink(href string) bool {
 		return true
 	}
 	// Check if path after ../ starts with a version prefix (e.g., "../v1.0/page.md")
-	if strings.HasPrefix(href, "../") {
-		trimmed := strings.TrimPrefix(href, "../")
-		parts := strings.Split(trimmed, "/")
-		for _, part := range parts {
+	if after, ok := strings.CutPrefix(href, "../"); ok {
+		trimmed := after
+		parts := strings.SplitSeq(trimmed, "/")
+		for part := range parts {
 			if strings.HasPrefix(part, "v") && len(part) > 2 {
 				return true
 			}
@@ -188,4 +188,3 @@ func isRootLevelLink(href string) bool {
 	}
 	return false
 }
-

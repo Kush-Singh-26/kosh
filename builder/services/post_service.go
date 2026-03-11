@@ -91,6 +91,11 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		}
 	}
 
+	// Notify build loop early that metadata is ready for sitemap, RSS, and graph
+	if s.metadataCallback != nil {
+		s.metadataCallback(allPosts, pinnedPosts, tagMap, nil, anyPostChanged.Load())
+	}
+
 	postsByVersion := make(map[string][]models.PostMetadata)
 	postPosByVersion := make(map[string]map[string]int)
 	for _, p := range allPosts {
@@ -222,7 +227,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 
 		if !useCache {
 			s.metrics.IncrementCacheMiss()
-			parseRes, err = ParseMarkdown(ctx, f.Source, path, version, cleanHtmlRelPath, htmlRelPath, s.mdPool, s.cfg, s.nativeRenderer, s.diagramAdapter, &s.mu)
+			parseRes, err = ParseMarkdown(ctx, f.Source, path, version, cleanHtmlRelPath, htmlRelPath, s.mdPool, s.cfg, s.nativeRenderer, s.diagramAdapter, &s.mu, f.FrontmatterHash, f.ReadingTime)
 			if err != nil {
 				s.logger.Error("Failed to parse markdown", "path", path, "error", err)
 				return
@@ -344,7 +349,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	utils.SortPosts(allPosts)
 	finalCount := int(indexedPostIdx + 1)
 	finalIndexedPosts := make([]models.IndexedPost, 0, finalCount)
-	for i := 0; i < finalCount; i++ {
+	for i := range finalCount {
 		if indexedPosts[i].Record.Title != "" {
 			finalIndexedPosts = append(finalIndexedPosts, indexedPosts[i])
 		}
@@ -357,11 +362,9 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	cardPool.Stop()
 
 	if len(newPostsMeta) > 0 && s.cache != nil {
-		s.cacheWg.Add(1)
-		go func() {
-			defer s.cacheWg.Done()
+		s.cacheWg.Go(func() {
 			_ = s.cache.BatchCommit(newPostsMeta, newSearchRecords, newDeps)
-		}()
+		})
 	}
 
 	return &PostResult{

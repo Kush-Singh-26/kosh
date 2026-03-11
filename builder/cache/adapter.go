@@ -2,6 +2,7 @@ package cache
 
 import (
 	"log/slog"
+	"maps"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -35,10 +36,7 @@ type DiagramCacheAdapter struct {
 // NewDiagramCacheAdapter creates a new adapter with a bounded worker pool
 // Uses runtime.NumCPU() workers to limit concurrent async writes
 func NewDiagramCacheAdapter(manager *Manager) *DiagramCacheAdapter {
-	workers := runtime.NumCPU()
-	if workers < 2 {
-		workers = 2
-	}
+	workers := max(runtime.NumCPU(), 2)
 
 	a := &DiagramCacheAdapter{
 		manager:    manager,
@@ -62,7 +60,7 @@ func (a *DiagramCacheAdapter) persistSSRValue(key, value string) error {
 	if a.manager == nil {
 		return nil
 	}
-	_, err, _ := a.writeGroup.Do(key, func() (interface{}, error) {
+	_, err, _ := a.writeGroup.Do(key, func() (any, error) {
 		_, err := a.manager.StoreSSR("d2", key, []byte(value))
 		if err == nil {
 			a.clearDirtyIfUnchanged(key, value)
@@ -175,9 +173,7 @@ func (a *DiagramCacheAdapter) Flush() error {
 	// Copy only dirty entries under lock, then release before I/O.
 	a.mu.RLock()
 	dirtyCopy := make(map[string]string, len(a.dirty))
-	for k, v := range a.dirty {
-		dirtyCopy[k] = v
-	}
+	maps.Copy(dirtyCopy, a.dirty)
 	a.mu.RUnlock()
 
 	for key, value := range dirtyCopy {
@@ -207,9 +203,7 @@ func (a *DiagramCacheAdapter) AsMap() map[string]string {
 	defer a.mu.RUnlock()
 
 	result := make(map[string]string, len(a.local))
-	for k, v := range a.local {
-		result[k] = v
-	}
+	maps.Copy(result, a.local)
 	return result
 }
 

@@ -16,7 +16,7 @@ type BufferPool struct {
 func NewBufferPool() *BufferPool {
 	return &BufferPool{
 		pool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return new(bytes.Buffer)
 			},
 		},
@@ -43,7 +43,7 @@ type StringBuilderPool struct {
 func NewStringBuilderPool() *StringBuilderPool {
 	return &StringBuilderPool{
 		pool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return new(strings.Builder)
 			},
 		},
@@ -70,7 +70,7 @@ type BufioWriterPool struct {
 func NewBufioWriterPool() *BufioWriterPool {
 	return &BufioWriterPool{
 		pool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return bufio.NewWriterSize(nil, MaxBufferSize)
 			},
 		},
@@ -99,7 +99,7 @@ type BufioReaderPool struct {
 func NewBufioReaderPool() *BufioReaderPool {
 	return &BufioReaderPool{
 		pool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return bufio.NewReaderSize(nil, MaxBufferSize)
 			},
 		},
@@ -137,7 +137,7 @@ type LargeBufferPool struct {
 func NewLargeBufferPool() *LargeBufferPool {
 	return &LargeBufferPool{
 		pool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				// Pre-allocate 2MB
 				buf := new(bytes.Buffer)
 				buf.Grow(2 * 1024 * 1024)
@@ -168,7 +168,7 @@ type ByteSlicePool struct {
 func NewByteSlicePool() *ByteSlicePool {
 	return &ByteSlicePool{
 		pool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				b := make([]byte, 0, 1024*10) // 10KB
 				return &b
 			},

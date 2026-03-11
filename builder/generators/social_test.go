@@ -11,7 +11,7 @@ import (
 func TestGenerateSocialCard(t *testing.T) {
 	sink := testutil.NewMemSink()
 	srcFs := afero.NewMemMapFs()
-	
+
 	cfg := &config.SocialCardsConfig{
 		Background: "#ffffff",
 		TextColor:  "#000000",
@@ -44,7 +44,7 @@ func TestGenerateSocialCard(t *testing.T) {
 func TestGenerateSocialCard_LongTitle(t *testing.T) {
 	sink := testutil.NewMemSink()
 	srcFs := afero.NewMemMapFs()
-	
+
 	cfg := &config.SocialCardsConfig{
 		Background: "#ffffff",
 		TextColor:  "#000000",

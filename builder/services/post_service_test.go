@@ -195,7 +195,7 @@ func setupPostServiceTest(t *testing.T) *postServiceImpl {
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
 		},
 	}
@@ -223,7 +223,7 @@ func TestPostService_PanicRecovery(t *testing.T) {
 	}
 
 	// Use a helper for logging
-	logf := func(format string, args ...interface{}) {
+	logf := func(format string, args ...any) {
 		t.Logf(format, args...)
 	}
 
@@ -327,7 +327,7 @@ func TestDecoupledPipeline(t *testing.T) {
 		OutputDir:  "public",
 	}
 	mdPool := &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return mdParser.New(cfg, nil, nil, nil)
 		},
 	}
@@ -336,7 +336,7 @@ func TestDecoupledPipeline(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Semantic Parse
-	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "", "test.html", "test.html", mdPool, cfg)
+	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "", "test.html", "test.html", mdPool, cfg, "", 0)
 	if err != nil {
 		t.Fatalf("ParseMarkdownMetadata failed: %v", err)
 	}

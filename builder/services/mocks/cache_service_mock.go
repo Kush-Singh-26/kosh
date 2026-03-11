@@ -2,6 +2,8 @@
 package mocks
 
 import (
+	"maps"
+
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
@@ -151,9 +153,7 @@ func (m *MockCacheService) BatchSetSocialCardHashes(hashes map[string]string) er
 	if m.Err != nil {
 		return m.Err
 	}
-	for path, hash := range hashes {
-		m.SocialCardHashes[path] = hash
-	}
+	maps.Copy(m.SocialCardHashes, hashes)
 	return nil
 }
 

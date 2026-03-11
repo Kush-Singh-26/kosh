@@ -130,17 +130,14 @@ func (tx *DirectoryTx) GetLastBuildTime() time.Time {
 // Critical for Windows where antivirus/indexers can briefly lock directories.
 func RenameWithRetry(oldPath, newPath string, maxRetries int, baseDelay time.Duration) error {
 	var err error
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		err = os.Rename(oldPath, newPath)
 		if err == nil {
 			return nil
 		}
 
 		// Use a capped backoff with jitter
-		delay := baseDelay * time.Duration(1<<uint(i))
-		if delay > 2*time.Second {
-			delay = 2 * time.Second
-		}
+		delay := min(baseDelay*time.Duration(1<<uint(i)), 2*time.Second)
 		// Simple jitter without math/rand: ±10%
 		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
 		time.Sleep(delay + jitter)

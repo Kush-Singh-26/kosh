@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -288,9 +289,7 @@ func (r *Renderer) GetRenderedFiles() map[string]bool {
 	// Slow path: build snapshot under lock, then cache it
 	r.RenderedMu.Lock()
 	snapshot := make(map[string]bool, len(r.RenderedSet))
-	for k, v := range r.RenderedSet {
-		snapshot[k] = v
-	}
+	maps.Copy(snapshot, r.RenderedSet)
 	r.renderedSnapshot.Store(&snapshot)
 	r.RenderedMu.Unlock()
 	return snapshot
@@ -308,12 +307,10 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 	r.Assets = assets
 	// Create snapshot
 	snapshot := make(map[string]string, len(assets))
-	for k, v := range assets {
-		snapshot[k] = v
-	}
+	maps.Copy(snapshot, assets)
 	r.assetsSnapshot.Store(&snapshot)
 	// Invalidate relativization cache because assets have changed
-	r.assetCache.Range(func(key, value interface{}) bool {
+	r.assetCache.Range(func(key, value any) bool {
 		r.assetCache.Delete(key)
 		return true
 	})
@@ -375,7 +372,7 @@ func (r *Renderer) RenderSidebar(tree []*models.TreeNode) template.HTML {
 	defer utils.SharedBufferPool.Put(buf)
 
 	// Wrap in a map so we can add other global context if needed
-	data := map[string]interface{}{
+	data := map[string]any{
 		"SiteTree": tree,
 	}
 

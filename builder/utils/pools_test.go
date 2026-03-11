@@ -64,7 +64,7 @@ func TestBufferPoolReuse(t *testing.T) {
 	pool := NewBufferPool()
 
 	// Get and put multiple times
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		buf := pool.Get()
 		buf.WriteString("iteration ")
 		buf.WriteByte(byte('0' + i))
@@ -84,11 +84,11 @@ func TestBufferPoolConcurrency(t *testing.T) {
 	numGoroutines := 100
 	iterations := 100
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				buf := pool.Get()
 				buf.WriteString("goroutine ")
 				buf.WriteByte(byte('0' + byte(id%10)))

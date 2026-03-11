@@ -142,10 +142,7 @@ func SyncVFS(ctx context.Context, srcFs afero.Fs, targetDir string, dirtyFiles m
 	dirPool.Stop()
 
 	// 3. Sync files with high concurrency
-	numWorkers := runtime.NumCPU() * 2
-	if numWorkers > 32 {
-		numWorkers = 32
-	}
+	numWorkers := min(runtime.NumCPU()*2, 32)
 
 	var syncErr error
 	var errMu sync.Mutex
