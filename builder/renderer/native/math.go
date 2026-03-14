@@ -200,12 +200,17 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []MathExpres
 	defer jsModes.Free()
 
 	for _, expr := range expressions {
-		jsLatexs.Push(instance.ctx.NewString(expr.LaTeX))
+		jsLatex := instance.ctx.NewString(expr.LaTeX)
+		jsLatexs.Push(jsLatex)
+		jsLatex.Free()
+
 		mode := 0
 		if expr.DisplayMode {
 			mode = 1
 		}
-		jsModes.Push(instance.ctx.NewInt32(int32(mode)))
+		jsMode := instance.ctx.NewInt32(int32(mode))
+		jsModes.Push(jsMode)
+		jsMode.Free()
 	}
 
 	res, err := instance.ctx.Invoke(instance.renderBatchFn, instance.ctx.Global(), jsLatexs.Value, jsModes.Value)
@@ -325,9 +330,4 @@ func (r *Renderer) RenderAllMath(ctx context.Context, expressions []MathExpressi
 	}
 
 	return finalResults, firstErr
-}
-
-// renderMathSingle is now deprecated in favor of direct RenderMath calls or the dynamic batcher
-func (r *Renderer) renderMathSingle(ctx context.Context, latex string, displayMode bool) (string, error) {
-	return r.RenderMath(ctx, latex, displayMode)
 }

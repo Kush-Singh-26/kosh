@@ -21,10 +21,10 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 	}
 
 	if r.scheduler != nil {
-		if err := r.scheduler.Acquire(ctx, utils.TaskMath); err != nil {
+		if err := r.scheduler.Acquire(ctx, utils.TaskD2); err != nil {
 			return "", err
 		}
-		defer r.scheduler.Release(utils.TaskMath)
+		defer r.scheduler.Release(utils.TaskD2)
 	}
 
 	r.ensureInitialized()

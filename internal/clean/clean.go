@@ -3,6 +3,7 @@ package clean
 import (
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -10,6 +11,9 @@ import (
 )
 
 var testingMode = false
+
+// cleanupWg tracks background deletion goroutines for proper shutdown
+var cleanupWg sync.WaitGroup
 
 func Run(cleanCache, cleanAllVersions bool) {
 	RunFs(afero.NewOsFs(), cleanCache, cleanAllVersions)
@@ -42,6 +46,12 @@ func RunFs(fs afero.Fs, cleanCache, cleanAllVersions bool) {
 	fmt.Printf("Clean initiated in %v.\n", time.Since(start))
 }
 
+// WaitForCleanup blocks until all background cleanup goroutines complete.
+// Call this before program exit if you need to ensure cleanup completes.
+func WaitForCleanup() {
+	cleanupWg.Wait()
+}
+
 func cleanDirAsync(fs afero.Fs, path string) {
 	exists, _ := afero.Exists(fs, path)
 	if !exists {
@@ -67,7 +77,9 @@ func cleanDirAsync(fs afero.Fs, path string) {
 		return
 	}
 
+	cleanupWg.Add(1)
 	go func() {
+		defer cleanupWg.Done()
 		_ = fs.RemoveAll(tempPath)
 	}()
 }
@@ -134,7 +146,9 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config) {
 			continue
 		}
 
+		cleanupWg.Add(1)
 		go func(tp string) {
+			defer cleanupWg.Done()
 			_ = fs.RemoveAll(tp)
 		}(tempPath)
 	}

@@ -15,11 +15,23 @@ const (
 	TaskMarkdown
 	TaskImage
 	TaskMath
+	TaskD2
 	TaskSearch
 	TaskSocialCard
 )
 
+// Scheduler weight constants for task resource allocation.
+// Higher weights consume more tokens from the semaphore, limiting concurrency for heavy tasks.
+const (
+	WeightLight    = 50  // Minimal resource usage (markdown parsing)
+	WeightModerate = 200 // Moderate resource usage (math rendering, search indexing)
+	WeightHeavy    = 400 // Heavy resource usage (image processing, D2 diagrams)
+	WeightDefault  = 100 // Default weight for unclassified tasks
+)
+
 // BuildScheduler coordinates resource usage across multiple concurrent sub-systems.
+// It uses weighted semaphore acquisition to prevent resource exhaustion during
+// parallel builds with mixed task types.
 type BuildScheduler interface {
 	Acquire(ctx context.Context, task TaskType) error
 	Release(task TaskType)
@@ -30,23 +42,27 @@ type weightedScheduler struct {
 	weights map[TaskType]int64
 }
 
+// NewBuildScheduler creates a weighted scheduler with CPU-based token allocation.
+// Total tokens = max(CPU cores * 2000, 8000) to allow high concurrency while
+// capping peak memory bursts. Weights are tuned for typical SSG workloads.
 func NewBuildScheduler() BuildScheduler {
 	cpuCount := runtime.NumCPU()
-	// Total tokens = Cores * 1000.
+	// Total tokens = Cores * 2000.
 	// Large pool to allow high concurrency while still capping peak bursts.
 	totalTokens := max(
 		// Ensure a minimum floor to prevent deadlocks
-		int64(cpuCount*1000), 4000)
+		int64(cpuCount*2000), 8000)
 
 	return &weightedScheduler{
 		sem: semaphore.NewWeighted(totalTokens),
 		weights: map[TaskType]int64{
-			TaskDefault:    100,
-			TaskMarkdown:   100, // Very light
-			TaskImage:      500, // Heavy
-			TaskMath:       250, // Moderate (JS)
-			TaskSearch:     250, // Moderate
-			TaskSocialCard: 250, // Moderate (Drawing)
+			TaskDefault:    WeightDefault,
+			TaskMarkdown:   WeightLight,    // Very light - text parsing only
+			TaskImage:      WeightHeavy,    // Heavy - image decode/encode
+			TaskMath:       WeightModerate, // Moderate - JS rendering
+			TaskD2:         WeightHeavy,    // Heavy - SVG diagram rendering
+			TaskSearch:     WeightModerate, // Moderate - indexing operations
+			TaskSocialCard: WeightModerate, // Moderate - image drawing
 		},
 	}
 }

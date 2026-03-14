@@ -84,6 +84,7 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 			&s.mu,
 			"",
 			0,
+			0,
 			nil,
 		)
 		if err != nil {

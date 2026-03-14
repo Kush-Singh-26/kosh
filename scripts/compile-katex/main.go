@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/fastschema/qjs"
+	"github.com/zeebo/xxh3"
 )
 
 func main() {
@@ -16,6 +18,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to read katex.min.js: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Calculate hash of source JS
+	jsHash := xxh3.Hash(jsData)
 
 	// Create a temporary QJS runtime for compilation
 	rt, err := qjs.New()
@@ -32,6 +37,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Prepare header (20 bytes)
+	// 4 bytes: Magic "KBC1"
+	// 8 bytes: Source JS Hash
+	// 8 bytes: Bytecode size (for integrity check)
+	header := make([]byte, 20)
+	copy(header[0:4], "KBC1")
+	binary.LittleEndian.PutUint64(header[4:12], jsHash)
+	binary.LittleEndian.PutUint64(header[12:20], uint64(len(bytecode)))
+
 	// Get the output path from command line or use default
 	outputPath := "C:/Users/KIIT0001/blogs/builder/renderer/native/katex.bytecode"
 	if len(os.Args) > 1 {
@@ -47,18 +61,27 @@ func main() {
 		}
 	}
 
-	// Write bytecode to file
+	// Write header + bytecode to file
 	f, err := os.Create(outputPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create output file: %v\n", err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to close output file: %v\n", err)
+		}
+	}()
+
+	if _, err := f.Write(header); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to write header: %v\n", err)
+		os.Exit(1)
+	}
 
 	if _, err := f.Write(bytecode); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write bytecode: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Successfully compiled KaTeX to bytecode: %s (%d bytes)\n", outputPath, len(bytecode))
+	fmt.Printf("Successfully compiled KaTeX to bytecode with header: %s (%d bytes total)\n", outputPath, len(header)+len(bytecode))
 }

@@ -4,18 +4,77 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
 // MaxEditDistance is the maximum Levenshtein distance for fuzzy matching
 const MaxEditDistance = 2
 
+var intSlicePool = sync.Pool{
+	New: func() any {
+		s := make([]int, 0, 32)
+		return &s
+	},
+}
+
+func getIntSlice(size int) *[]int {
+	p := intSlicePool.Get().(*[]int)
+	if cap(*p) < size {
+		*p = make([]int, size)
+	} else {
+		*p = (*p)[:size]
+	}
+	return p
+}
+
+func putIntSlice(p *[]int) {
+	if cap(*p) > 256 {
+		return
+	}
+	intSlicePool.Put(p)
+}
+
+var runeSlicePool = sync.Pool{
+	New: func() any {
+		s := make([]rune, 0, 32)
+		return &s
+	},
+}
+
+func getRuneSlice(size int) *[]rune {
+	p := runeSlicePool.Get().(*[]rune)
+	if cap(*p) < size {
+		*p = make([]rune, size)
+	} else {
+		*p = (*p)[:size]
+	}
+	return p
+}
+
+func putRuneSlice(p *[]rune) {
+	if cap(*p) > 256 {
+		return
+	}
+	runeSlicePool.Put(p)
+}
+
+func stringToRunesPool(s string, p *[]rune) {
+	buf := (*p)[:0]
+	for _, r := range s {
+		buf = append(buf, r)
+	}
+	*p = buf
+}
+
 // LevenshteinDistance calculates the edit distance between two strings
 func LevenshteinDistance(a, b string) int {
-	aRunes := []rune(a)
-	bRunes := []rune(b)
+	if a == b {
+		return 0
+	}
 
-	lenA := len(aRunes)
-	lenB := len(bRunes)
+	// We still need the rune count for the slices
+	lenA := utf8.RuneCountInString(a)
+	lenB := utf8.RuneCountInString(b)
 
 	// Quick exit for empty strings
 	if lenA == 0 {
@@ -25,12 +84,30 @@ func LevenshteinDistance(a, b string) int {
 		return lenA
 	}
 
+	aRunesPtr := getRuneSlice(lenA)
+	bRunesPtr := getRuneSlice(lenB)
+	stringToRunesPool(a, aRunesPtr)
+	stringToRunesPool(b, bRunesPtr)
+
+	aRunes := *aRunesPtr
+	bRunes := *bRunesPtr
+
+	defer func() {
+		putRuneSlice(aRunesPtr)
+		putRuneSlice(bRunesPtr)
+	}()
+
 	// Use single slice optimization
 	// We only need to track the previous row
-	prev := make([]int, lenB+1)
-	curr := make([]int, lenB+1)
+	prevPtr := getIntSlice(lenB + 1)
+	currPtr := getIntSlice(lenB + 1)
+	defer func() {
+		putIntSlice(prevPtr)
+		putIntSlice(currPtr)
+	}()
 
-	// Initialize first row
+	prev := *prevPtr
+	curr := *currPtr
 	for j := 0; j <= lenB; j++ {
 		prev[j] = j
 	}

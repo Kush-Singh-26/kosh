@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io/fs"
-	"math"
 	"runtime"
 	"strings"
 	"sync"
@@ -15,54 +14,14 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 var yamlDelim = []byte("---")
 
-type LightPostMetadata struct {
-	Path        string
-	Version     string
-	Title       string
-	DateObj     time.Time
-	Tags        []string
-	Pinned      bool
-	Weight      int
-	ReadingTime int
-	Draft       bool
-	Description string
-	Link        string
-	HTMLPath    string
-}
-
-type MetadataScannerResult struct {
-	Metadata       []LightPostMetadata
-	TagMap         map[string][]LightPostMetadata
-	PostsByVersion map[string][]LightPostMetadata
-	Files          []ScannedFile
-	ContentAssets  []ScannedAsset
-	Has404         bool
-}
-
-// ScannedFile carries minimal file info to avoid a second filesystem walk in post processing.
-type ScannedFile struct {
-	Path            string
-	Version         string
-	Info            fs.FileInfo
-	BodyHash        string
-	FrontmatterHash string
-	ReadingTime     int
-	Source          []byte         // Pre-read source bytes to avoid double-read
-	PreParsedMeta   map[string]any // Pre-parsed frontmatter to avoid double-parse
-}
-
-type ScannedAsset struct {
-	Path string
-	Info fs.FileInfo
-}
-
 type MetadataScanner interface {
-	Scan(ctx context.Context, contentDir string, sourceFs afero.Fs, cfg *config.Config) (*MetadataScannerResult, error)
+	Scan(ctx context.Context, contentDir string, sourceFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error)
 }
 
 type metadataScanner struct{}
@@ -71,15 +30,15 @@ func NewMetadataScanner() MetadataScanner {
 	return &metadataScanner{}
 }
 
-func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs afero.Fs, cfg *config.Config) (*MetadataScannerResult, error) {
+func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error) {
 	var (
 		mu             sync.Mutex
 		has404         bool
-		assets         []ScannedAsset
-		scannedFiles   []ScannedFile
-		tagMap         = make(map[string][]LightPostMetadata)
-		postsByVersion = make(map[string][]LightPostMetadata)
-		allMetadata    []LightPostMetadata
+		assets         []models.ScannedAsset
+		scannedFiles   []models.ScannedFile
+		tagMap         = make(map[string][]models.LightPostMetadata)
+		postsByVersion = make(map[string][]models.LightPostMetadata)
+		allMetadata    []models.LightPostMetadata
 	)
 
 	workerCount := min(runtime.NumCPU(),
@@ -116,20 +75,29 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 					continue
 				}
 
-				meta, preParsedMeta, frontmatterHash, readingTime := s.extractFrontmatter(source, relPath, t.version, cleanHtmlRelPath, htmlRelPath, cfg)
+				meta, preParsedMeta, frontmatterHash, bodyHash, readingTime, bodyOffset := s.extractFrontmatter(source, relPath, t.version, cleanHtmlRelPath, htmlRelPath, cfg)
 				if meta.Path == "" {
 					continue
 				}
 
-				sf := ScannedFile{
+				sf := models.ScannedFile{
 					Path:            t.path,
 					Version:         t.version,
 					Info:            t.info,
-					BodyHash:        utils.GetBodyHash(source),
+					BodyHash:        bodyHash,
 					FrontmatterHash: frontmatterHash,
 					ReadingTime:     readingTime,
+					BodyOffset:      bodyOffset,
 					Source:          source,
 					PreParsedMeta:   preParsedMeta,
+				}
+
+				if fileChan != nil {
+					select {
+					case fileChan <- sf:
+					case <-gCtx.Done():
+						return gCtx.Err()
+					}
 				}
 
 				mu.Lock()
@@ -146,14 +114,16 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 		})
 	}
 
-	// Run discovery walk
+	// Run discovery walk with optimized concurrency
 	g.Go(func() error {
 		defer close(tasks)
-		return utils.ParallelWalk(gCtx, sourceFs, contentDir, 0, func(path string, info fs.FileInfo, err error) error {
-			if err != nil {
-				return nil
-			}
-			if info == nil {
+		// Use higher concurrency for discovery on modern SSDs
+		walkConcurrency := max(workerCount*2, 8)
+		if walkConcurrency > 32 {
+			walkConcurrency = 32
+		}
+		return utils.ParallelWalk(gCtx, sourceFs, contentDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
+			if err != nil || info == nil {
 				return nil
 			}
 			if !info.IsDir() {
@@ -174,13 +144,13 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 					// If raw markdown is enabled, also treat it as an asset to be copied
 					if cfg.Features.RawMarkdown {
 						mu.Lock()
-						assets = append(assets, ScannedAsset{Path: path, Info: info})
+						assets = append(assets, models.ScannedAsset{Path: path, Info: info})
 						mu.Unlock()
 					}
 					return nil
 				}
 				mu.Lock()
-				assets = append(assets, ScannedAsset{Path: path, Info: info})
+				assets = append(assets, models.ScannedAsset{Path: path, Info: info})
 				mu.Unlock()
 			}
 			return nil
@@ -191,7 +161,7 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 		return nil, err
 	}
 
-	return &MetadataScannerResult{
+	return &models.MetadataScannerResult{
 		Metadata:       allMetadata,
 		TagMap:         tagMap,
 		PostsByVersion: postsByVersion,
@@ -201,16 +171,16 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 	}, nil
 }
 
-func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cleanHtmlRelPath, htmlRelPath string, cfg *config.Config) (LightPostMetadata, map[string]any, string, int) {
+func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cleanHtmlRelPath, htmlRelPath string, cfg *config.Config) (models.LightPostMetadata, map[string]any, string, string, int, int) {
 	parts := bytes.SplitN(source, yamlDelim, 3)
 	if len(parts) < 3 {
-		return LightPostMetadata{}, nil, "", 0
+		return models.LightPostMetadata{}, nil, "", "", 0, 0
 	}
 
 	frontmatter := bytes.TrimSpace(parts[1])
 	var fmMap map[string]any
 	if err := yaml.Unmarshal(frontmatter, &fmMap); err != nil {
-		return LightPostMetadata{}, nil, "", 0
+		return models.LightPostMetadata{}, nil, "", "", 0, 0
 	}
 
 	title := utils.GetString(fmMap, "title")
@@ -226,9 +196,14 @@ func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cl
 
 	dateObj, _ := time.Parse("2006-01-02", dateStr)
 
-	// Calculate word count from the body (part 3)
-	wordCount := utils.CountWords(parts[2])
-	readingTime := int(math.Ceil(float64(wordCount) / wordsPerMinute))
+	// Optimized: Defer word count/reading time to post processing to allow cache reuse
+	readingTime := 0
+
+	body := bytes.TrimSpace(parts[2])
+	bodyHash := utils.HashBytes(body)
+
+	// Compute body offset relative to source
+	bodyOffset := len(parts[0]) + len(yamlDelim) + len(parts[1]) + len(yamlDelim)
 
 	postLink := utils.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
 
@@ -240,7 +215,7 @@ func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cl
 		isPinned,
 	)
 
-	return LightPostMetadata{
+	return models.LightPostMetadata{
 		Path:        relPath,
 		Version:     version,
 		Title:       title,
@@ -253,5 +228,5 @@ func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cl
 		Description: description,
 		Link:        postLink,
 		HTMLPath:    htmlRelPath,
-	}, fmMap, frontmatterHash, readingTime
+	}, fmMap, frontmatterHash, bodyHash, readingTime, bodyOffset
 }

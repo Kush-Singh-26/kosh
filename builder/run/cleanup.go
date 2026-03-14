@@ -1,98 +1,81 @@
 package run
 
 import (
-	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/spf13/afero"
-
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-// cleanOrphans removes files in the output directory that were not rendered in the current build
-func (b *Builder) cleanOrphans(sourceFs afero.Fs, renderedFiles map[string]bool) {
+// CleanupOrphans removes files from the output directory that were not
+// registered by the Sink during the current build session.
+func (b *Builder) CleanupOrphans() {
+	if b.Sink == nil {
+		return
+	}
+
+	// Only clean orphans in development mode when writing directly to output.
+	// Clean builds use staging directories which start empty, so orphans
+	// are naturally removed during the atomic swap.
+	if !b.cfg.IsDev || b.isCleanBuild {
+		return
+	}
+
 	outputDir := b.cfg.OutputDir
-	if outputDir == "" {
-		return
+	written := b.Sink.GetWrittenFiles()
+
+	// Convert written map keys to absolute paths for comparison
+	absWritten := make(map[string]bool)
+	for path := range written {
+		abs, _ := filepath.Abs(path)
+		absWritten[filepath.ToSlash(abs)] = true
 	}
 
-	absOutputDir, err := filepath.Abs(outputDir)
-	if err != nil {
-		return
-	}
+	b.logger.Debug("Starting orphan cleanup", "outputDir", outputDir, "trackedFiles", len(absWritten))
 
-	fmt.Println("🧹 Cleaning orphaned files from output directory...")
-
-	// Create a normalized set of rendered files for comparison
-	renderedSet := make(map[string]bool)
-	for path := range renderedFiles {
-		absPath, err := filepath.Abs(path)
-		if err == nil {
-			renderedSet[filepath.ToSlash(absPath)] = true
-		}
-	}
-
-	// Always preserve version folders and special files
-	versionFolders := make(map[string]bool)
-	for _, v := range b.cfg.Versions {
-		if v.Path != "" {
-			versionFolders[v.Path] = true
-		}
-	}
-
-	err = filepath.WalkDir(absOutputDir, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
-
-		if d.IsDir() {
-			// Skip version folders
-			rel, _ := filepath.Rel(absOutputDir, path)
-			if versionFolders[rel] {
+		if info.IsDir() {
+			// Skip hidden directories like .git
+			if strings.HasPrefix(info.Name(), ".") && info.Name() != "." {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		pathSlash := filepath.ToSlash(path)
-		if renderedSet[pathSlash] {
+		// Skip specific files that are managed elsewhere or should persist
+		base := info.Name()
+		if base == ".nojekyll" || base == "search.wasm" || base == "search.wasm.br" || base == "search.bin" {
+			return nil
+		}
+		if strings.HasPrefix(base, ".") {
 			return nil
 		}
 
-		// Check if it exists in sourceFs (VFS)
-		relPath, _ := filepath.Rel(absOutputDir, path)
-		vfsPath := filepath.ToSlash(filepath.Join(outputDir, relPath))
-		if exists, _ := afero.Exists(sourceFs, vfsPath); exists {
-			return nil
+		absPath, _ := filepath.Abs(path)
+		absPath = filepath.ToSlash(absPath)
+
+		if !absWritten[absPath] {
+			b.logger.Debug("🗑️ Removing orphaned output file", "path", path)
+			_ = os.Remove(path)
 		}
-
-		// Check special files that should never be deleted
-		rel, _ := filepath.Rel(absOutputDir, path)
-		relSlash := filepath.ToSlash(rel)
-
-		// If it's a special path like sitemap or rss, it might not be in renderedSet if using cache
-		// But SyncVFS knows about them.
-
-		// Logic: if it's in SyncVFS alwaysSyncPaths, preserve it
-		if utils.IsAlwaysSyncPath(relSlash) {
-			return nil
-		}
-
-		// Additional check: preserve files that are managed by git or other tools if needed
-		if strings.HasPrefix(relSlash, ".git") || relSlash == ".kosh-build.lock" {
-			return nil
-		}
-
-		// Delete orphaned file
-		b.logger.Info("🗑️ Deleting orphaned file", "path", relSlash)
-		_ = os.Remove(path)
 		return nil
 	})
 
 	if err != nil {
-		b.logger.Warn("Failed to clean orphans", "error", err)
+		b.logger.Warn("Orphan cleanup encountered errors", "error", err)
 	}
+
+	// Remove empty directories
+	_ = filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || !info.IsDir() || path == outputDir {
+			return nil
+		}
+		entries, _ := os.ReadDir(path)
+		if len(entries) == 0 {
+			_ = os.Remove(path)
+		}
+		return nil
+	})
 }

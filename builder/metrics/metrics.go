@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"fmt"
+	"log/slog"
 	"sync/atomic"
 	"time"
 )
@@ -136,5 +137,5 @@ func formatBytes(b int64) string {
 }
 
 func (m *BuildMetrics) Print() {
-	fmt.Println(m.String())
+	slog.Info(m.String())
 }

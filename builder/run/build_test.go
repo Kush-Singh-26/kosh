@@ -16,6 +16,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func TestNewBuilder_Flags(t *testing.T) {
@@ -53,6 +54,10 @@ func TestFullBuild(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	testutil.ScaffoldTestSite(fs)
 
+	// Enable test mode to skip WASM operations
+	utils.TestingMode = true
+	defer func() { utils.TestingMode = false }()
+
 	cfg := &config.Config{
 		Title:        "Test Blog",
 		BaseURL:      "https://example.com",
@@ -77,6 +82,7 @@ func TestFullBuild(t *testing.T) {
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
+	t.Cleanup(func() { _ = nativeRenderer.Close() })
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
@@ -143,12 +149,17 @@ func TestMultiVersionBuild(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	testutil.ScaffoldTestSiteWithVersions(fs, true)
 
+	// Enable test mode to skip absolute path resolution
+	utils.TestingMode = true
+	defer func() { utils.TestingMode = false }()
+
 	// Load config from our VFS
 	cfg := config.LoadFs(fs, []string{})
 
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
+	t.Cleanup(func() { _ = nativeRenderer.Close() })
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
@@ -201,8 +212,7 @@ func TestMultiVersionBuild(t *testing.T) {
 	// Verify version metadata in a rendered page
 	postData := sink.Files["public/v1.0/posts/old.html"]
 	if !strings.Contains(string(postData), "v1.0") {
-		// This might depend on the template, but ScaffoldTestSite uses a simple layout.
-		// Wait, ScaffoldTestSite layout doesn't show version.
+		t.Log("Post does not contain version string, this is expected with the default scaffold layout")
 	}
 }
 

@@ -2,7 +2,6 @@ package new
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -11,11 +10,16 @@ import (
 
 // sanitizeSlug converts a title to a safe filename slug
 func sanitizeSlug(title string) string {
-	// Convert to lowercase
-	slug := strings.ToLower(title)
-	// Replace non-alphanumeric with hyphens
-	reg := regexp.MustCompile(`[^a-z0-9]+`)
-	slug = reg.ReplaceAllString(slug, "-")
+	var b strings.Builder
+	b.Grow(len(title))
+	for _, r := range strings.ToLower(title) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('-')
+		}
+	}
+	slug := b.String()
 	// Remove consecutive hyphens
 	for strings.Contains(slug, "--") {
 		slug = strings.ReplaceAll(slug, "--", "-")

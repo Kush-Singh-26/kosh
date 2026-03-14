@@ -3,24 +3,42 @@ package run
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
+	"github.com/zeebo/xxh3"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
+
+// refreshBuildSession creates a fresh Transaction and Sink for a new build pass.
+// This ensures orphan detection correctly identifies files that were not written in the current pass.
+func (b *Builder) refreshBuildSession() {
+	useStaging := !b.cfg.IsDev || b.isCleanBuild
+	b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, useStaging)
+	b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
+
+	// Inject fresh sink into all services
+	b.postService.SetSink(b.Sink)
+	b.assetService.SetSink(b.Sink)
+	b.renderService.SetSink(b.Sink)
+}
 
 // build executes the build logic without locking (internal use)
 func (b *Builder) build(ctx context.Context) error {
 	if b.metrics != nil {
 		b.metrics.Reset()
 	}
+
+	// Always start each full build pass with a fresh session/tracking state
+	b.refreshBuildSession()
 
 	// Check for cancellation early
 	select {
@@ -30,77 +48,182 @@ func (b *Builder) build(ctx context.Context) error {
 	}
 
 	// 1. Project-wide setup
-	// Launch WASM deployment asynchronously — it writes to staging dir and
-	// has no dependencies on other build phases. We only need it complete
-	// before Tx.Commit() publishes the staging directory.
+	wasmWg := b.setupWasmDeployment(ctx)
+
+	// Handle incremental social card rebuild if needed
+	forceSocialRebuild := b.checkSocialCardRebuild()
+
+	// Warm up the JS renderer pool
+	b.initializeNativeRenderer(ctx)
+
+	// Set dev build version
+	if b.cfg.IsDev {
+		b.cfg.BuildVersion = time.Now().UnixNano()
+	}
+
+	// Pre-create output directories
+	if err := b.createOutputDirectories(); err != nil {
+		return err
+	}
+
+	// 2. Static Assets + Metadata Scanner + Post Parsing overlap
+	contentAssetsChan := make(chan []models.ScannedAsset, 1)
+	assetsReady, assetWg, assetErrChan := b.setupAssetBuilding(ctx, contentAssetsChan)
+
+	// Tell the post service to wait for assets before entering render phase
+	b.renderService.SetAssetsGate(assetsReady)
+
+	// Set up site-wide rendering callback
+	siteWideGroupPtr, siteTimer := b.setupSiteWideRendering(ctx, assetsReady, wasmWg, forceSocialRebuild)
+
+	// Run metadata scanner in parallel
+	fileChan := make(chan models.ScannedFile, 1024)
+	scannerReady := make(chan struct{})
+	metadataResultChan := make(chan *models.MetadataScannerResult, 1)
+	scannerErrChan := make(chan error, 1)
+	go func() {
+		defer close(scannerReady)
+		defer close(fileChan)
+		defer close(contentAssetsChan)
+		defer close(metadataResultChan)
+		defer close(scannerErrChan)
+		metadataResult, scannerErr := b.metadataScanner.Scan(ctx, b.cfg.ContentDir, b.SourceFs, b.cfg, fileChan)
+		if scannerErr == nil {
+			contentAssetsChan <- metadataResult.ContentAssets
+		}
+		// Always send result and error (even if nil)
+		metadataResultChan <- metadataResult
+		scannerErrChan <- scannerErr
+	}()
+
+	// 3. Process Posts — parse phase overlaps with scanning and asset building
+	var siteWideHas404 bool
+	processHas404, processErr := b.runPostProcessing(ctx, forceSocialRebuild, fileChan)
+	if processErr != nil {
+		return fmt.Errorf("post processing failed: %w", processErr)
+	}
+	if processHas404 {
+		siteWideHas404 = true
+	}
+
+	// Wait for scanner and assets to complete
+	metadataResult, scannerErr, assetErr := b.waitForScannerAndAssets(scannerReady, metadataResultChan, scannerErrChan, assetWg, assetErrChan)
+	if scannerErr != nil {
+		return fmt.Errorf("metadata scan failed: %w", scannerErr)
+	}
+	if assetErr != nil {
+		return fmt.Errorf("failed to build assets: %w", assetErr)
+	}
+	if metadataResult != nil && metadataResult.Has404 {
+		siteWideHas404 = true
+	}
+
+	// 4. Wait for site-wide rendering to complete
+	if err := b.waitForSiteWideRendering(*siteWideGroupPtr, siteTimer, siteWideHas404); err != nil {
+		return err
+	}
+
+	// 5. Post-build files and commit
+	if err := b.finalizeBuild(ctx, wasmWg); err != nil {
+		return err
+	}
+
+	// 6. Cleanup orphans (Dev mode only)
+	b.CleanupOrphans()
+
+	// Clear memory state
+	b.renderService.ClearRenderedFiles()
+
+	// Build complete
+	b.metrics.RecordEnd()
+	fmt.Printf("\n✨ Build complete!\n")
+	b.metrics.Print()
+
+	return nil
+}
+
+// setupWasmDeployment launches WASM deployment asynchronously
+func (b *Builder) setupWasmDeployment(ctx context.Context) *sync.WaitGroup {
 	var wasmWg sync.WaitGroup
 	wasmWg.Add(1)
 	go func() {
 		defer wasmWg.Done()
 		b.checkWasmUpdate(ctx)
 	}()
+	return &wasmWg
+}
 
-	// Handle incremental social card rebuild if needed
-	var forceSocialRebuild bool
-	lastBuildTime := b.Tx.GetLastBuildTime()
-	if !b.cfg.ForceRebuild && !lastBuildTime.IsZero() {
-		// If generator binary or source changed, force social card update
-		if info, err := os.Stat("builder/generators/social.go"); err == nil && info.ModTime().After(lastBuildTime) {
-			forceSocialRebuild = true
-		}
+// checkSocialCardRebuild determines if social cards need forced rebuild
+func (b *Builder) checkSocialCardRebuild() bool {
+	if b.cfg.ForceRebuild {
+		return false
 	}
+	lastBuildTime := b.Tx.GetLastBuildTime()
+	if lastBuildTime.IsZero() {
+		return false
+	}
+	info, err := os.Stat("builder/generators/social.go")
+	return err == nil && info.ModTime().After(lastBuildTime)
+}
 
-	// Warm up the JS renderer pool eagerly while other metadata tasks start
+// initializeNativeRenderer warms up the JS renderer pool
+func (b *Builder) initializeNativeRenderer(ctx context.Context) {
 	if b.nativeRenderer != nil {
 		b.nativeRenderer.EnsureInitialized(ctx)
 	}
+}
 
-	if b.cfg.IsDev {
-		b.cfg.BuildVersion = time.Now().UnixNano()
-	}
-
-	// Pre-create output directories
+// createOutputDirectories creates required output directories
+func (b *Builder) createOutputDirectories() error {
 	for _, dir := range []string{"tags", "static/images/cards", "sitemap"} {
 		if err := b.Sink.MkdirAll(filepath.Join(b.cfg.OutputDir, dir)); err != nil {
 			b.logger.Error("Failed to create directory", "dir", dir, "error", err)
+			return err
 		}
 	}
+	return nil
+}
 
-	// 2. Static Assets + Metadata Scanner + Post Parsing overlap
-	//
-	// The parse phase (markdown parsing, KaTeX SSR, BM25 analysis) has no
-	// dependency on asset building (image optimization, esbuild bundling).
-	// Only the render phase needs the Assets map (hashed CSS/JS filenames).
-	// We launch asset building in a goroutine and gate the render phase
-	// inside Process() via the assetsReady channel.
-	fmt.Println("📦 Building assets...")
+// setupAssetBuilding starts asset building in a goroutine
+func (b *Builder) setupAssetBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) (<-chan struct{}, *sync.WaitGroup, <-chan error) {
+	slog.Info("Building assets...")
 	assetTimer := utils.StartPhase("Asset building")
 	b.renderService.SetAssets(map[string]string{})
+
+	if setter, ok := b.assetService.(interface {
+		SetContentAssetsChannel(<-chan []models.ScannedAsset)
+	}); ok {
+		setter.SetContentAssetsChannel(contentAssetsChan)
+	}
 
 	assetsReady := make(chan struct{})
 	b.assetService.SetAssetsReadySignal(assetsReady)
 
-	var assetErr error
+	assetErrChan := make(chan error, 1)
 	var assetWg sync.WaitGroup
 	assetWg.Add(1)
 	go func() {
 		defer assetWg.Done()
 		if err := b.copyStaticAndBuildAssets(ctx); err != nil {
-			assetErr = err
+			assetErrChan <- err
 		}
+		close(assetErrChan)
 		assetTimer.Stop()
 	}()
 
-	// Tell the post service to wait for assets before entering render phase
-	b.renderService.SetAssetsGate(assetsReady)
+	return assetsReady, &assetWg, assetErrChan
+}
 
-	// Set up the site-wide rendering callback. When post metadata becomes
-	// available inside Process() (after parse, before render), this callback
-	// fires the site-wide errgroup so it overlaps with the render phase.
+// setupSiteWideRendering configures the metadata callback for site-wide generators
+func (b *Builder) setupSiteWideRendering(
+	ctx context.Context,
+	assetsReady <-chan struct{},
+	wasmWg *sync.WaitGroup,
+	forceSocialRebuild bool,
+) (**errgroup.Group, *utils.PhaseTimer) {
 	var siteWideGroup *errgroup.Group
 	var siteWideCtx context.Context
 	var siteTimer *utils.PhaseTimer
-	var siteWideHas404 bool
 	var siteWideOnce sync.Once
 
 	b.postService.SetMetadataCallback(func(
@@ -110,23 +233,51 @@ func (b *Builder) build(ctx context.Context) error {
 		cbIndexedPosts []models.IndexedPost,
 		cbAnyChanged bool,
 	) {
+		// Update in-memory cache for incremental search
+		if cbIndexedPosts != nil {
+			b.mu.Lock()
+			b.indexedPosts = cbIndexedPosts
+			b.mu.Unlock()
+		}
+
+		// Check if assets changed since last site-wide render
+		b.waitForAssetsAvailability(ctx, assetsReady)
+		assets := b.renderService.GetAssets()
+		var currentAssetHash uint64
+		if len(assets) > 0 {
+			// Compute a simple hash of the asset map to detect changes
+			assetKeys := make([]string, 0, len(assets))
+			for k := range assets {
+				assetKeys = append(assetKeys, k)
+			}
+			sort.Strings(assetKeys)
+			hasher := xxh3.New()
+			for _, k := range assetKeys {
+				hasher.WriteString(k)
+				hasher.WriteString(assets[k])
+			}
+			currentAssetHash = hasher.Sum64()
+		}
+
 		// We must run site-wide generators if:
 		// 1. Something changed (anyPostChanged)
 		// 2. It's a clean build
-		// 3. We are using staging (production build) - because staging starts empty
-		//    and Commit() will replace the real output with staging contents.
+		// 3. Assets have changed since last render
+		// 4. Generators were explicitly forced (e.g. after deletion or on first build)
 		useStaging := !b.cfg.IsDev || b.isCleanBuild
-		if !cbAnyChanged && !b.isCleanBuild && !useStaging {
+		assetsChanged := currentAssetHash != b.lastAssetHash
+		if !cbAnyChanged && !b.isCleanBuild && !useStaging && !b.forceGenerators.Load() && !assetsChanged {
 			return
 		}
+		b.forceGenerators.Store(false)
+		b.lastAssetHash = currentAssetHash
 
 		siteWideOnce.Do(func() {
-			fmt.Println("📄 Rendering pagination, tags, metadata and PWA...")
+			slog.Info("Rendering pagination, tags, metadata and PWA...")
 			siteTimer = utils.StartPhase("Site-wide rendering")
 			siteWideGroup, siteWideCtx = errgroup.WithContext(ctx)
 
-			// Pagination and Tags render HTML pages (need assets for CSS/JS paths).
-			// Proceed once hashed assets are available (or build channel closes).
+			// Pagination and Tags render HTML pages (need assets for CSS/JS paths)
 			siteWideGroup.Go(func() error {
 				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
 				return b.renderPagination(siteWideCtx, cbAllPosts, cbPinnedPosts, b.cfg.ForceRebuild)
@@ -135,15 +286,11 @@ func (b *Builder) build(ctx context.Context) error {
 				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
 				return b.renderTags(siteWideCtx, cbTagMap, forceSocialRebuild)
 			})
-			// Sitemap, RSS, Search are pure data generators (no HTML assets needed).
-			// Graph HTML rendering needs assets — renderSiteMetadata waits internally.
+			// Sitemap, RSS, Search are pure data generators (no HTML assets needed)
 			siteWideGroup.Go(func() error {
 				return b.renderSiteMetadata(cbAllPosts, cbTagMap, nil, assetsReady)
 			})
-			// PWA: SW needs assets, manifest and icons don't.
-			// PWA icon generation can be slow (200-400ms) and has no dependency on HTML renders.
-			// We move it to the global wasmWg (which waits at Tx.Commit) rather than the siteWideGroup
-			// to remove it from the critical path of the site timer.
+			// PWA icon generation can be slow (200-400ms) and has no dependency on HTML renders
 			wasmWg.Add(1)
 			go func() {
 				defer wasmWg.Done()
@@ -160,86 +307,86 @@ func (b *Builder) build(ctx context.Context) error {
 		}
 	})
 
-	var metadataResult *services.MetadataScannerResult
-	var scannerErr error
+	return &siteWideGroup, siteTimer
+}
 
-	// Run metadata scanner in parallel with both assets and parsing
-	scannerReady := make(chan struct{})
-	go func() {
-		defer close(scannerReady)
-		metadataResult, scannerErr = b.metadataScanner.Scan(ctx, b.cfg.ContentDir, b.SourceFs, b.cfg)
-	}()
+// runPostProcessing executes post processing and returns 404 status
+func (b *Builder) runPostProcessing(ctx context.Context, forceSocialRebuild bool, fileChan <-chan models.ScannedFile) (bool, error) {
+	_, _, _, _, _, processHas404, processErr := b.processPosts(ctx, b.cfg.ForceRebuild, forceSocialRebuild, b.isCleanBuild, fileChan, false)
+	return processHas404, processErr
+}
 
-	// Wait for scanner (needed before post processing starts)
+// waitForScannerAndAssets waits for scanner and asset building to complete
+func (b *Builder) waitForScannerAndAssets(
+	scannerReady <-chan struct{},
+	metadataResultChan <-chan *models.MetadataScannerResult,
+	scannerErrChan <-chan error,
+	assetWg *sync.WaitGroup,
+	assetErrChan <-chan error,
+) (*models.MetadataScannerResult, error, error) {
 	<-scannerReady
-	if scannerErr != nil {
-		return fmt.Errorf("metadata scan failed: %w", scannerErr)
-	}
-	if setter, ok := b.assetService.(interface{ SetContentAssets([]services.ScannedAsset) }); ok {
-		setter.SetContentAssets(metadataResult.ContentAssets)
-	}
 
-	// 3. Process Posts — parse phase overlaps with asset building,
-	//    render phase gates on assetsReady channel inside Process().
-	//    Site-wide tasks start via the metadata callback above, overlapping
-	//    with the render phase for faster cold builds.
-	_, _, _, _, _, has404, err := b.processPosts(ctx, b.cfg.ForceRebuild, forceSocialRebuild, b.isCleanBuild, metadataResult)
-	if err != nil {
-		return fmt.Errorf("post processing failed: %w", err)
-	}
-	siteWideHas404 = has404
+	// Receive scanner result and error
+	metadataResult := <-metadataResultChan
+	scannerErr := <-scannerErrChan
 
-	// Ensure all assets (including images) are finished before checking errors
 	assetWg.Wait()
-	if assetErr != nil {
-		return fmt.Errorf("failed to build assets: %w", assetErr)
+	var assetErr error
+	select {
+	case err := <-assetErrChan:
+		assetErr = err
+	default:
 	}
 
-	// 4. Wait for site-wide rendering to complete (started by metadata callback
-	//    inside Process(), overlapping with the render phase)
-	if siteWideGroup != nil {
-		if err := siteWideGroup.Wait(); err != nil {
-			if siteTimer != nil {
-				siteTimer.Stop()
-			}
-			return err
-		}
+	return metadataResult, scannerErr, assetErr
+}
+
+// waitForSiteWideRendering waits for site-wide generators and renders 404 if needed
+func (b *Builder) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTimer *utils.PhaseTimer, siteWideHas404 bool) error {
+	if siteWideGroup == nil {
+		return nil
+	}
+
+	if err := siteWideGroup.Wait(); err != nil {
 		if siteTimer != nil {
 			siteTimer.Stop()
 		}
-
-		if siteWideHas404 {
-			b.renderService.Render404(filepath.Join(b.cfg.OutputDir, "404.html"), models.PageData{
-				Title: "404 Not Found", BaseURL: b.cfg.BaseURL, TabTitle: "404 Not Found",
-				Config: b.cfg, RelativePrefix: "",
-			})
-		}
+		return err
+	}
+	if siteTimer != nil {
+		siteTimer.Stop()
 	}
 
-	// 5. Post-build files
-	_ = b.Sink.WriteFile(filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte{})
+	if siteWideHas404 {
+		b.renderService.Render404(filepath.Join(b.cfg.OutputDir, "404.html"), models.PageData{
+			Title: "404 Not Found", BaseURL: b.cfg.BaseURL, TabTitle: "404 Not Found",
+			Config: b.cfg, RelativePrefix: "",
+		})
+	}
+	return nil
+}
+
+// finalizeBuild writes post-build files and commits the transaction
+func (b *Builder) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup) error {
+	// Write .nojekyll file
+	if err := b.Sink.WriteFile(filepath.Join(b.cfg.OutputDir, ".nojekyll"), []byte{}); err != nil {
+		return fmt.Errorf("failed to write .nojekyll: %w", err)
+	}
 	b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, ".nojekyll"))
 
 	// Reset ForceRebuild AFTER all async checks have completed
 	b.cfg.ForceRebuild = false
 
-	fmt.Println("💾 Publishing output...")
+	// Sync/Commit transaction
+	slog.Info("Publishing output...")
 	syncTimer := utils.StartPhase("Publish")
 	// Ensure WASM deployment finished before publishing (it runs in parallel since step 1)
 	wasmWg.Wait()
-	if err := b.Tx.Commit(); err != nil {
+	if err := b.Tx.Commit(ctx); err != nil {
 		syncTimer.Stop()
 		return fmt.Errorf("failed to publish build transaction: %w", err)
 	}
 	syncTimer.Stop()
-
-	// Clear memory state
-	b.renderService.ClearRenderedFiles()
-
-	// Build complete
-	b.metrics.RecordEnd()
-	fmt.Printf("\n✨ Build complete!\n")
-	b.metrics.Print()
 
 	return nil
 }
@@ -263,13 +410,11 @@ func (b *Builder) buildAssetOnly(ctx context.Context) error {
 	}
 	b.renderService.SetAssets(map[string]string{})
 
-	fmt.Println("📦 Building assets...")
+	slog.Info("Building assets...")
 	assetTimer := utils.StartPhase("Asset building")
-	b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, false)
-	b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
-	b.renderService.SetSink(b.Sink)
-	b.assetService.SetSink(b.Sink)
-	b.postService.SetSink(b.Sink)
+
+	// Start fresh session/tracking state
+	b.refreshBuildSession()
 
 	assets, err := b.assetService.BuildForAssetChange(ctx)
 	assetTimer.Stop()
@@ -279,23 +424,29 @@ func (b *Builder) buildAssetOnly(ctx context.Context) error {
 
 	b.renderService.SetAssets(assets)
 	b.renderService.ClearRenderedFiles()
+	b.renderService.SetAssetsGate(nil)
 	b.postService.SetAssetsGate(nil)
-	metadataResult, scanErr := b.metadataScanner.Scan(ctx, b.cfg.ContentDir, b.SourceFs, b.cfg)
-	if scanErr != nil {
-		return fmt.Errorf("metadata scan failed: %w", scanErr)
-	}
+	b.forceGenerators.Store(true)
+
+	fileChan := make(chan models.ScannedFile, 1024)
+	go func() {
+		defer close(fileChan)
+		_, _ = b.metadataScanner.Scan(ctx, b.cfg.ContentDir, b.SourceFs, b.cfg, fileChan)
+	}()
 
 	shouldForce := false
 	forceSocialRebuild := false
 	outputMissing := false
-	_, _, _, _, _, _, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, metadataResult)
+	_, _, _, _, _, _, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan, false)
 	if err != nil {
 		return fmt.Errorf("post processing failed: %w", err)
 	}
 
-	if err := b.Tx.Commit(); err != nil {
+	if err := b.Tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to publish build transaction: %w", err)
 	}
+
+	b.CleanupOrphans()
 
 	b.metrics.RecordEnd()
 	fmt.Printf("\n✨ Build complete!\n")
@@ -312,20 +463,6 @@ func (b *Builder) Build(ctx context.Context) error {
 	if b.metrics != nil {
 		b.metrics.Reset()
 	}
-
-	// Setup Build Transaction
-	useStaging := !b.cfg.IsDev || b.isCleanBuild
-	if b.Tx == nil {
-		b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, useStaging)
-	}
-	if b.Sink == nil {
-		b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
-	}
-
-	// Inject sink into services
-	b.postService.SetSink(b.Sink)
-	b.assetService.SetSink(b.Sink)
-	b.renderService.SetSink(b.Sink)
 
 	// Acquire build lock to prevent concurrent builds (skip in tests)
 	var buildLock *utils.FileLock
@@ -356,8 +493,8 @@ func (b *Builder) copyStaticAndBuildAssets(ctx context.Context) error {
 	return nil
 }
 
-func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, earlyMetadata *services.MetadataScannerResult) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool, error) {
-	result, err := b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, earlyMetadata)
+func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile, has404 bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool, error) {
+	result, err := b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan, has404)
 	if err != nil {
 		return nil, nil, nil, nil, false, false, err
 	}
@@ -375,6 +512,7 @@ func (b *Builder) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[
 				b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, "sitemap/sitemap.xml"))
 			} else {
 				b.logger.Error("Failed to generate sitemap", "error", err)
+				return err
 			}
 			return nil
 		})
@@ -388,6 +526,7 @@ func (b *Builder) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[
 				b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, "rss.xml"))
 			} else {
 				b.logger.Error("Failed to generate RSS feed", "error", err)
+				return err
 			}
 			return nil
 		})
@@ -401,6 +540,7 @@ func (b *Builder) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[
 				b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, "search.bin"))
 			} else {
 				b.logger.Error("Failed to generate search index", "error", err)
+				return err
 			}
 			return nil
 		})

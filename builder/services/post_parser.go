@@ -86,13 +86,16 @@ func ParseMarkdownMetadata(
 	cfg *config.Config,
 	knownFrontmatterHash string,
 	knownReadingTime int,
+	bodyOffset int,
 	preParsedMeta map[string]any,
 ) (*ParsedMarkdownResult, error) {
 	res := &ParsedMarkdownResult{}
 
 	// Strip frontmatter to avoid double parse
 	bodyOnly := source
-	if bytes.HasPrefix(source, []byte("---")) {
+	if bodyOffset > 0 && bodyOffset < len(source) {
+		bodyOnly = source[bodyOffset:]
+	} else if bytes.HasPrefix(source, []byte("---")) {
 		if idx := bytes.Index(source[3:], []byte("---")); idx != -1 {
 			bodyOnly = source[idx+6:]
 		}
@@ -130,7 +133,14 @@ func ParseMarkdownMetadata(
 
 	if preParsedMeta != nil {
 		res.MetaData = preParsedMeta
-	} else {
+	} else if bytes.HasPrefix(source, []byte("---")) {
+		parts := bytes.SplitN(source, []byte("---"), 3)
+		if len(parts) >= 3 {
+			res.MetaData, _ = utils.ParseFrontmatter(parts[1])
+		}
+	}
+
+	if res.MetaData == nil {
 		res.MetaData = meta.Get(mdCtx)
 	}
 
@@ -161,7 +171,7 @@ func ParseMarkdownMetadata(
 	}
 
 	res.SearchRecord = models.PostRecord{
-		ID:              res.Post.Weight, // Temporary ID
+		ID:              0, // Temporary ID, assigned in post_service.go
 		Title:           res.Post.Title,
 		NormalizedTitle: strings.ToLower(res.Post.Title),
 		Link:            htmlRelPath,
@@ -172,31 +182,49 @@ func ParseMarkdownMetadata(
 		Version:         res.Post.Version,
 	}
 
-	// Use pooled analyzer for tokenization
-	sb := utils.SharedStringBuilderPool.Get()
-	defer utils.SharedStringBuilderPool.Put(sb)
+	// Use pooled analyzer for tokenization if search is enabled
+	if cfg.Features.Generators.Search {
+		sb := utils.SharedStringBuilderPool.Get()
+		defer utils.SharedStringBuilderPool.Put(sb)
 
-	sb.Grow(len(res.SearchRecord.Title) + len(res.SearchRecord.Description) + len(res.PlainText) + 200)
-	sb.WriteString(res.SearchRecord.Title)
-	sb.WriteByte(' ')
-	sb.WriteString(res.SearchRecord.Description)
-	sb.WriteByte(' ')
-	for _, t := range res.SearchRecord.Tags {
-		sb.WriteString(t)
+		sb.Grow(len(res.SearchRecord.Title) + len(res.SearchRecord.Description) + len(res.PlainText) + 200)
+		sb.WriteString(res.SearchRecord.Title)
 		sb.WriteByte(' ')
-	}
-	sb.WriteString(res.PlainText)
+		sb.WriteString(res.SearchRecord.Description)
+		sb.WriteByte(' ')
+		for _, t := range res.SearchRecord.Tags {
+			sb.WriteString(t)
+			sb.WriteByte(' ')
+		}
+		metaOffset := sb.Len()
+		sb.WriteString(res.PlainText)
 
-	words, freshStemMap, positions, offsets := search.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
+		words, freshStemMap, positions, rawOffsets := search.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
 
-	res.WordFreqs = make(map[string]int, len(words)/2)
-	for _, w := range words {
-		res.WordFreqs[w]++
+		res.WordFreqs = make(map[string]int, len(words)/2)
+		for _, w := range words {
+			res.WordFreqs[w]++
+		}
+		res.DocLen = len(words)
+		res.StemMap = freshStemMap
+		res.PositionalIndex = positions
+
+		// Shift offsets to be relative to PlainText content only
+		res.ByteOffsets = make(map[string][]int, len(rawOffsets))
+		for term, termOffsets := range rawOffsets {
+			bodyOffsets := make([]int, 0, len(termOffsets))
+			for i := 0; i < len(termOffsets); i += 2 {
+				start := termOffsets[i]
+				end := termOffsets[i+1]
+				if start >= metaOffset {
+					bodyOffsets = append(bodyOffsets, start-metaOffset, end-metaOffset)
+				}
+			}
+			if len(bodyOffsets) > 0 {
+				res.ByteOffsets[term] = bodyOffsets
+			}
+		}
 	}
-	res.DocLen = len(words)
-	res.StemMap = freshStemMap
-	res.PositionalIndex = positions
-	res.ByteOffsets = offsets
 
 	if knownFrontmatterHash != "" {
 		res.FrontmatterHash = knownFrontmatterHash
@@ -262,9 +290,10 @@ func ParseMarkdown(
 	mu *sync.Mutex,
 	knownFrontmatterHash string,
 	knownReadingTime int,
+	bodyOffset int,
 	preParsedMeta map[string]any,
 ) (*ParsedMarkdownResult, error) {
-	res, err := ParseMarkdownMetadata(ctx, source, path, version, cleanHtmlRelPath, htmlRelPath, mdPool, cfg, knownFrontmatterHash, knownReadingTime, preParsedMeta)
+	res, err := ParseMarkdownMetadata(ctx, source, path, version, cleanHtmlRelPath, htmlRelPath, mdPool, cfg, knownFrontmatterHash, knownReadingTime, bodyOffset, preParsedMeta)
 	if err != nil {
 		return nil, err
 	}

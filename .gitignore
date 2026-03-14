@@ -10,6 +10,11 @@ public/
 .gocache/
 perf-results/
 
+# Build artifacts in builder/run/
+builder/run/.kosh-cache/
+builder/run/.kosh-artifacts/
+builder/run/public/
+
 # 3. Mac OS System Files
 .DS_Store
 

@@ -3,7 +3,6 @@ package run
 import (
 	"context"
 	"errors"
-	"os"
 	"sync"
 	"testing"
 
@@ -15,31 +14,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
 )
-
-type diskFullFs struct {
-	afero.Fs
-	full bool
-}
-
-func (f *diskFullFs) Create(name string) (afero.File, error) {
-	if f.full {
-		return nil, errors.New("disk full")
-	}
-	return f.Fs.Create(name)
-}
-
-func (f *diskFullFs) MkdirAll(path string, perm os.FileMode) error {
-	if f.full {
-		return errors.New("disk full")
-	}
-	return f.Fs.MkdirAll(path, perm)
-}
 
 func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	testutil.ScaffoldTestSite(fs)
+
+	// Enable test mode to skip absolute path resolution
+	utils.TestingMode = true
+	defer func() { utils.TestingMode = false }()
 
 	cfg := config.LoadFs(fs, []string{})
 	cfg.OutputDir = "public"
@@ -47,6 +32,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
+	t.Cleanup(func() { _ = nativeRenderer.Close() })
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{

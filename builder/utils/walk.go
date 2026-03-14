@@ -2,8 +2,10 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"path/filepath"
+
 	"sync"
 	"sync/atomic"
 
@@ -15,10 +17,18 @@ type WalkFunc func(path string, info fs.FileInfo, err error) error
 
 // ParallelWalk provides a stable, parallelized directory traversal using the afero interface.
 func ParallelWalk(ctx context.Context, sourceFs afero.Fs, root string, concurrency int, walkFn WalkFunc) error {
+	// Add context cancellation to the walk function
+	walkFnWrapped := func(path string, info fs.FileInfo, err error) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return walkFn(path, info, err)
+	}
+
 	// Root processing (parity with filepath.Walk)
 	rootInfo, err := sourceFs.Stat(root)
-	if err := walkFn(root, rootInfo, err); err != nil {
-		if err == filepath.SkipDir {
+	if err := walkFnWrapped(root, rootInfo, err); err != nil {
+		if errors.Is(err, filepath.SkipDir) || errors.Is(err, fs.SkipAll) {
 			return nil
 		}
 		return err
@@ -41,6 +51,7 @@ func ParallelWalk(ctx context.Context, sourceFs afero.Fs, root string, concurren
 	var activeTasks int32
 	var firstErr error
 	var errOnce sync.Once
+	var cancelOnce sync.Once
 
 	setErr := func(err error) {
 		if err != nil {
@@ -70,20 +81,30 @@ func ParallelWalk(ctx context.Context, sourceFs afero.Fs, root string, concurren
 					// Read directory entries in bulk
 					entries, err := afero.ReadDir(sourceFs, t.path)
 					if err != nil {
-						setErr(walkFn(t.path, nil, err))
+						setErr(walkFnWrapped(t.path, nil, err))
 					} else {
 						for _, entry := range entries {
-							if firstErr != nil {
+							if ctx.Err() != nil || firstErr != nil {
 								break
 							}
 
 							fullPath := filepath.ToSlash(filepath.Join(t.path, entry.Name()))
 
 							// Execute callback
-							walkErr := walkFn(fullPath, entry, nil)
+							walkErr := walkFnWrapped(fullPath, entry, nil)
 							if walkErr != nil {
-								if walkErr == filepath.SkipDir {
-									continue
+								if errors.Is(walkErr, filepath.SkipDir) {
+									if entry.IsDir() {
+										continue
+									}
+									break
+								}
+								if errors.Is(walkErr, fs.SkipAll) {
+									setErr(walkErr)
+									cancelOnce.Do(func() {
+										// Cancel context to stop other workers
+									})
+									break
 								}
 								setErr(walkErr)
 								break
@@ -91,12 +112,13 @@ func ParallelWalk(ctx context.Context, sourceFs afero.Fs, root string, concurren
 
 							if entry.IsDir() {
 								atomic.AddInt32(&activeTasks, 1)
-								select {
-								case tasks <- dirTask{path: fullPath}:
-								case <-ctx.Done():
-									atomic.AddInt32(&activeTasks, -1)
-									return
-								}
+								go func(p string) {
+									select {
+									case tasks <- dirTask{path: p}:
+									case <-ctx.Done():
+										atomic.AddInt32(&activeTasks, -1)
+									}
+								}(fullPath)
 							}
 						}
 					}
@@ -111,5 +133,8 @@ func ParallelWalk(ctx context.Context, sourceFs afero.Fs, root string, concurren
 	}
 
 	wg.Wait()
+	if errors.Is(firstErr, fs.SkipAll) {
+		return nil
+	}
 	return firstErr
 }

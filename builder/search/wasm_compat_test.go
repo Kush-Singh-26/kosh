@@ -11,8 +11,8 @@ import (
 func TestSearchIndex_RoundTrip(t *testing.T) {
 	original := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts: []models.PostRecord{
-			{
+		Posts: map[string]models.PostRecord{
+			"0": {
 				ID:              0,
 				Title:           "Test Post",
 				NormalizedTitle: "test post",
@@ -56,8 +56,8 @@ func TestSearchIndex_RoundTrip(t *testing.T) {
 		t.Fatalf("Posts length mismatch: got %d, want %d", len(decoded.Posts), len(original.Posts))
 	}
 
-	if decoded.Posts[0].Content != original.Posts[0].Content {
-		t.Errorf("Content field mismatch: got %q, want %q", decoded.Posts[0].Content, original.Posts[0].Content)
+	if decoded.Posts["0"].Content != original.Posts["0"].Content {
+		t.Errorf("Content field mismatch: got %q, want %q", decoded.Posts["0"].Content, original.Posts["0"].Content)
 	}
 
 	if !reflect.DeepEqual(decoded.Inverted, original.Inverted) {

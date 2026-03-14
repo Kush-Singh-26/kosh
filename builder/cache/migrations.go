@@ -2,6 +2,7 @@ package cache
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -28,7 +29,7 @@ var registeredMigrations = []Migration{
 				if b == BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && err != bolt.ErrBucketNotFound {
+				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bolt.ErrBucketNotFound) { //nolint:staticcheck // bolt.ErrBucketNotFound is deprecated in 1.4+
 					return err
 				}
 				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {

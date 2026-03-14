@@ -31,7 +31,7 @@ type PostService interface {
 	SetSourceFs(fs afero.Fs)
 	SetAssetsGate(ch <-chan struct{})
 	SetMetadataCallback(fn MetadataReadyFunc)
-	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, earlyMetadata *MetadataScannerResult) (*PostResult, error)
+	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile, has404 bool) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
 	WaitForCacheCommit()
@@ -79,6 +79,7 @@ type AssetService interface {
 	SetSourceFs(fs afero.Fs)
 	SetMetrics(m *metrics.BuildMetrics)
 	SetAssetsReadySignal(ch chan struct{})
+	SetContentAssetsChannel(ch <-chan []models.ScannedAsset)
 	Build(ctx context.Context) error
 	BuildForAssetChange(ctx context.Context) (map[string]string, error)
 }

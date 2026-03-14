@@ -88,11 +88,19 @@ func fetchAndDecompress(url string) ([]byte, error) {
 		}
 
 		bufPromise := resp.Call("arrayBuffer")
+
+		// Create handlers for arrayBuffer promise
 		var bufSuccess js.Func
 		var bufFailure js.Func
+
 		bufSuccess = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			defer bufSuccess.Release()
 			defer bufFailure.Release()
+
+			if len(args) < 1 {
+				ch <- "arrayBuffer error: no data received"
+				return nil
+			}
 
 			buf := args[0]
 			uint8Array := window.Get("Uint8Array").New(buf)
@@ -118,13 +126,14 @@ func fetchAndDecompress(url string) ([]byte, error) {
 			ch <- decompressed
 			return nil
 		})
+
 		bufFailure = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			defer bufSuccess.Release()
 			defer bufFailure.Release()
-
 			ch <- "failed to read array buffer"
 			return nil
 		})
+
 		bufPromise.Call("then", bufSuccess, bufFailure)
 		return nil
 	})

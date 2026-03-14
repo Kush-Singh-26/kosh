@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"html/template"
 	"log/slog"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/spf13/afero"
+	"github.com/zeebo/xxh3"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -61,61 +61,13 @@ func (s *postServiceImpl) SetAssetsGate(ch <-chan struct{})         { s.assetsRe
 func (s *postServiceImpl) SetMetadataCallback(fn MetadataReadyFunc) { s.metadataCallback = fn }
 func (s *postServiceImpl) WaitForCacheCommit()                      { s.cacheWg.Wait() }
 
-func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, earlyMetadata *MetadataScannerResult) (*PostResult, error) {
+func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile, has404 bool) (*PostResult, error) {
 	var (
 		allPosts       []models.PostMetadata
 		pinnedPosts    []models.PostMetadata
 		tagMap         = make(map[string][]models.PostMetadata)
 		anyPostChanged atomic.Bool
-		has404         bool
 	)
-
-	// 1. Prepare post list and metadata from scanner
-	if earlyMetadata != nil {
-		has404 = earlyMetadata.Has404
-		for _, m := range earlyMetadata.Metadata {
-			post := models.PostMetadata{
-				Title: m.Title, Link: m.Link, Description: m.Description,
-				Tags: m.Tags, Pinned: m.Pinned, Weight: m.Weight,
-				ReadingTime: m.ReadingTime, DateObj: m.DateObj,
-				Draft: m.Draft, Version: m.Version,
-			}
-			allPosts = append(allPosts, post)
-			if post.Pinned {
-				pinnedPosts = append(pinnedPosts, post)
-			}
-			for _, tag := range post.Tags {
-				k := strings.ToLower(strings.TrimSpace(tag))
-				tagMap[k] = append(tagMap[k], post)
-			}
-		}
-	}
-
-	// Notify build loop early that metadata is ready for sitemap, RSS, and graph
-	if s.metadataCallback != nil {
-		s.metadataCallback(allPosts, pinnedPosts, tagMap, nil, anyPostChanged.Load())
-	}
-
-	postsByVersion := make(map[string][]models.PostMetadata)
-	postPosByVersion := make(map[string]map[string]int)
-	for _, p := range allPosts {
-		postsByVersion[p.Version] = append(postsByVersion[p.Version], p)
-	}
-	for ver, posts := range postsByVersion {
-		utils.SortPosts(posts)
-		postPosByVersion[ver] = make(map[string]int)
-		for i, p := range posts {
-			postPosByVersion[ver][p.Link] = i
-		}
-	}
-
-	if earlyMetadata == nil {
-		return &PostResult{}, nil
-	}
-
-	filesToProcess := earlyMetadata.Files
-	indexedPosts := make([]models.IndexedPost, len(filesToProcess))
-	var indexedPostIdx int32 = -1
 
 	numWorkers := utils.GetDefaultWorkerCount()
 
@@ -124,32 +76,46 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	}).WithScheduler(utils.GlobalScheduler, utils.TaskSocialCard)
 	cardPool.Start()
 
-	s.logger.Info("Processing posts", "count", len(filesToProcess))
-	processTimer := utils.StartPhase(fmt.Sprintf("Process %d posts", len(filesToProcess)))
-	defer processTimer.Stop()
-
 	var (
 		batchMu          sync.Mutex
 		newPostsMeta     []*cache.PostMeta
 		newSearchRecords = make(map[string]*cache.SearchRecord)
 		newDeps          = make(map[string]*cache.Dependencies)
+		indexedPosts     []models.IndexedPost
+		indexedMu        sync.Mutex
 	)
 
-	type processTask struct {
-		f            ScannedFile
-		versionLower string
+	type renderTask struct {
+		parseRes    *ParsedMarkdownResult
+		f           models.ScannedFile
+		htmlContent string
+		destPath    string
+		version     string
+		relPath     string
+		htmlRelPath string
 	}
+	var readyToRender []renderTask
+	var renderMu sync.Mutex
 
-	// Fluid Pipeline: One pool handles everything per post
-	pool := utils.NewWorkerPool(ctx, numWorkers, func(pt processTask) {
-		f := pt.f
+	s.logger.Info("Processing posts (streaming mode)")
+	processTimer := utils.StartPhase("Process posts (stream)")
+	defer processTimer.Stop()
+
+	var (
+		phase1Errs []error
+		phase1Mu   sync.Mutex
+	)
+
+	// Phase 1: Parsing and Metadata Extraction (Parallel with Scanner)
+	parsePool := utils.NewWorkerPool(ctx, numWorkers, func(f models.ScannedFile) {
 		path, version := f.Path, f.Version
 		relPath, _ := utils.SafeRel(s.cfg.ContentDir, path)
 		htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 
+		versionLower := strings.ToLower(version)
 		cleanHtmlRelPath := htmlRelPath
 		if version != "" {
-			cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, pt.versionLower+"/")
+			cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, versionLower+"/")
 		}
 
 		var destPath string
@@ -188,6 +154,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 						FrontmatterHash: cachedMeta.ContentHash, SSRHashes: cachedMeta.SSRInputHashes,
 						HasImages: cachedMeta.HasImages, MathExpressions: cachedMeta.MathExpressions,
 						SearchRecord: models.PostRecord{
+							ID:    uint64(xxh3.HashString(cachedMeta.Link)),
 							Title: cachedSearch.Title, NormalizedTitle: cachedSearch.NormalizedTitle,
 							Link: htmlRelPath, Content: cachedSearch.Content,
 							NormalizedTags: cachedSearch.NormalizedTags, Version: cachedMeta.Version,
@@ -227,9 +194,12 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 
 		if !useCache {
 			s.metrics.IncrementCacheMiss()
-			parseRes, err = ParseMarkdown(ctx, f.Source, path, version, cleanHtmlRelPath, htmlRelPath, s.mdPool, s.cfg, s.nativeRenderer, s.diagramAdapter, &s.mu, f.FrontmatterHash, f.ReadingTime, f.PreParsedMeta)
+			parseRes, err = ParseMarkdown(ctx, f.Source, path, version, cleanHtmlRelPath, htmlRelPath, s.mdPool, s.cfg, s.nativeRenderer, s.diagramAdapter, &s.mu, f.FrontmatterHash, f.ReadingTime, f.BodyOffset, f.PreParsedMeta)
 			if err != nil {
 				s.logger.Error("Failed to parse markdown", "path", path, "error", err)
+				phase1Mu.Lock()
+				phase1Errs = append(phase1Errs, err)
+				phase1Mu.Unlock()
 				return
 			}
 			anyPostChanged.Store(true)
@@ -274,7 +244,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			return
 		}
 
-		// C) Social Card
+		// C) Social Card (Async)
 		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp"))
 		cardHash, _ := s.cardHashes.Load(relPath)
 		if forceSocialRebuild || cardHash != parseRes.FrontmatterHash {
@@ -282,36 +252,37 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 				path: relPath, relPath: strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
 				cardDestPath: cardDestPath, metaData: parseRes.MetaData, frontmatterHash: parseRes.FrontmatterHash,
 			})
+		} else {
+			s.sink.Register(cardDestPath)
 		}
 
-		// D) Rendering
-		imagePath := s.cfg.BaseURL + "/static/images/cards/" + strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
-		var prev, next *models.NavPage
-		if pos, ok := postPosByVersion[version][post.Link]; ok {
-			vp := postsByVersion[version]
-			if pos > 0 {
-				prev = &models.NavPage{Title: vp[pos-1].Title, Link: vp[pos-1].Link}
-			}
-			if pos < len(vp)-1 {
-				next = &models.NavPage{Title: vp[pos+1].Title, Link: vp[pos+1].Link}
-			}
-		}
-
-		s.renderer.RenderPage(destPath, models.PageData{
-			Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
-			Meta: parseRes.MetaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
-			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
-			TOC: parseRes.TOC, Config: s.cfg, CurrentVersion: version, ReadingTime: post.ReadingTime,
-			PrevPage: prev, NextPage: next, RelativePrefix: utils.GetRelativePrefix(htmlRelPath),
-			HasImages: parseRes.HasImages,
-		})
-		id := int(atomic.AddInt32(&indexedPostIdx, 1))
-		searchRec := parseRes.SearchRecord
-		searchRec.ID = id
-		indexedPosts[id] = models.IndexedPost{
-			Record: searchRec, WordFreqs: parseRes.WordFreqs, DocLen: parseRes.DocLen,
+		// Collect for Phase 2
+		indexedMu.Lock()
+		// Assign deterministic ID based on post relative link
+		searchRecord := parseRes.SearchRecord
+		searchRecord.ID = uint64(xxh3.HashString(searchRecord.Link))
+		indexedPosts = append(indexedPosts, models.IndexedPost{
+			Record: searchRecord, WordFreqs: parseRes.WordFreqs, DocLen: parseRes.DocLen,
 			StemMap: parseRes.StemMap, PositionalIndex: parseRes.PositionalIndex, ByteOffsets: parseRes.ByteOffsets,
+		})
+		batchMu.Lock()
+		allPosts = append(allPosts, post)
+		if post.Pinned {
+			pinnedPosts = append(pinnedPosts, post)
 		}
+		for _, tag := range post.Tags {
+			k := strings.ToLower(strings.TrimSpace(tag))
+			tagMap[k] = append(tagMap[k], post)
+		}
+		batchMu.Unlock()
+		indexedMu.Unlock()
+
+		renderMu.Lock()
+		readyToRender = append(readyToRender, renderTask{
+			parseRes: parseRes, f: f, htmlContent: htmlContent,
+			destPath: destPath, version: version, relPath: relPath, htmlRelPath: htmlRelPath,
+		})
+		renderMu.Unlock()
 
 		if !useCache && s.cache != nil {
 			postID := cache.GeneratePostID("", relPath)
@@ -325,9 +296,9 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 			}
 			_ = s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent))
 			newSearch := &cache.SearchRecord{
-				Title: post.Title, NormalizedTitle: searchRec.NormalizedTitle,
-				BM25Data: parseRes.WordFreqs, DocLen: parseRes.DocLen, Content: searchRec.Content,
-				NormalizedTags: searchRec.NormalizedTags, StemMap: parseRes.StemMap,
+				Title: post.Title, NormalizedTitle: parseRes.SearchRecord.NormalizedTitle,
+				BM25Data: parseRes.WordFreqs, DocLen: parseRes.DocLen, Content: parseRes.SearchRecord.Content,
+				NormalizedTags: parseRes.SearchRecord.NormalizedTags, StemMap: parseRes.StemMap,
 				PositionalIndex: parseRes.PositionalIndex, ByteOffsets: parseRes.ByteOffsets,
 			}
 			batchMu.Lock()
@@ -339,25 +310,68 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		s.metrics.IncrementPostsProcessed()
 	}).WithScheduler(utils.GlobalScheduler, utils.TaskMarkdown)
 
-	pool.Start()
-	for _, f := range filesToProcess {
-		pool.Submit(processTask{f: f, versionLower: strings.ToLower(f.Version)})
+	parsePool.Start()
+	for f := range fileChan {
+		parsePool.Submit(f)
 	}
-	pool.Stop()
+	parsePool.Stop()
 
-	// Notify build loop that metadata is ready for site-wide generators
+	if len(phase1Errs) > 0 {
+		return nil, phase1Errs[0]
+	}
+
+	// --- Phase 1 Complete (Metadata Aggregated) ---
+
+	// Notify build loop that metadata is ready for sitemap, RSS, etc.
 	utils.SortPosts(allPosts)
-	finalCount := int(indexedPostIdx + 1)
-	finalIndexedPosts := make([]models.IndexedPost, 0, finalCount)
-	for i := range finalCount {
-		if indexedPosts[i].Record.Title != "" {
-			finalIndexedPosts = append(finalIndexedPosts, indexedPosts[i])
+	if s.metadataCallback != nil {
+		s.metadataCallback(allPosts, pinnedPosts, tagMap, indexedPosts, anyPostChanged.Load())
+	}
+
+	// Prepare versioned navigation
+	postsByVersion := make(map[string][]models.PostMetadata)
+	postPosByVersion := make(map[string]map[string]int)
+	for _, p := range allPosts {
+		postsByVersion[p.Version] = append(postsByVersion[p.Version], p)
+	}
+	for ver, posts := range postsByVersion {
+		utils.SortPosts(posts)
+		postPosByVersion[ver] = make(map[string]int)
+		for i, p := range posts {
+			postPosByVersion[ver][p.Link] = i
 		}
 	}
 
-	if s.metadataCallback != nil {
-		s.metadataCallback(allPosts, pinnedPosts, tagMap, finalIndexedPosts, anyPostChanged.Load())
+	// Phase 2: Rendering (Parallel)
+	renderPool := utils.NewWorkerPool(ctx, numWorkers, func(rt renderTask) {
+		post := rt.parseRes.Post
+		imagePath := s.cfg.BaseURL + "/static/images/cards/" + strings.TrimSuffix(rt.htmlRelPath, ".html") + ".webp"
+		var prev, next *models.NavPage
+		if pos, ok := postPosByVersion[rt.version][post.Link]; ok {
+			vp := postsByVersion[rt.version]
+			if pos > 0 {
+				prev = &models.NavPage{Title: vp[pos-1].Title, Link: vp[pos-1].Link}
+			}
+			if pos < len(vp)-1 {
+				next = &models.NavPage{Title: vp[pos+1].Title, Link: vp[pos+1].Link}
+			}
+		}
+
+		s.renderer.RenderPage(rt.destPath, models.PageData{
+			Title: post.Title, Description: post.Description, Content: template.HTML(rt.htmlContent),
+			Meta: rt.parseRes.MetaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
+			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
+			TOC: rt.parseRes.TOC, Config: s.cfg, CurrentVersion: rt.version, ReadingTime: post.ReadingTime,
+			PrevPage: prev, NextPage: next, RelativePrefix: utils.GetRelativePrefix(rt.htmlRelPath),
+			HasImages: rt.parseRes.HasImages,
+		})
+	}).WithScheduler(utils.GlobalScheduler, utils.TaskMarkdown)
+
+	renderPool.Start()
+	for _, rt := range readyToRender {
+		renderPool.Submit(rt)
 	}
+	renderPool.Stop()
 
 	cardPool.Stop()
 
@@ -371,6 +385,6 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 
 	return &PostResult{
 		AllPosts: allPosts, PinnedPosts: pinnedPosts, TagMap: tagMap,
-		IndexedPosts: finalIndexedPosts, AnyPostChanged: anyPostChanged.Load(), Has404: has404,
+		IndexedPosts: indexedPosts, AnyPostChanged: anyPostChanged.Load(), Has404: has404,
 	}, nil
 }

@@ -3,9 +3,13 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -17,13 +21,21 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/h2non/bimg"
+	"github.com/chai2010/webp"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
+	"golang.org/x/image/draw"
 )
+
+var webpBufferPool = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(make([]byte, 0, 256*1024))
+	},
+}
 
 type imageCacheKey struct {
 	path    string
@@ -33,9 +45,8 @@ type imageCacheKey struct {
 
 type imageCache struct {
 	cache    *lru.Cache[imageCacheKey, []byte]
-	mu       sync.RWMutex
-	size     int
-	capacity int
+	size     atomic.Int64
+	capacity int64
 }
 
 type fileTask struct {
@@ -44,17 +55,15 @@ type fileTask struct {
 	info    fs.FileInfo
 }
 
-func newImageCache(maxItems int, maxBytes int) *imageCache {
+func newImageCache(maxItems int, maxBytes int64) *imageCache {
 	ic := &imageCache{
 		capacity: maxBytes,
 	}
 
 	onEvict := func(key imageCacheKey, value []byte) {
-		ic.mu.Lock()
 		// Calculate roughly same size as when it was added
 		overhead := 128 + len(key.path) // struct overhead + string length
-		ic.size -= (cap(value) + overhead)
-		ic.mu.Unlock()
+		ic.size.Add(-int64(cap(value) + overhead))
 	}
 
 	c, _ := lru.NewWithEvict[imageCacheKey, []byte](maxItems, onEvict)
@@ -72,23 +81,21 @@ func (c *imageCache) set(key imageCacheKey, data []byte) {
 	overhead := 128 + len(key.path)
 	itemSize := cap(data) + overhead
 
-	c.mu.Lock()
-	c.size += itemSize
+	c.size.Add(int64(itemSize))
 
 	// Strict size-based eviction: remove oldest items until under capacity
-	for c.size > c.capacity && c.cache.Len() > 0 {
+	for c.size.Load() > c.capacity && c.cache.Len() > 0 {
 		_, _, ok := c.cache.RemoveOldest()
 		if !ok {
 			break
 		}
 	}
-	c.mu.Unlock()
 
 	c.cache.Add(key, data)
 }
 
-// globalImageCache limits to 200 items or ~50MB of memory
-var globalImageCache = newImageCache(200, 50*1024*1024)
+// globalImageCache limits to 400 items or ~100MB of memory for better cache hit rates
+var globalImageCache = newImageCache(400, 100*1024*1024)
 
 var keyBufPool = sync.Pool{
 	New: func() any {
@@ -117,7 +124,17 @@ func getImageHash(key imageCacheKey) string {
 var (
 	copyBufferPool = sync.Pool{
 		New: func() any {
-			return make([]byte, 64*1024)
+			b := make([]byte, 64*1024)
+			return &b
+		},
+	}
+
+	// rgbaPixPool reuses large byte slices for image resizing to reduce GC pressure
+	rgbaPixPool = sync.Pool{
+		New: func() any {
+			// Pre-allocate for 1200px width * 1600px height * 4 bytes (RGBA)
+			b := make([]byte, 1200*1600*4)
+			return &b
 		},
 	}
 )
@@ -185,14 +202,31 @@ func CopyFileVFS(srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, mo
 		return fmt.Errorf("failed to create directory %s: %w", filepath.Dir(destPath), err)
 	}
 
+	// Attempt optimized syscall copy for local files
+	if realSrc, ok := GetRealPath(srcFs, srcPath); ok {
+		err := sink.CopyFile(realSrc, destPath)
+		if err == nil {
+			if onWrite != nil {
+				onWrite(destPath)
+			}
+			if modTime > 0 {
+				_ = sink.SetMtime(destPath, time.Unix(0, modTime))
+			}
+			return nil
+		}
+		// Fallback to streaming if optimized copy fails
+		slog.Debug("Optimized copy failed, falling back to streaming", "src", srcPath, "error", err)
+	}
+
 	in, err := srcFs.Open(srcPath)
 	if err != nil {
 		return fmt.Errorf("failed to open source file %s: %w", srcPath, err)
 	}
 	defer func() { _ = in.Close() }()
 
-	buf := copyBufferPool.Get().([]byte)
-	defer copyBufferPool.Put(buf)
+	bufPtr := copyBufferPool.Get().(*[]byte)
+	buf := *bufPtr
+	defer copyBufferPool.Put(bufPtr)
 
 	errWrite := sink.WriteStream(destPath, func(w io.Writer) error {
 		_, err := io.CopyBuffer(w, in, buf)
@@ -213,10 +247,6 @@ func CopyFileVFS(srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, mo
 	return nil
 }
 
-func copyFileBetweenFS(srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, modTime int64, onWrite func(string)) error {
-	return CopyFileVFS(srcFs, sink, srcPath, destPath, modTime, onWrite)
-}
-
 func CopyFileWithOptionalImageProcessing(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, compress bool, cacheDir string, webpQuality int, info fs.FileInfo, m interface {
 	RecordImageOptimization(original, optimized int64)
 	RecordImageResizeSkipped()
@@ -224,11 +254,6 @@ func CopyFileWithOptionalImageProcessing(ctx context.Context, srcFs afero.Fs, si
 	ext := strings.ToLower(filepath.Ext(srcPath))
 	isImage := ext == ".jpg" || ext == ".jpeg" || ext == ".png"
 	if compress && isImage {
-		if err := GlobalScheduler.Acquire(ctx, TaskImage); err != nil {
-			return err
-		}
-		defer GlobalScheduler.Release(TaskImage)
-
 		if err := processImageVFS(ctx, srcFs, sink, srcPath, destPath[:len(destPath)-len(filepath.Ext(destPath))]+".webp", cacheDir, webpQuality, info, m); err != nil {
 			return err
 		}
@@ -286,17 +311,12 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 						defer func() {
 							if r := recover(); r != nil {
 								slog.Error("Image worker panic recovered", "panic", r)
+								errMu.Lock()
+								errs = append(errs, fmt.Errorf("image worker panicked on %s: %v", task.path, r))
+								errMu.Unlock()
 							}
 						}()
 						target := filepath.Join(dstDir, task.relPath)
-						if err := GlobalScheduler.Acquire(ctx, TaskImage); err != nil {
-							errMu.Lock()
-							errs = append(errs, err)
-							errMu.Unlock()
-							return
-						}
-						defer GlobalScheduler.Release(TaskImage)
-
 						if err := processImageVFS(ctx, srcFs, sink, task.path, target, cacheDir, webpQuality, task.info, m); err != nil {
 							errMu.Lock()
 							errs = append(errs, fmt.Errorf("failed to process image %s: %w", task.path, err))
@@ -361,7 +381,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 		isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
 		finalRelPath := relPath
 		if compress && isImage {
-			finalRelPath = relPath[:len(relPath)-len(filepath.Ext(relPath))] + ".webp"
+			finalRelPath = relPath[:len(relPath)-len(ext)] + ".webp"
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -428,21 +448,31 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 		cacheFile = filepath.Join(cacheDir, hashStr+".webp")
 
 		if cacheInfo, err := cacheFs.Stat(cacheFile); err == nil && !cacheInfo.IsDir() {
-			cachedData, readErr := afero.ReadFile(cacheFs, cacheFile)
-			if readErr != nil {
-				return fmt.Errorf("failed to read cached image %s: %w", cacheFile, readErr)
+			// Stream cached file to sink instead of reading all into memory
+			f, err := cacheFs.Open(cacheFile)
+			if err != nil {
+				return fmt.Errorf("failed to open cached image %s: %w", cacheFile, err)
 			}
-			globalImageCache.set(memCacheKey, cachedData)
+			defer func() { _ = f.Close() }()
 
-			if !isNil(m) {
-				m.RecordImageOptimization(srcInfo.Size(), int64(len(cachedData)))
-			}
 			if err := sink.MkdirAll(filepath.Dir(dstPath)); err != nil {
 				return fmt.Errorf("failed to create image directory: %w", err)
 			}
-			if err := sink.WriteFile(dstPath, cachedData); err != nil {
-				return fmt.Errorf("failed to write cached image %s: %w", dstPath, err)
+
+			// Still set memory cache on hit
+			cachedData, readErr := afero.ReadAll(f)
+			if readErr == nil {
+				globalImageCache.set(memCacheKey, cachedData)
+				if !isNil(m) {
+					m.RecordImageOptimization(srcInfo.Size(), int64(len(cachedData)))
+				}
+				if err := sink.WriteFile(dstPath, cachedData); err != nil {
+					return fmt.Errorf("failed to write cached image %s: %w", dstPath, err)
+				}
+			} else {
+				return fmt.Errorf("failed to read cached image %s: %w", cacheFile, readErr)
 			}
+
 			_ = sink.SetMtime(dstPath, srcInfo.ModTime())
 			return nil
 		}
@@ -454,46 +484,91 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 	default:
 	}
 
-	// Read the entire source file into memory
-	imgData, err := afero.ReadFile(srcFs, srcPath)
+	// Optimized: Acquire scheduler only for real work (cache miss)
+	if err := GlobalScheduler.Acquire(ctx, TaskImage); err != nil {
+		return err
+	}
+	defer GlobalScheduler.Release(TaskImage)
+
+	// Direct stream from filesystem
+	f, err := srcFs.Open(srcPath)
 	if err != nil {
-		return fmt.Errorf("failed to read image %s: %w", srcPath, err)
+		return fmt.Errorf("failed to open image %s: %w", srcPath, err)
 	}
+	defer func() { _ = f.Close() }()
 
-	// Initialize bimg
-	img := bimg.NewImage(imgData)
-	size, err := img.Size()
+	// Use pooled buffered reader to reduce syscalls
+	br := SharedBufioReaderPool.Get(f)
+	defer func() {
+		br.Reset(nil)
+		SharedBufioReaderPool.Put(br)
+	}()
+
+	// Decode image
+	src, _, err := image.Decode(br)
 	if err != nil {
-		return fmt.Errorf("failed to get image size: %w", err)
+		return fmt.Errorf("failed to decode image %s: %w", srcPath, err)
 	}
 
-	if webpQuality < 1 || webpQuality > 100 {
-		webpQuality = 80
-	}
+	// Resize if needed
+	bounds := src.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	finalImg := src
+	if width > 1200 && !skipResize {
+		newWidth := 1200
+		newHeight := (height * newWidth) / width
 
-	// Setup processing options
-	opts := bimg.Options{
-		Type:    bimg.WEBP,
-		Quality: webpQuality,
-	}
+		// Use pooled pix buffer for resizing
+		neededSize := newWidth * newHeight * 4
+		var pix []byte
+		var pixPtr *[]byte
+		if neededSize <= 1200*1600*4 {
+			pixPtr = rgbaPixPool.Get().(*[]byte)
+			pix = *pixPtr
+			defer rgbaPixPool.Put(pixPtr)
+		} else {
+			pix = make([]byte, neededSize)
+		}
 
-	// Handle resizing
-	if size.Width > 1200 && !skipResize {
-		opts.Width = 1200
-		opts.Height = (size.Height * 1200) / size.Width
-	} else if skipResize && !isNil(m) {
-		m.RecordImageResizeSkipped()
+		dst := &image.RGBA{
+			Pix:    pix[:neededSize],
+			Stride: newWidth * 4,
+			Rect:   image.Rect(0, 0, newWidth, newHeight),
+		}
+
+		draw.BiLinear.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
+		finalImg = dst
+	} else if skipResize {
+		if _, isYCbCr := finalImg.(*image.YCbCr); isYCbCr {
+			b := finalImg.Bounds()
+			rgba := image.NewRGBA(b)
+			draw.Draw(rgba, b, finalImg, b.Min, draw.Src)
+			finalImg = rgba
+		}
+		if !isNil(m) {
+			m.RecordImageResizeSkipped()
+		}
 	}
 
 	if err := sink.MkdirAll(filepath.Dir(dstPath)); err != nil {
 		return fmt.Errorf("failed to create image directory: %w", err)
 	}
 
-	// Process the image (C-level execution of decode, resize, encode)
-	encodedData, err := img.Process(opts)
-	if err != nil {
-		return fmt.Errorf("failed to process image with libvips: %w", err)
+	if webpQuality < 1 || webpQuality > 100 {
+		webpQuality = 80
 	}
+
+	// Encode to WebP using pooled buffer
+	buf := webpBufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer webpBufferPool.Put(buf)
+
+	err = webp.Encode(buf, finalImg, &webp.Options{Lossless: false, Quality: float32(webpQuality)})
+	if err != nil {
+		return fmt.Errorf("failed to encode webp %s: %w", dstPath, err)
+	}
+	encodedData := buf.Bytes()
 
 	// Clone exact-sized slice for the LRU cache
 	cacheData := make([]byte, len(encodedData))

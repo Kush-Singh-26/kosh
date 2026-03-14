@@ -57,7 +57,7 @@ func gradient(text string, colors []int) string {
 		pos := float64(i) / float64(n-1)
 		idx := int(pos * float64(len(colors)-1))
 		color := colors[idx]
-		b.WriteString(fmt.Sprintf("\x1b[38;5;%dm%s", color, string(r)))
+		fmt.Fprintf(&b, "\x1b[38;5;%dm%c", color, r)
 	}
 	b.WriteString("\x1b[0m")
 	return b.String()
@@ -137,11 +137,11 @@ func printStartupBanner(mode string, cfg *config.Config) {
 			// Using a heavy block character for the left anchor
 			colorIdx := int((float64(i) / float64(len(logo)-1)) * float64(len(koshGradient)-1))
 			dec := fmt.Sprintf("\x1b[38;5;%dm█\x1b[0m", koshGradient[colorIdx])
-			
+
 			if !supportsANSI() {
 				dec = "█"
 			}
-			
+
 			fmt.Printf("  %s  %s\n", dec, gradient(line, koshGradient))
 		}
 	} else {
@@ -149,7 +149,7 @@ func printStartupBanner(mode string, cfg *config.Config) {
 	}
 
 	fmt.Println()
-	
+
 	// Tagline with system footprint
 	modeStyler := modeColor(mode)
 	sysBadge := dim(fmt.Sprintf("(%s/%s)", runtime.GOOS, runtime.GOARCH))
@@ -159,7 +159,7 @@ func printStartupBanner(mode string, cfg *config.Config) {
 	// Empty config state
 	if cfg == nil {
 		fmt.Println("     " + dim("│ ") + dim(`Use "kosh [command] --help" for command details.`))
-		fmt.Println("     " + dim("╰" + strings.Repeat("─", 30)))
+		fmt.Println("     " + dim("╰"+strings.Repeat("─", 30)))
 		fmt.Println()
 		return
 	}
@@ -178,8 +178,8 @@ func printStartupBanner(mode string, cfg *config.Config) {
 			fmt.Println(infoRow("Output", shortenPath(cfg.OutputDir)))
 		}
 	}
-	
+
 	// Cap off the blockquote UI beautifully
-	fmt.Println("     " + dim("╰" + strings.Repeat("─", 30)))
+	fmt.Println("     " + dim("╰"+strings.Repeat("─", 30)))
 	fmt.Println()
 }

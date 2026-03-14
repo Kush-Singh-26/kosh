@@ -15,7 +15,7 @@ func TestRunGC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open cache: %v", err)
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 
 	// 1. Store a post with an HTML artifact
 	postID := "test-post"

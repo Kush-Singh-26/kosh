@@ -4,13 +4,16 @@ import (
 	"context"
 
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
 )
 
 type MockAssetService struct {
-	Sink    utils.ArtifactSink
-	Metrics *metrics.BuildMetrics
+	Sink              utils.ArtifactSink
+	Metrics           *metrics.BuildMetrics
+	assetsReady       chan struct{}
+	contentAssetsChan <-chan []models.ScannedAsset
 }
 
 func (m *MockAssetService) SetSink(sink utils.ArtifactSink) {
@@ -23,9 +26,22 @@ func (m *MockAssetService) SetMetrics(m2 *metrics.BuildMetrics) {
 	m.Metrics = m2
 }
 
-func (m *MockAssetService) SetAssetsReadySignal(ch chan struct{}) {}
+func (m *MockAssetService) SetAssetsReadySignal(ch chan struct{}) {
+	m.assetsReady = ch
+}
+
+func (m *MockAssetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
+	m.contentAssetsChan = ch
+}
 
 func (m *MockAssetService) Build(ctx context.Context) error {
+	if m.contentAssetsChan != nil {
+		<-m.contentAssetsChan
+	}
+	if m.assetsReady != nil {
+		close(m.assetsReady)
+		m.assetsReady = nil
+	}
 	return nil
 }
 

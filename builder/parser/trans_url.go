@@ -20,7 +20,9 @@ func extractVersionFromPath(path string) string {
 			continue // Skip "content"
 		}
 		if strings.HasPrefix(part, "v") && len(part) > 2 {
-			return part
+			if part[1] >= '0' && part[1] <= '9' {
+				return part
+			}
 		}
 	}
 	return ""
@@ -38,7 +40,9 @@ func isCrossVersionLink(href string) bool {
 		parts := strings.SplitSeq(trimmed, "/")
 		for part := range parts {
 			if strings.HasPrefix(part, "v") && len(part) > 2 {
-				return true
+				if part[1] >= '0' && part[1] <= '9' {
+					return true
+				}
 			}
 		}
 	}

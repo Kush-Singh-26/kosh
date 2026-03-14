@@ -3,6 +3,7 @@
 package search
 
 import (
+	"html"
 	"strings"
 	"unicode"
 )
@@ -24,4 +25,8 @@ func ToTitle(s string) string {
 		return string(unicode.ToUpper(r[0]))
 	}
 	return string(unicode.ToUpper(r[0])) + strings.ToLower(string(r[1:]))
+}
+
+func HTMLEscape(s string) string {
+	return html.EscapeString(s)
 }

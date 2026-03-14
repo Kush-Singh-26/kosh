@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -29,7 +30,12 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 	var walkMu sync.Mutex
 
 	// Calculate input hash
-	inputHash := xxh3.New()
+	type fileMeta struct {
+		path  string
+		size  int64
+		mtime int64
+	}
+	var metas []fileMeta
 
 	// Find entry points
 	err := ParallelWalk(context.Background(), srcFs, filepath.FromSlash(srcDir), 0, func(path string, info fs.FileInfo, err error) error {
@@ -57,12 +63,29 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			cssEntryPoints = append(cssEntryPoints, path)
 		}
 
-		// Add to hash (path + mtime + size)
-		if _, err := fmt.Fprintf(inputHash, "%s:%d:%d;", path, info.Size(), info.ModTime().UnixNano()); err != nil {
-			return fmt.Errorf("failed to write to input hash: %w", err)
-		}
+		// Add to metadata slice instead of hash directly
+		metas = append(metas, fileMeta{
+			path:  path,
+			size:  info.Size(),
+			mtime: info.ModTime().UnixNano(),
+		})
 		return nil
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan for assets: %w", err)
+	}
+
+	// Sort metadata for deterministic hashing
+	slices.SortFunc(metas, func(a, b fileMeta) int {
+		return strings.Compare(a.path, b.path)
+	})
+
+	inputHash := xxh3.New()
+	for _, m := range metas {
+		if _, err := fmt.Fprintf(inputHash, "%s:%d:%d;", m.path, m.size, m.mtime); err != nil {
+			return nil, fmt.Errorf("failed to write to input hash: %w", err)
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan for assets: %w", err)
 	}

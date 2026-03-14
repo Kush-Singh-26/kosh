@@ -24,7 +24,8 @@ func HashDirsFast(dirs []string) (string, error) {
 			if err != nil {
 				return err
 			}
-			if _, err := fmt.Fprintf(h, "%s:%d:%d;", path, info.Size(), info.ModTime().UnixNano()); err != nil {
+			rel, _ := filepath.Rel(dir, path)
+			if _, err := fmt.Fprintf(h, "%s:%d:%d;", rel, info.Size(), info.ModTime().UnixNano()); err != nil {
 				return fmt.Errorf("failed to write to hash: %w", err)
 			}
 			return nil

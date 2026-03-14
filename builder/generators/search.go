@@ -18,6 +18,45 @@ import (
 
 func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
 	totalDocs := len(indexedPosts)
+
+	// Handle empty input - write empty index
+	if indexedPosts == nil || totalDocs == 0 {
+		if err := sink.MkdirAll(outputDir); err != nil {
+			return "", err
+		}
+		outputPath := filepath.ToSlash(filepath.Join(outputDir, "search.bin"))
+
+		// Create empty search index with valid schema
+		emptyIndex := models.SearchIndex{
+			SchemaVersion: models.CurrentSchemaVersion,
+			Posts:         make(map[string]models.PostRecord),
+			Inverted:      make(map[string]map[string][]int),
+			DocLens:       make(map[string]int64),
+			StemMap:       make(map[string][]string),
+			TotalDocs:     0,
+			Offsets:       make(map[string]map[string][]int),
+			AvgDocLen:     0,
+		}
+
+		err := sink.WriteStream(outputPath, func(w io.Writer) error {
+			bw := brotli.NewWriterLevel(w, 4)
+			mw := msgp.NewWriter(bw)
+			if err := emptyIndex.EncodeMsg(mw); err != nil {
+				_ = bw.Close()
+				return err
+			}
+			if err := mw.Flush(); err != nil {
+				_ = bw.Close()
+				return err
+			}
+			return bw.Close()
+		})
+		if err != nil {
+			return "", err
+		}
+		return outputPath, nil
+	}
+
 	numWorkers := min(runtime.NumCPU(),
 		// Cap concurrency to avoid too many small maps
 		8)
@@ -33,7 +72,7 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 
 	index := models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         make([]models.PostRecord, totalDocs),
+		Posts:         make(map[string]models.PostRecord, totalDocs),
 		Inverted:      make(map[string]map[string][]int, globalCap),
 		DocLens:       make(map[string]int64, totalDocs),
 		StemMap:       make(map[string][]string, globalCap/2),
@@ -41,16 +80,11 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 		Offsets:       make(map[string]map[string][]int, globalCap),
 	}
 
-	// Pre-compute document ID strings to avoid repeated strconv.Itoa in workers
-	idStrings := make([]string, totalDocs)
-	for i := range totalDocs {
-		idStrings[i] = strconv.Itoa(i)
-	}
-
 	// 1. Parallel collection of posts, doc lengths, and doc-word positions
 	var totalLen int64
 
 	type partialResult struct {
+		posts    map[string]models.PostRecord
 		inverted map[string]map[string][]int
 		offsets  map[string]map[string][]int
 		docLens  map[string]int64
@@ -73,8 +107,9 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 			for j := start; j < end; j++ {
 				chunkUniqueWords += len(indexedPosts[j].PositionalIndex)
 			}
-			workerCap := int(float64(chunkUniqueWords) * 0.7)
+			workerCap := max(int(float64(chunkUniqueWords)*0.7), 64)
 
+			localPosts := make(map[string]models.PostRecord, end-start)
 			localInverted := make(map[string]map[string][]int, workerCap)
 			localOffsets := make(map[string]map[string][]int, workerCap)
 			localDocLens := make(map[string]int64, end-start)
@@ -83,33 +118,35 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 
 			for j := start; j < end; j++ {
 				ip := indexedPosts[j]
-				idStr := idStrings[j]
-				index.Posts[j] = ip.Record
+				id := ip.Record.ID
+				idStr := strconv.FormatUint(id, 10)
+				localPosts[idStr] = ip.Record
 				localDocLens[idStr] = int64(ip.DocLen)
 				localTotalLen += int64(ip.DocLen)
 
 				for word, positions := range ip.PositionalIndex {
 					if _, ok := localInverted[word]; !ok {
-						localInverted[word] = make(map[string][]int)
+						localInverted[word] = make(map[string][]int, 4)
 					}
 					localInverted[word][idStr] = positions
 				}
 
 				for word, off := range ip.ByteOffsets {
 					if _, ok := localOffsets[word]; !ok {
-						localOffsets[word] = make(map[string][]int)
+						localOffsets[word] = make(map[string][]int, 4)
 					}
 					localOffsets[word][idStr] = off
 				}
 
 				for orig, stem := range ip.StemMap {
 					if _, ok := localStemMap[stem]; !ok {
-						localStemMap[stem] = make(map[string]bool)
+						localStemMap[stem] = make(map[string]bool, 4)
 					}
 					localStemMap[stem][orig] = true
 				}
 			}
 			results[workerID] = partialResult{
+				posts:    localPosts,
 				inverted: localInverted,
 				offsets:  localOffsets,
 				docLens:  localDocLens,
@@ -123,6 +160,7 @@ func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts
 	// 2. Merge results
 	for _, r := range results {
 		totalLen += r.totalLen
+		maps.Copy(index.Posts, r.posts)
 		maps.Copy(index.DocLens, r.docLens)
 		for word, docs := range r.inverted {
 			if _, ok := index.Inverted[word]; !ok {
