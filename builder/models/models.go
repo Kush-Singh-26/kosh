@@ -55,16 +55,13 @@ type ScannedAsset struct {
 	Info fs.FileInfo
 }
 
-// --- TOC Structure ---
 // TOCEntry represents a table of contents entry
-// This unified type is used by both models and cache packages to avoid conversions
 type TOCEntry struct {
 	ID    string `json:"id"`
 	Text  string `json:"text"`
 	Level int    `json:"level"`
 }
 
-// TreeNode represents a node in the site hierarchy (Sidebar)
 type TreeNode struct {
 	Title     string      `json:"title"`
 	Link      string      `json:"link"`
@@ -74,20 +71,17 @@ type TreeNode struct {
 	IsSection bool        `json:"is_section"` // True if node has children
 }
 
-// Breadcrumb represents a single breadcrumb item
 type Breadcrumb struct {
 	Title     string
 	Link      string
 	IsCurrent bool
 }
 
-// NavPage represents a navigation link (prev/next)
 type NavPage struct {
 	Title string
 	Link  string
 }
 
-// VersionInfo represents a version for the version selector
 type VersionInfo struct {
 	Name      string
 	Path      string // Raw version path (e.g., "v7.0")
@@ -110,14 +104,12 @@ type PostMetadata struct {
 	Version     string // "v2.0", "v1.0", "" for latest
 }
 
-// TagData represents a tag and its frequency.
 type TagData struct {
 	Name  string
 	Link  string
 	Count int
 }
 
-// Paginator holds state for pagination
 type Paginator struct {
 	CurrentPage int
 	TotalPages  int

@@ -30,8 +30,6 @@ func (b *Builder) CleanupOrphans() {
 		absWritten[filepath.ToSlash(abs)] = true
 	}
 
-	b.logger.Debug("Starting orphan cleanup", "outputDir", outputDir, "trackedFiles", len(absWritten))
-
 	err := filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
@@ -46,7 +44,7 @@ func (b *Builder) CleanupOrphans() {
 
 		// Skip specific files that are managed elsewhere or should persist
 		base := info.Name()
-		if base == ".nojekyll" || base == "search.wasm" || base == "search.wasm.br" || base == "search.bin" {
+		if base == ".nojekyll" || base == "search.wasm" || base == "search.wasm.br" || base == "search.bin" || base == "manifest.json" || base == "icon-192.png" || base == "icon-512.png" || base == "sw.js" {
 			return nil
 		}
 		if strings.HasPrefix(base, ".") {
@@ -57,7 +55,6 @@ func (b *Builder) CleanupOrphans() {
 		absPath = filepath.ToSlash(absPath)
 
 		if !absWritten[absPath] {
-			b.logger.Debug("🗑️ Removing orphaned output file", "path", path)
 			_ = os.Remove(path)
 		}
 		return nil

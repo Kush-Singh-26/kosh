@@ -201,7 +201,7 @@ func (s *assetServiceImpl) copyFileOrLink(src, dst string) error {
 }
 
 func (s *assetServiceImpl) buildEsbuildAssets(force bool) (map[string]string, error) {
-	destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
+	destStaticDir, _ := filepath.Abs(filepath.Join(s.cfg.OutputDir, "static"))
 	assets, assetErr := utils.BuildAssetsEsbuild(s.sourceFs, s.sink, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
 	if assetErr == nil {
 		s.renderer.SetAssets(assets)

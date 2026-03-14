@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/run"
 	"github.com/spf13/afero"
 )
 
@@ -43,7 +44,7 @@ func RunFs(fs afero.Fs, cleanCache, cleanAllVersions bool) {
 		cleanDirAsync(fs, cacheDir)
 	}
 
-	fmt.Printf("Clean initiated in %v.\n", time.Since(start))
+	run.DevLogInfo(fmt.Sprintf("Clean initiated in %v.", time.Since(start)))
 }
 
 // WaitForCleanup blocks until all background cleanup goroutines complete.
@@ -63,16 +64,20 @@ func cleanDirAsync(fs afero.Fs, path string) {
 		return
 	}
 
+	removePathAsync(fs, path)
+}
+
+func removePathAsync(fs afero.Fs, path string) {
 	dir := filepath.Dir(path)
 	base := filepath.Base(path)
 	tempName := fmt.Sprintf("%s_deleting_%d", base, time.Now().UnixNano())
 	tempPath := filepath.Join(dir, tempName)
 
-	fmt.Printf("Moving '%s' to trash...\n", path)
+	fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  Moving '%s' to trash...\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), path)
 	if err := fs.Rename(path, tempPath); err != nil {
-		fmt.Printf("Rename failed (%v), deleting synchronously...\n", err)
+		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[91m✗\033[0m  Rename failed (%v), deleting synchronously...\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), err)
 		if err := fs.RemoveAll(path); err != nil {
-			fmt.Printf("Failed to remove '%s': %v\n", path, err)
+			fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[91m✗\033[0m  Failed to remove '%s': %v\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), path, err)
 		}
 		return
 	}
@@ -91,7 +96,7 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config) {
 	}
 
 	if cfg == nil {
-		fmt.Printf("Failed to load config, cleaning entire %s directory\n", outputDir)
+		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  Failed to load config, cleaning entire %s directory\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), outputDir)
 		cleanDirAsync(fs, outputDir)
 		return
 	}
@@ -104,14 +109,14 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config) {
 	}
 
 	if len(preservePaths) == 0 {
-		fmt.Printf("No versions configured, cleaning entire %s directory\n", outputDir)
+		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  No versions configured, cleaning entire %s directory\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), outputDir)
 		cleanDirAsync(fs, outputDir)
 		return
 	}
 
 	files, err := afero.ReadDir(fs, outputDir)
 	if err != nil {
-		fmt.Printf("Failed to read output directory: %v\n", err)
+		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[91m✗\033[0m  Failed to read output directory: %v\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), err)
 		return
 	}
 
@@ -124,32 +129,14 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config) {
 	}
 
 	if len(toDelete) == 0 {
-		fmt.Println("No files to clean (only version folders present)")
+		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  No files to clean (only version folders present)\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second())
 		return
 	}
 
-	fmt.Printf("Cleaning root files (%d items), preserving %d version folders...\n", len(toDelete), len(preservePaths))
+	fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  Cleaning root files (%d items), preserving %d version folders...\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), len(toDelete), len(preservePaths))
 
 	for _, name := range toDelete {
 		itemPath := filepath.Join(outputDir, name)
-
-		if testingMode {
-			_ = fs.RemoveAll(itemPath)
-			continue
-		}
-
-		tempName := fmt.Sprintf("%s_deleting_%d", name, time.Now().UnixNano())
-		tempPath := filepath.Join(outputDir, tempName)
-
-		if err := fs.Rename(itemPath, tempPath); err != nil {
-			_ = fs.RemoveAll(itemPath)
-			continue
-		}
-
-		cleanupWg.Add(1)
-		go func(tp string) {
-			defer cleanupWg.Done()
-			_ = fs.RemoveAll(tp)
-		}(tempPath)
+		removePathAsync(fs, itemPath)
 	}
 }

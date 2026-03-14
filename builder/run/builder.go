@@ -252,7 +252,7 @@ func (b *Builder) SaveCaches() {
 		if manager, ok := b.cacheService.(interface{ Save() error }); ok {
 			_ = manager.Save()
 		}
-		b.logger.Info("Saved caches", "path", b.cfg.CacheDir)
+		DevLogSuccess("Saved caches")
 	}
 }
 

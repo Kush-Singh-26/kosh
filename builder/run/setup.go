@@ -14,13 +14,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-// InitLogger creates a new structured logger
-func InitLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-}
-
 // VerifyTheme checks if the theme directories exist
 func VerifyTheme(cfg *config.Config, logger *slog.Logger) {
 	VerifyThemeFs(afero.NewOsFs(), cfg, logger)

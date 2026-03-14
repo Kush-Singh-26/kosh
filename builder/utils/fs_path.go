@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -17,6 +18,9 @@ func NormalizePath(path string) string {
 
 	// Fast path for already clean paths with forward slashes
 	if !strings.Contains(path, "\\") && !strings.Contains(path, "//") && !strings.Contains(path, "./") {
+		if hasNonASCII(path) {
+			path = norm.NFC.String(path)
+		}
 		// Just check for drive letter on Windows
 		if runtime.GOOS == "windows" && len(path) >= 2 && path[1] == ':' && path[0] >= 'a' && path[0] <= 'z' {
 			return strings.ToUpper(path[:1]) + path[1:]
@@ -42,6 +46,40 @@ func NormalizePath(path string) string {
 	return path
 }
 
+func AbsNormalizePath(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return NormalizePath(abs), nil
+}
+
+func NormalizeURLPath(p string) string {
+	if p == "" {
+		return "."
+	}
+	p = strings.ReplaceAll(p, "\\", "/")
+	return path.Clean(p)
+}
+
+func NormalizeWatchPath(path, wd string) string {
+	nativePath := filepath.Clean(path)
+	if wd != "" {
+		nativeWd := filepath.Clean(wd)
+		if !filepath.IsAbs(nativeWd) {
+			if absWd, err := filepath.Abs(nativeWd); err == nil {
+				nativeWd = absWd
+			}
+		}
+		if filepath.IsAbs(nativePath) {
+			if rel, err := filepath.Rel(nativeWd, nativePath); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+				return NormalizePath(rel)
+			}
+		}
+	}
+	return NormalizePath(nativePath)
+}
+
 func SafeRel(base, target string) (string, error) {
 	rel, err := filepath.Rel(base, target)
 	if err != nil {
@@ -52,10 +90,7 @@ func SafeRel(base, target string) (string, error) {
 		return "", fmt.Errorf("path traversal detected: result escapes base directory")
 	}
 
-	if strings.Contains(rel, "\\") {
-		return filepath.ToSlash(rel), nil
-	}
-	return rel, nil
+	return NormalizePath(rel), nil
 }
 
 func WriteFileVFS(fs afero.Fs, path string, data []byte) error {
@@ -71,7 +106,7 @@ func GetRelativePrefix(htmlPath string) string {
 	}
 
 	// Clean path and ensure forward slashes
-	path := filepath.ToSlash(filepath.Clean(htmlPath))
+	path := NormalizePath(htmlPath)
 
 	// Ignore leading slash for depth calculation
 	if len(path) > 0 && path[0] == '/' {
@@ -135,4 +170,17 @@ func GetRealPath(fs afero.Fs, path string) (string, bool) {
 	}
 
 	return "", false
+}
+
+func hasNonASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return true
+		}
+	}
+	return false
+}
+
+func IsPathInOrSame(path, targetDir string) bool {
+	return strings.HasPrefix(path, targetDir+"/") || path == targetDir
 }

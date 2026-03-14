@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 )
 
 func setupRendererTest(t *testing.T) *Renderer {
 	t.Helper()
 
-	sink := testutil.NewMemSink()
+	sink := mocks.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return &Renderer{

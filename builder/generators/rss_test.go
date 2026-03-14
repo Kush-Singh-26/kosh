@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 )
 
 func TestGenerateRSS(t *testing.T) {
-	sink := testutil.NewMemSink()
+	sink := mocks.NewMemSink()
 	baseURL := "https://example.com"
 	posts := []models.PostMetadata{
 		{
@@ -53,7 +53,7 @@ func TestGenerateRSS(t *testing.T) {
 }
 
 func TestGenerateRSS_EmptyPosts(t *testing.T) {
-	sink := testutil.NewMemSink()
+	sink := mocks.NewMemSink()
 	_, err := GenerateRSS(sink, "https://example.com", []models.PostMetadata{}, "Empty Blog", "No posts", "rss.xml")
 	if err != nil {
 		t.Fatalf("GenerateRSS failed with empty posts: %v", err)
@@ -70,7 +70,7 @@ func TestGenerateRSS_EmptyPosts(t *testing.T) {
 }
 
 func TestGenerateRSS_SpecialCharacters(t *testing.T) {
-	sink := testutil.NewMemSink()
+	sink := mocks.NewMemSink()
 	posts := []models.PostMetadata{
 		{
 			Title:       "Post & <More>",

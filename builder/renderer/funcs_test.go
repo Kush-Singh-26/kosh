@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
@@ -21,7 +21,7 @@ func setupTestRenderer(t *testing.T) *Renderer {
 	// Ensure minifier is initialized
 	utils.InitMinifier()
 
-	sink := testutil.NewMemSink()
+	sink := mocks.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	// Create minimal templates for testing
@@ -696,7 +696,7 @@ func TestRenderer_PreparePageData_ExternalURLs(t *testing.T) {
 func TestRenderer_SetSink(t *testing.T) {
 	r := setupTestRenderer(t)
 
-	newSink := testutil.NewMemSink()
+	newSink := mocks.NewMemSink()
 	r.SetSink(newSink)
 
 	if r.Sink != newSink {

@@ -307,7 +307,12 @@ func (r *Renderer) RenderAllMath(ctx context.Context, expressions []MathExpressi
 			if err != nil {
 				resChan <- mathRes{hash: e.Hash, err: err}
 			} else {
-				resChan <- mathRes{hash: e.Hash, html: val.(string)}
+				html, ok := val.(string)
+				if !ok {
+					resChan <- mathRes{hash: e.Hash, err: fmt.Errorf("math render returned non-string result")}
+				} else {
+					resChan <- mathRes{hash: e.Hash, html: html}
+				}
 			}
 		}(expr)
 	}

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -39,8 +37,9 @@ func runClean(cmd *cobra.Command, args []string) {
 	}
 	printStartupBanner(mode, config.Load([]string{}))
 	clean.Run(cleanCache, cleanAll)
-	fmt.Println("\nRebuilding site...")
+
+	run.DevLogInfo("Rebuilding site...")
 	if err := run.Run([]string{}); err != nil {
-		fmt.Printf("rebuild failed: %v\n", err)
+		run.DevLogError("Rebuild failed: " + err.Error())
 	}
 }

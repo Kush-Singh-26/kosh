@@ -93,21 +93,21 @@ func runBuild(cmd *cobra.Command, args []string) {
 	if buildWatch {
 		b := run.NewBuilder(filteredArgs)
 		if err := b.Build(ctx); err != nil {
-			fmt.Printf("initial build failed: %v\n", err)
+			run.DevLogError("Initial build failed: " + err.Error())
 			os.Exit(1)
 		}
 		maybePrintPhaseTimings()
 		maybeWritePhaseTimings()
 
 		w, err := watch.New([]string{"content", b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
-			fmt.Printf("\nChange detected: %s | Rebuilding...\n", event.Name)
+			run.DevLogRebuild("Change detected: " + event.Name)
 			utils.ResetPhaseTracking()
 			b.BuildChanged(ctx, event.Name, event.Op)
 			maybePrintPhaseTimings()
 			maybeWritePhaseTimings()
 		})
 		if err != nil {
-			fmt.Printf("watcher failed: %v\n", err)
+			run.DevLogError("Watcher failed: " + err.Error())
 			os.Exit(1)
 		}
 		w.Start()

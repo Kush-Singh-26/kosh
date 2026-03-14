@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/andybalholm/brotli"
+
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func validatePath(baseDir, userPath string) (string, error) {
@@ -18,21 +20,25 @@ func validatePath(baseDir, userPath string) (string, error) {
 		return "", fmt.Errorf("invalid path encoding: %w", err)
 	}
 
-	// Reject actual absolute paths (e.g. C:\Windows or /etc/passwd)
-	if filepath.IsAbs(decodedPath) {
+	if strings.HasPrefix(decodedPath, "\\\\") {
+		return "", fmt.Errorf("absolute path attempt detected")
+	}
+
+	// Reject volume-based absolute paths (e.g. C:\Windows)
+	if vol := filepath.VolumeName(decodedPath); vol != "" {
 		return "", fmt.Errorf("absolute path attempt detected")
 	}
 
 	// Clean the path first
-	cleanUserPath := filepath.Clean(decodedPath)
+	cleanUserPath := utils.NormalizeURLPath(decodedPath)
 
-	// Reject if it still tries to escape via .. (filepath.Clean preserves leading .. if it can't resolve them)
+	// Reject if it still tries to escape via .. (path.Clean preserves leading .. if it can't resolve them)
 	if strings.HasPrefix(cleanUserPath, "..") {
 		return "", fmt.Errorf("path traversal attempt detected")
 	}
 
 	// Trim leading slashes for joining
-	trimmedPath := strings.TrimLeft(cleanUserPath, "/\\")
+	trimmedPath := strings.TrimLeft(cleanUserPath, "/")
 
 	absBase, err := filepath.Abs(baseDir)
 	if err != nil {
@@ -40,7 +46,7 @@ func validatePath(baseDir, userPath string) (string, error) {
 	}
 
 	// Join and get absolute path
-	absUserPath, err := filepath.Abs(filepath.Join(absBase, trimmedPath))
+	absUserPath, err := filepath.Abs(filepath.Join(absBase, filepath.FromSlash(trimmedPath)))
 	if err != nil {
 		return "", fmt.Errorf("invalid path: %w", err)
 	}
@@ -77,7 +83,14 @@ func normalizeRequestPath(rawPath, baseURL string) string {
 	if !strings.HasPrefix(rawPath, "/") {
 		rawPath = "/" + rawPath
 	}
-	return filepath.ToSlash(filepath.Clean(rawPath))
+	rawPath = utils.NormalizeURLPath(rawPath)
+	if rawPath == "." {
+		rawPath = "/"
+	}
+	if !strings.HasPrefix(rawPath, "/") {
+		rawPath = "/" + rawPath
+	}
+	return rawPath
 }
 
 type compressionResponseWriter struct {
@@ -97,7 +110,9 @@ func (w *compressionResponseWriter) WriteHeader(code int) {
 func compressionHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Do not compress if the client doesn't support it (Brotli), or if it's a range request
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "br") || r.Header.Get("Range") != "" {
+		// Also skip compression for SSE endpoints
+		path := r.URL.Path
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "br") || r.Header.Get("Range") != "" || path == "/events" {
 			next(w, r)
 			return
 		}

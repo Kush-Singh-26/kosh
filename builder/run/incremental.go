@@ -22,9 +22,9 @@ import (
 
 func indexedPostStableKey(ip models.IndexedPost) string {
 	if ip.SourcePath != "" {
-		return filepath.ToSlash(filepath.Clean(ip.SourcePath))
+		return utils.NormalizePath(ip.SourcePath)
 	}
-	return filepath.ToSlash(filepath.Clean(ip.Record.Link))
+	return utils.NormalizePath(ip.Record.Link)
 }
 
 func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
@@ -46,44 +46,39 @@ func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
 }
 
 func isSearchSourcePath(path string) bool {
-	path = filepath.ToSlash(filepath.Clean(path))
+	path = utils.NormalizePath(path)
 	return strings.HasPrefix(path, "cmd/search/") || strings.HasPrefix(path, "builder/search/") || strings.HasPrefix(path, "builder/models/")
 }
 
 func (b *Builder) normalizeWatchPath(path string) string {
-	path = filepath.Clean(path)
-	if filepath.IsAbs(path) {
-		if wd, err := os.Getwd(); err == nil {
-			if rel, err := filepath.Rel(wd, path); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
-				path = rel
-			}
-		}
+	wd, err := os.Getwd()
+	if err != nil {
+		wd = ""
 	}
-	return filepath.ToSlash(path)
+	return utils.NormalizeWatchPath(path, wd)
 }
 
 func normalizeAbsoluteWatchPath(path string) string {
-	path = filepath.Clean(path)
-	if !filepath.IsAbs(path) {
-		if abs, err := filepath.Abs(path); err == nil {
-			path = abs
-		}
+	if abs, err := utils.AbsNormalizePath(path); err == nil {
+		return abs
 	}
-	return filepath.ToSlash(filepath.Clean(path))
+	return utils.NormalizePath(path)
 }
 
 func (b *Builder) isContentPath(path string) bool {
 	path = normalizeAbsoluteWatchPath(path)
 	contentDir := normalizeAbsoluteWatchPath(b.cfg.ContentDir)
-	return strings.HasPrefix(path, contentDir+"/") || path == contentDir
+	return utils.IsPathInOrSame(path, contentDir)
 }
 
 // invalidateForTemplate determines which posts to invalidate based on changed template
 func (b *Builder) invalidateForTemplate(templatePath string) []string {
-	tp := filepath.ToSlash(templatePath)
-	if strings.HasPrefix(tp, filepath.ToSlash(b.cfg.TemplateDir)) {
-		relTmpl, _ := utils.SafeRel(b.cfg.TemplateDir, tp)
-		relTmpl = filepath.ToSlash(relTmpl)
+	tp := utils.NormalizePath(templatePath)
+	templateDir := utils.NormalizePath(b.cfg.TemplateDir)
+	staticDir := utils.NormalizePath(b.cfg.StaticDir)
+	if strings.HasPrefix(tp, templateDir) {
+		relTmpl, _ := utils.SafeRel(b.cfg.TemplateDir, templatePath)
+		relTmpl = utils.NormalizePath(relTmpl)
 
 		if relTmpl == "layout.html" {
 			return nil // Layout changes affect everything
@@ -104,7 +99,7 @@ func (b *Builder) invalidateForTemplate(templatePath string) []string {
 		}
 		return []string{}
 	}
-	if strings.HasPrefix(tp, filepath.ToSlash(b.cfg.StaticDir)) {
+	if strings.HasPrefix(tp, staticDir) {
 		return nil
 	}
 
@@ -129,8 +124,8 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 	default:
 	}
 
-	b.logger.Info("⚡ Change detected", "path", changedPath, "op", op.String())
-	b.logger.Info("incremental path classification", "isContent", b.isContentPath(changedPath), "isAsset", b.isAssetPath(changedPath))
+	DevLogInfo("Change detected: " + filepath.Base(changedPath) + " " + op.String())
+
 	if isSearchSourcePath(changedPath) {
 		b.searchSourceDirty.Store(true)
 	}
@@ -176,7 +171,7 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 	// Handle CSS/JS changes - do full rebuild to update HTML with new asset hashes
 	ext := strings.ToLower(filepath.Ext(changedPath))
 	if (ext == ".css" || ext == ".js") && b.isAssetPath(changedPath) {
-		b.logger.Info("🎨 CSS/JS changed, running full rebuild...")
+		DevLogRebuild("CSS/JS changed, running full rebuild...")
 		b.cfg.BuildVersion = time.Now().UnixNano()
 		b.renderService.ReloadTemplates()
 		b.postService.SetAssetsGate(nil)
@@ -205,7 +200,7 @@ func (b *Builder) isAssetPath(path string) bool {
 	staticDir := normalizeAbsoluteWatchPath(b.cfg.StaticDir)
 	siteStaticDir := normalizeAbsoluteWatchPath("static")
 
-	return strings.HasPrefix(path, staticDir+"/") || path == staticDir || strings.HasPrefix(path, siteStaticDir+"/") || path == siteStaticDir
+	return utils.IsPathInOrSame(path, staticDir) || utils.IsPathInOrSame(path, siteStaticDir)
 }
 
 // buildSinglePost rebuilds only the changed post with smart change detection
@@ -234,8 +229,8 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		b.logger.Error("Failed to compute content-relative path", "path", path, "error", err)
 		return
 	}
-	relPath = filepath.ToSlash(relPath)
-	version, relPath := utils.GetVersionFromPath(filepath.ToSlash(filepath.Join("content", relPath)))
+	relPath = utils.NormalizePath(relPath)
+	version, relPath := utils.GetVersionFromPath(utils.NormalizePath(filepath.Join("content", relPath)))
 	b.logger.Debug("incremental content path resolved", "path", path, "relative", relPath, "version", version)
 	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 	cleanHtmlRelPath := htmlRelPath
@@ -259,22 +254,13 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		}
 	}
 
-	b.logger.Info("incremental rebuild classification",
-		"path", relPath,
-		"exists", exists,
-		"cachedFrontmatterHash", cachedFrontmatterHash,
-		"newFrontmatterHash", newFrontmatterHash,
-		"cachedBodyHash", cachedBodyHash,
-		"newBodyHash", newBodyHash,
-	)
-
 	// Check if frontmatter changed (requires full rebuild)
 	frontmatterChanged := exists && cachedFrontmatterHash != newFrontmatterHash
 	// Check if only body changed (single post rebuild sufficient)
 	bodyOnlyChanged := exists && cachedFrontmatterHash == newFrontmatterHash && cachedBodyHash != newBodyHash
 
 	if !exists {
-		b.logger.Info("🆕 New post detected, running full build...")
+		DevLogRebuild("New post detected, running full build...")
 		if err := b.build(ctx); err != nil {
 			b.logger.Error("Build failed", "error", err)
 			return
@@ -284,7 +270,7 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 	}
 
 	if frontmatterChanged {
-		b.logger.Info("🏷️  Frontmatter changed, running full build...")
+		DevLogRebuild("Frontmatter changed, running full build...")
 		if err := b.build(ctx); err != nil {
 			b.logger.Error("Build failed", "error", err)
 			return
@@ -294,7 +280,7 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 	}
 
 	if bodyOnlyChanged || cachedBodyHash == "" {
-		b.logger.Info("📝 Content-only change detected, rebuilding single post (Zero-Double-Parse)...")
+		DevLogRebuild("Content change detected, rebuilding single post...")
 
 		// Now we parse exactly once
 		parseRes, err := services.ParseMarkdown(
@@ -338,7 +324,7 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 			// Don't fail the build, just log the error
 		}
 	} else {
-		b.logger.Info("✅ No changes detected, skipping...", "path", relPath)
+		DevLogSkip("No changes detected, skipping...")
 	}
 }
 
@@ -361,7 +347,7 @@ func (b *Builder) deletePostFromCache(path string) {
 
 	// Also prune from in-memory search index
 	b.mu.Lock()
-	targetKey := filepath.ToSlash(filepath.Clean(relPath))
+	targetKey := utils.NormalizePath(relPath)
 	newIndexed := make([]models.IndexedPost, 0, len(b.indexedPosts))
 	for _, ip := range b.indexedPosts {
 		if indexedPostStableKey(ip) != targetKey {
@@ -371,7 +357,8 @@ func (b *Builder) deletePostFromCache(path string) {
 	b.indexedPosts = newIndexed
 	b.mu.Unlock()
 
-	b.logger.Info("🗑️ Removed deleted post from cache", "path", relPath)
+	b.logger.Info("Removed deleted post from cache", "path", relPath)
+	DevLogChange(relPath, "delete")
 }
 
 // updateIndexedPostCache updates a single entry in the in-memory cache
@@ -384,7 +371,7 @@ func (b *Builder) updateIndexedPostCache(relPath string, parseRes *services.Pars
 	}
 
 	found := false
-	targetKey := filepath.ToSlash(filepath.Clean(relPath))
+	targetKey := utils.NormalizePath(relPath)
 	for i, ip := range b.indexedPosts {
 		if indexedPostStableKey(ip) == targetKey {
 			// Update existing record
@@ -485,7 +472,7 @@ func (b *Builder) doRegenerateSearchIndex(ctx context.Context) error {
 			htmlRelPath := strings.ToLower(strings.Replace(postMeta.Path, ".md", ".html", 1))
 			indexedPosts = append(indexedPosts, models.IndexedPost{
 				Record: models.PostRecord{
-					ID:              uint64(xxh3.HashString(htmlRelPath)),
+					ID:              xxh3.HashString(htmlRelPath),
 					Title:           postMeta.Title,
 					NormalizedTitle: searchRec.NormalizedTitle,
 					Link:            htmlRelPath,
@@ -512,15 +499,11 @@ func (b *Builder) doRegenerateSearchIndex(ctx context.Context) error {
 	b.indexedPosts = indexedPosts
 
 	// Generate search index file
-	start := time.Now()
 	path, err := generators.GenerateSearchIndex(b.Sink, b.cfg.OutputDir, indexedPosts)
 	if err != nil {
 		return err
 	}
 	b.renderService.RegisterFile(path)
 
-	b.logger.Info("🔍 Search index regenerated",
-		"posts", len(indexedPosts),
-		"duration", time.Since(start).Round(time.Millisecond))
 	return nil
 }

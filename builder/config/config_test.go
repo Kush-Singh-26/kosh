@@ -45,7 +45,7 @@ func TestLoad_Defaults(t *testing.T) {
 		t.Errorf("PostsPerPage = %d, want 10", cfg.PostsPerPage)
 	}
 
-	// Default ImageWorkers is 8 (no VipsConcurrency logic since using native Go webp)
+	// Default ImageWorkers is 8
 	if cfg.ImageWorkers != 8 {
 		t.Errorf("ImageWorkers = %d, want 8", cfg.ImageWorkers)
 	}
@@ -299,7 +299,6 @@ func TestLoad_ImageWorkersValidation(t *testing.T) {
 
 			cfg := Load([]string{})
 
-			// With native Go webp (no libvips), VipsConcurrency no longer affects ImageWorkers
 			// The only validation is: 0 -> 8, > 32 -> 32
 			expected := tt.expected
 			if tt.workers <= 0 {

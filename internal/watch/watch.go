@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/run"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -97,7 +98,7 @@ func (w *Watcher) Start() {
 		}
 	}
 
-	slog.Info("👀 Watch mode active. Waiting for changes...")
+	run.DevLogInfo("Watch mode active. Waiting for changes...")
 
 	var pendingMu sync.Mutex
 	pendingEvents := make(map[string]fsnotify.Op)

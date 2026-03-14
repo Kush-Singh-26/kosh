@@ -173,6 +173,77 @@ Do not optimize one in a way that breaks the other.
 - clean/full builds care about staging correctness and reproducibility
 - dev builds care about incremental speed and live correctness
 
+## Building Kosh
+
+### From Source
+
+```bash
+# Standard build
+go build -o kosh ./cmd/kosh
+
+# Install to $GOPATH/bin
+go install ./cmd/kosh
+
+# Cross-compilation
+GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
+```
+
+### Prerequisites
+
+- Go 1.26 or later
+- Git
+
+### Running Tests
+
+```bash
+# All tests
+go test ./...
+
+# Targeted tests
+go test ./builder/parser ./builder/services ./builder/run ./builder/utils
+
+# With clean verification
+go test ./builder/utils ./builder/services ./builder/run ./internal/clean
+```
+
+### Linting
+
+```bash
+golangci-lint run ./...
+```
+
+## Search WASM Development
+
+### When to Rebuild
+
+Rebuild the search WASM when:
+- Search logic changes in `builder/search/`
+- Schema version changes in `builder/models/models.go`
+- Adding new search features
+
+### Rebuild Commands
+
+```bash
+# Using Go run (for development)
+GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
+
+# The output will be in the current directory
+```
+
+### How It Works
+
+1. **Embedded by default**: The WASM is pre-compiled and embedded in `internal/build/build.go`
+2. **Schema versioning**: `models.CurrentSchemaVersion` must match between build and runtime
+3. **Hash comparison**: Uses xxh3 to avoid unnecessary redeployments
+4. **Caching**: Source-built WASM is cached in `.kosh-cache/wasm/<hash>.br`
+
+### Important Files
+
+- `cmd/search/main.go` - WASM entry point
+- `builder/search/` - Search algorithm implementation
+- `builder/models/models.go` - Schema version definition
+- `internal/build/build.go` - WASM embedding and deployment
+
 ## Important Subsystems
 
 ### Asset Pipeline

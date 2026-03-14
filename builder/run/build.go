@@ -21,9 +21,12 @@ import (
 // refreshBuildSession creates a fresh Transaction and Sink for a new build pass.
 // This ensures orphan detection correctly identifies files that were not written in the current pass.
 func (b *Builder) refreshBuildSession() {
-	useStaging := !b.cfg.IsDev || b.isCleanBuild
-	b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, useStaging)
-	b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
+	// If we already have a sink/tx (e.g. injected in tests), don't overwrite it
+	if b.Sink == nil || !utils.TestingMode {
+		useStaging := !b.cfg.IsDev || b.isCleanBuild
+		b.Tx = utils.NewBuildTransaction(b.cfg.OutputDir, useStaging)
+		b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
+	}
 
 	// Inject fresh sink into all services
 	b.postService.SetSink(b.Sink)
@@ -136,7 +139,7 @@ func (b *Builder) build(ctx context.Context) error {
 
 	// Build complete
 	b.metrics.RecordEnd()
-	fmt.Printf("\n✨ Build complete!\n")
+	DevLogSuccess("Build complete")
 	b.metrics.Print()
 
 	return nil
@@ -253,8 +256,8 @@ func (b *Builder) setupSiteWideRendering(
 			sort.Strings(assetKeys)
 			hasher := xxh3.New()
 			for _, k := range assetKeys {
-				hasher.WriteString(k)
-				hasher.WriteString(assets[k])
+				_, _ = hasher.WriteString(k)
+				_, _ = hasher.WriteString(assets[k])
 			}
 			currentAssetHash = hasher.Sum64()
 		}
@@ -449,8 +452,9 @@ func (b *Builder) buildAssetOnly(ctx context.Context) error {
 	b.CleanupOrphans()
 
 	b.metrics.RecordEnd()
-	fmt.Printf("\n✨ Build complete!\n")
+	DevLogSuccess("Build complete")
 	b.metrics.Print()
+
 	return nil
 }
 

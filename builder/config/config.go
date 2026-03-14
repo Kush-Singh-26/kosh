@@ -3,7 +3,7 @@ package config
 
 import (
 	"flag"
-	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -27,7 +27,6 @@ type MenuEntry struct {
 	Class  string `yaml:"class,omitempty"`
 }
 
-// Version represents a documentation version
 type Version struct {
 	Name     string `yaml:"name"`
 	Path     string `yaml:"path"` // "" for latest, "v2.0", "v1.0", etc.
@@ -66,27 +65,26 @@ type SocialCardsConfig struct {
 }
 
 type Config struct {
-	Title           string            `yaml:"title"`
-	Description     string            `yaml:"description"`
-	BaseURL         string            `yaml:"baseURL"`
-	Language        string            `yaml:"language"`
-	Author          AuthorConfig      `yaml:"author"`
-	Menu            []MenuEntry       `yaml:"menu"`
-	PostsPerPage    int               `yaml:"postsPerPage"`
-	CompressImages  bool              `yaml:"compressImages"`
-	ImageWorkers    int               `yaml:"imageWorkers"`    // Number of parallel image workers (default: 8)
-	VipsConcurrency int               `yaml:"vipsConcurrency"` // libvips worker threads (0 = auto, default: 0)
-	WebPQuality     int               `yaml:"webpQuality"`     // WebP image compression quality (1-100, default: 80)
-	ParserWorkers   int               `yaml:"parserWorkers"`   // Number of parallel parser workers (0 = auto, default: 0)
-	Theme           string            `yaml:"theme"`
-	ThemeDir        string            `yaml:"themeDir"`
-	TemplateDir     string            `yaml:"templateDir"`
-	StaticDir       string            `yaml:"staticDir"`
-	Logo            string            `yaml:"logo"`     // Path to site logo/favicon
-	Versions        []Version         `yaml:"versions"` // Documentation versions
-	Features        FeaturesConfig    `yaml:"features"` // Enable/Disable features
-	ThemeMetadata   ThemeConfig       `yaml:"-"`        // Loaded from theme.yaml
-	SocialCards     SocialCardsConfig `yaml:"socialCards"`
+	Title          string            `yaml:"title"`
+	Description    string            `yaml:"description"`
+	BaseURL        string            `yaml:"baseURL"`
+	Language       string            `yaml:"language"`
+	Author         AuthorConfig      `yaml:"author"`
+	Menu           []MenuEntry       `yaml:"menu"`
+	PostsPerPage   int               `yaml:"postsPerPage"`
+	CompressImages bool              `yaml:"compressImages"`
+	ImageWorkers   int               `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
+	WebPQuality    int               `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
+	ParserWorkers  int               `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
+	Theme          string            `yaml:"theme"`
+	ThemeDir       string            `yaml:"themeDir"`
+	TemplateDir    string            `yaml:"templateDir"`
+	StaticDir      string            `yaml:"staticDir"`
+	Logo           string            `yaml:"logo"`     // Path to site logo/favicon
+	Versions       []Version         `yaml:"versions"` // Documentation versions
+	Features       FeaturesConfig    `yaml:"features"` // Enable/Disable features
+	ThemeMetadata  ThemeConfig       `yaml:"-"`        // Loaded from theme.yaml
+	SocialCards    SocialCardsConfig `yaml:"socialCards"`
 
 	// Configurable directory paths
 	ContentDir string `yaml:"contentDir"` // Content source directory (default: "content")
@@ -145,13 +143,13 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	// 2. Load from YAML file if exists
 	if data, err := afero.ReadFile(fs, "kosh.yaml"); err == nil {
 		if err := yaml.Unmarshal(data, cfg); err != nil {
-			fmt.Printf("⚠️ Failed to parse kosh.yaml: %v\n", err)
+			slog.Warn("Failed to parse kosh.yaml", "error", err)
 		}
 	} else {
 		// Try fallback to config.yaml
 		if data, err := afero.ReadFile(fs, "config.yaml"); err == nil {
 			if err := yaml.Unmarshal(data, cfg); err != nil {
-				fmt.Printf("⚠️ Failed to parse config.yaml: %v\n", err)
+				slog.Warn("Failed to parse config.yaml", "error", err)
 			}
 		}
 	}
@@ -262,14 +260,9 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 		cfg.WebPQuality = 80 // enforce valid range
 	}
 
-	// Note: VipsConcurrency config is kept for backward compatibility but is no longer used.
-	// The native Go webp implementation (chai2010/webp) runs single-threaded per worker.
-	// Parallelism is handled by the ImageWorkers setting directly.
-
 	return cfg
 }
 
-// SetDevMode is a helper to set development mode on a config pointer
 func SetDevMode(cfg *Config, isDev bool) {
 	cfg.IsDev = isDev
 	isDevMode.Store(isDev)

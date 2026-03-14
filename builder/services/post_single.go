@@ -12,6 +12,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
@@ -93,6 +94,35 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 	}
 
 	htmlContent := parseRes.HTMLContent
+	if len(parseRes.MathExpressions) > 0 {
+		cachedSubset := make(map[string]string)
+		if s.diagramAdapter != nil {
+			for _, expr := range parseRes.MathExpressions {
+				if v, ok := s.diagramAdapter.GetLocal(expr.Hash); ok {
+					cachedSubset[expr.Hash] = v
+				}
+			}
+		}
+
+		rendered, err := s.nativeRenderer.RenderAllMath(ctx, parseRes.MathExpressions, cachedSubset)
+		if err != nil {
+			s.logger.Warn("Math render failed for post", "path", path, "error", err)
+		}
+
+		if s.diagramAdapter != nil && len(rendered) > 0 {
+			newMath := make(map[string]string)
+			for h, v := range rendered {
+				if _, ok := cachedSubset[h]; !ok {
+					newMath[h] = v
+				}
+			}
+			if len(newMath) > 0 {
+				s.diagramAdapter.Merge(newMath)
+			}
+		}
+
+		htmlContent = mdParser.ReplaceMathExpressions(htmlContent, parseRes.MathExpressions, rendered)
+	}
 	metaData := parseRes.MetaData
 	post := parseRes.Post
 	toc := parseRes.TOC
