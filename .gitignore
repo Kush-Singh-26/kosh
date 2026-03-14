@@ -55,3 +55,4 @@ nul
 
 themes/
 .opencode/
+*.out
