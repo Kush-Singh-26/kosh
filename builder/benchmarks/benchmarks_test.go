@@ -266,7 +266,7 @@ func BenchmarkLevenshteinDistance(b *testing.B) {
 
 func createMockSearchIndex(size int) *models.SearchIndex {
 	index := &models.SearchIndex{
-		Posts:     make([]models.PostRecord, size),
+		Posts:     make(map[string]models.PostRecord, size),
 		Inverted:  make(map[string]map[string][]int),
 		DocLens:   make(map[string]int64),
 		TotalDocs: int64(size),
@@ -275,8 +275,8 @@ func createMockSearchIndex(size int) *models.SearchIndex {
 	totalLen := 0
 	for i := range size {
 		idStr := strconv.Itoa(i)
-		index.Posts[i] = models.PostRecord{
-			ID:          i,
+		index.Posts[idStr] = models.PostRecord{
+			ID:          uint64(i),
 			Title:       fmt.Sprintf("Post %d", i),
 			Link:        fmt.Sprintf("/posts/post-%d", i),
 			Description: fmt.Sprintf("Description for post %d", i),

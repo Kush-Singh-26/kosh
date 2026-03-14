@@ -3,6 +3,8 @@
 package search
 
 import (
+	"html"
+
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/text/unicode/norm"
@@ -23,4 +25,8 @@ func ToLower(s string) string {
 
 func ToTitle(s string) string {
 	return titleCaser.String(s)
+}
+
+func HTMLEscape(s string) string {
+	return html.EscapeString(s)
 }

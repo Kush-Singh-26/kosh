@@ -1,14 +1,18 @@
 package version
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
@@ -131,10 +135,6 @@ func RunFs(vfs afero.Fs, args []string) {
 	fmt.Printf("   Config updated with proper version ordering\n")
 }
 
-func printVersionInfo() {
-	printVersionInfoFs(afero.NewOsFs())
-}
-
 func printVersionInfoFs(fs afero.Fs) {
 	cfg := loadConfigFs(fs)
 	if cfg == nil {
@@ -182,10 +182,6 @@ func findLatestVersion(cfg *config.Config) (int, *config.Version) {
 	return -1, nil
 }
 
-func snapshotContent(destDir string, sourceDir string, cfg *config.Config) error {
-	return snapshotContentFs(afero.NewOsFs(), destDir, sourceDir, cfg)
-}
-
 func snapshotContentFs(vfs afero.Fs, destDir string, sourceDir string, cfg *config.Config) error {
 	if err := vfs.MkdirAll(destDir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
@@ -207,7 +203,8 @@ func snapshotContentFs(vfs afero.Fs, destDir string, sourceDir string, cfg *conf
 		}
 	}
 
-	return afero.Afero{Fs: vfs}.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+	var mu sync.Mutex
+	return utils.ParallelWalk(context.Background(), vfs, sourceDir, 0, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -221,7 +218,10 @@ func snapshotContentFs(vfs afero.Fs, destDir string, sourceDir string, cfg *conf
 
 		if info.IsDir() {
 			// Skip if this is another version's directory (when source is root)
-			if sourceDir == "content" && len(parts) > 0 && versionPaths[parts[0]] {
+			mu.Lock()
+			skip := sourceDir == "content" && len(parts) > 0 && versionPaths[parts[0]]
+			mu.Unlock()
+			if skip {
 				return filepath.SkipDir
 			}
 			return vfs.MkdirAll(filepath.Join(destDir, relPath), 0755)
@@ -229,7 +229,10 @@ func snapshotContentFs(vfs afero.Fs, destDir string, sourceDir string, cfg *conf
 
 		if strings.HasSuffix(path, ".md") {
 			// Skip files in other version directories when source is root
-			if sourceDir == "content" && len(parts) > 1 && versionPaths[parts[0]] {
+			mu.Lock()
+			skip := sourceDir == "content" && len(parts) > 1 && versionPaths[parts[0]]
+			mu.Unlock()
+			if skip {
 				return nil
 			}
 
@@ -241,10 +244,6 @@ func snapshotContentFs(vfs afero.Fs, destDir string, sourceDir string, cfg *conf
 
 		return nil
 	})
-}
-
-func copyFile(src, dst string) error {
-	return copyFileFs(afero.NewOsFs(), src, dst)
 }
 
 func copyFileFs(vfs afero.Fs, src, dst string) error {
@@ -272,10 +271,6 @@ func copyFileFs(vfs afero.Fs, src, dst string) error {
 	return err
 }
 
-func loadConfig() *config.Config {
-	return loadConfigFs(afero.NewOsFs())
-}
-
 func loadConfigFs(vfs afero.Fs) *config.Config {
 	data, err := afero.ReadFile(vfs, "kosh.yaml")
 	if err != nil {
@@ -286,10 +281,6 @@ func loadConfigFs(vfs afero.Fs) *config.Config {
 		return nil
 	}
 	return cfg
-}
-
-func updateVersionConfig(cfg *config.Config, oldLatestIdx int, newVersionName, frozenPath string, newLatestPath string) error {
-	return updateVersionConfigFs(afero.NewOsFs(), cfg, oldLatestIdx, newVersionName, frozenPath, newLatestPath)
 }
 
 func updateVersionConfigFs(vfs afero.Fs, cfg *config.Config, oldLatestIdx int, newVersionName, frozenPath string, newLatestPath string) error {

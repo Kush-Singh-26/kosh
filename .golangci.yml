@@ -13,6 +13,7 @@ linters:
     - ineffassign
     - misspell
     - errorlint
+    - errcheck
 
 issues:
   exclude-dirs:
@@ -23,6 +24,7 @@ issues:
     - path: _test\.go
       linters:
         - errorlint
+        - errcheck
 
 run:
   timeout: 5m

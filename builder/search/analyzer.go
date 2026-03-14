@@ -2,6 +2,7 @@ package search
 
 import (
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -68,9 +69,24 @@ func (a *Analyzer) AnalyzeWithMapping(text string) ([]string, map[string]string)
 	return tokens, mapping
 }
 
+var (
+	tokenPool = sync.Pool{
+		New: func() any {
+			s := make([]Token, 0, 512)
+			return &s
+		},
+	}
+)
+
 // AnalyzeWithPositions processes text and returns tokens, mapping, and positional data including offsets
 func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]string, map[string][]int, map[string][]int) {
-	tokens := TokenizeWithUnicode(text)
+	tokensPtr := tokenPool.Get().(*[]Token)
+	tokens := TokenizeWithUnicodeInto(text, (*tokensPtr)[:0])
+	defer func() {
+		*tokensPtr = tokens
+		tokenPool.Put(tokensPtr)
+	}()
+
 	if len(tokens) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -80,6 +96,7 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 	mapping := make(map[string]string, estUnique)
 	positions := make(map[string][]int, estUnique)
 	offsets := make(map[string][]int, estUnique)
+	localStemCache := make(map[string]string, estUnique/2)
 
 	bufPtr := utils.SharedByteSlicePool.Get()
 	defer utils.SharedByteSlicePool.Put(bufPtr)
@@ -88,7 +105,7 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 	for _, token := range tokens {
 		var orig string
 		if isLowerASCII(token.Value) {
-			orig = token.Value
+			orig = strings.Clone(token.Value)
 		} else {
 			lowered, hasUnicode := toLowerASCII(token.Value, *bufPtr)
 			if hasUnicode {
@@ -115,7 +132,12 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 
 		stem := orig
 		if a.useStemming {
-			stem = StemCached(orig)
+			if cached, ok := localStemCache[orig]; ok {
+				stem = cached
+			} else {
+				stem = strings.Clone(Stem(orig))
+				localStemCache[orig] = stem
+			}
 		}
 
 		if stem != "" {
@@ -167,7 +189,12 @@ func toLowerASCII(s string, buf []byte) ([]byte, bool) {
 // AnalyzeWithOriginals returns both stemmed and original forms
 // This enables fuzzy matching on original forms while using stemmed forms for indexing
 func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, originals []string) {
-	tokens := TokenizeWithUnicode(text)
+	tokensPtr := tokenPool.Get().(*[]Token)
+	tokens := TokenizeWithUnicodeInto(text, (*tokensPtr)[:0])
+	defer func() {
+		*tokensPtr = tokens
+		tokenPool.Put(tokensPtr)
+	}()
 
 	bufPtr := utils.SharedByteSlicePool.Get()
 	defer utils.SharedByteSlicePool.Put(bufPtr)
@@ -231,12 +258,19 @@ func init() {
 
 // TokenizeWithUnicode splits text into tokens with Unicode support and returns offsets
 func TokenizeWithUnicode(text string) []Token {
+	return TokenizeWithUnicodeInto(text, nil)
+}
+
+// TokenizeWithUnicodeInto splits text into tokens with Unicode support and appends them to dst
+func TokenizeWithUnicodeInto(text string, dst []Token) []Token {
 	if len(text) == 0 {
-		return nil
+		return dst
 	}
 
-	estimatedTokens := max(len(text)/5, 8)
-	tokens := make([]Token, 0, estimatedTokens)
+	if dst == nil {
+		estimatedTokens := max(len(text)/5, 8)
+		dst = make([]Token, 0, estimatedTokens)
+	}
 
 	start := -1
 	for i := 0; i < len(text); {
@@ -258,7 +292,7 @@ func TokenizeWithUnicode(text string) []Token {
 			}
 		} else {
 			if start != -1 {
-				tokens = append(tokens, Token{
+				dst = append(dst, Token{
 					Value: text[start:i],
 					Start: start,
 					End:   i,
@@ -270,14 +304,14 @@ func TokenizeWithUnicode(text string) []Token {
 	}
 
 	if start != -1 {
-		tokens = append(tokens, Token{
+		dst = append(dst, Token{
 			Value: text[start:],
 			Start: start,
 			End:   len(text),
 		})
 	}
 
-	return tokens
+	return dst
 }
 
 // IsStopWord checks if a word is a stop word

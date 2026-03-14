@@ -4,6 +4,7 @@ package native
 import (
 	"context"
 	_ "embed"
+	"encoding/binary"
 	"encoding/hex"
 	"log/slog"
 	"runtime"
@@ -115,9 +116,12 @@ func (r *Renderer) mathBatchWorker() {
 		timeout := time.After(2 * time.Millisecond)
 
 	loop:
-		for len(batch) < 64 {
+		for len(batch) < 16 {
 			select {
-			case next := <-r.mathQueue:
+			case next, ok := <-r.mathQueue:
+				if !ok {
+					break loop
+				}
 				batch = append(batch, next)
 			case <-timeout:
 				break loop
@@ -132,15 +136,44 @@ func (r *Renderer) mathBatchWorker() {
 		results, err := r.RenderMathBatch(context.Background(), exprs)
 		if err != nil {
 			for _, b := range batch {
-				b.err <- err
+				select {
+				case b.err <- err:
+				case <-time.After(10 * time.Millisecond):
+				}
 			}
 			continue
 		}
 
 		for i, res := range results {
-			batch[i].res <- res
+			select {
+			case batch[i].res <- res:
+			case <-time.After(100 * time.Millisecond):
+				// Caller timeout, drop result
+			}
+			close(batch[i].err)
 		}
 	}
+}
+
+func (r *Renderer) validateBytecode(bc []byte) ([]byte, bool) {
+	if len(bc) < 20 {
+		return nil, false
+	}
+	if string(bc[0:4]) != "KBC1" {
+		return nil, false
+	}
+	// Check hash of source JS
+	sourceHash := binary.LittleEndian.Uint64(bc[4:12])
+	actualHash := xxh3.Hash([]byte(katexJS))
+	if sourceHash != actualHash {
+		return nil, false
+	}
+	// Check size integrity
+	expectedSize := binary.LittleEndian.Uint64(bc[12:20])
+	if uint64(len(bc)-20) != expectedSize {
+		return nil, false
+	}
+	return bc[20:], true
 }
 
 // ensureInitialized lazily creates worker instances on first use
@@ -148,14 +181,19 @@ func (r *Renderer) ensureInitialized() {
 	r.initOnce.Do(func() {
 		slog.Info("Initializing QuickJS Renderer Pool", "workers", r.numWorkers)
 
-		// Use pre-compiled bytecode if available, otherwise compile at runtime
-		if len(katexBytecode) > 0 {
-			slog.Info("Using pre-compiled KaTeX bytecode", "size", len(katexBytecode))
-			r.katexBytecode = katexBytecode
+		// Validate embedded bytecode
+		if bc, ok := r.validateBytecode(katexBytecode); ok {
+			slog.Info("Using validated KaTeX bytecode", "size", len(bc))
+			r.katexBytecode = bc
 		} else {
-			slog.Info("Pre-compiling KaTeX to bytecode (fallback)")
+			if len(katexBytecode) > 0 {
+				slog.Warn("KaTeX bytecode validation failed (stale or invalid), recompiling...")
+			} else {
+				slog.Info("No KaTeX bytecode found, compiling from source...")
+			}
+
 			rt, err := qjs.New(qjs.Option{
-				MaxExecutionTime: 2000, // 2s safety timeout per task
+				MaxExecutionTime: 2000,
 			})
 			if err == nil {
 				bc, err := rt.Compile("katex.min.js", qjs.Code(katexJS))
@@ -176,18 +214,14 @@ func (r *Renderer) ensureInitialized() {
 			go func(id int) {
 				defer r.wg.Done()
 				instance := &instance{}
-				if instance != nil {
-					instance.ensureInitialized(r.katexBytecode)
+				instance.ensureInitialized(r.katexBytecode)
 
-					r.mu.Lock()
-					isClosed := r.closed
-					r.mu.Unlock()
+				r.mu.Lock()
+				isClosed := r.closed
+				r.mu.Unlock()
 
-					if !isClosed {
-						r.pool <- instance
-					}
-				} else {
-					slog.Warn("Failed to initialize worker", "id", id)
+				if !isClosed {
+					r.pool <- instance
 				}
 			}(i)
 		}

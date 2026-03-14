@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -11,13 +12,19 @@ import (
 )
 
 func validatePath(baseDir, userPath string) (string, error) {
+	// URL-decode first to prevent encoded traversal sequences (%2e%2e%2f)
+	decodedPath, err := url.PathUnescape(userPath)
+	if err != nil {
+		return "", fmt.Errorf("invalid path encoding: %w", err)
+	}
+
 	// Reject actual absolute paths (e.g. C:\Windows or /etc/passwd)
-	if filepath.IsAbs(userPath) {
+	if filepath.IsAbs(decodedPath) {
 		return "", fmt.Errorf("absolute path attempt detected")
 	}
 
 	// Clean the path first
-	cleanUserPath := filepath.Clean(userPath)
+	cleanUserPath := filepath.Clean(decodedPath)
 
 	// Reject if it still tries to escape via .. (filepath.Clean preserves leading .. if it can't resolve them)
 	if strings.HasPrefix(cleanUserPath, "..") {

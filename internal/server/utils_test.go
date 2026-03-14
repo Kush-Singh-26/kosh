@@ -57,7 +57,7 @@ func TestNormalizeRequestPath(t *testing.T) {
 
 func TestBrotliHandler_RangeRequest(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("some data"))
+		_, _ = w.Write([]byte("some data"))
 	})
 
 	handler := compressionHandler(next)
@@ -76,7 +76,7 @@ func TestBrotliHandler_RangeRequest(t *testing.T) {
 
 func TestBrotliHandler_NoBrotliSupport(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("some data"))
+		_, _ = w.Write([]byte("some data"))
 	})
 
 	handler := compressionHandler(next)
@@ -127,7 +127,8 @@ func TestValidatePath_Security(t *testing.T) {
 		{"valid nested leading slash", "/posts/hello.html", false},
 		{"traversal attempt", "../../../etc/passwd", true},
 		{"traversal with dotdot", "posts/../../etc/passwd", true},
-		{"encoded traversal", "%2e%2e%2findex.html", false}, // filepath.Clean doesn't decode URL encoding
+		{"encoded traversal", "%2e%2e%2findex.html", true}, // URL-encoded traversal should be rejected
+		{"encoded traversal dots", "%2e%2e/index.html", true},
 		{"root-relative safe", "/index.html", false},
 	}
 

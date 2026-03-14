@@ -164,12 +164,13 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 					lines.Write(line.Value(source))
 				}
 				val := lines.String()
-				if strings.HasPrefix(val, "$$") && strings.HasSuffix(val, "$$") {
-					latex = val[2 : len(val)-2]
-				} else if strings.HasPrefix(val, `\[`) && strings.HasSuffix(val, `\]`) {
-					latex = val[2 : len(val)-2]
+				valTrimmed := strings.TrimSpace(val)
+				if strings.HasPrefix(valTrimmed, "$$") && strings.HasSuffix(valTrimmed, "$$") {
+					latex = valTrimmed[2 : len(valTrimmed)-2]
+				} else if strings.HasPrefix(valTrimmed, `\[`) && strings.HasSuffix(valTrimmed, `\]`) {
+					latex = valTrimmed[2 : len(valTrimmed)-2]
 				} else {
-					latex = val
+					latex = valTrimmed
 				}
 				latex = strings.TrimSpace(latex)
 				typeStr = "math-block"
@@ -253,6 +254,9 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 					}
 					darkSVG, err := t.Renderer.RenderD2(ctx, b.code, 200)
 					if err != nil {
+						if !errors.Is(err, context.Canceled) {
+							slog.Warn("D2 dark render failed", "error", err)
+						}
 						return themePair{}, err
 					}
 					pair := themePair{light: lightSVG, dark: darkSVG}
@@ -272,14 +276,17 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 		if pair.light == "" && pair.dark == "" {
 			continue
 		}
-		sb := utils.SharedStringBuilderPool.Get()
-		sb.WriteString(`<div class="d2-container" data-diagram="true"><div class="d2-light">`)
-		sb.WriteString(pair.light)
-		sb.WriteString(`</div><div class="d2-dark">`)
-		sb.WriteString(pair.dark)
-		sb.WriteString(`</div><span class="zoom-hint">🔍 Click to zoom</span></div>`)
-		rawNode := &RawHTMLBlock{Content: []byte(sb.String())}
-		utils.SharedStringBuilderPool.Put(sb)
+		buf := utils.SharedBufferPool.Get()
+		buf.WriteString(`<div class="d2-container" data-diagram="true"><div class="d2-light">`)
+		buf.WriteString(pair.light)
+		buf.WriteString(`</div><div class="d2-dark">`)
+		buf.WriteString(pair.dark)
+		buf.WriteString(`</div><span class="zoom-hint">🔍 Click to zoom</span></div>`)
+
+		content := make([]byte, buf.Len())
+		copy(content, buf.Bytes())
+		rawNode := &RawHTMLBlock{Content: content}
+		utils.SharedBufferPool.Put(buf)
 		*toReplace = append(*toReplace, replacement{old: block.node, new: rawNode})
 	}
 }

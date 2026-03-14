@@ -1,7 +1,9 @@
 package cache
 
 import (
+	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
 )
 
@@ -237,7 +240,7 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("temp file missing before rename: %w", err)
 	}
-	if err := utils.RenameWithRetry(tmpPath, path, 6, 10*time.Millisecond); err != nil {
+	if err := utils.RenameWithRetry(context.Background(), tmpPath, path, 6, 10*time.Millisecond); err != nil {
 		if fileExists(path) {
 			_ = os.Remove(tmpPath)
 			return hash, ct, nil
@@ -311,18 +314,21 @@ func (s *Store) ListHashes(category string) ([]string, error) {
 	}
 
 	var hashes []string
-	err := filepath.WalkDir(categoryPath, func(path string, d os.DirEntry, err error) error {
+	var mu sync.Mutex
+	err := utils.ParallelWalk(context.Background(), afero.NewOsFs(), categoryPath, 0, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
+		if info.IsDir() {
 			return nil
 		}
 		// Extract hash from filename
-		name := d.Name()
+		name := info.Name()
 		if ext := filepath.Ext(name); ext == ".raw" || ext == ".zst" {
 			hash := strings.TrimSuffix(name, ext)
+			mu.Lock()
 			hashes = append(hashes, hash)
+			mu.Unlock()
 		}
 		return nil
 	})
@@ -336,15 +342,12 @@ func (s *Store) Size(category string) (int64, error) {
 	}
 
 	var total int64
-	err := filepath.WalkDir(categoryPath, func(_ string, d os.DirEntry, err error) error {
+	err := utils.ParallelWalk(context.Background(), afero.NewOsFs(), categoryPath, 0, func(_ string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() {
-			info, err := d.Info()
-			if err == nil {
-				total += info.Size()
-			}
+		if !info.IsDir() {
+			atomic.AddInt64(&total, info.Size())
 		}
 		return nil
 	})
@@ -353,37 +356,33 @@ func (s *Store) Size(category string) (int64, error) {
 
 // CleanOrphans deletes artifacts in a category that are older than maxAge and not in liveHashes
 func (s *Store) CleanOrphans(category string, liveHashes map[string]bool, maxAge time.Duration) (int, int64, error) {
-	deleted, freedBytes := 0, int64(0)
+	var deleted int64
+	var freedBytes int64
 	cutoff := time.Now().Add(-maxAge)
 	categoryPath := filepath.Join(s.basePath, category)
 	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
 		return 0, 0, nil
 	}
 
-	err := filepath.WalkDir(categoryPath, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+	err := utils.ParallelWalk(context.Background(), afero.NewOsFs(), categoryPath, 0, func(path string, info fs.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
 			return nil
 		}
 
-		ext := filepath.Ext(d.Name())
+		ext := filepath.Ext(info.Name())
 		if ext != ".raw" && ext != ".zst" && ext != ".tmp" && ext != ".kosh-backup" {
 			return nil
 		}
 
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-
-		hash := strings.TrimSuffix(d.Name(), ext)
+		hash := strings.TrimSuffix(info.Name(), ext)
 		if !liveHashes[hash] && info.ModTime().Before(cutoff) {
 			if err := os.Remove(path); err == nil {
-				deleted++
-				freedBytes += info.Size()
+				atomic.AddInt64(&deleted, 1)
+				atomic.AddInt64(&freedBytes, info.Size())
 			}
 		}
 		return nil
 	})
 
-	return deleted, freedBytes, err
+	return int(deleted), freedBytes, err
 }

@@ -10,7 +10,7 @@ import (
 
 func TestRenderer_RenderD2(t *testing.T) {
 	r := New(WithWorkers(1))
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	ctx := context.Background()
 	code := "x -> y: hello world"
@@ -29,7 +29,7 @@ func TestRenderer_RenderD2(t *testing.T) {
 
 func TestRenderer_RenderMath(t *testing.T) {
 	r := New(WithWorkers(1))
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	ctx := context.Background()
 	latex := "E = mc^2"
@@ -48,7 +48,7 @@ func TestRenderer_RenderMath(t *testing.T) {
 
 func TestRenderer_RenderAllMath(t *testing.T) {
 	r := New(WithWorkers(2))
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	ctx := context.Background()
 	expressions := []MathExpression{

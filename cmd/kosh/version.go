@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log/slog"
 	"runtime"
 	"strings"
 
@@ -48,15 +48,12 @@ func runVersion(cmd *cobra.Command, args []string) {
 }
 
 func printVersionInfo() {
-	fmt.Println("Kosh Static Site Generator")
-	fmt.Println("Version: " + cliVersion)
-	fmt.Printf("Go Version: %s\n", runtime.Version())
-	fmt.Println("Build Date: 2026-03-08")
-	fmt.Println("\nOptimized with:")
-	fmt.Println("  - XXH3 hashing")
-	fmt.Println("  - Incremental single-post rebuilds in dev mode")
-	fmt.Println("  - Atomic clean-build publish with staging directories")
-	fmt.Println("  - CSS/JS fingerprinting with esbuild")
-	fmt.Println("  - WebP conversion for eligible raster images")
-	fmt.Println("  - Go+WASM search with schema validation")
+	slog.Info("Kosh Static Site Generator")
+	slog.Info("Version", "version", cliVersion)
+	slog.Info("Go version", "go", runtime.Version())
+	slog.Info("Build date", "date", "2026-03-08")
+	slog.Info("Optimized with:",
+		"features", "XXH3 hashing, Incremental single-post rebuilds, "+
+			"Atomic clean-build publish, CSS/JS fingerprinting, "+
+			"WebP conversion, Go+WASM search")
 }

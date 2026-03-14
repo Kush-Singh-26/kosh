@@ -23,6 +23,7 @@ import (
 func BenchmarkMarkdownParsing(b *testing.B) {
 	cfg := &config.Config{}
 	r := native.New()
+	defer func() { _ = r.Close() }()
 	diagramCache := &sync.Map{}
 	d2Group := r.GetD2Singleflight()
 	parser := mdParser.New(cfg, r, diagramCache, d2Group)
@@ -68,6 +69,7 @@ This is post number %d.
 	logger := run.InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
+	defer func() { _ = nativeRenderer.Close() }()
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{

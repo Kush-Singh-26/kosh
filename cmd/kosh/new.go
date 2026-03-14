@@ -1,11 +1,8 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
-	"github.com/Kush-Singh-26/kosh/builder/run"
 	"github.com/Kush-Singh-26/kosh/internal/new"
 )
 
@@ -23,8 +20,4 @@ func init() {
 
 func runNew(cmd *cobra.Command, args []string) {
 	new.Run(args)
-	fmt.Println("\nBuilding site with new post...")
-	if err := run.Run([]string{}); err != nil {
-		fmt.Printf("build failed: %v\n", err)
-	}
 }

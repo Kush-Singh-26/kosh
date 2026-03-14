@@ -1,8 +1,8 @@
 package utils
 
 import (
+	"bytes"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/tdewolff/minify/v2"
@@ -22,21 +22,9 @@ func InitMinifier() {
 	Minifier.Add("text/html", htmlMinifier)
 }
 
-var imgRe = regexp.MustCompile(`(?i)(<img[^>]+src=["'])([^"']*)(["'])`)
-
 func ProcessHTML(htmlStr string, baseURL string, prefix string, compress bool) string {
-	// Case-insensitive check without full ToLower allocation
-	hasImg := false
-	for i := 0; i < len(htmlStr)-4; i++ {
-		if htmlStr[i] == '<' &&
-			(htmlStr[i+1] == 'i' || htmlStr[i+1] == 'I') &&
-			(htmlStr[i+2] == 'm' || htmlStr[i+2] == 'M') &&
-			(htmlStr[i+3] == 'g' || htmlStr[i+3] == 'G') {
-			hasImg = true
-			break
-		}
-	}
-	if !hasImg {
+	// Quick check for <img> tag to avoid allocations
+	if !strings.Contains(htmlStr, "<img") && !strings.Contains(htmlStr, "<IMG") {
 		return htmlStr
 	}
 	return string(ProcessHTMLBytes([]byte(htmlStr), baseURL, prefix, compress))
@@ -44,55 +32,119 @@ func ProcessHTML(htmlStr string, baseURL string, prefix string, compress bool) s
 
 func ProcessHTMLBytes(htmlBytes []byte, baseURL string, prefix string, compress bool) []byte {
 	// Case-insensitive check without full ToLower allocation
-	hasImg := false
-	for i := 0; i < len(htmlBytes)-4; i++ {
-		if htmlBytes[i] == '<' &&
-			(htmlBytes[i+1] == 'i' || htmlBytes[i+1] == 'I') &&
-			(htmlBytes[i+2] == 'm' || htmlBytes[i+2] == 'M') &&
-			(htmlBytes[i+3] == 'g' || htmlBytes[i+3] == 'G') {
-			hasImg = true
-			break
-		}
+	idx := bytes.Index(htmlBytes, []byte("<img"))
+	if idx == -1 {
+		idx = bytes.Index(htmlBytes, []byte("<IMG"))
 	}
-	if !hasImg {
+	if idx == -1 {
 		return htmlBytes
 	}
 
-	return imgRe.ReplaceAllFunc(htmlBytes, func(m []byte) []byte {
-		parts := imgRe.FindSubmatch(m)
-		if len(parts) < 4 {
-			return m
-		}
-		src := string(parts[2])
+	var result bytes.Buffer
+	result.Grow(len(htmlBytes))
 
-		if src == "" || strings.HasPrefix(src, "http") || strings.HasPrefix(src, "//") || strings.HasPrefix(src, "data:") {
-			return m
+	curr := 0
+	for {
+		// Find next <img (case insensitive)
+		idx := -1
+		searchStart := curr
+		for {
+			relativeIdx := bytes.IndexByte(htmlBytes[searchStart:], '<')
+			if relativeIdx == -1 {
+				break
+			}
+			absoluteIdx := searchStart + relativeIdx
+			if absoluteIdx+4 > len(htmlBytes) {
+				break
+			}
+			// Check for <img or <IMG
+			if (htmlBytes[absoluteIdx+1] == 'i' || htmlBytes[absoluteIdx+1] == 'I') &&
+				(htmlBytes[absoluteIdx+2] == 'm' || htmlBytes[absoluteIdx+2] == 'M') &&
+				(htmlBytes[absoluteIdx+3] == 'g' || htmlBytes[absoluteIdx+3] == 'G') {
+				idx = absoluteIdx
+				break
+			}
+			searchStart = absoluteIdx + 1
 		}
 
-		// 1. WebP conversion (only for local images)
-		ext := strings.ToLower(filepath.Ext(src))
-		if compress && (ext == ".jpg" || ext == ".jpeg" || ext == ".png") {
-			src = src[:len(src)-len(ext)] + ".webp"
+		if idx == -1 {
+			result.Write(htmlBytes[curr:])
+			break
 		}
 
-		// 2. Path correction (Relativize or Prepend BaseURL)
-		if after, ok := strings.CutPrefix(src, "/"); ok {
-			if baseURL == "" {
-				src = prefix + after
-			} else {
-				src = baseURL + src
+		result.Write(htmlBytes[curr:idx])
+
+		// Find end of tag
+		tagEnd := bytes.IndexByte(htmlBytes[idx:], '>')
+		if tagEnd == -1 {
+			result.Write(htmlBytes[idx:])
+			break
+		}
+
+		tag := htmlBytes[idx : idx+tagEnd+1]
+		curr = idx + tagEnd + 1
+
+		// Find src attribute within the tag
+		srcIdx := -1
+		quote := byte(0)
+
+		// Scan for src= (Must have something between <img and src)
+		// We can use bytes.Index here for "src=" or "SRC="
+		sIdx := bytes.Index(tag, []byte("src="))
+		if sIdx == -1 {
+			sIdx = bytes.Index(tag, []byte("SRC="))
+		}
+
+		if sIdx != -1 && sIdx >= 4 { // Minimum <img src=
+			if sIdx+4 < len(tag) && (tag[sIdx+4] == '"' || tag[sIdx+4] == '\'') {
+				srcIdx = sIdx
+				quote = tag[sIdx+4]
 			}
 		}
 
-		// 3. Lowercase local images to match NormalizePath behavior on Windows
-		if !strings.HasPrefix(src, "http") && !strings.HasPrefix(src, "//") {
+		if srcIdx == -1 {
+			result.Write(tag)
+			continue
+		}
+
+		valStart := srcIdx + 5
+		valEnd := bytes.IndexByte(tag[valStart:], quote)
+		if valEnd == -1 {
+			result.Write(tag)
+			continue
+		}
+
+		// Extract and process src value
+		srcBytes := tag[valStart : valStart+valEnd]
+		src := string(srcBytes)
+
+		if src != "" && !strings.HasPrefix(src, "http") && !strings.HasPrefix(src, "//") && !strings.HasPrefix(src, "data:") {
+			// 1. WebP conversion (only for local images)
+			if compress {
+				ext := strings.ToLower(filepath.Ext(src))
+				if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
+					src = src[:len(src)-len(ext)] + ".webp"
+				}
+			}
+
+			// 2. Path correction (Relativize or Prepend BaseURL)
+			if after, ok := strings.CutPrefix(src, "/"); ok {
+				if baseURL == "" {
+					src = prefix + after
+				} else {
+					src = baseURL + src
+				}
+			}
+
+			// 3. Lowercase local images to match NormalizePath behavior on Windows
 			src = strings.ToLower(src)
 		}
 
-		res := make([]byte, 0, len(parts[1])+len(src)+len(parts[3]))
-		res = append(res, parts[1]...)
-		res = append(res, src...)
-		res = append(res, parts[3]...)
-		return res
-	})
+		// Reassemble the tag with the modified src
+		result.Write(tag[:valStart])
+		result.WriteString(src)
+		result.Write(tag[valStart+valEnd:])
+	}
+
+	return result.Bytes()
 }

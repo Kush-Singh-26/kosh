@@ -1,8 +1,29 @@
 package utils
 
 import (
+	"path/filepath"
 	"runtime"
 )
+
+// alwaysSyncPaths contains paths that should always be synced regardless of dirty state
+var alwaysSyncPaths = map[string]bool{
+	".nojekyll":               true,
+	"sitemap.xml":             true,
+	"sitemap/sitemap.xml":     true,
+	"rss.xml":                 true,
+	"search_index.json":       true,
+	"search.bin":              true,
+	"manifest.json":           true,
+	"sw.js":                   true,
+	"graph.json":              true,
+	"graph.html":              true,
+	"static/search.wasm":      true,
+	"static/wasm/search.wasm": true,
+}
+
+func IsAlwaysSyncPath(relPath string) bool {
+	return alwaysSyncPaths[filepath.ToSlash(relPath)]
+}
 
 // Default constants - these are used as fallbacks
 // Actual values come from BuildConfig loaded from kosh.build.yaml

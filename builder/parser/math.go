@@ -17,20 +17,25 @@ func ReplaceMathExpressions(html string, expressions []native.MathExpression, re
 		return html
 	}
 
+	replacements := make([]string, 0, len(expressions)*2)
 	for _, expr := range expressions {
-		placeholder := "<!--KOSH_MATH:" + expr.Hash + "-->"
 		if renderedHTML, ok := rendered[expr.Hash]; ok {
+			placeholder := "<!--KOSH_MATH:" + expr.Hash + "-->"
 			var replacement string
 			if expr.DisplayMode {
 				replacement = `<div class="katex-display">` + renderedHTML + `</div>`
 			} else {
 				replacement = `<span class="katex-inline">` + renderedHTML + `</span>`
 			}
-			html = strings.ReplaceAll(html, placeholder, replacement)
+			replacements = append(replacements, placeholder, replacement)
 		}
 	}
 
-	return html
+	if len(replacements) == 0 {
+		return html
+	}
+
+	return strings.NewReplacer(replacements...).Replace(html)
 }
 
 // RenderMathForHTML extracts, renders, and replaces all LaTeX in HTML.

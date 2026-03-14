@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,7 +19,7 @@ func TestRenameWithRetry_Succeeds(t *testing.T) {
 		t.Fatalf("write tmp failed: %v", err)
 	}
 
-	if err := utils.RenameWithRetry(tmp, final, 3, 1*time.Millisecond); err != nil {
+	if err := utils.RenameWithRetry(context.Background(), tmp, final, 3, 1*time.Millisecond); err != nil {
 		t.Fatalf("RenameWithRetry should succeed: %v", err)
 	}
 	if _, err := os.Stat(final); err != nil {
@@ -31,7 +32,7 @@ func TestRenameWithRetry_FailsWhenMissing(t *testing.T) {
 	tmp := filepath.Join(d, "missing.tmp")
 	final := filepath.Join(d, "a.raw")
 
-	err := utils.RenameWithRetry(tmp, final, 2, 1*time.Millisecond)
+	err := utils.RenameWithRetry(context.Background(), tmp, final, 2, 1*time.Millisecond)
 	if err == nil {
 		t.Fatal("expected RenameWithRetry to fail for missing temp file")
 	}

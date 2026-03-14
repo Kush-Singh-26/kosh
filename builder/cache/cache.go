@@ -3,6 +3,7 @@ package cache
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -237,7 +238,7 @@ func (m *Manager) ClearAll() error {
 				continue // Keep metadata
 			}
 			// Drop and recreate the bucket — O(1) vs O(N) key-by-key delete
-			if err := tx.DeleteBucket([]byte(name)); err != nil && err != bolt.ErrBucketNotFound {
+			if err := tx.DeleteBucket([]byte(name)); err != nil && !errors.Is(err, bolt.ErrBucketNotFound) { //nolint:staticcheck // bolt.ErrBucketNotFound is deprecated in 1.4+
 				return err
 			}
 			if _, err := tx.CreateBucket([]byte(name)); err != nil {

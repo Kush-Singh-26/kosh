@@ -131,7 +131,7 @@ func TestCopyFile_Success(t *testing.T) {
 		t.Fatalf("Failed to create source file: %v", err)
 	}
 
-	if err := copyFile(src, dst); err != nil {
+	if err := copyFileFs(afero.NewOsFs(), src, dst); err != nil {
 		t.Fatalf("copyFile() failed: %v", err)
 	}
 
@@ -177,7 +177,7 @@ func TestSnapshotContent(t *testing.T) {
 	}
 
 	destDir := filepath.Join(srcDir, "v2.0")
-	if err := snapshotContent(destDir, srcDir, cfg); err != nil {
+	if err := snapshotContentFs(afero.NewOsFs(), destDir, srcDir, cfg); err != nil {
 		t.Fatalf("snapshotContent() failed: %v", err)
 	}
 

@@ -67,6 +67,12 @@ type Builder struct {
 	indexedPosts      []models.IndexedPost
 	searchSourceDirty atomic.Bool
 
+	// Incremental rebuild coordination
+	searchDebounceTimer         *time.Timer
+	lastSearchIndexRegeneration time.Time
+	forceGenerators             atomic.Bool
+	lastAssetHash               uint64 // Hash of asset map from last site-wide render
+
 	// True when output directory did not exist at build start.
 	isCleanBuild bool
 }
@@ -141,6 +147,10 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 		nativeRenderer = native.New(native.WithWorkers(nativeWorkers), native.WithScheduler(utils.GlobalScheduler))
 	}
 
+	// Initialize isCleanBuild based on output existence
+	outputExists, _ := afero.Exists(vfs, cfg.OutputDir)
+	isCleanBuild := !outputExists
+
 	// Eagerly start KaTeX compilation in background — overlaps with
 	// remaining builder setup (template parsing, service creation)
 	// instead of blocking the first post that contains math.
@@ -170,7 +180,7 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, vfs, nil, diagramAdapter)
 	metadataScanner := services.NewMetadataScanner()
 
-	return &Builder{
+	b := &Builder{
 		cfg:             cfg,
 		cacheService:    cacheSvc,
 		renderService:   renderSvc,
@@ -183,7 +193,15 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 		SourceFs:        vfs,
 		mdPool:          mdPool,
 		nativeRenderer:  nativeRenderer,
+		isCleanBuild:    isCleanBuild,
 	}
+
+	// Always force site-wide generators on the first build of a session.
+	// This ensures that index.html, tags, and other generated files are
+	// registered with the Sink and not deleted by CleanupOrphans in dev mode.
+	b.forceGenerators.Store(true)
+
+	return b
 }
 
 // newBuilderWithConfig is the internal implementation
@@ -248,15 +266,24 @@ func (b *Builder) Close() {
 	}
 }
 
+// checkWasmUpdate handles WASM compilation and deployment for Search.
+// Skips operations in test mode to avoid filesystem dependencies.
 func (b *Builder) checkWasmUpdate(ctx context.Context) {
-	if b.cfg.IsDev {
-		wasmBinary := build.RepoPath("static", "wasm", "search.wasm")
+	// Skip WASM operations in test mode
+	if utils.TestingMode {
+		return
+	}
+
+	wasmBinary := build.RepoPath("static", "wasm", "search.wasm")
+	sourceAvailable := false
+	if srcMod, err := latestSearchSourceModTime(); err == nil {
+		sourceAvailable = true
 		if b.searchSourceDirty.Load() {
 			if err := build.CompileWASMFromSource(ctx, build.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
 				b.logger.Warn("Failed to compile Search WASM", "error", err)
 			}
 			b.searchSourceDirty.Store(false)
-		} else if srcMod, err := latestSearchSourceModTime(); err == nil {
+		} else {
 			wasmInfo, statErr := os.Stat(wasmBinary)
 			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
 				if err := build.CompileWASMFromSource(ctx, build.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
@@ -267,13 +294,13 @@ func (b *Builder) checkWasmUpdate(ctx context.Context) {
 	}
 
 	// Always ensure embedded WASM is deployed if missing or old.
-	// In dev mode prefer the locally compiled WASM so browser/runtime schema
+	// Prefer the locally compiled WASM if available so browser/runtime schema
 	// always matches the current search.bin generator.
-	if b.cfg.IsDev {
-		build.DeployWASMFromFile(afero.NewOsFs(), b.Tx.StagingDir(), b.cfg.CacheDir, build.RepoPath("static", "wasm", "search.wasm"))
+	if sourceAvailable {
+		// Use the source WASM (either just rebuilt or already present)
+		build.DeployWASMFromFile(afero.NewOsFs(), b.Tx.StagingDir(), b.cfg.CacheDir, wasmBinary)
 	} else {
-		// Write to the staging directory (not b.cfg.OutputDir) so the WASM
-		// files survive the atomic swap performed by Tx.Commit() on clean builds.
+		// No source available (standard user), use embedded WASM
 		build.CheckWASM(b.Tx.StagingDir(), b.cfg.CacheDir)
 	}
 }

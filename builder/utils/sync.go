@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package utils
 
 import (
@@ -8,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -16,52 +19,51 @@ import (
 )
 
 var (
-	createdDirs *lru.Cache[string, bool]
+	createdDirs     *lru.Cache[string, bool]
+	createdDirsInit sync.Once
+	createdDirsErr  error
 
 	// File content cache to avoid redundant disk reads during sync
-	fileContentCache *lru.Cache[string, []byte]
+	fileContentCache     *lru.Cache[string, []byte]
+	fileContentCacheInit sync.Once
+	fileContentCacheErr  error
 )
 
-func init() {
-	var err error
-	createdDirs, err = lru.New[string, bool](2000)
-	if err != nil {
-		panic("failed to create createdDirs cache: " + err.Error())
-	}
+func getCreatedDirsCache() (*lru.Cache[string, bool], error) {
+	createdDirsInit.Do(func() {
+		var err error
+		createdDirs, err = lru.New[string, bool](2000)
+		if err != nil {
+			createdDirsErr = err
+		}
+	})
+	return createdDirs, createdDirsErr
+}
 
-	fileContentCache, err = lru.New[string, []byte](1000)
-	if err != nil {
-		panic("failed to create fileContentCache: " + err.Error())
-	}
+func getFileContentCache() (*lru.Cache[string, []byte], error) {
+	fileContentCacheInit.Do(func() {
+		var err error
+		fileContentCache, err = lru.New[string, []byte](1000)
+		if err != nil {
+			fileContentCacheErr = err
+		}
+	})
+	return fileContentCache, fileContentCacheErr
 }
 
 const (
 	WriteBufferSize = 64 * 1024 // 64KB buffer for writes
 )
 
-// alwaysSyncPaths contains paths that should always be synced regardless of dirty state
-var alwaysSyncPaths = map[string]bool{
-	".nojekyll":               true,
-	"sitemap.xml":             true,
-	"sitemap/sitemap.xml":     true,
-	"rss.xml":                 true,
-	"search_index.json":       true,
-	"search.bin":              true,
-	"manifest.json":           true,
-	"sw.js":                   true,
-	"graph.json":              true,
-	"graph.html":              true,
-	"static/search.wasm":      true,
-	"static/wasm/search.wasm": true,
-}
-
-func IsAlwaysSyncPath(relPath string) bool {
-	return alwaysSyncPaths[filepath.ToSlash(relPath)]
-}
-
 func ClearSyncCache() {
-	fileContentCache.Purge()
-	createdDirs.Purge()
+	cache, err := getFileContentCache()
+	if err == nil && cache != nil {
+		cache.Purge()
+	}
+	dirs, err := getCreatedDirsCache()
+	if err == nil && dirs != nil {
+		dirs.Purge()
+	}
 }
 
 type syncTask struct {
@@ -149,7 +151,7 @@ func SyncVFS(ctx context.Context, srcFs afero.Fs, targetDir string, dirtyFiles m
 	var errMu sync.Mutex
 
 	pool := NewWorkerPool(ctx, numWorkers, func(task syncTask) {
-		if err := syncSingleFileTask(srcFs, task, isCleanBuild, tx); err != nil {
+		if err := syncSingleFileTask(ctx, srcFs, task, isCleanBuild, tx); err != nil {
 			errMu.Lock()
 			if syncErr == nil {
 				syncErr = err
@@ -173,7 +175,7 @@ func SyncVFS(ctx context.Context, srcFs afero.Fs, targetDir string, dirtyFiles m
 	return nil
 }
 
-func syncSingleFileTask(srcFs afero.Fs, task syncTask, isCleanBuild bool, tx *TxSync) error {
+func syncSingleFileTask(ctx context.Context, srcFs afero.Fs, task syncTask, isCleanBuild bool, tx *TxSync) error {
 	// Use ToSlash for VFS lookups to ensure consistency on Windows
 	srcContent, err := afero.ReadFile(srcFs, filepath.ToSlash(task.srcPath))
 	if err != nil {
@@ -191,10 +193,13 @@ func syncSingleFileTask(srcFs afero.Fs, task syncTask, isCleanBuild bool, tx *Tx
 
 	if !isCleanBuild {
 		// Check content cache first (LRU is thread-safe)
-		cached, inCache := fileContentCache.Get(osPath)
+		cache, err := getFileContentCache()
+		if err == nil && cache != nil {
+			cached, inCache := cache.Get(osPath)
 
-		if inCache && bytes.Equal(srcContent, cached) {
-			return nil // Skip write, content unchanged from cache
+			if inCache && bytes.Equal(srcContent, cached) {
+				return nil // Skip write, content unchanged from cache
+			}
 		}
 
 		// Fast Metadata Check: if file exists and size differs, it's dirty
@@ -207,7 +212,9 @@ func syncSingleFileTask(srcFs afero.Fs, task syncTask, isCleanBuild bool, tx *Tx
 				destContent, err := os.ReadFile(osPath)
 				if err == nil && bytes.Equal(srcContent, destContent) {
 					// Update cache with matched content
-					fileContentCache.Add(osPath, srcContent)
+					if cache != nil {
+						cache.Add(osPath, srcContent)
+					}
 					return nil
 				}
 			}
@@ -221,27 +228,29 @@ func syncSingleFileTask(srcFs afero.Fs, task syncTask, isCleanBuild bool, tx *Tx
 		}
 	}
 
-	if err := atomicWrite(osPath, srcContent); err != nil {
+	if err := atomicWrite(ctx, osPath, srcContent); err != nil {
 		return err
 	}
 
 	// Update cache after successful write
-	fileContentCache.Add(osPath, srcContent)
+	cache, err := getFileContentCache()
+	if err == nil && cache != nil {
+		cache.Add(osPath, srcContent)
+	}
 
 	return nil
 }
 
 // atomicWrite writes data to a temporary file and then renames it to the target path.
 // This ensures that the target file is either fully written or not written at all.
-func atomicWrite(path string, data []byte) error {
+func atomicWrite(ctx context.Context, path string, data []byte) error {
 	// Ensure parent directory exists (handles race conditions with background clean)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
 
-	tmpPath := path + ".tmp"
-
-	f, err := os.Create(tmpPath)
+	tmpPath := path + ".tmp-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -270,7 +279,7 @@ func atomicWrite(path string, data []byte) error {
 	}
 
 	// Atomic rename
-	err = RenameWithRetry(tmpPath, path, 5, 10*time.Millisecond)
+	err = RenameWithRetry(ctx, tmpPath, path, 5, 10*time.Millisecond)
 	if err != nil {
 		_ = os.Remove(tmpPath)
 		return err

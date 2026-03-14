@@ -104,3 +104,35 @@ func GetRelativePrefix(htmlPath string) string {
 		return strings.Repeat("../", depth)
 	}
 }
+
+// GetRealPath attempts to find the underlying OS path for a given afero.Fs and virtual path.
+// Returns (realPath, true) if it's a local filesystem, (path, false) otherwise.
+func GetRealPath(fs afero.Fs, path string) (string, bool) {
+	if fs == nil {
+		return "", false
+	}
+
+	currFs := fs
+	for {
+		switch currFs.(type) {
+		case *afero.OsFs:
+			return path, true
+		case *afero.ReadOnlyFs:
+			// ReadOnlyFs wraps another Fs
+			// We can't access the private 'source' field easily without reflection
+			// but we can try to check if it's OsFs underneath.
+			// For now, just handle the most common Kosh wrappers if we can.
+			break
+		}
+		break
+	}
+
+	// Fallback: check if the FS is a known wrapper by name or behavior
+	// This is a bit hacky but avoids heavy reflection
+	fsName := fmt.Sprintf("%T", fs)
+	if strings.Contains(fsName, "OsFs") {
+		return path, true
+	}
+
+	return "", false
+}

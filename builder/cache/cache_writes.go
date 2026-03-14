@@ -34,9 +34,11 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 				encodeMu.Lock()
 				if encodeErr == nil {
 					encodeErr = err
+				} else {
+					slog.Warn("Additional encode error suppressed", "error", err)
 				}
 				encodeMu.Unlock()
-				return nil
+				return err
 			}
 
 			ep := EncodedPost{
@@ -52,9 +54,11 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 					encodeMu.Lock()
 					if encodeErr == nil {
 						encodeErr = err
+					} else {
+						slog.Warn("Additional encode error suppressed", "error", err)
 					}
 					encodeMu.Unlock()
-					return nil
+					return err
 				}
 				ep.SearchData = srData
 			}
@@ -65,9 +69,11 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 					encodeMu.Lock()
 					if encodeErr == nil {
 						encodeErr = err
+					} else {
+						slog.Warn("Additional encode error suppressed", "error", err)
 					}
 					encodeMu.Unlock()
-					return nil
+					return err
 				}
 				ep.DepsData = depsData
 				ep.Tags = d.Tags

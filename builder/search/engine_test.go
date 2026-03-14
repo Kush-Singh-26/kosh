@@ -11,14 +11,14 @@ import (
 func TestPerformSearch_PhraseBoost(t *testing.T) {
 	// Document 0 has the exact phrase "go programming"
 	// Document 1 has both words but not as a phrase
-	posts := []models.PostRecord{
-		{
+	posts := map[string]models.PostRecord{
+		"0": {
 			ID:              0,
 			Title:           "Exact Phrase",
 			NormalizedTitle: "exact phrase",
 			Content:         "Learn go programming today.",
 		},
-		{
+		"1": {
 			ID:              1,
 			Title:           "Separated Words",
 			NormalizedTitle: "separated words",
@@ -120,8 +120,8 @@ func TestTokenize(t *testing.T) {
 
 func TestPerformSearch(t *testing.T) {
 	// Setup test index
-	posts := []models.PostRecord{
-		{
+	posts := map[string]models.PostRecord{
+		"0": {
 			ID:              0,
 			Title:           "Go Guide",
 			NormalizedTitle: "go guide",
@@ -129,7 +129,7 @@ func TestPerformSearch(t *testing.T) {
 			Version:         "v1",
 			NormalizedTags:  []string{"go", "programming"},
 		},
-		{
+		"1": {
 			ID:              1,
 			Title:           "Rust Guide",
 			NormalizedTitle: "rust guide",
@@ -137,7 +137,7 @@ func TestPerformSearch(t *testing.T) {
 			Version:         "v1",
 			NormalizedTags:  []string{"rust", "programming"},
 		},
-		{
+		"2": {
 			ID:              2,
 			Title:           "Python Intro",
 			NormalizedTitle: "python intro",
@@ -156,35 +156,23 @@ func TestPerformSearch(t *testing.T) {
 	}
 
 	// Helper to populate inverted index
-	addTerm := func(term string, postID int, pos int) {
-		idStr := "0"
-		if postID != 0 {
-			var b [20]byte
-			bp := len(b) - 1
-			for postID > 0 {
-				b[bp] = byte(postID%10) + '0'
-				bp--
-				postID /= 10
-			}
-			idStr = string(b[bp+1:])
-		}
-
+	addTerm := func(term string, postID string, pos int) {
 		if index.Inverted[term] == nil {
 			index.Inverted[term] = make(map[string][]int)
 		}
-		index.Inverted[term][idStr] = append(index.Inverted[term][idStr], pos)
+		index.Inverted[term][postID] = append(index.Inverted[term][postID], pos)
 	}
 
 	// "guide" appears in 0 and 1
-	addTerm("guide", 0, 1)
-	addTerm("guide", 1, 1)
+	addTerm("guide", "0", 1)
+	addTerm("guide", "1", 1)
 	// "programming" appears in 0 and 1
-	addTerm("programming", 0, 3)
-	addTerm("programming", 1, 3)
+	addTerm("programming", "0", 3)
+	addTerm("programming", "1", 3)
 	// "go" appears in 0
-	addTerm("go", 0, 2)
+	addTerm("go", "0", 2)
 	// "python" appears in 2
-	addTerm("python", 2, 2)
+	addTerm("python", "2", 2)
 
 	index.DocLens["0"] = 6
 	index.DocLens["1"] = 5
@@ -194,25 +182,25 @@ func TestPerformSearch(t *testing.T) {
 		name          string
 		query         string
 		versionFilter string
-		wantIDs       []int
+		wantIDs       []uint64
 	}{
 		{
 			name:          "search go",
 			query:         "go",
 			versionFilter: "all",
-			wantIDs:       []int{0},
+			wantIDs:       []uint64{0},
 		},
 		{
 			name:          "search guide",
 			query:         "guide",
 			versionFilter: "all",
-			wantIDs:       []int{0, 1}, // Both match
+			wantIDs:       []uint64{0, 1}, // Both match
 		},
 		{
 			name:          "version filter",
 			query:         "guide",
 			versionFilter: "v1",
-			wantIDs:       []int{0, 1},
+			wantIDs:       []uint64{0, 1},
 		},
 		{
 			name:          "version filter mismatch",
@@ -224,7 +212,7 @@ func TestPerformSearch(t *testing.T) {
 			name:          "tag search",
 			query:         "tag:rust",
 			versionFilter: "all",
-			wantIDs:       []int{1},
+			wantIDs:       []uint64{1},
 		},
 		{
 			name:          "tag search mismatch",
@@ -239,7 +227,7 @@ func TestPerformSearch(t *testing.T) {
 			results := PerformSearch(index, tt.query, tt.versionFilter)
 
 			// Extract IDs
-			var gotIDs []int
+			var gotIDs []uint64
 			for _, r := range results {
 				gotIDs = append(gotIDs, r.ID)
 			}
@@ -280,7 +268,7 @@ func TestPhraseAdjacency(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := checkPhraseUnified(index, 0, tt.phrase)
+		got := checkPhraseUnified(index, "0", tt.phrase)
 		if got != tt.want {
 			t.Errorf("checkPhraseUnified(%v) = %v, want %v", tt.phrase, got, tt.want)
 		}

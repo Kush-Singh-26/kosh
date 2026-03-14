@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestNewBuildTransaction_UsesUniqueDirsForCleanBuild(t *testing.T) {
@@ -35,6 +36,11 @@ func TestCleanupStaleBuildDirs_RemovesOldTempDirs(t *testing.T) {
 	if err := os.MkdirAll(keepBak, 0755); err != nil {
 		t.Fatalf("failed to create keep bak dir: %v", err)
 	}
+
+	// Set stale directories to be older than 1 hour
+	oldTime := time.Now().Add(-2 * time.Hour)
+	_ = os.Chtimes(staleTmp, oldTime, oldTime)
+	_ = os.Chtimes(staleBak, oldTime, oldTime)
 
 	cleanupStaleBuildDirs(outputDir)
 

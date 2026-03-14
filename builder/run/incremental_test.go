@@ -205,12 +205,13 @@ func TestIncrementalBuild(t *testing.T) {
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
+	t.Cleanup(func() { _ = nativeRenderer.Close() })
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
-	defer cm.Close()
+	defer func() { _ = cm.Close() }()
 	cacheSvc := services.NewCacheService(cm, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
 	renderSvc := services.NewRenderService(rnd, logger)
@@ -291,12 +292,13 @@ func TestBuildSinglePost_BodyOnlyChangeDoesNotFallBackToFullBuild(t *testing.T) 
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
+	t.Cleanup(func() { _ = nativeRenderer.Close() })
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
-	defer cm.Close()
+	defer func() { _ = cm.Close() }()
 	cacheSvc := services.NewCacheService(cm, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
 	renderSvc := services.NewRenderService(rnd, logger)

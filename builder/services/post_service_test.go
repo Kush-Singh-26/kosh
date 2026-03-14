@@ -62,39 +62,37 @@ func (m *mockRenderService) GetErrors() []error                                 
 
 type mockArtifactSink struct {
 	utils.ArtifactSink
-	mu           sync.Mutex
-	writtenFiles map[string]bool
+	writtenFiles sync.Map
 }
 
 func (m *mockArtifactSink) WriteFile(path string, data []byte) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.writtenFiles == nil {
-		m.writtenFiles = make(map[string]bool)
-	}
-	m.writtenFiles[path] = true
+	m.writtenFiles.Store(path, true)
 	return nil
 }
 
 func (m *mockArtifactSink) WriteStream(path string, fn func(w io.Writer) error) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.writtenFiles == nil {
-		m.writtenFiles = make(map[string]bool)
-	}
-	m.writtenFiles[path] = true
+	m.writtenFiles.Store(path, true)
 	return nil
 }
 
 func (m *mockArtifactSink) MkdirAll(path string) error { return nil }
 
+func (m *mockArtifactSink) CopyFile(src, dst string) error {
+	m.writtenFiles.Store(dst, true)
+	return nil
+}
+
 func (m *mockArtifactSink) Register(path string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.writtenFiles == nil {
-		m.writtenFiles = make(map[string]bool)
-	}
-	m.writtenFiles[path] = true
+	m.writtenFiles.Store(path, true)
+}
+
+func (m *mockArtifactSink) GetWrittenFiles() map[string]bool {
+	res := make(map[string]bool)
+	m.writtenFiles.Range(func(key, value any) bool {
+		res[key.(string)] = value.(bool)
+		return true
+	})
+	return res
 }
 
 // mockRenderServiceWithCapture captures PageData for verification
@@ -192,6 +190,9 @@ func setupPostServiceTest(t *testing.T) *postServiceImpl {
 	_ = sourceFs.MkdirAll(cfg.ContentDir, 0755)
 
 	nativeRenderer := native.New()
+	t.Cleanup(func() {
+		_ = nativeRenderer.Close()
+	})
 	diagramCache := &sync.Map{}
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
@@ -247,9 +248,13 @@ func TestPostService_PanicRecovery(t *testing.T) {
 	defer cancel()
 
 	scanner := NewMetadataScanner()
-	meta, _ := scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg)
+	fileChan := make(chan models.ScannedFile, 100)
+	go func() {
+		defer close(fileChan)
+		_, _ = scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg, fileChan)
+	}()
 
-	_, err := s.Process(ctx, false, false, false, meta)
+	_, err := s.Process(ctx, false, false, false, fileChan, false)
 
 	// We expect successful completion (not a crash)
 	logf("Process completed with error: %v", err)
@@ -336,7 +341,7 @@ func TestDecoupledPipeline(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Semantic Parse
-	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "", "test.html", "test.html", mdPool, cfg, "", 0, nil)
+	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "", "test.html", "test.html", mdPool, cfg, "", 0, 0, nil)
 	if err != nil {
 		t.Fatalf("ParseMarkdownMetadata failed: %v", err)
 	}
@@ -386,9 +391,13 @@ func TestPostService_NeighborLookup(t *testing.T) {
 
 	ctx := context.Background()
 	scanner := NewMetadataScanner()
-	meta, _ := scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg)
+	fileChan := make(chan models.ScannedFile, 100)
+	go func() {
+		defer close(fileChan)
+		_, _ = scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg, fileChan)
+	}()
 
-	_, err := s.Process(ctx, true, false, true, meta)
+	_, err := s.Process(ctx, true, false, true, fileChan, false)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}

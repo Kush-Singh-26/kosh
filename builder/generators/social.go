@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	_ "image/png"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -15,9 +16,9 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 
+	"github.com/chai2010/webp"
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
-	"github.com/h2non/bimg"
 	"github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
 )
@@ -201,23 +202,12 @@ func GenerateSocialCardToDisk(srcFs afero.Fs, cfg *config.SocialCardsConfig, sit
 		return err
 	}
 
-	// gg context can encode to PNG directly
-	dc := gg.NewContextForRGBA(img.(*image.RGBA))
-	var pngBuf bytes.Buffer
-	if err := dc.EncodePNG(&pngBuf); err != nil {
+	var buf bytes.Buffer
+	if err := webp.Encode(&buf, img, &webp.Options{Lossless: false, Quality: 85}); err != nil {
 		return err
 	}
 
-	// Use bimg to convert PNG to WebP with SIMD
-	res, err := bimg.NewImage(pngBuf.Bytes()).Process(bimg.Options{
-		Type:    bimg.WEBP,
-		Quality: 85,
-	})
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(destPath, res, 0644)
+	return os.WriteFile(destPath, buf.Bytes(), 0644)
 }
 
 // GenerateSocialCard creates a configurable gradient social card.
@@ -227,21 +217,9 @@ func GenerateSocialCard(sink utils.ArtifactSink, srcFs afero.Fs, cfg *config.Soc
 		return err
 	}
 
-	dc := gg.NewContextForRGBA(img.(*image.RGBA))
-	var pngBuf bytes.Buffer
-	if err := dc.EncodePNG(&pngBuf); err != nil {
-		return err
-	}
-
-	res, err := bimg.NewImage(pngBuf.Bytes()).Process(bimg.Options{
-		Type:    bimg.WEBP,
-		Quality: 85,
+	return sink.WriteStream(destPath, func(w io.Writer) error {
+		return webp.Encode(w, img, &webp.Options{Lossless: false, Quality: 85})
 	})
-	if err != nil {
-		return err
-	}
-
-	return sink.WriteFile(destPath, res)
 }
 
 func getBaseSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, faviconPath string) *image.RGBA {

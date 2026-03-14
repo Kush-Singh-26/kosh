@@ -168,6 +168,7 @@ func runCacheVerify(cmd *cobra.Command, args []string) {
 
 func runCacheRebuild(cmd *cobra.Command, args []string) {
 	cm := openCache()
+	defer func() { _ = cm.Close() }()
 
 	fmt.Println("🔄 Clearing cache for rebuild...")
 
@@ -175,13 +176,13 @@ func runCacheRebuild(cmd *cobra.Command, args []string) {
 		fmt.Printf("❌ Failed to clear cache: %v\n", err)
 		os.Exit(1)
 	}
-	_ = cm.Close()
 
 	fmt.Println("✅ Cache cleared. Run 'kosh build' to rebuild.")
 }
 
 func runCacheClear(cmd *cobra.Command, args []string) {
 	cm := openCache()
+	defer func() { _ = cm.Close() }()
 
 	fmt.Println("🗑️  Clearing all cache data...")
 
@@ -189,7 +190,6 @@ func runCacheClear(cmd *cobra.Command, args []string) {
 		fmt.Printf("❌ Failed to clear cache: %v\n", err)
 		os.Exit(1)
 	}
-	_ = cm.Close()
 
 	fmt.Println("✅ Cache cleared")
 }

@@ -3,6 +3,7 @@ package services
 import (
 	"html/template"
 	"log/slog"
+	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
@@ -38,14 +39,22 @@ func (s *renderServiceImpl) SetAssetsGate(ch <-chan struct{}) {
 
 func (s *renderServiceImpl) RenderPage(path string, data models.PageData) {
 	if s.assetsReady != nil {
-		<-s.assetsReady
+		select {
+		case <-s.assetsReady:
+		case <-time.After(30 * time.Second):
+			s.logger.Warn("Asset ready signal timeout, proceeding anyway", "path", path)
+		}
 	}
 	s.rnd.RenderPage(path, data)
 }
 
 func (s *renderServiceImpl) RenderIndex(path string, data models.PageData) {
 	if s.assetsReady != nil {
-		<-s.assetsReady
+		select {
+		case <-s.assetsReady:
+		case <-time.After(30 * time.Second):
+			s.logger.Warn("Asset ready signal timeout, proceeding anyway", "path", path)
+		}
 	}
 	s.rnd.RenderIndex(path, data)
 }
@@ -56,7 +65,11 @@ func (s *renderServiceImpl) Render404(path string, data models.PageData) {
 
 func (s *renderServiceImpl) RenderGraph(path string, data models.PageData) {
 	if s.assetsReady != nil {
-		<-s.assetsReady
+		select {
+		case <-s.assetsReady:
+		case <-time.After(30 * time.Second):
+			s.logger.Warn("Asset ready signal timeout, proceeding anyway", "path", path)
+		}
 	}
 	s.rnd.RenderGraph(path, data)
 }

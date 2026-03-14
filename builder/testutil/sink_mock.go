@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"path/filepath"
 	"sync"
@@ -51,6 +52,7 @@ func (m *MemSink) WriteHardlink(src, dst string) (bool, error) {
 	return false, nil
 }
 func (m *MemSink) SetMtime(path string, mtime time.Time) error { return nil }
+func (m *MemSink) CopyFile(src, dst string) error              { return nil }
 
 // MockTransaction is a no-op implementation of BuildTransaction for testing
 type MockTransaction struct {
@@ -63,7 +65,7 @@ func NewMockTransaction(stagingDir string) *MockTransaction {
 }
 
 func (m *MockTransaction) StagingDir() string { return m.stagingDir }
-func (m *MockTransaction) Commit() error {
+func (m *MockTransaction) Commit(ctx context.Context) error {
 	m.committed = true
 	return nil
 }

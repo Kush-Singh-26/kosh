@@ -17,7 +17,7 @@ func TestParallelWalk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(root)
+	defer func() { _ = os.RemoveAll(root) }()
 
 	dirs := []string{
 		"a",
@@ -81,9 +81,9 @@ func TestParallelWalk(t *testing.T) {
 func TestParallelWalk_MemMapFsFallback(t *testing.T) {
 	sourceFs := afero.NewMemMapFs()
 	root := "/test"
-	sourceFs.MkdirAll("/test/a/b", 0755)
-	afero.WriteFile(sourceFs, "/test/f1.txt", []byte("test"), 0644)
-	afero.WriteFile(sourceFs, "/test/a/f2.txt", []byte("test"), 0644)
+	_ = sourceFs.MkdirAll("/test/a/b", 0755)
+	_ = afero.WriteFile(sourceFs, "/test/f1.txt", []byte("test"), 0644)
+	_ = afero.WriteFile(sourceFs, "/test/a/f2.txt", []byte("test"), 0644)
 
 	ctx := context.Background()
 	var fileCount int32
@@ -120,11 +120,11 @@ func TestParallelWalk_MemMapFsFallback(t *testing.T) {
 
 func TestParallelWalk_SkipDir(t *testing.T) {
 	root, _ := os.MkdirTemp("", "kosh-walk-skip")
-	defer os.RemoveAll(root)
+	defer func() { _ = os.RemoveAll(root) }()
 
-	os.MkdirAll(filepath.Join(root, "skip_me/inner"), 0755)
-	os.WriteFile(filepath.Join(root, "skip_me/f1.txt"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(root, "keep_me.txt"), []byte("test"), 0644)
+	_ = os.MkdirAll(filepath.Join(root, "skip_me/inner"), 0755)
+	_ = os.WriteFile(filepath.Join(root, "skip_me/f1.txt"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(root, "keep_me.txt"), []byte("test"), 0644)
 
 	ctx := context.Background()
 	var seenSkipInner bool

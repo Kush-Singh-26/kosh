@@ -151,7 +151,7 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 
 		if isHashedAsset(filename) {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		} else if fileInfo.IsDir() || strings.HasSuffix(filename, ".html") {
+		} else if fileInfo.IsDir() || strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".wasm") || strings.HasSuffix(filename, ".bin") {
 			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
 			w.Header().Set("Pragma", "no-cache")
 			w.Header().Set("Expires", "0")

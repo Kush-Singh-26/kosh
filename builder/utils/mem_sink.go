@@ -41,6 +41,13 @@ func (s *MemSink) GetWrittenFiles() map[string]bool {
 }
 func (s *MemSink) GetOutputDir() string                        { return "/mem" }
 func (s *MemSink) WriteHardlink(src, dst string) (bool, error) { return false, nil }
+func (s *MemSink) CopyFile(src, dst string) error {
+	// MemSink doesn't have a real filesystem, so we can't "copy" from a path
+	// unless we assume src is a real OS path.
+	// For tests, we'll just ignore or implementation a mock read if needed.
+	return nil
+}
+
 func (s *MemSink) SetMtime(path string, mtime time.Time) error { return nil }
 
 type byteBuffer struct {

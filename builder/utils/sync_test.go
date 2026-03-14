@@ -80,7 +80,7 @@ func TestAtomicWrite_PreservesContent(t *testing.T) {
 	testFile := filepath.Join(outputDir, "test_atomic.html")
 	content := []byte("Atomic write test content")
 
-	err := atomicWrite(testFile, content)
+	err := atomicWrite(context.Background(), testFile, content)
 	if err != nil {
 		t.Fatalf("atomicWrite failed: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestAtomicWrite_OverwritesExisting(t *testing.T) {
 
 	_ = os.WriteFile(testFile, []byte("old content"), 0644)
 
-	err := atomicWrite(testFile, []byte("new content"))
+	err := atomicWrite(context.Background(), testFile, []byte("new content"))
 	if err != nil {
 		t.Fatalf("atomicWrite failed: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestAtomicWrite_CleansUpOnError(t *testing.T) {
 	testFile := filepath.Join(outputDir, "test_error.html")
 
 	// Test with empty path (should fail)
-	err := atomicWrite(testFile, []byte{})
+	err := atomicWrite(context.Background(), testFile, []byte{})
 	if err != nil {
 		t.Logf("Got error as expected: %v", err)
 	}

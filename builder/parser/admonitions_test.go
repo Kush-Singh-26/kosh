@@ -13,6 +13,7 @@ import (
 func TestAdmonitions(t *testing.T) {
 	cfg := &config.Config{}
 	r := native.New()
+	t.Cleanup(func() { _ = r.Close() })
 	diagramCache := &sync.Map{}
 	d2Group := r.GetD2Singleflight()
 	md := New(cfg, r, diagramCache, d2Group)

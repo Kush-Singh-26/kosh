@@ -6,10 +6,54 @@ package models
 import (
 	"encoding/xml"
 	"html/template"
+	"io/fs"
 	"time"
 )
 
-//msgp:ignore TreeNode Breadcrumb NavPage VersionInfo PostMetadata TagData Paginator PageData UrlSet Url Rss Channel Item GraphNode GraphLink GraphData
+//msgp:ignore TreeNode Breadcrumb NavPage VersionInfo PostMetadata TagData Paginator PageData UrlSet Url Rss Channel Item GraphNode GraphLink GraphData LightPostMetadata MetadataScannerResult ScannedFile ScannedAsset
+
+// LightPostMetadata is a minimal post metadata structure for site-wide discovery
+type LightPostMetadata struct {
+	Path        string
+	Version     string
+	Title       string
+	DateObj     time.Time
+	Tags        []string
+	Pinned      bool
+	Weight      int
+	ReadingTime int
+	Draft       bool
+	Description string
+	Link        string
+	HTMLPath    string
+}
+
+type MetadataScannerResult struct {
+	Metadata       []LightPostMetadata
+	TagMap         map[string][]LightPostMetadata
+	PostsByVersion map[string][]LightPostMetadata
+	Files          []ScannedFile
+	ContentAssets  []ScannedAsset
+	Has404         bool
+}
+
+// ScannedFile carries minimal file info to avoid a second filesystem walk in post processing.
+type ScannedFile struct {
+	Path            string
+	Version         string
+	Info            fs.FileInfo
+	BodyHash        string
+	FrontmatterHash string
+	ReadingTime     int
+	BodyOffset      int
+	Source          []byte         // Pre-read source bytes to avoid double-read
+	PreParsedMeta   map[string]any // Pre-parsed frontmatter to avoid double-parse
+}
+
+type ScannedAsset struct {
+	Path string
+	Info fs.FileInfo
+}
 
 // --- TOC Structure ---
 // TOCEntry represents a table of contents entry
@@ -185,7 +229,7 @@ type GraphData struct {
 // --- Search Structures ---
 
 type PostRecord struct {
-	ID              int
+	ID              uint64
 	Title           string
 	NormalizedTitle string // Lowercase title for search
 	Link            string
@@ -207,11 +251,11 @@ type IndexedPost struct {
 	ByteOffsets     map[string][]int // word -> [start, end, start, end...]
 }
 
-const CurrentSchemaVersion = 9
+const CurrentSchemaVersion = 10
 
 type SearchIndex struct {
 	SchemaVersion int64
-	Posts         []PostRecord
+	Posts         map[string]PostRecord
 	DocLens       map[string]int64 // postID (string) -> word count
 	AvgDocLen     float64
 	TotalDocs     int64

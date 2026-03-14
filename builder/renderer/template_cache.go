@@ -66,7 +66,12 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 	}
 	// CAS to prevent stampede: only one goroutine proceeds past TTL at a time
 	if !tc.lastCheckNs.CompareAndSwap(lastNs, nowNs) {
-		return false
+		// Another goroutine is handling the check, wait briefly and check result
+		time.Sleep(50 * time.Millisecond)
+		tc.mu.RLock()
+		changed := len(tc.mtimes) > 0 // Simplified check
+		tc.mu.RUnlock()
+		return changed
 	}
 
 	templateFiles := []string{"layout.html", "index.html", "graph.html", "404.html"}

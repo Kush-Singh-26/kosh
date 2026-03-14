@@ -103,21 +103,21 @@ func writeStringXXH3(h *xxh3.Hasher, s string) {
 // yamlDelim is the YAML frontmatter delimiter
 var yamlDelim = []byte("---")
 
+func HashBytes(data []byte) string {
+	hash := xxh3.Hash128(data)
+	b := hash.Bytes()
+	return hex.EncodeToString(b[:])
+}
+
 // GetBodyHash extracts the body content (after frontmatter) and returns its XXH3 hash
 // This is CRITICAL for cache validity - body changes without frontmatter changes
 // would otherwise be silently ignored
 func GetBodyHash(source []byte) string {
 	parts := bytes.SplitN(source, yamlDelim, 3)
 	if len(parts) >= 3 {
-		body := parts[2]
-		body = bytes.TrimSpace(body)
-		hash := xxh3.Hash128(body)
-		b := hash.Bytes()
-		return hex.EncodeToString(b[:])
+		return HashBytes(bytes.TrimSpace(parts[2]))
 	}
-	hash := xxh3.Hash128(source)
-	b := hash.Bytes()
-	return hex.EncodeToString(b[:])
+	return HashBytes(source)
 }
 
 // GetFrontmatterHashFromSource extracts frontmatter from raw source and computes its hash
@@ -129,14 +129,14 @@ func GetFrontmatterHashFromSource(source []byte) (string, error) {
 	}
 
 	frontmatter := bytes.TrimSpace(parts[1])
-	metaData, err := parseFrontmatter(frontmatter)
+	metaData, err := ParseFrontmatter(frontmatter)
 	if err != nil || metaData == nil {
 		return "", nil
 	}
 	return GetFrontmatterHash(metaData)
 }
 
-func parseFrontmatter(data []byte) (map[string]any, error) {
+func ParseFrontmatter(data []byte) (map[string]any, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}

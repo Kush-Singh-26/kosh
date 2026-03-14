@@ -5,24 +5,28 @@ import (
 	"io/fs"
 	"log/slog"
 	"path/filepath"
+	"runtime"
+	"sync"
 
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 type assetServiceImpl struct {
-	sourceFs      afero.Fs
-	sink          utils.ArtifactSink
-	cfg           *config.Config
-	renderer      RenderService
-	logger        *slog.Logger
-	metrics       *metrics.BuildMetrics
-	contentAssets []ScannedAsset
-	assetsReady   chan struct{}
+	sourceFs          afero.Fs
+	sink              utils.ArtifactSink
+	cfg               *config.Config
+	renderer          RenderService
+	logger            *slog.Logger
+	metrics           *metrics.BuildMetrics
+	contentAssetsChan <-chan []models.ScannedAsset
+	contentAssets     []models.ScannedAsset
+	assetsReady       chan struct{}
 }
 
 func NewAssetService(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger) AssetService {
@@ -35,16 +39,17 @@ func NewAssetService(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Con
 	}
 }
 
-func (s *assetServiceImpl) SetSink(sink utils.ArtifactSink)        { s.sink = sink }
-func (s *assetServiceImpl) SetSourceFs(fs afero.Fs)                { s.sourceFs = fs }
-func (s *assetServiceImpl) SetMetrics(m *metrics.BuildMetrics)     { s.metrics = m }
-func (s *assetServiceImpl) SetAssetsReadySignal(ch chan struct{})  { s.assetsReady = ch }
-func (s *assetServiceImpl) SetContentAssets(assets []ScannedAsset) { s.contentAssets = assets }
+func (s *assetServiceImpl) SetSink(sink utils.ArtifactSink)       { s.sink = sink }
+func (s *assetServiceImpl) SetSourceFs(fs afero.Fs)               { s.sourceFs = fs }
+func (s *assetServiceImpl) SetMetrics(m *metrics.BuildMetrics)    { s.metrics = m }
+func (s *assetServiceImpl) SetAssetsReadySignal(ch chan struct{}) { s.assetsReady = ch }
+func (s *assetServiceImpl) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
+	s.contentAssetsChan = ch
+}
 
 func (s *assetServiceImpl) Build(ctx context.Context) error {
 	g, gCtx := errgroup.WithContext(ctx)
 
-	destStaticDir := filepath.Join(s.cfg.OutputDir, "static")
 	var m interface {
 		RecordImageOptimization(original, optimized int64)
 		RecordImageResizeSkipped()
@@ -53,9 +58,9 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		m = s.metrics
 	}
 
-	// 1. Static Discovery & Copy
+	// 1. Unified Asset Copy Phase
 	g.Go(func() error {
-		copyTimer := utils.StartPhase("Asset copy static")
+		copyTimer := utils.StartPhase("Asset copy unified")
 		defer copyTimer.Stop()
 
 		themeDir := s.cfg.StaticDir
@@ -63,63 +68,100 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			themeDir = "themes/blog/static"
 		}
 
+		// Calculate worker count early for discovery phase
+		numWorkers := s.cfg.ImageWorkers
+		if numWorkers <= 0 {
+			numWorkers = runtime.NumCPU()
+		}
+
 		type assetTask struct {
 			srcPath string
 			info    fs.FileInfo
 		}
-		assetMap := make(map[string]assetTask)
+		// Use a sync.Map for thread-safe discovery to avoid any potential race conditions
+		var assetSyncMap sync.Map
 
-		// A) Theme Static Discovery
-		exists, _ := afero.Exists(s.sourceFs, themeDir)
-		if exists {
-			_ = afero.Walk(s.sourceFs, themeDir, func(path string, info fs.FileInfo, err error) error {
-				if err != nil || info.IsDir() {
+		// Discovery with higher concurrency for modern SSDs
+		discoveryGroup, dCtx := errgroup.WithContext(gCtx)
+		walkConcurrency := max(numWorkers/2, 4)
+
+		discoveryGroup.Go(func() error {
+			exists, _ := afero.Exists(s.sourceFs, themeDir)
+			if exists {
+				_ = utils.ParallelWalk(dCtx, s.sourceFs, themeDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
+					if err != nil || info.IsDir() {
+						return nil
+					}
+					if filepath.Base(path) == "search.wasm" {
+						return nil
+					}
+					rel, _ := utils.SafeRel(themeDir, path)
+					assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
 					return nil
+				})
+			}
+			return nil
+		})
+
+		if themeDir != "static" {
+			discoveryGroup.Go(func() error {
+				exists, _ := afero.Exists(s.sourceFs, "static")
+				if exists {
+					_ = utils.ParallelWalk(dCtx, s.sourceFs, "static", walkConcurrency, func(path string, info fs.FileInfo, err error) error {
+						if err != nil || info.IsDir() {
+							return nil
+						}
+						if filepath.Base(path) == "search.wasm" {
+							return nil
+						}
+						rel, _ := utils.SafeRel("static", path)
+						assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
+						return nil
+					})
 				}
-				rel, _ := utils.SafeRel(themeDir, path)
-				assetMap[rel] = assetTask{srcPath: path, info: info}
 				return nil
 			})
 		}
 
-		// B) Site Static Discovery (Deterministic Overwrite)
-		if themeDir != "static" {
-			exists, _ := afero.Exists(s.sourceFs, "static")
-			if exists {
-				_ = afero.Walk(s.sourceFs, "static", func(path string, info fs.FileInfo, err error) error {
-					if err != nil || info.IsDir() {
-						return nil
-					}
-					rel, _ := utils.SafeRel("static", path)
-					assetMap[rel] = assetTask{srcPath: path, info: info}
-					return nil
-				})
+		_ = discoveryGroup.Wait()
+
+		// Convert sync.Map to a regular map for the copy phase
+		assetMap := make(map[string]assetTask, 256)
+		assetSyncMap.Range(func(key, value any) bool {
+			assetMap[key.(string)] = value.(assetTask)
+			return true
+		})
+
+		// Wait for content assets if channel provided
+		if s.contentAssetsChan != nil {
+			select {
+			case assets, ok := <-s.contentAssetsChan:
+				if ok && assets != nil {
+					s.contentAssets = assets
+				} else {
+					s.contentAssets = []models.ScannedAsset{}
+				}
+			case <-gCtx.Done():
+				return gCtx.Err()
 			}
 		}
 
-		// C) Dispatch deduplicated assets
+		for _, a := range s.contentAssets {
+			rel, _ := utils.SafeRel(s.cfg.ContentDir, a.Path)
+			assetMap[rel] = assetTask{srcPath: a.Path, info: a.Info}
+		}
+
+		// Dispatch with STRICT limit (128 for Windows to avoid I/O contention)
 		copyGroup, copyCtx := errgroup.WithContext(gCtx)
-		copyGroup.SetLimit(s.cfg.ImageWorkers)
+		copyGroup.SetLimit(128)
 
 		for rel, task := range assetMap {
 			r, t := rel, task
 			copyGroup.Go(func() error {
-				dst := filepath.Join(destStaticDir, r)
+				dst := filepath.Join(s.cfg.OutputDir, r)
 				return utils.CopyFileWithOptionalImageProcessing(copyCtx, s.sourceFs, s.sink, t.srcPath, dst, s.cfg.CompressImages, s.cfg.CacheDir+"/images", s.cfg.WebPQuality, t.info, m, s.renderer.RegisterFile)
 			})
 		}
-
-		// D) Content Images
-		copyGroup.Go(func() error {
-			if len(s.contentAssets) > 0 {
-				return s.copyContentAssetsFromManifest(copyCtx)
-			}
-			exclude := []string{}
-			if !s.cfg.Features.RawMarkdown {
-				exclude = append(exclude, ".md")
-			}
-			return utils.CopyDirVFS(copyCtx, s.sourceFs, s.sink, s.cfg.ContentDir, s.cfg.OutputDir, s.cfg.CompressImages, exclude, s.renderer.RegisterFile, s.cfg.CacheDir+"/images", s.cfg.ImageWorkers, s.cfg.WebPQuality, m)
-		})
 
 		s.copyCriticalAssets()
 		return copyGroup.Wait()
@@ -138,26 +180,6 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 	})
 
 	return g.Wait()
-}
-
-func (s *assetServiceImpl) copyContentAssetsFromManifest(ctx context.Context) error {
-	numWorkers := s.cfg.ImageWorkers
-	if numWorkers <= 0 {
-		numWorkers = 8
-	}
-
-	p, pCtx := errgroup.WithContext(ctx)
-	p.SetLimit(numWorkers)
-
-	for _, asset := range s.contentAssets {
-		a := asset
-		p.Go(func() error {
-			rel, _ := utils.SafeRel(s.cfg.ContentDir, a.Path)
-			dst := filepath.Join(s.cfg.OutputDir, rel)
-			return utils.CopyFileWithOptionalImageProcessing(pCtx, s.sourceFs, s.sink, a.Path, dst, s.cfg.CompressImages, s.cfg.CacheDir+"/images", s.cfg.WebPQuality, a.Info, s.metrics, s.renderer.RegisterFile)
-		})
-	}
-	return p.Wait()
 }
 
 func (s *assetServiceImpl) copyCriticalAssets() {

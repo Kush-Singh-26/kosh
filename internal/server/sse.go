@@ -3,7 +3,16 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"sync"
 )
+
+// clientSlicePool reduces allocations during broadcast
+var clientSlicePool = sync.Pool{
+	New: func() any {
+		s := make([]chan<- struct{}, 0, 16)
+		return &s
+	},
+}
 
 func handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
@@ -50,7 +59,9 @@ func broadcastReload(ch <-chan struct{}) {
 		}
 
 		clientMu.Lock()
-		clientsSnapshot := make([]chan<- struct{}, 0, len(clients))
+		// Use pooled slice for snapshot
+		slicePtr := clientSlicePool.Get().(*[]chan<- struct{})
+		clientsSnapshot := (*slicePtr)[:0]
 		for client := range clients {
 			clientsSnapshot = append(clientsSnapshot, client)
 		}
@@ -63,5 +74,9 @@ func broadcastReload(ch <-chan struct{}) {
 				// Client channel full; skip — channel already has buffer 5
 			}
 		}
+
+		// Return slice to pool (safe to reuse after clearing)
+		*slicePtr = (*slicePtr)[:0]
+		clientSlicePool.Put(slicePtr)
 	}
 }

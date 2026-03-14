@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,12 +24,15 @@ var searchWasmBr []byte
 
 // embeddedWasmHash caches the hash of the raw (decompressed) embedded WASM
 var embeddedWasmHash string
+var wasmInitErr error
 
 func init() {
 	raw, err := decompressBrotli(searchWasmBr)
 	if err != nil {
 		// This should never happen if the build process is correct
-		panic(fmt.Sprintf("failed to decompress embedded WASM: %v", err))
+		// Store error for lazy handling instead of panicking
+		wasmInitErr = fmt.Errorf("failed to decompress embedded WASM: %w", err)
+		return
 	}
 	embeddedWasmHash = hashBytes(raw)
 }
@@ -53,6 +57,11 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 	isEmbedded := len(sourceWasm) == 0
 
 	if isEmbedded {
+		// Check for initialization error
+		if wasmInitErr != nil {
+			fmt.Printf("❌ WASM initialization failed: %v\n", wasmInitErr)
+			return false
+		}
 		wasmHash = embeddedWasmHash
 		wasmBrBytes = searchWasmBr
 	} else {
@@ -70,19 +79,19 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 		if deployedHash == wasmHash {
 			return false
 		}
-		fmt.Println("🔄 WASM updated, deploying new version...")
+		slog.Info("WASM updated, deploying new version...")
 	} else {
 		// Check persistent cache for non-embedded source
 		if !isEmbedded && cacheDir != "" {
 			cachePath := filepath.Join(cacheDir, "wasm", wasmHash+".br")
 			if cachedBr, err := os.ReadFile(cachePath); err == nil {
-				fmt.Println("🚀 Using cached Search WASM...")
+				slog.Info("Using cached Search WASM...")
 				_ = afero.WriteFile(fs, wasmOut, wasmBytes, 0644)
 				_ = afero.WriteFile(fs, brOut, cachedBr, 0644)
 				return true
 			}
 		}
-		fmt.Println("🚀 Deploying Search WASM...")
+		slog.Info("Deploying Search WASM...")
 	}
 
 	// Deploy WASM and Brotli
@@ -91,16 +100,18 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 		var err error
 		wasmBytes, err = decompressBrotli(wasmBrBytes)
 		if err != nil {
-			fmt.Printf("❌ Failed to decompress embedded WASM: %v\n", err)
+			slog.Error("Failed to decompress embedded WASM", "error", err)
 			return false
 		}
 	} else {
 		// For source, we have .wasm, need to compress for .br
-		fmt.Println("📦 Compressing WASM...")
+		slog.Info("Compressing WASM...")
 		var buf bytes.Buffer
 		bw := brotli.NewWriterLevel(&buf, 4)
 		_, _ = bw.Write(wasmBytes)
-		bw.Close()
+		if err := bw.Close(); err != nil {
+			slog.Warn("Failed to close Brotli writer", "error", err)
+		}
 		wasmBrBytes = buf.Bytes()
 
 		// Save to persistent cache
@@ -112,16 +123,17 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 	}
 
 	if err := afero.WriteFile(fs, wasmOut, wasmBytes, 0644); err != nil {
-		fmt.Printf("❌ Failed to write WASM: %v\n", err)
+		slog.Error("Failed to write WASM", "error", err)
 		return false
 	}
 	if err := afero.WriteFile(fs, brOut, wasmBrBytes, 0644); err != nil {
-		fmt.Printf("❌ Failed to write WASM.br: %v\n", err)
+		slog.Error("Failed to write WASM.br", "error", err)
 		return false
 	}
 
-	fmt.Printf("✅ WASM deployed: %s (compressed: %s)\n",
-		formatSize(len(wasmBytes)), formatSize(len(wasmBrBytes)))
+	slog.Info("WASM deployed",
+		"uncompressed", formatSize(len(wasmBytes)),
+		"compressed", formatSize(len(wasmBrBytes)))
 
 	return true
 }
@@ -177,7 +189,7 @@ func CompileWASMFromSource(ctx context.Context, srcPath string, destPath string)
 		absDest = filepath.Join(repoRoot, destPath)
 	}
 
-	fmt.Printf("🚀 Rebuilding Search WASM from source (%s)... \n", srcPath)
+	slog.Info("Rebuilding Search WASM from source", "path", srcPath)
 
 	// Ensure destination directory exists
 	if err := os.MkdirAll(filepath.Dir(absDest), 0755); err != nil {
@@ -194,8 +206,24 @@ func CompileWASMFromSource(ctx context.Context, srcPath string, destPath string)
 		return fmt.Errorf("failed to compile WASM: %w", err)
 	}
 
-	fmt.Println("✅ Search WASM rebuilt successfully.")
+	slog.Info("Search WASM rebuilt successfully")
 	return nil
+}
+
+func CompileKaTeXBytecode(ctx context.Context, bcPath string) error {
+	repoRoot := RepoRoot()
+	absDest := bcPath
+	if !filepath.IsAbs(absDest) {
+		absDest = filepath.Join(repoRoot, bcPath)
+	}
+
+	scriptPath := filepath.Join(repoRoot, "scripts", "compile-katex", "main.go")
+	cmd := exec.CommandContext(ctx, "go", "run", scriptPath, absDest)
+	cmd.Dir = repoRoot
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 }
 
 // hashBytes computes XXH3 hash of byte slice (first 16 hex chars)
@@ -207,11 +235,6 @@ func hashBytes(data []byte) string {
 	sum := h.Sum128()
 	b := sum.Bytes()
 	return hex.EncodeToString(b[:])[:16]
-}
-
-// hashFile computes XXH3 hash of file contents
-func hashFile(path string) (string, error) {
-	return hashFileFs(afero.NewOsFs(), path)
 }
 
 func hashFileFs(fs afero.Fs, path string) (string, error) {
@@ -260,16 +283,4 @@ func CompressBrotliFsLevel(fs afero.Fs, src, dst string, level int) error {
 		return copyErr
 	}
 	return closeErr
-}
-
-func getFileSize(path string) string {
-	return getFileSizeFs(afero.NewOsFs(), path)
-}
-
-func getFileSizeFs(fs afero.Fs, path string) string {
-	fi, err := fs.Stat(path)
-	if err != nil {
-		return "unknown"
-	}
-	return fmt.Sprintf("%.2f KB", float64(fi.Size())/1024)
 }

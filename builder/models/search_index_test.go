@@ -7,7 +7,7 @@ import (
 func TestSearchIndex_SchemaVersion(t *testing.T) {
 	index := SearchIndex{
 		SchemaVersion: CurrentSchemaVersion,
-		Posts:         []PostRecord{},
+		Posts:         make(map[string]PostRecord),
 	}
 
 	if index.SchemaVersion != CurrentSchemaVersion {
@@ -24,8 +24,8 @@ func TestSearchIndex_SchemaVersion(t *testing.T) {
 func TestSearchIndex_MsgpackEncoding(t *testing.T) {
 	index := SearchIndex{
 		SchemaVersion: CurrentSchemaVersion,
-		Posts: []PostRecord{
-			{ID: 1, Title: "Test Post"},
+		Posts: map[string]PostRecord{
+			"1": {ID: 1, Title: "Test Post"},
 		},
 		Inverted: map[string]map[string][]int{
 			"test": {"1": {1, 10}},
