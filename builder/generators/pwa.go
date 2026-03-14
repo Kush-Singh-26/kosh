@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/disintegration/imaging"
@@ -179,7 +180,7 @@ func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string) (PWAIconsData, error) 
 		go func(idx, sz int) {
 			defer wg.Done()
 
-			fmt.Printf("   🎨 Generating PWA Icon: %dx%d\n", sz, sz)
+			fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  Generating PWA Icon: %dx%d\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), sz, sz)
 			dst := imaging.Resize(src, sz, sz, imaging.Lanczos)
 
 			var buf bytes.Buffer

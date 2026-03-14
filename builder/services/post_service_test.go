@@ -21,6 +21,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
@@ -207,7 +208,7 @@ func setupPostServiceTest(t *testing.T) *postServiceImpl {
 		renderer:       &mockRenderService{},
 		logger:         logger,
 		sourceFs:       sourceFs,
-		sink:           utils.NewMemSink(),
+		sink:           mocks.NewMemSink(),
 		metrics:        metrics.NewBuildMetrics(),
 		mdPool:         mdPool,
 		nativeRenderer: nativeRenderer,

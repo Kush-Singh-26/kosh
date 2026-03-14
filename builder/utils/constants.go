@@ -37,16 +37,15 @@ const (
 
 var TestingMode = false
 
-// Legacy constant for backward compatibility
-const DefaultWorkerCountMax = 32
+const maxWorkers = 32
 
 func GetDefaultWorkerCount() int {
 	workers := runtime.NumCPU()
 	if workers < 2 {
 		return 2
 	}
-	if workers > DefaultWorkerCountMax {
-		return DefaultWorkerCountMax
+	if workers > maxWorkers {
+		return maxWorkers
 	}
 	return workers
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/run"
 )
 
 func recoveryMiddleware(next http.Handler) http.Handler {
@@ -25,6 +26,35 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 			}
 		}()
 		next.ServeHTTP(w, r)
+	})
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *statusWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		sw := &statusWriter{ResponseWriter: w, status: 200}
+		next.ServeHTTP(sw, r)
+		duration := time.Since(start)
+		// Skip logging for SSE /events endpoint - not useful to log heartbeats
+		if r.URL.Path != "/events" && (sw.status >= 400 || duration > 500*time.Millisecond) {
+			run.HTTPLog(r.Method, r.URL.Path, sw.status, duration)
+		}
 	})
 }
 
@@ -65,7 +95,7 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 
 	go func() {
 		<-ctx.Done()
-		slog.Info("\n🛑 Shutting down server...")
+		run.DevLogInfo("Shutting down server...")
 		stopWatcher()
 	}()
 
@@ -168,12 +198,12 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 
 	httpServer := &http.Server{
 		Addr:    addr,
-		Handler: recoveryMiddleware(mux),
+		Handler: loggingMiddleware(recoveryMiddleware(mux)),
 	}
 
 	go func() {
 		<-ctx.Done()
-		slog.Info("\n🛑 Shutting down HTTP server...")
+		run.DevLogInfo("Shutting down HTTP server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
@@ -181,15 +211,16 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 		}
 	}()
 
-	slog.Info(fmt.Sprintf("🌍 Serving on http://%s", addr))
+	run.DevLogInfo("Serving on http://" + addr)
 	if *host == "0.0.0.0" {
-		slog.Info("   (Accessible on your local network)")
+		run.DevLogInfo("Accessible on your local network")
 	}
-	slog.Info("   (Auto-reload enabled via /events)")
+
+	run.DevLogInfo("Auto-reload enabled via /events")
 
 	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 		slog.Error("HTTP server error", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("✅ Server stopped.")
+	run.DevLogSuccess("Server stopped")
 }

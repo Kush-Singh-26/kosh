@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -71,19 +70,19 @@ func runServe(cmd *cobra.Command, args []string) {
 		b := run.NewBuilderWithConfig(cfg)
 		b.SetDevMode(true)
 		if err := b.Build(ctx); err != nil {
-			fmt.Printf("❌ Build failed: %v\n", err)
+			run.DevLogError("Build failed: " + err.Error())
 			os.Exit(1)
 		}
 
 		go func() {
 			w, err := watch.New([]string{b.Config().ContentDir, b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
-				fmt.Printf("\n⚡ Change detected: %s | Rebuilding...\n", event.Name)
+				run.DevLogChange(event.Name, "watch")
 				server.SetBuildActive(true)
 				b.BuildChanged(ctx, event.Name, event.Op)
 				server.SetBuildActive(false)
 			})
 			if err != nil {
-				fmt.Printf("❌ Watcher failed: %v\n", err)
+				run.DevLogError("Watcher failed: " + err.Error())
 				return
 			}
 			w.Start()

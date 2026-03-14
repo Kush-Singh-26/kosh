@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 )
 
 func TestGenerateSW(t *testing.T) {
-	sink := testutil.NewMemSink()
+	sink := mocks.NewMemSink()
 	destDir := "output"
 	buildVersion := int64(123)
 	forceRebuild := true
@@ -48,7 +48,7 @@ func TestGenerateSW(t *testing.T) {
 }
 
 func TestGenerateManifest(t *testing.T) {
-	sink := testutil.NewMemSink()
+	sink := mocks.NewMemSink()
 	destDir := "output"
 	baseURL := "https://example.com"
 	siteTitle := "My Blog"

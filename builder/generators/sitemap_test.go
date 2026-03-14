@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 )
 
 func TestGenerateSitemap(t *testing.T) {
-	sink := testutil.NewMemSink()
+	sink := mocks.NewMemSink()
 	baseURL := "https://example.com"
 	posts := []models.PostMetadata{
 		{
@@ -47,7 +47,7 @@ func TestGenerateSitemap(t *testing.T) {
 }
 
 func TestGenerateSitemap_EmptyPosts(t *testing.T) {
-	sink := testutil.NewMemSink()
+	sink := mocks.NewMemSink()
 	_, err := GenerateSitemap(sink, "https://example.com", []models.PostMetadata{}, nil, "sitemap.xml")
 	if err != nil {
 		t.Fatalf("GenerateSitemap failed with empty posts: %v", err)

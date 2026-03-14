@@ -48,9 +48,8 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(cfg, nil, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
 	metadataScanner := services.NewMetadataScanner()
-
-	sink := testutil.NewMemSink()
-	tx := testutil.NewMockTransaction("public")
+	sink := mocks.NewMemSink()
+	tx := mocks.NewMockTransaction("public")
 
 	b := NewBuilderFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, logger, buildMetrics, fs, mdPool, nativeRenderer)
 	b.Sink = sink
@@ -63,7 +62,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	// Now simulate disk full during build
 	// We use a clean build to ensure it hits the sink
 	cfg.ForceRebuild = true
-	failingSink := &testutil.FailingSink{Err: errors.New("no space left on device")}
+	failingSink := &mocks.FailingSink{Err: errors.New("no space left on device")}
 	b.Sink = failingSink
 
 	err := b.Build(context.Background())

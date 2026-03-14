@@ -145,12 +145,7 @@ func (r *Renderer) mathBatchWorker() {
 		}
 
 		for i, res := range results {
-			select {
-			case batch[i].res <- res:
-			case <-time.After(100 * time.Millisecond):
-				// Caller timeout, drop result
-			}
-			close(batch[i].err)
+			batch[i].res <- res
 		}
 	}
 }

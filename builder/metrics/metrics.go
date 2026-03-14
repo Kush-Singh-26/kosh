@@ -88,7 +88,7 @@ func (m *BuildMetrics) String() string {
 		hitRate = float64(hits) / float64(total) * 100
 	}
 
-	result := fmt.Sprintf("📊 Built %d posts in %v (cache: %d/%d hits, %.0f%%)\n",
+	result := fmt.Sprintf("Built %d posts in %v (cache: %d/%d hits, %.0f%%)\n",
 		m.PostsProcessed.Load(),
 		duration,
 		hits,
@@ -105,19 +105,19 @@ func (m *BuildMetrics) String() string {
 		if orig > 0 {
 			savingsPercent = float64(saved) / float64(orig) * 100
 		}
-		result += fmt.Sprintf("🖼️  Optimized %d images (saved %s, %.1f%%)\n",
+		result += fmt.Sprintf("Optimized %d images (saved %s, %.1f%%)\n",
 			images,
 			formatBytes(saved),
 			savingsPercent,
 		)
 		if skipped := m.ImageResizeSkipped.Load(); skipped > 0 {
-			result += fmt.Sprintf("↔️  Skipped resize for %d small images\n", skipped)
+			result += fmt.Sprintf("Skipped resize for %d small images\n", skipped)
 		}
 	}
 
 	panics := atomic.LoadInt32(&m.PanicsRecovered)
 	if panics > 0 {
-		result += fmt.Sprintf("⚠️  %d panic(s) recovered during build\n", panics)
+		result += fmt.Sprintf("%d panic(s) recovered during build\n", panics)
 	}
 
 	return result

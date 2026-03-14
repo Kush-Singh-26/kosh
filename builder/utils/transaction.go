@@ -46,7 +46,7 @@ func cleanupStaleBuildDirs(outputDir string) {
 			if info, err := os.Stat(fullPath); err == nil {
 				// Only cleanup if older than 1 hour to avoid deleting active staging dirs from other processes
 				if time.Since(info.ModTime()) > time.Hour {
-					_ = os.RemoveAll(fullPath)
+					_ = RemoveAllWithRetry(context.Background(), fullPath, 5, 10*time.Millisecond)
 				}
 			}
 		}
@@ -55,7 +55,7 @@ func cleanupStaleBuildDirs(outputDir string) {
 
 // NewBuildTransaction initializes a transaction. If isCleanBuild is true, it uses a .tmp directory for staging.
 func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
-	outputDir = filepath.Clean(outputDir)
+	outputDir = NormalizePath(outputDir)
 	var stagingDir string
 	var backupDir string
 	if isCleanBuild {
@@ -68,7 +68,7 @@ func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
 			name := entry.Name()
 			if strings.HasPrefix(name, base+".bak-") {
 				fullPath := filepath.Join(parent, name)
-				_ = os.RemoveAll(fullPath)
+				_ = RemoveAllWithRetry(context.Background(), fullPath, 5, 10*time.Millisecond)
 			}
 		}
 		ts := fmt.Sprintf("%d-%d", time.Now().UnixNano(), buildTxnCounter.Add(1))
@@ -103,7 +103,7 @@ func (tx *DirectoryTx) Commit(ctx context.Context) error {
 	backupDir := tx.backupDir
 	if _, err := os.Stat(tx.realOutputDir); err == nil {
 		// Try to remove old backup if it somehow exists
-		_ = os.RemoveAll(backupDir)
+		_ = RemoveAllWithRetry(ctx, backupDir, 5, 10*time.Millisecond)
 		if err := RenameWithRetry(ctx, tx.realOutputDir, backupDir, 12, 20*time.Millisecond); err != nil {
 			return fmt.Errorf("failed to backup output directory: %w", err)
 		}
@@ -139,7 +139,7 @@ func (tx *DirectoryTx) Rollback() error {
 		return nil
 	}
 	// Clean up staging dir on failure
-	return os.RemoveAll(tx.stagingDir)
+	return RemoveAllWithRetry(context.Background(), tx.stagingDir, 5, 10*time.Millisecond)
 }
 
 func (tx *DirectoryTx) GetLastBuildTime() time.Time {
@@ -176,6 +176,41 @@ func RenameWithRetry(ctx context.Context, oldPath, newPath string, maxRetries in
 		// Use a capped backoff with jitter
 		delay := min(baseDelay*time.Duration(1<<uint(i)), 2*time.Second)
 		// Simple jitter without math/rand: ±10%
+		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
+
+		timer := time.NewTimer(delay + jitter)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return err
+}
+
+// RemoveAllWithRetry attempts to remove a directory tree with exponential backoff.
+// Critical for Windows where antivirus/indexers can briefly lock files.
+func RemoveAllWithRetry(ctx context.Context, path string, maxRetries int, baseDelay time.Duration) error {
+	var err error
+	for i := 0; i < maxRetries; i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		err = os.RemoveAll(path)
+		if err == nil {
+			return nil
+		}
+
+		if i == 0 {
+			slog.Debug("RemoveAll failed, retrying with backoff...", "path", path, "error", err)
+		}
+
+		// Use a capped backoff with jitter
+		delay := min(baseDelay*time.Duration(1<<uint(i)), 2*time.Second)
 		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
 
 		timer := time.NewTimer(delay + jitter)

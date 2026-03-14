@@ -59,7 +59,7 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 	if isEmbedded {
 		// Check for initialization error
 		if wasmInitErr != nil {
-			fmt.Printf("❌ WASM initialization failed: %v\n", wasmInitErr)
+			slog.Error("WASM initialization failed", "error", wasmInitErr)
 			return false
 		}
 		wasmHash = embeddedWasmHash
@@ -70,7 +70,7 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 	}
 
 	if err := fs.MkdirAll(filepath.Dir(wasmOut), 0755); err != nil {
-		fmt.Printf("⚠️ Failed to create WASM directory: %v\n", err)
+		slog.Warn("Failed to create WASM directory", "error", err)
 	}
 
 	// Check if deployed WASM matches current version
@@ -153,7 +153,7 @@ func DeployWASMFromFile(fs afero.Fs, outputDir, cacheDir, sourcePath string) boo
 		if errors.Is(err, os.ErrNotExist) {
 			return CheckWASMFs(fs, outputDir, cacheDir)
 		}
-		fmt.Printf("⚠️ Failed to read source WASM %s: %v\n", sourcePath, err)
+		slog.Warn("Failed to read source WASM", "path", sourcePath, "error", err)
 		return CheckWASMFs(fs, outputDir, cacheDir)
 	}
 	return CheckWASMFsWithSource(fs, outputDir, cacheDir, data)

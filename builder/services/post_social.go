@@ -31,7 +31,6 @@ func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 				s.cardHashes.Store(t.path, t.frontmatterHash)
 			}
 			s.renderer.RegisterFile(t.cardDestPath)
-			s.logger.Debug("Social card copied from cache", "path", t.cardDestPath)
 			return
 		} else {
 			s.logger.Warn("Failed to copy cached social card", "path", t.cardDestPath, "error", errWrite)
@@ -77,7 +76,6 @@ func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 		} else if err := s.sink.WriteFile(t.cardDestPath, data); err != nil {
 			s.logger.Error("Failed to write social card", "path", t.cardDestPath, "error", err)
 		} else {
-			s.logger.Debug("Social card generated successfully", "path", t.cardDestPath)
 			s.renderer.RegisterFile(t.cardDestPath)
 		}
 
@@ -92,7 +90,6 @@ func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 			s.logger.Error("Failed to generate social card (fallback)", "path", t.cardDestPath, "error", err)
 		} else {
 			s.renderer.RegisterFile(t.cardDestPath)
-			s.logger.Debug("Social card generated successfully (fallback)", "path", t.cardDestPath)
 		}
 	}
 }

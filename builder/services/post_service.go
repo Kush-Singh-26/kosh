@@ -154,7 +154,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 						FrontmatterHash: cachedMeta.ContentHash, SSRHashes: cachedMeta.SSRInputHashes,
 						HasImages: cachedMeta.HasImages, MathExpressions: cachedMeta.MathExpressions,
 						SearchRecord: models.PostRecord{
-							ID:    uint64(xxh3.HashString(cachedMeta.Link)),
+							ID:    xxh3.HashString(cachedMeta.Link),
 							Title: cachedSearch.Title, NormalizedTitle: cachedSearch.NormalizedTitle,
 							Link: htmlRelPath, Content: cachedSearch.Content,
 							NormalizedTags: cachedSearch.NormalizedTags, Version: cachedMeta.Version,
@@ -260,7 +260,7 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 		indexedMu.Lock()
 		// Assign deterministic ID based on post relative link
 		searchRecord := parseRes.SearchRecord
-		searchRecord.ID = uint64(xxh3.HashString(searchRecord.Link))
+		searchRecord.ID = xxh3.HashString(searchRecord.Link)
 		indexedPosts = append(indexedPosts, models.IndexedPost{
 			Record: searchRecord, WordFreqs: parseRes.WordFreqs, DocLen: parseRes.DocLen,
 			StemMap: parseRes.StemMap, PositionalIndex: parseRes.PositionalIndex, ByteOffsets: parseRes.ByteOffsets,

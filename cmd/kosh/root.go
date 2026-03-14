@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/run"
 	"github.com/spf13/cobra"
 )
 
@@ -40,20 +41,20 @@ func getContext() context.Context {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigChan
-		fmt.Printf("\n🛑 Received signal: %s. Initiating graceful shutdown...\n", sig)
+		run.DevLogInfo("Received signal: " + sig.String() + ". Initiating graceful shutdown...")
 		cancel()
 
 		// Second signal forces exit
 		select {
 		case sig2 := <-sigChan:
-			fmt.Printf("\n🛑 Received second signal: %s. Forcing exit.\n", sig2)
+			run.DevLogInfo("Received second signal: " + sig2.String() + ". Forcing exit.")
 			os.Exit(1)
 		case <-time.After(2 * time.Second):
 			// After 2 seconds, the user can still force exit with another Ctrl+C
 			// but we keep the listener alive just in case.
 			go func() {
 				sig3 := <-sigChan
-				fmt.Printf("\n🛑 Received forceful Signal: %s. Exiting.\n", sig3)
+				run.DevLogInfo("Received forceful signal: " + sig3.String() + ". Exiting.")
 				os.Exit(1)
 			}()
 		}
