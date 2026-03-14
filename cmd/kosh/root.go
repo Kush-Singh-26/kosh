@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/run"
 	"github.com/spf13/cobra"
+	"charm.land/fang/v2"
 )
 
 var rootCmd = &cobra.Command{
@@ -19,19 +19,14 @@ var rootCmd = &cobra.Command{
 It supports full builds, incremental development rebuilds, CSS/JS asset fingerprinting,
 WebP image conversion for eligible local raster images, SSR for math and D2, and Go+WASM search.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		printStartupBanner("CLI Help", nil)
 		_ = cmd.Help()
 	},
 }
 
 func init() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = false
-	defaultHelp := rootCmd.HelpFunc()
-	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		if cmd == rootCmd {
-			printStartupBanner("CLI Help", nil)
-		}
-		defaultHelp(cmd, args)
-	})
+	rootCmd.Version = cliVersion
 }
 
 func getContext() context.Context {
@@ -64,8 +59,8 @@ func getContext() context.Context {
 }
 
 func execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+	ctx := getContext()
+	if err := fang.Execute(ctx, rootCmd); err != nil {
 		os.Exit(1)
 	}
 }
