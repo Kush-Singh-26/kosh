@@ -14,6 +14,8 @@ perf-results/
 builder/run/.kosh-cache/
 builder/run/.kosh-artifacts/
 builder/run/public/
+builder/run/public.bak-*/
+builder/run/public.tmp-*/
 
 # 3. Mac OS System Files
 .DS_Store
@@ -34,6 +36,7 @@ test
 bin/
 main  # In case you name your binary 'main'
 tmp/
+kosh
 
 # 6. Editor/IDE Configs
 .vscode/
@@ -60,3 +63,17 @@ themes/
 
 # Desloppify local state
 .desloppify/
+
+# Generated WASM files (embedded at build time)
+static/wasm/search.wasm
+static/wasm/search.wasm.br
+static/wasm/search.wasm.gz
+builder/benchmarks/public/
+builder/run/public/static/
+
+# Test database files
+builder/cache/test_migrations_*.db
+
+# Build output directories
+builder/benchmarks/.kosh-cache/
+builder/benchmarks/public/
