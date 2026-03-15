@@ -1,0 +1,53 @@
+{
+  "batch": "mid_level_elegance",
+  "batch_index": 9,
+  "assessments": {"mid_level_elegance": 81.0},
+  "dimension_notes": {
+    "mid_level_elegance": {
+      "evidence": [
+        "The project handles build phase orchestration explicitly, but initialization and wiring are scattered across the build loop (builder/run/build.go).",
+        "Robust debouncing and batching for watch mode using a channel-based queue and timer (builder/run/incremental.go).",
+        "Thread-safe data snapshots (atomic.Pointer) used to hand off asset maps and rendered file sets between services (builder/renderer/renderer.go).",
+        "Leaky integration seam in PostService: it needs to know about site-wide rendering via a MetadataReadyFunc callback (builder/services/interfaces.go, builder/services/post_service.go).",
+        "Glue-code entropy: path and version normalization logic is repeated and manually managed across multiple files (builder/run/build.go, builder/run/incremental.go, builder/services/post_service.go)."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "mid_level_elegance": {
+      "dimension_character": "The codebase features robust orchestration for complex build phases and watch mode. However, it relies heavily on scattered initialization/wiring methods (Setters) and leaky callbacks that blur service boundaries and increase glue-code entropy.",
+      "score_rationale": "Score is slightly penalized for the 'wiring-via-setters' pattern and the leaky PostService callback, which creates a tangled orchestration layer. High points for robust watch-mode debouncing and thread-safe snapshots."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "leaky_callback_integration",
+      "summary": "Leaky integration seam in PostService via MetadataReadyFunc callback",
+      "related_files": ["builder/services/interfaces.go", "builder/services/post_service.go"],
+      "evidence": ["PostService (line 33) exposes SetMetadataCallback to notify site-wide generators (sitemap, RSS, etc.) when metadata is ready."],
+      "suggestion": "Introduce an event-driven system or a cleaner orchestration layer to decouple post processing from site-wide generation tasks.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "scattered_initialization_wiring",
+      "summary": "Scattered initialization and wiring across the build loop",
+      "related_files": ["builder/run/build.go"],
+      "evidence": ["refreshBuildSession (line 23) manually injects sinks/transactions into multiple services on every build pass."],
+      "suggestion": "Centralize service initialization and wiring in a dedicated setup phase or use a simple DI container to avoid manual setters.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": ["Prioritization of incremental speed over strict boundary enforcement", "Evolving cross-module dependencies that led to ad-hoc integration points"],
+    "likely_symptoms": ["Tangled orchestration logic in build.go", "Difficult-to-follow data flow between parsing and site-wide generators", "Inconsistent service initialization state"]
+  }
+}

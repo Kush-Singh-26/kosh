@@ -1,15 +1,15 @@
 package generators
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/spf13/afero"
 )
 
 func TestGenerateSocialCard(t *testing.T) {
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	srcFs := afero.NewMemMapFs()
 
 	cfg := &config.SocialCardsConfig{
@@ -42,7 +42,7 @@ func TestGenerateSocialCard(t *testing.T) {
 }
 
 func TestGenerateSocialCard_LongTitle(t *testing.T) {
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	srcFs := afero.NewMemMapFs()
 
 	cfg := &config.SocialCardsConfig{

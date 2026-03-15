@@ -203,6 +203,18 @@ This is an old version.
 	notFoundTmpl := `<html><body>404 Not Found</body></html>`
 	_ = afero.WriteFile(fs, filepath.Join(themeDir, "404.html"), []byte(notFoundTmpl), 0644)
 
+	graphTmpl := `
+<!DOCTYPE html>
+<html>
+<head><title>{{ .Title }}</title></head>
+<body>
+    <h1>Graph View</h1>
+    <div id="graph"></div>
+</body>
+</html>
+`
+	_ = afero.WriteFile(fs, filepath.Join(themeDir, "graph.html"), []byte(graphTmpl), 0644)
+
 	// 4. Create static dir
 	_ = fs.MkdirAll("themes/test-theme/static/css", 0755)
 	_ = afero.WriteFile(fs, "themes/test-theme/static/css/style.css", []byte("body { color: red; }"), 0644)

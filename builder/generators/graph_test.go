@@ -1,17 +1,17 @@
 package generators
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 )
 
 func TestGenerateGraph(t *testing.T) {
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	baseURL := "https://example.com"
 	outputPath := "graph.json"
 
@@ -110,7 +110,7 @@ func TestGenerateGraph(t *testing.T) {
 }
 
 func TestGenerateGraph_Empty(t *testing.T) {
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	_, err := GenerateGraph(sink, "https://example.com", []models.PostMetadata{}, "empty.json")
 	if err != nil {
 		t.Fatalf("GenerateGraph failed with empty posts: %v", err)

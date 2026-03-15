@@ -1,0 +1,1342 @@
+{
+  "version": 8,
+  "created": "2026-03-15T03:21:40+00:00",
+  "updated": "2026-03-15T04:46:34+00:00",
+  "queue_order": [
+    "review::.::holistic::abstraction_fitness::god_object_post_service",
+    "review::.::holistic::abstraction_fitness::wide_config_bag",
+    "review::.::holistic::ai_generated_debt::redundant_comments",
+    "review::.::holistic::api_surface_coherence::result_deconstruction_boilerplate",
+    "review::.::holistic::api_surface_coherence::wide_parameter_list_copydir",
+    "review::.::holistic::contract_coherence::destructive_getter_geterrors",
+    "review::.::holistic::convention_outlier::duplicated_memsink",
+    "review::.::holistic::cross_module_architecture::orchestration_bloat",
+    "review::.::holistic::dependency_health::dual_compression_providers",
+    "review::.::holistic::dependency_health::overlapping_image_libs",
+    "review::.::holistic::design_coherence::overloaded_renderer",
+    "review::.::holistic::design_coherence::wide_parameter_lists",
+    "review::.::holistic::error_consistency::inconsistent_prop",
+    "review::.::holistic::error_consistency::io_error_swallowing",
+    "review::.::holistic::initialization_coupling::magic_testing_mode_init",
+    "review::.::holistic::low_level_elegance::fs_copy_complexity_hotspot",
+    "review::.::holistic::low_level_elegance::monster_function_perform_search",
+    "review::.::holistic::mid_level_elegance::leaky_callback_integration",
+    "review::.::holistic::mid_level_elegance::scattered_initialization_wiring",
+    "review::.::holistic::package_organization::service_fragmentation",
+    "review::.::holistic::package_organization::utils_overload",
+    "review::.::holistic::test_strategy::single_scaffold_coupling",
+    "review::.::holistic::test_strategy::verbose_test_setup_boilerplate"
+  ],
+  "deferred": [],
+  "skipped": {},
+  "active_cluster": null,
+  "overrides": {
+    "unused::builder/config/build_config.go::unused_import::7": {
+      "issue_id": "unused::builder/config/build_config.go::unused_import::7",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:49+00:00"
+    },
+    "unused::builder/config/config.go::unused_import::16": {
+      "issue_id": "unused::builder/config/config.go::unused_import::16",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:49+00:00"
+    },
+    "unused::builder/generators/social.go::unused_import::8": {
+      "issue_id": "unused::builder/generators/social.go::unused_import::8",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:50+00:00"
+    },
+    "unused::builder/generators/social.go::unused_import::22": {
+      "issue_id": "unused::builder/generators/social.go::unused_import::22",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:50+00:00"
+    },
+    "unused::builder/run/setup.go::unused_import::10": {
+      "issue_id": "unused::builder/run/setup.go::unused_import::10",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:50+00:00"
+    },
+    "unused::builder/search/stemmer.go::unused_import::4": {
+      "issue_id": "unused::builder/search/stemmer.go::unused_import::4",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:50+00:00"
+    },
+    "unused::builder/utils/hash.go::unused_import::12": {
+      "issue_id": "unused::builder/utils/hash.go::unused_import::12",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:51+00:00"
+    },
+    "unused::builder/utils/image_cache_test.go::unused_import::6": {
+      "issue_id": "unused::builder/utils/image_cache_test.go::unused_import::6",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:51+00:00"
+    },
+    "unused::cmd/kosh/root.go::unused_import::12": {
+      "issue_id": "unused::cmd/kosh/root.go::unused_import::12",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:51+00:00"
+    },
+    "unused::internal/version/version.go::unused_import::17": {
+      "issue_id": "unused::internal/version/version.go::unused_import::17",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:07:52+00:00"
+    },
+    "test_coverage::builder/search/stemmer.go::untested_critical": {
+      "issue_id": "test_coverage::builder/search/stemmer.go::untested_critical",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/testutil/helpers.go::untested_module": {
+      "issue_id": "test_coverage::builder/testutil/helpers.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/copy_optimized_windows.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/copy_optimized_windows.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::cmd/kosh/clean.go::untested_module": {
+      "issue_id": "test_coverage::cmd/kosh/clean.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/flock.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/flock.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::scripts/compile-katex/main.go::untested_module": {
+      "issue_id": "test_coverage::scripts/compile-katex/main.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::cmd/kosh/init.go::untested_module": {
+      "issue_id": "test_coverage::cmd/kosh/init.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/cache/cache_queries.go::untested_module": {
+      "issue_id": "test_coverage::builder/cache/cache_queries.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/renderer/native/d2.go::untested_module": {
+      "issue_id": "test_coverage::builder/renderer/native/d2.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::cmd/search/main.go::untested_module": {
+      "issue_id": "test_coverage::cmd/search/main.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/parser/lexer.go::untested_module": {
+      "issue_id": "test_coverage::builder/parser/lexer.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::cmd/kosh/build.go::untested_module": {
+      "issue_id": "test_coverage::cmd/kosh/build.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/services/mocks/sink_mock.go::untested_module": {
+      "issue_id": "test_coverage::builder/services/mocks/sink_mock.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": null,
+      "updated_at": "2026-03-15T04:31:04+00:00"
+    },
+    "test_coverage::cmd/kosh/serve.go::untested_module": {
+      "issue_id": "test_coverage::cmd/kosh/serve.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/search/unicode_wasm.go::untested_module": {
+      "issue_id": "test_coverage::builder/search/unicode_wasm.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/services/post_helpers.go::untested_module": {
+      "issue_id": "test_coverage::builder/services/post_helpers.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/run/logger.go::untested_module": {
+      "issue_id": "test_coverage::builder/run/logger.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/cache/gc_config.go::untested_module": {
+      "issue_id": "test_coverage::builder/cache/gc_config.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/testutil/fixtures.go::untested_module": {
+      "issue_id": "test_coverage::builder/testutil/fixtures.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/services/mocks/render_service_mock.go::untested_module": {
+      "issue_id": "test_coverage::builder/services/mocks/render_service_mock.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/mem_sink.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/mem_sink.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/services/post_metadata.go::untested_module": {
+      "issue_id": "test_coverage::builder/services/post_metadata.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/minifier.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/minifier.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/run/setup.go::shallow::setup_test.go": {
+      "issue_id": "test_coverage::builder/run/setup.go::shallow::setup_test.go",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/run/builder.go::untested_module": {
+      "issue_id": "test_coverage::builder/run/builder.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/run/cleanup.go::untested_module": {
+      "issue_id": "test_coverage::builder/run/cleanup.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/search/analyzer.go::untested_module": {
+      "issue_id": "test_coverage::builder/search/analyzer.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/fs_hash.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/fs_hash.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::cmd/kosh/version.go::untested_module": {
+      "issue_id": "test_coverage::cmd/kosh/version.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/services/mocks/asset_service_mock.go::untested_module": {
+      "issue_id": "test_coverage::builder/services/mocks/asset_service_mock.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/renderer/render_special.go::untested_module": {
+      "issue_id": "test_coverage::builder/renderer/render_special.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/cache/schema.go::untested_module": {
+      "issue_id": "test_coverage::builder/cache/schema.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/config/build_config.go::untested_module": {
+      "issue_id": "test_coverage::builder/config/build_config.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/cache/gc_maintenance.go::untested_module": {
+      "issue_id": "test_coverage::builder/cache/gc_maintenance.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/renderer/native/math.go::untested_module": {
+      "issue_id": "test_coverage::builder/renderer/native/math.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/worker_pool.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/worker_pool.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/parser/parser.go::untested_module": {
+      "issue_id": "test_coverage::builder/parser/parser.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/services/post_parser.go::untested_module": {
+      "issue_id": "test_coverage::builder/services/post_parser.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/copy_optimized_wasm.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/copy_optimized_wasm.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/fs_copy.go::untested_critical": {
+      "issue_id": "test_coverage::builder/utils/fs_copy.go::untested_critical",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::cmd/kosh/root.go::untested_module": {
+      "issue_id": "test_coverage::cmd/kosh/root.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/search/fuzzy.go::untested_critical": {
+      "issue_id": "test_coverage::builder/search/fuzzy.go::untested_critical",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/flock_unix.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/flock_unix.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/cache/cache_dirty.go::untested_module": {
+      "issue_id": "test_coverage::builder/cache/cache_dirty.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/services/mocks/cache_service_mock.go::untested_module": {
+      "issue_id": "test_coverage::builder/services/mocks/cache_service_mock.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::cmd/kosh/new.go::untested_module": {
+      "issue_id": "test_coverage::cmd/kosh/new.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/search/unicode_standard.go::untested_module": {
+      "issue_id": "test_coverage::builder/search/unicode_standard.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/scheduler.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/scheduler.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/cache/gc_verify.go::untested_module": {
+      "issue_id": "test_coverage::builder/cache/gc_verify.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/assets/embed.go::untested_module": {
+      "issue_id": "test_coverage::builder/assets/embed.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/cache/gc_run.go::untested_module": {
+      "issue_id": "test_coverage::builder/cache/gc_run.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/constants.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/constants.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/navigation.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/navigation.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/copy_fallback.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/copy_fallback.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/testutil/sink_mock.go::untested_module": {
+      "issue_id": "test_coverage::builder/testutil/sink_mock.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/assets.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/assets.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/flock_windows.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/flock_windows.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/cache/refcount.go::untested_module": {
+      "issue_id": "test_coverage::builder/cache/refcount.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/copy_optimized_linux.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/copy_optimized_linux.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/services/post_single.go::untested_module": {
+      "issue_id": "test_coverage::builder/services/post_single.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/services/post_social.go::untested_module": {
+      "issue_id": "test_coverage::builder/services/post_social.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/sink.go::untested_critical": {
+      "issue_id": "test_coverage::builder/utils/sink.go::untested_critical",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/renderer/render_page.go::untested_module": {
+      "issue_id": "test_coverage::builder/renderer/render_page.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "test_coverage::builder/utils/flock_wasm.go::untested_module": {
+      "issue_id": "test_coverage::builder/utils/flock_wasm.go::untested_module",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/test_coverage",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::abstraction_fitness": {
+      "issue_id": "subjective::abstraction_fitness",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::ai_generated_debt": {
+      "issue_id": "subjective::ai_generated_debt",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::api_surface_coherence": {
+      "issue_id": "subjective::api_surface_coherence",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::authorization_consistency": {
+      "issue_id": "subjective::authorization_consistency",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::contract_coherence": {
+      "issue_id": "subjective::contract_coherence",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::convention_outlier": {
+      "issue_id": "subjective::convention_outlier",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::cross_module_architecture": {
+      "issue_id": "subjective::cross_module_architecture",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::dependency_health": {
+      "issue_id": "subjective::dependency_health",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::design_coherence": {
+      "issue_id": "subjective::design_coherence",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::error_consistency": {
+      "issue_id": "subjective::error_consistency",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::high_level_elegance": {
+      "issue_id": "subjective::high_level_elegance",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::incomplete_migration": {
+      "issue_id": "subjective::incomplete_migration",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::initialization_coupling": {
+      "issue_id": "subjective::initialization_coupling",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::logic_clarity": {
+      "issue_id": "subjective::logic_clarity",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::low_level_elegance": {
+      "issue_id": "subjective::low_level_elegance",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::mid_level_elegance": {
+      "issue_id": "subjective::mid_level_elegance",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::naming_quality": {
+      "issue_id": "subjective::naming_quality",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::package_organization": {
+      "issue_id": "subjective::package_organization",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::test_strategy": {
+      "issue_id": "subjective::test_strategy",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    },
+    "subjective::type_safety": {
+      "issue_id": "subjective::type_safety",
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-03-15T03:21:40+00:00"
+    }
+  },
+  "clusters": {
+    "auto/unused": {
+      "name": "auto/unused",
+      "description": "Remove 10 unused issues",
+      "issue_ids": [],
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "updated_at": "2026-03-15T03:21:40+00:00",
+      "auto": true,
+      "cluster_key": "auto::unused",
+      "action": "desloppify autofix unused-imports --dry-run",
+      "execution_status": "active",
+      "user_modified": false,
+      "action_type": "auto_fix",
+      "execution_policy": "ephemeral_autopromote"
+    },
+    "auto/test_coverage": {
+      "name": "auto/test_coverage",
+      "description": "Fix 64 test coverage issues",
+      "issue_ids": [
+        "test_coverage::builder/search/stemmer.go::untested_critical",
+        "test_coverage::builder/testutil/helpers.go::untested_module",
+        "test_coverage::builder/utils/copy_optimized_windows.go::untested_module",
+        "test_coverage::cmd/kosh/clean.go::untested_module",
+        "test_coverage::builder/utils/flock.go::untested_module",
+        "test_coverage::scripts/compile-katex/main.go::untested_module",
+        "test_coverage::cmd/kosh/init.go::untested_module",
+        "test_coverage::builder/cache/cache_queries.go::untested_module",
+        "test_coverage::builder/renderer/native/d2.go::untested_module",
+        "test_coverage::cmd/search/main.go::untested_module",
+        "test_coverage::builder/parser/lexer.go::untested_module",
+        "test_coverage::cmd/kosh/build.go::untested_module",
+        "test_coverage::cmd/kosh/serve.go::untested_module",
+        "test_coverage::builder/search/unicode_wasm.go::untested_module",
+        "test_coverage::builder/services/post_helpers.go::untested_module",
+        "test_coverage::builder/run/logger.go::untested_module",
+        "test_coverage::builder/cache/gc_config.go::untested_module",
+        "test_coverage::builder/testutil/fixtures.go::untested_module",
+        "test_coverage::builder/services/mocks/render_service_mock.go::untested_module",
+        "test_coverage::builder/utils/mem_sink.go::untested_module",
+        "test_coverage::builder/services/post_metadata.go::untested_module",
+        "test_coverage::builder/utils/minifier.go::untested_module",
+        "test_coverage::builder/run/setup.go::shallow::setup_test.go",
+        "test_coverage::builder/run/builder.go::untested_module",
+        "test_coverage::builder/run/cleanup.go::untested_module",
+        "test_coverage::builder/search/analyzer.go::untested_module",
+        "test_coverage::builder/utils/fs_hash.go::untested_module",
+        "test_coverage::cmd/kosh/version.go::untested_module",
+        "test_coverage::builder/services/mocks/asset_service_mock.go::untested_module",
+        "test_coverage::builder/renderer/render_special.go::untested_module",
+        "test_coverage::builder/cache/schema.go::untested_module",
+        "test_coverage::builder/config/build_config.go::untested_module",
+        "test_coverage::builder/cache/gc_maintenance.go::untested_module",
+        "test_coverage::builder/renderer/native/math.go::untested_module",
+        "test_coverage::builder/utils/worker_pool.go::untested_module",
+        "test_coverage::builder/parser/parser.go::untested_module",
+        "test_coverage::builder/services/post_parser.go::untested_module",
+        "test_coverage::builder/utils/copy_optimized_wasm.go::untested_module",
+        "test_coverage::builder/utils/fs_copy.go::untested_critical",
+        "test_coverage::cmd/kosh/root.go::untested_module",
+        "test_coverage::builder/search/fuzzy.go::untested_critical",
+        "test_coverage::builder/utils/flock_unix.go::untested_module",
+        "test_coverage::builder/cache/cache_dirty.go::untested_module",
+        "test_coverage::builder/services/mocks/cache_service_mock.go::untested_module",
+        "test_coverage::cmd/kosh/new.go::untested_module",
+        "test_coverage::builder/search/unicode_standard.go::untested_module",
+        "test_coverage::builder/utils/scheduler.go::untested_module",
+        "test_coverage::builder/cache/gc_verify.go::untested_module",
+        "test_coverage::builder/assets/embed.go::untested_module",
+        "test_coverage::builder/cache/gc_run.go::untested_module",
+        "test_coverage::builder/utils/constants.go::untested_module",
+        "test_coverage::builder/utils/navigation.go::untested_module",
+        "test_coverage::builder/utils/copy_fallback.go::untested_module",
+        "test_coverage::builder/testutil/sink_mock.go::untested_module",
+        "test_coverage::builder/utils/assets.go::untested_module",
+        "test_coverage::builder/utils/flock_windows.go::untested_module",
+        "test_coverage::builder/cache/refcount.go::untested_module",
+        "test_coverage::builder/utils/copy_optimized_linux.go::untested_module",
+        "test_coverage::builder/services/post_single.go::untested_module",
+        "test_coverage::builder/services/post_social.go::untested_module",
+        "test_coverage::builder/utils/sink.go::untested_critical",
+        "test_coverage::builder/renderer/render_page.go::untested_module",
+        "test_coverage::builder/utils/flock_wasm.go::untested_module"
+      ],
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "updated_at": "2026-03-15T03:21:40+00:00",
+      "auto": true,
+      "cluster_key": "detector::test_coverage",
+      "action": "add tests for untested production modules \u2014 prioritize by import count",
+      "execution_status": "review",
+      "user_modified": false,
+      "action_type": "refactor",
+      "execution_policy": "planned_only"
+    },
+    "auto/initial-review": {
+      "name": "auto/initial-review",
+      "description": "Initial review of 20 unscored subjective dimensions",
+      "issue_ids": [
+        "subjective::abstraction_fitness",
+        "subjective::ai_generated_debt",
+        "subjective::api_surface_coherence",
+        "subjective::authorization_consistency",
+        "subjective::contract_coherence",
+        "subjective::convention_outlier",
+        "subjective::cross_module_architecture",
+        "subjective::dependency_health",
+        "subjective::design_coherence",
+        "subjective::error_consistency",
+        "subjective::high_level_elegance",
+        "subjective::incomplete_migration",
+        "subjective::initialization_coupling",
+        "subjective::logic_clarity",
+        "subjective::low_level_elegance",
+        "subjective::mid_level_elegance",
+        "subjective::naming_quality",
+        "subjective::package_organization",
+        "subjective::test_strategy",
+        "subjective::type_safety"
+      ],
+      "created_at": "2026-03-15T03:21:40+00:00",
+      "updated_at": "2026-03-15T03:21:40+00:00",
+      "auto": true,
+      "cluster_key": "subjective::unscored",
+      "action": "desloppify review --prepare --dimensions abstraction_fitness,ai_generated_debt,api_surface_coherence,authorization_consistency,contract_coherence,convention_outlier,cross_module_architecture,dependency_health,design_coherence,error_consistency,high_level_elegance,incomplete_migration,initialization_coupling,logic_clarity,low_level_elegance,mid_level_elegance,naming_quality,package_organization,test_strategy,type_safety",
+      "execution_status": "review",
+      "user_modified": false,
+      "action_type": "manual_fix",
+      "execution_policy": "planned_only"
+    }
+  },
+  "superseded": {
+    "unused::builder/config/build_config.go::unused_import::7": {
+      "original_id": "unused::builder/config/build_config.go::unused_import::7",
+      "original_detector": "unused",
+      "original_file": "builder/config/build_config.go",
+      "original_summary": "Unused import: v3",
+      "status": "superseded",
+      "superseded_at": "2026-03-15T04:11:13+00:00",
+      "remapped_to": null,
+      "candidates": []
+    },
+    "unused::builder/config/config.go::unused_import::16": {
+      "original_id": "unused::builder/config/config.go::unused_import::16",
+      "original_detector": "unused",
+      "original_file": "builder/config/config.go",
+      "original_summary": "Unused import: v3",
+      "status": "superseded",
+      "superseded_at": "2026-03-15T04:11:13+00:00",
+      "remapped_to": null,
+      "candidates": []
+    },
+    "unused::builder/generators/social.go::unused_import::8": {
+      "original_id": "unused::builder/generators/social.go::unused_import::8",
+      "original_detector": "unused",
+      "original_file": "builder/generators/social.go",
+      "original_summary": "Unused import: png",
+      "status": "superseded",
+      "superseded_at": "2026-03-15T04:11:13+00:00",
+      "remapped_to": null,
+      "candidates": [
+        "unused::builder/generators/social.go::unused_import::22"
+      ]
+    },
+    "unused::builder/run/setup.go::unused_import::10": {
+      "original_id": "unused::builder/run/setup.go::unused_import::10",
+      "original_detector": "unused",
+      "original_file": "builder/run/setup.go",
+      "original_summary": "Unused import: v3",
+      "status": "superseded",
+      "superseded_at": "2026-03-15T04:11:13+00:00",
+      "remapped_to": null,
+      "candidates": []
+    },
+    "unused::builder/utils/hash.go::unused_import::12": {
+      "original_id": "unused::builder/utils/hash.go::unused_import::12",
+      "original_detector": "unused",
+      "original_file": "builder/utils/hash.go",
+      "original_summary": "Unused import: v3",
+      "status": "superseded",
+      "superseded_at": "2026-03-15T04:11:13+00:00",
+      "remapped_to": null,
+      "candidates": []
+    },
+    "unused::cmd/kosh/root.go::unused_import::12": {
+      "original_id": "unused::cmd/kosh/root.go::unused_import::12",
+      "original_detector": "unused",
+      "original_file": "cmd/kosh/root.go",
+      "original_summary": "Unused import: v2",
+      "status": "superseded",
+      "superseded_at": "2026-03-15T04:11:13+00:00",
+      "remapped_to": null,
+      "candidates": []
+    },
+    "unused::internal/version/version.go::unused_import::17": {
+      "original_id": "unused::internal/version/version.go::unused_import::17",
+      "original_detector": "unused",
+      "original_file": "internal/version/version.go",
+      "original_summary": "Unused import: v3",
+      "status": "superseded",
+      "superseded_at": "2026-03-15T04:11:13+00:00",
+      "remapped_to": null,
+      "candidates": []
+    },
+    "test_coverage::builder/services/mocks/sink_mock.go::untested_module": {
+      "original_id": "test_coverage::builder/services/mocks/sink_mock.go::untested_module",
+      "original_detector": "test_coverage",
+      "original_file": "builder/services/mocks/sink_mock.go",
+      "original_summary": "Untested module (91 LOC, 0 importers)",
+      "status": "superseded",
+      "superseded_at": "2026-03-15T04:31:04+00:00",
+      "remapped_to": null,
+      "candidates": []
+    }
+  },
+  "promoted_ids": [],
+  "plan_start_scores": {
+    "strict": 84.8,
+    "overall": 84.9,
+    "objective": 85.8,
+    "verified": 85.8
+  },
+  "refresh_state": {
+    "lifecycle_phase": "execute",
+    "subjective_review_completed_at_scan_count": 3,
+    "postflight_scan_completed_at_scan_count": 11
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-03-15T03:21:40+00:00",
+      "action": "sync_subjective",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "changes": true
+      }
+    },
+    {
+      "timestamp": "2026-03-15T03:21:40+00:00",
+      "action": "auto_cluster",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "changes": true
+      }
+    },
+    {
+      "timestamp": "2026-03-15T03:21:40+00:00",
+      "action": "sync_lifecycle_phase",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "phase": "review_initial"
+      }
+    },
+    {
+      "timestamp": "2026-03-15T03:21:40+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T03:53:24+00:00",
+      "action": "review_import_sync",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "trigger": "review_import",
+        "new_ids": [
+          "review::.::holistic::abstraction_fitness::god_object_post_service",
+          "review::.::holistic::abstraction_fitness::wide_config_bag",
+          "review::.::holistic::ai_generated_debt::redundant_comments",
+          "review::.::holistic::api_surface_coherence::result_deconstruction_boilerplate",
+          "review::.::holistic::api_surface_coherence::wide_parameter_list_copydir",
+          "review::.::holistic::contract_coherence::destructive_getter_geterrors",
+          "review::.::holistic::convention_outlier::duplicated_memsink",
+          "review::.::holistic::cross_module_architecture::orchestration_bloat",
+          "review::.::holistic::dependency_health::dual_compression_providers",
+          "review::.::holistic::dependency_health::overlapping_image_libs",
+          "review::.::holistic::design_coherence::overloaded_renderer",
+          "review::.::holistic::design_coherence::wide_parameter_lists",
+          "review::.::holistic::error_consistency::inconsistent_prop",
+          "review::.::holistic::error_consistency::io_error_swallowing",
+          "review::.::holistic::initialization_coupling::magic_testing_mode_init",
+          "review::.::holistic::low_level_elegance::fs_copy_complexity_hotspot",
+          "review::.::holistic::low_level_elegance::monster_function_perform_search",
+          "review::.::holistic::mid_level_elegance::leaky_callback_integration",
+          "review::.::holistic::mid_level_elegance::scattered_initialization_wiring",
+          "review::.::holistic::package_organization::service_fragmentation",
+          "review::.::holistic::package_organization::utils_overload",
+          "review::.::holistic::test_strategy::single_scaffold_coupling",
+          "review::.::holistic::test_strategy::verbose_test_setup_boilerplate"
+        ],
+        "added_to_queue": [
+          "review::.::holistic::abstraction_fitness::god_object_post_service",
+          "review::.::holistic::abstraction_fitness::wide_config_bag",
+          "review::.::holistic::ai_generated_debt::redundant_comments",
+          "review::.::holistic::api_surface_coherence::result_deconstruction_boilerplate",
+          "review::.::holistic::api_surface_coherence::wide_parameter_list_copydir",
+          "review::.::holistic::contract_coherence::destructive_getter_geterrors",
+          "review::.::holistic::convention_outlier::duplicated_memsink",
+          "review::.::holistic::cross_module_architecture::orchestration_bloat",
+          "review::.::holistic::dependency_health::dual_compression_providers",
+          "review::.::holistic::dependency_health::overlapping_image_libs",
+          "review::.::holistic::design_coherence::overloaded_renderer",
+          "review::.::holistic::design_coherence::wide_parameter_lists",
+          "review::.::holistic::error_consistency::inconsistent_prop",
+          "review::.::holistic::error_consistency::io_error_swallowing",
+          "review::.::holistic::initialization_coupling::magic_testing_mode_init",
+          "review::.::holistic::low_level_elegance::fs_copy_complexity_hotspot",
+          "review::.::holistic::low_level_elegance::monster_function_perform_search",
+          "review::.::holistic::mid_level_elegance::leaky_callback_integration",
+          "review::.::holistic::mid_level_elegance::scattered_initialization_wiring",
+          "review::.::holistic::package_organization::service_fragmentation",
+          "review::.::holistic::package_organization::utils_overload",
+          "review::.::holistic::test_strategy::single_scaffold_coupling",
+          "review::.::holistic::test_strategy::verbose_test_setup_boilerplate"
+        ],
+        "workflow_injected_ids": [],
+        "triage_injected": false,
+        "triage_injected_ids": [],
+        "triage_deferred": false,
+        "diff_new": 23,
+        "diff_reopened": 0,
+        "diff_auto_resolved": 20,
+        "stale_pruned_from_queue": [],
+        "covered_subjective_pruned_from_queue": [],
+        "covered_subjective": [
+          "subjective::abstraction_fitness",
+          "subjective::ai_generated_debt",
+          "subjective::api_surface_coherence",
+          "subjective::authorization_consistency",
+          "subjective::contract_coherence",
+          "subjective::convention_outlier",
+          "subjective::cross_module_architecture",
+          "subjective::dependency_health",
+          "subjective::design_coherence",
+          "subjective::error_consistency",
+          "subjective::high_level_elegance",
+          "subjective::incomplete_migration",
+          "subjective::initialization_coupling",
+          "subjective::logic_clarity",
+          "subjective::low_level_elegance",
+          "subjective::mid_level_elegance",
+          "subjective::naming_quality",
+          "subjective::package_organization",
+          "subjective::test_strategy",
+          "subjective::type_safety"
+        ],
+        "stale_sync_injected": [],
+        "stale_sync_pruned": [],
+        "auto_cluster_changes": 0,
+        "import_scores_injected": [],
+        "import_scores_pruned": [],
+        "sync_status": "synced",
+        "sync_message": null
+      }
+    },
+    {
+      "timestamp": "2026-03-15T03:54:16+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T03:54:16+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 4
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:18+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:18+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 7
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:49+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::builder/config/build_config.go::unused_import::7"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:49+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::builder/config/build_config.go::unused_import::7"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:49+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::builder/config/config.go::unused_import::16"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:49+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::builder/config/config.go::unused_import::16"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:49+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::builder/generators/social.go::unused_import::8"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:50+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::builder/generators/social.go::unused_import::8"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:50+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::builder/generators/social.go::unused_import::22"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:50+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::builder/generators/social.go::unused_import::22"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:50+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::builder/run/setup.go::unused_import::10"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:50+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::builder/run/setup.go::unused_import::10"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:50+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::builder/search/stemmer.go::unused_import::4"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:50+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::builder/search/stemmer.go::unused_import::4"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:51+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::builder/utils/hash.go::unused_import::12"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:51+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::builder/utils/hash.go::unused_import::12"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:51+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::builder/utils/image_cache_test.go::unused_import::6"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:51+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::builder/utils/image_cache_test.go::unused_import::6"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:51+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::cmd/kosh/root.go::unused_import::12"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:51+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::cmd/kosh/root.go::unused_import::12"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:52+00:00",
+      "action": "done",
+      "issue_ids": [
+        "unused::internal/version/version.go::unused_import::17"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:07:52+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "unused::internal/version/version.go::unused_import::17"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Fixed via upstream tool improvement for Go versioned imports and side-effects.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Fixed via upstream tool improvement for Go versioned imports and side-effects. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:07:52+00:00",
+      "action": "cluster_done",
+      "issue_ids": [
+        "unused::internal/version/version.go::unused_import::17"
+      ],
+      "cluster_name": "auto/unused",
+      "actor": "user",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:11:13+00:00",
+      "action": "reconcile",
+      "issue_ids": [
+        "unused::builder/config/build_config.go::unused_import::7",
+        "unused::builder/config/config.go::unused_import::16",
+        "unused::builder/generators/social.go::unused_import::8",
+        "unused::builder/run/setup.go::unused_import::10",
+        "unused::builder/utils/hash.go::unused_import::12",
+        "unused::cmd/kosh/root.go::unused_import::12",
+        "unused::internal/version/version.go::unused_import::17"
+      ],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "superseded_count": 7,
+        "pruned_count": 0,
+        "resurfaced_count": 0,
+        "clusters_completed_count": 0
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:31:04+00:00",
+      "action": "reconcile",
+      "issue_ids": [
+        "test_coverage::builder/services/mocks/sink_mock.go::untested_module"
+      ],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "superseded_count": 1,
+        "pruned_count": 0,
+        "resurfaced_count": 0,
+        "clusters_completed_count": 0
+      }
+    },
+    {
+      "timestamp": "2026-03-15T04:46:34+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T04:46:34+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 11
+      }
+    }
+  ],
+  "epic_triage_meta": {},
+  "commit_log": [],
+  "uncommitted_issues": [
+    "unused::builder/config/build_config.go::unused_import::7",
+    "unused::builder/config/config.go::unused_import::16",
+    "unused::builder/generators/social.go::unused_import::8",
+    "unused::builder/generators/social.go::unused_import::22",
+    "unused::builder/run/setup.go::unused_import::10",
+    "unused::builder/search/stemmer.go::unused_import::4",
+    "unused::builder/utils/hash.go::unused_import::12",
+    "unused::builder/utils/image_cache_test.go::unused_import::6",
+    "unused::cmd/kosh/root.go::unused_import::12",
+    "unused::internal/version/version.go::unused_import::17"
+  ],
+  "commit_tracking_branch": null,
+  "scan_count_at_plan_start": 11
+}

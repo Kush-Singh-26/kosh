@@ -3,6 +3,7 @@ module github.com/Kush-Singh-26/kosh
 go 1.26.1
 
 require (
+	charm.land/fang/v2 v2.0.1
 	github.com/alecthomas/chroma/v2 v2.23.1
 	github.com/andybalholm/brotli v1.2.0
 	github.com/chai2010/webp v1.4.0
@@ -35,7 +36,6 @@ require (
 )
 
 require (
-	charm.land/fang/v2 v2.0.1 // indirect
 	charm.land/lipgloss/v2 v2.0.1 // indirect
 	github.com/PuerkitoBio/goquery v1.11.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect

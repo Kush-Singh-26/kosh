@@ -15,6 +15,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
@@ -315,8 +316,11 @@ func (b *Builder) setupSiteWideRendering(
 
 // runPostProcessing executes post processing and returns 404 status
 func (b *Builder) runPostProcessing(ctx context.Context, forceSocialRebuild bool, fileChan <-chan models.ScannedFile) (bool, error) {
-	_, _, _, _, _, processHas404, processErr := b.processPosts(ctx, b.cfg.ForceRebuild, forceSocialRebuild, b.isCleanBuild, fileChan, false)
-	return processHas404, processErr
+	result, err := b.processPosts(ctx, b.cfg.ForceRebuild, forceSocialRebuild, b.isCleanBuild, fileChan, false)
+	if err != nil {
+		return false, err
+	}
+	return result.Has404, nil
 }
 
 // waitForScannerAndAssets waits for scanner and asset building to complete
@@ -361,10 +365,12 @@ func (b *Builder) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTi
 	}
 
 	if siteWideHas404 {
-		b.renderService.Render404(filepath.Join(b.cfg.OutputDir, "404.html"), models.PageData{
+		if err := b.renderService.Render404(filepath.Join(b.cfg.OutputDir, "404.html"), models.PageData{
 			Title: "404 Not Found", BaseURL: b.cfg.BaseURL, TabTitle: "404 Not Found",
 			Config: b.cfg, RelativePrefix: "",
-		})
+		}); err != nil {
+			return fmt.Errorf("failed to render 404 page: %w", err)
+		}
 	}
 	return nil
 }
@@ -440,7 +446,7 @@ func (b *Builder) buildAssetOnly(ctx context.Context) error {
 	shouldForce := false
 	forceSocialRebuild := false
 	outputMissing := false
-	_, _, _, _, _, _, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan, false)
+	_, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan, false)
 	if err != nil {
 		return fmt.Errorf("post processing failed: %w", err)
 	}
@@ -497,12 +503,8 @@ func (b *Builder) copyStaticAndBuildAssets(ctx context.Context) error {
 	return nil
 }
 
-func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile, has404 bool) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool, error) {
-	result, err := b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan, has404)
-	if err != nil {
-		return nil, nil, nil, nil, false, false, err
-	}
-	return result.AllPosts, result.PinnedPosts, result.TagMap, result.IndexedPosts, result.AnyPostChanged, result.Has404, nil
+func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile, has404 bool) (*services.PostResult, error) {
+	return b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan, has404)
 }
 
 func (b *Builder) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, assetsReady <-chan struct{}) error {
@@ -562,14 +564,16 @@ func (b *Builder) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[
 			if assetsReady != nil {
 				<-assetsReady
 			}
-			b.renderService.RenderGraph(filepath.Join(b.cfg.OutputDir, "graph.html"), models.PageData{
+			if err := b.renderService.RenderGraph(filepath.Join(b.cfg.OutputDir, "graph.html"), models.PageData{
 				Title:          "Graph View",
 				TabTitle:       "Knowledge Graph | " + b.cfg.Title,
 				BaseURL:        b.cfg.BaseURL,
 				BuildVersion:   b.cfg.BuildVersion,
 				Config:         b.cfg,
 				RelativePrefix: "",
-			})
+			}); err != nil {
+				return fmt.Errorf("failed to render graph page: %w", err)
+			}
 			return nil
 		})
 	}

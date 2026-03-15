@@ -151,13 +151,15 @@ func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []
 				relPath = fmt.Sprintf("page/%d/index.html", pageIdx)
 			}
 
-			b.renderService.RenderIndex(destPath, models.PageData{
+			if err := b.renderService.RenderIndex(destPath, models.PageData{
 				Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
 				Paginator: paginator, SiteTree: siteTree, SidebarHTML: sidebarHTML, Config: cfg, Versions: cfg.GetVersionsMetadata("", ""),
 				RelativePrefix: utils.GetRelativePrefix(relPath),
-			})
+			}); err != nil {
+				return fmt.Errorf("failed to render index page %d: %w", pageIdx, err)
+			}
 			return nil
 		})
 	}
@@ -197,7 +199,7 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 	// Generate Tags Index
 	// Force Weight: 0 so layout doesn't crash
 	tagRenderTimer := utils.StartPhase("Tags HTML rendering")
-	b.renderService.RenderPage(filepath.Join(b.cfg.OutputDir, "tags/index.html"), models.PageData{
+	if err := b.renderService.RenderPage(filepath.Join(b.cfg.OutputDir, "tags/index.html"), models.PageData{
 		Title: "All Tags", IsTagsIndex: true, AllTags: allTags,
 		BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
 		Permalink: b.cfg.BaseURL + "/tags/index.html",
@@ -205,7 +207,9 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 		TabTitle:  "All Topics | " + b.cfg.Title, Config: b.cfg,
 		Weight:         0, // Fix for docs theme layout
 		RelativePrefix: "../",
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to render tags index: %w", err)
+	}
 
 	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(runtime.NumCPU())
@@ -228,7 +232,7 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 		}
 		g.Go(func() error {
 			utils.SortPosts(tagPosts)
-			b.renderService.RenderPage(filepath.Join(b.cfg.OutputDir, fmt.Sprintf("tags/%s.html", slug)), models.PageData{
+			if err := b.renderService.RenderPage(filepath.Join(b.cfg.OutputDir, fmt.Sprintf("tags/%s.html", slug)), models.PageData{
 				Title: "#" + tagName, IsIndex: true, Posts: tagPosts,
 				BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
 				Permalink: fmt.Sprintf("%s/tags/%s.html", b.cfg.BaseURL, slug),
@@ -236,7 +240,9 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 				TabTitle:  "#" + tagName + " | " + b.cfg.Title, Config: b.cfg,
 				Weight:         0, // Fix for docs theme layout
 				RelativePrefix: "../",
-			})
+			}); err != nil {
+				return fmt.Errorf("failed to render tag page %s: %w", slug, err)
+			}
 			return nil
 		})
 	}

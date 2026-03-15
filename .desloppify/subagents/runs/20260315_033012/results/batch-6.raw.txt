@@ -1,0 +1,60 @@
+{
+  "batch": "abstraction_fitness",
+  "batch_index": 6,
+  "assessments": {"abstraction_fitness": 82.0},
+  "dimension_notes": {
+    "abstraction_fitness": {
+      "evidence": [
+        "Builder and PostService act as God objects orchestrating almost all build phases and post-processing steps (builder/run/build.go, builder/services/post_service.go).",
+        "Config struct is a wide options bag containing everything from CLI flags to theme metadata, passed across many domain boundaries (builder/config/config.go).",
+        "Deep indirection chains in the build loop: Build -> build -> runPostProcessing -> processPosts -> postService.Process (builder/run/build.go).",
+        "Manual dependency injection via SetSink/SetSourceFs methods on service interfaces leaks wiring logic into public API (builder/services/interfaces.go)."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "sub_axes": {
+        "abstraction_leverage": 85.0,
+        "indirection_cost": 75.0,
+        "interface_honesty": 80.0,
+        "delegation_density": 90.0,
+        "definition_directness": 70.0,
+        "type_discipline": 85.0
+      }
+    }
+  },
+  "dimension_judgment": {
+    "abstraction_fitness": {
+      "dimension_character": "The project uses solid core abstractions like BuildTransaction and ArtifactSink to ensure atomic and correct builds, but suffers from God object bloat in Builder and PostService. Many services use leaky initialization methods (SetSink/SetSourceFs) that blur the line between wiring and behavior.",
+      "score_rationale": "Score reflects high leverage from core abstractions but penalizes the lack of decomposition in major services and the use of wide, loosely-coupled config bags. The score is docked for the manual DI pattern that permeates the service layer."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "god_object_post_service",
+      "summary": "PostService.Process is a 300+ line monster function with too many responsibilities",
+      "related_files": ["builder/services/post_service.go"],
+      "evidence": ["Process method (line 64-392) handles parsing, caching, math rendering, social cards, and navigation aggregation."],
+      "suggestion": "Decompose PostService into smaller, specialized services (e.g., MarkdownParser, CacheManager, NavigationAggregator) and orchestrate them in a cleaner pipeline.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "wide_config_bag",
+      "summary": "Config struct is a monolithic bag of unrelated parameters",
+      "related_files": ["builder/config/config.go"],
+      "evidence": ["Config struct (line 67-103) contains CLI flags, directory paths, feature toggles, and theme metadata."],
+      "suggestion": "Split Config into more focused domain configurations (e.g., BuildOptions, ThemeConfig, FeatureToggles) to clarify boundaries.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "architectural_change"
+    }
+  ],
+  "retrospective": {
+    "root_causes": ["Rapid project evolution leading to consolidation of logic in central orchestrators", "Lack of an established dependency injection pattern resulting in manual setter methods"],
+    "likely_symptoms": ["Hard-to-test side effects", "Tight coupling between unrelated build phases", "Difficult-to-read orchestration logic in the build loop"]
+  }
+}

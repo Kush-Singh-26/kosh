@@ -1,0 +1,55 @@
+{
+  "batch": "initialization_coupling",
+  "batch_index": 16,
+  "assessments": {"initialization_coupling": 82.0},
+  "dimension_notes": {
+    "initialization_coupling": {
+      "evidence": [
+        "utils.TestingMode is set in builder/run/builder.go:92 using os.Args[0] pattern matching",
+        "internal/build/build.go:29 decompresses and hashes embedded WASM at import time",
+        "GlobalScheduler in builder/utils/scheduler.go:87 is initialized at module scope",
+        "InitLogger in builder/run/logger.go:193 mutates global slog default"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "initialization_coupling": {
+      "dimension_character": "The codebase generally avoids fragile boot-order dependencies by using stateless global singletons or deferred initialization. However, it relies on some import-time side effects like setting global testing flags and default loggers, which can complicate testing and isolating individual modules.",
+      "score_rationale": "The score reflects standard Go practices for singletons but identifies the magic TestingMode detection as a significant coupling smell that violates the principle of explicit configuration."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "magic_testing_mode_init",
+      "summary": "TestingMode is set via import-time side effect based on os.Args",
+      "related_files": ["builder/run/builder.go", "builder/utils/constants.go"],
+      "evidence": ["func init() { if strings.HasSuffix(os.Args[0], \".test\") { utils.TestingMode = true } }"],
+      "suggestion": "Move TestingMode to a configuration struct or an explicit setup function called by the main entry points and test helpers.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "context_updates": {
+    "initialization_coupling": {
+      "add": [
+        {
+          "header": "Safe singleton patterns",
+          "description": "The project uses global variables for stateless or thread-safe primitives like pools and schedulers, which is efficient and safe in Go as long as they don't perform external I/O during init.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Deferred init error handling",
+          "description": "Complex initialization tasks (like WASM decompression) that could fail are performed in init() but their errors are captured for lazy reporting, preventing hard crashes during package import.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

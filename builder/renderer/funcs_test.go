@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"html/template"
 	"io"
 	"log/slog"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
@@ -21,7 +21,7 @@ func setupTestRenderer(t *testing.T) *Renderer {
 	// Ensure minifier is initialized
 	utils.InitMinifier()
 
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	// Create minimal templates for testing
@@ -88,7 +88,7 @@ func TestRenderer_RenderPage_Success(t *testing.T) {
 	}
 
 	// Check no errors
-	errs := r.GetErrors()
+	errs := r.ConsumeErrors()
 	if errs != nil {
 		t.Errorf("RenderPage should not produce errors, got %v", errs)
 	}
@@ -108,7 +108,7 @@ func TestRenderer_RenderPage_WithBaseURL(t *testing.T) {
 	r.RenderPage("test/baseurl.html", data)
 
 	// Verify no errors
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("RenderPage with BaseURL should not produce errors, got %v", errs)
 	}
 }
@@ -126,7 +126,7 @@ func TestRenderer_RenderPage_WithRelativePrefix(t *testing.T) {
 
 	r.RenderPage("test/relative.html", data)
 
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("RenderPage with RelativePrefix should not produce errors, got %v", errs)
 	}
 }
@@ -144,7 +144,7 @@ func TestRenderer_RenderPage_LegacyProcessHTML(t *testing.T) {
 
 	r.RenderPage("test/legacy.html", data)
 
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("RenderPage with LegacyProcessHTML should not produce errors, got %v", errs)
 	}
 }
@@ -160,7 +160,7 @@ func TestRenderer_RenderPage_Compress(t *testing.T) {
 
 	r.RenderPage("test/compress.html", data)
 
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("RenderPage with Compress should not produce errors, got %v", errs)
 	}
 }
@@ -221,7 +221,7 @@ func TestRenderer_RenderIndex_WithLayout(t *testing.T) {
 
 	r.RenderIndex("fallback.html", data)
 
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("RenderIndex with layout fallback should not produce errors, got %v", errs)
 	}
 }
@@ -316,7 +316,7 @@ func TestRenderer_Render404_WithLayout(t *testing.T) {
 
 	r.Render404("404-fallback.html", data)
 
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Render404 with layout fallback should not produce errors, got %v", errs)
 	}
 }
@@ -696,7 +696,7 @@ func TestRenderer_PreparePageData_ExternalURLs(t *testing.T) {
 func TestRenderer_SetSink(t *testing.T) {
 	r := setupTestRenderer(t)
 
-	newSink := mocks.NewMemSink()
+	newSink := testutil.NewMemSink()
 	r.SetSink(newSink)
 
 	if r.Sink != newSink {
@@ -812,7 +812,7 @@ func TestRenderer_BufferPoolReuse(t *testing.T) {
 	}
 
 	// Should not produce errors
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Buffer pool reuse should not produce errors, got %v", errs)
 	}
 }
@@ -855,7 +855,7 @@ func TestRenderer_RenderPage_WriteError(t *testing.T) {
 	r.RenderPage("fail.html", data)
 
 	// Should record error
-	errs := r.GetErrors()
+	errs := r.ConsumeErrors()
 	if errs == nil {
 		t.Error("RenderPage with write error should record error")
 	}
@@ -962,7 +962,7 @@ func TestRenderer_TimezoneHandling(t *testing.T) {
 
 	r.RenderPage("timezone.html", data)
 
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Timezone handling should not produce errors, got %v", errs)
 	}
 }
@@ -981,7 +981,7 @@ func TestRenderer_SpecialCharacters(t *testing.T) {
 
 	r.RenderPage("special.html", data)
 
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Special characters should not produce errors, got %v", errs)
 	}
 }
@@ -996,7 +996,7 @@ func TestRenderer_EmptyContent(t *testing.T) {
 
 	r.RenderPage("empty.html", data)
 
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Empty content should not produce errors, got %v", errs)
 	}
 }
@@ -1014,7 +1014,7 @@ func TestRenderer_VeryLongContent(t *testing.T) {
 
 	r.RenderPage("long.html", data)
 
-	if errs := r.GetErrors(); errs != nil {
+	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Long content should not produce errors, got %v", errs)
 	}
 }

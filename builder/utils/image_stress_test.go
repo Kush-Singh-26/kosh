@@ -42,7 +42,16 @@ func TestImageOptimizationStress(t *testing.T) {
 	ctx := context.Background()
 
 	// Process images in parallel
-	err := CopyDirVFS(ctx, srcFs, sink, srcDir, destDir, true, []string{}, func(s string) {}, cacheDir, 8, 80, nil)
+	opts := CopyOptions{
+		Compress:     true,
+		ExcludeExts:  []string{},
+		OnWrite:      func(s string) {},
+		CacheDir:     cacheDir,
+		ImageWorkers: 8,
+		WebPQuality:  80,
+		Metrics:      nil,
+	}
+	err := CopyDirVFS(ctx, srcFs, sink, srcDir, destDir, opts)
 	if err != nil {
 		t.Fatalf("CopyDirVFS failed: %v", err)
 	}

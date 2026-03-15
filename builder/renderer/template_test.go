@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"bytes"
 	"log/slog"
 	"os"
@@ -9,12 +10,11 @@ import (
 
 	"github.com/spf13/afero"
 
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 )
 
 func TestRenderer_ReloadTemplates(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	templateDir := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
@@ -42,7 +42,7 @@ func TestRenderer_ReloadTemplates(t *testing.T) {
 
 func TestRenderer_ReloadTemplates_Missing(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	templateDir := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
@@ -64,7 +64,7 @@ func TestRenderer_FuncMap_Relativize(t *testing.T) {
 	// Helper functions are inside FuncMap in ReloadTemplates
 	// I'll test them by executing a small template
 	fs := afero.NewMemMapFs()
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	templateDir := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
@@ -109,7 +109,7 @@ func TestRenderer_FuncMap_Relativize(t *testing.T) {
 
 func TestRenderer_FuncMap_Slugify(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	templateDir := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 

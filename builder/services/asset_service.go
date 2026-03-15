@@ -50,14 +50,6 @@ func (s *assetServiceImpl) SetContentAssetsChannel(ch <-chan []models.ScannedAss
 func (s *assetServiceImpl) Build(ctx context.Context) error {
 	g, gCtx := errgroup.WithContext(ctx)
 
-	var m interface {
-		RecordImageOptimization(original, optimized int64)
-		RecordImageResizeSkipped()
-	}
-	if s.metrics != nil {
-		m = s.metrics
-	}
-
 	// 1. Unified Asset Copy Phase
 	g.Go(func() error {
 		copyTimer := utils.StartPhase("Asset copy unified")
@@ -159,7 +151,15 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			r, t := rel, task
 			copyGroup.Go(func() error {
 				dst := filepath.Join(s.cfg.OutputDir, r)
-				return utils.CopyFileWithOptionalImageProcessing(copyCtx, s.sourceFs, s.sink, t.srcPath, dst, s.cfg.CompressImages, s.cfg.CacheDir+"/images", s.cfg.WebPQuality, t.info, m, s.renderer.RegisterFile)
+				opts := utils.CopyOptions{
+					Compress:     s.cfg.CompressImages,
+					CacheDir:     s.cfg.CacheDir + "/images",
+					WebPQuality:  s.cfg.WebPQuality,
+					Metrics:      s.metrics,
+					OnWrite:      s.renderer.RegisterFile,
+					ImageWorkers: s.cfg.ImageWorkers,
+				}
+				return utils.CopyFileWithOptionalImageProcessing(copyCtx, s.sourceFs, s.sink, t.srcPath, dst, t.info, opts)
 			})
 		}
 

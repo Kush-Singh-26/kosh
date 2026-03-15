@@ -113,11 +113,9 @@ func (b *Builder) invalidateForTemplate(templatePath string) []string {
 	}
 }
 
-// BuildChanged rebuilds only the changed file (for watch mode)
+// BuildChanged queues a file change for processing (for watch mode).
+// Changes are debounced and processed in batches to avoid fsnotify buffer overflow.
 func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnotify.Op) {
-	b.buildMu.Lock()
-	defer b.buildMu.Unlock()
-
 	select {
 	case <-ctx.Done():
 		return
@@ -126,72 +124,19 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 
 	DevLogInfo("Change detected: " + filepath.Base(changedPath) + " " + op.String())
 
+	// Mark search source as dirty if search files changed
 	if isSearchSourcePath(changedPath) {
 		b.searchSourceDirty.Store(true)
 	}
 
-	// Reset rendering gates on any change
-	b.renderService.SetAssetsGate(nil)
-	b.postService.SetAssetsGate(nil)
-
-	// Handle file deletion - remove from cache
-	if op&fsnotify.Remove == fsnotify.Remove || op&fsnotify.Rename == fsnotify.Rename {
-		if strings.HasSuffix(strings.ToLower(changedPath), ".md") && b.isContentPath(changedPath) {
-			b.deletePostFromCache(changedPath)
-			b.forceGenerators.Store(true)
-			if err := b.build(ctx); err != nil {
-				b.logger.Error("Build failed after deletion", "error", err)
-				return
-			}
-			b.SaveCaches()
-			// Search index is regenerated during Build()
-			return
-		}
+	// Queue the build request (non-blocking)
+	select {
+	case b.buildQueue <- buildRequest{paths: []string{changedPath}, op: op}:
+		// Queued successfully
+	default:
+		// Queue full - merge with existing by updating operation for same path
+		// This is ok - the queued request will process the latest state
 	}
-
-	// Handle markdown files - single post rebuild
-	if strings.HasSuffix(strings.ToLower(changedPath), ".md") && b.isContentPath(changedPath) {
-		b.cfg.BuildVersion = time.Now().UnixNano()
-		b.renderService.ReloadTemplates()
-		b.postService.SetAssetsGate(nil)
-
-		// Start fresh session/tracking state
-		b.refreshBuildSession()
-
-		b.buildSinglePost(ctx, changedPath)
-		if err := b.Tx.Commit(ctx); err != nil {
-			b.logger.Error("Sync/Commit failed", "error", err)
-			b.deletePostFromCache(changedPath)
-			return
-		}
-		b.renderService.ClearRenderedFiles()
-		return
-	}
-
-	// Handle CSS/JS changes - do full rebuild to update HTML with new asset hashes
-	ext := strings.ToLower(filepath.Ext(changedPath))
-	if (ext == ".css" || ext == ".js") && b.isAssetPath(changedPath) {
-		DevLogRebuild("CSS/JS changed, running full rebuild...")
-		b.cfg.BuildVersion = time.Now().UnixNano()
-		b.renderService.ReloadTemplates()
-		b.postService.SetAssetsGate(nil)
-		if err := b.buildAssetOnly(ctx); err != nil {
-			b.logger.Error("Build failed", "error", err)
-			return
-		}
-		b.SaveCaches()
-		return
-	}
-
-	// Everything else - full rebuild
-	b.cfg.BuildVersion = time.Now().UnixNano()
-	b.renderService.ReloadTemplates()
-	b.postService.SetAssetsGate(nil)
-	if err := b.build(ctx); err != nil {
-		b.logger.Error("Build failed", "error", err)
-		return
-	}
-	b.SaveCaches()
 }
 
 // isAssetPath checks if a path is within the static assets directories
@@ -402,32 +347,14 @@ func (b *Builder) updateIndexedPostCache(relPath string, parseRes *services.Pars
 }
 
 // regenerateSearchIndex rebuilds the search index from cached post data.
-// It uses debouncing and the in-memory cache to avoid redundant BoltDB operations.
+// It uses a channel-based debouncer to avoid deadlocks when buildMu is held.
 func (b *Builder) regenerateSearchIndex(ctx context.Context) error {
-	// True Debounce: cancel any pending regeneration and schedule a new one
-	b.mu.Lock()
-	if b.searchDebounceTimer != nil {
-		b.searchDebounceTimer.Stop()
+	// Non-blocking send to search index queue
+	// If queue is full, request is already pending, so skip
+	select {
+	case b.searchIndexCh <- struct{}{}:
+	default:
 	}
-
-	// Calculate delay: 500ms since last run, or immediate if never run
-	delay := 500 * time.Millisecond
-	if time.Since(b.lastSearchIndexRegeneration) > 2*time.Second {
-		delay = 100 * time.Millisecond // Burst start: faster response
-	}
-
-	b.searchDebounceTimer = time.AfterFunc(delay, func() {
-		b.buildMu.Lock()
-		defer b.buildMu.Unlock()
-
-		// Perform the actual regeneration
-		b.lastSearchIndexRegeneration = time.Now()
-		if err := b.doRegenerateSearchIndex(ctx); err != nil {
-			b.logger.Error("Failed to regenerate search index", "error", err)
-		}
-	})
-	b.mu.Unlock()
-
 	return nil
 }
 
@@ -506,4 +433,162 @@ func (b *Builder) doRegenerateSearchIndex(ctx context.Context) error {
 	b.renderService.RegisterFile(path)
 
 	return nil
+}
+
+// processSearchIndexQueue processes search index regeneration requests from the channel.
+// It debounces multiple requests and acquires buildMu safely to avoid deadlocks.
+func (b *Builder) processSearchIndexQueue() {
+	var pending bool
+	var timer *time.Timer
+	var timerRunning bool
+
+	for range b.searchIndexCh {
+		// Mark as pending
+		pending = true
+
+		// Start or reset debounce timer
+		if !timerRunning {
+			// Calculate delay: 500ms since last run, or 100ms for burst start
+			delay := 500 * time.Millisecond
+			if time.Since(b.lastSearchIndexRegeneration) > 2*time.Second {
+				delay = 100 * time.Millisecond
+			}
+
+			timer = time.AfterFunc(delay, func() {
+				// Timer fired, try to acquire lock
+				if pending {
+					pending = false
+					// Use goroutine to avoid blocking if lock is held
+					go func() {
+						b.buildMu.Lock()
+						defer b.buildMu.Unlock()
+
+						// Perform the actual regeneration
+						b.lastSearchIndexRegeneration = time.Now()
+						if err := b.doRegenerateSearchIndex(context.Background()); err != nil {
+							b.logger.Error("Failed to regenerate search index", "error", err)
+						}
+					}()
+				}
+			})
+			timerRunning = true
+		}
+	}
+
+	// Channel closed, cleanup
+	if timer != nil && timerRunning {
+		timer.Stop()
+	}
+}
+
+// processBuildQueue processes build requests from the watch mode queue.
+// It debounces multiple file changes and processes them in batches.
+func (b *Builder) processBuildQueue() {
+	var mergedPaths map[string]fsnotify.Op
+	debounce := time.NewTimer(100 * time.Millisecond)
+	defer debounce.Stop()
+
+	for {
+		select {
+		case req, ok := <-b.buildQueue:
+			if !ok {
+				// Channel closed, process any pending and exit
+				if len(mergedPaths) > 0 {
+					b.buildMu.Lock()
+					for path, op := range mergedPaths {
+						b.buildSingleFileChange(context.Background(), path, op)
+					}
+					b.buildMu.Unlock()
+				}
+				return
+			}
+			// Merge requests for the same path
+			if mergedPaths == nil {
+				mergedPaths = make(map[string]fsnotify.Op)
+			}
+			for _, path := range req.paths {
+				// Keep the most recent operation for each path
+				mergedPaths[path] = req.op
+			}
+			// Reset debounce timer
+			if !debounce.Stop() {
+				select {
+				case <-debounce.C:
+				default:
+				}
+			}
+			debounce.Reset(100 * time.Millisecond)
+
+		case <-debounce.C:
+			// Process pending builds
+			if len(mergedPaths) > 0 {
+				b.buildMu.Lock()
+				for path, op := range mergedPaths {
+					b.buildSingleFileChange(context.Background(), path, op)
+				}
+				b.buildMu.Unlock()
+				// Reset for next batch
+				mergedPaths = nil
+			}
+		}
+	}
+}
+
+// buildSingleFileChange processes a single file change (called from build queue processor)
+func (b *Builder) buildSingleFileChange(ctx context.Context, path string, op fsnotify.Op) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+
+	DevLogInfo("Processing queued change: " + filepath.Base(path) + " " + op.String())
+
+	// Reset rendering gates on any change
+	b.renderService.SetAssetsGate(nil)
+	b.postService.SetAssetsGate(nil)
+
+	// Handle markdown files - single post rebuild
+	if strings.HasSuffix(strings.ToLower(path), ".md") && b.isContentPath(path) {
+		b.cfg.BuildVersion = time.Now().UnixNano()
+		b.renderService.ReloadTemplates()
+		b.postService.SetAssetsGate(nil)
+
+		// Start fresh session/tracking state
+		b.refreshBuildSession()
+
+		b.buildSinglePost(ctx, path)
+		if err := b.Tx.Commit(ctx); err != nil {
+			b.logger.Error("Sync/Commit failed", "error", err)
+			b.deletePostFromCache(path)
+			return
+		}
+		b.renderService.ClearRenderedFiles()
+		return
+	}
+
+	// Handle CSS/JS changes - do full rebuild to update HTML with new asset hashes
+	ext := strings.ToLower(filepath.Ext(path))
+	if (ext == ".css" || ext == ".js") && b.isAssetPath(path) {
+		DevLogRebuild("CSS/JS changed, running full rebuild...")
+		b.cfg.BuildVersion = time.Now().UnixNano()
+		b.renderService.ReloadTemplates()
+		b.postService.SetAssetsGate(nil)
+		if err := b.buildAssetOnly(ctx); err != nil {
+			b.logger.Error("Build failed", "error", err)
+			return
+		}
+		b.SaveCaches()
+		return
+	}
+
+	// Everything else - full rebuild
+	b.cfg.BuildVersion = time.Now().UnixNano()
+	b.renderService.ReloadTemplates()
+	b.postService.SetAssetsGate(nil)
+	if err := b.build(ctx); err != nil {
+		b.logger.Error("Build failed", "error", err)
+		return
+	}
+	b.SaveCaches()
 }

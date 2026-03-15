@@ -56,3 +56,4 @@ nul
 themes/
 .opencode/
 *.out
+*.db

@@ -249,7 +249,8 @@ func atomicWrite(ctx context.Context, path string, data []byte) error {
 		return err
 	}
 
-	tmpPath := path + ".tmp-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	// Include PID to prevent collisions from concurrent processes
+	tmpPath := path + ".tmp-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err

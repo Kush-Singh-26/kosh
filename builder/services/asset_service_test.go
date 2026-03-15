@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"bytes"
 	"context"
 	"log/slog"
@@ -46,7 +47,7 @@ body {
 	}
 
 	sourceFs := afero.NewOsFs()
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
@@ -74,7 +75,7 @@ body {
 	}
 }
 
-func getSinkKeys(sink *mocks.MemSink) []string {
+func getSinkKeys(sink *testutil.MemSink) []string {
 	keys := make([]string, 0, len(sink.Files))
 	for k := range sink.Files {
 		keys = append(keys, k)

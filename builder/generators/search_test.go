@@ -1,6 +1,7 @@
 package generators
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"bytes"
 	"path/filepath"
 	"testing"
@@ -9,11 +10,10 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 )
 
 func TestGenerateSearchIndex(t *testing.T) {
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	outputDir := "public"
 
 	indexedPosts := []models.IndexedPost{
@@ -92,7 +92,7 @@ func TestGenerateSearchIndex(t *testing.T) {
 }
 
 func TestGenerateSearchIndex_Empty(t *testing.T) {
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	_, err := GenerateSearchIndex(sink, "public", []models.IndexedPost{})
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with empty posts: %v", err)
@@ -116,7 +116,7 @@ func TestGenerateSearchIndex_Empty(t *testing.T) {
 }
 
 func TestGenerateSearchIndex_Nil(t *testing.T) {
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	_, err := GenerateSearchIndex(sink, "public", nil)
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with nil posts: %v", err)

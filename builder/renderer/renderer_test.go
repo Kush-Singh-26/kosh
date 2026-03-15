@@ -1,19 +1,19 @@
 package renderer
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"errors"
 	"log/slog"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 )
 
 func setupRendererTest(t *testing.T) *Renderer {
 	t.Helper()
 
-	sink := mocks.NewMemSink()
+	sink := testutil.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return &Renderer{
@@ -43,13 +43,13 @@ func TestRenderer_recordError(t *testing.T) {
 	}
 }
 
-func TestRenderer_GetErrors(t *testing.T) {
+func TestRenderer_ConsumeErrors(t *testing.T) {
 	r := setupRendererTest(t)
 
 	// Initially should return nil
-	errList := r.GetErrors()
+	errList := r.ConsumeErrors()
 	if errList != nil {
-		t.Error("GetErrors should return nil when no errors stored")
+		t.Error("ConsumeErrors should return nil when no errors stored")
 	}
 
 	// Record some errors
@@ -57,7 +57,7 @@ func TestRenderer_GetErrors(t *testing.T) {
 	r.recordError("failed to flush buffer", "/path/file2.html", errors.New("flush error"))
 
 	// Get errors
-	errList = r.GetErrors()
+	errList = r.ConsumeErrors()
 	if len(errList) != 2 {
 		t.Errorf("Expected 2 errors, got %d", len(errList))
 	}
@@ -86,13 +86,13 @@ func TestRenderer_GetErrors(t *testing.T) {
 	}
 
 	// Verify errors are cleared after retrieval
-	errList2 := r.GetErrors()
+	errList2 := r.ConsumeErrors()
 	if errList2 != nil {
-		t.Error("GetErrors should return nil after errors are retrieved and cleared")
+		t.Error("ConsumeErrors should return nil after errors are retrieved and cleared")
 	}
 }
 
-func TestRenderer_GetErrors_ConcurrentAccess(t *testing.T) {
+func TestRenderer_ConsumeErrors_ConcurrentAccess(t *testing.T) {
 	r := setupRendererTest(t)
 
 	// Record errors from multiple goroutines
@@ -119,33 +119,33 @@ func TestRenderer_GetErrors_ConcurrentAccess(t *testing.T) {
 	}
 
 	// Verify all errors were recorded
-	errList := r.GetErrors()
+	errList := r.ConsumeErrors()
 	if len(errList) != 3 {
 		t.Errorf("Expected 3 errors from concurrent access, got %d", len(errList))
 	}
 }
 
-func TestRenderer_GetErrors_ClearAfterRetrieval(t *testing.T) {
+func TestRenderer_ConsumeErrors_ClearAfterRetrieval(t *testing.T) {
 	r := setupRendererTest(t)
 
 	// Record an error
 	r.recordError("test error", "/path/test.html", errors.New("test"))
 
 	// First retrieval should return the error
-	errList1 := r.GetErrors()
+	errList1 := r.ConsumeErrors()
 	if len(errList1) != 1 {
 		t.Errorf("First retrieval: expected 1 error, got %d", len(errList1))
 	}
 
 	// Second retrieval should return nil (errors cleared)
-	errList2 := r.GetErrors()
+	errList2 := r.ConsumeErrors()
 	if errList2 != nil {
 		t.Errorf("Second retrieval: expected nil, got %d errors", len(errList2))
 	}
 
 	// Recording new error should work after clear
 	r.recordError("new error", "/path/new.html", errors.New("new"))
-	errList3 := r.GetErrors()
+	errList3 := r.ConsumeErrors()
 	if len(errList3) != 1 {
 		t.Errorf("After new error: expected 1 error, got %d", len(errList3))
 	}

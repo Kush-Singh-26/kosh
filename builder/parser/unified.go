@@ -37,6 +37,14 @@ type d2BlockInfo struct {
 	hash string
 }
 
+// transformContext holds state during the AST walk to avoid nested walks
+type transformContext struct {
+	inHeading    bool
+	headingLevel int
+	headingID    string
+	headingText  strings.Builder
+}
+
 func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	source := reader.Source()
 	var toc []models.TOCEntry
@@ -45,48 +53,69 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 	var mathExpressions []native.MathExpression
 	var toReplace []replacement
 
+	// Context for single-pass extraction
+	ctx := &transformContext{}
+
 	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
+		kind := n.Kind()
+
+		// Handle heading entry/exit for single-pass text collection
+		if kind == ast.KindHeading {
+			heading := n.(*ast.Heading)
+			if entering {
+				if heading.Level >= 2 && heading.Level <= 6 {
+					ctx.inHeading = true
+					ctx.headingLevel = heading.Level
+					ctx.headingText.Reset()
+					id, _ := heading.AttributeString("id")
+					if id != nil {
+						ctx.headingID = string(id.([]byte))
+					} else {
+						ctx.headingID = ""
+					}
+				}
+			} else {
+				if ctx.inHeading {
+					// Heading exit - record TOC entry
+					if ctx.headingID != "" {
+						toc = append(toc, models.TOCEntry{
+							ID:    ctx.headingID,
+							Text:  ctx.headingText.String(),
+							Level: ctx.headingLevel,
+						})
+					}
+					ctx.inHeading = false
+					ctx.headingLevel = 0
+					ctx.headingID = ""
+				}
+			}
 			return ast.WalkContinue, nil
 		}
 
-		kind := n.Kind()
-
-		// 1. TOC & PlainText extraction (merged logic)
-		switch kind {
-		case ast.KindText:
-			textNode := n.(*ast.Text)
-			plainText.Write(textNode.Segment.Value(source))
-			plainText.WriteString(" ")
-		case ast.KindCodeBlock, ast.KindFencedCodeBlock:
-			l := n.Lines().Len()
-			for i := 0; i < l; i++ {
-				line := n.Lines().At(i)
-				plainText.Write(line.Value(source))
-			}
-			plainText.WriteString(" ")
-		case ast.KindHeading:
-			plainText.WriteString("\n")
-			heading := n.(*ast.Heading)
-			if heading.Level >= 2 && heading.Level <= 6 {
-				var headerText strings.Builder
-				_ = ast.Walk(heading, func(child ast.Node, entering bool) (ast.WalkStatus, error) {
-					if entering && child.Kind() == ast.KindText {
-						textNode := child.(*ast.Text)
-						headerText.Write(textNode.Segment.Value(source))
-					}
-					return ast.WalkContinue, nil
-				})
-
-				id, _ := heading.AttributeString("id")
-				if id != nil {
-					toc = append(toc, models.TOCEntry{
-						ID:    string(id.([]byte)),
-						Text:  headerText.String(),
-						Level: heading.Level,
-					})
+		// Collect text from nodes - either for plainText or heading text
+		if entering {
+			switch kind {
+			case ast.KindText:
+				textNode := n.(*ast.Text)
+				segment := textNode.Segment.Value(source)
+				plainText.Write(segment)
+				if ctx.inHeading {
+					ctx.headingText.Write(segment)
 				}
+				plainText.WriteString(" ")
+			case ast.KindCodeBlock, ast.KindFencedCodeBlock:
+				l := n.Lines().Len()
+				for i := 0; i < l; i++ {
+					line := n.Lines().At(i)
+					plainText.Write(line.Value(source))
+				}
+				plainText.WriteString(" ")
 			}
+		}
+
+		// Don't process children if exiting
+		if !entering {
+			return ast.WalkContinue, nil
 		}
 
 		// 2. URL transformation (logic from trans_url.go)
@@ -226,7 +255,18 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 	var wg sync.WaitGroup
 	ctx := GetContext(pc)
 
-	for i := range d2Blocks {
+	// Optimized: Deduplicate hashes locally before launching goroutines
+	// This avoids launching goroutines that immediately block on singleflight
+	// Map from hash to first index where it appears
+	hashToFirstIndex := make(map[string]int)
+	for i, block := range d2Blocks {
+		if _, exists := hashToFirstIndex[block.hash]; !exists {
+			hashToFirstIndex[block.hash] = i
+		}
+	}
+
+	// Only launch goroutines for unique hashes
+	for _, firstIdx := range hashToFirstIndex {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -267,9 +307,19 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 					results[idx] = v.(themePair)
 				}
 			}
-		}(i)
+		}(firstIdx)
 	}
 	wg.Wait()
+
+	// Copy results from first occurrence to all duplicates
+	for hash, firstIdx := range hashToFirstIndex {
+		result := results[firstIdx]
+		for i, block := range d2Blocks {
+			if block.hash == hash && i != firstIdx {
+				results[i] = result
+			}
+		}
+	}
 
 	for i, block := range d2Blocks {
 		pair := results[i]

@@ -64,32 +64,43 @@ type SocialCardsConfig struct {
 	TextColor  string   `yaml:"textColor"`
 }
 
-type Config struct {
-	Title          string            `yaml:"title"`
-	Description    string            `yaml:"description"`
-	BaseURL        string            `yaml:"baseURL"`
-	Language       string            `yaml:"language"`
-	Author         AuthorConfig      `yaml:"author"`
-	Menu           []MenuEntry       `yaml:"menu"`
-	PostsPerPage   int               `yaml:"postsPerPage"`
-	CompressImages bool              `yaml:"compressImages"`
-	ImageWorkers   int               `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
-	WebPQuality    int               `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
-	ParserWorkers  int               `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
-	Theme          string            `yaml:"theme"`
-	ThemeDir       string            `yaml:"themeDir"`
-	TemplateDir    string            `yaml:"templateDir"`
-	StaticDir      string            `yaml:"staticDir"`
-	Logo           string            `yaml:"logo"`     // Path to site logo/favicon
-	Versions       []Version         `yaml:"versions"` // Documentation versions
-	Features       FeaturesConfig    `yaml:"features"` // Enable/Disable features
-	ThemeMetadata  ThemeConfig       `yaml:"-"`        // Loaded from theme.yaml
-	SocialCards    SocialCardsConfig `yaml:"socialCards"`
+type SiteConfig struct {
+	Title       string       `yaml:"title"`
+	Description string       `yaml:"description"`
+	BaseURL     string       `yaml:"baseURL"`
+	Language    string       `yaml:"language"`
+	Author      AuthorConfig `yaml:"author"`
+	Menu        []MenuEntry  `yaml:"menu"`
+}
 
-	// Configurable directory paths
-	ContentDir string `yaml:"contentDir"` // Content source directory (default: "content")
-	OutputDir  string `yaml:"outputDir"`  // Build output directory (default: "public")
-	CacheDir   string `yaml:"cacheDir"`   // Cache directory (default: ".kosh-cache")
+type BuildOptions struct {
+	PostsPerPage   int  `yaml:"postsPerPage"`
+	CompressImages bool `yaml:"compressImages"`
+	ImageWorkers   int  `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
+	WebPQuality    int  `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
+	ParserWorkers  int  `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
+}
+
+type PathConfig struct {
+	Theme       string `yaml:"theme"`
+	ThemeDir    string `yaml:"themeDir"`
+	TemplateDir string `yaml:"templateDir"`
+	StaticDir   string `yaml:"staticDir"`
+	Logo        string `yaml:"logo"`       // Path to site logo/favicon
+	ContentDir  string `yaml:"contentDir"` // Content source directory (default: "content")
+	OutputDir   string `yaml:"outputDir"`  // Build output directory (default: "public")
+	CacheDir    string `yaml:"cacheDir"`   // Cache directory (default: ".kosh-cache")
+}
+
+type Config struct {
+	SiteConfig   `yaml:",inline"`
+	BuildOptions `yaml:",inline"`
+	PathConfig   `yaml:",inline"`
+
+	Versions      []Version         `yaml:"versions"` // Documentation versions
+	Features      FeaturesConfig    `yaml:"features"` // Enable/Disable features
+	ThemeMetadata ThemeConfig       `yaml:"-"`        // Loaded from theme.yaml
+	SocialCards   SocialCardsConfig `yaml:"socialCards"`
 
 	// Internal / Runtime fields
 	ForceRebuild  bool  `yaml:"-"`
@@ -109,19 +120,25 @@ func Load(args []string) *Config {
 func LoadFs(fs afero.Fs, args []string) *Config {
 	// 1. Default Configuration
 	cfg := &Config{
-		Title:          "Kosh Blog",
-		BaseURL:        "",
-		PostsPerPage:   10,
-		CompressImages: true, // Always compress for performance
-		ImageWorkers:   8,    // Default 8 parallel workers for image processing (benchmarked optimum)
-		WebPQuality:    80,   // Default WebP quality is 80
-		ParserWorkers:  0,    // 0 = auto (use GetDefaultWorkerCount)
-		BuildVersion:   time.Now().Unix(),
-		Theme:          "blog",
-		ThemeDir:       "themes",
-		ContentDir:     "content",
-		OutputDir:      "public",
-		CacheDir:       ".kosh-cache",
+		SiteConfig: SiteConfig{
+			Title:   "Kosh Blog",
+			BaseURL: "",
+		},
+		BuildOptions: BuildOptions{
+			PostsPerPage:   10,
+			CompressImages: true, // Always compress for performance
+			ImageWorkers:   8,    // Default 8 parallel workers for image processing (benchmarked optimum)
+			WebPQuality:    80,   // Default WebP quality is 80
+			ParserWorkers:  0,    // 0 = auto (use GetDefaultWorkerCount)
+		},
+		PathConfig: PathConfig{
+			Theme:      "blog",
+			ThemeDir:   "themes",
+			ContentDir: "content",
+			OutputDir:  "public",
+			CacheDir:   ".kosh-cache",
+		},
+		BuildVersion: time.Now().Unix(),
 		Features: FeaturesConfig{
 			RawMarkdown: false,
 			Generators: GeneratorsConfig{

@@ -1,6 +1,7 @@
 package run
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"context"
 	"os"
 	"path/filepath"
@@ -234,8 +235,8 @@ Initial body.
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
 	metadataScanner := services.NewMetadataScanner()
-	sink := mocks.NewMemSink()
-	tx := mocks.NewMockTransaction("public")
+	sink := testutil.NewMemSink()
+	tx := testutil.NewMockTransaction("public")
 
 	b := &Builder{
 		cfg:             cfg,
@@ -330,8 +331,8 @@ Initial body.
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
 	metadataScanner := services.NewMetadataScanner()
-	sink := mocks.NewMemSink()
-	tx := mocks.NewMockTransaction("public")
+	sink := testutil.NewMemSink()
+	tx := testutil.NewMockTransaction("public")
 
 	b := &Builder{
 		cfg:             cfg,
