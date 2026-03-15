@@ -2,7 +2,26 @@
 
 **Current Status:** 84.4/100 strict (target: 95.0, need +10.6)
 **Created:** 2026-03-15
-**Commit:** 64251f4 (Phase 2 complete)
+**Last Updated:** 2026-03-15 (Tier 1.2 Complete)
+**Commit:** a063d32 (async tests added)
+
+---
+
+## Progress Summary
+
+### Completed ✅
+
+#### Tier 1.2: Test async.go (DONE)
+- **File:** `builder/utils/async_test.go`
+- **Tests:** 13 comprehensive tests
+- **Coverage:** 51.9% of builder/utils package
+- **Bug Found & Fixed:** FireAndForgetWithCleanup defer order issue
+  - Cleanup must be registered BEFORE panic recover defer
+  - Ensures cleanup runs even on panic
+
+#### Tier 1.1: Convention Drift Review (IN PROGRESS)
+- Review packet generated (20 batches)
+- Ready for subagent execution
 
 ---
 
@@ -156,26 +175,26 @@ func TestUnifiedParser_MathExpressions(t *testing.T)
 
 ## Detailed Action Plan
 
-### Week 1: Test Foundation
-| Day | Task | Expected Output |
-|-----|------|-----------------|
-| 1 | Convention drift review + fix | Queue cleared |
-| 2-3 | Test async.go + retry.go | 2 issues resolved |
-| 4-5 | Test search/fuzzy.go + stemmer.go | 2 critical issues resolved |
+### Week 1: Test Foundation (IN PROGRESS)
+| Day | Task | Status | Expected Output |
+|-----|------|--------|-----------------|
+| 1 | Convention drift review | 🔄 Ready | Queue cleared |
+| 2-3 | Test async.go + retry.go | ✅ Done / ⏳ Pending | 2 issues resolved |
+| 4-5 | Test search/fuzzy.go + stemmer.go | ⏳ Pending | 2 critical issues resolved |
 
 ### Week 2: Core Coverage
-| Day | Task | Expected Output |
-|-----|------|-----------------|
-| 1-2 | Test assets/wasm.go | 1 issue resolved |
-| 3-5 | Test parser/unified.go | 1 issue resolved |
-| 5 | Rescan and measure | Score update |
+| Day | Task | Status | Expected Output |
+|-----|------|--------|-----------------|
+| 1-2 | Test assets/wasm.go | ⏳ Pending | 1 issue resolved |
+| 3-5 | Test parser/unified.go | ⏳ Pending | 1 issue resolved |
+| 5 | Rescan and measure | ⏳ Pending | Score update |
 
 ### Week 3: Architectural
-| Day | Task | Expected Output |
-|-----|------|-----------------|
-| 1-2 | Cache→Renderer decoupling | Cross-module arch improved |
-| 3-4 | API coherence review | API coherence improved |
-| 5 | Test strategy review | Test strategy improved |
+| Day | Task | Status | Expected Output |
+|-----|------|--------|-----------------|
+| 1-2 | Cache→Renderer decoupling | ⏳ Pending | Cross-module arch improved |
+| 3-4 | API coherence review | ⏳ Pending | API coherence improved |
+| 5 | Test strategy review | ⏳ Pending | Test strategy improved |
 
 ---
 
@@ -208,9 +227,9 @@ func TestUnifiedParser_MathExpressions(t *testing.T)
 
 ## Immediate Next Actions
 
-1. **Today:** Run `desloppify review --prepare --dimensions convention_outlier`
-2. **Tomorrow:** Add tests for `builder/utils/async.go`
-3. **This week:** Complete Tier 1 (quick wins)
+1. **Today:** ✅ COMPLETED - Added tests for `builder/utils/async.go` (13 tests, 51.9% coverage)
+2. **Next:** Add tests for `builder/utils/retry.go` (82 LOC)
+3. **Then:** Continue with convention drift review OR move to Tier 2 (search tests)
 
 ---
 
