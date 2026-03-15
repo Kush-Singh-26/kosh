@@ -4,16 +4,16 @@
   "last_scan": "2026-03-15T18:16:34+00:00",
   "scan_count": 45,
   "overall_score": 90.7,
-  "objective_score": 96.8,
-  "strict_score": 88.0,
+  "objective_score": 97.0,
+  "strict_score": 88.1,
   "verified_strict_score": 86.4,
   "stats": {
     "total": 328,
     "auto_resolved": 4,
     "deferred": 0,
     "false_positive": 0,
-    "fixed": 123,
-    "open": 136,
+    "fixed": 124,
+    "open": 135,
     "triaged_out": 0,
     "wontfix": 65,
     "by_tier": {
@@ -39,8 +39,8 @@
         "auto_resolved": 4,
         "deferred": 0,
         "false_positive": 0,
-        "fixed": 1,
-        "open": 129,
+        "fixed": 2,
+        "open": 128,
         "triaged_out": 0,
         "wontfix": 59
       },
@@ -10118,11 +10118,11 @@
         "importer_count": 0,
         "loc_weight": 15.066519173319364
       },
-      "status": "open",
-      "note": null,
+      "status": "fixed",
+      "note": "Added comprehensive test coverage for builder/assets/wasm.go with 24 test cases covering hashBytes, decompressBrotli, formatSize, CheckWASM variants, DeployWASMFromFile, and hashFileFs functions.",
       "first_seen": "2026-03-15T13:19:39+00:00",
       "last_seen": "2026-03-15T18:13:29+00:00",
-      "resolved_at": null,
+      "resolved_at": "2026-03-15T18:34:05+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
       "issue_kind": "mechanical_defect",
@@ -10131,7 +10131,13 @@
       "zone": "production",
       "suppressed": false,
       "suppressed_at": null,
-      "suppression_pattern": null
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "manual",
+        "text": "I have actually created builder/assets/wasm_test.go with 24 passing test cases that cover all major functions in wasm.go, and I am not gaming the score by resolving without fixing.",
+        "attested_at": "2026-03-15T18:34:05+00:00",
+        "scan_verified": false
+      }
     },
     "test_coverage::builder/models/ssr.go::untested_module": {
       "id": "test_coverage::builder/models/ssr.go::untested_module",
@@ -15147,18 +15153,18 @@
       }
     },
     "Test health": {
-      "score": 91.4,
-      "strict": 48.9,
+      "score": 92.4,
+      "strict": 49.9,
       "verified_strict_score": 49.5,
       "checks": 1473,
-      "failing": 9,
+      "failing": 8,
       "tier": 4,
       "detectors": {
         "test_coverage": {
           "potential": 1473,
-          "pass_rate": 0.9137163419248653,
-          "failing": 9,
-          "weighted_failures": 127.09582834467338
+          "pass_rate": 0.923944800291002,
+          "failing": 8,
+          "weighted_failures": 112.02930917135402
         }
       }
     },
