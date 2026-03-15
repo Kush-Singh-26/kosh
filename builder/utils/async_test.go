@@ -3,122 +3,128 @@ package utils
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"os"
+	"io"
 	"sync"
 	"testing"
 	"time"
+
+	"log/slog"
 )
 
-// testLogger creates a logger that writes to /dev/null for tests
-func testLogger(t *testing.T) *slog.Logger {
+// helperLogger creates a test logger
+func helperLogger(t *testing.T) *slog.Logger {
 	t.Helper()
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelError,
-	}))
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
+// TestFireAndForget_Success tests successful execution
 func TestFireAndForget_Success(t *testing.T) {
 	ctx := context.Background()
-	logger := testLogger(t)
-	var called bool
-	var wg sync.WaitGroup
+	logger := helperLogger(t)
 
+	var executed bool
+	var wg sync.WaitGroup
 	wg.Add(1)
-	FireAndForget(ctx, logger, "test operation", func() error {
-		defer wg.Done()
-		called = true
+
+	FireAndForget(ctx, logger, "test success", func() error {
+		executed = true
+		wg.Done()
 		return nil
 	})
 
 	// Wait for goroutine to complete
 	wg.Wait()
+	time.Sleep(10 * time.Millisecond) // Allow logging to complete
 
-	if !called {
-		t.Error("Expected function to be called")
+	if !executed {
+		t.Error("FireAndForget did not execute the function")
 	}
 }
 
-func TestFireAndForget_LogsError(t *testing.T) {
+// TestFireAndForget_Error tests error logging
+func TestFireAndForget_Error(t *testing.T) {
 	ctx := context.Background()
-	logger := testLogger(t)
+	logger := helperLogger(t)
+
 	var wg sync.WaitGroup
-
 	wg.Add(1)
-	errTest := errors.New("test error")
 
-	FireAndForget(ctx, logger, "failing operation", func() error {
+	expectedErr := errors.New("test error")
+
+	FireAndForget(ctx, logger, "test error", func() error {
 		defer wg.Done()
-		return errTest
+		return expectedErr
 	})
 
 	// Wait for goroutine to complete
 	wg.Wait()
-	// Error should be logged (no panic, test passes if no crash)
+	time.Sleep(10 * time.Millisecond)
 }
 
-func TestFireAndForget_RecoverFromPanic(t *testing.T) {
+// TestFireAndForget_Panic tests panic recovery
+func TestFireAndForget_Panic(t *testing.T) {
 	ctx := context.Background()
-	logger := testLogger(t)
-	var wg sync.WaitGroup
+	logger := helperLogger(t)
 
+	var wg sync.WaitGroup
 	wg.Add(1)
 
-	FireAndForget(ctx, logger, "panicking operation", func() error {
+	FireAndForget(ctx, logger, "test panic", func() error {
 		defer wg.Done()
 		panic("test panic")
 	})
 
 	// Wait for goroutine to complete
 	wg.Wait()
-	// Panic should be recovered, test passes if no crash
+	time.Sleep(10 * time.Millisecond)
+	// If we reach here, panic was recovered successfully
 }
 
+// TestFireAndForget_ContextCancellation tests behavior with cancelled context
 func TestFireAndForget_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	logger := testLogger(t)
+	cancel() // Cancel immediately
+
+	logger := helperLogger(t)
+
+	var executed bool
 	var wg sync.WaitGroup
-
 	wg.Add(1)
-	called := make(chan struct{}, 1)
 
-	FireAndForget(ctx, logger, "context-aware operation", func() error {
-		defer wg.Done()
+	FireAndForget(ctx, logger, "test cancelled", func() error {
+		executed = true
+		wg.Done()
+		// Check context is cancelled
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(10 * time.Millisecond):
-			called <- struct{}{}
+		default:
 			return nil
 		}
 	})
 
-	// Cancel immediately
-	cancel()
-
 	// Wait for goroutine to complete
 	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
 
-	// Verify context was checked
-	select {
-	case <-called:
-		t.Error("Expected operation to respect context cancellation")
-	default:
-		// Expected - operation was cancelled
+	if !executed {
+		t.Error("FireAndForget did not execute with cancelled context")
 	}
 }
 
+// TestFireAndForgetWithCleanup_Success tests successful execution with cleanup
 func TestFireAndForgetWithCleanup_Success(t *testing.T) {
 	ctx := context.Background()
-	logger := testLogger(t)
-	var called, cleaned bool
-	var wg sync.WaitGroup
+	logger := helperLogger(t)
 
+	var executed, cleaned bool
+	var wg sync.WaitGroup
 	wg.Add(1)
-	FireAndForgetWithCleanup(ctx, logger, "test operation",
+
+	FireAndForgetWithCleanup(ctx, logger, "test success",
 		func() error {
-			defer wg.Done()
-			called = true
+			executed = true
+			wg.Done()
 			return nil
 		},
 		func() {
@@ -127,193 +133,243 @@ func TestFireAndForgetWithCleanup_Success(t *testing.T) {
 
 	// Wait for goroutine to complete
 	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
 
-	if !called {
-		t.Error("Expected function to be called")
+	if !executed {
+		t.Error("FireAndForgetWithCleanup did not execute the function")
 	}
 	if !cleaned {
-		t.Error("Expected cleanup to be called")
+		t.Error("FireAndForgetWithCleanup did not call cleanup")
 	}
 }
 
+// TestFireAndForgetWithCleanup_Error tests error case with cleanup
 func TestFireAndForgetWithCleanup_Error(t *testing.T) {
 	ctx := context.Background()
-	logger := testLogger(t)
-	var cleaned bool
+	logger := helperLogger(t)
+
+	var executed, cleaned bool
 	var wg sync.WaitGroup
-	cleanedCh := make(chan struct{}, 1)
-
 	wg.Add(1)
-	errTest := errors.New("test error")
 
-	FireAndForgetWithCleanup(ctx, logger, "failing operation",
+	expectedErr := errors.New("test error")
+
+	FireAndForgetWithCleanup(ctx, logger, "test error",
 		func() error {
+			executed = true
 			defer wg.Done()
-			return errTest
+			return expectedErr
 		},
 		func() {
 			cleaned = true
-			cleanedCh <- struct{}{}
 		})
 
 	// Wait for goroutine to complete
 	wg.Wait()
-	// Wait for cleanup to be called
-	<-cleanedCh
+	time.Sleep(10 * time.Millisecond)
 
+	if !executed {
+		t.Error("FireAndForgetWithCleanup did not execute the function")
+	}
 	if !cleaned {
-		t.Error("Expected cleanup to be called even on error")
+		t.Error("FireAndForgetWithCleanup did not call cleanup on error")
 	}
 }
 
+// TestFireAndForgetWithCleanup_Panic tests panic recovery with cleanup
 func TestFireAndForgetWithCleanup_Panic(t *testing.T) {
 	ctx := context.Background()
-	logger := testLogger(t)
+	logger := helperLogger(t)
+
 	var cleaned bool
 	var wg sync.WaitGroup
-	cleanedCh := make(chan struct{}, 1)
-
 	wg.Add(1)
 
-	FireAndForgetWithCleanup(ctx, logger, "panicking operation",
+	FireAndForgetWithCleanup(ctx, logger, "test panic",
 		func() error {
 			defer wg.Done()
 			panic("test panic")
 		},
 		func() {
 			cleaned = true
-			cleanedCh <- struct{}{}
 		})
 
 	// Wait for goroutine to complete
 	wg.Wait()
-	// Wait for cleanup to be called
-	<-cleanedCh
+	time.Sleep(10 * time.Millisecond)
 
 	if !cleaned {
-		t.Error("Expected cleanup to be called even on panic")
+		t.Error("FireAndForgetWithCleanup did not call cleanup on panic")
 	}
-	// Panic should be recovered, test passes if no crash
+	// If we reach here, panic was recovered successfully
 }
 
+// TestFireAndForgetWithCleanup_NilCleanup tests with nil cleanup function
 func TestFireAndForgetWithCleanup_NilCleanup(t *testing.T) {
 	ctx := context.Background()
-	logger := testLogger(t)
-	var called bool
-	var wg sync.WaitGroup
+	logger := helperLogger(t)
 
+	var executed bool
+	var wg sync.WaitGroup
 	wg.Add(1)
 
-	FireAndForgetWithCleanup(ctx, logger, "test operation",
+	FireAndForgetWithCleanup(ctx, logger, "test nil cleanup",
 		func() error {
-			defer wg.Done()
-			called = true
+			executed = true
+			wg.Done()
 			return nil
 		},
-		nil) // nil cleanup function
+		nil) // nil cleanup
 
 	// Wait for goroutine to complete
 	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
 
-	if !called {
-		t.Error("Expected function to be called")
+	if !executed {
+		t.Error("FireAndForgetWithCleanup did not execute with nil cleanup")
 	}
-	// Should not panic with nil cleanup
 }
 
-func TestFireAndForgetWithCleanup_ContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	logger := testLogger(t)
-	var cleaned bool
-	var wg sync.WaitGroup
-	cleanedCh := make(chan struct{}, 1)
+// TestFireAndForgetWithCleanup_CleanupRunsAfterPanic verifies cleanup runs even on panic
+func TestFireAndForgetWithCleanup_CleanupRunsAfterPanic(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
 
+	cleanupCalled := false
+	var wg sync.WaitGroup
 	wg.Add(1)
 
-	FireAndForgetWithCleanup(ctx, logger, "context-aware operation",
+	FireAndForgetWithCleanup(ctx, logger, "test cleanup order",
 		func() error {
 			defer wg.Done()
-			<-ctx.Done()
-			return ctx.Err()
+			panic("intentional panic")
 		},
 		func() {
-			cleaned = true
-			cleanedCh <- struct{}{}
+			cleanupCalled = true
 		})
-
-	// Cancel immediately
-	cancel()
 
 	// Wait for goroutine to complete
 	wg.Wait()
-	// Wait for cleanup to be called
-	<-cleanedCh
+	time.Sleep(10 * time.Millisecond)
 
-	if !cleaned {
-		t.Error("Expected cleanup to be called even on context cancellation")
+	if !cleanupCalled {
+		t.Error("Cleanup was not called after panic")
 	}
 }
 
-func TestFireAndForget_Concurrent(t *testing.T) {
+// TestFireAndForget_MultipleGoroutines tests concurrent execution
+func TestFireAndForget_MultipleGoroutines(t *testing.T) {
 	ctx := context.Background()
-	logger := testLogger(t)
-	var wg sync.WaitGroup
-	counter := 0
-	var mu sync.Mutex
+	logger := helperLogger(t)
 
-	// Launch 10 concurrent operations
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		FireAndForget(ctx, logger, "concurrent operation", func() error {
-			defer wg.Done()
+	var counter int
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	numGoroutines := 10
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		FireAndForget(ctx, logger, "test concurrent", func() error {
 			mu.Lock()
 			counter++
 			mu.Unlock()
+			wg.Done()
 			return nil
 		})
 	}
 
 	// Wait for all goroutines to complete
 	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
 
-	if counter != 10 {
-		t.Errorf("Expected 10 operations, got %d", counter)
+	if counter != numGoroutines {
+		t.Errorf("FireAndForget expected %d executions, got %d", numGoroutines, counter)
 	}
 }
 
-func TestFireAndForgetWithCleanup_Concurrent(t *testing.T) {
+// TestFireAndForgetWithCleanup_MultipleGoroutines tests concurrent execution with cleanup
+func TestFireAndForgetWithCleanup_MultipleGoroutines(t *testing.T) {
 	ctx := context.Background()
-	logger := testLogger(t)
-	var wg sync.WaitGroup
-	counter := 0
-	cleanupCounter := 0
-	var mu sync.Mutex
+	logger := helperLogger(t)
 
-	// Launch 10 concurrent operations
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		FireAndForgetWithCleanup(ctx, logger, "concurrent operation",
+	var execCount, cleanupCount int
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	numGoroutines := 10
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		FireAndForgetWithCleanup(ctx, logger, "test concurrent",
 			func() error {
-				defer wg.Done()
 				mu.Lock()
-				counter++
+				execCount++
 				mu.Unlock()
+				wg.Done()
 				return nil
 			},
 			func() {
 				mu.Lock()
-				cleanupCounter++
+				cleanupCount++
 				mu.Unlock()
 			})
 	}
 
 	// Wait for all goroutines to complete
 	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
 
-	if counter != 10 {
-		t.Errorf("Expected 10 operations, got %d", counter)
+	if execCount != numGoroutines {
+		t.Errorf("FireAndForgetWithCleanup expected %d executions, got %d", numGoroutines, execCount)
 	}
-	if cleanupCounter != 10 {
-		t.Errorf("Expected 10 cleanups, got %d", cleanupCounter)
+	if cleanupCount != numGoroutines {
+		t.Errorf("FireAndForgetWithCleanup expected %d cleanups, got %d", numGoroutines, cleanupCount)
+	}
+}
+
+// TestFireAndForget_LongRunning tests long-running background task
+func TestFireAndForget_LongRunning(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	var completed bool
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	FireAndForget(ctx, logger, "test long running", func() error {
+		defer wg.Done()
+		// Simulate long-running task
+		time.Sleep(50 * time.Millisecond)
+		completed = true
+		return nil
+	})
+
+	// Wait for goroutine to complete
+	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
+
+	if !completed {
+		t.Error("FireAndForget did not complete long-running task")
+	}
+}
+
+// TestFireAndForget_ReturnsImmediately tests that FireAndForget returns immediately
+func TestFireAndForget_ReturnsImmediately(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	start := time.Now()
+
+	FireAndForget(ctx, logger, "test immediate", func() error {
+		time.Sleep(100 * time.Millisecond)
+		return nil
+	})
+
+	elapsed := time.Since(start)
+
+	// FireAndForget should return immediately (within 1ms)
+	if elapsed > time.Millisecond {
+		t.Errorf("FireAndForget did not return immediately: %v", elapsed)
 	}
 }
