@@ -1,7 +1,7 @@
 {
   "version": 8,
   "created": "2026-03-15T03:21:40+00:00",
-  "updated": "2026-03-15T18:40:02+00:00",
+  "updated": "2026-03-15T18:43:30+00:00",
   "queue_order": [
     "workflow::create-plan"
   ],
@@ -4409,6 +4409,56 @@
       "detail": {
         "injected": true
       }
+    },
+    {
+      "timestamp": "2026-03-15T18:41:00+00:00",
+      "action": "skip",
+      "issue_ids": [
+        "workflow::create-plan"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": null,
+      "detail": {
+        "kind": "temporary",
+        "reason": "Proceeding with test coverage fixes"
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:43:30+00:00",
+      "action": "done",
+      "issue_ids": [
+        "test_coverage::builder/utils/retry.go::untested_module"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added 14 test cases for RenameWithRetry and RemoveAllWithRetry covering success, not-exist, context cancellation, max retries, nested directories, parallel execution, and edge cases.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T18:43:30+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "test_coverage::builder/utils/retry.go::untested_module"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added 14 test cases for RenameWithRetry and RemoveAllWithRetry covering success, not-exist, context cancellation, max retries, nested directories, parallel execution, and edge cases.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually created builder/utils/retry_test.go with 14 test cases (13 pass, 1 skipped on Windows) covering both retry functions, and I am not gaming the score by resolving without fixing."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:43:30+00:00",
+      "action": "sync_create_plan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "injected": true
+      }
     }
   ],
   "epic_triage_meta": {
@@ -4584,7 +4634,8 @@
     "review::.::holistic::cross_module_architecture::reconfigure_pattern_consolidated",
     "review::.::holistic::cross_module_architecture::search_complexity_concentration",
     "test_coverage::builder/assets/wasm.go::untested_module",
-    "test_coverage::builder/utils/async.go::untested_module"
+    "test_coverage::builder/utils/async.go::untested_module",
+    "test_coverage::builder/utils/retry.go::untested_module"
   ],
   "commit_tracking_branch": null,
   "scan_count_at_plan_start": 44,
