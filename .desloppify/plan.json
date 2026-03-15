@@ -1,10 +1,29 @@
 {
   "version": 8,
   "created": "2026-03-15T03:21:40+00:00",
-  "updated": "2026-03-15T11:21:24+00:00",
+  "updated": "2026-03-15T11:37:06+00:00",
   "queue_order": [
-    "review::.::holistic::cross_module_architecture::search_engine_complexity_concentration",
-    "review::.::holistic::cross_module_architecture::utils_package_gravity"
+    "review::.::holistic::cross_module_architecture::cache_renderer_upward_dep",
+    "review::.::holistic::cross_module_architecture::channel_ownership_documented",
+    "review::.::holistic::cross_module_architecture::internal_build_coupling",
+    "review::.::holistic::cross_module_architecture::reconfigure_pattern_consolidated",
+    "review::.::holistic::cross_module_architecture::search_complexity_concentration",
+    "review::.::holistic::cross_module_architecture::utils_gravity_well",
+    "review::.::holistic::design_coherence::d2_math_boilerplate_similarity",
+    "review::.::holistic::design_coherence::duplication_cache_commit_logic",
+    "review::.::holistic::design_coherence::long_parameter_lists_in_parser",
+    "review::.::holistic::design_coherence::renderer_mixed_responsibilities",
+    "review::.::holistic::high_level_elegance::asset_copy_complexity_concentration",
+    "review::.::holistic::high_level_elegance::builder_struct_god_object_risk",
+    "review::.::holistic::high_level_elegance::incremental_rebuild_path_classification_tangle",
+    "review::.::holistic::high_level_elegance::post_service_lifecycle_mixing",
+    "review::.::holistic::high_level_elegance::search_engine_monolith",
+    "review::.::holistic::mid_level_elegance::dual_sync_channels",
+    "review::.::holistic::mid_level_elegance::fire_and_forget_error_logging",
+    "review::.::holistic::mid_level_elegance::search_merge_duplication",
+    "review::.::holistic::mid_level_elegance::search_queue_debounce_staleness",
+    "review::.::holistic::mid_level_elegance::sink_stream_panic_safety",
+    "review::.::holistic::mid_level_elegance::waitForAssets_defensive_ambiguity"
   ],
   "deferred": [],
   "skipped": {},
@@ -1484,15 +1503,15 @@
   },
   "promoted_ids": [],
   "plan_start_scores": {
-    "strict": 84.5,
-    "overall": 87.3,
+    "strict": 84.4,
+    "overall": 87.1,
     "objective": 97.4,
     "verified": 86.6
   },
   "refresh_state": {
     "lifecycle_phase": "workflow_postflight",
-    "subjective_review_completed_at_scan_count": 32,
-    "postflight_scan_completed_at_scan_count": 30
+    "subjective_review_completed_at_scan_count": 34,
+    "postflight_scan_completed_at_scan_count": 35
   },
   "execution_log": [
     {
@@ -3660,6 +3679,153 @@
         "status": "fixed",
         "attestation": "I have actually added package documentation to build.go explaining call chain rationale and I am not gaming the score by resolving without fixing"
       }
+    },
+    {
+      "timestamp": "2026-03-15T11:22:09+00:00",
+      "action": "commit_record",
+      "issue_ids": [
+        "review::.::holistic::mid_level_elegance::asset_map_parameter_leakage",
+        "review::.::holistic::mid_level_elegance::assets_ready_channel_ownership_ambiguity",
+        "review::.::holistic::mid_level_elegance::search_queue_implicit_protocol",
+        "review::.::holistic::cross_module_architecture::indirection_chain_depth"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": null,
+      "detail": {
+        "sha": "653bb42a67cd",
+        "branch": "main"
+      }
+    },
+    {
+      "timestamp": "2026-03-15T11:22:43+00:00",
+      "action": "reconcile",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "superseded_count": 0,
+        "pruned_count": 0,
+        "resurfaced_count": 0,
+        "clusters_completed_count": 0
+      }
+    },
+    {
+      "timestamp": "2026-03-15T11:36:47+00:00",
+      "action": "review_import_sync",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "trigger": "review_import",
+        "new_ids": [
+          "review::.::holistic::cross_module_architecture::cache_renderer_upward_dep",
+          "review::.::holistic::cross_module_architecture::channel_ownership_documented",
+          "review::.::holistic::cross_module_architecture::internal_build_coupling",
+          "review::.::holistic::cross_module_architecture::reconfigure_pattern_consolidated",
+          "review::.::holistic::cross_module_architecture::search_complexity_concentration",
+          "review::.::holistic::cross_module_architecture::utils_gravity_well",
+          "review::.::holistic::design_coherence::d2_math_boilerplate_similarity",
+          "review::.::holistic::design_coherence::duplication_cache_commit_logic",
+          "review::.::holistic::design_coherence::long_parameter_lists_in_parser",
+          "review::.::holistic::design_coherence::renderer_mixed_responsibilities",
+          "review::.::holistic::high_level_elegance::asset_copy_complexity_concentration",
+          "review::.::holistic::high_level_elegance::builder_struct_god_object_risk",
+          "review::.::holistic::high_level_elegance::incremental_rebuild_path_classification_tangle",
+          "review::.::holistic::high_level_elegance::post_service_lifecycle_mixing",
+          "review::.::holistic::high_level_elegance::search_engine_monolith",
+          "review::.::holistic::mid_level_elegance::dual_sync_channels",
+          "review::.::holistic::mid_level_elegance::fire_and_forget_error_logging",
+          "review::.::holistic::mid_level_elegance::search_merge_duplication",
+          "review::.::holistic::mid_level_elegance::search_queue_debounce_staleness",
+          "review::.::holistic::mid_level_elegance::sink_stream_panic_safety",
+          "review::.::holistic::mid_level_elegance::waitForAssets_defensive_ambiguity"
+        ],
+        "added_to_queue": [
+          "review::.::holistic::cross_module_architecture::cache_renderer_upward_dep",
+          "review::.::holistic::cross_module_architecture::channel_ownership_documented",
+          "review::.::holistic::cross_module_architecture::internal_build_coupling",
+          "review::.::holistic::cross_module_architecture::reconfigure_pattern_consolidated",
+          "review::.::holistic::cross_module_architecture::search_complexity_concentration",
+          "review::.::holistic::cross_module_architecture::utils_gravity_well",
+          "review::.::holistic::design_coherence::d2_math_boilerplate_similarity",
+          "review::.::holistic::design_coherence::duplication_cache_commit_logic",
+          "review::.::holistic::design_coherence::long_parameter_lists_in_parser",
+          "review::.::holistic::design_coherence::renderer_mixed_responsibilities",
+          "review::.::holistic::high_level_elegance::asset_copy_complexity_concentration",
+          "review::.::holistic::high_level_elegance::builder_struct_god_object_risk",
+          "review::.::holistic::high_level_elegance::incremental_rebuild_path_classification_tangle",
+          "review::.::holistic::high_level_elegance::post_service_lifecycle_mixing",
+          "review::.::holistic::high_level_elegance::search_engine_monolith",
+          "review::.::holistic::mid_level_elegance::dual_sync_channels",
+          "review::.::holistic::mid_level_elegance::fire_and_forget_error_logging",
+          "review::.::holistic::mid_level_elegance::search_merge_duplication",
+          "review::.::holistic::mid_level_elegance::search_queue_debounce_staleness",
+          "review::.::holistic::mid_level_elegance::sink_stream_panic_safety",
+          "review::.::holistic::mid_level_elegance::waitForAssets_defensive_ambiguity"
+        ],
+        "workflow_injected_ids": [],
+        "triage_injected": false,
+        "triage_injected_ids": [],
+        "triage_deferred": false,
+        "diff_new": 20,
+        "diff_reopened": 1,
+        "diff_auto_resolved": 22,
+        "stale_pruned_from_queue": [
+          "review::.::holistic::cross_module_architecture::search_engine_complexity_concentration",
+          "review::.::holistic::cross_module_architecture::utils_package_gravity"
+        ],
+        "covered_subjective_pruned_from_queue": [],
+        "covered_subjective": [
+          "subjective::cross_module_architecture",
+          "subjective::design_coherence",
+          "subjective::high_level_elegance",
+          "subjective::mid_level_elegance"
+        ],
+        "stale_sync_injected": [],
+        "stale_sync_pruned": [],
+        "auto_cluster_changes": 0,
+        "import_scores_injected": [],
+        "import_scores_pruned": [],
+        "sync_status": "synced",
+        "sync_message": null
+      }
+    },
+    {
+      "timestamp": "2026-03-15T11:37:06+00:00",
+      "action": "reconcile",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "superseded_count": 0,
+        "pruned_count": 0,
+        "resurfaced_count": 0,
+        "clusters_completed_count": 0
+      }
+    },
+    {
+      "timestamp": "2026-03-15T11:37:06+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T11:37:06+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 35
+      }
     }
   ],
   "epic_triage_meta": {
@@ -3814,14 +3980,22 @@
       "recorded_at": "2026-03-15T11:11:03+00:00",
       "note": null,
       "cluster_name": null
+    },
+    {
+      "sha": "653bb42a67cd",
+      "branch": "main",
+      "issue_ids": [
+        "review::.::holistic::mid_level_elegance::asset_map_parameter_leakage",
+        "review::.::holistic::mid_level_elegance::assets_ready_channel_ownership_ambiguity",
+        "review::.::holistic::mid_level_elegance::search_queue_implicit_protocol",
+        "review::.::holistic::cross_module_architecture::indirection_chain_depth"
+      ],
+      "recorded_at": "2026-03-15T11:22:09+00:00",
+      "note": null,
+      "cluster_name": null
     }
   ],
-  "uncommitted_issues": [
-    "review::.::holistic::mid_level_elegance::asset_map_parameter_leakage",
-    "review::.::holistic::mid_level_elegance::assets_ready_channel_ownership_ambiguity",
-    "review::.::holistic::mid_level_elegance::search_queue_implicit_protocol",
-    "review::.::holistic::cross_module_architecture::indirection_chain_depth"
-  ],
+  "uncommitted_issues": [],
   "commit_tracking_branch": null,
-  "scan_count_at_plan_start": 30
+  "scan_count_at_plan_start": 35
 }
