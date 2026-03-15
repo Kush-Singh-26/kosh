@@ -1,8 +1,8 @@
 package run
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"context"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -65,7 +65,9 @@ func TestIsAssetPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &Builder{
 				cfg: &config.Config{
-					StaticDir: tt.staticDir,
+					PathConfig: config.PathConfig{
+						StaticDir: tt.staticDir,
+					},
 				},
 			}
 			got := b.isAssetPath(tt.path)
@@ -96,7 +98,7 @@ func TestIsContentPathWithAbsoluteConfiguredContentDir(t *testing.T) {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 	contentDir := filepath.Join(wd, "content")
-	b := &Builder{cfg: &config.Config{ContentDir: contentDir}}
+	b := &Builder{cfg: &config.Config{PathConfig: config.PathConfig{ContentDir: contentDir}}}
 	path := filepath.Join(contentDir, "posts", "hello.md")
 	if !b.isContentPath(path) {
 		t.Fatalf("expected absolute markdown path to match absolute content dir")
@@ -147,8 +149,10 @@ func TestInvalidateForTemplate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &Builder{
 				cfg: &config.Config{
-					TemplateDir: tt.templateDir,
-					StaticDir:   tt.staticDir,
+					PathConfig: config.PathConfig{
+						TemplateDir: tt.templateDir,
+						StaticDir:   tt.staticDir,
+					},
 				},
 			}
 			got := b.invalidateForTemplate(tt.templatePath)
@@ -206,16 +210,22 @@ Initial body.
 	_ = afero.WriteFile(fs, absPath, []byte(initialContent), 0644)
 
 	cfg := &config.Config{
-		Title:        "Test Blog",
-		BaseURL:      "https://example.com",
-		Theme:        "test-theme",
-		ThemeDir:     "themes",
-		TemplateDir:  templateDir,
-		StaticDir:    "themes/test-theme/static",
-		ContentDir:   contentDir,
-		OutputDir:    "public",
-		CacheDir:     cacheDir,
-		PostsPerPage: 10,
+		SiteConfig: config.SiteConfig{
+			Title:   "Test Blog",
+			BaseURL: "https://example.com",
+		},
+		PathConfig: config.PathConfig{
+			Theme:       "test-theme",
+			ThemeDir:    "themes",
+			TemplateDir: templateDir,
+			StaticDir:   "themes/test-theme/static",
+			ContentDir:  contentDir,
+			OutputDir:   "public",
+			CacheDir:    cacheDir,
+		},
+		BuildOptions: config.BuildOptions{
+			PostsPerPage: 10,
+		},
 	}
 
 	logger := InitLogger()
@@ -233,7 +243,16 @@ Initial body.
 	renderSvc := services.NewRenderService(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
-	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
+	postSvc := services.NewPostService(services.PostServiceDependencies{
+		Cfg:            cfg,
+		Cache:          cacheSvc,
+		Renderer:       renderSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		SourceFs:       fs,
+	})
 	metadataScanner := services.NewMetadataScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
@@ -302,16 +321,22 @@ Initial body.
 	_ = afero.WriteFile(fs, absPath, []byte(initialContent), 0644)
 
 	cfg := &config.Config{
-		Title:        "Test Blog",
-		BaseURL:      "https://example.com",
-		Theme:        "test-theme",
-		ThemeDir:     "themes",
-		TemplateDir:  templateDir,
-		StaticDir:    "themes/test-theme/static",
-		ContentDir:   contentDir,
-		OutputDir:    "public",
-		CacheDir:     ".kosh-cache",
-		PostsPerPage: 10,
+		SiteConfig: config.SiteConfig{
+			Title:   "Test Blog",
+			BaseURL: "https://example.com",
+		},
+		PathConfig: config.PathConfig{
+			Theme:       "test-theme",
+			ThemeDir:    "themes",
+			TemplateDir: templateDir,
+			StaticDir:   "themes/test-theme/static",
+			ContentDir:  contentDir,
+			OutputDir:   "public",
+			CacheDir:    ".kosh-cache",
+		},
+		BuildOptions: config.BuildOptions{
+			PostsPerPage: 10,
+		},
 	}
 
 	logger := InitLogger()
@@ -329,7 +354,16 @@ Initial body.
 	renderSvc := services.NewRenderService(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
-	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
+	postSvc := services.NewPostService(services.PostServiceDependencies{
+		Cfg:            cfg,
+		Cache:          cacheSvc,
+		Renderer:       renderSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		SourceFs:       fs,
+	})
 	metadataScanner := services.NewMetadataScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
