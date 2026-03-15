@@ -15,7 +15,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
-	"github.com/Kush-Singh-26/kosh/builder/utils/sink"
 )
 
 func TestAssetService_Build(t *testing.T) {
@@ -142,7 +141,7 @@ func TestAssetService_Build_DoesNotHardlinkSourceStaticFiles(t *testing.T) {
 	}
 
 	sourceFs := afero.NewOsFs()
-	sink := sink.NewDiskSink(outputDir, outputDir)
+	sink := utils.NewDiskSink(outputDir, outputDir)
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
@@ -201,7 +200,7 @@ func TestAssetService_Build_DoesNotCopySourceSearchWasm(t *testing.T) {
 	}
 
 	sourceFs := afero.NewOsFs()
-	sink := sink.NewDiskSink(outputDir, outputDir)
+	sink := utils.NewDiskSink(outputDir, outputDir)
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
