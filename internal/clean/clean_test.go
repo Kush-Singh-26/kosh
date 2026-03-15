@@ -62,7 +62,9 @@ versions:
 	// If I can't easily mock config.Load, I'll just test the logic with a helper.
 
 	cfg := &config.Config{
-		OutputDir: "public",
+		PathConfig: config.PathConfig{
+			OutputDir: "public",
+		},
 		Versions: []config.Version{
 			{Name: "v1", Path: "v1"},
 		},
