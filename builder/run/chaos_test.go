@@ -46,7 +46,15 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	renderSvc := services.NewRenderService(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
-	postSvc := services.NewPostService(cfg, nil, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
+	postSvc := services.NewPostService(services.PostServiceDependencies{
+		Cfg:            cfg,
+		Renderer:       renderSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		SourceFs:       fs,
+	})
 	metadataScanner := services.NewMetadataScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")

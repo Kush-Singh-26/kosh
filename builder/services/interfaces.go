@@ -21,17 +21,28 @@ type PostResult struct {
 	Has404         bool
 }
 
+// MetadataContext holds aggregated post metadata ready for site-wide generators.
+// This allows site-wide tasks (sitemap, RSS, search, pagination, tags, PWA) to
+// overlap with the post render phase.
+type MetadataContext struct {
+	AllPosts       []models.PostMetadata
+	PinnedPosts    []models.PostMetadata
+	TagMap         map[string][]models.PostMetadata
+	IndexedPosts   []models.IndexedPost
+	AnyPostChanged bool
+}
+
 // MetadataReadyFunc is called when post metadata becomes available (after parse,
 // before render). This allows site-wide tasks (sitemap, RSS, search, pagination,
 // tags, PWA) to overlap with the post render phase.
-type MetadataReadyFunc func(allPosts []models.PostMetadata, pinnedPosts []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, anyChanged bool)
+type MetadataReadyFunc func(ctx *MetadataContext)
 
 type PostService interface {
 	SetSink(sink utils.ArtifactSink)
 	SetSourceFs(fs afero.Fs)
 	SetAssetsGate(ch <-chan struct{})
 	SetMetadataCallback(fn MetadataReadyFunc)
-	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile, has404 bool) (*PostResult, error)
+	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
 	WaitForCacheCommit()

@@ -189,7 +189,17 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 		cacheSvc = services.NewCacheService(cacheManager, logger)
 	}
 
-	postSvc := services.NewPostService(cfg, cacheSvc, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, vfs, nil, diagramAdapter)
+	postSvc := services.NewPostService(services.PostServiceDependencies{
+		Cfg:            cfg,
+		Cache:          cacheSvc,
+		Renderer:       renderSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		SourceFs:       vfs,
+		DiagramAdapter: diagramAdapter,
+	})
 	metadataScanner := services.NewMetadataScanner()
 
 	b := &Builder{

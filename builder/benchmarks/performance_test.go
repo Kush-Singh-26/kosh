@@ -87,7 +87,15 @@ This is post number %d.
 		renderSvc := services.NewRenderService(renderer.NewWithFs(fs, false, sink, cfg.TemplateDir, true, logger), logger)
 		assetSvc := &mocks.MockAssetService{}
 		assetSvc.SetMetrics(buildMetrics)
-		postSvc := services.NewPostService(cfg, nil, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
+		postSvc := services.NewPostService(services.PostServiceDependencies{
+			Cfg:            cfg,
+			Renderer:       renderSvc,
+			Logger:         logger,
+			Metrics:        buildMetrics,
+			MdPool:         mdPool,
+			NativeRenderer: nativeRenderer,
+			SourceFs:       fs,
+		})
 		metadataScanner := services.NewMetadataScanner()
 
 		builder := run.NewBuilderFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, logger, buildMetrics, fs, mdPool, nativeRenderer)

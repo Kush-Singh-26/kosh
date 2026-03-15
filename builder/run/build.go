@@ -51,7 +51,7 @@ func (b *Builder) build(ctx context.Context) error {
 	default:
 	}
 
-	// 1. Project-wide setup
+	// Project-wide setup
 	wasmWg := b.setupWasmDeployment(ctx)
 
 	// Handle incremental social card rebuild if needed
@@ -70,7 +70,7 @@ func (b *Builder) build(ctx context.Context) error {
 		return err
 	}
 
-	// 2. Static Assets + Metadata Scanner + Post Parsing overlap
+	// Static Assets + Metadata Scanner + Post Parsing overlap
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
 	assetsReady, assetWg, assetErrChan := b.setupAssetBuilding(ctx, contentAssetsChan)
 
@@ -100,7 +100,7 @@ func (b *Builder) build(ctx context.Context) error {
 		scannerErrChan <- scannerErr
 	}()
 
-	// 3. Process Posts — parse phase overlaps with scanning and asset building
+	// Process Posts — parse phase overlaps with scanning and asset building
 	var siteWideHas404 bool
 	processHas404, processErr := b.runPostProcessing(ctx, forceSocialRebuild, fileChan)
 	if processErr != nil {
@@ -122,17 +122,17 @@ func (b *Builder) build(ctx context.Context) error {
 		siteWideHas404 = true
 	}
 
-	// 4. Wait for site-wide rendering to complete
+	// Wait for site-wide rendering to complete
 	if err := b.waitForSiteWideRendering(*siteWideGroupPtr, siteTimer, siteWideHas404); err != nil {
 		return err
 	}
 
-	// 5. Post-build files and commit
+	// Post-build files and commit
 	if err := b.finalizeBuild(ctx, wasmWg); err != nil {
 		return err
 	}
 
-	// 6. Cleanup orphans (Dev mode only)
+	// Cleanup orphans (Dev mode only)
 	b.CleanupOrphans()
 
 	// Clear memory state
@@ -230,17 +230,11 @@ func (b *Builder) setupSiteWideRendering(
 	var siteTimer *utils.PhaseTimer
 	var siteWideOnce sync.Once
 
-	b.postService.SetMetadataCallback(func(
-		cbAllPosts []models.PostMetadata,
-		cbPinnedPosts []models.PostMetadata,
-		cbTagMap map[string][]models.PostMetadata,
-		cbIndexedPosts []models.IndexedPost,
-		cbAnyChanged bool,
-	) {
+	b.postService.SetMetadataCallback(func(cb *services.MetadataContext) {
 		// Update in-memory cache for incremental search
-		if cbIndexedPosts != nil {
+		if cb.IndexedPosts != nil {
 			b.mu.Lock()
-			b.indexedPosts = cbIndexedPosts
+			b.indexedPosts = cb.IndexedPosts
 			b.mu.Unlock()
 		}
 
@@ -270,7 +264,7 @@ func (b *Builder) setupSiteWideRendering(
 		// 4. Generators were explicitly forced (e.g. after deletion or on first build)
 		useStaging := !b.cfg.IsDev || b.isCleanBuild
 		assetsChanged := currentAssetHash != b.lastAssetHash
-		if !cbAnyChanged && !b.isCleanBuild && !useStaging && !b.forceGenerators.Load() && !assetsChanged {
+		if !cb.AnyPostChanged && !b.isCleanBuild && !useStaging && !b.forceGenerators.Load() && !assetsChanged {
 			return
 		}
 		b.forceGenerators.Store(false)
@@ -284,15 +278,15 @@ func (b *Builder) setupSiteWideRendering(
 			// Pagination and Tags render HTML pages (need assets for CSS/JS paths)
 			siteWideGroup.Go(func() error {
 				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
-				return b.renderPagination(siteWideCtx, cbAllPosts, cbPinnedPosts, b.cfg.ForceRebuild)
+				return b.renderPagination(siteWideCtx, cb.AllPosts, cb.PinnedPosts, b.cfg.ForceRebuild)
 			})
 			siteWideGroup.Go(func() error {
 				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
-				return b.renderTags(siteWideCtx, cbTagMap, forceSocialRebuild)
+				return b.renderTags(siteWideCtx, cb.TagMap, forceSocialRebuild)
 			})
 			// Sitemap, RSS, Search are pure data generators (no HTML assets needed)
 			siteWideGroup.Go(func() error {
-				return b.renderSiteMetadata(cbAllPosts, cbTagMap, nil, assetsReady)
+				return b.renderSiteMetadata(cb.AllPosts, cb.TagMap, nil, assetsReady)
 			})
 			// PWA icon generation can be slow (200-400ms) and has no dependency on HTML renders
 			wasmWg.Add(1)
@@ -304,9 +298,9 @@ func (b *Builder) setupSiteWideRendering(
 		})
 
 		// Handle search index specifically on the second call (when indexedPosts available)
-		if cbIndexedPosts != nil {
+		if cb.IndexedPosts != nil {
 			siteWideGroup.Go(func() error {
-				return b.renderSiteMetadata(nil, nil, cbIndexedPosts, nil)
+				return b.renderSiteMetadata(nil, nil, cb.IndexedPosts, nil)
 			})
 		}
 	})
@@ -316,7 +310,7 @@ func (b *Builder) setupSiteWideRendering(
 
 // runPostProcessing executes post processing and returns 404 status
 func (b *Builder) runPostProcessing(ctx context.Context, forceSocialRebuild bool, fileChan <-chan models.ScannedFile) (bool, error) {
-	result, err := b.processPosts(ctx, b.cfg.ForceRebuild, forceSocialRebuild, b.isCleanBuild, fileChan, false)
+	result, err := b.processPosts(ctx, b.cfg.ForceRebuild, forceSocialRebuild, b.isCleanBuild, fileChan)
 	if err != nil {
 		return false, err
 	}
@@ -446,7 +440,7 @@ func (b *Builder) buildAssetOnly(ctx context.Context) error {
 	shouldForce := false
 	forceSocialRebuild := false
 	outputMissing := false
-	_, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan, false)
+	_, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan)
 	if err != nil {
 		return fmt.Errorf("post processing failed: %w", err)
 	}
@@ -503,8 +497,8 @@ func (b *Builder) copyStaticAndBuildAssets(ctx context.Context) error {
 	return nil
 }
 
-func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile, has404 bool) (*services.PostResult, error) {
-	return b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan, has404)
+func (b *Builder) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*services.PostResult, error) {
+	return b.postService.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan)
 }
 
 func (b *Builder) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, assetsReady <-chan struct{}) error {

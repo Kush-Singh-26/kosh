@@ -21,6 +21,19 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
+type PostServiceDependencies struct {
+	Cfg            *config.Config
+	Cache          CacheService
+	Renderer       RenderService
+	Logger         *slog.Logger
+	Metrics        *metrics.BuildMetrics
+	MdPool         *sync.Pool
+	NativeRenderer *native.Renderer
+	SourceFs       afero.Fs
+	Sink           utils.ArtifactSink
+	DiagramAdapter *cache.DiagramCacheAdapter
+}
+
 type postServiceImpl struct {
 	cfg              *config.Config
 	cache            CacheService
@@ -40,18 +53,18 @@ type postServiceImpl struct {
 	mu               sync.Mutex
 }
 
-func NewPostService(cfg *config.Config, cache CacheService, rnd RenderService, logger *slog.Logger, m *metrics.BuildMetrics, mdPool *sync.Pool, nativeRnd *native.Renderer, sourceFs afero.Fs, sink utils.ArtifactSink, diagramAdapter *cache.DiagramCacheAdapter) PostService {
+func NewPostService(deps PostServiceDependencies) PostService {
 	return &postServiceImpl{
-		cfg:            cfg,
-		cache:          cache,
-		renderer:       rnd,
-		logger:         logger,
-		metrics:        m,
-		mdPool:         mdPool,
-		nativeRenderer: nativeRnd,
-		sourceFs:       sourceFs,
-		sink:           sink,
-		diagramAdapter: diagramAdapter,
+		cfg:            deps.Cfg,
+		cache:          deps.Cache,
+		renderer:       deps.Renderer,
+		logger:         deps.Logger,
+		metrics:        deps.Metrics,
+		mdPool:         deps.MdPool,
+		nativeRenderer: deps.NativeRenderer,
+		sourceFs:       deps.SourceFs,
+		sink:           deps.Sink,
+		diagramAdapter: deps.DiagramAdapter,
 	}
 }
 
@@ -71,37 +84,35 @@ type renderTask struct {
 	htmlRelPath string
 }
 
-func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile, has404 bool) (*PostResult, error) {
+func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error) {
 	numWorkers := utils.GetDefaultWorkerCount()
 
-	// 1. Initialize async tasks
 	cardPool := utils.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) {
 		s.generateSocialCard(task)
 	}).WithScheduler(utils.GlobalScheduler, utils.TaskSocialCard)
 	cardPool.Start()
 	defer cardPool.Stop()
 
-	// 2. Phase 1: Parsing and Metadata Extraction
 	pc := s.runParsePhase(ctx, numWorkers, shouldForce, forceSocialRebuild, fileChan, cardPool)
 	if len(pc.errs) > 0 {
 		return nil, pc.errs[0]
 	}
 
-	// 3. Notify site-wide generators
 	utils.SortPosts(pc.allPosts)
 	if s.metadataCallback != nil {
-		s.metadataCallback(pc.allPosts, pc.pinnedPosts, pc.tagMap, pc.indexedPosts, pc.anyPostChanged.Load())
+		s.metadataCallback(&MetadataContext{
+			AllPosts: pc.allPosts, PinnedPosts: pc.pinnedPosts, TagMap: pc.tagMap,
+			IndexedPosts: pc.indexedPosts, AnyPostChanged: pc.anyPostChanged.Load(),
+		})
 	}
 
-	// 4. Phase 2: Parallel Rendering
 	s.runRenderPhase(ctx, numWorkers, pc)
 
-	// 5. Finalize build (cache commit)
 	s.finalizeBuild(pc)
 
 	return &PostResult{
 		AllPosts: pc.allPosts, PinnedPosts: pc.pinnedPosts, TagMap: pc.tagMap,
-		IndexedPosts: pc.indexedPosts, AnyPostChanged: pc.anyPostChanged.Load(), Has404: has404,
+		IndexedPosts: pc.indexedPosts, AnyPostChanged: pc.anyPostChanged.Load(), Has404: false,
 	}, nil
 }
 
