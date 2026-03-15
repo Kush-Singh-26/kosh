@@ -1,8 +1,11 @@
 {
   "version": 8,
   "created": "2026-03-15T03:21:40+00:00",
-  "updated": "2026-03-15T18:16:35+00:00",
-  "queue_order": [],
+  "updated": "2026-03-15T18:34:05+00:00",
+  "queue_order": [
+    "workflow::communicate-score",
+    "workflow::create-plan"
+  ],
   "deferred": [],
   "skipped": {},
   "active_cluster": null,
@@ -1481,15 +1484,14 @@
   },
   "promoted_ids": [],
   "plan_start_scores": {
-    "strict": 74.1,
-    "overall": 76.7,
-    "objective": 96.8,
+    "strict": 88.1,
+    "overall": 90.7,
+    "objective": 97.0,
     "verified": 86.4
   },
   "refresh_state": {
     "lifecycle_phase": "workflow_postflight",
-    "subjective_review_completed_at_scan_count": 45,
-    "postflight_scan_completed_at_scan_count": 44
+    "subjective_review_completed_at_scan_count": 45
   },
   "execution_log": [
     {
@@ -4238,6 +4240,64 @@
         "sync_status": "synced",
         "sync_message": null
       }
+    },
+    {
+      "timestamp": "2026-03-15T18:34:05+00:00",
+      "action": "done",
+      "issue_ids": [
+        "test_coverage::builder/assets/wasm.go::untested_module"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added comprehensive test coverage for builder/assets/wasm.go with 24 test cases covering hashBytes, decompressBrotli, formatSize, CheckWASM variants, DeployWASMFromFile, and hashFileFs functions.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T18:34:05+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "test_coverage::builder/assets/wasm.go::untested_module"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added comprehensive test coverage for builder/assets/wasm.go with 24 test cases covering hashBytes, decompressBrotli, formatSize, CheckWASM variants, DeployWASMFromFile, and hashFileFs functions.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually created builder/assets/wasm_test.go with 24 passing test cases that cover all major functions in wasm.go, and I am not gaming the score by resolving without fixing."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:34:05+00:00",
+      "action": "sync_communicate_score",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "injected": true
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:34:05+00:00",
+      "action": "sync_create_plan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "injected": true
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:34:05+00:00",
+      "action": "sync_lifecycle_phase",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "phase": "workflow_postflight"
+      }
     }
   ],
   "epic_triage_meta": {
@@ -4411,8 +4471,15 @@
     "review::.::holistic::cross_module_architecture::cache_renderer_upward_dep",
     "review::.::holistic::cross_module_architecture::channel_ownership_documented",
     "review::.::holistic::cross_module_architecture::reconfigure_pattern_consolidated",
-    "review::.::holistic::cross_module_architecture::search_complexity_concentration"
+    "review::.::holistic::cross_module_architecture::search_complexity_concentration",
+    "test_coverage::builder/assets/wasm.go::untested_module"
   ],
   "commit_tracking_branch": null,
-  "scan_count_at_plan_start": 44
+  "scan_count_at_plan_start": 44,
+  "previous_plan_start_scores": {
+    "strict": 74.1,
+    "overall": 76.7,
+    "objective": 96.8,
+    "verified": 86.4
+  }
 }
