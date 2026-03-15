@@ -25,11 +25,8 @@ func NewRenderService(rnd *renderer.Renderer, logger *slog.Logger) RenderService
 	}
 }
 
-func (s *renderServiceImpl) SetSink(sink utils.ArtifactSink) {
+func (s *renderServiceImpl) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {
 	s.rnd.SetSink(sink)
-}
-
-func (s *renderServiceImpl) SetSourceFs(fs afero.Fs) {
 	s.rnd.SourceFs = fs
 	s.rnd.ReloadTemplates()
 }

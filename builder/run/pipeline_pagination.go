@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -40,8 +41,8 @@ func (b *Builder) shouldGenerateSocialCard(cacheKey, currentHash, cachedCardPath
 	if _, err := os.Stat(cachedCardPath); os.IsNotExist(err) {
 		return true
 	}
-	if b.cacheService != nil {
-		storedHash, _ := b.cacheService.GetSocialCardHash(cacheKey)
+	if b.deps.Cache != nil {
+		storedHash, _ := b.deps.Cache.GetSocialCardHash(cacheKey)
 		return storedHash != currentHash
 	}
 	return false
@@ -70,7 +71,7 @@ func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []
 		if data, err := os.ReadFile(homeCached); err == nil {
 			_ = b.Sink.MkdirAll(filepath.Dir(homeCardPath))
 			_ = b.Sink.WriteFile(homeCardPath, data)
-			b.renderService.RegisterFile(homeCardPath)
+			b.deps.Render.RegisterFile(homeCardPath)
 		}
 	}
 
@@ -105,7 +106,7 @@ func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []
 
 	// Build SiteTree once before the loop (optimization: avoids recalculating for each page)
 	siteTree := utils.BuildSiteTree(latestPosts, "")
-	sidebarHTML := b.renderService.RenderSidebar(siteTree)
+	sidebarHTML := b.deps.Render.RenderSidebar(siteTree)
 
 	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(runtime.NumCPU())
@@ -151,7 +152,7 @@ func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []
 				relPath = fmt.Sprintf("page/%d/index.html", pageIdx)
 			}
 
-			if err := b.renderService.RenderIndex(destPath, models.PageData{
+			if err := b.deps.Render.RenderIndex(destPath, models.PageData{
 				Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
@@ -192,14 +193,14 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 		if data, err := os.ReadFile(tagsIndexCache); err == nil {
 			_ = b.Sink.MkdirAll(filepath.Dir(tagsIndexCard))
 			_ = b.Sink.WriteFile(tagsIndexCard, data)
-			b.renderService.RegisterFile(tagsIndexCard)
+			b.deps.Render.RegisterFile(tagsIndexCard)
 		}
 	}
 
 	// Generate Tags Index
 	// Force Weight: 0 so layout doesn't crash
 	tagRenderTimer := utils.StartPhase("Tags HTML rendering")
-	if err := b.renderService.RenderPage(filepath.Join(b.cfg.OutputDir, "tags/index.html"), models.PageData{
+	if err := b.deps.Render.RenderPage(filepath.Join(b.cfg.OutputDir, "tags/index.html"), models.PageData{
 		Title: "All Tags", IsTagsIndex: true, AllTags: allTags,
 		BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
 		Permalink: b.cfg.BaseURL + "/tags/index.html",
@@ -228,11 +229,11 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 			tagCard := filepath.Join(b.cfg.OutputDir, fmt.Sprintf("static/images/cards/tags/%s.webp", slug))
 			_ = b.Sink.MkdirAll(filepath.Dir(tagCard))
 			_ = b.Sink.WriteFile(tagCard, data)
-			b.renderService.RegisterFile(tagCard)
+			b.deps.Render.RegisterFile(tagCard)
 		}
 		g.Go(func() error {
 			utils.SortPosts(tagPosts)
-			if err := b.renderService.RenderPage(filepath.Join(b.cfg.OutputDir, fmt.Sprintf("tags/%s.html", slug)), models.PageData{
+			if err := b.deps.Render.RenderPage(filepath.Join(b.cfg.OutputDir, fmt.Sprintf("tags/%s.html", slug)), models.PageData{
 				Title: "#" + tagName, IsIndex: true, Posts: tagPosts,
 				BaseURL: b.cfg.BaseURL, BuildVersion: b.cfg.BuildVersion,
 				Permalink: fmt.Sprintf("%s/tags/%s.html", b.cfg.BaseURL, slug),
@@ -253,6 +254,12 @@ func (b *Builder) renderTags(ctx context.Context, tagMap map[string][]models.Pos
 	// We detach the wait for the worker pool so it doesn't block the site-wide rendering errgroup.
 	// The build's final Tx.Commit() will naturally wait for these Sink writes.
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Tag card pool stop is fire-and-forget; log but don't propagate
+				slog.Debug("Tag card pool stop recovered", "panic", r)
+			}
+		}()
 		tagCardPool.Stop()
 		tagCardsTimer.Stop()
 	}()
@@ -273,8 +280,8 @@ func (b *Builder) provideSocialCard(destPath string, cacheKey string, title, des
 	if !needsGen {
 		if _, err := os.Stat(cachedCardPath); os.IsNotExist(err) {
 			needsGen = true
-		} else if b.cacheService != nil {
-			storedHash, _ := b.cacheService.GetSocialCardHash(cacheKey)
+		} else if b.deps.Cache != nil {
+			storedHash, _ := b.deps.Cache.GetSocialCardHash(cacheKey)
 			if storedHash != currentHash {
 				needsGen = true
 			}
@@ -293,8 +300,8 @@ func (b *Builder) provideSocialCard(destPath string, cacheKey string, title, des
 			b.logger.Warn("Failed to generate card", "path", destPath, "error", err)
 			return
 		}
-		if b.cacheService != nil {
-			_ = b.cacheService.SetSocialCardHash(cacheKey, currentHash)
+		if b.deps.Cache != nil {
+			_ = b.deps.Cache.SetSocialCardHash(cacheKey, currentHash)
 		}
 	}
 
@@ -302,6 +309,6 @@ func (b *Builder) provideSocialCard(destPath string, cacheKey string, title, des
 	data, err := os.ReadFile(cachedCardPath)
 	if err == nil {
 		_ = b.Sink.WriteFile(destPath, data)
-		b.renderService.RegisterFile(destPath)
+		b.deps.Render.RegisterFile(destPath)
 	}
 }

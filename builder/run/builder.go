@@ -27,19 +27,47 @@ import (
 	"github.com/Kush-Singh-26/kosh/internal/build"
 )
 
+// BuilderDependencies bundles service dependencies for explicit injection.
+// This reduces direct coupling by grouping related services.
+type BuilderDependencies struct {
+	Cache    services.CacheService
+	Post     services.PostService
+	Asset    services.AssetService
+	Render   services.RenderService
+	Scanner  services.MetadataScanner
+	Diagrams *cache.DiagramCacheAdapter
+}
+
+// BuilderState holds build-time coordination state separate from dependencies.
+type BuilderState struct {
+	// Build coordination - prevents concurrent builds during watch mode
+	buildMu sync.Mutex
+
+	// Cached data for incremental builds
+	indexedPosts      []models.IndexedPost
+	searchSourceDirty atomic.Bool
+
+	// Incremental rebuild coordination
+	buildQueue                  chan buildRequest
+	searchIndexCh               chan struct{}
+	searchDebounceTimer         *time.Timer
+	lastSearchIndexRegeneration time.Time
+	forceGenerators             atomic.Bool
+	lastAssetHash               uint64 // Hash of asset map from last site-wide render
+
+	// True when output directory did not exist at build start.
+	isCleanBuild bool
+
+	// Cleanup coordination
+	closeOnce sync.Once
+}
+
 // Builder maintains the state for site builds
 type Builder struct {
 	cfg *config.Config
 
-	// Services
-	cacheService    services.CacheService
-	postService     services.PostService
-	assetService    services.AssetService
-	renderService   services.RenderService
-	metadataScanner services.MetadataScanner
-
-	// Legacy access if needed (or for SaveCaches/Close)
-	diagramAdapter *cache.DiagramCacheAdapter
+	// Service dependencies - injected at construction
+	deps BuilderDependencies
 
 	// Structured logging
 	logger *slog.Logger
@@ -61,26 +89,8 @@ type Builder struct {
 	// Mutex for concurrent rendering safety
 	mu sync.Mutex
 
-	// Build coordination - prevents concurrent builds during watch mode
-	buildMu sync.Mutex
-
-	// Cached data for incremental builds
-	indexedPosts      []models.IndexedPost
-	searchSourceDirty atomic.Bool
-
-	// Incremental rebuild coordination
-	buildQueue                  chan buildRequest
-	searchIndexCh               chan struct{}
-	searchDebounceTimer         *time.Timer
-	lastSearchIndexRegeneration time.Time
-	forceGenerators             atomic.Bool
-	lastAssetHash               uint64 // Hash of asset map from last site-wide render
-
-	// True when output directory did not exist at build start.
-	isCleanBuild bool
-
-	// Cleanup coordination
-	closeOnce sync.Once
+	// Build-time state (separate from dependencies)
+	state BuilderState
 }
 
 // buildRequest represents a queued build request from watch mode
@@ -104,16 +114,18 @@ func NewBuilder(args []string) *Builder {
 // NewBuilderFromManual creates a builder with manual service injection (for testing/benchmarks)
 func NewBuilderFromManual(cfg *config.Config, render services.RenderService, asset services.AssetService, post services.PostService, meta services.MetadataScanner, logger *slog.Logger, m *metrics.BuildMetrics, sourceFs afero.Fs, mdPool *sync.Pool, nativeRenderer *native.Renderer) *Builder {
 	return &Builder{
-		cfg:             cfg,
-		renderService:   render,
-		assetService:    asset,
-		postService:     post,
-		metadataScanner: meta,
-		logger:          logger,
-		metrics:         m,
-		SourceFs:        sourceFs,
-		mdPool:          mdPool,
-		nativeRenderer:  nativeRenderer,
+		cfg: cfg,
+		deps: BuilderDependencies{
+			Post:   post,
+			Asset:  asset,
+			Render: render,
+			Scanner: meta,
+		},
+		logger:         logger,
+		metrics:        m,
+		SourceFs:       sourceFs,
+		mdPool:         mdPool,
+		nativeRenderer: nativeRenderer,
 	}
 }
 
@@ -203,32 +215,36 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	metadataScanner := services.NewMetadataScanner()
 
 	b := &Builder{
-		cfg:             cfg,
-		cacheService:    cacheSvc,
-		renderService:   renderSvc,
-		assetService:    assetSvc,
-		postService:     postSvc,
-		metadataScanner: metadataScanner,
-		diagramAdapter:  diagramAdapter,
-		logger:          logger,
-		metrics:         buildMetrics,
-		SourceFs:        vfs,
-		mdPool:          mdPool,
-		nativeRenderer:  nativeRenderer,
-		isCleanBuild:    isCleanBuild,
+		cfg: cfg,
+		deps: BuilderDependencies{
+			Cache:    cacheSvc,
+			Post:     postSvc,
+			Asset:    assetSvc,
+			Render:   renderSvc,
+			Scanner:  metadataScanner,
+			Diagrams: diagramAdapter,
+		},
+		logger:         logger,
+		metrics:        buildMetrics,
+		SourceFs:       vfs,
+		mdPool:         mdPool,
+		nativeRenderer: nativeRenderer,
+		state: BuilderState{
+			isCleanBuild: isCleanBuild,
+		},
 	}
 
 	// Always force site-wide generators on the first build of a session.
 	// This ensures that index.html, tags, and other generated files are
 	// registered with the Sink and not deleted by CleanupOrphans in dev mode.
-	b.forceGenerators.Store(true)
+	b.state.forceGenerators.Store(true)
 
 	// Initialize and start search index processor
-	b.searchIndexCh = make(chan struct{}, 1)
+	b.state.searchIndexCh = make(chan struct{}, 1)
 	go b.processSearchIndexQueue()
 
 	// Initialize and start build queue processor
-	b.buildQueue = make(chan buildRequest, 10)
+	b.state.buildQueue = make(chan buildRequest, 10)
 	go b.processBuildQueue()
 
 	return b
@@ -257,9 +273,12 @@ func (b *Builder) SetTx(tx utils.BuildTransaction) {
 
 func (b *Builder) SetSourceFs(fs afero.Fs) {
 	b.SourceFs = fs
-	b.postService.SetSourceFs(fs)
-	b.assetService.SetSourceFs(fs)
-	b.renderService.SetSourceFs(fs)
+	// Use consolidated reconfiguration method
+	if b.Sink != nil {
+		b.deps.Post.ReconfigureForBuild(b.Sink, fs)
+		b.deps.Asset.ReconfigureForBuild(b.Sink, fs)
+		b.deps.Render.ReconfigureForBuild(b.Sink, fs)
+	}
 }
 
 // getFaviconPath returns the favicon path - uses custom logo if set, otherwise defaults to theme favicon
@@ -274,12 +293,12 @@ func (b *Builder) getFaviconPath() string {
 // SaveCaches waits for any background cache writes and persists BoltDB changes
 func (b *Builder) SaveCaches() {
 	// Wait for background cache commit goroutines before closing BoltDB
-	if b.postService != nil {
-		b.postService.WaitForCacheCommit()
+	if b.deps.Post != nil {
+		b.deps.Post.WaitForCacheCommit()
 	}
-	if b.cacheService != nil {
+	if b.deps.Cache != nil {
 		// Manager implementation handles the actual DB commit
-		if manager, ok := b.cacheService.(interface{ Save() error }); ok {
+		if manager, ok := b.deps.Cache.(interface{ Save() error }); ok {
 			_ = manager.Save()
 		}
 		DevLogSuccess("Saved caches")
@@ -288,22 +307,22 @@ func (b *Builder) SaveCaches() {
 
 // Close releases build resources
 func (b *Builder) Close() {
-	b.closeOnce.Do(func() {
+	b.state.closeOnce.Do(func() {
 		// Close build queue processor
-		if b.buildQueue != nil {
-			close(b.buildQueue)
+		if b.state.buildQueue != nil {
+			close(b.state.buildQueue)
 		}
 
 		// Close search index processor
-		if b.searchIndexCh != nil {
-			close(b.searchIndexCh)
+		if b.state.searchIndexCh != nil {
+			close(b.state.searchIndexCh)
 		}
 
 		if b.nativeRenderer != nil {
 			_ = b.nativeRenderer.Close()
 		}
-		if b.cacheService != nil {
-			_ = b.cacheService.Close()
+		if b.deps.Cache != nil {
+			_ = b.deps.Cache.Close()
 		}
 	})
 }
@@ -320,11 +339,11 @@ func (b *Builder) checkWasmUpdate(ctx context.Context) {
 	sourceAvailable := false
 	if srcMod, err := latestSearchSourceModTime(); err == nil {
 		sourceAvailable = true
-		if b.searchSourceDirty.Load() {
+		if b.state.searchSourceDirty.Load() {
 			if err := build.CompileWASMFromSource(ctx, build.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
 				b.logger.Warn("Failed to compile Search WASM", "error", err)
 			}
-			b.searchSourceDirty.Store(false)
+			b.state.searchSourceDirty.Store(false)
 		} else {
 			wasmInfo, statErr := os.Stat(wasmBinary)
 			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {

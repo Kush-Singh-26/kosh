@@ -22,8 +22,7 @@ type PostResult struct {
 }
 
 // MetadataContext holds aggregated post metadata ready for site-wide generators.
-// This allows site-wide tasks (sitemap, RSS, search, pagination, tags, PWA) to
-// overlap with the post render phase.
+// This allows site-wide generators to overlap with the post render phase.
 type MetadataContext struct {
 	AllPosts       []models.PostMetadata
 	PinnedPosts    []models.PostMetadata
@@ -32,16 +31,18 @@ type MetadataContext struct {
 	AnyPostChanged bool
 }
 
-// MetadataReadyFunc is called when post metadata becomes available (after parse,
-// before render). This allows site-wide tasks (sitemap, RSS, search, pagination,
-// tags, PWA) to overlap with the post render phase.
-type MetadataReadyFunc func(ctx *MetadataContext)
-
 type PostService interface {
-	SetSink(sink utils.ArtifactSink)
-	SetSourceFs(fs afero.Fs)
+	// ReconfigureForBuild updates sink and source for a new build pass.
+	// Consolidates sink and filesystem injection into a single explicit call.
+	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
+	
+	// SetAssetsGate sets the channel to wait on before rendering.
 	SetAssetsGate(ch <-chan struct{})
-	SetMetadataCallback(fn MetadataReadyFunc)
+	
+	// MetadataReadyChan returns a channel that closes when metadata is ready.
+	// Provides explicit synchronization for site-wide generators.
+	MetadataReadyChan() <-chan struct{}
+	
 	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
@@ -86,8 +87,9 @@ type CacheService interface {
 
 // AssetService handles static asset processing
 type AssetService interface {
-	SetSink(sink utils.ArtifactSink)
-	SetSourceFs(fs afero.Fs)
+	// ReconfigureForBuild updates sink and source for a new build pass.
+	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
+	
 	SetMetrics(m *metrics.BuildMetrics)
 	SetAssetsReadySignal(ch chan struct{})
 	SetContentAssetsChannel(ch <-chan []models.ScannedAsset)
@@ -97,9 +99,10 @@ type AssetService interface {
 
 // RenderService handles rendering logic
 type RenderService interface {
+	// ReconfigureForBuild updates sink and source for a new build pass.
+	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
+	
 	SetAssetsGate(ch <-chan struct{})
-	SetSink(sink utils.ArtifactSink)
-	SetSourceFs(fs afero.Fs)
 	RenderPage(path string, data models.PageData) error
 	RenderIndex(path string, data models.PageData) error
 	Render404(path string, data models.PageData) error

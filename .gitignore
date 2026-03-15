@@ -57,3 +57,6 @@ themes/
 .opencode/
 *.out
 *.db
+
+# Desloppify local state
+.desloppify/
