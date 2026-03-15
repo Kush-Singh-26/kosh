@@ -1,8 +1,8 @@
 # Kosh Implementation Plan - Road to 95.0
 
-**Current Status:** 84.4/100 (target: 95.0, need +10.6)  
-**Last Updated:** 2026-03-15  
-**Commits:** 21 ahead of origin/main
+**Current Status:** 84.4/100 (target: 95.0, need +10.6)
+**Last Updated:** 2026-03-15 (Phase 2 Complete, Rescan Complete)
+**Commits:** 29 ahead of origin/main
 
 ---
 
@@ -14,7 +14,7 @@
 | **High-level elegance** | 80.0% | 88.5% | +8.5 | ✅ Done |
 | **Design coherence** | 72.5% | 82.5% | +10.0 | ✅ Done |
 | **Cross-module arch** | 68.5% | 72.5% | +4.0 | 🔄 In Progress |
-| **Mid-level elegance** | 78.5% | 78.5% | 0 | ⏳ Pending |
+| **Mid-level elegance** | 78.5% | 78.5% | 0 | 🔄 Phase 2 Done |
 | **Test strategy** | 68.5% | 68.5% | 0 | ⏳ Deferred |
 | **AI generated debt** | 71.0% | 71.0% | 0 | ⏳ Deferred |
 
@@ -24,6 +24,17 @@
 - ✅ Channel-based synchronization replacing callbacks
 - ✅ Extensive documentation for integration seams
 - ✅ Fire-and-forget error logging pattern
+- ✅ Phase 2.1: Removed dual sync channels (metadataReadyCh consolidated)
+- ✅ Phase 2.2: Standardized fire-and-forget with FireAndForgetWithCleanup
+- ✅ Phase 2.4: Added DiskSink.WriteStream panic safety with defer/recover
+
+### Rescan Results (Post-Phase 2)
+- **Strict score: 84.4/100** (plateaued - structural improvements need re-review)
+- **Biggest score drags:**
+  - Mid elegance: 78.5% (-2.88 pts, 17.9% weight)
+  - High elegance: 88.5% (-1.54 pts, 17.9% weight)
+  - Contracts: 82.0% (-1.32 pts, 9.8% weight)
+- **Test health: 48.9% strict** - "where the breakthrough is"
 
 ---
 
@@ -205,182 +216,61 @@ func CopyDirVFS(...) error
 
 ## Phase 2: Mid-Level Elegance (~+3.0 points)
 
-### 2.1 Consolidate Dual Sync Channels [T1-High]
-**Issue:** assetsReady + metadataReadyCh create redundant synchronization  
+### 2.1 Consolidate Dual Sync Channels [✅ DONE]
+**Issue:** assetsReady + metadataReadyCh create redundant synchronization
 **Files:** `builder/run/build.go`, `builder/services/*.go`
 
 **Implementation:**
 ```go
-// Create: builder/run/build_context.go
-package run
-
-// BuildSync provides synchronized build phase coordination
-type BuildSync struct {
-    // AssetsReady closes when asset building completes
-    AssetsReady <-chan struct{}
-    
-    // MetadataReady closes when post metadata is parsed
-    MetadataReady <-chan struct{}
-    
-    // Err collects async errors from all phases
-    Err <-chan error
-}
-
-// Update: builder/services/interfaces.go
-type PostService interface {
-    // Remove: MetadataReadyChan() <-chan struct{}
-    // Use BuildSync instead
-}
-
-type AssetService interface {
-    // Remove: SetAssetsReadySignal(ch chan struct{})
-    // Use BuildSync instead
-}
-
-// Update: builder/run/build.go
-func (b *Builder) setupBuildSync() *BuildSync {
-    sync := &BuildSync{
-        AssetsReady:   make(chan struct{}),
-        MetadataReady: make(chan struct{}),
-        Err:           make(chan error, 3),
-    }
-    // Wire up services to use sync
-    return sync
-}
+// Removed metadataReadyCh from postServiceImpl
+// Removed MetadataReadyChan() from PostService interface
+// Simplified build orchestration to use only assetsReady channel
 ```
 
-**Estimated Effort:** 2-3 hours  
-**Risk:** Medium - affects build orchestration flow  
-**Testing:** Verify site-wide generators receive correct signals
+**Status:** ✅ Complete - Commit 64251f4
 
 ---
 
-### 2.2 Standardize Fire-and-Forget Error Logging [T1-High]
-**Issue:** Inconsistent error logging across async goroutines  
-**Files:** `builder/services/post_service.go`, `builder/run/pipeline_pagination.go`, `builder/utils/sink.go`
+### 2.2 Standardize Fire-and-Forget Error Logging [✅ DONE]
+**Issue:** Inconsistent error logging across async goroutines
+**Files:** `builder/services/post_service.go`, `builder/run/build.go`, `builder/utils/async.go`
 
 **Implementation:**
 ```go
-// Create: builder/sync/async.go
-package sync
+// Created: builder/utils/async.go
+package utils
 
-// FireAndForget wraps a function with standard error logging
-func FireAndForget(name string, fn func() error, logger *slog.Logger) {
-    go func() {
-        defer func() {
-            if r := recover(); r != nil {
-                logger.Error("Panic in fire-and-forget", 
-                    "operation", name, 
-                    "panic", r)
-            }
-        }()
-        if err := fn(); err != nil {
-            logger.Error("Error in fire-and-forget",
-                "operation", name,
-                "error", err)
-        }
-    }()
-}
+// FireAndForget wraps a function with standard error logging and panic recovery
+func FireAndForget(ctx context.Context, logger *slog.Logger, operation string, fn func() error)
 
-// Update: builder/services/post_service.go
-func (s *postServiceImpl) finalizeBuild(pc *postProcessContext) {
-    if len(pc.newPostsMeta) > 0 && s.cache != nil {
-        s.cacheWg.Add(1)
-        sync.FireAndForget("cache_commit", func() error {
-            return s.cache.BatchCommit(...)
-        }, s.logger)
-    }
-}
-
-// Update: builder/utils/sink.go
-func (s *DiskSink) WriteStream(...) error {
-    defer func() {
-        bw.Reset(nil)
-        s.bufPool.Put(bw)
-    }()
-    
-    // Wrap fn call
-    defer func() {
-        if r := recover(); r != nil {
-            if tempPath != "" {
-                _ = s.fs.Remove(tempPath)
-            }
-            panic(r) // Re-throw after cleanup
-        }
-    }()
-    
-    // ... rest of logic
-}
+// FireAndForgetWithCleanup adds cleanup callback
+func FireAndForgetWithCleanup(ctx context.Context, logger *slog.Logger, operation string, fn func() error, cleanup func())
 ```
 
-**Estimated Effort:** 1-2 hours  
-**Risk:** Low - additive pattern, doesn't change behavior  
-**Testing:** Verify error logs appear correctly
+**Status:** ✅ Complete - Commit 64251f4
 
 ---
 
-### 2.3 Deduplicate Cache Commit Logic [T1-High]
-**Issue:** BatchCommit and incremental path duplicate encoding logic  
-**Files:** `builder/cache/cache_writes.go`, `builder/services/post_single.go`
+### 2.3 Deduplicate Cache Commit Logic [✅ VERIFIED]
+**Issue:** BatchCommit and incremental path duplicate encoding logic
+**Files:** `builder/cache/cache_writes.go`
+
+**Status:** ✅ Already satisfied - BatchCommit is centralized, no duplication found
+
+---
+
+### 2.4 DiskSink Panic Safety [✅ DONE]
+**Issue:** WriteStream lacks defer/recover for buffer cleanup on panics
+**Files:** `builder/utils/sink.go`
 
 **Implementation:**
 ```go
-// Create: builder/cache/commit_builder.go
-package cache
-
-type CommitBuilder struct {
-    posts       []PostMeta
-    searchRecs  []SearchRecord
-    deps        map[string][]string
-}
-
-func NewCommitBuilder() *CommitBuilder { return &CommitBuilder{} }
-
-func (b *CommitBuilder) AddPost(meta PostMeta) *CommitBuilder {
-    b.posts = append(b.posts, meta)
-    return b
-}
-
-func (b *CommitBuilder) AddSearchRecord(rec SearchRecord) *CommitBuilder {
-    b.searchRecs = append(b.searchRecs, rec)
-    return b
-}
-
-func (b *CommitBuilder) AddDep(path, dep string) *CommitBuilder {
-    if b.deps == nil {
-        b.deps = make(map[string][]string)
-    }
-    b.deps[path] = append(b.deps[path], dep)
-    return b
-}
-
-func (b *CommitBuilder) Commit(cache CacheService) error {
-    // Single implementation of encoding + commit logic
-    // Uses errgroup for parallel encoding
-    // Called by both BatchCommit and incremental path
-}
-
-// Update: builder/cache/cache_writes.go
-func (c *cacheService) BatchCommit(posts, searchRecs, deps) error {
-    builder := NewCommitBuilder()
-    for _, p := range posts {
-        builder.AddPost(p)
-    }
-    // ...
-    return builder.Commit(c)
-}
-
-// Update: builder/services/post_single.go
-func (s *postServiceImpl) commitSingle(meta, searchRec, deps) error {
-    builder := cache.NewCommitBuilder()
-    builder.AddPost(meta).AddSearchRecord(searchRec)
-    return builder.Commit(s.cache)
-}
+// Added defer/recover pattern to WriteStream
+// Ensures buffer pool return even on panic
+// Cleans up partial files on error or panic
 ```
 
-**Estimated Effort:** 1-2 hours  
-**Risk:** Low - refactoring, behavior unchanged  
-**Testing:** Verify cache commits work in full and incremental builds
+**Status:** ✅ Complete - Commit 64251f4
 
 ---
 
@@ -514,27 +404,30 @@ Adding tests before refactoring would create resistance to change.
 
 ## Next Actions
 
-1. **Start with 1.1** (Cache→Renderer decoupling) - highest impact, clearest fix
-2. **Then 1.2** (WASM decoupling) - quick win, low risk
-3. **Then 1.3a** (Extract tx package) - first step of utils split
-4. **Pause and rescan** after Phase 1 to reassess priorities
+**Current Queue:** 1 item (Convention drift - 82.0%)
+
+1. **Address Convention drift review item** - run `desloppify review --prepare --dimensions convention_outlier`
+2. **Phase 1.1** (Cache→Renderer decoupling) - highest architectural impact remaining
+3. **Phase 1.2** (WASM decoupling) - quick win, low risk
+4. **Phase 1.3a** (Extract tx package) - first step of utils split
+5. **Consider test improvements** - Test health (48.9%) noted as "where the breakthrough is"
 
 ---
 
 ## Appendix: Issue Tracker
 
-### T1-High Issues (9)
+### T1-High Issues
 - [ ] cache_renderer_upward_dep
 - [ ] channel_ownership_documented (positive pattern)
 - [ ] reconfigure_pattern_consolidated (positive pattern)
 - [ ] search_complexity_concentration (acceptable isolation)
 - [ ] utils_gravity_well
-- [ ] duplication_cache_commit_logic
-- [ ] dual_sync_channels
-- [ ] fire_and_forget_error_logging
-- [ ] sink_stream_panic_safety
+- [x] duplication_cache_commit_logic (verified - already centralized)
+- [x] dual_sync_channels (Phase 2.1 - DONE)
+- [x] fire_and_forget_error_logging (Phase 2.2 - DONE)
+- [x] sink_stream_panic_safety (Phase 2.4 - DONE)
 
-### T2-Medium Issues (1)
+### T2-Medium Issues
 - [ ] internal_build_coupling
 
 ### Positive Patterns to Preserve
@@ -542,3 +435,4 @@ Adding tests before refactoring would create resistance to change.
 - ✅ ReconfigureForBuild consolidation
 - ✅ BuilderDependencies/BuilderState split
 - ✅ AGENTS.md architectural contract
+- ✅ FireAndForgetWithCleanup utility pattern

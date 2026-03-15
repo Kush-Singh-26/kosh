@@ -35,7 +35,7 @@ func FireAndForget(ctx context.Context, logger *slog.Logger, operation string, f
 }
 
 // FireAndForgetWithCleanup runs a function in a goroutine with cleanup callback.
-// The cleanup function is always called, even on panic.
+// The cleanup function is always called, even on panic or error.
 //
 // Example:
 //
@@ -44,15 +44,20 @@ func FireAndForget(ctx context.Context, logger *slog.Logger, operation string, f
 //	    func() { cleanupResources() })
 func FireAndForgetWithCleanup(ctx context.Context, logger *slog.Logger, operation string, fn func() error, cleanup func()) {
 	go func() {
+		// Cleanup is always called, even on panic (registered first, runs last)
+		defer func() {
+			if cleanup != nil {
+				cleanup()
+			}
+		}()
+
+		// Panic recovery (registered second, runs before cleanup)
 		defer func() {
 			if r := recover(); r != nil {
 				logger.Error("Panic in background goroutine",
 					"operation", operation,
 					"panic", r,
 					"stack", string(debug.Stack()))
-			}
-			if cleanup != nil {
-				cleanup()
 			}
 		}()
 
