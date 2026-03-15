@@ -1,9 +1,8 @@
 {
   "version": 8,
   "created": "2026-03-15T03:21:40+00:00",
-  "updated": "2026-03-15T18:34:05+00:00",
+  "updated": "2026-03-15T18:40:02+00:00",
   "queue_order": [
-    "workflow::communicate-score",
     "workflow::create-plan"
   ],
   "deferred": [],
@@ -4298,6 +4297,118 @@
       "detail": {
         "phase": "workflow_postflight"
       }
+    },
+    {
+      "timestamp": "2026-03-15T18:37:17+00:00",
+      "action": "done",
+      "issue_ids": [
+        "workflow::communicate-score"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Score communicated to user: 88.1/100 strict",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T18:37:17+00:00",
+      "action": "sync_subjective",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "changes": true
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:37:17+00:00",
+      "action": "phase_transition_cleanup",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "phase": "workflow_postflight",
+        "pruned": [
+          "subjective::abstraction_fitness",
+          "subjective::api_surface_coherence",
+          "subjective::contract_coherence",
+          "subjective::convention_outlier",
+          "subjective::cross_module_architecture",
+          "subjective::design_coherence",
+          "subjective::error_consistency",
+          "subjective::high_level_elegance",
+          "subjective::incomplete_migration",
+          "subjective::initialization_coupling",
+          "subjective::logic_clarity",
+          "subjective::low_level_elegance",
+          "subjective::naming_quality",
+          "subjective::package_organization",
+          "subjective::test_strategy",
+          "subjective::type_safety"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:39:42+00:00",
+      "action": "done",
+      "issue_ids": [
+        "test_coverage::builder/utils/async.go::untested_module"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added 13 comprehensive test cases for FireAndForget and FireAndForgetWithCleanup utilities covering success, error, panic recovery, cleanup ordering, concurrent execution, and context cancellation.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T18:39:52+00:00",
+      "action": "skip",
+      "issue_ids": [
+        "workflow::create-plan"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": null,
+      "detail": {
+        "kind": "temporary",
+        "reason": "Manual planning completed - proceeding with test coverage fixes"
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:40:02+00:00",
+      "action": "done",
+      "issue_ids": [
+        "test_coverage::builder/utils/async.go::untested_module"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added 13 comprehensive test cases for FireAndForget and FireAndForgetWithCleanup utilities covering success, error, panic recovery, cleanup ordering, concurrent execution, and context cancellation.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T18:40:02+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "test_coverage::builder/utils/async.go::untested_module"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added 13 comprehensive test cases for FireAndForget and FireAndForgetWithCleanup utilities covering success, error, panic recovery, cleanup ordering, concurrent execution, and context cancellation.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually created builder/utils/async_test.go with 13 passing test cases covering both FireAndForget functions, and I am not gaming the score by resolving without fixing."
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:40:02+00:00",
+      "action": "sync_create_plan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "injected": true
+      }
     }
   ],
   "epic_triage_meta": {
@@ -4472,7 +4583,8 @@
     "review::.::holistic::cross_module_architecture::channel_ownership_documented",
     "review::.::holistic::cross_module_architecture::reconfigure_pattern_consolidated",
     "review::.::holistic::cross_module_architecture::search_complexity_concentration",
-    "test_coverage::builder/assets/wasm.go::untested_module"
+    "test_coverage::builder/assets/wasm.go::untested_module",
+    "test_coverage::builder/utils/async.go::untested_module"
   ],
   "commit_tracking_branch": null,
   "scan_count_at_plan_start": 44,
@@ -4481,5 +4593,49 @@
     "overall": 76.7,
     "objective": 96.8,
     "verified": 86.4
+  },
+  "subjective_defer_meta": {
+    "deferred_review_ids": [
+      "subjective::abstraction_fitness",
+      "subjective::api_surface_coherence",
+      "subjective::contract_coherence",
+      "subjective::convention_outlier",
+      "subjective::cross_module_architecture",
+      "subjective::design_coherence",
+      "subjective::error_consistency",
+      "subjective::high_level_elegance",
+      "subjective::incomplete_migration",
+      "subjective::initialization_coupling",
+      "subjective::logic_clarity",
+      "subjective::low_level_elegance",
+      "subjective::naming_quality",
+      "subjective::package_organization",
+      "subjective::test_strategy",
+      "subjective::type_safety"
+    ],
+    "last_deferred_scan": 45,
+    "last_deferred_at": "2026-03-15T18:16:34+00:00",
+    "defer_count": 1,
+    "first_deferred_scan": 45,
+    "first_deferred_at": "2026-03-15T18:16:34+00:00",
+    "deferred_stale_ids": [],
+    "deferred_under_target_ids": [
+      "subjective::abstraction_fitness",
+      "subjective::api_surface_coherence",
+      "subjective::contract_coherence",
+      "subjective::convention_outlier",
+      "subjective::cross_module_architecture",
+      "subjective::design_coherence",
+      "subjective::error_consistency",
+      "subjective::high_level_elegance",
+      "subjective::incomplete_migration",
+      "subjective::initialization_coupling",
+      "subjective::logic_clarity",
+      "subjective::low_level_elegance",
+      "subjective::naming_quality",
+      "subjective::package_organization",
+      "subjective::test_strategy",
+      "subjective::type_safety"
+    ]
   }
 }

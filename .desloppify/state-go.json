@@ -4,7 +4,7 @@
   "last_scan": "2026-03-15T18:16:34+00:00",
   "scan_count": 45,
   "overall_score": 90.7,
-  "objective_score": 97.0,
+  "objective_score": 97.1,
   "strict_score": 88.1,
   "verified_strict_score": 86.4,
   "stats": {
@@ -12,8 +12,8 @@
     "auto_resolved": 4,
     "deferred": 0,
     "false_positive": 0,
-    "fixed": 124,
-    "open": 135,
+    "fixed": 125,
+    "open": 134,
     "triaged_out": 0,
     "wontfix": 65,
     "by_tier": {
@@ -39,8 +39,8 @@
         "auto_resolved": 4,
         "deferred": 0,
         "false_positive": 0,
-        "fixed": 2,
-        "open": 128,
+        "fixed": 3,
+        "open": 127,
         "triaged_out": 0,
         "wontfix": 59
       },
@@ -10180,11 +10180,11 @@
         "importer_count": 0,
         "loc_weight": 8.06225774829855
       },
-      "status": "open",
-      "note": null,
+      "status": "fixed",
+      "note": "Added 13 comprehensive test cases for FireAndForget and FireAndForgetWithCleanup utilities covering success, error, panic recovery, cleanup ordering, concurrent execution, and context cancellation.",
       "first_seen": "2026-03-15T13:19:39+00:00",
       "last_seen": "2026-03-15T13:19:39+00:00",
-      "resolved_at": null,
+      "resolved_at": "2026-03-15T18:40:02+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
       "issue_kind": "mechanical_defect",
@@ -10193,7 +10193,13 @@
       "zone": "production",
       "suppressed": false,
       "suppressed_at": null,
-      "suppression_pattern": null
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "manual",
+        "text": "I have actually created builder/utils/async_test.go with 13 passing test cases covering both FireAndForget functions, and I am not gaming the score by resolving without fixing.",
+        "attested_at": "2026-03-15T18:40:02+00:00",
+        "scan_verified": false
+      }
     },
     "test_coverage::builder/utils/retry.go::untested_module": {
       "id": "test_coverage::builder/utils/retry.go::untested_module",
@@ -15153,18 +15159,18 @@
       }
     },
     "Test health": {
-      "score": 92.4,
-      "strict": 49.9,
+      "score": 92.9,
+      "strict": 50.5,
       "verified_strict_score": 49.5,
       "checks": 1473,
-      "failing": 8,
+      "failing": 7,
       "tier": 4,
       "detectors": {
         "test_coverage": {
           "potential": 1473,
-          "pass_rate": 0.923944800291002,
-          "failing": 8,
-          "weighted_failures": 112.02930917135402
+          "pass_rate": 0.9294181592511505,
+          "failing": 7,
+          "weighted_failures": 103.96705142305547
         }
       }
     },
