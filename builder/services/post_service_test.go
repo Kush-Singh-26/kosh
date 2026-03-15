@@ -61,6 +61,7 @@ func (m *mockRenderService) GetRenderedFiles() map[string]bool                  
 func (m *mockRenderService) ClearRenderedFiles()                                 {}
 func (m *mockRenderService) ReloadTemplates()                                    {}
 func (m *mockRenderService) ConsumeErrors() []error                              { return nil }
+func (m *mockRenderService) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {}
 
 type mockArtifactSink struct {
 	utils.ArtifactSink
@@ -175,12 +176,16 @@ func setupPostServiceTest(t *testing.T) *postServiceImpl {
 	t.Helper()
 
 	cfg := &config.Config{
-		ContentDir:  "content",
-		OutputDir:   "output",
-		BaseURL:     "http://localhost:8080",
-		Theme:       "test",
-		TemplateDir: "templates",
-		StaticDir:   "static",
+		SiteConfig: config.SiteConfig{
+			BaseURL: "http://localhost:8080",
+		},
+		PathConfig: config.PathConfig{
+			ContentDir:  "content",
+			OutputDir:   "output",
+			Theme:       "test",
+			TemplateDir: "templates",
+			StaticDir:   "static",
+		},
 	}
 
 	// Set global slog to noop to avoid races in tests
@@ -253,11 +258,11 @@ func TestPostService_PanicRecovery(t *testing.T) {
 	scanner := NewMetadataScanner()
 	fileChan := make(chan models.ScannedFile, 100)
 	go func() {
-		defer close(fileChan)
 		_, _ = scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg, fileChan)
+		// Don't close fileChan here - Process() handles it
 	}()
 
-	_, err := s.Process(ctx, false, false, false, fileChan, false)
+	_, err := s.Process(ctx, false, false, false, fileChan)
 
 	// We expect successful completion (not a crash)
 	logf("Process completed with error: %v", err)
@@ -331,8 +336,10 @@ func TestPostService_ProcessSingle_PanicRecovery(t *testing.T) {
 
 func TestDecoupledPipeline(t *testing.T) {
 	cfg := &config.Config{
-		ContentDir: "content",
-		OutputDir:  "public",
+		PathConfig: config.PathConfig{
+			ContentDir: "content",
+			OutputDir:  "public",
+		},
 	}
 	mdPool := &sync.Pool{
 		New: func() any {
@@ -396,11 +403,11 @@ func TestPostService_NeighborLookup(t *testing.T) {
 	scanner := NewMetadataScanner()
 	fileChan := make(chan models.ScannedFile, 100)
 	go func() {
-		defer close(fileChan)
 		_, _ = scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg, fileChan)
+		// Don't close fileChan here - Process() handles it
 	}()
 
-	_, err := s.Process(ctx, true, false, true, fileChan, false)
+	_, err := s.Process(ctx, true, false, true, fileChan)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}

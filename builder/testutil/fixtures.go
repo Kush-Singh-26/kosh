@@ -72,19 +72,24 @@ func CreateSampleDependencies() *cache.Dependencies {
 // CreateSampleConfig creates a valid Config for testing
 func CreateSampleConfig() *config.Config {
 	return &config.Config{
-		Title:        "Test Site",
-		Description:  "A test site",
-		BaseURL:      "https://example.com",
-		Author:       config.AuthorConfig{Name: "Test Author", URL: "https://author.example.com"},
-		ContentDir:   "content",
-		OutputDir:    "public",
-		Theme:        "test-theme",
-		ThemeDir:     "themes",
-		TemplateDir:  "themes/test-theme/templates",
-		StaticDir:    "themes/test-theme/static",
-		CacheDir:     ".kosh-cache",
-		Language:     "en",
-		PostsPerPage: 10,
+		SiteConfig: config.SiteConfig{
+			Title:       "Test Site",
+			Description: "A test site",
+			BaseURL:     "https://example.com",
+			Author:      config.AuthorConfig{Name: "Test Author", URL: "https://author.example.com"},
+		},
+		PathConfig: config.PathConfig{
+			ContentDir:  "content",
+			OutputDir:   "public",
+			Theme:       "test-theme",
+			ThemeDir:    "themes",
+			TemplateDir: "themes/test-theme/templates",
+			StaticDir:   "themes/test-theme/static",
+			CacheDir:    ".kosh-cache",
+		},
+		BuildOptions: config.BuildOptions{
+			PostsPerPage: 10,
+		},
 		Features: config.FeaturesConfig{
 			Generators: config.GeneratorsConfig{
 				Sitemap: true,

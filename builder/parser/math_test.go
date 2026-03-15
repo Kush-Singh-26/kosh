@@ -1,14 +1,14 @@
 package parser
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"strings"
 	"testing"
 )
 
 func TestReplaceMathExpressions(t *testing.T) {
 	html := `<p>Solve <!--KOSH_MATH:hash1--> and <!--KOSH_MATH:hash2--></p>`
-	expressions := []native.MathExpression{
+	expressions := []models.MathExpression{
 		{LaTeX: "x+1=0", DisplayMode: false, Hash: "hash1"},
 		{LaTeX: "y^2=4", DisplayMode: true, Hash: "hash2"},
 	}

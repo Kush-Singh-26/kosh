@@ -1,7 +1,5 @@
 package native
 
-//go:generate msgp
-
 import (
 	"context"
 	"fmt"
@@ -9,12 +7,13 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/fastschema/qjs"
 )
 
 // RenderGlobalBatch renders all unique math expressions across the entire site
 // in large parallel chunks to minimize Go-to-JS bridge overhead.
-func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []MathExpression) (map[string]string, error) {
+func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []models.MathExpression) (map[string]string, error) {
 	if len(expressions) == 0 {
 		return make(map[string]string), nil
 	}
@@ -26,7 +25,7 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []MathExpr
 	r.ensureInitialized()
 
 	// 1. Deduplicate globally
-	uniqueExprs := make([]MathExpression, 0, len(expressions))
+	uniqueExprs := make([]models.MathExpression, 0, len(expressions))
 	seen := make(map[string]bool)
 	for _, e := range expressions {
 		if !seen[e.Hash] {
@@ -61,7 +60,7 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []MathExpr
 		end := min(start+chunkSize, len(uniqueExprs))
 
 		wg.Add(1)
-		go func(chunk []MathExpression) {
+		go func(chunk []models.MathExpression) {
 			defer wg.Done()
 
 			rendered, err := r.RenderMathBatch(ctx, chunk)
@@ -142,15 +141,8 @@ func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode boo
 	return res.String(), nil
 }
 
-// MathExpression represents a LaTeX expression with its metadata
-type MathExpression struct {
-	LaTeX       string `json:"latex"`
-	DisplayMode bool   `json:"displayMode"`
-	Hash        string `json:"-"`
-}
-
 // RenderMathBatch renders a slice of LaTeX expressions in a single Go-to-JS bridge crossing.
-func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []MathExpression) ([]string, error) {
+func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.MathExpression) ([]string, error) {
 	if len(expressions) == 0 {
 		return nil, nil
 	}
@@ -237,7 +229,7 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []MathExpres
 
 // RenderAllMath renders multiple LaTeX expressions in parallel using the worker pool.
 // It now uses a single response channel per call to reduce primitive churn.
-func (r *Renderer) RenderAllMath(ctx context.Context, expressions []MathExpression, cache map[string]string) (map[string]string, error) {
+func (r *Renderer) RenderAllMath(ctx context.Context, expressions []models.MathExpression, cache map[string]string) (map[string]string, error) {
 	if len(expressions) == 0 {
 		return make(map[string]string), nil
 	}
@@ -249,7 +241,7 @@ func (r *Renderer) RenderAllMath(ctx context.Context, expressions []MathExpressi
 	r.ensureInitialized()
 
 	finalResults := make(map[string]string)
-	var toRender []MathExpression
+	var toRender []models.MathExpression
 
 	// 1. Filter out cached expressions
 	seen := make(map[string]bool)
@@ -281,7 +273,7 @@ func (r *Renderer) RenderAllMath(ctx context.Context, expressions []MathExpressi
 
 	for _, expr := range toRender {
 		wg.Add(1)
-		go func(e MathExpression) {
+		go func(e models.MathExpression) {
 			defer wg.Done()
 
 			val, err, _ := r.mathGroup.Do(e.Hash, func() (any, error) {

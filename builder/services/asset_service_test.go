@@ -40,10 +40,14 @@ body {
 	}
 
 	cfg := &config.Config{
-		StaticDir:      sourceDir,
-		OutputDir:      outputDir,
-		CacheDir:       cacheDir,
-		CompressImages: true,
+		PathConfig: config.PathConfig{
+			StaticDir: sourceDir,
+			OutputDir: outputDir,
+			CacheDir:  cacheDir,
+		},
+		BuildOptions: config.BuildOptions{
+			CompressImages: true,
+		},
 	}
 
 	sourceFs := afero.NewOsFs()
@@ -52,7 +56,6 @@ body {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	svc := NewAssetService(sourceFs, sink, cfg, mockRend, logger)
-	svc.SetSink(sink)
 
 	ctx := context.Background()
 	if err := svc.Build(ctx); err != nil {
@@ -122,11 +125,15 @@ func TestAssetService_Build_DoesNotHardlinkSourceStaticFiles(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		StaticDir:      staticDir,
-		OutputDir:      outputDir,
-		ContentDir:     filepath.Join(sourceDir, "content"),
-		CacheDir:       cacheDir,
-		CompressImages: false,
+		PathConfig: config.PathConfig{
+			StaticDir:  staticDir,
+			OutputDir:  outputDir,
+			ContentDir: filepath.Join(sourceDir, "content"),
+			CacheDir:   cacheDir,
+		},
+		BuildOptions: config.BuildOptions{
+			CompressImages: false,
+		},
 	}
 
 	if err := os.MkdirAll(cfg.ContentDir, 0755); err != nil {
@@ -182,10 +189,14 @@ func TestAssetService_Build_DoesNotCopySourceSearchWasm(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		StaticDir:      sourceDir,
-		OutputDir:      outputDir,
-		CacheDir:       cacheDir,
-		CompressImages: false,
+		PathConfig: config.PathConfig{
+			StaticDir: sourceDir,
+			OutputDir: outputDir,
+			CacheDir:  cacheDir,
+		},
+		BuildOptions: config.BuildOptions{
+			CompressImages: false,
+		},
 	}
 
 	sourceFs := afero.NewOsFs()

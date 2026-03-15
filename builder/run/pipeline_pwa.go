@@ -31,7 +31,7 @@ func (b *Builder) generatePWA(ctx context.Context, shouldForce bool) error {
 	g, _ := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return generators.GenerateSW(b.Sink, b.cfg.OutputDir, b.cfg.BuildVersion, shouldForce, b.cfg.BaseURL, b.renderService.GetAssets())
+		return generators.GenerateSW(b.Sink, b.cfg.OutputDir, b.cfg.BuildVersion, shouldForce, b.cfg.BaseURL, b.deps.Render.GetAssets())
 	})
 
 	g.Go(func() error {
@@ -73,8 +73,8 @@ func (b *Builder) generatePWA(ctx context.Context, shouldForce bool) error {
 			icons, err := generators.GeneratePWAIconBytes(b.SourceFs, faviconPath)
 			if err == nil {
 				if wErr := generators.WritePWAIcons(b.Sink, filepath.Join(b.cfg.OutputDir, "static/images"), icons); wErr == nil {
-					b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png"))
-					b.renderService.RegisterFile(filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png"))
+					b.deps.Render.RegisterFile(filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png"))
+					b.deps.Render.RegisterFile(filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png"))
 				}
 
 				_ = os.MkdirAll(cacheDir, 0755)
@@ -95,12 +95,12 @@ func (b *Builder) generatePWA(ctx context.Context, shouldForce bool) error {
 			if data, err := os.ReadFile(cache192); err == nil {
 				iconPath := filepath.Join(b.cfg.OutputDir, "static/images/icon-192.png")
 				_ = b.Sink.WriteFile(iconPath, data)
-				b.renderService.RegisterFile(iconPath)
+				b.deps.Render.RegisterFile(iconPath)
 			}
 			if data, err := os.ReadFile(cache512); err == nil {
 				iconPath := filepath.Join(b.cfg.OutputDir, "static/images/icon-512.png")
 				_ = b.Sink.WriteFile(iconPath, data)
-				b.renderService.RegisterFile(iconPath)
+				b.deps.Render.RegisterFile(iconPath)
 			}
 		}
 		return nil

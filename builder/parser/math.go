@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/yuin/goldmark/parser"
 )
@@ -12,7 +13,7 @@ import (
 var mathExpressionsKey = parser.NewContextKey()
 
 // ReplaceMathExpressions replaces LaTeX placeholders in HTML with rendered output.
-func ReplaceMathExpressions(html string, expressions []native.MathExpression, rendered map[string]string) string {
+func ReplaceMathExpressions(html string, expressions []models.MathExpression, rendered map[string]string) string {
 	if len(expressions) == 0 {
 		return html
 	}
@@ -39,7 +40,7 @@ func ReplaceMathExpressions(html string, expressions []native.MathExpression, re
 }
 
 // RenderMathForHTML extracts, renders, and replaces all LaTeX in HTML.
-func RenderMathForHTML(ctx context.Context, html string, renderer *native.Renderer, cacheLookup func(string) (string, bool), preCollected []native.MathExpression) (string, []string, map[string]string) {
+func RenderMathForHTML(ctx context.Context, html string, renderer *native.Renderer, cacheLookup func(string) (string, bool), preCollected []models.MathExpression) (string, []string, map[string]string) {
 	if len(preCollected) == 0 {
 		return html, nil, nil
 	}
@@ -74,9 +75,9 @@ func RenderMathForHTML(ctx context.Context, html string, renderer *native.Render
 }
 
 // GetMathExpressions retrieves math from context
-func GetMathExpressions(pc parser.Context) []native.MathExpression {
+func GetMathExpressions(pc parser.Context) []models.MathExpression {
 	if v := pc.Get(mathExpressionsKey); v != nil {
-		return v.([]native.MathExpression)
+		return v.([]models.MathExpression)
 	}
 	return nil
 }
