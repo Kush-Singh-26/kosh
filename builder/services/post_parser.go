@@ -24,6 +24,26 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
+type ParseOptions struct {
+	Source []byte
+	Path   string
+
+	Version          string
+	CleanHtmlRelPath string
+	HtmlRelPath      string
+
+	MdPool         *sync.Pool
+	Cfg            *config.Config
+	NativeRenderer *native.Renderer
+	DiagramAdapter *cache.DiagramCacheAdapter
+	Mu             *sync.Mutex
+
+	KnownFrontmatterHash string
+	KnownReadingTime     int
+	BodyOffset           int
+	PreParsedMeta        map[string]any
+}
+
 type parsedFrontmatter struct {
 	Title       string
 	Description string

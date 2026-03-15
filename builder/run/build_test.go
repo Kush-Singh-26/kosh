@@ -59,16 +59,22 @@ func TestFullBuild(t *testing.T) {
 	defer func() { utils.TestingMode = false }()
 
 	cfg := &config.Config{
-		Title:        "Test Blog",
-		BaseURL:      "https://example.com",
-		Theme:        "test-theme",
-		ThemeDir:     "themes",
-		TemplateDir:  "themes/test-theme/templates",
-		StaticDir:    "themes/test-theme/static",
-		ContentDir:   "content",
-		OutputDir:    "public",
-		CacheDir:     ".kosh-cache",
-		PostsPerPage: 10,
+		SiteConfig: config.SiteConfig{
+			Title:   "Test Blog",
+			BaseURL: "https://example.com",
+		},
+		PathConfig: config.PathConfig{
+			Theme:       "test-theme",
+			ThemeDir:    "themes",
+			TemplateDir: "themes/test-theme/templates",
+			StaticDir:   "themes/test-theme/static",
+			ContentDir:  "content",
+			OutputDir:   "public",
+			CacheDir:    ".kosh-cache",
+		},
+		BuildOptions: config.BuildOptions{
+			PostsPerPage: 10,
+		},
 		Features: config.FeaturesConfig{
 			Generators: config.GeneratorsConfig{
 				Sitemap: true,
@@ -95,7 +101,15 @@ func TestFullBuild(t *testing.T) {
 	renderSvc := services.NewRenderService(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
-	postSvc := services.NewPostService(cfg, nil, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
+	postSvc := services.NewPostService(services.PostServiceDependencies{
+		Cfg:            cfg,
+		Renderer:       renderSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		SourceFs:       fs,
+	})
 	metadataScanner := services.NewMetadataScanner()
 
 	sink := testutil.NewMemSink()
@@ -172,7 +186,15 @@ func TestMultiVersionBuild(t *testing.T) {
 	renderSvc := services.NewRenderService(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
-	postSvc := services.NewPostService(cfg, nil, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
+	postSvc := services.NewPostService(services.PostServiceDependencies{
+		Cfg:            cfg,
+		Renderer:       renderSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		SourceFs:       fs,
+	})
 	metadataScanner := services.NewMetadataScanner()
 
 	sink := testutil.NewMemSink()
