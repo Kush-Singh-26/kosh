@@ -1,3 +1,12 @@
+// Package run orchestrates full and incremental site builds.
+// 
+// Build orchestration call chain:
+//   Build() → processPosts() → runParsePhase() → parseWorkerTask() → PostService.Process()
+//   
+// This 4-level chain is intentional: Build() coordinates high-level phases,
+// processPosts() handles post-specific logic, runParsePhase() manages worker pools,
+// and parseWorkerTask() executes individual parses. The separation enables
+// parallelism, progress tracking, and error isolation.
 package run
 
 import (

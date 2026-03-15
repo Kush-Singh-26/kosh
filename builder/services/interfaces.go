@@ -101,16 +101,26 @@ type AssetService interface {
 type RenderService interface {
 	// ReconfigureForBuild updates sink and source for a new build pass.
 	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
-	
+
+	// SetAssetsGate sets the channel to wait on before rendering.
+	// Channel is owned by AssetService and closed when assets are ready.
 	SetAssetsGate(ch <-chan struct{})
+	
 	RenderPage(path string, data models.PageData) error
 	RenderIndex(path string, data models.PageData) error
 	Render404(path string, data models.PageData) error
 	RenderGraph(path string, data models.PageData) error
 	RenderSidebar(tree []*models.TreeNode) template.HTML
 	RegisterFile(path string)
+	
+	// SetAssets stores the asset map for template rendering.
+	// The map is owned by RenderService after this call.
 	SetAssets(assets map[string]string)
+	
+	// GetAssets returns the current asset map.
+	// Callers should treat the result as read-only and not mutate it.
 	GetAssets() map[string]string
+	
 	GetRenderedFiles() map[string]bool
 	ClearRenderedFiles()
 	ReloadTemplates()
