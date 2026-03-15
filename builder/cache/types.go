@@ -12,7 +12,6 @@ import (
 	"github.com/zeebo/xxh3"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
 // PostMeta stores metadata about a cached post
@@ -40,12 +39,13 @@ type PostMeta struct {
 	Version         string
 	CardHash        string
 	HasImages       bool
-	MathExpressions []native.MathExpression
+	MathExpressions []models.MathExpression
 }
 
 // SSRArtifact stores server-side rendered content (D2 diagrams, KaTeX math)
+// Type is stored as string for backward compatibility with existing cache data
 type SSRArtifact struct {
-	Type       string
+	Type       string // "d2" or "math" - use models.SSRTypeD2/String() for conversion
 	InputHash  string
 	OutputHash string
 	RefCount   int

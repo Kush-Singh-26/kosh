@@ -23,7 +23,9 @@ type pipelineTestCase struct {
 
 func TestFullPipeline(t *testing.T) {
 	cfg := &config.Config{
-		BaseURL: "https://example.com",
+		SiteConfig: config.SiteConfig{
+			BaseURL: "https://example.com",
+		},
 	}
 	// Use real native renderer if possible, or nil if we skip SSR parts
 	r := native.New()
@@ -155,7 +157,7 @@ Content here.
 
 func TestMathHelpers(t *testing.T) {
 	pc := parser.NewContext()
-	exprs := []native.MathExpression{
+	exprs := []models.MathExpression{
 		{LaTeX: "E=mc^2", Hash: "hash1", DisplayMode: false},
 	}
 	pc.Set(mathExpressionsKey, exprs)
@@ -179,7 +181,7 @@ func TestRenderMathForHTML(t *testing.T) {
 	defer func() { _ = r.Close() }()
 
 	html := "Body <!--KOSH_MATH:c8c77e1c84e0aa52-->"
-	exprs := []native.MathExpression{
+	exprs := []models.MathExpression{
 		{LaTeX: "E=mc^2", Hash: "c8c77e1c84e0aa52", DisplayMode: false},
 	}
 

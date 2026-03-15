@@ -113,3 +113,9 @@ func (m *MockRenderService) ClearRenderedFiles() {
 	m.recordCall("ClearRenderedFiles")
 	m.RegisteredFiles = sync.Map{}
 }
+
+func (m *MockRenderService) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {
+	m.recordCall("ReconfigureForBuild")
+	m.Sink = sink
+	m.SourceFs = fs
+}

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestRenderer_RenderD2(t *testing.T) {
@@ -51,7 +53,7 @@ func TestRenderer_RenderAllMath(t *testing.T) {
 	defer func() { _ = r.Close() }()
 
 	ctx := context.Background()
-	expressions := []MathExpression{
+	expressions := []models.MathExpression{
 		{LaTeX: "a^2 + b^2 = c^2", DisplayMode: true, Hash: "hash1"},
 		{LaTeX: "\\sum_{i=1}^n i", DisplayMode: false, Hash: "hash2"},
 	}

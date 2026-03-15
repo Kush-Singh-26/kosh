@@ -268,7 +268,7 @@ func (s *postServiceImpl) loadFromCache(cachedMeta *cache.PostMeta, htmlRelPath 
 	return res, string(cachedHTML), true
 }
 
-func (s *postServiceImpl) processCachedMath(html string, exprs []native.MathExpression) string {
+func (s *postServiceImpl) processCachedMath(html string, exprs []models.MathExpression) string {
 	renderedMath := make(map[string]string)
 	for _, expr := range exprs {
 		if v, ok := s.diagramAdapter.GetLocal(expr.Hash); ok {

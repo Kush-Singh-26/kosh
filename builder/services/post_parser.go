@@ -89,7 +89,7 @@ type ParsedMarkdownResult struct {
 	StemMap         map[string]string
 	PositionalIndex map[string][]int
 	ByteOffsets     map[string][]int
-	MathExpressions []native.MathExpression
+	MathExpressions []models.MathExpression
 	HasImages       bool
 	BodyOnly        []byte
 }

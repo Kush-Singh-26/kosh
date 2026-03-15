@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/fastschema/qjs"
 	"github.com/zeebo/xxh3"
 	"golang.org/x/sync/singleflight"
@@ -54,7 +55,7 @@ type Renderer struct {
 }
 
 type mathRequest struct {
-	expr MathExpression
+	expr models.MathExpression
 	res  chan string
 	err  chan error
 }
@@ -128,7 +129,7 @@ func (r *Renderer) mathBatchWorker() {
 			}
 		}
 
-		exprs := make([]MathExpression, len(batch))
+		exprs := make([]models.MathExpression, len(batch))
 		for i, b := range batch {
 			exprs[i] = b.expr
 		}

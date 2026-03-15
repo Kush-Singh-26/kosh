@@ -27,7 +27,7 @@ func (b *Builder) CleanupOrphans() {
 	// Only clean orphans in development mode when writing directly to output.
 	// Clean builds use staging directories which start empty, so orphans
 	// are naturally removed during the atomic swap.
-	if !b.cfg.IsDev || b.isCleanBuild {
+	if !b.cfg.IsDev || b.state.isCleanBuild {
 		return
 	}
 

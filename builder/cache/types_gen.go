@@ -4,7 +4,6 @@ package cache
 
 import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -837,7 +836,7 @@ func (z *PostMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 			if cap(z.MathExpressions) >= int(zb0006) {
 				z.MathExpressions = (z.MathExpressions)[:zb0006]
 			} else {
-				z.MathExpressions = make([]native.MathExpression, zb0006)
+				z.MathExpressions = make([]models.MathExpression, zb0006)
 			}
 			for za0006 := range z.MathExpressions {
 				err = z.MathExpressions[za0006].DecodeMsg(dc)
@@ -1477,7 +1476,7 @@ func (z *PostMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			if cap(z.MathExpressions) >= int(zb0006) {
 				z.MathExpressions = (z.MathExpressions)[:zb0006]
 			} else {
-				z.MathExpressions = make([]native.MathExpression, zb0006)
+				z.MathExpressions = make([]models.MathExpression, zb0006)
 			}
 			for za0006 := range z.MathExpressions {
 				bts, err = z.MathExpressions[za0006].UnmarshalMsg(bts)

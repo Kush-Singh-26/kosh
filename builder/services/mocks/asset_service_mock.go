@@ -48,3 +48,7 @@ func (m *MockAssetService) Build(ctx context.Context) error {
 func (m *MockAssetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
 	return map[string]string{}, nil
 }
+
+func (m *MockAssetService) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {
+	m.Sink = sink
+}

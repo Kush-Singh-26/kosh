@@ -50,7 +50,7 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 	var toc []models.TOCEntry
 	var plainText strings.Builder
 	var d2Blocks []d2BlockInfo
-	var mathExpressions []native.MathExpression
+	var mathExpressions []models.MathExpression
 	var toReplace []replacement
 
 	// Context for single-pass extraction
@@ -208,7 +208,7 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 
 			if latex != "" {
 				hash := native.HashContent(typeStr, latex)
-				mathExpressions = append(mathExpressions, native.MathExpression{
+				mathExpressions = append(mathExpressions, models.MathExpression{
 					LaTeX:       latex,
 					DisplayMode: displayMode,
 					Hash:        hash,
