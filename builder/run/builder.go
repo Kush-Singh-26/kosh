@@ -49,6 +49,9 @@ type BuilderState struct {
 
 	// Incremental rebuild coordination
 	buildQueue                  chan buildRequest
+	// searchIndexCh is a buffered channel (capacity 1) for debounced search index regeneration.
+	// Sends use non-blocking select with default case to drop pending requests when full.
+	// The processSearchIndexQueue goroutine drains with timer-based debouncing.
 	searchIndexCh               chan struct{}
 	searchDebounceTimer         *time.Timer
 	lastSearchIndexRegeneration time.Time
