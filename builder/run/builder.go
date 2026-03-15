@@ -15,6 +15,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/afero"
 
+	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
@@ -24,7 +25,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
-	"github.com/Kush-Singh-26/kosh/internal/build"
 )
 
 // BuilderDependencies bundles service dependencies for explicit injection.
@@ -338,19 +338,19 @@ func (b *Builder) checkWasmUpdate(ctx context.Context) {
 		return
 	}
 
-	wasmBinary := build.RepoPath("static", "wasm", "search.wasm")
+	wasmBinary := utils.RepoPath("static", "wasm", "search.wasm")
 	sourceAvailable := false
 	if srcMod, err := latestSearchSourceModTime(); err == nil {
 		sourceAvailable = true
 		if b.state.searchSourceDirty.Load() {
-			if err := build.CompileWASMFromSource(ctx, build.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
+			if err := assets.CompileWASMFromSource(ctx, utils.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
 				b.logger.Warn("Failed to compile Search WASM", "error", err)
 			}
 			b.state.searchSourceDirty.Store(false)
 		} else {
 			wasmInfo, statErr := os.Stat(wasmBinary)
 			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
-				if err := build.CompileWASMFromSource(ctx, build.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
+				if err := assets.CompileWASMFromSource(ctx, utils.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
 					b.logger.Warn("Failed to compile Search WASM", "error", err)
 				}
 			}
@@ -362,18 +362,18 @@ func (b *Builder) checkWasmUpdate(ctx context.Context) {
 	// always matches the current search.bin generator.
 	if sourceAvailable {
 		// Use the source WASM (either just rebuilt or already present)
-		build.DeployWASMFromFile(afero.NewOsFs(), b.Tx.StagingDir(), b.cfg.CacheDir, wasmBinary)
+		assets.DeployWASMFromFile(afero.NewOsFs(), b.Tx.StagingDir(), b.cfg.CacheDir, wasmBinary)
 	} else {
 		// No source available (standard user), use embedded WASM
-		build.CheckWASM(b.Tx.StagingDir(), b.cfg.CacheDir)
+		assets.CheckWASM(b.Tx.StagingDir(), b.cfg.CacheDir)
 	}
 }
 
 func latestSearchSourceModTime() (time.Time, error) {
 	paths := []string{
-		build.RepoPath("cmd", "search"),
-		build.RepoPath("builder", "search"),
-		build.RepoPath("builder", "models"),
+		utils.RepoPath("cmd", "search"),
+		utils.RepoPath("builder", "search"),
+		utils.RepoPath("builder", "models"),
 	}
 
 	latest := time.Time{}
