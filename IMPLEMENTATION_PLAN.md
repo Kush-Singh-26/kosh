@@ -1,8 +1,9 @@
 # Kosh Implementation Plan - Road to 95.0
 
-**Current Status:** 84.4/100 (target: 95.0, need +10.6)
-**Last Updated:** 2026-03-15 (Phase 2 Complete, Rescan Complete)
-**Commits:** 29 ahead of origin/main
+**Current Status:** 84.4/100 strict (target: 95.0, need +10.6)  
+**Last Updated:** 2026-03-15 (Tier 2 Complete - Tests Added)  
+**Commits:** 34 ahead of origin/main  
+**Commits:** 64251f4 → 485bcda (Phase 2 + Tiers 1-2)
 
 ---
 
@@ -14,33 +15,91 @@
 | **High-level elegance** | 80.0% | 88.5% | +8.5 | ✅ Done |
 | **Design coherence** | 72.5% | 82.5% | +10.0 | ✅ Done |
 | **Cross-module arch** | 68.5% | 72.5% | +4.0 | 🔄 In Progress |
-| **Mid-level elegance** | 78.5% | 78.5% | 0 | 🔄 Phase 2 Done |
-| **Test strategy** | 68.5% | 68.5% | 0 | ⏳ Deferred |
+| **Mid-level elegance** | 78.5% | 78.5% | 0 | ✅ Phase 2 Done |
+| **Test strategy** | 68.5% | 68.5% | 0 | ⏳ In Progress |
 | **AI generated debt** | 71.0% | 71.0% | 0 | ⏳ Deferred |
 
-### Completed Improvements
-- ✅ Split Builder into BuilderDependencies + BuilderState
-- ✅ Consolidated service interfaces with ReconfigureForBuild()
-- ✅ Channel-based synchronization replacing callbacks
-- ✅ Extensive documentation for integration seams
-- ✅ Fire-and-forget error logging pattern
-- ✅ Phase 2.1: Removed dual sync channels (metadataReadyCh consolidated)
-- ✅ Phase 2.2: Standardized fire-and-forget with FireAndForgetWithCleanup
-- ✅ Phase 2.4: Added DiskSink.WriteStream panic safety with defer/recover
+### Score Analysis - Biggest Drags
+| Dimension | Score | Gap | Weight | Impact |
+|-----------|-------|-----|--------|--------|
+| **Test health (strict)** | 48.9% | -46.1% | High | 🔴 Biggest breakthrough opportunity |
+| **Mid elegance** | 78.5% | -21.5% | 17.9% | 🔴 -2.88 pts drag |
+| **High elegance** | 88.5% | -11.5% | 17.9% | 🟡 -1.54 pts drag |
+| **Test strategy** | 68.5% | -26.5% | High | 🔴 Subjective drag |
 
-### Rescan Results (Post-Phase 2)
-- **Strict score: 84.4/100** (plateaued - structural improvements need re-review)
-- **Biggest score drags:**
-  - Mid elegance: 78.5% (-2.88 pts, 17.9% weight)
-  - High elegance: 88.5% (-1.54 pts, 17.9% weight)
-  - Contracts: 82.0% (-1.32 pts, 9.8% weight)
-- **Test health: 48.9% strict** - "where the breakthrough is"
+### Key Insight
+**Test health (48.9% strict)** is explicitly noted by desloppify as "where the breakthrough is."  
+Improving test coverage could yield +5-10 points toward the 95.0 target.
 
 ---
 
-## Phase 1: Architectural Decoupling (High Impact, ~+4.0 points)
+## Completed Improvements
 
-### 1.1 Fix Cache→Renderer Upward Dependency [T1-High]
+### Phase 1: Architectural Decoupling ✅
+- ✅ Split Builder into `BuilderDependencies` + `BuilderState`
+- ✅ Consolidated service interfaces with `ReconfigureForBuild()`
+- ✅ Channel-based synchronization replacing callbacks
+- ✅ Extensive documentation for integration seams
+- ✅ WASM decoupling from `internal/build`
+
+### Phase 2: Mid-Level Elegance ✅
+- ✅ Phase 2.1: Removed dual sync channels (`metadataReadyCh` consolidated)
+- ✅ Phase 2.2: Standardized fire-and-forget with `FireAndForgetWithCleanup`
+- ✅ Phase 2.3: Verified `BatchCommit` already centralized
+- ✅ Phase 2.4: Added `DiskSink.WriteStream` panic safety with defer/recover
+
+### Phase 3: Test Coverage 🔄 IN PROGRESS
+- ✅ **Tier 1: Quick Wins** - 27 tests for utils (53.5% coverage)
+- ✅ **Tier 2: Search Tests** - 40+ tests for search (80.1% coverage)
+- ⏳ **Tier 2 Remaining:** `wasm.go`, `unified.go` tests
+- ⏳ **Tier 3:** Architectural improvements
+- ⏳ **Tier 4:** Subjective reviews
+
+---
+
+## Test Coverage Progress
+
+### Completed Tests (67+ total)
+
+#### Tier 1: Utils Package (27 tests, 53.5% coverage)
+| File | Tests | Coverage | Status |
+|------|-------|----------|--------|
+| `async_test.go` | 13 | 53.5% | ✅ Complete |
+| `retry_test.go` | 14 | 53.5% | ✅ Complete |
+
+**Bug fixes discovered:**
+- `FireAndForgetWithCleanup`: defer order bug (cleanup now runs on panic)
+- `maxRetries=0`: documented behavior (returns nil without attempting)
+
+#### Tier 2: Search Package (40+ tests, 80.1% coverage)
+| File | Tests | Coverage | Status |
+|------|-------|----------|--------|
+| `stemmer_test.go` | 5 | 80.1% | ✅ Complete |
+| `fuzzy_test.go` | 35+ | 80.1% | ✅ Complete |
+
+**Test breakdown:**
+- Stemmer: 57 word cases, cache behavior, edge cases, consistency
+- Fuzzy: Levenshtein distance, fuzzy match, trigrams, query parsing
+
+### Remaining Untested Modules (9 issues)
+| File | LOC | Priority | Status |
+|------|-----|----------|--------|
+| `builder/assets/wasm.go` | 227 | T3 | ⏳ Pending |
+| `builder/parser/unified.go` | 411 | T3 | ⏳ Pending |
+| `builder/search/fuzzy.go` | 365 | T2 | ✅ Tested |
+| `builder/search/stemmer.go` | 371 | T2 | ✅ Tested |
+| `builder/utils/async.go` | 65 | T3 | ✅ Tested |
+| `builder/utils/retry.go` | 82 | T3 | ✅ Tested |
+| `cmd/kosh/cache_cmd.go` | 239 | T3 | ⏳ Pending |
+| `cmd/kosh/ui.go` | 185 | T3 | ⏳ Pending |
+
+---
+
+## Remaining Work
+
+### Phase 1: Architectural Decoupling (High Impact, ~+4.0 points)
+
+#### 1.1 Fix Cache→Renderer Upward Dependency [T1-High]
 **Issue:** `builder/cache/types.go` imports `builder/renderer/native` for SSR types  
 **Impact:** Violates layering - cache should be infrastructure, not depend on renderer  
 **Files:** `builder/cache/types.go`, `builder/cache/types_gen.go`, `builder/cache/adapter.go`
@@ -71,19 +130,6 @@ package cache
 // Replace typed methods with generic blob storage
 func (c *Cache) StoreSSR(key SSRKey, data []byte) error
 func (c *Cache) GetSSR(key SSRKey) ([]byte, error)
-
-// Step 3: Update adapter to use new types
-// Modify: builder/cache/adapter.go
-package cache
-
-type DiagramCacheAdapter struct {
-    cache CacheService
-}
-
-func (d *DiagramCacheAdapter) Get(key string) (string, bool) {
-    data, err := d.cache.GetSSR(SSRKey{Type: SSRD2, Content: key})
-    // ...
-}
 ```
 
 **Estimated Effort:** 2-3 hours  
@@ -92,325 +138,149 @@ func (d *DiagramCacheAdapter) Get(key string) (string, bool) {
 
 ---
 
-### 1.2 Decouple WASM Deployment from internal/build [T2-Medium]
-**Issue:** `builder/run` imports `internal/build` for WASM deployment  
-**Impact:** Blurs layer responsibilities - builder should own build-time assets  
-**Files:** `builder/run/builder.go`, `internal/build/build.go`
+### Phase 2: Test Coverage Completion (~+4-6 points)
 
-**Implementation:**
+#### 2.1 Test WASM Deployment [T3]
+**File:** `builder/assets/wasm.go` (227 LOC)  
+**Tests to add:**
 ```go
-// Step 1: Create builder/wasm/deploy.go
-package wasm
-
-//go:embed wasm/search.wasm.br
-var searchWasm []byte
-
-type Deployer struct {
-    outputDir string
-    logger    *slog.Logger
-}
-
-func (d *Deployer) DeploySearchWasm() error {
-    // Move logic from internal/build/build.go
-}
-
-// Step 2: Update builder/run/builder.go
-// Remove: import "github.com/Kush-Singh-26/kosh/internal/build"
-// Add: import "github.com/Kush-Singh-26/kosh/builder/wasm"
-
-func (b *Builder) deployWasm() {
-    deployer := wasm.NewDeployer(b.cfg.OutputDir, b.logger)
-    deployer.DeploySearchWasm()
-}
-
-// Step 3: Update internal/build to use builder/wasm
-package build
-
-import "github.com/Kush-Singh-26/kosh/builder/wasm"
-
-func CheckWasmUpdate(...) {
-    // Use wasm.Deployer instead of direct logic
-}
+// wasm_test.go
+func TestCheckWASM_DeploysEmbedded(t *testing.T)
+func TestCompileWASMFromSource_Success(t *testing.T)
+func TestDeployWASMFromFile(t *testing.T)
 ```
 
-**Estimated Effort:** 1-2 hours  
-**Risk:** Low - mostly moving code  
-**Testing:** Verify search WASM deploys correctly in build and dev modes
+**Effort:** 2-3 hours  
+**Impact:** Removes 1 untested module issue
 
----
-
-### 1.3 Split builder/utils into Subpackages [T1-High]
-**Issue:** 48 files, ~4000 LOC, 47 dependents - architectural gravity well  
-**Impact:** Low cohesion, high coupling, difficult to test  
-**Files:** All `builder/utils/*.go`
-
-**Implementation:**
-```
-builder/utils/                    → Split into:
-├── transaction.go                → builder/tx/
-├── sink.go                       → builder/sink/
-├── assets.go                     → builder/assets/ (already exists, merge)
-├── fs_copy.go                    → builder/io/
-├── fs_path.go                    → builder/io/
-├── worker_pool.go                → builder/sync/
-├── sync.go                       → builder/sync/
-├── image_*.go                    → builder/image/
-├── hash.go                       → builder/hash/
-└── timer.go                      → builder/metrics/ (or keep in utils)
-```
-
-**Phase 1.3a: Extract Transaction (Highest Priority)**
+#### 2.2 Test Markdown Parser [T3]
+**File:** `builder/parser/unified.go` (411 LOC)  
+**Tests to add:**
 ```go
-// Create: builder/tx/transaction.go
-package tx
-
-type BuildTransaction struct {
-    // Move from builder/utils/transaction.go
-}
-
-type DirectoryTx struct {
-    // Move from builder/utils/transaction.go
-}
-
-// Create: builder/tx/staging.go
-package tx
-
-type StagingDir struct {
-    // Extract staging directory logic
-}
+// unified_test.go
+func TestUnifiedParser_FrontmatterExtraction(t *testing.T)
+func TestUnifiedParser_BodyParsing(t *testing.T)
+func TestUnifiedParser_MathExpressions(t *testing.T)
 ```
 
-**Phase 1.3b: Extract Sink**
-```go
-// Create: builder/sink/sink.go
-package sink
-
-type ArtifactSink interface {
-    // Move interface from builder/utils/sink.go
-}
-
-type DiskSink struct {
-    // Move implementation
-}
-
-type MemorySink struct {
-    // Move implementation
-}
-```
-
-**Phase 1.3c: Extract IO Utilities**
-```go
-// Create: builder/io/copy.go
-package io
-
-func CopyFileVFS(...) error
-func CopyDirVFS(...) error
-// ... fs_copy.go, fs_path.go functions
-```
-
-**Estimated Effort:** 6-8 hours (spread across multiple sessions)  
-**Risk:** High - many dependents, requires careful import updates  
-**Testing:** Full build + incremental dev mode tests essential
+**Effort:** 3-4 hours  
+**Impact:** Removes 1 untested module issue
 
 ---
 
-## Phase 2: Mid-Level Elegance (~+3.0 points)
+### Phase 3: Subjective Reviews (~+2-3 points)
 
-### 2.1 Consolidate Dual Sync Channels [✅ DONE]
-**Issue:** assetsReady + metadataReadyCh create redundant synchronization
-**Files:** `builder/run/build.go`, `builder/services/*.go`
+#### 3.1 Convention Drift Review [READY]
+**Action:** `desloppify review --prepare --dimensions convention_outlier`  
+**Current:** 82.0%  
+**Status:** Review packet generated (20 batches ready)
 
-**Implementation:**
-```go
-// Removed metadataReadyCh from postServiceImpl
-// Removed MetadataReadyChan() from PostService interface
-// Simplified build orchestration to use only assetsReady channel
-```
+#### 3.2 Test Strategy Review
+**Action:** `desloppify review --prepare --dimensions test_strategy`  
+**Current:** 68.5%  
+**Target:** 95%
 
-**Status:** ✅ Complete - Commit 64251f4
+**Likely improvements:**
+- Add integration tests for incremental builds
+- Add benchmark tests for warm builds
+- Add mock tests for service layer
 
----
+#### 3.3 API Coherence Review
+**Action:** `desloppify review --prepare --dimensions api_surface_coherence`  
+**Current:** 72.5%
 
-### 2.2 Standardize Fire-and-Forget Error Logging [✅ DONE]
-**Issue:** Inconsistent error logging across async goroutines
-**Files:** `builder/services/post_service.go`, `builder/run/build.go`, `builder/utils/async.go`
-
-**Implementation:**
-```go
-// Created: builder/utils/async.go
-package utils
-
-// FireAndForget wraps a function with standard error logging and panic recovery
-func FireAndForget(ctx context.Context, logger *slog.Logger, operation string, fn func() error)
-
-// FireAndForgetWithCleanup adds cleanup callback
-func FireAndForgetWithCleanup(ctx context.Context, logger *slog.Logger, operation string, fn func() error, cleanup func())
-```
-
-**Status:** ✅ Complete - Commit 64251f4
+**Likely improvements:**
+- Consolidate service interfaces
+- Reduce exported surface area
+- Document public APIs
 
 ---
 
-### 2.3 Deduplicate Cache Commit Logic [✅ VERIFIED]
-**Issue:** BatchCommit and incremental path duplicate encoding logic
-**Files:** `builder/cache/cache_writes.go`
+## Detailed Action Plan
 
-**Status:** ✅ Already satisfied - BatchCommit is centralized, no duplication found
+### Week 1: Test Foundation ✅ COMPLETE
+| Day | Task | Status | Output |
+|-----|------|--------|--------|
+| 1 | Convention drift review | 🔄 Ready | Packet generated |
+| 2-3 | Test async.go + retry.go | ✅ Complete | 27 tests, 53.5% coverage |
+| 4-5 | Test search modules | ✅ Complete | 40+ tests, 80.1% coverage |
 
----
+### Week 2: Core Coverage ⏳ IN PROGRESS
+| Day | Task | Status | Output |
+|-----|------|--------|--------|
+| 1-2 | Test assets/wasm.go | ⏳ Pending | 1 issue resolved |
+| 3-5 | Test parser/unified.go | ⏳ Pending | 1 issue resolved |
+| 5 | Rescan and measure | ⏳ Pending | Score update |
 
-### 2.4 DiskSink Panic Safety [✅ DONE]
-**Issue:** WriteStream lacks defer/recover for buffer cleanup on panics
-**Files:** `builder/utils/sink.go`
-
-**Implementation:**
-```go
-// Added defer/recover pattern to WriteStream
-// Ensures buffer pool return even on panic
-// Cleans up partial files on error or panic
-```
-
-**Status:** ✅ Complete - Commit 64251f4
-
----
-
-## Phase 3: Search & Renderer Improvements (~+2.0 points)
-
-### 3.1 Extract Search Scoring Strategies [T1-High]
-**Issue:** engine.go has 588 LOC, complexity 71  
-**Files:** `builder/search/engine.go`
-
-**Implementation:**
-```
-builder/search/
-├── engine.go          → Keep as coordinator (reduce to ~150 LOC)
-├── scoring/           → New directory
-│   ├── bm25.go        → BM25 scoring logic
-│   ├── phrase.go      → Phrase matching
-│   ├── boost.go       → Title/tag boosts
-│   └── scorer.go      → Scorer interface
-├── indexing/          → New directory
-│   ├── ngram.go       → N-gram indexing
-│   └── indexer.go     → Indexer interface
-└── query/             → New directory
-    ├── parse.go       → Query parsing
-    └── analyzer.go    → Query analysis
-```
-
-**Estimated Effort:** 3-4 hours  
-**Risk:** Medium - algorithmic code, needs careful testing  
-**Testing:** Verify search results identical before/after
+### Week 3: Architectural ⏳ PENDING
+| Day | Task | Status | Output |
+|-----|------|--------|--------|
+| 1-2 | Cache→Renderer decoupling | ⏳ Pending | Cross-module arch improved |
+| 3-4 | API coherence review | ⏳ Pending | API coherence improved |
+| 5 | Test strategy review | ⏳ Pending | Test strategy improved |
 
 ---
 
-### 3.2 Split Renderer Responsibilities [T1-High]
-**Issue:** Renderer struct combines template management, asset caching, render execution  
-**Files:** `builder/renderer/renderer.go`
+## Success Metrics
 
-**Implementation:**
-```go
-// Create: builder/renderer/template_manager.go
-package renderer
-
-type TemplateManager struct {
-    templates *template.Template
-    // Template loading, reloading, parsing
-}
-
-// Create: builder/renderer/asset_cache.go
-package renderer
-
-type AssetCache struct {
-    assets map[string]string
-    // Asset storage and retrieval
-}
-
-// Create: builder/renderer/page_renderer.go
-package renderer
-
-type PageRenderer struct {
-    tmplMgr *TemplateManager
-    assets  *AssetCache
-    // RenderPage, RenderIndex, etc.
-}
-
-// Update: builder/renderer/renderer.go
-type Renderer struct {
-    tmplMgr *TemplateManager
-    assets  *AssetCache
-    pageRnd *PageRenderer
-    // Delegate methods
-}
-```
-
-**Estimated Effort:** 2-3 hours  
-**Risk:** Medium - affects all page rendering  
-**Testing:** Full site build verification essential
-
----
-
-## Phase 4: Test Strategy (Deferred, ~+2.0 points)
-
-**Note:** Test strategy improvements are deferred until after architectural fixes.  
-Adding tests before refactoring would create resistance to change.
-
-### 4.1 Add Search Package Tests
-- BM25 scoring unit tests
-- Query parsing tests
-- Index build tests
-
-### 4.2 Add Cache Service Tests
-- BatchCommit tests
-- Incremental commit tests
-- SSR cache tests
-
-### 4.3 Add Integration Tests
-- Full build → output verification
-- Incremental rebuild → correctness
-- Dev mode → live reload
-
----
-
-## Phase 5: AI Generated Debt (Deferred)
-
-**Note:** AI debt is a meta-issue - addressed by ensuring all new code is human-reviewed.
+| Milestone | Target Score | Key Deliverables |
+|-----------|--------------|------------------|
+| After Tier 1-2 | 86-88/100 | 67+ tests, 53-80% coverage |
+| After Week 2 | 88-90/100 | All 9 test coverage issues resolved |
+| After Week 3 | 91-93/100 | Architectural improvements complete |
+| Final | 95.0/100 | All subjective reviews complete |
 
 ---
 
 ## Risk Mitigation
 
-### High-Risk Changes
-1. **Utils split** - Do incrementally, one subpackage at a time
-2. **Cache decoupling** - Maintain backward compat during transition
-3. **Sync consolidation** - Test in dev mode extensively
+### Risk: Test coverage doesn't move strict score
+**Mitigation:** Focus on integration tests that verify build correctness, not just unit tests
 
-### Testing Strategy
-- After each phase: `go test ./...` + `kosh clean` + `kosh serve --dev`
-- Verify: search works, CSS updates apply, incremental rebuilds fast
-- Benchmark: warm build time should not regress
+### Risk: Architectural changes break builds
+**Mitigation:**
+- Run `go test ./...` after each change
+- Run `kosh clean` on test site
+- Verify dev mode works
 
----
-
-## Success Criteria
-
-| Phase | Target Score | Key Deliverables |
-|-------|--------------|------------------|
-| Phase 1 | 88.0 | Cache decoupled, WASM moved, utils split |
-| Phase 2 | 91.0 | Sync consolidated, errors standardized, deduped |
-| Phase 3 | 93.0 | Search extracted, renderer split |
-| Phase 4 | 95.0 | Tests added for critical paths |
+### Risk: Subjective reviews don't improve scores
+**Mitigation:** Focus on concrete improvements (test coverage, API consolidation) first
 
 ---
 
-## Next Actions
+## Immediate Next Actions
 
-**Current Queue:** 1 item (Convention drift - 82.0%)
+**Completed:**
+- ✅ Tier 1: Utils tests (27 tests, 53.5% coverage)
+- ✅ Tier 2: Search tests (40+ tests, 80.1% coverage)
 
-1. **Address Convention drift review item** - run `desloppify review --prepare --dimensions convention_outlier`
-2. **Phase 1.1** (Cache→Renderer decoupling) - highest architectural impact remaining
-3. **Phase 1.2** (WASM decoupling) - quick win, low risk
-4. **Phase 1.3a** (Extract tx package) - first step of utils split
-5. **Consider test improvements** - Test health (48.9%) noted as "where the breakthrough is"
+**Next Options:**
+1. **Rescan now** - Measure progress after Tiers 1-2 (estimated +4-6 points)
+2. **Continue Tier 2** - Test `wasm.go`, `unified.go` (remaining untested modules)
+3. **Convention drift review** - Run subagent on 20 batches
+
+---
+
+## Commands Reference
+
+```bash
+# Review convention drift
+desloppify review --prepare --dimensions convention_outlier
+desloppify review --run-batches --dry-run
+
+# Add tests
+go test ./builder/utils/... -coverprofile=cover.out
+go test ./builder/search/... -coverprofile=cover.out
+go tool cover -html=cover.out
+
+# Rescan after improvements
+desloppify scan
+
+# Check progress
+desloppify status
+desloppify show test_coverage
+desloppify plan show
+```
 
 ---
 
@@ -418,8 +288,8 @@ Adding tests before refactoring would create resistance to change.
 
 ### T1-High Issues
 - [ ] cache_renderer_upward_dep
-- [ ] channel_ownership_documented (positive pattern)
-- [ ] reconfigure_pattern_consolidated (positive pattern)
+- [x] channel_ownership_documented (positive pattern)
+- [x] reconfigure_pattern_consolidated (positive pattern)
 - [ ] search_complexity_concentration (acceptable isolation)
 - [ ] utils_gravity_well
 - [x] duplication_cache_commit_logic (verified - already centralized)
@@ -430,9 +300,29 @@ Adding tests before refactoring would create resistance to change.
 ### T2-Medium Issues
 - [ ] internal_build_coupling
 
+### Test Coverage Issues (9 total)
+- [x] builder/utils/async.go (65 LOC) - ✅ Tested
+- [x] builder/utils/retry.go (82 LOC) - ✅ Tested
+- [x] builder/search/fuzzy.go (365 LOC) - ✅ Tested
+- [x] builder/search/stemmer.go (371 LOC) - ✅ Tested
+- [ ] builder/assets/wasm.go (227 LOC) - ⏳ Pending
+- [ ] builder/parser/unified.go (411 LOC) - ⏳ Pending
+- [ ] cmd/kosh/cache_cmd.go (239 LOC) - ⏳ Pending
+- [ ] cmd/kosh/ui.go (185 LOC) - ⏳ Pending
+
 ### Positive Patterns to Preserve
 - ✅ Channel ownership documentation
 - ✅ ReconfigureForBuild consolidation
 - ✅ BuilderDependencies/BuilderState split
 - ✅ AGENTS.md architectural contract
 - ✅ FireAndForgetWithCleanup utility pattern
+
+---
+
+## Notes
+
+- **21 stale tracked items** - may need `desloppify plan skip <id>` if no longer relevant
+- **Test health 48.9% strict** - this is the breakthrough opportunity
+- **Plateaued at 84.4** - structural changes need re-review to register
+- **Focus on tests first** - highest ROI toward 95.0 target
+- **67+ tests added** in Tiers 1-2, targeting 9 test coverage issues total
