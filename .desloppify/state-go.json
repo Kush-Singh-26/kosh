@@ -1,19 +1,19 @@
 {
   "version": 3,
   "created": "2026-03-15T03:21:33+00:00",
-  "last_scan": "2026-03-15T10:53:04+00:00",
-  "scan_count": 30,
-  "overall_score": 87.3,
+  "last_scan": "2026-03-15T11:37:06+00:00",
+  "scan_count": 35,
+  "overall_score": 87.1,
   "objective_score": 97.4,
-  "strict_score": 84.5,
+  "strict_score": 84.4,
   "verified_strict_score": 86.6,
   "stats": {
-    "total": 233,
+    "total": 259,
     "auto_resolved": 2,
     "deferred": 0,
     "false_positive": 0,
-    "fixed": 96,
-    "open": 70,
+    "fixed": 102,
+    "open": 90,
     "triaged_out": 0,
     "wontfix": 65,
     "by_tier": {
@@ -21,8 +21,8 @@
         "auto_resolved": 0,
         "deferred": 0,
         "false_positive": 0,
-        "fixed": 65,
-        "open": 0,
+        "fixed": 64,
+        "open": 9,
         "triaged_out": 0,
         "wontfix": 1
       },
@@ -30,8 +30,8 @@
         "auto_resolved": 0,
         "deferred": 0,
         "false_positive": 0,
-        "fixed": 11,
-        "open": 3,
+        "fixed": 17,
+        "open": 14,
         "triaged_out": 0,
         "wontfix": 5
       },
@@ -39,7 +39,7 @@
         "auto_resolved": 2,
         "deferred": 0,
         "false_positive": 0,
-        "fixed": 0,
+        "fixed": 1,
         "open": 64,
         "triaged_out": 0,
         "wontfix": 59
@@ -75,7 +75,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -106,7 +106,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -135,7 +135,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -165,7 +165,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -195,7 +195,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -226,7 +226,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -258,7 +258,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -276,9 +276,9 @@
       "file": "builder/run/build.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Large file: large (584 LOC) / complexity score 39",
+      "summary": "Large file: large (593 LOC) / complexity score 39",
       "detail": {
-        "loc": 584,
+        "loc": 593,
         "complexity_score": 39,
         "complexity_signals": [
           "63 if/else branches",
@@ -288,7 +288,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -318,7 +318,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -348,7 +348,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -377,7 +377,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -410,7 +410,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -443,7 +443,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -464,22 +464,22 @@
       "summary": "9 disconnected function clusters (13 functions) \u2014 likely mixed responsibilities",
       "detail": {
         "cluster_count": 9,
-        "family": "New, GetRenderedFiles, GetAssets, recordError",
+        "family": "New, RegisterFile, GetAssets, ClearRenderedFiles",
         "families": [
           "New",
-          "GetRenderedFiles",
+          "RegisterFile",
           "GetAssets",
+          "ClearRenderedFiles",
           "recordError",
           "SetAssets",
-          "SetSink",
-          "ClearRenderedFiles",
+          "RenderSidebar",
           "ConsumeErrors"
         ]
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:38+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -500,22 +500,22 @@
       "summary": "8 disconnected function clusters (11 functions) \u2014 likely mixed responsibilities",
       "detail": {
         "cluster_count": 8,
-        "family": "CreateTestCache, CreateTestFilesystemWithContent, ScaffoldTestSiteWithVersions, AssertFileNotExists",
+        "family": "CreateTestCacheWithID, CreateTestFilesystemWithContent, ScaffoldTestSiteWithVersions, CreateTempDir",
         "families": [
-          "CreateTestCache",
+          "CreateTestCacheWithID",
           "CreateTestFilesystemWithContent",
           "ScaffoldTestSiteWithVersions",
-          "AssertFileNotExists",
-          "AssertFileExists",
           "CreateTempDir",
           "CreateTempFile",
+          "AssertFileExists",
+          "AssertFileNotExists",
           "AssertFileContent"
         ]
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:38+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -768,7 +768,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -791,7 +791,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -814,7 +814,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -837,7 +837,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -860,7 +860,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -883,7 +883,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -906,7 +906,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -929,7 +929,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -952,7 +952,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -975,7 +975,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -998,7 +998,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1021,7 +1021,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1044,7 +1044,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1067,7 +1067,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1090,7 +1090,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1113,7 +1113,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1136,7 +1136,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1165,7 +1165,7 @@
       "status": "open",
       "note": "Reopened (\u00d71) \u2014 reappeared in scan (was fixed)",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 1,
       "work_item_kind": "mechanical_defect",
@@ -1193,7 +1193,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1240,7 +1240,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1287,7 +1287,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1334,7 +1334,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1381,7 +1381,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1428,7 +1428,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1475,7 +1475,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1522,7 +1522,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1569,7 +1569,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1616,7 +1616,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1663,7 +1663,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1738,7 +1738,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1785,7 +1785,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1832,7 +1832,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1879,7 +1879,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1926,7 +1926,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1973,7 +1973,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2020,7 +2020,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2067,7 +2067,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2114,7 +2114,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2161,7 +2161,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2209,7 +2209,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2247,17 +2247,17 @@
       "file": "builder/run/builder.go",
       "tier": 3,
       "confidence": "high",
-      "summary": "Untested module (411 LOC, 0 importers)",
+      "summary": "Untested module (414 LOC, 0 importers)",
       "detail": {
         "kind": "untested_module",
-        "loc": 411,
+        "loc": 414,
         "importer_count": 0,
-        "loc_weight": 20.273134932713294
+        "loc_weight": 20.346989949375804
       },
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2304,7 +2304,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2351,7 +2351,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2398,7 +2398,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2445,7 +2445,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2492,7 +2492,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2539,7 +2539,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2586,7 +2586,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2633,7 +2633,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2680,7 +2680,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2727,7 +2727,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2774,7 +2774,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2821,7 +2821,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2868,7 +2868,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2915,7 +2915,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2963,7 +2963,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3011,7 +3011,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3059,7 +3059,7 @@
       "status": "open",
       "note": "Reopened (\u00d71) \u2014 reappeared in scan (was fixed)",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 1,
       "work_item_kind": "mechanical_defect",
@@ -3087,7 +3087,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3134,7 +3134,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3181,7 +3181,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3228,7 +3228,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3275,7 +3275,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3322,7 +3322,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3369,7 +3369,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3416,7 +3416,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3463,7 +3463,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3510,7 +3510,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3557,7 +3557,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3604,7 +3604,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3651,7 +3651,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3698,7 +3698,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3745,7 +3745,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3792,7 +3792,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3839,7 +3839,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3886,7 +3886,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3933,7 +3933,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3981,7 +3981,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -4029,7 +4029,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -4076,7 +4076,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -4137,7 +4137,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4171,7 +4171,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4205,7 +4205,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4239,7 +4239,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4273,7 +4273,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4307,7 +4307,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4341,7 +4341,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4375,7 +4375,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4409,7 +4409,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4443,7 +4443,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4477,7 +4477,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4511,7 +4511,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4545,7 +4545,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4579,7 +4579,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4613,7 +4613,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4647,7 +4647,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4681,7 +4681,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4715,7 +4715,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4749,7 +4749,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4783,7 +4783,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T10:53:04+00:00",
+        "scan_verified_at": "2026-03-15T11:37:06+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -5950,7 +5950,7 @@
       "status": "wontfix",
       "note": "Still absent from scan after manual wontfix",
       "first_seen": "2026-03-15T04:03:41+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": "2026-03-15T07:22:55+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -6000,7 +6000,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T04:03:41+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -7996,9 +7996,9 @@
       "id": "review::.::holistic::design_coherence::renderer_mixed_responsibilities",
       "detector": "review",
       "file": ".",
-      "tier": 1,
-      "confidence": "high",
-      "summary": "Renderer struct mixes template management with build-state tracking",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Renderer struct combines template management, asset caching, and render execution",
       "detail": {
         "holistic": true,
         "dimension": "design_coherence",
@@ -8006,31 +8006,29 @@
           "builder/renderer/renderer.go"
         ],
         "evidence": [
-          "Handles templates, asset hash maps, rendered file sets, and error collections."
+          "renderer.go:30-48: Renderer struct has 18 fields including templates, assets, sink, logger, render tracking, and asset cache",
+          "Template reload logic (ReloadTemplates: 93-264) is 170+ lines with parallel template loading",
+          "Asset relativization cache (PreparePageData: 323-355) is a separate concern from rendering",
+          "Rendered file tracking (RegisterFile, GetRenderedFiles, ClearRenderedFiles: 266-293) is output state management",
+          "Fingerprint ecb0a79346e803b7 flagged 9 disconnected function clusters across 13 functions"
         ],
-        "suggestion": "Extract template management into a TemplateManager and move build-time tracking into a separate BuildContext.",
+        "suggestion": "Consider extracting asset relativization cache into a separate assetHelper type. The rendered file tracking could be moved to the sink layer where output state is already managed. Keep Renderer focused on template execution and page composition.",
         "reasoning": "",
-        "summary_hash": "f86f2174"
+        "summary_hash": "85c6c038"
       },
-      "status": "fixed",
-      "note": "not reported in latest holistic re-import",
+      "status": "open",
+      "note": "Reopened (\u00d71) \u2014 reappeared in scan (was fixed)",
       "first_seen": "2026-03-15T05:28:52+00:00",
-      "last_seen": "2026-03-15T05:28:52+00:00",
-      "resolved_at": "2026-03-15T08:07:56+00:00",
-      "reopen_count": 0,
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 1,
       "work_item_kind": "review_defect",
       "issue_kind": "review_defect",
       "origin": "review_import",
       "lang": "go",
       "suppressed": false,
       "suppressed_at": null,
-      "suppression_pattern": null,
-      "resolution_attestation": {
-        "kind": "agent_import",
-        "text": "not reported in latest holistic re-import",
-        "attested_at": "2026-03-15T08:07:56+00:00",
-        "scan_verified": false
-      }
+      "suppression_pattern": null
     },
     "review::.::holistic::design_coherence::duplicated_post_pipeline": {
       "id": "review::.::holistic::design_coherence::duplicated_post_pipeline",
@@ -8841,7 +8839,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T09:39:56+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -8866,7 +8864,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T09:39:56+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -8891,7 +8889,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T09:39:56+00:00",
-      "last_seen": "2026-03-15T10:53:04+00:00",
+      "last_seen": "2026-03-15T11:37:06+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -8923,10 +8921,1057 @@
         "reasoning": "",
         "summary_hash": "8e1f2b16"
       },
-      "status": "open",
-      "note": null,
+      "status": "fixed",
+      "note": "Added defer/recover block and slog import to pipeline_pagination.go line 255 for consistent fire-and-forget error logging pattern",
       "first_seen": "2026-03-15T10:52:54+00:00",
       "last_seen": "2026-03-15T10:52:54+00:00",
+      "resolved_at": "2026-03-15T11:10:08+00:00",
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "manual",
+        "text": "I have actually added defer/recover and slog import to pipeline_pagination.go in the previous commit and I am not gaming the score by resolving without fixing",
+        "attested_at": "2026-03-15T11:10:08+00:00",
+        "scan_verified": false
+      }
+    },
+    "review::.::holistic::cross_module_architecture::utils_package_gravity": {
+      "id": "review::.::holistic::cross_module_architecture::utils_package_gravity",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Builder/utils package approaching 4000 LOC may become architectural gravity well",
+      "detail": {
+        "holistic": true,
+        "dimension": "cross_module_architecture",
+        "related_files": [
+          "builder/utils/fs_copy.go",
+          "builder/utils/transaction.go",
+          "builder/utils/sink.go",
+          "builder/utils/worker_pool.go"
+        ],
+        "evidence": [
+          "builder/utils/ directory contains 29 files totaling 3914 LOC according to blind packet directory profile",
+          "File count (29) significantly exceeds other production packages (cache: 15, services: 11, generators: 6)",
+          "Package mixes concerns: filesystem operations, transaction management, synchronization primitives, worker pools, image processing",
+          "High fan-in expected due to utility nature - changes affect many dependents"
+        ],
+        "suggestion": "Consider extracting coherent subpackages: builder/utils/transaction for BuildTransaction/DirectoryTx, builder/utils/sync for WorkerPool/Task scheduling, builder/utils/image for image processing. Maintain current utils for pure filesystem helpers.",
+        "reasoning": "",
+        "summary_hash": "d0ffd4b1"
+      },
+      "status": "fixed",
+      "note": "not reported in latest holistic re-import",
+      "first_seen": "2026-03-15T11:08:40+00:00",
+      "last_seen": "2026-03-15T11:08:40+00:00",
+      "resolved_at": "2026-03-15T11:36:47+00:00",
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "agent_import",
+        "text": "not reported in latest holistic re-import",
+        "attested_at": "2026-03-15T11:36:47+00:00",
+        "scan_verified": false
+      }
+    },
+    "review::.::holistic::cross_module_architecture::search_engine_complexity_concentration": {
+      "id": "review::.::holistic::cross_module_architecture::search_engine_complexity_concentration",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Search engine contains concentrated algorithmic complexity (71 complexity score, 588 LOC)",
+      "detail": {
+        "holistic": true,
+        "dimension": "cross_module_architecture",
+        "related_files": [
+          "builder/search/engine.go"
+        ],
+        "evidence": [
+          "builder/search/engine.go has complexity score of 71.0 according to blind packet complexity_hotspots",
+          "File contains 588 LOC - largest single file in search package (package total: 1715 LOC across 6 files)",
+          "Search package is isolated but engine.go contains BM25 scoring, phrase matching, ngram indexing in single file",
+          "No cross-module dependencies but internal cohesion could be improved"
+        ],
+        "suggestion": "Extract scoring strategies (BM25, phrase boost, title/tag boost) into separate files under builder/search/scoring/. Keep engine.go as coordinator delegating to strategy packages. This improves testability and reduces blast radius for scoring algorithm changes.",
+        "reasoning": "",
+        "summary_hash": "3843057f"
+      },
+      "status": "fixed",
+      "note": "not reported in latest holistic re-import",
+      "first_seen": "2026-03-15T11:08:40+00:00",
+      "last_seen": "2026-03-15T11:08:40+00:00",
+      "resolved_at": "2026-03-15T11:36:47+00:00",
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "agent_import",
+        "text": "not reported in latest holistic re-import",
+        "attested_at": "2026-03-15T11:36:47+00:00",
+        "scan_verified": false
+      }
+    },
+    "review::.::holistic::cross_module_architecture::indirection_chain_depth": {
+      "id": "review::.::holistic::cross_module_architecture::indirection_chain_depth",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Call chain depth up to 4 levels in build orchestration may obscure control flow",
+      "detail": {
+        "holistic": true,
+        "dimension": "cross_module_architecture",
+        "related_files": [
+          "builder/run/build.go",
+          "builder/run/incremental.go",
+          "builder/services/post_service.go"
+        ],
+        "evidence": [
+          "builder/run/build.go shows max_chain_depth: 4 with 100 chains according to blind packet indirection_hotspots",
+          "builder/run/incremental.go shows max_chain_depth: 3 with 85 chains",
+          "builder/services/post_service.go shows max_chain_depth: 2 with 45 chains",
+          "Chain pattern: Build() \u2192 processPosts() \u2192 runParsePhase() \u2192 parseWorkerTask() \u2192 PostService.Process()"
+        ],
+        "suggestion": "Document call chain expectations in package-level comments. Consider flattening orchestration by having build.go call service methods more directly rather than through intermediate helper functions. Use interface segregation to make delegation boundaries explicit.",
+        "reasoning": "",
+        "summary_hash": "6df343e6"
+      },
+      "status": "fixed",
+      "note": "Added package-level documentation to build.go explaining the 4-level call chain as intentional design",
+      "first_seen": "2026-03-15T11:08:40+00:00",
+      "last_seen": "2026-03-15T11:08:40+00:00",
+      "resolved_at": "2026-03-15T11:21:24+00:00",
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "manual",
+        "text": "I have actually added package documentation to build.go explaining call chain rationale and I am not gaming the score by resolving without fixing",
+        "attested_at": "2026-03-15T11:21:24+00:00",
+        "scan_verified": false
+      }
+    },
+    "review::.::holistic::mid_level_elegance::assets_ready_channel_ownership_ambiguity": {
+      "id": "review::.::holistic::mid_level_elegance::assets_ready_channel_ownership_ambiguity",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "AssetsReady channel lifecycle and ownership unclear in multi-service handoff",
+      "detail": {
+        "holistic": true,
+        "dimension": "mid_level_elegance",
+        "related_files": [
+          "builder/services/asset_service.go",
+          "builder/services/render_service.go",
+          "builder/services/post_service.go",
+          "builder/run/build.go"
+        ],
+        "evidence": [
+          "AssetService creates and closes assetsReady channel (asset_service.go:178-180)",
+          "RenderService waits on assetsReady but does not own lifecycle (render_service.go:39-43)",
+          "PostService has separate assetsReady field but no explicit wait logic (post_service.go:47)",
+          "Builder wires channels through multiple SetAssetsGate calls creating implicit coupling (build.go:89-91)"
+        ],
+        "suggestion": "Introduce explicit AssetsGate interface with ClearLifecycle() method to document ownership transfer, or consolidate channel creation in Builder with explicit handoff documentation. Consider merging asset gate into BuilderState for unified lifecycle management.",
+        "reasoning": "",
+        "summary_hash": "9344a76e"
+      },
+      "status": "fixed",
+      "note": "Added documentation to asset_service.go clarifying channel ownership by AssetService",
+      "first_seen": "2026-03-15T11:15:04+00:00",
+      "last_seen": "2026-03-15T11:15:04+00:00",
+      "resolved_at": "2026-03-15T11:20:46+00:00",
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "manual",
+        "text": "I have actually added documentation to asset_service.go clarifying assetsReady channel ownership and I am not gaming the score by resolving without fixing",
+        "attested_at": "2026-03-15T11:20:46+00:00",
+        "scan_verified": false
+      }
+    },
+    "review::.::holistic::mid_level_elegance::asset_map_parameter_leakage": {
+      "id": "review::.::holistic::mid_level_elegance::asset_map_parameter_leakage",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Asset map passed through multiple layers without explicit interface contract",
+      "detail": {
+        "holistic": true,
+        "dimension": "mid_level_elegance",
+        "related_files": [
+          "builder/services/render_service.go",
+          "builder/renderer/renderer.go",
+          "builder/run/build.go"
+        ],
+        "evidence": [
+          "RenderService.SetAssets() accepts map but interface doesn't document lifecycle (interfaces.go:106)",
+          "GetAssets() returns internal map directly without copy semantics (render_service.go:86-88)",
+          "Builder computes asset hash from GetAssets() result creating implicit dependency on map mutation timing (build.go:234-248)"
+        ],
+        "suggestion": "Add AssetMap type with explicit Copy() method to interfaces, document mutation boundaries in comments, or introduce AssetSnapshot struct for read-only access patterns. This makes the handoff contract explicit rather than implicit.",
+        "reasoning": "",
+        "summary_hash": "4d40b330"
+      },
+      "status": "fixed",
+      "note": "Added interface documentation for SetAssets/GetAssets ownership and read-only contract",
+      "first_seen": "2026-03-15T11:15:04+00:00",
+      "last_seen": "2026-03-15T11:15:04+00:00",
+      "resolved_at": "2026-03-15T11:20:21+00:00",
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "manual",
+        "text": "I have actually added documentation to interfaces.go clarifying asset map ownership and read-only semantics and I am not gaming the score by resolving without fixing",
+        "attested_at": "2026-03-15T11:20:21+00:00",
+        "scan_verified": false
+      }
+    },
+    "review::.::holistic::mid_level_elegance::search_queue_implicit_protocol": {
+      "id": "review::.::holistic::mid_level_elegance::search_queue_implicit_protocol",
+      "detector": "review",
+      "file": ".",
+      "tier": 3,
+      "confidence": "low",
+      "summary": "Search index queue uses implicit send protocol without explicit capacity documentation",
+      "detail": {
+        "holistic": true,
+        "dimension": "mid_level_elegance",
+        "related_files": [
+          "builder/run/incremental.go",
+          "builder/run/builder.go"
+        ],
+        "evidence": [
+          "searchIndexCh created as buffered chan struct{} with capacity 1 (builder.go:203)",
+          "regenerateSearchIndex uses non-blocking select with default case (incremental.go:323-328)",
+          "processSearchIndexQueue drains channel with timer-based debouncing (incremental.go:445-483)",
+          "No explicit interface documenting the queue protocol or capacity requirements"
+        ],
+        "suggestion": "Extract search queue protocol into explicit interface with documented capacity semantics, or wrap in SearchQueue type with explicit Enqueue() method documenting drop behavior. Add comments explaining why capacity=1 is sufficient for debounce pattern.",
+        "reasoning": "",
+        "summary_hash": "0f15455d"
+      },
+      "status": "fixed",
+      "note": "Added documentation to builder.go BuilderState explaining searchIndexCh buffered channel protocol",
+      "first_seen": "2026-03-15T11:15:04+00:00",
+      "last_seen": "2026-03-15T11:15:04+00:00",
+      "resolved_at": "2026-03-15T11:21:05+00:00",
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "manual",
+        "text": "I have actually added documentation to builder.go explaining search queue protocol and I am not gaming the score by resolving without fixing",
+        "attested_at": "2026-03-15T11:21:05+00:00",
+        "scan_verified": false
+      }
+    },
+    "review::.::holistic::cross_module_architecture::utils_gravity_well": {
+      "id": "review::.::holistic::cross_module_architecture::utils_gravity_well",
+      "detector": "review",
+      "file": ".",
+      "tier": 1,
+      "confidence": "high",
+      "summary": "builder/utils package acts as architectural gravity well with ~4000 LOC and 47 dependent files",
+      "detail": {
+        "holistic": true,
+        "dimension": "cross_module_architecture",
+        "related_files": [
+          "builder/utils/transaction.go",
+          "builder/utils/sink.go",
+          "builder/utils/assets.go",
+          "builder/utils/fs_copy.go",
+          "builder/utils/sync.go",
+          "builder/utils/hash.go"
+        ],
+        "evidence": [
+          "47 files in builder/ directory import github.com/Kush-Singh-26/kosh/builder/utils (grep evidence)",
+          "48 files in builder/utils/ directory including transaction.go (226 LOC), sink.go (303 LOC), assets.go (324 LOC), fs_copy.go (604 LOC)",
+          "Utilities span multiple concerns: file transactions, artifact sinks, asset building, image processing, worker pools, timing, hashing, path normalization",
+          "High cohesion within sub-domains (e.g., transaction.go for atomic builds) but low cohesion across the package as a whole"
+        ],
+        "suggestion": "Consider splitting builder/utils into focused subpackages: builder/utils/transaction (BuildTransaction, DirectoryTx), builder/utils/sink (ArtifactSink, DiskSink), builder/utils/assets (BuildAssetsEsbuild), builder/utils/fs (CopyDirVFS, ParallelWalk), builder/utils/sync (WorkerPool, TxSync). Maintain backward compatibility through re-exports during migration.",
+        "reasoning": "",
+        "summary_hash": "bed26b20"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::cross_module_architecture::cache_renderer_upward_dep": {
+      "id": "review::.::holistic::cross_module_architecture::cache_renderer_upward_dep",
+      "detector": "review",
+      "file": ".",
+      "tier": 1,
+      "confidence": "high",
+      "summary": "builder/cache has upward dependency on builder/renderer/native for SSR cache types",
+      "detail": {
+        "holistic": true,
+        "dimension": "cross_module_architecture",
+        "related_files": [
+          "builder/cache/types.go",
+          "builder/cache/types_gen.go",
+          "builder/cache/adapter.go",
+          "builder/renderer/native/d2.go",
+          "builder/renderer/native/math.go"
+        ],
+        "evidence": [
+          "builder/cache/types.go imports github.com/Kush-Singh-26/kosh/builder/renderer/native",
+          "builder/cache/types_gen.go imports github.com/Kush-Singh-26/kosh/builder/renderer/native",
+          "Cache layer should be infrastructure-level, not depending on renderer implementation details",
+          "DiagramCacheAdapter (cache/adapter.go) provides map[string]string interface but stores SSR content for D2/LaTeX rendering",
+          "This creates bidirectional coupling: cache -> renderer (types) and renderer -> cache (persistence)"
+        ],
+        "suggestion": "Move SSR type definitions (SSRArtifact, MathExpression, etc.) to builder/models or create builder/cache/types_ssr.go that doesn't import renderer. Cache should store opaque []byte blobs with type metadata, not typed renderer structs. DiagramCacheAdapter should accept serialization/deserialization functions rather than knowing about renderer types.",
+        "reasoning": "",
+        "summary_hash": "3cd5e0ee"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::cross_module_architecture::search_complexity_concentration": {
+      "id": "review::.::holistic::cross_module_architecture::search_complexity_concentration",
+      "detector": "review",
+      "file": ".",
+      "tier": 1,
+      "confidence": "high",
+      "summary": "Search engine concentrates 588 LOC of algorithmic complexity in single package",
+      "detail": {
+        "holistic": true,
+        "dimension": "cross_module_architecture",
+        "related_files": [
+          "builder/search/engine.go",
+          "builder/search/analyzer.go",
+          "builder/search/fuzzy.go",
+          "builder/search/stemmer.go"
+        ],
+        "evidence": [
+          "builder/search/engine.go: 588 LOC, complexity score 71 (from holistic_context.abstractions.complexity_hotspots)",
+          "Search package imports builder/models and builder/utils but exports PerformSearch, ParseQuery, Analyzer types",
+          "Generators package (builder/generators/search.go) imports builder/search to build index - correct direction",
+          "Algorithmic complexity (BM25 scoring, n-gram indexing, phrase matching) is appropriately isolated from build orchestration"
+        ],
+        "suggestion": "Current isolation is appropriate. Consider documenting the search package boundary more explicitly: what types are public API vs internal implementation. The complexity is justified by the domain (search algorithms are inherently complex). No structural refactoring needed - this is a positive pattern of isolating algorithmic complexity.",
+        "reasoning": "",
+        "summary_hash": "31622ce7"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::cross_module_architecture::internal_build_coupling": {
+      "id": "review::.::holistic::cross_module_architecture::internal_build_coupling",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "builder/run imports internal/build for WASM deployment creating cross-layer coupling",
+      "detail": {
+        "holistic": true,
+        "dimension": "cross_module_architecture",
+        "related_files": [
+          "builder/run/builder.go",
+          "internal/build/build.go",
+          "internal/build/wasm/search.wasm.br"
+        ],
+        "evidence": [
+          "builder/run/builder.go line 27 imports github.com/Kush-Singh-26/kosh/builder/internal/build",
+          "internal/build/build.go provides CheckWASM, DeployWASM functions for search WASM deployment",
+          "internal/ layer should provide CLI command implementations, not build orchestration dependencies",
+          "WASM embedding (//go:embed wasm/search.wasm.br) ties build process to compile-time embedded assets",
+          "This creates dependency: cmd/kosh -> builder/run -> internal/build, blurring layer responsibilities"
+        ],
+        "suggestion": "Move WASM deployment logic from internal/build to builder/assets or builder/search/wasm_deploy.go. The builder layer should own all build-time asset deployment including WASM. internal/ should only contain CLI command handlers that call into builder/. Alternatively, create builder/wasm/ package for WASM-specific deployment logic.",
+        "reasoning": "",
+        "summary_hash": "708ee2c5"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::cross_module_architecture::channel_ownership_documented": {
+      "id": "review::.::holistic::cross_module_architecture::channel_ownership_documented",
+      "detector": "review",
+      "file": ".",
+      "tier": 1,
+      "confidence": "high",
+      "summary": "Channel ownership contracts are explicitly documented in service interfaces",
+      "detail": {
+        "holistic": true,
+        "dimension": "cross_module_architecture",
+        "related_files": [
+          "builder/services/interfaces.go",
+          "builder/services/asset_service.go",
+          "builder/services/render_service.go",
+          "builder/services/post_service.go"
+        ],
+        "evidence": [
+          "interfaces.go comment on SetAssetsGate: 'Channel is owned by AssetService and closed when assets are ready' (line 67)",
+          "asset_service.go comment: 'assetsReady is owned by AssetService, created per-build and closed when assets are ready' (line 31-33)",
+          "render_service.go and post_service.go wait on assetsReady but don't own its lifecycle",
+          "This explicit ownership prevents goroutine leaks and clarifies synchronization responsibility"
+        ],
+        "suggestion": "This is a positive pattern - continue documenting channel ownership explicitly. Consider extending this pattern to other synchronization primitives (e.g., metadataReadyCh in post_service.go line 52). Add ownership comments to searchIndexCh and buildQueue channels in builder/run/builder.go.",
+        "reasoning": "",
+        "summary_hash": "acb74a53"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::cross_module_architecture::reconfigure_pattern_consolidated": {
+      "id": "review::.::holistic::cross_module_architecture::reconfigure_pattern_consolidated",
+      "detector": "review",
+      "file": ".",
+      "tier": 1,
+      "confidence": "high",
+      "summary": "ReconfigureForBuild pattern consolidates per-build service injection",
+      "detail": {
+        "holistic": true,
+        "dimension": "cross_module_architecture",
+        "related_files": [
+          "builder/services/interfaces.go",
+          "builder/run/build.go",
+          "builder/services/asset_service.go",
+          "builder/services/post_service.go",
+          "builder/services/render_service.go"
+        ],
+        "evidence": [
+          "interfaces.go defines ReconfigureForBuild(sink, fs) for PostService (line 16), AssetService (line 46), RenderService (line 61)",
+          "build.go refreshBuildSession() calls ReconfigureForBuild for all three services (lines 41-43)",
+          "Comment on interfaces.go line 16-17: 'Consolidates sink and filesystem injection into a single explicit call'",
+          "This pattern avoids scattering sink/fs assignment across multiple setter calls",
+          "Reduces risk of forgetting to reconfigure a service between builds"
+        ],
+        "suggestion": "This is a positive pattern that improves over previous scattered setter calls (noted in AGENTS.md as 'recently fixed'). Consider extending to CacheService if it needs per-build reconfiguration. Document the ReconfigureForBuild contract: services should reset per-build state but preserve long-lived resources (pools, connections).",
+        "reasoning": "",
+        "summary_hash": "42135541"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::high_level_elegance::search_engine_monolith": {
+      "id": "review::.::holistic::high_level_elegance::search_engine_monolith",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Search ranking logic concentrated in single 588-LOC file rather than decomposed by scoring strategy",
+      "detail": {
+        "holistic": true,
+        "dimension": "high_level_elegance",
+        "related_files": [
+          "builder/search/engine.go"
+        ],
+        "evidence": [
+          "builder/search/engine.go is 588 lines with complexity score of 71",
+          "Multiple scoring strategies (phrase match, title match, tag match, BM25, fuzzy) all implemented in one file",
+          "searchSession type groups methods but doesn't provide abstraction boundaries for independent evolution"
+        ],
+        "suggestion": "Extract scoring strategies into separate types (PhraseScorer, TitleScorer, TagScorer, BM25Scorer) with a common Scorer interface. Compose these in a SearchEngine struct. This would enable independent testing, easier tuning of weights, and clearer ownership of each scoring concern.",
+        "reasoning": "",
+        "summary_hash": "860bad3a"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::high_level_elegance::post_service_lifecycle_mixing": {
+      "id": "review::.::holistic::high_level_elegance::post_service_lifecycle_mixing",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "PostService mixes parse orchestration, render coordination, and social card generation in one implementation",
+      "detail": {
+        "holistic": true,
+        "dimension": "high_level_elegance",
+        "related_files": [
+          "builder/services/post_service.go"
+        ],
+        "evidence": [
+          "builder/services/post_service.go is 439 lines",
+          "runParsePhase, runRenderPhase, finalizeBuild methods all in same struct",
+          "Social card generation pool created inside Process() method",
+          "parseWorkerTask, renderWorkerTask methods co-located"
+        ],
+        "suggestion": "Consider splitting into PostParseService (handles markdown parsing, frontmatter extraction, cache lookup) and PostRenderService (handles HTML rendering, social card generation, template execution). Keep PostService as a facade that orchestrates both. This would clarify lifecycle boundaries and reduce cognitive load per file.",
+        "reasoning": "",
+        "summary_hash": "bf3a416b"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::high_level_elegance::builder_struct_god_object_risk": {
+      "id": "review::.::holistic::high_level_elegance::builder_struct_god_object_risk",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Builder struct carries many responsibilities: service lifecycle, watch coordination, WASM deployment, build orchestration",
+      "detail": {
+        "holistic": true,
+        "dimension": "high_level_elegance",
+        "related_files": [
+          "builder/run/builder.go",
+          "builder/run/build.go",
+          "builder/run/incremental.go"
+        ],
+        "evidence": [
+          "builder/run/builder.go defines Builder with 15+ fields including deps, state, metrics, filesystems",
+          "Builder implements Build, BuildChanged, setupWasmDeployment, setupAssetBuilding, setupSiteWideRendering",
+          "Watch-mode coordination (processBuildQueue, processSearchIndexQueue) mixed with build orchestration",
+          "WASM deployment logic (checkWasmUpdate) embedded in Builder rather than extracted"
+        ],
+        "suggestion": "Extract BuildCoordinator (orchestrates build phases), WatchCoordinator (manages build queue, search index queue, debouncing), and WASMManager (handles compilation, deployment, caching). Inject these into a thinner Builder facade. This would reduce God Object risk and improve testability of each concern.",
+        "reasoning": "",
+        "summary_hash": "054dcb24"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::high_level_elegance::asset_copy_complexity_concentration": {
+      "id": "review::.::holistic::high_level_elegance::asset_copy_complexity_concentration",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Asset copy logic handles WebP conversion, VFS operations, and directory traversal in one 604-LOC file",
+      "detail": {
+        "holistic": true,
+        "dimension": "high_level_elegance",
+        "related_files": [
+          "builder/utils/fs_copy.go"
+        ],
+        "evidence": [
+          "builder/utils/fs_copy.go is 604 lines with complexity score of 48",
+          "CopyDirVFS handles theme assets, static files, WebP conversion, and hash tracking",
+          "Platform-specific optimizations (copy_optimized_linux.go, copy_optimized_windows.go, copy_optimized_wasm.go) add to cognitive load",
+          "Image processing pipeline (eligible raster detection, WebP encoding) embedded in copy logic"
+        ],
+        "suggestion": "Decompose into AssetCopier (handles VFS traversal and file copying), ImageProcessor (handles WebP conversion with worker pool), and AssetHashTracker (tracks hash changes for incremental builds). This would separate I/O concerns from image processing concerns and make each unit more focused.",
+        "reasoning": "",
+        "summary_hash": "86297d32"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::high_level_elegance::incremental_rebuild_path_classification_tangle": {
+      "id": "review::.::holistic::high_level_elegance::incremental_rebuild_path_classification_tangle",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Incremental rebuild logic intertwines watch-mode path classification, social card rebuild checks, and build request queuing",
+      "detail": {
+        "holistic": true,
+        "dimension": "high_level_elegance",
+        "related_files": [
+          "builder/run/incremental.go"
+        ],
+        "evidence": [
+          "builder/run/incremental.go is 596 lines with complexity score of 53",
+          "isContentPath, isAssetPath, isSearchSourcePath, invalidateForTemplate all in one file",
+          "processBuildQueue handles content changes, asset changes, template changes, config changes",
+          "checkSocialCardRebuild, checkWasmRebuild mixed with path classification"
+        ],
+        "suggestion": "Extract PathClassifier (determines which subsystem a changed file affects), ChangeHandler (implements rebuild strategy per change type), and RebuildCoordinator (orchestrates incremental vs full rebuild decisions). This would make the incremental rebuild decision tree more explicit and easier to extend.",
+        "reasoning": "",
+        "summary_hash": "cec15637"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::mid_level_elegance::dual_sync_channels": {
+      "id": "review::.::holistic::mid_level_elegance::dual_sync_channels",
+      "detector": "review",
+      "file": ".",
+      "tier": 1,
+      "confidence": "high",
+      "summary": "AssetsReady and MetadataReadyCh channels create redundant synchronization paths",
+      "detail": {
+        "holistic": true,
+        "dimension": "mid_level_elegance",
+        "related_files": [
+          "builder/run/build.go",
+          "builder/services/asset_service.go",
+          "builder/services/post_service.go",
+          "builder/services/interfaces.go"
+        ],
+        "evidence": [
+          "Builder.setupAssetBuilding() creates assetsReady channel passed to AssetService.SetAssetsReadySignal() and setupSiteWideRendering()",
+          "PostService.Process() closes metadataReadyCh after parse phase (line 107) but site-wide generators wait on assetsReady instead",
+          "RenderService and PostService both have SetAssetsGate() methods waiting on channels owned by AssetService",
+          "Documentation exists in asset_service.go comments but not in interface contract for RenderService/PostService"
+        ],
+        "suggestion": "Consolidate to single build synchronization primitive. Consider BuildContext struct containing assetsReady, metadataReady, and error channels with explicit ownership documented in interfaces.go. Site-wide generators should wait on metadataReady (posts parsed) not assetsReady (assets built).",
+        "reasoning": "",
+        "summary_hash": "de52b17f"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::mid_level_elegance::fire_and_forget_error_logging": {
+      "id": "review::.::holistic::mid_level_elegance::fire_and_forget_error_logging",
+      "detector": "review",
+      "file": ".",
+      "tier": 1,
+      "confidence": "high",
+      "summary": "Async goroutines lack uniform error logging pattern for fire-and-forget operations",
+      "detail": {
+        "holistic": true,
+        "dimension": "mid_level_elegance",
+        "related_files": [
+          "builder/services/post_service.go",
+          "builder/run/builder.go",
+          "builder/run/pipeline_pagination.go"
+        ],
+        "evidence": [
+          "PostService.finalizeBuild() cache commit goroutine logs errors but tag card pool Stop() uses defer/recover without logging (pipeline_pagination.go line 255)",
+          "Builder.processSearchIndexQueue() logs errors (incremental.go line 280) but search regeneration is fire-and-forget without caller visibility",
+          "Inconsistent pattern: some goroutines use error channels, some log only, some silently recover"
+        ],
+        "suggestion": "Establish uniform fire-and-forget error handling pattern: (1) always log with slog.Warn/Error, (2) include operation name and key identifiers in log context, (3) consider metrics counter for fire-and-forget failures. Apply consistently across cache commits, tag card pools, and search regeneration.",
+        "reasoning": "",
+        "summary_hash": "34316b70"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::mid_level_elegance::search_queue_debounce_staleness": {
+      "id": "review::.::holistic::mid_level_elegance::search_queue_debounce_staleness",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "Search index queue debouncing may serve stale index during rapid content changes",
+      "detail": {
+        "holistic": true,
+        "dimension": "mid_level_elegance",
+        "related_files": [
+          "builder/run/incremental.go"
+        ],
+        "evidence": [
+          "searchIndexCh is buffered channel (capacity 1) with non-blocking send (line 244-248)",
+          "processSearchIndexQueue() uses 500ms/100ms adaptive debounce timer (lines 258-285)",
+          "During burst of markdown edits, only last request processes after timer fires - intermediate states dropped",
+          "b.state.indexedPosts cache updated before search regeneration completes, creating window where in-memory cache ahead of disk index"
+        ],
+        "suggestion": "Add version counter to indexedPosts updates and include version in search regeneration. On regeneration completion, verify version matches current state - if stale, trigger immediate re-regeneration. Alternatively, increase channel capacity and process all queued requests sequentially without dropping.",
+        "reasoning": "",
+        "summary_hash": "3b687eb5"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::mid_level_elegance::sink_stream_panic_safety": {
+      "id": "review::.::holistic::mid_level_elegance::sink_stream_panic_safety",
+      "detector": "review",
+      "file": ".",
+      "tier": 1,
+      "confidence": "high",
+      "summary": "DiskSink.WriteStream() error handling incomplete for mid-stream panics",
+      "detail": {
+        "holistic": true,
+        "dimension": "mid_level_elegance",
+        "related_files": [
+          "builder/utils/sink.go"
+        ],
+        "evidence": [
+          "WriteStream() gets bufio.Writer from pool, calls fn(bw), then Flush/Close/Reset in sequence (lines 193-214)",
+          "If fn() panics, buffer is not Reset before returning to pool - next caller may get dirty buffer",
+          "Partial file created on error is removed (line 218) but only if err != nil, not if panic occurred",
+          "No defer/recover around fn() call to ensure buffer cleanup"
+        ],
+        "suggestion": "Wrap fn(bw) call in defer/recover block: (1) defer func() { bw.Reset(nil); s.bufPool.Put(bw) }() to ensure buffer always returned clean, (2) recover panic, remove partial file, re-panic after cleanup. This matches tag card pool Stop() pattern from pipeline_pagination.go line 255.",
+        "reasoning": "",
+        "summary_hash": "fa5b8c25"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::mid_level_elegance::waitForAssets_defensive_ambiguity": {
+      "id": "review::.::holistic::mid_level_elegance::waitForAssets_defensive_ambiguity",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "waitForAssetsAvailability() defensive checks create ambiguity about caller responsibility",
+      "detail": {
+        "holistic": true,
+        "dimension": "mid_level_elegance",
+        "related_files": [
+          "builder/run/build.go"
+        ],
+        "evidence": [
+          "waitForAssetsAvailability() checks len(GetAssets()) > 0 before waiting (lines 437-444)",
+          "Also checks assetsReady == nil before select",
+          "Called from multiple site-wide generator goroutines in setupSiteWideRendering()",
+          "Creates unclear contract: should caller verify assets exist before calling, or is waiting the callee's responsibility?"
+        ],
+        "suggestion": "Make contract explicit: (1) Remove len() check - if caller has assets, don't call waitForAssets, (2) Document in interface that SetAssetsGate() must be called before any Render* methods, (3) Consider making assetsReady channel private to RenderService with internal wait logic triggered by first Render* call.",
+        "reasoning": "",
+        "summary_hash": "7dbbb4d2"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::mid_level_elegance::search_merge_duplication": {
+      "id": "review::.::holistic::mid_level_elegance::search_merge_duplication",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "GenerateSearchIndex() merge phase duplicates map copy logic",
+      "detail": {
+        "holistic": true,
+        "dimension": "mid_level_elegance",
+        "related_files": [
+          "builder/generators/search.go"
+        ],
+        "evidence": [
+          "Lines 114-145: merge loop copies posts/docLens with maps.Copy, but Inverted/Offsets use manual if/else with maps.Copy",
+          "Stem map merge (lines 148-160) uses different pattern: manual nested loop instead of maps.Copy",
+          "Three different merge patterns for conceptually identical operations",
+          "Would benefit from extractMerge helper function with consistent pattern"
+        ],
+        "suggestion": "Extract mergeMaps[K, V](dst, src map[K]V) helper that handles nil dst, then use consistently for all map merges. For nested maps (Inverted, Offsets, StemMap), extract mergeNestedMaps helper. This reduces cognitive load and ensures consistent behavior.",
+        "reasoning": "",
+        "summary_hash": "e813a00d"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::design_coherence::duplication_cache_commit_logic": {
+      "id": "review::.::holistic::design_coherence::duplication_cache_commit_logic",
+      "detector": "review",
+      "file": ".",
+      "tier": 1,
+      "confidence": "high",
+      "summary": "Duplicate boilerplate in BatchCommit between full build and incremental single-post paths",
+      "detail": {
+        "holistic": true,
+        "dimension": "design_coherence",
+        "related_files": [
+          "builder/cache/cache_writes.go",
+          "builder/services/post_single.go"
+        ],
+        "evidence": [
+          "cache_writes.go:27-130: BatchCommit encodes posts, search records, and deps with parallel encoding using errgroup",
+          "post_single.go:203-217: Incremental path duplicates the same commit pattern with separate meta/search/deps structs",
+          "Both paths construct PostMeta, SearchRecord, and Dependencies with identical field mappings",
+          "Fingerprint 04ae625604ffe93f flagged boilerplate duplication between post_service.go:215 and post_single.go:102"
+        ],
+        "suggestion": "Extract a shared commitBuilder helper that accepts slices of post metadata, search records, and deps maps. Both BatchCommit and incremental paths would call this with their respective data. This reduces duplication while preserving the different orchestration patterns (batch vs single).",
+        "reasoning": "",
+        "summary_hash": "3be7f7e5"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::design_coherence::d2_math_boilerplate_similarity": {
+      "id": "review::.::holistic::design_coherence::d2_math_boilerplate_similarity",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "D2 and Math renderers share similar initialization and worker acquisition patterns",
+      "detail": {
+        "holistic": true,
+        "dimension": "design_coherence",
+        "related_files": [
+          "builder/renderer/native/d2.go",
+          "builder/renderer/native/math.go"
+        ],
+        "evidence": [
+          "d2.go:17-24: Context nil check, scheduler acquire with defer release, ensureInitialized call",
+          "math.go:74-81: Identical pattern with context check, scheduler acquire, ensureInitialized",
+          "d2.go:26-33: Closed check with mutex, wg.Add(1), defer wg.Done()",
+          "math.go:83-90: Same mutex closed check and waitgroup pattern",
+          "Fingerprint f65c4045ab3b416b flagged boilerplate block repeated across 2 files",
+          "Both use worker pool pattern with channel-based instance acquisition and defer return"
+        ],
+        "suggestion": "The duplication is partially intentional variation (D2 uses single render call, Math uses batch). However, the common preamble (context validation, scheduler acquire, closed check, wg management) could be extracted into a renderContext helper method on the Renderer struct to reduce boilerplate.",
+        "reasoning": "",
+        "summary_hash": "fb6d2fae"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
+      "resolved_at": null,
+      "reopen_count": 0,
+      "work_item_kind": "review_defect",
+      "issue_kind": "review_defect",
+      "origin": "review_import",
+      "lang": "go",
+      "suppressed": false,
+      "suppressed_at": null,
+      "suppression_pattern": null
+    },
+    "review::.::holistic::design_coherence::long_parameter_lists_in_parser": {
+      "id": "review::.::holistic::design_coherence::long_parameter_lists_in_parser",
+      "detector": "review",
+      "file": ".",
+      "tier": 2,
+      "confidence": "medium",
+      "summary": "ParseMarkdown and ParseMarkdownMetadata have 12+ parameters, some related and groupable",
+      "detail": {
+        "holistic": true,
+        "dimension": "design_coherence",
+        "related_files": [
+          "builder/services/post_parser.go"
+        ],
+        "evidence": [
+          "post_parser.go:83-97: ParseMarkdownMetadata takes 12 parameters including source, path, version, html paths, mdPool, cfg, renderer, diagramAdapter, mu, and cache hints",
+          "post_parser.go:255-269: ParseMarkdown takes 14 parameters with similar grouping",
+          "Parameters naturally group into: file info (source, path, version), path derivatives (cleanHtmlRelPath, htmlRelPath), dependencies (mdPool, cfg, nativeRenderer, diagramAdapter, mu), and cache hints (knownFrontmatterHash, knownReadingTime, bodyOffset, preParsedMeta)",
+          "PostServiceDependencies struct (post_service.go:29-38) shows similar dependency grouping pattern already exists in codebase"
+        ],
+        "suggestion": "Extract a ParseContext struct containing: Source, Path, Version, CleanHtmlRelPath, HtmlRelPath for file info; and a ParseDeps struct for MdPool, Cfg, NativeRenderer, DiagramAdapter, Mu. Cache hints could be a ParseCacheHints struct. This groups parameters with independent semantic meaning (file being parsed vs tools for parsing vs cache optimization hints).",
+        "reasoning": "",
+        "summary_hash": "e63369a8"
+      },
+      "status": "open",
+      "note": null,
+      "first_seen": "2026-03-15T11:36:47+00:00",
+      "last_seen": "2026-03-15T11:36:47+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "review_defect",
@@ -8976,7 +10021,7 @@
           "reason": "parser_error"
         }
       ],
-      "updated_at": "2026-03-15T10:53:04+00:00"
+      "updated_at": "2026-03-15T11:37:06+00:00"
     }
   },
   "score_confidence": {
@@ -9050,11 +10095,9 @@
       "provisional_until_scan": 21
     },
     "cross_module_architecture": {
-      "score": 68.5,
-      "source": "manual_override",
-      "assessed_at": "2026-03-15T08:07:56+00:00",
-      "provisional_override": true,
-      "provisional_until_scan": 21
+      "score": 72.5,
+      "source": "holistic",
+      "assessed_at": "2026-03-15T11:36:47+00:00"
     },
     "dependency_health": {
       "score": 82.0,
@@ -9064,11 +10107,9 @@
       "provisional_until_scan": 21
     },
     "design_coherence": {
-      "score": 72.5,
-      "source": "manual_override",
-      "assessed_at": "2026-03-15T08:07:56+00:00",
-      "provisional_override": true,
-      "provisional_until_scan": 21
+      "score": 82.5,
+      "source": "holistic",
+      "assessed_at": "2026-03-15T11:36:47+00:00"
     },
     "error_consistency": {
       "score": 78.0,
@@ -9078,11 +10119,9 @@
       "provisional_until_scan": 21
     },
     "high_level_elegance": {
-      "score": 80.0,
-      "source": "manual_override",
-      "assessed_at": "2026-03-15T08:07:56+00:00",
-      "provisional_override": true,
-      "provisional_until_scan": 21
+      "score": 88.5,
+      "source": "holistic",
+      "assessed_at": "2026-03-15T11:36:47+00:00"
     },
     "incomplete_migration": {
       "score": 75.0,
@@ -9113,9 +10152,9 @@
       "provisional_until_scan": 21
     },
     "mid_level_elegance": {
-      "score": 92.5,
+      "score": 78.5,
       "source": "holistic",
-      "assessed_at": "2026-03-15T10:52:54+00:00"
+      "assessed_at": "2026-03-15T11:36:47+00:00"
     },
     "naming_quality": {
       "score": 92.5,
@@ -9147,651 +10186,6 @@
     }
   },
   "scan_history": [
-    {
-      "timestamp": "2026-03-15T04:46:12+00:00",
-      "lang": "go",
-      "strict_score": 84.8,
-      "verified_strict_score": 85.8,
-      "objective_score": 85.8,
-      "overall_score": 84.9,
-      "open": 148,
-      "diff_new": 0,
-      "diff_resolved": 20,
-      "ignored": 0,
-      "raw_issues": 118,
-      "suppressed_pct": 0.0,
-      "ignore_patterns": 0,
-      "subjective_integrity": {
-        "status": "warn",
-        "matched_count": 1,
-        "reset_count": 0,
-        "target_score": 95.0
-      },
-      "score_confidence": {
-        "status": "reduced",
-        "confidence": 0.0,
-        "detector_count": 1,
-        "dimension_count": 0
-      },
-      "dimension_scores": {
-        "Code quality": {
-          "score": 91.5,
-          "strict": 91.5
-        },
-        "Security": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "File health": {
-          "score": 97.7,
-          "strict": 97.7
-        },
-        "Duplication": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "Test health": {
-          "score": 47.7,
-          "strict": 46.9
-        },
-        "Abstraction fit": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "AI generated debt": {
-          "score": 88.0,
-          "strict": 88.0
-        },
-        "API coherence": {
-          "score": 68.0,
-          "strict": 68.0
-        },
-        "Auth consistency": {
-          "score": 95.0,
-          "strict": 95.0
-        },
-        "Contracts": {
-          "score": 85.0,
-          "strict": 85.0
-        },
-        "Convention drift": {
-          "score": 84.0,
-          "strict": 84.0
-        },
-        "Cross-module arch": {
-          "score": 88.0,
-          "strict": 88.0
-        },
-        "Dep health": {
-          "score": 88.0,
-          "strict": 88.0
-        },
-        "Design coherence": {
-          "score": 75.0,
-          "strict": 75.0
-        },
-        "Error consistency": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "High elegance": {
-          "score": 92.0,
-          "strict": 92.0
-        },
-        "Stale migration": {
-          "score": 92.0,
-          "strict": 92.0
-        },
-        "Init coupling": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Logic clarity": {
-          "score": 90.0,
-          "strict": 90.0
-        },
-        "Low elegance": {
-          "score": 84.0,
-          "strict": 84.0
-        },
-        "Mid elegance": {
-          "score": 81.0,
-          "strict": 81.0
-        },
-        "Naming quality": {
-          "score": 90.0,
-          "strict": 90.0
-        },
-        "Structure nav": {
-          "score": 72.0,
-          "strict": 72.0
-        },
-        "Test strategy": {
-          "score": 92.0,
-          "strict": 92.0
-        },
-        "Type safety": {
-          "score": 88.0,
-          "strict": 88.0
-        }
-      }
-    },
-    {
-      "timestamp": "2026-03-15T05:28:52+00:00",
-      "lang": "go",
-      "strict_score": 84.3,
-      "verified_strict_score": 85.8,
-      "objective_score": 85.8,
-      "overall_score": 84.4,
-      "open": 198,
-      "diff_new": 50,
-      "diff_resolved": 20,
-      "ignored": 0,
-      "raw_issues": 50,
-      "suppressed_pct": 0.0,
-      "ignore_patterns": 0,
-      "subjective_integrity": {
-        "status": "disabled",
-        "matched_count": 0,
-        "reset_count": 0,
-        "target_score": null
-      },
-      "score_confidence": {
-        "status": "reduced",
-        "confidence": 0.0,
-        "detector_count": 1,
-        "dimension_count": 0
-      },
-      "dimension_scores": {
-        "Code quality": {
-          "score": 91.5,
-          "strict": 91.5
-        },
-        "Security": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "File health": {
-          "score": 97.7,
-          "strict": 97.7
-        },
-        "Duplication": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "Test health": {
-          "score": 47.7,
-          "strict": 46.9
-        },
-        "Abstraction fit": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "AI generated debt": {
-          "score": 71.0,
-          "strict": 71.0
-        },
-        "API coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Auth consistency": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Contracts": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Convention drift": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Cross-module arch": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Dep health": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Design coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Error consistency": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "High elegance": {
-          "score": 94.5,
-          "strict": 94.5
-        },
-        "Stale migration": {
-          "score": 75.0,
-          "strict": 75.0
-        },
-        "Init coupling": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Logic clarity": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "Low elegance": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Mid elegance": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Naming quality": {
-          "score": 92.5,
-          "strict": 92.5
-        },
-        "Structure nav": {
-          "score": 72.0,
-          "strict": 72.0
-        },
-        "Test strategy": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Type safety": {
-          "score": 98.5,
-          "strict": 98.5
-        }
-      }
-    },
-    {
-      "timestamp": "2026-03-15T05:50:37+00:00",
-      "lang": "go",
-      "strict_score": 84.5,
-      "verified_strict_score": 86.6,
-      "objective_score": 86.6,
-      "overall_score": 84.6,
-      "open": 181,
-      "diff_new": 2,
-      "diff_resolved": 20,
-      "ignored": 0,
-      "raw_issues": 111,
-      "suppressed_pct": 0.0,
-      "ignore_patterns": 0,
-      "subjective_integrity": {
-        "status": "pass",
-        "matched_count": 0,
-        "reset_count": 0,
-        "target_score": 95.0
-      },
-      "score_confidence": {
-        "status": "reduced",
-        "confidence": 0.0,
-        "detector_count": 1,
-        "dimension_count": 0
-      },
-      "dimension_scores": {
-        "Code quality": {
-          "score": 91.5,
-          "strict": 91.5
-        },
-        "Security": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "File health": {
-          "score": 97.7,
-          "strict": 97.7
-        },
-        "Duplication": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "Test health": {
-          "score": 50.9,
-          "strict": 50.2
-        },
-        "Abstraction fit": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "AI generated debt": {
-          "score": 71.0,
-          "strict": 71.0
-        },
-        "API coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Auth consistency": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Contracts": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Convention drift": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Cross-module arch": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Dep health": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Design coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Error consistency": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "High elegance": {
-          "score": 94.5,
-          "strict": 94.5
-        },
-        "Stale migration": {
-          "score": 75.0,
-          "strict": 75.0
-        },
-        "Init coupling": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Logic clarity": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "Low elegance": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Mid elegance": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Naming quality": {
-          "score": 92.5,
-          "strict": 92.5
-        },
-        "Structure nav": {
-          "score": 72.0,
-          "strict": 72.0
-        },
-        "Test strategy": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Type safety": {
-          "score": 98.5,
-          "strict": 98.5
-        }
-      }
-    },
-    {
-      "timestamp": "2026-03-15T06:03:42+00:00",
-      "lang": "go",
-      "strict_score": 84.5,
-      "verified_strict_score": 86.6,
-      "objective_score": 86.6,
-      "overall_score": 84.6,
-      "open": 181,
-      "diff_new": 0,
-      "diff_resolved": 20,
-      "ignored": 0,
-      "raw_issues": 108,
-      "suppressed_pct": 0.0,
-      "ignore_patterns": 0,
-      "subjective_integrity": {
-        "status": "pass",
-        "matched_count": 0,
-        "reset_count": 0,
-        "target_score": 95.0
-      },
-      "score_confidence": {
-        "status": "reduced",
-        "confidence": 0.0,
-        "detector_count": 1,
-        "dimension_count": 0
-      },
-      "dimension_scores": {
-        "Code quality": {
-          "score": 91.5,
-          "strict": 91.5
-        },
-        "Security": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "File health": {
-          "score": 97.7,
-          "strict": 97.7
-        },
-        "Duplication": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "Test health": {
-          "score": 50.9,
-          "strict": 50.2
-        },
-        "Abstraction fit": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "AI generated debt": {
-          "score": 71.0,
-          "strict": 71.0
-        },
-        "API coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Auth consistency": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Contracts": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Convention drift": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Cross-module arch": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Dep health": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Design coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Error consistency": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "High elegance": {
-          "score": 94.5,
-          "strict": 94.5
-        },
-        "Stale migration": {
-          "score": 75.0,
-          "strict": 75.0
-        },
-        "Init coupling": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Logic clarity": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "Low elegance": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Mid elegance": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Naming quality": {
-          "score": 92.5,
-          "strict": 92.5
-        },
-        "Structure nav": {
-          "score": 72.0,
-          "strict": 72.0
-        },
-        "Test strategy": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Type safety": {
-          "score": 98.5,
-          "strict": 98.5
-        }
-      }
-    },
-    {
-      "timestamp": "2026-03-15T06:35:47+00:00",
-      "lang": "go",
-      "strict_score": 84.5,
-      "verified_strict_score": 86.6,
-      "objective_score": 86.6,
-      "overall_score": 84.6,
-      "open": 180,
-      "diff_new": 0,
-      "diff_resolved": 20,
-      "ignored": 0,
-      "raw_issues": 108,
-      "suppressed_pct": 0.0,
-      "ignore_patterns": 0,
-      "subjective_integrity": {
-        "status": "pass",
-        "matched_count": 0,
-        "reset_count": 0,
-        "target_score": 95.0
-      },
-      "score_confidence": {
-        "status": "reduced",
-        "confidence": 0.0,
-        "detector_count": 1,
-        "dimension_count": 0
-      },
-      "dimension_scores": {
-        "Code quality": {
-          "score": 91.5,
-          "strict": 91.5
-        },
-        "Security": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "File health": {
-          "score": 97.7,
-          "strict": 97.7
-        },
-        "Duplication": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "Test health": {
-          "score": 50.9,
-          "strict": 50.2
-        },
-        "Abstraction fit": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "AI generated debt": {
-          "score": 71.0,
-          "strict": 71.0
-        },
-        "API coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Auth consistency": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Contracts": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Convention drift": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Cross-module arch": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Dep health": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Design coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Error consistency": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "High elegance": {
-          "score": 94.5,
-          "strict": 94.5
-        },
-        "Stale migration": {
-          "score": 75.0,
-          "strict": 75.0
-        },
-        "Init coupling": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Logic clarity": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "Low elegance": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Mid elegance": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Naming quality": {
-          "score": 92.5,
-          "strict": 92.5
-        },
-        "Structure nav": {
-          "score": 72.0,
-          "strict": 72.0
-        },
-        "Test strategy": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Type safety": {
-          "score": 98.5,
-          "strict": 98.5
-        }
-      }
-    },
     {
       "timestamp": "2026-03-15T07:16:01+00:00",
       "lang": "go",
@@ -11726,6 +12120,651 @@
           "strict": 88.0
         }
       }
+    },
+    {
+      "timestamp": "2026-03-15T11:08:40+00:00",
+      "lang": "go",
+      "strict_score": 84.6,
+      "verified_strict_score": 86.6,
+      "objective_score": 97.4,
+      "overall_score": 87.4,
+      "open": 73,
+      "diff_new": 3,
+      "diff_resolved": 20,
+      "ignored": 0,
+      "raw_issues": 3,
+      "suppressed_pct": 0.0,
+      "ignore_patterns": 0,
+      "subjective_integrity": {
+        "status": "disabled",
+        "matched_count": 0,
+        "reset_count": 0,
+        "target_score": null
+      },
+      "score_confidence": {
+        "status": "reduced",
+        "confidence": 0.0,
+        "detector_count": 1,
+        "dimension_count": 0
+      },
+      "dimension_scores": {
+        "Code quality": {
+          "score": 91.5,
+          "strict": 91.5
+        },
+        "Security": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "File health": {
+          "score": 97.7,
+          "strict": 97.7
+        },
+        "Duplication": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "Test health": {
+          "score": 93.9,
+          "strict": 50.2
+        },
+        "Abstraction fit": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "AI generated debt": {
+          "score": 71.0,
+          "strict": 71.0
+        },
+        "API coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Auth consistency": {
+          "score": 96.0,
+          "strict": 96.0
+        },
+        "Contracts": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Convention drift": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Cross-module arch": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Dep health": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Design coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Error consistency": {
+          "score": 78.0,
+          "strict": 78.0
+        },
+        "High elegance": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Stale migration": {
+          "score": 75.0,
+          "strict": 75.0
+        },
+        "Init coupling": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Logic clarity": {
+          "score": 90.0,
+          "strict": 90.0
+        },
+        "Low elegance": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Mid elegance": {
+          "score": 92.5,
+          "strict": 92.5
+        },
+        "Naming quality": {
+          "score": 92.5,
+          "strict": 92.5
+        },
+        "Structure nav": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Test strategy": {
+          "score": 68.5,
+          "strict": 68.5
+        },
+        "Type safety": {
+          "score": 88.0,
+          "strict": 88.0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-15T11:15:04+00:00",
+      "lang": "go",
+      "strict_score": 84.1,
+      "verified_strict_score": 86.6,
+      "objective_score": 97.4,
+      "overall_score": 86.8,
+      "open": 75,
+      "diff_new": 3,
+      "diff_resolved": 20,
+      "ignored": 0,
+      "raw_issues": 3,
+      "suppressed_pct": 0.0,
+      "ignore_patterns": 0,
+      "subjective_integrity": {
+        "status": "disabled",
+        "matched_count": 0,
+        "reset_count": 0,
+        "target_score": null
+      },
+      "score_confidence": {
+        "status": "reduced",
+        "confidence": 0.0,
+        "detector_count": 1,
+        "dimension_count": 0
+      },
+      "dimension_scores": {
+        "Code quality": {
+          "score": 91.5,
+          "strict": 91.5
+        },
+        "Security": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "File health": {
+          "score": 97.7,
+          "strict": 97.7
+        },
+        "Duplication": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "Test health": {
+          "score": 93.9,
+          "strict": 50.2
+        },
+        "Abstraction fit": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "AI generated debt": {
+          "score": 71.0,
+          "strict": 71.0
+        },
+        "API coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Auth consistency": {
+          "score": 96.0,
+          "strict": 96.0
+        },
+        "Contracts": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Convention drift": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Cross-module arch": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Dep health": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Design coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Error consistency": {
+          "score": 78.0,
+          "strict": 78.0
+        },
+        "High elegance": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Stale migration": {
+          "score": 75.0,
+          "strict": 75.0
+        },
+        "Init coupling": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Logic clarity": {
+          "score": 90.0,
+          "strict": 90.0
+        },
+        "Low elegance": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Mid elegance": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Naming quality": {
+          "score": 92.5,
+          "strict": 92.5
+        },
+        "Structure nav": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Test strategy": {
+          "score": 68.5,
+          "strict": 68.5
+        },
+        "Type safety": {
+          "score": 88.0,
+          "strict": 88.0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-15T11:22:42+00:00",
+      "lang": "go",
+      "strict_score": 84.1,
+      "verified_strict_score": 86.6,
+      "objective_score": 97.4,
+      "overall_score": 86.8,
+      "open": 71,
+      "diff_new": 0,
+      "diff_resolved": 20,
+      "ignored": 0,
+      "raw_issues": 100,
+      "suppressed_pct": 0.0,
+      "ignore_patterns": 0,
+      "subjective_integrity": {
+        "status": "pass",
+        "matched_count": 0,
+        "reset_count": 0,
+        "target_score": 95.0
+      },
+      "score_confidence": {
+        "status": "reduced",
+        "confidence": 0.0,
+        "detector_count": 1,
+        "dimension_count": 0
+      },
+      "dimension_scores": {
+        "Code quality": {
+          "score": 91.5,
+          "strict": 91.5
+        },
+        "Security": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "File health": {
+          "score": 97.7,
+          "strict": 97.7
+        },
+        "Duplication": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "Test health": {
+          "score": 93.9,
+          "strict": 50.2
+        },
+        "Abstraction fit": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "AI generated debt": {
+          "score": 71.0,
+          "strict": 71.0
+        },
+        "API coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Auth consistency": {
+          "score": 96.0,
+          "strict": 96.0
+        },
+        "Contracts": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Convention drift": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Cross-module arch": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Dep health": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Design coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Error consistency": {
+          "score": 78.0,
+          "strict": 78.0
+        },
+        "High elegance": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Stale migration": {
+          "score": 75.0,
+          "strict": 75.0
+        },
+        "Init coupling": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Logic clarity": {
+          "score": 90.0,
+          "strict": 90.0
+        },
+        "Low elegance": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Mid elegance": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Naming quality": {
+          "score": 92.5,
+          "strict": 92.5
+        },
+        "Structure nav": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Test strategy": {
+          "score": 68.5,
+          "strict": 68.5
+        },
+        "Type safety": {
+          "score": 88.0,
+          "strict": 88.0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-15T11:36:47+00:00",
+      "lang": "go",
+      "strict_score": 84.4,
+      "verified_strict_score": 86.6,
+      "objective_score": 97.4,
+      "overall_score": 87.1,
+      "open": 92,
+      "diff_new": 20,
+      "diff_resolved": 20,
+      "ignored": 0,
+      "raw_issues": 21,
+      "suppressed_pct": 0.0,
+      "ignore_patterns": 0,
+      "subjective_integrity": {
+        "status": "disabled",
+        "matched_count": 0,
+        "reset_count": 0,
+        "target_score": null
+      },
+      "score_confidence": {
+        "status": "reduced",
+        "confidence": 0.0,
+        "detector_count": 1,
+        "dimension_count": 0
+      },
+      "dimension_scores": {
+        "Code quality": {
+          "score": 91.5,
+          "strict": 91.5
+        },
+        "Security": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "File health": {
+          "score": 97.7,
+          "strict": 97.7
+        },
+        "Duplication": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "Test health": {
+          "score": 93.9,
+          "strict": 50.2
+        },
+        "Abstraction fit": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "AI generated debt": {
+          "score": 71.0,
+          "strict": 71.0
+        },
+        "API coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Auth consistency": {
+          "score": 96.0,
+          "strict": 96.0
+        },
+        "Contracts": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Convention drift": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Cross-module arch": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Dep health": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Design coherence": {
+          "score": 82.5,
+          "strict": 82.5
+        },
+        "Error consistency": {
+          "score": 78.0,
+          "strict": 78.0
+        },
+        "High elegance": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Stale migration": {
+          "score": 75.0,
+          "strict": 75.0
+        },
+        "Init coupling": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Logic clarity": {
+          "score": 90.0,
+          "strict": 90.0
+        },
+        "Low elegance": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Mid elegance": {
+          "score": 78.5,
+          "strict": 78.5
+        },
+        "Naming quality": {
+          "score": 92.5,
+          "strict": 92.5
+        },
+        "Structure nav": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Test strategy": {
+          "score": 68.5,
+          "strict": 68.5
+        },
+        "Type safety": {
+          "score": 88.0,
+          "strict": 88.0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-15T11:37:06+00:00",
+      "lang": "go",
+      "strict_score": 84.4,
+      "verified_strict_score": 86.6,
+      "objective_score": 97.4,
+      "overall_score": 87.1,
+      "open": 90,
+      "diff_new": 0,
+      "diff_resolved": 20,
+      "ignored": 0,
+      "raw_issues": 100,
+      "suppressed_pct": 0.0,
+      "ignore_patterns": 0,
+      "subjective_integrity": {
+        "status": "pass",
+        "matched_count": 0,
+        "reset_count": 0,
+        "target_score": 95.0
+      },
+      "score_confidence": {
+        "status": "reduced",
+        "confidence": 0.0,
+        "detector_count": 1,
+        "dimension_count": 0
+      },
+      "dimension_scores": {
+        "Code quality": {
+          "score": 91.5,
+          "strict": 91.5
+        },
+        "Security": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "File health": {
+          "score": 97.7,
+          "strict": 97.7
+        },
+        "Duplication": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "Test health": {
+          "score": 93.9,
+          "strict": 50.2
+        },
+        "Abstraction fit": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "AI generated debt": {
+          "score": 71.0,
+          "strict": 71.0
+        },
+        "API coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Auth consistency": {
+          "score": 96.0,
+          "strict": 96.0
+        },
+        "Contracts": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Convention drift": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Cross-module arch": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Dep health": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Design coherence": {
+          "score": 82.5,
+          "strict": 82.5
+        },
+        "Error consistency": {
+          "score": 78.0,
+          "strict": 78.0
+        },
+        "High elegance": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Stale migration": {
+          "score": 75.0,
+          "strict": 75.0
+        },
+        "Init coupling": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Logic clarity": {
+          "score": 90.0,
+          "strict": 90.0
+        },
+        "Low elegance": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Mid elegance": {
+          "score": 78.5,
+          "strict": 78.5
+        },
+        "Naming quality": {
+          "score": 92.5,
+          "strict": 92.5
+        },
+        "Structure nav": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Test strategy": {
+          "score": 68.5,
+          "strict": 68.5
+        },
+        "Type safety": {
+          "score": 88.0,
+          "strict": 88.0
+        }
+      }
     }
   ],
   "lang_capabilities": {
@@ -11762,7 +12801,7 @@
   "codebase_metrics": {
     "go": {
       "total_files": 204,
-      "total_loc": 40558,
+      "total_loc": 40589,
       "total_directories": 26
     }
   },
@@ -11980,19 +13019,19 @@
       }
     },
     "Cross-module arch": {
-      "score": 68.5,
-      "strict": 68.5,
-      "verified_strict_score": 68.5,
+      "score": 72.5,
+      "strict": 72.5,
+      "verified_strict_score": 72.5,
       "checks": 10,
-      "failing": 0,
+      "failing": 6,
       "tier": 4,
       "detectors": {
         "subjective_assessment": {
           "potential": 10,
-          "pass_rate": 0.685,
-          "failing": 0,
-          "weighted_failures": 3.15,
-          "assessment_score": 68.5,
+          "pass_rate": 0.725,
+          "failing": 6,
+          "weighted_failures": 2.75,
+          "assessment_score": 72.5,
           "placeholder": false,
           "dimension_key": "cross_module_architecture",
           "configured_weight": 1.0,
@@ -12022,19 +13061,19 @@
       }
     },
     "Design coherence": {
-      "score": 72.5,
-      "strict": 72.5,
-      "verified_strict_score": 72.5,
+      "score": 82.5,
+      "strict": 82.5,
+      "verified_strict_score": 82.5,
       "checks": 10,
-      "failing": 0,
+      "failing": 4,
       "tier": 4,
       "detectors": {
         "subjective_assessment": {
           "potential": 10,
-          "pass_rate": 0.725,
-          "failing": 0,
-          "weighted_failures": 2.75,
-          "assessment_score": 72.5,
+          "pass_rate": 0.825,
+          "failing": 4,
+          "weighted_failures": 1.75,
+          "assessment_score": 82.5,
           "placeholder": false,
           "dimension_key": "design_coherence",
           "configured_weight": 10.0,
@@ -12064,19 +13103,19 @@
       }
     },
     "High elegance": {
-      "score": 80.0,
-      "strict": 80.0,
-      "verified_strict_score": 80.0,
+      "score": 88.5,
+      "strict": 88.5,
+      "verified_strict_score": 88.5,
       "checks": 10,
-      "failing": 0,
+      "failing": 5,
       "tier": 4,
       "detectors": {
         "subjective_assessment": {
           "potential": 10,
-          "pass_rate": 0.8,
-          "failing": 0,
-          "weighted_failures": 2.0,
-          "assessment_score": 80.0,
+          "pass_rate": 0.885,
+          "failing": 5,
+          "weighted_failures": 1.15,
+          "assessment_score": 88.5,
           "placeholder": false,
           "dimension_key": "high_level_elegance",
           "configured_weight": 22.0,
@@ -12169,19 +13208,19 @@
       }
     },
     "Mid elegance": {
-      "score": 92.5,
-      "strict": 92.5,
-      "verified_strict_score": 92.5,
+      "score": 78.5,
+      "strict": 78.5,
+      "verified_strict_score": 78.5,
       "checks": 10,
-      "failing": 1,
+      "failing": 6,
       "tier": 4,
       "detectors": {
         "subjective_assessment": {
           "potential": 10,
-          "pass_rate": 0.925,
-          "failing": 1,
-          "weighted_failures": 0.75,
-          "assessment_score": 92.5,
+          "pass_rate": 0.785,
+          "failing": 6,
+          "weighted_failures": 2.15,
+          "assessment_score": 78.5,
           "placeholder": false,
           "dimension_key": "mid_level_elegance",
           "configured_weight": 22.0,
@@ -12276,7 +13315,7 @@
   },
   "reminder_history": {
     "zone_classification": 3,
-    "report_scores": 24,
+    "report_scores": 26,
     "feedback_nudge": 3,
     "review_issues_pending": 3,
     "stagnant_nudge": 5,
@@ -12339,14 +13378,23 @@
       "source_issue_ids": [
         "responsibility_cohesion::builder/testutil/helpers.go::cohesion::builder/testutil/helpers.go"
       ]
+    },
+    "6dde3c77a72c5fed": {
+      "dismissed_at": "2026-03-15T11:36:47+00:00",
+      "reasoning": "Platform-specific syscall implementations require different code. Build tags correctly isolate variants. The common structure (open src, create dst, copy, close) is inherent to the file copy operation and cannot be meaningfully extracted without adding unnecessary indirection.",
+      "concern_type": "",
+      "concern_file": "",
+      "source_issue_ids": [
+        "boilerplate_duplication::builder/utils/copy_fallback.go::2272d87279833302"
+      ]
     }
   },
   "review_cache": {
     "files": {},
     "holistic": {
-      "reviewed_at": "2026-03-15T10:52:54+00:00",
+      "reviewed_at": "2026-03-15T11:36:47+00:00",
       "file_count_at_review": 121,
-      "issue_count": 1,
+      "issue_count": 21,
       "reviewed_files_count": 0,
       "full_sweep_included": false
     }
@@ -12429,6 +13477,45 @@
       "attest": "",
       "import_file": "C:\\Users\\KIIT0001\\blogs\\.desloppify\\subagents\\runs\\20260315_104915\\holistic_issues_merged.json",
       "packet_sha256": "ced73fe734963a6e287a8c483d47b5bb0e91fbece84e1004fb350cd6a24b8547"
+    },
+    {
+      "timestamp": "2026-03-15T11:08:40+00:00",
+      "mode": "trusted_internal",
+      "trusted": true,
+      "reason": "trusted import-run replay from 20260315_110447",
+      "override_used": false,
+      "attested_external": false,
+      "provisional": false,
+      "provisional_count": 0,
+      "attest": "",
+      "import_file": "C:\\Users\\KIIT0001\\blogs\\.desloppify\\subagents\\runs\\20260315_110447\\holistic_issues_merged.json",
+      "packet_sha256": "ee81dc1eb4f7e529f3867d0672499eb3ab9f45b81e88a5279dbef1e1c62b03ba"
+    },
+    {
+      "timestamp": "2026-03-15T11:15:04+00:00",
+      "mode": "trusted_internal",
+      "trusted": true,
+      "reason": "trusted import-run replay from 20260315_111137",
+      "override_used": false,
+      "attested_external": false,
+      "provisional": false,
+      "provisional_count": 0,
+      "attest": "",
+      "import_file": "C:\\Users\\KIIT0001\\blogs\\.desloppify\\subagents\\runs\\20260315_111137\\holistic_issues_merged.json",
+      "packet_sha256": "7fe52789483628a673615889cf3601399967f1970f84b474d30bfb3a5730a998"
+    },
+    {
+      "timestamp": "2026-03-15T11:36:47+00:00",
+      "mode": "trusted_internal",
+      "trusted": true,
+      "reason": "trusted import-run replay from 20260315_112352",
+      "override_used": false,
+      "attested_external": false,
+      "provisional": false,
+      "provisional_count": 0,
+      "attest": "",
+      "import_file": "C:\\Users\\KIIT0001\\blogs\\.desloppify\\subagents\\runs\\20260315_112352\\holistic_issues_merged.json",
+      "packet_sha256": "83b89772b3fc3f2fb3d73e23df18b5ddeb9ed0413d72c27a8b9f68d54ee022b3"
     }
   ]
 }
