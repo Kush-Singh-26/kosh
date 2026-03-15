@@ -2,8 +2,8 @@
 
 **Current Status:** 84.4/100 strict (target: 95.0, need +10.6)
 **Created:** 2026-03-15
-**Last Updated:** 2026-03-15 (Tier 1 Complete)
-**Commit:** d05aee4 (retry tests added)
+**Last Updated:** 2026-03-15 (Tier 2 Complete)
+**Commit:** 4140ec3 (search tests added)
 
 ---
 
@@ -11,19 +11,15 @@
 
 ### Completed ✅
 
-#### Tier 1.2: Test async.go (DONE)
-- **File:** `builder/utils/async_test.go`
-- **Tests:** 13 comprehensive tests
-- **Coverage:** 51.9% of builder/utils package
-- **Bug Found & Fixed:** FireAndForgetWithCleanup defer order issue
-  - Cleanup must be registered BEFORE panic recover defer
-  - Ensures cleanup runs even on panic
+#### Tier 1: Quick Wins ✅ COMPLETE
+- **async.go tests:** 13 tests, 53.5% utils coverage
+- **retry.go tests:** 14 tests, 53.5% utils coverage
+- **Bug fixes:** FireAndForgetWithCleanup defer order, documented maxRetries=0 behavior
 
-#### Tier 1.3: Test retry.go (DONE)
-- **File:** `builder/utils/retry_test.go`
-- **Tests:** 14 comprehensive tests
-- **Coverage:** Increased 51.9% → 53.5%
-- **Edge Case Found:** maxRetries=0 returns nil without attempting (documented behavior)
+#### Tier 2: High-Impact Search Tests ✅ COMPLETE
+- **stemmer_test.go:** 57 word stemming cases + cache/edge cases
+- **fuzzy_test.go:** 40+ tests (Levenshtein, fuzzy match, trigrams, query parsing)
+- **Coverage:** 80.1% of builder/search package
 
 #### Tier 1.1: Convention Drift Review (READY)
 - Review packet generated (20 batches)
@@ -185,10 +181,10 @@ func TestUnifiedParser_MathExpressions(t *testing.T)
 | Day | Task | Status | Expected Output |
 |-----|------|--------|-----------------|
 | 1 | Convention drift review | 🔄 Ready | Queue cleared |
-| 2-3 | Test async.go + retry.go | ✅ Complete | 27 tests added, 53.5% coverage |
-| 4-5 | Test search/fuzzy.go + stemmer.go | ⏳ Pending | 2 critical issues resolved |
+| 2-3 | Test async.go + retry.go | ✅ Complete | 27 tests, 53.5% coverage |
+| 4-5 | Test search/fuzzy.go + stemmer.go | ✅ Complete | 40+ tests, 80.1% coverage |
 
-### Week 2: Core Coverage
+### Week 2: Core Coverage ✅ PARTIAL
 | Day | Task | Status | Expected Output |
 |-----|------|--------|-----------------|
 | 1-2 | Test assets/wasm.go | ⏳ Pending | 1 issue resolved |
@@ -234,14 +230,14 @@ func TestUnifiedParser_MathExpressions(t *testing.T)
 ## Immediate Next Actions
 
 **Tier 1: Quick Wins ✅ COMPLETE**
-- ✅ Added tests for `builder/utils/async.go` (13 tests, 51.9% coverage)
+- ✅ Added tests for `builder/utils/async.go` (13 tests, 53.5% coverage)
 - ✅ Added tests for `builder/utils/retry.go` (14 tests, 53.5% coverage)
-- 🔄 Convention drift review ready (20 batches)
+- ✅ Added tests for `builder/search/` (40+ tests, 80.1% coverage)
 
 **Next Options:**
-1. **Continue Tier 2** - Test search modules (fuzzy.go, stemmer.go) - highest impact
-2. **Complete convention drift review** - Run subagent on 20 batches
-3. **Rescan now** - Measure current progress before continuing
+1. **Rescan now** - Measure progress after Tier 1 + Tier 2 (estimated +4-6 points)
+2. **Continue Tier 2** - Test wasm.go, unified.go (remaining untested modules)
+3. **Convention drift review** - Run subagent on 20 batches
 
 ---
 
