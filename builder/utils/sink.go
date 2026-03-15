@@ -236,24 +236,40 @@ func (s *DiskSink) WriteStream(p string, fn func(io.Writer) error) error {
 	bw := s.bufPool.Get().(*bufio.Writer)
 	bw.Reset(f)
 
+	var panicked bool
+	// Defer cleanup with panic recovery for buffer pool return and partial file removal
+	defer func() {
+		// Always return buffer to pool, even on panic
+		bw.Reset(nil)
+		s.bufPool.Put(bw)
+
+		// Close file handle (ignore error, already tracked)
+		_ = f.Close()
+
+		// Recover from panic, clean up partial file, and re-panic
+		if r := recover(); r != nil {
+			panicked = true
+			// Try to remove partial file on panic
+			_ = os.Remove(filepath.FromSlash(target))
+			panic(r) // Re-throw the panic
+		}
+	}()
+
 	err = fn(bw)
 
 	if flushErr := bw.Flush(); flushErr != nil && err == nil {
 		err = flushErr
 	}
 
+	// Close file explicitly (defer will also close, but that's safe - os.File.Close is idempotent)
 	if closeErr := f.Close(); closeErr != nil && err == nil {
 		err = closeErr
 	}
 
-	// Release the buffer back to the pool, clearing the reference
-	bw.Reset(nil)
-	s.bufPool.Put(bw)
-
-	if err == nil {
+	if err == nil && !panicked {
 		s.Register(p)
 	} else {
-		// Try to remove partial file on error
+		// Try to remove partial file on error or panic
 		_ = os.Remove(filepath.FromSlash(target))
 	}
 

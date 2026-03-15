@@ -172,10 +172,14 @@ func (b *Builder) build(ctx context.Context) error {
 func (b *Builder) setupWasmDeployment(ctx context.Context) *sync.WaitGroup {
 	var wasmWg sync.WaitGroup
 	wasmWg.Add(1)
-	go func() {
-		defer wasmWg.Done()
-		b.checkWasmUpdate(ctx)
-	}()
+	utils.FireAndForgetWithCleanup(ctx, b.logger, "WASM deployment",
+		func() error {
+			b.checkWasmUpdate(ctx)
+			return nil
+		},
+		func() {
+			wasmWg.Done()
+		})
 	return &wasmWg
 }
 
