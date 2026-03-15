@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"golang.org/x/sync/singleflight"
 )
 
 type templateCache struct {
@@ -20,6 +21,7 @@ type templateCache struct {
 	mu          sync.RWMutex
 	lastCheckNs atomic.Int64 // UnixNano of last TTL check; atomic for lock-free reads
 	checkTTL    time.Duration
+	sf          singleflight.Group
 }
 
 var (
@@ -64,21 +66,40 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 	if nowNs-lastNs < checkTTLNs {
 		return false
 	}
-	// CAS to prevent stampede: only one goroutine proceeds past TTL at a time
-	if !tc.lastCheckNs.CompareAndSwap(lastNs, nowNs) {
-		// Another goroutine is handling the check, wait briefly and check result
-		time.Sleep(50 * time.Millisecond)
-		tc.mu.RLock()
-		changed := len(tc.mtimes) > 0 // Simplified check
-		tc.mu.RUnlock()
-		return changed
+
+	// Use singleflight to ensure only one goroutine checks templates
+	// All concurrent callers will share the same result
+	result, err, _ := tc.sf.Do("checkTemplates", func() (interface{}, error) {
+		// Re-check TTL after acquiring singleflight to handle race condition
+		nowNs := time.Now().UnixNano()
+		lastNs := tc.lastCheckNs.Load()
+		if nowNs-lastNs < checkTTLNs {
+			// Another goroutine already checked within TTL
+			return false, nil
+		}
+
+		// Update last check time
+		tc.lastCheckNs.Store(nowNs)
+
+		changed, _ := tc.checkTemplatesOnDisk()
+		return changed, nil
+	})
+
+	if err != nil {
+		return false
 	}
 
+	return result.(bool)
+}
+
+func (tc *templateCache) checkTemplatesOnDisk() (bool, error) {
 	templateFiles := []string{"layout.html", "index.html", "graph.html", "404.html"}
 	changed := false
 
 	// Use read lock to check metadata first
 	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+
 	for _, fname := range templateFiles {
 		path := filepath.Join(tc.templateDir, fname)
 		info, err := os.Stat(path)
@@ -94,9 +115,8 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 			break
 		}
 	}
-	tc.mu.RUnlock()
 
-	return changed
+	return changed, nil
 }
 
 func (tc *templateCache) setTemplate(name string, tmpl *template.Template, mtime time.Time, content []byte) {

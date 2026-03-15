@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"context"
 	"io/fs"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
-	"gopkg.in/yaml.v3"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -19,6 +20,72 @@ import (
 )
 
 var yamlDelim = []byte("---")
+
+// Lightweight frontmatter field extractors using regex/string parsing
+// These avoid full YAML unmarshaling for the common case of needing only a few fields
+var (
+	titleRegex       = regexp.MustCompile(`(?m)^title:\s*["']?([^"'\n]+)["']?\s*$`)
+	descriptionRegex = regexp.MustCompile(`(?m)^description:\s*["']?([^"'\n]+)["']?\s*$`)
+	dateRegex        = regexp.MustCompile(`(?m)^date:\s*["']?(\d{4}-\d{2}-\d{2})["']?\s*$`)
+	draftRegex       = regexp.MustCompile(`(?m)^draft:\s*(true|false)\s*$`)
+	pinnedRegex      = regexp.MustCompile(`(?m)^pinned:\s*(true|false)\s*$`)
+	weightRegex      = regexp.MustCompile(`(?m)^weight:\s*(\d+)\s*$`)
+	tagsLineRegex    = regexp.MustCompile(`(?m)^tags:\s*\[(.*?)\]\s*$`)
+)
+
+// extractFrontmatterField extracts a single string field from frontmatter using regex
+func extractFrontmatterField(frontmatter []byte, re *regexp.Regexp) (string, bool) {
+	match := re.FindSubmatch(frontmatter)
+	if len(match) < 2 {
+		return "", false
+	}
+	return string(bytes.TrimSpace(match[1])), true
+}
+
+// extractFrontmatterBool extracts a boolean field from frontmatter
+func extractFrontmatterBool(frontmatter []byte, re *regexp.Regexp) bool {
+	match := re.FindSubmatch(frontmatter)
+	if len(match) < 2 {
+		return false
+	}
+	return strings.ToLower(string(bytes.TrimSpace(match[1]))) == "true"
+}
+
+// extractFrontmatterInt extracts an integer field from frontmatter
+func extractFrontmatterInt(frontmatter []byte, re *regexp.Regexp) (int, bool) {
+	match := re.FindSubmatch(frontmatter)
+	if len(match) < 2 {
+		return 0, false
+	}
+	val, err := strconv.Atoi(string(bytes.TrimSpace(match[1])))
+	if err != nil {
+		return 0, false
+	}
+	return val, true
+}
+
+// extractTagsSimple extracts tags from frontmatter using simple string parsing
+// Handles formats: tags: [tag1, tag2] or tags: [tag1,tag2]
+func extractTagsSimple(frontmatter []byte) []string {
+	match := tagsLineRegex.FindSubmatch(frontmatter)
+	if len(match) < 2 {
+		return nil
+	}
+	tagsStr := string(bytes.TrimSpace(match[1]))
+	if tagsStr == "" {
+		return nil
+	}
+	parts := strings.Split(tagsStr, ",")
+	tags := make([]string, 0, len(parts))
+	for _, p := range parts {
+		tag := strings.TrimSpace(p)
+		tag = strings.Trim(tag, `"'`)
+		if tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+	return tags
+}
 
 type MetadataScanner interface {
 	Scan(ctx context.Context, contentDir string, sourceFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error)
@@ -178,21 +245,16 @@ func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cl
 	}
 
 	frontmatter := bytes.TrimSpace(parts[1])
-	var fmMap map[string]any
-	if err := yaml.Unmarshal(frontmatter, &fmMap); err != nil {
-		return models.LightPostMetadata{}, nil, "", "", 0, 0
-	}
 
-	title := utils.GetString(fmMap, "title")
-	description := utils.GetString(fmMap, "description")
-	dateStr := utils.GetString(fmMap, "date")
-	tags := utils.GetSlice(fmMap, "tags")
-	isPinned := utils.GetBool(fmMap, "pinned")
-	weight, _ := fmMap["weight"].(int)
-	if w, ok := fmMap["weight"].(float64); ok && weight == 0 {
-		weight = int(w)
-	}
-	isDraft := utils.GetBool(fmMap, "draft")
+	// Optimized: Use lightweight regex/string extraction for common fields
+	// This avoids full YAML unmarshaling overhead for the common case
+	title, _ := extractFrontmatterField(frontmatter, titleRegex)
+	description, _ := extractFrontmatterField(frontmatter, descriptionRegex)
+	dateStr, _ := extractFrontmatterField(frontmatter, dateRegex)
+	tags := extractTagsSimple(frontmatter)
+	isPinned := extractFrontmatterBool(frontmatter, pinnedRegex)
+	isDraft := extractFrontmatterBool(frontmatter, draftRegex)
+	weight, _ := extractFrontmatterInt(frontmatter, weightRegex)
 
 	dateObj, _ := time.Parse("2006-01-02", dateStr)
 
@@ -214,6 +276,31 @@ func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cl
 		tags,
 		isPinned,
 	)
+
+	// Build minimal fmMap for compatibility with downstream code
+	// Only include fields that were successfully extracted
+	fmMap := make(map[string]any)
+	if title != "" {
+		fmMap["title"] = title
+	}
+	if description != "" {
+		fmMap["description"] = description
+	}
+	if dateStr != "" {
+		fmMap["date"] = dateStr
+	}
+	if len(tags) > 0 {
+		fmMap["tags"] = tags
+	}
+	if isPinned {
+		fmMap["pinned"] = true
+	}
+	if isDraft {
+		fmMap["draft"] = true
+	}
+	if weight != 0 {
+		fmMap["weight"] = weight
+	}
 
 	return models.LightPostMetadata{
 		Path:        relPath,

@@ -351,12 +351,20 @@ func (r *Renderer) PreparePageData(data *models.PageData) {
 	}
 }
 
+// GetAssets returns a copy of the asset map to prevent accidental mutation
+// of the shared global cache state. Maps are reference types in Go, so
+// returning the underlying map directly would allow callers to mutate it.
 func (r *Renderer) GetAssets() map[string]string {
 	s := r.assetsSnapshot.Load()
 	if s == nil {
 		return make(map[string]string)
 	}
-	return *s
+	// Return a copy to prevent mutation of shared state
+	result := make(map[string]string, len(*s))
+	for k, v := range *s {
+		result[k] = v
+	}
+	return result
 }
 
 func (r *Renderer) RenderSidebar(tree []*models.TreeNode) template.HTML {
@@ -392,8 +400,8 @@ func (r *Renderer) recordError(msg string, path string, err error) {
 	r.logger.Error(msg, "path", path, "error", err)
 }
 
-// GetErrors returns all accumulated render errors and clears the error list
-func (r *Renderer) GetErrors() []error {
+// ConsumeErrors returns all accumulated render errors and clears the error list
+func (r *Renderer) ConsumeErrors() []error {
 	r.errMu.Lock()
 	defer r.errMu.Unlock()
 	if len(r.renderErrors) == 0 {

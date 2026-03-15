@@ -1,0 +1,67 @@
+{
+  "batch": "api_surface_coherence",
+  "batch_index": 11,
+  "assessments": {"api_surface_coherence": 68.0},
+  "dimension_notes": {
+    "api_surface_coherence": {
+      "evidence": [
+        "CopyDirVFS in builder/utils/fs_copy.go:272 has 12 parameters",
+        "CopyFileWithOptionalImageProcessing in builder/utils/fs_copy.go:250 has 10 parameters",
+        "Builder.processPosts in builder/run/build.go:502 deconstructs PostResult into 7 return values",
+        "MetadataReadyFunc in builder/services/interfaces.go:27 deconstructs PostResult into 5 arguments",
+        "PostService.Process in builder/services/post_service.go:64 spawns background cache commit that must be waited for via separate call"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "api_surface_coherence": {
+      "dimension_character": "The API surface is generally well-structured but suffers from extremely wide parameter lists in core utility functions and inconsistent data passing patterns (structs vs multi-valued returns). Progressive disclosure in the search analyzer is a highlight, but deconstruction of results back into primitive types in callbacks creates unnecessary coupling and boilerplate.",
+      "score_rationale": "The score reflects high marks for logical organization but deductions for major boundary violations like the 12-parameter CopyDirVFS and the 'contract lie' of deconstructing domain objects into primitives for cross-module calls."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "wide_parameter_list_copydir",
+      "summary": "CopyDirVFS has 12 parameters",
+      "related_files": ["builder/utils/fs_copy.go"],
+      "evidence": ["func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string, imageWorkers int, webpQuality int, m interface { ... }) error"],
+      "suggestion": "Introduce a CopyOptions struct to group related parameters (compress, excludeExts, onWrite, cacheDir, imageWorkers, webpQuality, m).",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "result_deconstruction_boilerplate",
+      "summary": "PostResult struct is deconstructed into multi-valued returns in wrappers",
+      "related_files": ["builder/run/build.go", "builder/services/interfaces.go"],
+      "evidence": ["func (b *Builder) processPosts(...) ([]models.PostMetadata, []models.PostMetadata, map[string][]models.PostMetadata, []models.IndexedPost, bool, bool, error)"],
+      "suggestion": "Keep the PostResult struct as the return type for all wrappers and callbacks to simplify signatures and improve type safety.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "context_updates": {
+    "api_surface_coherence": {
+      "add": [
+        {
+          "header": "Progressive disclosure in search analyzer",
+          "description": "Analyzer provides Analyze, AnalyzeWithMapping, and AnalyzeWithPositions to allow callers to choose the level of detail needed, which is a good pattern for balancing simplicity and power.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Mixed sync/async in PostService",
+          "description": "PostService.Process returns synchronously but leaves a background cache commit running, requiring an explicit WaitForCacheCommit call to ensure full persistence, which is a fragile pattern for callers.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

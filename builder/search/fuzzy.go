@@ -198,7 +198,9 @@ func FuzzyExpandWithNgrams(term string, ngramIndex map[string][]string, maxDist 
 	var results []string
 	for cand, score := range candidateScores {
 		// Jaccard-like filtering: need at least some overlap
-		minScore := len(trigrams) / 2
+		// Optimized: Set minimum score to 1 to avoid matching every term on short queries
+		// A 3-character word generates exactly 1 trigram, so len/2 = 0 would match everything
+		minScore := max(1, len(trigrams)/2)
 		if score >= minScore {
 			if FuzzyMatch(term, cand, maxDist) {
 				results = append(results, cand)

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"html/template"
 	"log/slog"
 	"time"
@@ -37,41 +38,41 @@ func (s *renderServiceImpl) SetAssetsGate(ch <-chan struct{}) {
 	s.assetsReady = ch
 }
 
-func (s *renderServiceImpl) RenderPage(path string, data models.PageData) {
+func (s *renderServiceImpl) RenderPage(path string, data models.PageData) error {
 	if s.assetsReady != nil {
 		select {
 		case <-s.assetsReady:
 		case <-time.After(30 * time.Second):
-			s.logger.Warn("Asset ready signal timeout, proceeding anyway", "path", path)
+			return fmt.Errorf("asset build timed out after 30s for page %s - esbuild may be hung", path)
 		}
 	}
-	s.rnd.RenderPage(path, data)
+	return s.rnd.RenderPage(path, data)
 }
 
-func (s *renderServiceImpl) RenderIndex(path string, data models.PageData) {
+func (s *renderServiceImpl) RenderIndex(path string, data models.PageData) error {
 	if s.assetsReady != nil {
 		select {
 		case <-s.assetsReady:
 		case <-time.After(30 * time.Second):
-			s.logger.Warn("Asset ready signal timeout, proceeding anyway", "path", path)
+			return fmt.Errorf("asset build timed out after 30s for index %s - esbuild may be hung", path)
 		}
 	}
-	s.rnd.RenderIndex(path, data)
+	return s.rnd.RenderIndex(path, data)
 }
 
-func (s *renderServiceImpl) Render404(path string, data models.PageData) {
-	s.rnd.Render404(path, data)
+func (s *renderServiceImpl) Render404(path string, data models.PageData) error {
+	return s.rnd.Render404(path, data)
 }
 
-func (s *renderServiceImpl) RenderGraph(path string, data models.PageData) {
+func (s *renderServiceImpl) RenderGraph(path string, data models.PageData) error {
 	if s.assetsReady != nil {
 		select {
 		case <-s.assetsReady:
 		case <-time.After(30 * time.Second):
-			s.logger.Warn("Asset ready signal timeout, proceeding anyway", "path", path)
+			return fmt.Errorf("asset build timed out after 30s for graph %s - esbuild may be hung", path)
 		}
 	}
-	s.rnd.RenderGraph(path, data)
+	return s.rnd.RenderGraph(path, data)
 }
 
 func (s *renderServiceImpl) RenderSidebar(tree []*models.TreeNode) template.HTML {

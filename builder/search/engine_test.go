@@ -2,6 +2,7 @@ package search
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -335,18 +336,18 @@ func TestExtractSnippet_Offsets(t *testing.T) {
 	}
 }
 
-func TestHasTagNormalized(t *testing.T) {
+func TestSlicesContainsForTags(t *testing.T) {
 	tags := []string{"go", "web-dev", "ssg"}
 
-	if !HasTagNormalized(tags, "go") {
-		t.Error("HasTagNormalized should find existing tag")
+	if !slices.Contains(tags, "go") {
+		t.Error("slices.Contains should find existing tag")
 	}
 
-	if HasTagNormalized(tags, "rust") {
-		t.Error("HasTagNormalized should not find missing tag")
+	if slices.Contains(tags, "rust") {
+		t.Error("slices.Contains should not find missing tag")
 	}
 
-	if HasTagNormalized(tags, "GO") {
-		t.Error("HasTagNormalized should be case sensitive (it expects pre-normalized input)")
+	if slices.Contains(tags, "GO") {
+		t.Error("slices.Contains should be case sensitive (it expects pre-normalized input)")
 	}
 }

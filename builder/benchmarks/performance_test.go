@@ -78,8 +78,8 @@ This is post number %d.
 		},
 	}
 
-	sink := mocks.NewMemSink()
-	tx := mocks.NewMockTransaction("public")
+	sink := testutil.NewMemSink()
+	tx := testutil.NewMockTransaction("public")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -197,6 +197,21 @@ func isNil(i any) bool {
 	return v.Kind() == reflect.Pointer && v.IsNil()
 }
 
+type ImageMetrics interface {
+	RecordImageOptimization(original, optimized int64)
+	RecordImageResizeSkipped()
+}
+
+type CopyOptions struct {
+	Compress     bool
+	ExcludeExts  []string
+	OnWrite      func(string)
+	CacheDir     string
+	ImageWorkers int
+	WebPQuality  int
+	Metrics      ImageMetrics
+}
+
 func CopyFileVFS(srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, modTime int64, onWrite func(string)) error {
 	if err := sink.MkdirAll(filepath.Dir(destPath)); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", filepath.Dir(destPath), err)
@@ -247,18 +262,15 @@ func CopyFileVFS(srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, mo
 	return nil
 }
 
-func CopyFileWithOptionalImageProcessing(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, compress bool, cacheDir string, webpQuality int, info fs.FileInfo, m interface {
-	RecordImageOptimization(original, optimized int64)
-	RecordImageResizeSkipped()
-}, onWrite func(string)) error {
+func CopyFileWithOptionalImageProcessing(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, info fs.FileInfo, opts CopyOptions) error {
 	ext := strings.ToLower(filepath.Ext(srcPath))
 	isImage := ext == ".jpg" || ext == ".jpeg" || ext == ".png"
-	if compress && isImage {
-		if err := processImageVFS(ctx, srcFs, sink, srcPath, destPath[:len(destPath)-len(filepath.Ext(destPath))]+".webp", cacheDir, webpQuality, info, m); err != nil {
+	if opts.Compress && isImage {
+		if err := processImageVFS(ctx, srcFs, sink, srcPath, destPath[:len(destPath)-len(filepath.Ext(destPath))]+".webp", srcInfoToFileInfo(info), opts); err != nil {
 			return err
 		}
-		if onWrite != nil {
-			onWrite(destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".webp")
+		if opts.OnWrite != nil {
+			opts.OnWrite(destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".webp")
 		}
 		return nil
 	}
@@ -266,20 +278,22 @@ func CopyFileWithOptionalImageProcessing(ctx context.Context, srcFs afero.Fs, si
 	if info != nil {
 		modTime = info.ModTime().UnixNano()
 	}
-	return CopyFileVFS(srcFs, sink, srcPath, destPath, modTime, onWrite)
+	return CopyFileVFS(srcFs, sink, srcPath, destPath, modTime, opts.OnWrite)
 }
 
-func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, dstDir string, compress bool, excludeExts []string, onWrite func(string), cacheDir string, imageWorkers int, webpQuality int, m interface {
-	RecordImageOptimization(original, optimized int64)
-	RecordImageResizeSkipped()
-}) error {
+// Helper to bridge FileInfo to srcInfo parameter in processImageVFS
+func srcInfoToFileInfo(info fs.FileInfo) fs.FileInfo {
+	return info
+}
+
+func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, dstDir string, opts CopyOptions) error {
 	srcDir = NormalizePath(srcDir)
 	dstDir = NormalizePath(dstDir)
 	if err := sink.MkdirAll(dstDir); err != nil {
 		return fmt.Errorf("failed to create destination directory %s: %w", dstDir, err)
 	}
 
-	numWorkers := imageWorkers
+	numWorkers := opts.ImageWorkers
 	if numWorkers <= 0 {
 		numWorkers = runtime.NumCPU()
 	}
@@ -317,12 +331,12 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 							}
 						}()
 						target := filepath.Join(dstDir, task.relPath)
-						if err := processImageVFS(ctx, srcFs, sink, task.path, target, cacheDir, webpQuality, task.info, m); err != nil {
+						if err := processImageVFS(ctx, srcFs, sink, task.path, target, task.info, opts); err != nil {
 							errMu.Lock()
 							errs = append(errs, fmt.Errorf("failed to process image %s: %w", task.path, err))
 							errMu.Unlock()
-						} else if onWrite != nil {
-							onWrite(target)
+						} else if opts.OnWrite != nil {
+							opts.OnWrite(target)
 						}
 					}()
 				}
@@ -342,7 +356,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 						return
 					}
 					destPath := filepath.Join(dstDir, task.relPath)
-					if err := CopyFileVFS(srcFs, sink, task.path, destPath, task.info.ModTime().UnixNano(), onWrite); err != nil {
+					if err := CopyFileVFS(srcFs, sink, task.path, destPath, task.info.ModTime().UnixNano(), opts.OnWrite); err != nil {
 						errMu.Lock()
 						errs = append(errs, err)
 						errMu.Unlock()
@@ -370,7 +384,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 		}
 		isExcluded := false
 		if baseName != "wasm_engine.js" && baseName != "engine.js" && baseName != "force-graph.js" && baseName != "wasm_exec.js" {
-			if slices.Contains(excludeExts, ext) {
+			if slices.Contains(opts.ExcludeExts, ext) {
 				isExcluded = true
 			}
 		}
@@ -380,7 +394,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 
 		isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
 		finalRelPath := relPath
-		if compress && isImage {
+		if opts.Compress && isImage {
 			finalRelPath = relPath[:len(relPath)-len(ext)] + ".webp"
 			select {
 			case <-ctx.Done():
@@ -411,10 +425,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 	return nil
 }
 
-func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcPath, dstPath string, cacheDir string, webpQuality int, srcInfo fs.FileInfo, m interface {
-	RecordImageOptimization(original, optimized int64)
-	RecordImageResizeSkipped()
-}) error {
+func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcPath, dstPath string, srcInfo fs.FileInfo, opts CopyOptions) error {
 	if srcInfo == nil {
 		var err error
 		srcInfo, err = srcFs.Stat(srcPath)
@@ -435,17 +446,17 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 		if err := sink.MkdirAll(filepath.Dir(dstPath)); err != nil {
 			return fmt.Errorf("failed to create image directory: %w", err)
 		}
-		if !isNil(m) {
-			m.RecordImageOptimization(srcInfo.Size(), int64(len(cached)))
+		if !isNil(opts.Metrics) {
+			opts.Metrics.RecordImageOptimization(srcInfo.Size(), int64(len(cached)))
 		}
 		return sink.WriteFile(dstPath, cached)
 	}
 
 	var cacheFile string
 	cacheFs := afero.NewOsFs()
-	if cacheDir != "" {
+	if opts.CacheDir != "" {
 		hashStr := getImageHash(memCacheKey)
-		cacheFile = filepath.Join(cacheDir, hashStr+".webp")
+		cacheFile = filepath.Join(opts.CacheDir, hashStr+".webp")
 
 		if cacheInfo, err := cacheFs.Stat(cacheFile); err == nil && !cacheInfo.IsDir() {
 			// Stream cached file to sink instead of reading all into memory
@@ -463,8 +474,8 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 			cachedData, readErr := afero.ReadAll(f)
 			if readErr == nil {
 				globalImageCache.set(memCacheKey, cachedData)
-				if !isNil(m) {
-					m.RecordImageOptimization(srcInfo.Size(), int64(len(cachedData)))
+				if !isNil(opts.Metrics) {
+					opts.Metrics.RecordImageOptimization(srcInfo.Size(), int64(len(cachedData)))
 				}
 				if err := sink.WriteFile(dstPath, cachedData); err != nil {
 					return fmt.Errorf("failed to write cached image %s: %w", dstPath, err)
@@ -546,8 +557,8 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 			draw.Draw(rgba, b, finalImg, b.Min, draw.Src)
 			finalImg = rgba
 		}
-		if !isNil(m) {
-			m.RecordImageResizeSkipped()
+		if !isNil(opts.Metrics) {
+			opts.Metrics.RecordImageResizeSkipped()
 		}
 	}
 
@@ -555,6 +566,7 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 		return fmt.Errorf("failed to create image directory: %w", err)
 	}
 
+	webpQuality := opts.WebPQuality
 	if webpQuality < 1 || webpQuality > 100 {
 		webpQuality = 80
 	}
@@ -579,8 +591,8 @@ func processImageVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, src
 		queueImageCacheWrite(cacheFile, cacheData, true)
 	}
 
-	if !isNil(m) {
-		m.RecordImageOptimization(srcInfo.Size(), int64(len(cacheData)))
+	if !isNil(opts.Metrics) {
+		opts.Metrics.RecordImageOptimization(srcInfo.Size(), int64(len(cacheData)))
 	}
 
 	err = sink.WriteFile(dstPath, cacheData)

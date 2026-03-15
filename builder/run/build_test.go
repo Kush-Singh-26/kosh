@@ -98,8 +98,8 @@ func TestFullBuild(t *testing.T) {
 	postSvc := services.NewPostService(cfg, nil, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
 	metadataScanner := services.NewMetadataScanner()
 
-	sink := mocks.NewMemSink()
-	tx := mocks.NewMockTransaction("public")
+	sink := testutil.NewMemSink()
+	tx := testutil.NewMockTransaction("public")
 
 	b := &Builder{
 		cfg:             cfg,
@@ -175,8 +175,8 @@ func TestMultiVersionBuild(t *testing.T) {
 	postSvc := services.NewPostService(cfg, nil, renderSvc, logger, buildMetrics, mdPool, nativeRenderer, fs, nil, nil)
 	metadataScanner := services.NewMetadataScanner()
 
-	sink := mocks.NewMemSink()
-	tx := mocks.NewMockTransaction("public")
+	sink := testutil.NewMemSink()
+	tx := testutil.NewMockTransaction("public")
 
 	b := &Builder{
 		cfg:             cfg,

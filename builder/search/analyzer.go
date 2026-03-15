@@ -230,7 +230,11 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, original
 	return stemmed, originals
 }
 
-// Tokenize splits text into tokens (deprecated: use TokenizeWithUnicode)
+// Tokenize splits text into tokens and returns a slice of strings.
+//
+// Deprecated: Use [TokenizeWithUnicodeInto] for better performance.
+// This function allocates a new string slice and copies all token values.
+// For internal use, prefer TokenizeWithUnicodeInto which avoids allocations.
 func Tokenize(text string) []string {
 	tokens := TokenizeWithUnicode(text)
 	res := make([]string, len(tokens))

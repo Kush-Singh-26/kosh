@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"context"
 	"html/template"
 	"io"
@@ -21,7 +22,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
@@ -43,15 +43,16 @@ func (m *mockRenderService) SetSink(sink utils.ArtifactSink)  {}
 func (m *mockRenderService) SetSourceFs(fs afero.Fs)          {}
 func (m *mockRenderService) SetAssetsGate(ch <-chan struct{}) {}
 
-func (m *mockRenderService) RenderPage(path string, data models.PageData) {
+func (m *mockRenderService) RenderPage(path string, data models.PageData) error {
 	if m.shouldPanic {
 		panic(m.panicMsg)
 	}
+	return nil
 }
 
-func (m *mockRenderService) RenderIndex(path string, data models.PageData)       {}
-func (m *mockRenderService) Render404(path string, data models.PageData)         {}
-func (m *mockRenderService) RenderGraph(path string, data models.PageData)       {}
+func (m *mockRenderService) RenderIndex(path string, data models.PageData) error { return nil }
+func (m *mockRenderService) Render404(path string, data models.PageData) error   { return nil }
+func (m *mockRenderService) RenderGraph(path string, data models.PageData) error { return nil }
 func (m *mockRenderService) RenderSidebar(tree []*models.TreeNode) template.HTML { return "" }
 func (m *mockRenderService) RegisterFile(path string)                            {}
 func (m *mockRenderService) SetAssets(assets map[string]string)                  {}
@@ -59,7 +60,7 @@ func (m *mockRenderService) GetAssets() map[string]string                       
 func (m *mockRenderService) GetRenderedFiles() map[string]bool                   { return nil }
 func (m *mockRenderService) ClearRenderedFiles()                                 {}
 func (m *mockRenderService) ReloadTemplates()                                    {}
-func (m *mockRenderService) GetErrors() []error                                  { return nil }
+func (m *mockRenderService) ConsumeErrors() []error                              { return nil }
 
 type mockArtifactSink struct {
 	utils.ArtifactSink
@@ -103,13 +104,14 @@ type mockRenderServiceWithCapture struct {
 	mu    sync.RWMutex
 }
 
-func (m *mockRenderServiceWithCapture) RenderPage(path string, data models.PageData) {
+func (m *mockRenderServiceWithCapture) RenderPage(path string, data models.PageData) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.Pages == nil {
 		m.Pages = make(map[string]models.PageData)
 	}
 	m.Pages[path] = data
+	return nil
 }
 
 func (m *mockRenderServiceWithCapture) GetRenderedPaths() []string {
@@ -208,7 +210,7 @@ func setupPostServiceTest(t *testing.T) *postServiceImpl {
 		renderer:       &mockRenderService{},
 		logger:         logger,
 		sourceFs:       sourceFs,
-		sink:           mocks.NewMemSink(),
+		sink:           testutil.NewMemSink(),
 		metrics:        metrics.NewBuildMetrics(),
 		mdPool:         mdPool,
 		nativeRenderer: nativeRenderer,

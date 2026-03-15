@@ -1,37 +1,26 @@
 package renderer
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-func (r *Renderer) RenderPage(path string, data models.PageData) {
+// executeTemplateAndWrite executes a template, processes HTML, optionally minifies, and writes via sink.
+// This is a unified helper to avoid duplication across RenderPage, RenderIndex, RenderGraph, and Render404.
+func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data models.PageData, templateName string) error {
 	r.PreparePageData(&data)
 
-	// Directory creation is handled by WriteStream → ensureDir (with dirCache).
-	// No explicit MkdirAll needed here — avoids redundant uncached syscalls.
-
-	r.mu.RLock()
-	layout := r.Layout
-	r.mu.RUnlock()
-
-	if layout == nil {
-		r.logger.Error("Layout template not loaded", "path", path)
-		return
-	}
-
-	// 1. Execute template to buffer
 	buf := utils.SharedBufferPool.Get()
 	defer utils.SharedBufferPool.Put(buf)
 
-	if err := layout.Execute(buf, data); err != nil {
-		r.logger.Error("Failed to render layout", "path", path, "error", err)
-		return
+	if err := tmpl.Execute(buf, data); err != nil {
+		return fmt.Errorf("failed to execute %s template for %s: %w", templateName, path, err)
 	}
 
-	// 2. Process HTML (Fix images and internal paths) - Legacy regex post-pass
+	// Process HTML (Fix images and internal paths) - Legacy regex post-pass
 	var finalBytes []byte
 	if r.EnableLegacyProcessHTML {
 		finalBytes = utils.ProcessHTMLBytes(buf.Bytes(), data.BaseURL, data.RelativePrefix, r.Compress)
@@ -39,7 +28,7 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 		finalBytes = buf.Bytes()
 	}
 
-	// 3. Optional Minification
+	// Optional Minification
 	if r.Compress {
 		minified, err := utils.Minifier.Bytes("text/html", finalBytes)
 		if err == nil {
@@ -47,16 +36,27 @@ func (r *Renderer) RenderPage(path string, data models.PageData) {
 		}
 	}
 
-	// 4. Final Write
-	err := r.Sink.WriteStream(path, func(w io.Writer) error {
+	// Final Write
+	if err := r.Sink.WriteStream(path, func(w io.Writer) error {
 		_, err := w.Write(finalBytes)
 		return err
-	})
-
-	if err != nil {
-		r.logger.Error("Failed to write processed HTML", "path", path, "error", err)
+	}); err != nil {
 		r.recordError("Failed to write processed HTML", path, err)
-	} else {
-		r.RegisterFile(path)
+		return fmt.Errorf("failed to write processed HTML for %s: %w", path, err)
 	}
+
+	r.RegisterFile(path)
+	return nil
+}
+
+func (r *Renderer) RenderPage(path string, data models.PageData) error {
+	r.mu.RLock()
+	layout := r.Layout
+	r.mu.RUnlock()
+
+	if layout == nil {
+		return fmt.Errorf("layout template not loaded for page %s", path)
+	}
+
+	return r.executeTemplateAndWrite(path, layout, data, "layout")
 }

@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -68,6 +69,8 @@ type Builder struct {
 	searchSourceDirty atomic.Bool
 
 	// Incremental rebuild coordination
+	buildQueue                  chan buildRequest
+	searchIndexCh               chan struct{}
 	searchDebounceTimer         *time.Timer
 	lastSearchIndexRegeneration time.Time
 	forceGenerators             atomic.Bool
@@ -75,6 +78,15 @@ type Builder struct {
 
 	// True when output directory did not exist at build start.
 	isCleanBuild bool
+
+	// Cleanup coordination
+	closeOnce sync.Once
+}
+
+// buildRequest represents a queued build request from watch mode
+type buildRequest struct {
+	paths []string
+	op    fsnotify.Op
 }
 
 func init() {
@@ -201,6 +213,14 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	// registered with the Sink and not deleted by CleanupOrphans in dev mode.
 	b.forceGenerators.Store(true)
 
+	// Initialize and start search index processor
+	b.searchIndexCh = make(chan struct{}, 1)
+	go b.processSearchIndexQueue()
+
+	// Initialize and start build queue processor
+	b.buildQueue = make(chan buildRequest, 10)
+	go b.processBuildQueue()
+
 	return b
 }
 
@@ -258,12 +278,24 @@ func (b *Builder) SaveCaches() {
 
 // Close releases build resources
 func (b *Builder) Close() {
-	if b.nativeRenderer != nil {
-		_ = b.nativeRenderer.Close()
-	}
-	if b.cacheService != nil {
-		_ = b.cacheService.Close()
-	}
+	b.closeOnce.Do(func() {
+		// Close build queue processor
+		if b.buildQueue != nil {
+			close(b.buildQueue)
+		}
+
+		// Close search index processor
+		if b.searchIndexCh != nil {
+			close(b.searchIndexCh)
+		}
+
+		if b.nativeRenderer != nil {
+			_ = b.nativeRenderer.Close()
+		}
+		if b.cacheService != nil {
+			_ = b.cacheService.Close()
+		}
+	})
 }
 
 // checkWasmUpdate handles WASM compilation and deployment for Search.

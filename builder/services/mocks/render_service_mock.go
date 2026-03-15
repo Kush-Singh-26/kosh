@@ -48,24 +48,28 @@ func (m *MockRenderService) ReloadTemplates() {
 	m.recordCall("ReloadTemplates")
 }
 
-func (m *MockRenderService) RenderPage(path string, data models.PageData) {
+func (m *MockRenderService) RenderPage(path string, data models.PageData) error {
 	m.recordCall("RenderPage")
 	m.RenderedPages.Store(path, data)
+	return nil
 }
 
-func (m *MockRenderService) RenderIndex(path string, data models.PageData) {
+func (m *MockRenderService) RenderIndex(path string, data models.PageData) error {
 	m.recordCall("RenderIndex")
 	m.RenderedIndex.Store(path, data)
+	return nil
 }
 
-func (m *MockRenderService) Render404(path string, data models.PageData) {
+func (m *MockRenderService) Render404(path string, data models.PageData) error {
 	m.recordCall("Render404")
 	m.Rendered404.Store(path, data)
+	return nil
 }
 
-func (m *MockRenderService) RenderGraph(path string, data models.PageData) {
+func (m *MockRenderService) RenderGraph(path string, data models.PageData) error {
 	m.recordCall("RenderGraph")
 	m.RenderedGraph.Store(path, data)
+	return nil
 }
 
 func (m *MockRenderService) RenderSidebar(tree []*models.TreeNode) template.HTML {

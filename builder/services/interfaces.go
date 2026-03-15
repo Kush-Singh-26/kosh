@@ -89,10 +89,10 @@ type RenderService interface {
 	SetAssetsGate(ch <-chan struct{})
 	SetSink(sink utils.ArtifactSink)
 	SetSourceFs(fs afero.Fs)
-	RenderPage(path string, data models.PageData)
-	RenderIndex(path string, data models.PageData)
-	Render404(path string, data models.PageData)
-	RenderGraph(path string, data models.PageData)
+	RenderPage(path string, data models.PageData) error
+	RenderIndex(path string, data models.PageData) error
+	Render404(path string, data models.PageData) error
+	RenderGraph(path string, data models.PageData) error
 	RenderSidebar(tree []*models.TreeNode) template.HTML
 	RegisterFile(path string)
 	SetAssets(assets map[string]string)
