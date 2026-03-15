@@ -26,7 +26,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
-	"github.com/Kush-Singh-26/kosh/builder/utils/sink"
 	"github.com/Kush-Singh-26/kosh/builder/utils/tx"
 )
 
@@ -37,7 +36,7 @@ func (b *Builder) refreshBuildSession() {
 	if b.Sink == nil || !utils.TestingMode {
 		useStaging := !b.cfg.IsDev || b.state.isCleanBuild
 		b.Tx = tx.NewBuildTransaction(b.cfg.OutputDir, useStaging)
-		b.Sink = sink.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
+		b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
 	}
 
 	// Consolidated service reconfiguration - single explicit call per service

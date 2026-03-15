@@ -26,7 +26,7 @@ type assetServiceImpl struct {
 	metrics           *metrics.BuildMetrics
 	contentAssetsChan <-chan []models.ScannedAsset
 	contentAssets     []models.ScannedAsset
-	// assetsReady is owned by AssetService, created per-build and closed when assets are built.
+	// assetsReady is owned by AssetService, created per-build and closed when assets are ready.
 	// RenderService and PostService wait on this channel but do not own its lifecycle.
 	assetsReady       chan struct{}
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/tx"
 )
 
 // BuilderDependencies bundles service dependencies for explicit injection.
@@ -81,7 +82,7 @@ type Builder struct {
 	// Filesystems
 	SourceFs afero.Fs
 	Sink     utils.ArtifactSink
-	Tx       utils.BuildTransaction
+	Tx       tx.BuildTransaction
 
 	// Shared markdown parser pool for reuse in incremental builds
 	mdPool *sync.Pool
@@ -270,7 +271,7 @@ func (b *Builder) SetSink(sink utils.ArtifactSink) {
 	b.Sink = sink
 }
 
-func (b *Builder) SetTx(tx utils.BuildTransaction) {
+func (b *Builder) SetTx(tx tx.BuildTransaction) {
 	b.Tx = tx
 }
 

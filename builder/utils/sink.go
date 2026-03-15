@@ -23,6 +23,7 @@ type ArtifactSink interface {
 	SetMtime(path string, mtime time.Time) error
 }
 
+// DiskSink implements ArtifactSink for disk-based writes with staging directory support
 type DiskSink struct {
 	stagingDir         string
 	realOutputDir      string
@@ -35,6 +36,7 @@ type DiskSink struct {
 	bufPool            sync.Pool
 }
 
+// NewDiskSink creates a new DiskSink with staging and real output directories
 func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
 	sDir, err := AbsNormalizePath(stagingDir)
 	if err != nil {
@@ -271,6 +273,7 @@ func (s *DiskSink) GetOutputDir() string {
 	return s.stagingDir
 }
 
+// GetRealOutputDir returns the real output directory (non-staging)
 func (s *DiskSink) GetRealOutputDir() string {
 	return s.realOutputDir
 }

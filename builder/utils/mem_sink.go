@@ -6,10 +6,12 @@ import (
 	"time"
 )
 
+// MemSink implements ArtifactSink for in-memory testing
 type MemSink struct {
 	Files sync.Map
 }
 
+// NewMemSink creates a new in-memory sink for testing
 func NewMemSink() *MemSink {
 	return &MemSink{}
 }
