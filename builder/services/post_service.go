@@ -46,7 +46,6 @@ type postServiceImpl struct {
 	sink             utils.ArtifactSink
 	assetsReady      <-chan struct{}
 	diagramAdapter   *cache.DiagramCacheAdapter
-	metadataReadyCh  chan struct{}  // Channel-based notification for explicit orchestration
 	cardHashes       sync.Map
 	logoExists       sync.Map
 	cacheWg          sync.WaitGroup
@@ -71,12 +70,9 @@ func NewPostService(deps PostServiceDependencies) PostService {
 func (s *postServiceImpl) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {
 	s.sink = sink
 	s.sourceFs = fs
-	// Create fresh channel for this build
-	s.metadataReadyCh = make(chan struct{})
 }
 
-func (s *postServiceImpl) SetAssetsGate(ch <-chan struct{})    { s.assetsReady = ch }
-func (s *postServiceImpl) MetadataReadyChan() <-chan struct{}  { return s.metadataReadyCh }
+func (s *postServiceImpl) SetAssetsGate(ch <-chan struct{}) { s.assetsReady = ch }
 func (s *postServiceImpl) WaitForCacheCommit()                 { s.cacheWg.Wait() }
 
 type renderTask struct {
@@ -104,9 +100,6 @@ func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialR
 	}
 
 	utils.SortPosts(pc.allPosts)
-	
-	// Signal metadata ready via channel (explicit orchestration)
-	close(s.metadataReadyCh)
 
 	s.runRenderPhase(ctx, numWorkers, pc)
 
@@ -428,11 +421,12 @@ func (s *postServiceImpl) runRenderPhase(ctx context.Context, numWorkers int, pc
 func (s *postServiceImpl) finalizeBuild(pc *postProcessContext) {
 	if len(pc.newPostsMeta) > 0 && s.cache != nil {
 		s.cacheWg.Add(1)
-		go func() {
-			defer s.cacheWg.Done()
-			if err := s.cache.BatchCommit(pc.newPostsMeta, pc.newSearchRecords, pc.newDeps); err != nil {
-				s.logger.Error("Cache batch commit failed", "error", err)
-			}
-		}()
+		utils.FireAndForgetWithCleanup(context.Background(), s.logger, "cache commit",
+			func() error {
+				return s.cache.BatchCommit(pc.newPostsMeta, pc.newSearchRecords, pc.newDeps)
+			},
+			func() {
+				s.cacheWg.Done()
+			})
 	}
 }

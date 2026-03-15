@@ -35,14 +35,10 @@ type PostService interface {
 	// ReconfigureForBuild updates sink and source for a new build pass.
 	// Consolidates sink and filesystem injection into a single explicit call.
 	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
-	
+
 	// SetAssetsGate sets the channel to wait on before rendering.
 	SetAssetsGate(ch <-chan struct{})
-	
-	// MetadataReadyChan returns a channel that closes when metadata is ready.
-	// Provides explicit synchronization for site-wide generators.
-	MetadataReadyChan() <-chan struct{}
-	
+
 	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
