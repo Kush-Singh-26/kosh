@@ -39,8 +39,11 @@ func NewAssetService(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Con
 	}
 }
 
-func (s *assetServiceImpl) SetSink(sink utils.ArtifactSink)       { s.sink = sink }
-func (s *assetServiceImpl) SetSourceFs(fs afero.Fs)               { s.sourceFs = fs }
+func (s *assetServiceImpl) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {
+	s.sink = sink
+	s.sourceFs = fs
+}
+
 func (s *assetServiceImpl) SetMetrics(m *metrics.BuildMetrics)    { s.metrics = m }
 func (s *assetServiceImpl) SetAssetsReadySignal(ch chan struct{}) { s.assetsReady = ch }
 func (s *assetServiceImpl) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {

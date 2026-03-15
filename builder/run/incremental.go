@@ -84,10 +84,10 @@ func (b *Builder) invalidateForTemplate(templatePath string) []string {
 			return nil // Layout changes affect everything
 		}
 
-		if b.cacheService != nil {
-			ids, err := b.cacheService.GetPostsByTemplate(relTmpl)
+		if b.deps.Cache != nil {
+			ids, err := b.deps.Cache.GetPostsByTemplate(relTmpl)
 			if err == nil && len(ids) > 0 {
-				posts, err := b.cacheService.GetPostsByIDs(ids)
+				posts, err := b.deps.Cache.GetPostsByIDs(ids)
 				if err == nil && len(posts) > 0 {
 					paths := make([]string, 0, len(posts))
 					for _, post := range posts {
@@ -126,12 +126,12 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 
 	// Mark search source as dirty if search files changed
 	if isSearchSourcePath(changedPath) {
-		b.searchSourceDirty.Store(true)
+		b.state.searchSourceDirty.Store(true)
 	}
 
 	// Queue the build request (non-blocking)
 	select {
-	case b.buildQueue <- buildRequest{paths: []string{changedPath}, op: op}:
+	case b.state.buildQueue <- buildRequest{paths: []string{changedPath}, op: op}:
 		// Queued successfully
 	default:
 		// Queue full - merge with existing by updating operation for same path
@@ -190,8 +190,8 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 	var exists bool
 	var cachedFrontmatterHash, cachedBodyHash string
 
-	if b.cacheService != nil {
-		meta, err := b.cacheService.GetPostByPath(relPath)
+	if b.deps.Cache != nil {
+		meta, err := b.deps.Cache.GetPostByPath(relPath)
 		if err == nil && meta != nil {
 			exists = true
 			cachedFrontmatterHash = meta.ContentHash
@@ -238,7 +238,7 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 			b.mdPool,
 			b.cfg,
 			b.nativeRenderer,
-			b.diagramAdapter,
+			b.deps.Diagrams,
 			&b.mu,
 			newFrontmatterHash,
 			0,
@@ -251,7 +251,7 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 			return
 		}
 
-		if err := b.postService.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
+		if err := b.deps.Post.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
 			b.logger.Error("Failed to process single post", "error", err)
 			if err := b.build(ctx); err != nil {
 				b.logger.Error("Build failed", "error", err)
@@ -280,12 +280,12 @@ func (b *Builder) deletePostFromCache(path string) {
 		return
 	}
 
-	if b.cacheService == nil {
+	if b.deps.Cache == nil {
 		return
 	}
 
 	postID := cache.GeneratePostID("", relPath)
-	if err := b.cacheService.DeletePost(postID); err != nil {
+	if err := b.deps.Cache.DeletePost(postID); err != nil {
 		b.logger.Error("Failed to delete post from cache", "postID", postID, "error", err)
 		return
 	}
@@ -293,13 +293,13 @@ func (b *Builder) deletePostFromCache(path string) {
 	// Also prune from in-memory search index
 	b.mu.Lock()
 	targetKey := utils.NormalizePath(relPath)
-	newIndexed := make([]models.IndexedPost, 0, len(b.indexedPosts))
-	for _, ip := range b.indexedPosts {
+	newIndexed := make([]models.IndexedPost, 0, len(b.state.indexedPosts))
+	for _, ip := range b.state.indexedPosts {
 		if indexedPostStableKey(ip) != targetKey {
 			newIndexed = append(newIndexed, ip)
 		}
 	}
-	b.indexedPosts = newIndexed
+	b.state.indexedPosts = newIndexed
 	b.mu.Unlock()
 
 	b.logger.Info("Removed deleted post from cache", "path", relPath)
@@ -311,16 +311,16 @@ func (b *Builder) updateIndexedPostCache(relPath string, parseRes *services.Pars
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if len(b.indexedPosts) == 0 {
+	if len(b.state.indexedPosts) == 0 {
 		return
 	}
 
 	found := false
 	targetKey := utils.NormalizePath(relPath)
-	for i, ip := range b.indexedPosts {
+	for i, ip := range b.state.indexedPosts {
 		if indexedPostStableKey(ip) == targetKey {
 			// Update existing record
-			b.indexedPosts[i] = models.IndexedPost{
+			b.state.indexedPosts[i] = models.IndexedPost{
 				Record:          parseRes.SearchRecord,
 				SourcePath:      targetKey,
 				WordFreqs:       parseRes.WordFreqs,
@@ -335,7 +335,7 @@ func (b *Builder) updateIndexedPostCache(relPath string, parseRes *services.Pars
 
 	if !found {
 		// New post added to existing cache
-		b.indexedPosts = append(b.indexedPosts, models.IndexedPost{
+		b.state.indexedPosts = append(b.state.indexedPosts, models.IndexedPost{
 			Record:          parseRes.SearchRecord,
 			SourcePath:      targetKey,
 			WordFreqs:       parseRes.WordFreqs,
@@ -352,35 +352,35 @@ func (b *Builder) regenerateSearchIndex(ctx context.Context) error {
 	// Non-blocking send to search index queue
 	// If queue is full, request is already pending, so skip
 	select {
-	case b.searchIndexCh <- struct{}{}:
+	case b.state.searchIndexCh <- struct{}{}:
 	default:
 	}
 	return nil
 }
 
 func (b *Builder) doRegenerateSearchIndex(ctx context.Context) error {
-	if b.cacheService == nil {
+	if b.deps.Cache == nil {
 		return nil
 	}
 
 	var indexedPosts []models.IndexedPost
-	if len(b.indexedPosts) > 0 {
+	if len(b.state.indexedPosts) > 0 {
 		// Use in-memory cache if available (very fast)
-		indexedPosts = b.indexedPosts
+		indexedPosts = b.state.indexedPosts
 	} else {
 		// Fallback to BoltDB only if cache is empty
-		postIDs, err := b.cacheService.ListAllPosts()
+		postIDs, err := b.deps.Cache.ListAllPosts()
 		if err != nil {
 			return err
 		}
 		if len(postIDs) == 0 {
 			return nil
 		}
-		posts, err := b.cacheService.GetPostsByIDs(postIDs)
+		posts, err := b.deps.Cache.GetPostsByIDs(postIDs)
 		if err != nil {
 			return err
 		}
-		searchRecords, err := b.cacheService.GetSearchRecords(postIDs)
+		searchRecords, err := b.deps.Cache.GetSearchRecords(postIDs)
 		if err != nil {
 			return err
 		}
@@ -416,33 +416,35 @@ func (b *Builder) doRegenerateSearchIndex(ctx context.Context) error {
 			})
 		}
 		// Warm the cache
-		b.indexedPosts = indexedPosts
+		b.state.indexedPosts = indexedPosts
 	}
 
 	if len(indexedPosts) == 0 {
 		return nil
 	}
 	indexedPosts = dedupeIndexedPosts(indexedPosts)
-	b.indexedPosts = indexedPosts
+	b.state.indexedPosts = indexedPosts
 
 	// Generate search index file
 	path, err := generators.GenerateSearchIndex(b.Sink, b.cfg.OutputDir, indexedPosts)
 	if err != nil {
 		return err
 	}
-	b.renderService.RegisterFile(path)
+	b.deps.Render.RegisterFile(path)
 
 	return nil
 }
 
 // processSearchIndexQueue processes search index regeneration requests from the channel.
 // It debounces multiple requests and acquires buildMu safely to avoid deadlocks.
+// Search regeneration is fire-and-forget: errors are logged but don't block the build,
+// as the search index can be rebuilt on next full build.
 func (b *Builder) processSearchIndexQueue() {
 	var pending bool
 	var timer *time.Timer
 	var timerRunning bool
 
-	for range b.searchIndexCh {
+	for range b.state.searchIndexCh {
 		// Mark as pending
 		pending = true
 
@@ -450,7 +452,7 @@ func (b *Builder) processSearchIndexQueue() {
 		if !timerRunning {
 			// Calculate delay: 500ms since last run, or 100ms for burst start
 			delay := 500 * time.Millisecond
-			if time.Since(b.lastSearchIndexRegeneration) > 2*time.Second {
+			if time.Since(b.state.lastSearchIndexRegeneration) > 2*time.Second {
 				delay = 100 * time.Millisecond
 			}
 
@@ -460,13 +462,13 @@ func (b *Builder) processSearchIndexQueue() {
 					pending = false
 					// Use goroutine to avoid blocking if lock is held
 					go func() {
-						b.buildMu.Lock()
-						defer b.buildMu.Unlock()
+						b.state.buildMu.Lock()
+						defer b.state.buildMu.Unlock()
 
 						// Perform the actual regeneration
-						b.lastSearchIndexRegeneration = time.Now()
+						b.state.lastSearchIndexRegeneration = time.Now()
 						if err := b.doRegenerateSearchIndex(context.Background()); err != nil {
-							b.logger.Error("Failed to regenerate search index", "error", err)
+							b.logger.Error("Search index regeneration failed", "error", err)
 						}
 					}()
 				}
@@ -490,15 +492,15 @@ func (b *Builder) processBuildQueue() {
 
 	for {
 		select {
-		case req, ok := <-b.buildQueue:
+		case req, ok := <-b.state.buildQueue:
 			if !ok {
 				// Channel closed, process any pending and exit
 				if len(mergedPaths) > 0 {
-					b.buildMu.Lock()
+					b.state.buildMu.Lock()
 					for path, op := range mergedPaths {
 						b.buildSingleFileChange(context.Background(), path, op)
 					}
-					b.buildMu.Unlock()
+					b.state.buildMu.Unlock()
 				}
 				return
 			}
@@ -522,11 +524,11 @@ func (b *Builder) processBuildQueue() {
 		case <-debounce.C:
 			// Process pending builds
 			if len(mergedPaths) > 0 {
-				b.buildMu.Lock()
+				b.state.buildMu.Lock()
 				for path, op := range mergedPaths {
 					b.buildSingleFileChange(context.Background(), path, op)
 				}
-				b.buildMu.Unlock()
+				b.state.buildMu.Unlock()
 				// Reset for next batch
 				mergedPaths = nil
 			}
@@ -545,14 +547,14 @@ func (b *Builder) buildSingleFileChange(ctx context.Context, path string, op fsn
 	DevLogInfo("Processing queued change: " + filepath.Base(path) + " " + op.String())
 
 	// Reset rendering gates on any change
-	b.renderService.SetAssetsGate(nil)
-	b.postService.SetAssetsGate(nil)
+	b.deps.Render.SetAssetsGate(nil)
+	b.deps.Post.SetAssetsGate(nil)
 
 	// Handle markdown files - single post rebuild
 	if strings.HasSuffix(strings.ToLower(path), ".md") && b.isContentPath(path) {
 		b.cfg.BuildVersion = time.Now().UnixNano()
-		b.renderService.ReloadTemplates()
-		b.postService.SetAssetsGate(nil)
+		b.deps.Render.ReloadTemplates()
+		b.deps.Post.SetAssetsGate(nil)
 
 		// Start fresh session/tracking state
 		b.refreshBuildSession()
@@ -563,7 +565,7 @@ func (b *Builder) buildSingleFileChange(ctx context.Context, path string, op fsn
 			b.deletePostFromCache(path)
 			return
 		}
-		b.renderService.ClearRenderedFiles()
+		b.deps.Render.ClearRenderedFiles()
 		return
 	}
 
@@ -572,8 +574,8 @@ func (b *Builder) buildSingleFileChange(ctx context.Context, path string, op fsn
 	if (ext == ".css" || ext == ".js") && b.isAssetPath(path) {
 		DevLogRebuild("CSS/JS changed, running full rebuild...")
 		b.cfg.BuildVersion = time.Now().UnixNano()
-		b.renderService.ReloadTemplates()
-		b.postService.SetAssetsGate(nil)
+		b.deps.Render.ReloadTemplates()
+		b.deps.Post.SetAssetsGate(nil)
 		if err := b.buildAssetOnly(ctx); err != nil {
 			b.logger.Error("Build failed", "error", err)
 			return
@@ -584,8 +586,8 @@ func (b *Builder) buildSingleFileChange(ctx context.Context, path string, op fsn
 
 	// Everything else - full rebuild
 	b.cfg.BuildVersion = time.Now().UnixNano()
-	b.renderService.ReloadTemplates()
-	b.postService.SetAssetsGate(nil)
+	b.deps.Render.ReloadTemplates()
+	b.deps.Post.SetAssetsGate(nil)
 	if err := b.build(ctx); err != nil {
 		b.logger.Error("Build failed", "error", err)
 		return
