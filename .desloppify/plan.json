@@ -1,15 +1,8 @@
 {
   "version": 8,
   "created": "2026-03-15T03:21:40+00:00",
-  "updated": "2026-03-15T17:52:08+00:00",
-  "queue_order": [
-    "review::.::holistic::cross_module_architecture::internal_build_coupling",
-    "review::.::holistic::cross_module_architecture::utils_gravity_well",
-    "review::.::holistic::design_coherence::d2_math_boilerplate_similarity",
-    "review::.::holistic::design_coherence::duplication_cache_commit_logic",
-    "review::.::holistic::design_coherence::long_parameter_lists_in_parser",
-    "review::.::holistic::design_coherence::renderer_mixed_responsibilities"
-  ],
+  "updated": "2026-03-15T18:16:35+00:00",
+  "queue_order": [],
   "deferred": [],
   "skipped": {},
   "active_cluster": null,
@@ -1488,15 +1481,15 @@
   },
   "promoted_ids": [],
   "plan_start_scores": {
-    "strict": 73.4,
-    "overall": 76.1,
+    "strict": 74.1,
+    "overall": 76.7,
     "objective": 96.8,
     "verified": 86.4
   },
   "refresh_state": {
     "lifecycle_phase": "workflow_postflight",
-    "subjective_review_completed_at_scan_count": 41,
-    "postflight_scan_completed_at_scan_count": 40
+    "subjective_review_completed_at_scan_count": 45,
+    "postflight_scan_completed_at_scan_count": 44
   },
   "execution_log": [
     {
@@ -4122,6 +4115,129 @@
         "status": "fixed",
         "attestation": "I have actually verified that builder/search/engine.go exports PerformSearch, ParseQuery, Analyzer types and algorithmic complexity is properly isolated from build orchestration, and I am not gaming the score by resolving without fixing."
       }
+    },
+    {
+      "timestamp": "2026-03-15T18:08:35+00:00",
+      "action": "reconcile",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "superseded_count": 0,
+        "pruned_count": 0,
+        "resurfaced_count": 0,
+        "clusters_completed_count": 0
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:12:53+00:00",
+      "action": "review_import_sync",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "trigger": "review_import",
+        "new_ids": [
+          "review::.::holistic::cross_module_architecture::internal_build_coupling",
+          "review::.::holistic::cross_module_architecture::utils_gravity_well"
+        ],
+        "added_to_queue": [],
+        "workflow_injected_ids": [],
+        "triage_injected": false,
+        "triage_injected_ids": [],
+        "triage_deferred": false,
+        "diff_new": 0,
+        "diff_reopened": 0,
+        "diff_auto_resolved": 24,
+        "stale_pruned_from_queue": [
+          "review::.::holistic::design_coherence::d2_math_boilerplate_similarity",
+          "review::.::holistic::design_coherence::duplication_cache_commit_logic",
+          "review::.::holistic::design_coherence::long_parameter_lists_in_parser",
+          "review::.::holistic::design_coherence::renderer_mixed_responsibilities"
+        ],
+        "covered_subjective_pruned_from_queue": [],
+        "covered_subjective": [
+          "subjective::cross_module_architecture"
+        ],
+        "stale_sync_injected": [],
+        "stale_sync_pruned": [],
+        "auto_cluster_changes": 0,
+        "import_scores_injected": [],
+        "import_scores_pruned": [],
+        "sync_status": "synced",
+        "sync_message": null
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:13:30+00:00",
+      "action": "reconcile",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "superseded_count": 0,
+        "pruned_count": 0,
+        "resurfaced_count": 0,
+        "clusters_completed_count": 0
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:13:30+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-15T18:13:30+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 44
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:16:35+00:00",
+      "action": "review_import_sync",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "trigger": "review_import",
+        "new_ids": [],
+        "added_to_queue": [],
+        "workflow_injected_ids": [],
+        "triage_injected": false,
+        "triage_injected_ids": [],
+        "triage_deferred": false,
+        "diff_new": 0,
+        "diff_reopened": 0,
+        "diff_auto_resolved": 22,
+        "stale_pruned_from_queue": [
+          "review::.::holistic::cross_module_architecture::internal_build_coupling",
+          "review::.::holistic::cross_module_architecture::utils_gravity_well"
+        ],
+        "covered_subjective_pruned_from_queue": [],
+        "covered_subjective": [
+          "subjective::mid_level_elegance"
+        ],
+        "stale_sync_injected": [],
+        "stale_sync_pruned": [],
+        "auto_cluster_changes": 0,
+        "import_scores_injected": [],
+        "import_scores_pruned": [],
+        "sync_status": "synced",
+        "sync_message": null
+      }
     }
   ],
   "epic_triage_meta": {
@@ -4298,5 +4414,5 @@
     "review::.::holistic::cross_module_architecture::search_complexity_concentration"
   ],
   "commit_tracking_branch": null,
-  "scan_count_at_plan_start": 40
+  "scan_count_at_plan_start": 44
 }

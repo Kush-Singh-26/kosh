@@ -1,19 +1,19 @@
 {
   "version": 3,
   "created": "2026-03-15T03:21:33+00:00",
-  "last_scan": "2026-03-15T17:38:41+00:00",
-  "scan_count": 41,
-  "overall_score": 90.6,
+  "last_scan": "2026-03-15T18:16:34+00:00",
+  "scan_count": 45,
+  "overall_score": 90.7,
   "objective_score": 96.8,
-  "strict_score": 87.9,
+  "strict_score": 88.0,
   "verified_strict_score": 86.4,
   "stats": {
     "total": 328,
     "auto_resolved": 4,
     "deferred": 0,
     "false_positive": 0,
-    "fixed": 117,
-    "open": 142,
+    "fixed": 123,
+    "open": 136,
     "triaged_out": 0,
     "wontfix": 65,
     "by_tier": {
@@ -21,8 +21,8 @@
         "auto_resolved": 0,
         "deferred": 0,
         "false_positive": 0,
-        "fixed": 71,
-        "open": 2,
+        "fixed": 74,
+        "open": 0,
         "triaged_out": 0,
         "wontfix": 1
       },
@@ -30,8 +30,8 @@
         "auto_resolved": 0,
         "deferred": 0,
         "false_positive": 0,
-        "fixed": 25,
-        "open": 8,
+        "fixed": 28,
+        "open": 4,
         "triaged_out": 0,
         "wontfix": 5
       },
@@ -75,7 +75,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -106,7 +106,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -135,7 +135,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -165,7 +165,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -195,7 +195,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -226,7 +226,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -258,7 +258,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -287,7 +287,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -317,7 +317,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -347,7 +347,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -376,7 +376,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -409,7 +409,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -442,7 +442,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:34+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -463,14 +463,14 @@
       "summary": "9 disconnected function clusters (13 functions) \u2014 likely mixed responsibilities",
       "detail": {
         "cluster_count": 9,
-        "family": "NewWithFs, PreparePageData, GetRenderedFiles, recordError",
+        "family": "New, RegisterFile, GetAssets, SetAssets",
         "families": [
-          "NewWithFs",
-          "PreparePageData",
-          "GetRenderedFiles",
+          "New",
+          "RegisterFile",
+          "GetAssets",
+          "SetAssets",
           "recordError",
           "RenderSidebar",
-          "SetAssets",
           "SetSink",
           "ClearRenderedFiles"
         ]
@@ -478,7 +478,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:38+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -499,22 +499,22 @@
       "summary": "8 disconnected function clusters (11 functions) \u2014 likely mixed responsibilities",
       "detail": {
         "cluster_count": 8,
-        "family": "CreateTestCacheWithID, ScaffoldTestSiteWithVersions, CreateTestFilesystem, AssertFileContent",
+        "family": "CreateTestFilesystemWithContent, ScaffoldTestSiteWithVersions, CreateTestCacheWithID, AssertFileExists",
         "families": [
-          "CreateTestCacheWithID",
+          "CreateTestFilesystemWithContent",
           "ScaffoldTestSiteWithVersions",
-          "CreateTestFilesystem",
-          "AssertFileContent",
+          "CreateTestCacheWithID",
+          "AssertFileExists",
           "AssertFileNotExists",
           "CreateTempFile",
-          "CreateTempDir",
-          "AssertFileExists"
+          "AssertFileContent",
+          "CreateTempDir"
         ]
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:38+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -606,7 +606,7 @@
       "status": "open",
       "note": "Reopened (\u00d71) \u2014 reappeared in scan (was fixed)",
       "first_seen": "2026-03-15T03:21:38+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 1,
       "work_item_kind": "mechanical_defect",
@@ -652,7 +652,7 @@
       "status": "open",
       "note": "Reopened (\u00d71) \u2014 reappeared in scan (was fixed)",
       "first_seen": "2026-03-15T03:21:38+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 1,
       "work_item_kind": "mechanical_defect",
@@ -698,7 +698,7 @@
       "status": "open",
       "note": "Reopened (\u00d71) \u2014 reappeared in scan (was fixed)",
       "first_seen": "2026-03-15T03:21:38+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 1,
       "work_item_kind": "mechanical_defect",
@@ -767,7 +767,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -790,7 +790,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -813,7 +813,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -836,7 +836,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -859,7 +859,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -882,7 +882,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -905,7 +905,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -928,7 +928,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -951,7 +951,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -974,7 +974,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -997,7 +997,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1020,7 +1020,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1043,7 +1043,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1066,7 +1066,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1089,7 +1089,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1112,7 +1112,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1135,7 +1135,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1192,7 +1192,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1239,7 +1239,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1286,7 +1286,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1333,7 +1333,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1380,7 +1380,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1427,7 +1427,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1474,7 +1474,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1521,7 +1521,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1568,7 +1568,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1615,7 +1615,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1662,7 +1662,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1737,7 +1737,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1784,7 +1784,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1831,7 +1831,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1878,7 +1878,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1925,7 +1925,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -1972,7 +1972,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2019,7 +2019,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2066,7 +2066,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2113,7 +2113,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:28+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2160,7 +2160,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2208,7 +2208,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2256,7 +2256,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2303,7 +2303,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2350,7 +2350,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2397,7 +2397,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2444,7 +2444,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2491,7 +2491,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2538,7 +2538,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2585,7 +2585,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2632,7 +2632,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2679,7 +2679,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2726,7 +2726,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2773,7 +2773,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2820,7 +2820,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2867,7 +2867,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2914,7 +2914,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -2962,7 +2962,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3010,7 +3010,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3086,7 +3086,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3133,7 +3133,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3180,7 +3180,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3227,7 +3227,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3274,7 +3274,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3321,7 +3321,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3368,7 +3368,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3415,7 +3415,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3462,7 +3462,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3509,7 +3509,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3556,7 +3556,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3603,7 +3603,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3650,7 +3650,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:29+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3697,7 +3697,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3744,7 +3744,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3791,7 +3791,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3838,7 +3838,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3885,7 +3885,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3932,7 +3932,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -3980,7 +3980,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -4028,7 +4028,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -4075,7 +4075,7 @@
       "status": "wontfix",
       "note": "Skipping 65 remaining test coverage items to unblock subjective review. Phase 2 will address test coverage (67 items, 25% of mechanical pool).",
       "first_seen": "2026-03-15T03:21:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:21:30+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -4136,7 +4136,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4170,7 +4170,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4204,7 +4204,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4238,7 +4238,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4272,7 +4272,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4306,7 +4306,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4340,7 +4340,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4374,7 +4374,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4408,7 +4408,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4442,7 +4442,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4476,7 +4476,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4510,7 +4510,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4544,7 +4544,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4578,7 +4578,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4612,7 +4612,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4646,7 +4646,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4680,7 +4680,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4714,7 +4714,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4748,7 +4748,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -4782,7 +4782,7 @@
         "text": "Dimension assessment imported; coverage marker superseded",
         "attested_at": "2026-03-15T03:53:24+00:00",
         "scan_verified": true,
-        "scan_verified_at": "2026-03-15T17:38:41+00:00",
+        "scan_verified_at": "2026-03-15T18:16:34+00:00",
         "scan_verification_text": "Absent from detector output in latest scan"
       }
     },
@@ -5949,7 +5949,7 @@
       "status": "wontfix",
       "note": "Still absent from scan after manual wontfix",
       "first_seen": "2026-03-15T04:03:41+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": "2026-03-15T07:22:55+00:00",
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -5999,7 +5999,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T04:03:41+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -8015,11 +8015,11 @@
         "reasoning": "",
         "summary_hash": "85c6c038"
       },
-      "status": "open",
-      "note": "Reopened (\u00d71) \u2014 reappeared in scan (was fixed)",
+      "status": "fixed",
+      "note": "not reported in latest holistic re-import",
       "first_seen": "2026-03-15T05:28:52+00:00",
       "last_seen": "2026-03-15T11:36:47+00:00",
-      "resolved_at": null,
+      "resolved_at": "2026-03-15T18:12:53+00:00",
       "reopen_count": 1,
       "work_item_kind": "review_defect",
       "issue_kind": "review_defect",
@@ -8027,7 +8027,13 @@
       "lang": "go",
       "suppressed": false,
       "suppressed_at": null,
-      "suppression_pattern": null
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "agent_import",
+        "text": "not reported in latest holistic re-import",
+        "attested_at": "2026-03-15T18:12:53+00:00",
+        "scan_verified": false
+      }
     },
     "review::.::holistic::design_coherence::duplicated_post_pipeline": {
       "id": "review::.::holistic::design_coherence::duplicated_post_pipeline",
@@ -8838,7 +8844,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T09:39:56+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -8863,7 +8869,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T09:39:56+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -8888,7 +8894,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T09:39:56+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -9222,25 +9228,23 @@
           "builder/utils/transaction.go",
           "builder/utils/sink.go",
           "builder/utils/assets.go",
-          "builder/utils/fs_copy.go",
-          "builder/utils/sync.go",
-          "builder/utils/hash.go"
+          "builder/utils/fs_copy.go"
         ],
         "evidence": [
-          "47 files in builder/ directory import github.com/Kush-Singh-26/kosh/builder/utils (grep evidence)",
+          "47 files in builder/ directory import github.com/Kush-Singh-26/kosh/builder/utils",
           "48 files in builder/utils/ directory including transaction.go (226 LOC), sink.go (303 LOC), assets.go (324 LOC), fs_copy.go (604 LOC)",
           "Utilities span multiple concerns: file transactions, artifact sinks, asset building, image processing, worker pools, timing, hashing, path normalization",
-          "High cohesion within sub-domains (e.g., transaction.go for atomic builds) but low cohesion across the package as a whole"
+          "High cohesion within sub-domains but low cohesion across the package as a whole"
         ],
-        "suggestion": "Consider splitting builder/utils into focused subpackages: builder/utils/transaction (BuildTransaction, DirectoryTx), builder/utils/sink (ArtifactSink, DiskSink), builder/utils/assets (BuildAssetsEsbuild), builder/utils/fs (CopyDirVFS, ParallelWalk), builder/utils/sync (WorkerPool, TxSync). Maintain backward compatibility through re-exports during migration.",
+        "suggestion": "Split builder/utils into focused subpackages: builder/utils/transaction (BuildTransaction, DirectoryTx), builder/utils/sink (ArtifactSink, DiskSink), builder/utils/assets (BuildAssets, esbuild), builder/utils/fs (file operations). This reduces import coupling and clarifies responsibility boundaries.",
         "reasoning": "",
         "summary_hash": "bed26b20"
       },
-      "status": "open",
-      "note": null,
+      "status": "fixed",
+      "note": "not reported in latest holistic re-import",
       "first_seen": "2026-03-15T11:36:47+00:00",
-      "last_seen": "2026-03-15T11:36:47+00:00",
-      "resolved_at": null,
+      "last_seen": "2026-03-15T18:12:53+00:00",
+      "resolved_at": "2026-03-15T18:16:35+00:00",
       "reopen_count": 0,
       "work_item_kind": "review_defect",
       "issue_kind": "review_defect",
@@ -9248,7 +9252,13 @@
       "lang": "go",
       "suppressed": false,
       "suppressed_at": null,
-      "suppression_pattern": null
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "agent_import",
+        "text": "not reported in latest holistic re-import",
+        "attested_at": "2026-03-15T18:16:35+00:00",
+        "scan_verified": false
+      }
     },
     "review::.::holistic::cross_module_architecture::cache_renderer_upward_dep": {
       "id": "review::.::holistic::cross_module_architecture::cache_renderer_upward_dep",
@@ -9348,8 +9358,8 @@
       "id": "review::.::holistic::cross_module_architecture::internal_build_coupling",
       "detector": "review",
       "file": ".",
-      "tier": 2,
-      "confidence": "medium",
+      "tier": 1,
+      "confidence": "high",
       "summary": "builder/run imports internal/build for WASM deployment creating cross-layer coupling",
       "detail": {
         "holistic": true,
@@ -9366,15 +9376,15 @@
           "WASM embedding (//go:embed wasm/search.wasm.br) ties build process to compile-time embedded assets",
           "This creates dependency: cmd/kosh -> builder/run -> internal/build, blurring layer responsibilities"
         ],
-        "suggestion": "Move WASM deployment logic from internal/build to builder/assets or builder/search/wasm_deploy.go. The builder layer should own all build-time asset deployment including WASM. internal/ should only contain CLI command handlers that call into builder/. Alternatively, create builder/wasm/ package for WASM-specific deployment logic.",
+        "suggestion": "Move WASM deployment logic from internal/build to builder/assets or builder/search/wasm_deploy.go. The builder layer should own all build-time asset deployment including WASM. internal/ should only contain CLI command implementations.",
         "reasoning": "",
         "summary_hash": "708ee2c5"
       },
-      "status": "open",
-      "note": null,
+      "status": "fixed",
+      "note": "not reported in latest holistic re-import",
       "first_seen": "2026-03-15T11:36:47+00:00",
-      "last_seen": "2026-03-15T11:36:47+00:00",
-      "resolved_at": null,
+      "last_seen": "2026-03-15T18:12:53+00:00",
+      "resolved_at": "2026-03-15T18:16:35+00:00",
       "reopen_count": 0,
       "work_item_kind": "review_defect",
       "issue_kind": "review_defect",
@@ -9382,7 +9392,13 @@
       "lang": "go",
       "suppressed": false,
       "suppressed_at": null,
-      "suppression_pattern": null
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "agent_import",
+        "text": "not reported in latest holistic re-import",
+        "attested_at": "2026-03-15T18:16:35+00:00",
+        "scan_verified": false
+      }
     },
     "review::.::holistic::cross_module_architecture::channel_ownership_documented": {
       "id": "review::.::holistic::cross_module_architecture::channel_ownership_documented",
@@ -9980,11 +9996,11 @@
         "reasoning": "",
         "summary_hash": "3be7f7e5"
       },
-      "status": "open",
-      "note": null,
+      "status": "fixed",
+      "note": "not reported in latest holistic re-import",
       "first_seen": "2026-03-15T11:36:47+00:00",
       "last_seen": "2026-03-15T11:36:47+00:00",
-      "resolved_at": null,
+      "resolved_at": "2026-03-15T18:12:53+00:00",
       "reopen_count": 0,
       "work_item_kind": "review_defect",
       "issue_kind": "review_defect",
@@ -9992,7 +10008,13 @@
       "lang": "go",
       "suppressed": false,
       "suppressed_at": null,
-      "suppression_pattern": null
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "agent_import",
+        "text": "not reported in latest holistic re-import",
+        "attested_at": "2026-03-15T18:12:53+00:00",
+        "scan_verified": false
+      }
     },
     "review::.::holistic::design_coherence::d2_math_boilerplate_similarity": {
       "id": "review::.::holistic::design_coherence::d2_math_boilerplate_similarity",
@@ -10020,11 +10042,11 @@
         "reasoning": "",
         "summary_hash": "fb6d2fae"
       },
-      "status": "open",
-      "note": null,
+      "status": "fixed",
+      "note": "not reported in latest holistic re-import",
       "first_seen": "2026-03-15T11:36:47+00:00",
       "last_seen": "2026-03-15T11:36:47+00:00",
-      "resolved_at": null,
+      "resolved_at": "2026-03-15T18:12:53+00:00",
       "reopen_count": 0,
       "work_item_kind": "review_defect",
       "issue_kind": "review_defect",
@@ -10032,7 +10054,13 @@
       "lang": "go",
       "suppressed": false,
       "suppressed_at": null,
-      "suppression_pattern": null
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "agent_import",
+        "text": "not reported in latest holistic re-import",
+        "attested_at": "2026-03-15T18:12:53+00:00",
+        "scan_verified": false
+      }
     },
     "review::.::holistic::design_coherence::long_parameter_lists_in_parser": {
       "id": "review::.::holistic::design_coherence::long_parameter_lists_in_parser",
@@ -10057,11 +10085,11 @@
         "reasoning": "",
         "summary_hash": "e63369a8"
       },
-      "status": "open",
-      "note": null,
+      "status": "fixed",
+      "note": "not reported in latest holistic re-import",
       "first_seen": "2026-03-15T11:36:47+00:00",
       "last_seen": "2026-03-15T11:36:47+00:00",
-      "resolved_at": null,
+      "resolved_at": "2026-03-15T18:12:53+00:00",
       "reopen_count": 0,
       "work_item_kind": "review_defect",
       "issue_kind": "review_defect",
@@ -10069,7 +10097,13 @@
       "lang": "go",
       "suppressed": false,
       "suppressed_at": null,
-      "suppression_pattern": null
+      "suppression_pattern": null,
+      "resolution_attestation": {
+        "kind": "agent_import",
+        "text": "not reported in latest holistic re-import",
+        "attested_at": "2026-03-15T18:12:53+00:00",
+        "scan_verified": false
+      }
     },
     "test_coverage::builder/assets/wasm.go::untested_module": {
       "id": "test_coverage::builder/assets/wasm.go::untested_module",
@@ -10087,7 +10121,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T13:19:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10115,7 +10149,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T13:19:39+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10224,7 +10258,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T13:19:44+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10277,7 +10311,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T13:19:44+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10295,7 +10329,7 @@
       "file": "builder/testutil/helpers.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/testutil/helpers.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/testutil/helpers.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/testutil/helpers.go::untested_module",
@@ -10303,13 +10337,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10326,7 +10360,7 @@
       "file": "builder/utils/copy_optimized_windows.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/copy_optimized_windows.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/copy_optimized_windows.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/copy_optimized_windows.go::untested_module",
@@ -10334,13 +10368,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10357,7 +10391,7 @@
       "file": "cmd/kosh/clean.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/clean.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/clean.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::cmd/kosh/clean.go::untested_module",
@@ -10365,13 +10399,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10388,7 +10422,7 @@
       "file": "builder/utils/flock.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/flock.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/flock.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/flock.go::untested_module",
@@ -10396,13 +10430,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10419,7 +10453,7 @@
       "file": "scripts/compile-katex/main.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::scripts/compile-katex/main.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::scripts/compile-katex/main.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::scripts/compile-katex/main.go::untested_module",
@@ -10427,13 +10461,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10450,7 +10484,7 @@
       "file": "cmd/kosh/init.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/init.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/init.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::cmd/kosh/init.go::untested_module",
@@ -10458,13 +10492,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10481,7 +10515,7 @@
       "file": "builder/cache/cache_queries.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/cache_queries.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/cache_queries.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/cache/cache_queries.go::untested_module",
@@ -10489,13 +10523,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10512,7 +10546,7 @@
       "file": "builder/renderer/native/d2.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/renderer/native/d2.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/renderer/native/d2.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/renderer/native/d2.go::untested_module",
@@ -10520,13 +10554,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10543,7 +10577,7 @@
       "file": "cmd/search/main.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/search/main.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/search/main.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::cmd/search/main.go::untested_module",
@@ -10551,13 +10585,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10574,7 +10608,7 @@
       "file": "builder/parser/lexer.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/parser/lexer.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/parser/lexer.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/parser/lexer.go::untested_module",
@@ -10582,13 +10616,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10605,7 +10639,7 @@
       "file": "cmd/kosh/build.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/build.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/build.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::cmd/kosh/build.go::untested_module",
@@ -10613,13 +10647,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10636,7 +10670,7 @@
       "file": "cmd/kosh/serve.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/serve.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/serve.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::cmd/kosh/serve.go::untested_module",
@@ -10644,13 +10678,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10667,7 +10701,7 @@
       "file": "builder/search/unicode_wasm.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/search/unicode_wasm.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/search/unicode_wasm.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/search/unicode_wasm.go::untested_module",
@@ -10675,13 +10709,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10698,7 +10732,7 @@
       "file": "builder/services/post_helpers.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_helpers.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_helpers.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/services/post_helpers.go::untested_module",
@@ -10706,13 +10740,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10729,7 +10763,7 @@
       "file": "builder/run/logger.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/run/logger.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/run/logger.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/run/logger.go::untested_module",
@@ -10737,13 +10771,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10760,7 +10794,7 @@
       "file": "builder/cache/gc_config.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/gc_config.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/gc_config.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/cache/gc_config.go::untested_module",
@@ -10768,13 +10802,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10791,7 +10825,7 @@
       "file": "builder/testutil/fixtures.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/testutil/fixtures.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/testutil/fixtures.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/testutil/fixtures.go::untested_module",
@@ -10799,13 +10833,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10822,7 +10856,7 @@
       "file": "builder/services/mocks/render_service_mock.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/mocks/render_service_mock.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/mocks/render_service_mock.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/services/mocks/render_service_mock.go::untested_module",
@@ -10830,13 +10864,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10853,7 +10887,7 @@
       "file": "builder/utils/mem_sink.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/mem_sink.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/mem_sink.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/mem_sink.go::untested_module",
@@ -10861,13 +10895,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10884,7 +10918,7 @@
       "file": "builder/services/post_metadata.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_metadata.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_metadata.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/services/post_metadata.go::untested_module",
@@ -10892,13 +10926,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10915,7 +10949,7 @@
       "file": "builder/utils/minifier.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/minifier.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/minifier.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/minifier.go::untested_module",
@@ -10923,13 +10957,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10946,7 +10980,7 @@
       "file": "builder/run/setup.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/run/setup.go::shallow::setup_test.go` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/run/setup.go::shallow::setup_test.go` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/run/setup.go::shallow::setup_test.go",
@@ -10954,13 +10988,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -10977,7 +11011,7 @@
       "file": "builder/run/builder.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/run/builder.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/run/builder.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/run/builder.go::untested_module",
@@ -10985,13 +11019,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11008,7 +11042,7 @@
       "file": "builder/run/cleanup.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/run/cleanup.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/run/cleanup.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/run/cleanup.go::untested_module",
@@ -11016,13 +11050,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11039,7 +11073,7 @@
       "file": "builder/search/analyzer.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/search/analyzer.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/search/analyzer.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/search/analyzer.go::untested_module",
@@ -11047,13 +11081,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11070,7 +11104,7 @@
       "file": "builder/utils/fs_hash.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/fs_hash.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/fs_hash.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/fs_hash.go::untested_module",
@@ -11078,13 +11112,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11101,7 +11135,7 @@
       "file": "cmd/kosh/version.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/version.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/version.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::cmd/kosh/version.go::untested_module",
@@ -11109,13 +11143,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11132,7 +11166,7 @@
       "file": "builder/services/mocks/asset_service_mock.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/mocks/asset_service_mock.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/mocks/asset_service_mock.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/services/mocks/asset_service_mock.go::untested_module",
@@ -11140,13 +11174,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11163,7 +11197,7 @@
       "file": "builder/renderer/render_special.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/renderer/render_special.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/renderer/render_special.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/renderer/render_special.go::untested_module",
@@ -11171,13 +11205,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11194,7 +11228,7 @@
       "file": "builder/cache/schema.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/schema.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/schema.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/cache/schema.go::untested_module",
@@ -11202,13 +11236,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11225,7 +11259,7 @@
       "file": "builder/config/build_config.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/config/build_config.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/config/build_config.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/config/build_config.go::untested_module",
@@ -11233,13 +11267,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11256,7 +11290,7 @@
       "file": "builder/cache/gc_maintenance.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/gc_maintenance.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/gc_maintenance.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/cache/gc_maintenance.go::untested_module",
@@ -11264,13 +11298,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11287,7 +11321,7 @@
       "file": "builder/renderer/native/math.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/renderer/native/math.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/renderer/native/math.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/renderer/native/math.go::untested_module",
@@ -11295,13 +11329,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11318,7 +11352,7 @@
       "file": "builder/utils/worker_pool.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/worker_pool.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/worker_pool.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/worker_pool.go::untested_module",
@@ -11326,13 +11360,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11349,7 +11383,7 @@
       "file": "builder/parser/parser.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/parser/parser.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/parser/parser.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/parser/parser.go::untested_module",
@@ -11357,13 +11391,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11380,7 +11414,7 @@
       "file": "builder/services/post_parser.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_parser.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_parser.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/services/post_parser.go::untested_module",
@@ -11388,13 +11422,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11411,7 +11445,7 @@
       "file": "builder/utils/copy_optimized_wasm.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/copy_optimized_wasm.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/copy_optimized_wasm.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/copy_optimized_wasm.go::untested_module",
@@ -11419,13 +11453,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11442,7 +11476,7 @@
       "file": "builder/utils/fs_copy.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/fs_copy.go::untested_critical` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/fs_copy.go::untested_critical` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/fs_copy.go::untested_critical",
@@ -11450,13 +11484,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11473,7 +11507,7 @@
       "file": "cmd/kosh/root.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/root.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/root.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::cmd/kosh/root.go::untested_module",
@@ -11481,13 +11515,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11504,7 +11538,7 @@
       "file": "builder/utils/flock_unix.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/flock_unix.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/flock_unix.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/flock_unix.go::untested_module",
@@ -11512,13 +11546,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11535,7 +11569,7 @@
       "file": "builder/cache/cache_dirty.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/cache_dirty.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/cache_dirty.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/cache/cache_dirty.go::untested_module",
@@ -11543,13 +11577,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11566,7 +11600,7 @@
       "file": "builder/services/mocks/cache_service_mock.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/mocks/cache_service_mock.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/mocks/cache_service_mock.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/services/mocks/cache_service_mock.go::untested_module",
@@ -11574,13 +11608,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11597,7 +11631,7 @@
       "file": "cmd/kosh/new.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/new.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::cmd/kosh/new.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::cmd/kosh/new.go::untested_module",
@@ -11605,13 +11639,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11628,7 +11662,7 @@
       "file": "builder/search/unicode_standard.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/search/unicode_standard.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/search/unicode_standard.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/search/unicode_standard.go::untested_module",
@@ -11636,13 +11670,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11659,7 +11693,7 @@
       "file": "builder/utils/scheduler.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/scheduler.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/scheduler.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/scheduler.go::untested_module",
@@ -11667,13 +11701,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11690,7 +11724,7 @@
       "file": "builder/cache/gc_verify.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/gc_verify.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/gc_verify.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/cache/gc_verify.go::untested_module",
@@ -11698,13 +11732,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11721,7 +11755,7 @@
       "file": "builder/assets/embed.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/assets/embed.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/assets/embed.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/assets/embed.go::untested_module",
@@ -11729,13 +11763,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11752,7 +11786,7 @@
       "file": "builder/cache/gc_run.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/gc_run.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/gc_run.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/cache/gc_run.go::untested_module",
@@ -11760,13 +11794,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11783,7 +11817,7 @@
       "file": "builder/utils/constants.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/constants.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/constants.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/constants.go::untested_module",
@@ -11791,13 +11825,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11814,7 +11848,7 @@
       "file": "builder/utils/navigation.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/navigation.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/navigation.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/navigation.go::untested_module",
@@ -11822,13 +11856,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11845,7 +11879,7 @@
       "file": "builder/utils/copy_fallback.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/copy_fallback.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/copy_fallback.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/copy_fallback.go::untested_module",
@@ -11853,13 +11887,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11876,7 +11910,7 @@
       "file": "builder/testutil/sink_mock.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/testutil/sink_mock.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/testutil/sink_mock.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/testutil/sink_mock.go::untested_module",
@@ -11884,13 +11918,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11907,7 +11941,7 @@
       "file": "builder/utils/assets.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/assets.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/assets.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/assets.go::untested_module",
@@ -11915,13 +11949,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11938,7 +11972,7 @@
       "file": "builder/utils/flock_windows.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/flock_windows.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/flock_windows.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/flock_windows.go::untested_module",
@@ -11946,13 +11980,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -11969,7 +12003,7 @@
       "file": "builder/cache/refcount.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/refcount.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/cache/refcount.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/cache/refcount.go::untested_module",
@@ -11977,13 +12011,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -12000,7 +12034,7 @@
       "file": "builder/utils/copy_optimized_linux.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/copy_optimized_linux.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/copy_optimized_linux.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/copy_optimized_linux.go::untested_module",
@@ -12008,13 +12042,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -12031,7 +12065,7 @@
       "file": "builder/services/post_single.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_single.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_single.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/services/post_single.go::untested_module",
@@ -12039,13 +12073,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -12062,7 +12096,7 @@
       "file": "builder/services/post_social.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_social.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/services/post_social.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/services/post_social.go::untested_module",
@@ -12070,13 +12104,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -12093,7 +12127,7 @@
       "file": "builder/utils/sink.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/sink.go::untested_critical` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/sink.go::untested_critical` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/sink.go::untested_critical",
@@ -12101,13 +12135,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -12124,7 +12158,7 @@
       "file": "builder/renderer/render_page.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/renderer/render_page.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/renderer/render_page.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/renderer/render_page.go::untested_module",
@@ -12132,13 +12166,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -12155,7 +12189,7 @@
       "file": "builder/utils/flock_wasm.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/flock_wasm.go::untested_module` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/flock_wasm.go::untested_module` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/utils/flock_wasm.go::untested_module",
@@ -12163,13 +12197,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -12186,7 +12220,7 @@
       "file": "builder/parser/unified.go",
       "tier": 3,
       "confidence": "medium",
-      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/parser/unified.go::untested_critical` (last reviewed 23 scans ago)",
+      "summary": "Stale wontfix (scan_decay): re-triage `test_coverage::builder/parser/unified.go::untested_critical` (last reviewed 27 scans ago)",
       "detail": {
         "subtype": "stale_wontfix",
         "original_issue_id": "test_coverage::builder/parser/unified.go::untested_critical",
@@ -12194,13 +12228,13 @@
         "reasons": [
           "scan_decay"
         ],
-        "scans_since_wontfix": 23,
+        "scans_since_wontfix": 27,
         "drift": {}
       },
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T14:30:06+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -12224,7 +12258,7 @@
       "status": "open",
       "note": null,
       "first_seen": "2026-03-15T15:25:07+00:00",
-      "last_seen": "2026-03-15T16:33:04+00:00",
+      "last_seen": "2026-03-15T18:13:29+00:00",
       "resolved_at": null,
       "reopen_count": 0,
       "work_item_kind": "mechanical_defect",
@@ -12275,7 +12309,7 @@
           "reason": "tool_not_found"
         }
       ],
-      "updated_at": "2026-03-15T16:33:04+00:00"
+      "updated_at": "2026-03-15T18:13:29+00:00"
     }
   },
   "score_confidence": {
@@ -12341,12 +12375,9 @@
       "assessed_at": "2026-03-15T17:38:41+00:00"
     },
     "cross_module_architecture": {
-      "score": 72.5,
+      "score": 88.5,
       "source": "holistic",
-      "assessed_at": "2026-03-15T11:36:47+00:00",
-      "needs_review_refresh": true,
-      "refresh_reason": "review_issue_fixed",
-      "stale_since": "2026-03-15T17:52:07+00:00"
+      "assessed_at": "2026-03-15T18:12:53+00:00"
     },
     "dependency_health": {
       "score": 95.0,
@@ -12395,7 +12426,7 @@
     "mid_level_elegance": {
       "score": 95.0,
       "source": "holistic",
-      "assessed_at": "2026-03-15T17:38:41+00:00"
+      "assessed_at": "2026-03-15T18:16:34+00:00"
     },
     "naming_quality": {
       "score": 93.0,
@@ -12423,522 +12454,6 @@
     }
   },
   "scan_history": [
-    {
-      "timestamp": "2026-03-15T08:51:02+00:00",
-      "lang": "go",
-      "strict_score": 82.6,
-      "verified_strict_score": 86.6,
-      "objective_score": 97.4,
-      "overall_score": 85.4,
-      "open": 72,
-      "diff_new": 6,
-      "diff_resolved": 20,
-      "ignored": 0,
-      "raw_issues": 6,
-      "suppressed_pct": 0.0,
-      "ignore_patterns": 0,
-      "subjective_integrity": {
-        "status": "disabled",
-        "matched_count": 0,
-        "reset_count": 0,
-        "target_score": null
-      },
-      "score_confidence": {
-        "status": "reduced",
-        "confidence": 0.0,
-        "detector_count": 2,
-        "dimension_count": 0
-      },
-      "dimension_scores": {
-        "Code quality": {
-          "score": 91.5,
-          "strict": 91.5
-        },
-        "Security": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "File health": {
-          "score": 97.7,
-          "strict": 97.7
-        },
-        "Duplication": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "Test health": {
-          "score": 93.9,
-          "strict": 50.2
-        },
-        "Abstraction fit": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "AI generated debt": {
-          "score": 71.0,
-          "strict": 71.0
-        },
-        "API coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Auth consistency": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Contracts": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Convention drift": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Cross-module arch": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Dep health": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Design coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Error consistency": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "High elegance": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Stale migration": {
-          "score": 75.0,
-          "strict": 75.0
-        },
-        "Init coupling": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Logic clarity": {
-          "score": 90.0,
-          "strict": 90.0
-        },
-        "Low elegance": {
-          "score": 85.0,
-          "strict": 85.0
-        },
-        "Mid elegance": {
-          "score": 78.5,
-          "strict": 78.5
-        },
-        "Naming quality": {
-          "score": 92.5,
-          "strict": 92.5
-        },
-        "Structure nav": {
-          "score": 85.0,
-          "strict": 85.0
-        },
-        "Test strategy": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Type safety": {
-          "score": 88.0,
-          "strict": 88.0
-        }
-      }
-    },
-    {
-      "timestamp": "2026-03-15T09:39:56+00:00",
-      "lang": "go",
-      "strict_score": 82.6,
-      "verified_strict_score": 86.6,
-      "objective_score": 97.4,
-      "overall_score": 85.4,
-      "open": 73,
-      "diff_new": 3,
-      "diff_resolved": 20,
-      "ignored": 0,
-      "raw_issues": 100,
-      "suppressed_pct": 0.0,
-      "ignore_patterns": 0,
-      "subjective_integrity": {
-        "status": "pass",
-        "matched_count": 0,
-        "reset_count": 0,
-        "target_score": 95.0
-      },
-      "score_confidence": {
-        "status": "reduced",
-        "confidence": 0.0,
-        "detector_count": 1,
-        "dimension_count": 0
-      },
-      "dimension_scores": {
-        "Code quality": {
-          "score": 91.5,
-          "strict": 91.5
-        },
-        "Security": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "File health": {
-          "score": 97.7,
-          "strict": 97.7
-        },
-        "Duplication": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "Test health": {
-          "score": 93.9,
-          "strict": 50.2
-        },
-        "Abstraction fit": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "AI generated debt": {
-          "score": 71.0,
-          "strict": 71.0
-        },
-        "API coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Auth consistency": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Contracts": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Convention drift": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Cross-module arch": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Dep health": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Design coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Error consistency": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "High elegance": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Stale migration": {
-          "score": 75.0,
-          "strict": 75.0
-        },
-        "Init coupling": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Logic clarity": {
-          "score": 90.0,
-          "strict": 90.0
-        },
-        "Low elegance": {
-          "score": 85.0,
-          "strict": 85.0
-        },
-        "Mid elegance": {
-          "score": 78.5,
-          "strict": 78.5
-        },
-        "Naming quality": {
-          "score": 92.5,
-          "strict": 92.5
-        },
-        "Structure nav": {
-          "score": 85.0,
-          "strict": 85.0
-        },
-        "Test strategy": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Type safety": {
-          "score": 88.0,
-          "strict": 88.0
-        }
-      }
-    },
-    {
-      "timestamp": "2026-03-15T09:49:09+00:00",
-      "lang": "go",
-      "strict_score": 82.6,
-      "verified_strict_score": 86.6,
-      "objective_score": 97.4,
-      "overall_score": 85.4,
-      "open": 73,
-      "diff_new": 0,
-      "diff_resolved": 20,
-      "ignored": 0,
-      "raw_issues": 100,
-      "suppressed_pct": 0.0,
-      "ignore_patterns": 0,
-      "subjective_integrity": {
-        "status": "pass",
-        "matched_count": 0,
-        "reset_count": 0,
-        "target_score": 95.0
-      },
-      "score_confidence": {
-        "status": "reduced",
-        "confidence": 0.0,
-        "detector_count": 1,
-        "dimension_count": 0
-      },
-      "dimension_scores": {
-        "Code quality": {
-          "score": 91.5,
-          "strict": 91.5
-        },
-        "Security": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "File health": {
-          "score": 97.7,
-          "strict": 97.7
-        },
-        "Duplication": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "Test health": {
-          "score": 93.9,
-          "strict": 50.2
-        },
-        "Abstraction fit": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "AI generated debt": {
-          "score": 71.0,
-          "strict": 71.0
-        },
-        "API coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Auth consistency": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Contracts": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Convention drift": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Cross-module arch": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Dep health": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Design coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Error consistency": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "High elegance": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Stale migration": {
-          "score": 75.0,
-          "strict": 75.0
-        },
-        "Init coupling": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Logic clarity": {
-          "score": 90.0,
-          "strict": 90.0
-        },
-        "Low elegance": {
-          "score": 85.0,
-          "strict": 85.0
-        },
-        "Mid elegance": {
-          "score": 78.5,
-          "strict": 78.5
-        },
-        "Naming quality": {
-          "score": 92.5,
-          "strict": 92.5
-        },
-        "Structure nav": {
-          "score": 85.0,
-          "strict": 85.0
-        },
-        "Test strategy": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Type safety": {
-          "score": 88.0,
-          "strict": 88.0
-        }
-      }
-    },
-    {
-      "timestamp": "2026-03-15T09:59:15+00:00",
-      "lang": "go",
-      "strict_score": 82.6,
-      "verified_strict_score": 86.6,
-      "objective_score": 97.4,
-      "overall_score": 85.4,
-      "open": 73,
-      "diff_new": 0,
-      "diff_resolved": 20,
-      "ignored": 0,
-      "raw_issues": 2,
-      "suppressed_pct": 0.0,
-      "ignore_patterns": 0,
-      "subjective_integrity": {
-        "status": "disabled",
-        "matched_count": 0,
-        "reset_count": 0,
-        "target_score": null
-      },
-      "score_confidence": {
-        "status": "reduced",
-        "confidence": 0.0,
-        "detector_count": 1,
-        "dimension_count": 0
-      },
-      "dimension_scores": {
-        "Code quality": {
-          "score": 91.5,
-          "strict": 91.5
-        },
-        "Security": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "File health": {
-          "score": 97.7,
-          "strict": 97.7
-        },
-        "Duplication": {
-          "score": 100.0,
-          "strict": 100.0
-        },
-        "Test health": {
-          "score": 93.9,
-          "strict": 50.2
-        },
-        "Abstraction fit": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "AI generated debt": {
-          "score": 71.0,
-          "strict": 71.0
-        },
-        "API coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Auth consistency": {
-          "score": 96.0,
-          "strict": 96.0
-        },
-        "Contracts": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Convention drift": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Cross-module arch": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Dep health": {
-          "score": 82.0,
-          "strict": 82.0
-        },
-        "Design coherence": {
-          "score": 72.5,
-          "strict": 72.5
-        },
-        "Error consistency": {
-          "score": 78.0,
-          "strict": 78.0
-        },
-        "High elegance": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Stale migration": {
-          "score": 75.0,
-          "strict": 75.0
-        },
-        "Init coupling": {
-          "score": 80.0,
-          "strict": 80.0
-        },
-        "Logic clarity": {
-          "score": 90.0,
-          "strict": 90.0
-        },
-        "Low elegance": {
-          "score": 85.0,
-          "strict": 85.0
-        },
-        "Mid elegance": {
-          "score": 78.5,
-          "strict": 78.5
-        },
-        "Naming quality": {
-          "score": 92.5,
-          "strict": 92.5
-        },
-        "Structure nav": {
-          "score": 85.0,
-          "strict": 85.0
-        },
-        "Test strategy": {
-          "score": 68.5,
-          "strict": 68.5
-        },
-        "Type safety": {
-          "score": 88.0,
-          "strict": 88.0
-        }
-      }
-    },
     {
       "timestamp": "2026-03-15T09:59:26+00:00",
       "lang": "go",
@@ -15002,6 +14517,522 @@
           "strict": 88.0
         }
       }
+    },
+    {
+      "timestamp": "2026-03-15T18:08:34+00:00",
+      "lang": "go",
+      "strict_score": 74.0,
+      "verified_strict_score": 86.4,
+      "objective_score": 96.8,
+      "overall_score": 76.7,
+      "open": 142,
+      "diff_new": 0,
+      "diff_resolved": 20,
+      "ignored": 0,
+      "raw_issues": 168,
+      "suppressed_pct": 0.0,
+      "ignore_patterns": 0,
+      "subjective_integrity": {
+        "status": "penalized",
+        "matched_count": 3,
+        "reset_count": 3,
+        "target_score": 95.0
+      },
+      "score_confidence": {
+        "status": "reduced",
+        "confidence": 0.0,
+        "detector_count": 1,
+        "dimension_count": 0
+      },
+      "dimension_scores": {
+        "Code quality": {
+          "score": 91.8,
+          "strict": 91.8
+        },
+        "Security": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "File health": {
+          "score": 97.8,
+          "strict": 97.8
+        },
+        "Duplication": {
+          "score": 99.7,
+          "strict": 99.7
+        },
+        "Test health": {
+          "score": 91.4,
+          "strict": 48.9
+        },
+        "Abstraction fit": {
+          "score": 94.0,
+          "strict": 94.0
+        },
+        "AI generated debt": {
+          "score": 0.0,
+          "strict": 0.0
+        },
+        "API coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Auth consistency": {
+          "score": 98.0,
+          "strict": 98.0
+        },
+        "Contracts": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Convention drift": {
+          "score": 91.0,
+          "strict": 91.0
+        },
+        "Cross-module arch": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Dep health": {
+          "score": 0.0,
+          "strict": 0.0
+        },
+        "Design coherence": {
+          "score": 82.5,
+          "strict": 82.5
+        },
+        "Error consistency": {
+          "score": 78.0,
+          "strict": 78.0
+        },
+        "High elegance": {
+          "score": 88.0,
+          "strict": 88.0
+        },
+        "Stale migration": {
+          "score": 92.0,
+          "strict": 92.0
+        },
+        "Init coupling": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Logic clarity": {
+          "score": 92.0,
+          "strict": 92.0
+        },
+        "Low elegance": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Mid elegance": {
+          "score": 0.0,
+          "strict": 0.0
+        },
+        "Naming quality": {
+          "score": 93.0,
+          "strict": 93.0
+        },
+        "Structure nav": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Test strategy": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Type safety": {
+          "score": 88.0,
+          "strict": 88.0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:12:53+00:00",
+      "lang": "go",
+      "strict_score": 88.0,
+      "verified_strict_score": 86.4,
+      "objective_score": 96.8,
+      "overall_score": 90.7,
+      "open": 142,
+      "diff_new": 0,
+      "diff_resolved": 20,
+      "ignored": 0,
+      "raw_issues": 2,
+      "suppressed_pct": 0.0,
+      "ignore_patterns": 0,
+      "subjective_integrity": {
+        "status": "disabled",
+        "matched_count": 0,
+        "reset_count": 0,
+        "target_score": null
+      },
+      "score_confidence": {
+        "status": "reduced",
+        "confidence": 0.0,
+        "detector_count": 1,
+        "dimension_count": 0
+      },
+      "dimension_scores": {
+        "Code quality": {
+          "score": 91.8,
+          "strict": 91.8
+        },
+        "Security": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "File health": {
+          "score": 97.8,
+          "strict": 97.8
+        },
+        "Duplication": {
+          "score": 99.7,
+          "strict": 99.7
+        },
+        "Test health": {
+          "score": 91.4,
+          "strict": 48.9
+        },
+        "Abstraction fit": {
+          "score": 94.0,
+          "strict": 94.0
+        },
+        "AI generated debt": {
+          "score": 95.0,
+          "strict": 95.0
+        },
+        "API coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Auth consistency": {
+          "score": 98.0,
+          "strict": 98.0
+        },
+        "Contracts": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Convention drift": {
+          "score": 91.0,
+          "strict": 91.0
+        },
+        "Cross-module arch": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Dep health": {
+          "score": 95.0,
+          "strict": 95.0
+        },
+        "Design coherence": {
+          "score": 82.5,
+          "strict": 82.5
+        },
+        "Error consistency": {
+          "score": 78.0,
+          "strict": 78.0
+        },
+        "High elegance": {
+          "score": 88.0,
+          "strict": 88.0
+        },
+        "Stale migration": {
+          "score": 92.0,
+          "strict": 92.0
+        },
+        "Init coupling": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Logic clarity": {
+          "score": 92.0,
+          "strict": 92.0
+        },
+        "Low elegance": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Mid elegance": {
+          "score": 95.0,
+          "strict": 95.0
+        },
+        "Naming quality": {
+          "score": 93.0,
+          "strict": 93.0
+        },
+        "Structure nav": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Test strategy": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Type safety": {
+          "score": 88.0,
+          "strict": 88.0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:13:29+00:00",
+      "lang": "go",
+      "strict_score": 74.1,
+      "verified_strict_score": 86.4,
+      "objective_score": 96.8,
+      "overall_score": 76.7,
+      "open": 138,
+      "diff_new": 0,
+      "diff_resolved": 20,
+      "ignored": 0,
+      "raw_issues": 168,
+      "suppressed_pct": 0.0,
+      "ignore_patterns": 0,
+      "subjective_integrity": {
+        "status": "penalized",
+        "matched_count": 3,
+        "reset_count": 3,
+        "target_score": 95.0
+      },
+      "score_confidence": {
+        "status": "reduced",
+        "confidence": 0.0,
+        "detector_count": 1,
+        "dimension_count": 0
+      },
+      "dimension_scores": {
+        "Code quality": {
+          "score": 91.8,
+          "strict": 91.8
+        },
+        "Security": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "File health": {
+          "score": 97.8,
+          "strict": 97.8
+        },
+        "Duplication": {
+          "score": 99.7,
+          "strict": 99.7
+        },
+        "Test health": {
+          "score": 91.4,
+          "strict": 48.9
+        },
+        "Abstraction fit": {
+          "score": 94.0,
+          "strict": 94.0
+        },
+        "AI generated debt": {
+          "score": 0.0,
+          "strict": 0.0
+        },
+        "API coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Auth consistency": {
+          "score": 98.0,
+          "strict": 98.0
+        },
+        "Contracts": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Convention drift": {
+          "score": 91.0,
+          "strict": 91.0
+        },
+        "Cross-module arch": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Dep health": {
+          "score": 0.0,
+          "strict": 0.0
+        },
+        "Design coherence": {
+          "score": 82.5,
+          "strict": 82.5
+        },
+        "Error consistency": {
+          "score": 78.0,
+          "strict": 78.0
+        },
+        "High elegance": {
+          "score": 88.0,
+          "strict": 88.0
+        },
+        "Stale migration": {
+          "score": 92.0,
+          "strict": 92.0
+        },
+        "Init coupling": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Logic clarity": {
+          "score": 92.0,
+          "strict": 92.0
+        },
+        "Low elegance": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Mid elegance": {
+          "score": 0.0,
+          "strict": 0.0
+        },
+        "Naming quality": {
+          "score": 93.0,
+          "strict": 93.0
+        },
+        "Structure nav": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Test strategy": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Type safety": {
+          "score": 88.0,
+          "strict": 88.0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-15T18:16:34+00:00",
+      "lang": "go",
+      "strict_score": 88.0,
+      "verified_strict_score": 86.4,
+      "objective_score": 96.8,
+      "overall_score": 90.7,
+      "open": 138,
+      "diff_new": 0,
+      "diff_resolved": 20,
+      "ignored": 0,
+      "raw_issues": 0,
+      "suppressed_pct": 0.0,
+      "ignore_patterns": 0,
+      "subjective_integrity": {
+        "status": "disabled",
+        "matched_count": 0,
+        "reset_count": 0,
+        "target_score": null
+      },
+      "score_confidence": {
+        "status": "reduced",
+        "confidence": 0.0,
+        "detector_count": 1,
+        "dimension_count": 0
+      },
+      "dimension_scores": {
+        "Code quality": {
+          "score": 91.8,
+          "strict": 91.8
+        },
+        "Security": {
+          "score": 100.0,
+          "strict": 100.0
+        },
+        "File health": {
+          "score": 97.8,
+          "strict": 97.8
+        },
+        "Duplication": {
+          "score": 99.7,
+          "strict": 99.7
+        },
+        "Test health": {
+          "score": 91.4,
+          "strict": 48.9
+        },
+        "Abstraction fit": {
+          "score": 94.0,
+          "strict": 94.0
+        },
+        "AI generated debt": {
+          "score": 95.0,
+          "strict": 95.0
+        },
+        "API coherence": {
+          "score": 72.5,
+          "strict": 72.5
+        },
+        "Auth consistency": {
+          "score": 98.0,
+          "strict": 98.0
+        },
+        "Contracts": {
+          "score": 82.0,
+          "strict": 82.0
+        },
+        "Convention drift": {
+          "score": 91.0,
+          "strict": 91.0
+        },
+        "Cross-module arch": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Dep health": {
+          "score": 95.0,
+          "strict": 95.0
+        },
+        "Design coherence": {
+          "score": 82.5,
+          "strict": 82.5
+        },
+        "Error consistency": {
+          "score": 78.0,
+          "strict": 78.0
+        },
+        "High elegance": {
+          "score": 88.0,
+          "strict": 88.0
+        },
+        "Stale migration": {
+          "score": 92.0,
+          "strict": 92.0
+        },
+        "Init coupling": {
+          "score": 80.0,
+          "strict": 80.0
+        },
+        "Logic clarity": {
+          "score": 92.0,
+          "strict": 92.0
+        },
+        "Low elegance": {
+          "score": 88.5,
+          "strict": 88.5
+        },
+        "Mid elegance": {
+          "score": 95.0,
+          "strict": 95.0
+        },
+        "Naming quality": {
+          "score": 93.0,
+          "strict": 93.0
+        },
+        "Structure nav": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Test strategy": {
+          "score": 85.0,
+          "strict": 85.0
+        },
+        "Type safety": {
+          "score": 88.0,
+          "strict": 88.0
+        }
+      }
     }
   ],
   "lang_capabilities": {
@@ -15258,19 +15289,19 @@
       }
     },
     "Cross-module arch": {
-      "score": 72.5,
-      "strict": 72.5,
-      "verified_strict_score": 72.5,
+      "score": 88.5,
+      "strict": 88.5,
+      "verified_strict_score": 88.5,
       "checks": 10,
-      "failing": 2,
+      "failing": 0,
       "tier": 4,
       "detectors": {
         "subjective_assessment": {
           "potential": 10,
-          "pass_rate": 0.725,
-          "failing": 2,
-          "weighted_failures": 2.75,
-          "assessment_score": 72.5,
+          "pass_rate": 0.885,
+          "failing": 0,
+          "weighted_failures": 1.15,
+          "assessment_score": 88.5,
           "placeholder": false,
           "dimension_key": "cross_module_architecture",
           "configured_weight": 1.0,
@@ -15304,13 +15335,13 @@
       "strict": 82.5,
       "verified_strict_score": 82.5,
       "checks": 10,
-      "failing": 4,
+      "failing": 0,
       "tier": 4,
       "detectors": {
         "subjective_assessment": {
           "potential": 10,
           "pass_rate": 0.825,
-          "failing": 4,
+          "failing": 0,
           "weighted_failures": 1.75,
           "assessment_score": 82.5,
           "placeholder": false,
@@ -15554,7 +15585,7 @@
   },
   "reminder_history": {
     "zone_classification": 3,
-    "report_scores": 30,
+    "report_scores": 32,
     "feedback_nudge": 3,
     "review_issues_pending": 3,
     "stagnant_nudge": 5,
@@ -15631,11 +15662,9 @@
   "review_cache": {
     "files": {},
     "holistic": {
-      "reviewed_at": "2026-03-15T17:38:41+00:00",
-      "file_count_at_review": 125,
-      "issue_count": 0,
-      "reviewed_files_count": 0,
-      "full_sweep_included": false
+      "reviewed_at": "2026-03-15T18:16:35+00:00",
+      "file_count_at_review": 213,
+      "issue_count": 0
     }
   },
   "assessment_import_audit": [
@@ -15781,6 +15810,32 @@
       "attest": "",
       "import_file": ".desloppify\\subagents\\runs\\20260315_152418\\holistic_issues_merged.json",
       "packet_sha256": "39eeb2e7f8f807f00bce4ca584751ae451c90799b3cefee694acd2879fa0b49f"
+    },
+    {
+      "timestamp": "2026-03-15T18:12:53+00:00",
+      "mode": "attested_external",
+      "trusted": true,
+      "reason": "attested external blind subagent provenance",
+      "override_used": false,
+      "attested_external": true,
+      "provisional": false,
+      "provisional_count": 0,
+      "attest": "I validated this review was completed without awareness of overall score and is unbiased.",
+      "import_file": "C:\\Users\\KIIT0001\\blogs\\.desloppify\\external_review_sessions\\ext_20260315_180909_7dca88d1\\canonical_import_20260315_181253.json",
+      "packet_sha256": "e309d4dd88498c54a7c21c281a23742713eca7e8be64bde635baa31cb74be549"
+    },
+    {
+      "timestamp": "2026-03-15T18:16:35+00:00",
+      "mode": "attested_external",
+      "trusted": true,
+      "reason": "attested external blind subagent provenance",
+      "override_used": false,
+      "attested_external": true,
+      "provisional": false,
+      "provisional_count": 0,
+      "attest": "I validated this review was completed without awareness of overall score and is unbiased.",
+      "import_file": "C:\\Users\\KIIT0001\\blogs\\.desloppify\\external_review_sessions\\ext_20260315_181449_2ae86143\\canonical_import_20260315_181634.json",
+      "packet_sha256": "d3c30f236bd0a6688d487f5ff7de8552ae37cb6b13a169756c9b1f4d1a432c5f"
     }
   ]
 }
