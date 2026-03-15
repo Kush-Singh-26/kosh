@@ -258,19 +258,22 @@ Initial body.
 	tx := testutil.NewMockTransaction("public")
 
 	b := &Builder{
-		cfg:             cfg,
-		cacheService:    cacheSvc,
-		renderService:   renderSvc,
-		assetService:    assetSvc,
-		postService:     postSvc,
-		metadataScanner: metadataScanner,
-		logger:          logger,
-		metrics:         buildMetrics,
-		SourceFs:        fs,
-		mdPool:          mdPool,
-		nativeRenderer:  nativeRenderer,
-		Sink:            sink,
-		Tx:              tx,
+		cfg: cfg,
+		deps: BuilderDependencies{
+			Cache:    cacheSvc,
+			Post:     postSvc,
+			Asset:    assetSvc,
+			Render:   renderSvc,
+			Scanner:  metadataScanner,
+			Diagrams: nil,
+		},
+		logger:         logger,
+		metrics:        buildMetrics,
+		SourceFs:       fs,
+		mdPool:         mdPool,
+		nativeRenderer: nativeRenderer,
+		Sink:           sink,
+		Tx:             tx,
 	}
 
 	ctx := context.Background()
@@ -369,19 +372,22 @@ Initial body.
 	tx := testutil.NewMockTransaction("public")
 
 	b := &Builder{
-		cfg:             cfg,
-		cacheService:    cacheSvc,
-		renderService:   renderSvc,
-		assetService:    assetSvc,
-		postService:     postSvc,
-		metadataScanner: metadataScanner,
-		logger:          logger,
-		metrics:         buildMetrics,
-		SourceFs:        fs,
-		mdPool:          mdPool,
-		nativeRenderer:  nativeRenderer,
-		Sink:            sink,
-		Tx:              tx,
+		cfg: cfg,
+		deps: BuilderDependencies{
+			Cache:    cacheSvc,
+			Post:     postSvc,
+			Asset:    assetSvc,
+			Render:   renderSvc,
+			Scanner:  metadataScanner,
+			Diagrams: nil,
+		},
+		logger:         logger,
+		metrics:        buildMetrics,
+		SourceFs:       fs,
+		mdPool:         mdPool,
+		nativeRenderer: nativeRenderer,
+		Sink:           sink,
+		Tx:             tx,
 	}
 
 	ctx := context.Background()

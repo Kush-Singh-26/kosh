@@ -184,3 +184,20 @@ func hasNonASCII(s string) bool {
 func IsPathInOrSame(path, targetDir string) bool {
 	return strings.HasPrefix(path, targetDir+"/") || path == targetDir
 }
+
+// RepoRoot returns the absolute path to the repository root directory.
+// Uses runtime.Caller to find the directory relative to this file.
+func RepoRoot() string {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "."
+	}
+	// builder/utils/fs_path.go -> ../../ = repo root
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+}
+
+// RepoPath joins path parts to the repository root.
+func RepoPath(parts ...string) string {
+	all := append([]string{RepoRoot()}, parts...)
+	return filepath.Join(all...)
+}

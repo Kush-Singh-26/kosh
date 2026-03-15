@@ -116,18 +116,22 @@ func TestFullBuild(t *testing.T) {
 	tx := testutil.NewMockTransaction("public")
 
 	b := &Builder{
-		cfg:             cfg,
-		renderService:   renderSvc,
-		assetService:    assetSvc,
-		postService:     postSvc,
-		metadataScanner: metadataScanner,
-		logger:          logger,
-		metrics:         buildMetrics,
-		SourceFs:        fs,
-		mdPool:          mdPool,
-		nativeRenderer:  nativeRenderer,
-		Sink:            sink,
-		Tx:              tx,
+		cfg: cfg,
+		deps: BuilderDependencies{
+			Cache:    nil,
+			Post:     postSvc,
+			Asset:    assetSvc,
+			Render:   renderSvc,
+			Scanner:  metadataScanner,
+			Diagrams: nil,
+		},
+		logger:         logger,
+		metrics:        buildMetrics,
+		SourceFs:       fs,
+		mdPool:         mdPool,
+		nativeRenderer: nativeRenderer,
+		Sink:           sink,
+		Tx:             tx,
 	}
 
 	ctx := context.Background()
@@ -201,18 +205,22 @@ func TestMultiVersionBuild(t *testing.T) {
 	tx := testutil.NewMockTransaction("public")
 
 	b := &Builder{
-		cfg:             cfg,
-		renderService:   renderSvc,
-		assetService:    assetSvc,
-		postService:     postSvc,
-		metadataScanner: metadataScanner,
-		logger:          logger,
-		metrics:         buildMetrics,
-		SourceFs:        fs,
-		mdPool:          mdPool,
-		nativeRenderer:  nativeRenderer,
-		Sink:            sink,
-		Tx:              tx,
+		cfg: cfg,
+		deps: BuilderDependencies{
+			Cache:    nil,
+			Post:     postSvc,
+			Asset:    assetSvc,
+			Render:   renderSvc,
+			Scanner:  metadataScanner,
+			Diagrams: nil,
+		},
+		logger:         logger,
+		metrics:        buildMetrics,
+		SourceFs:       fs,
+		mdPool:         mdPool,
+		nativeRenderer: nativeRenderer,
+		Sink:           sink,
+		Tx:             tx,
 	}
 
 	ctx := context.Background()

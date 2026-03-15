@@ -26,10 +26,12 @@ func TestVerifyThemeFs_Detached(t *testing.T) {
 	_ = afero.WriteFile(fs, filepath.Join(themePath, "templates", "layout.html"), []byte("<html></html>"), 0644)
 
 	cfg := &config.Config{
-		Theme:       themeName,
-		ThemeDir:    externalThemeDir,
-		TemplateDir: filepath.Join(themePath, "templates"),
-		StaticDir:   filepath.Join(themePath, "static"),
+		PathConfig: config.PathConfig{
+			Theme:       themeName,
+			ThemeDir:    externalThemeDir,
+			TemplateDir: filepath.Join(themePath, "templates"),
+			StaticDir:   filepath.Join(themePath, "static"),
+		},
 	}
 
 	// This should pass without error/exit
@@ -49,8 +51,10 @@ func TestVerifyThemeFs_Invalid(t *testing.T) {
 	defer func() { utils.TestingMode = false }()
 
 	cfg := &config.Config{
-		Theme:    "non-existent",
-		ThemeDir: "themes",
+		PathConfig: config.PathConfig{
+			Theme:    "non-existent",
+			ThemeDir: "themes",
+		},
 	}
 
 	// VerifyThemeFs should log error and return (because TestingMode=true)
