@@ -14,6 +14,7 @@ type MockAssetService struct {
 	Metrics           *metrics.BuildMetrics
 	assetsReady       chan struct{}
 	contentAssetsChan <-chan []models.ScannedAsset
+	FailBuild         bool // When true, Build() returns an error
 }
 
 func (m *MockAssetService) SetSink(sink utils.ArtifactSink) {
@@ -35,6 +36,9 @@ func (m *MockAssetService) SetContentAssetsChannel(ch <-chan []models.ScannedAss
 }
 
 func (m *MockAssetService) Build(ctx context.Context) error {
+	if m.FailBuild {
+		return context.Canceled // Simulate build failure
+	}
 	if m.contentAssetsChan != nil {
 		<-m.contentAssetsChan
 	}
