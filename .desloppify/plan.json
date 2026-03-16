@@ -1,10 +1,8 @@
 {
   "version": 8,
   "created": "2026-03-15T03:21:40+00:00",
-  "updated": "2026-03-16T11:58:01+00:00",
+  "updated": "2026-03-16T12:38:34+00:00",
   "queue_order": [
-    "workflow::communicate-score",
-    "workflow::create-plan",
     "review::.::holistic::api_surface_coherence::inconsistent_constructors",
     "review::.::holistic::cross_module_architecture::interface_fragmentation",
     "review::.::holistic::design_coherence::parse_options_mixing",
@@ -1489,12 +1487,7 @@
     }
   },
   "promoted_ids": [],
-  "plan_start_scores": {
-    "strict": 81.8,
-    "overall": 84.4,
-    "objective": 96.9,
-    "verified": 86.1
-  },
+  "plan_start_scores": {},
   "refresh_state": {
     "lifecycle_phase": "workflow_postflight",
     "subjective_review_completed_at_scan_count": 47,
@@ -5442,6 +5435,32 @@
         "sync_status": "synced",
         "sync_message": null
       }
+    },
+    {
+      "timestamp": "2026-03-16T12:37:30+00:00",
+      "action": "done",
+      "issue_ids": [
+        "workflow::score_comm",
+        "workflow::plan_create"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-03-16T12:38:34+00:00",
+      "action": "reconcile",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "superseded_count": 0,
+        "pruned_count": 0,
+        "resurfaced_count": 0,
+        "clusters_completed_count": 0
+      }
     }
   ],
   "epic_triage_meta": {
@@ -5672,6 +5691,5 @@
       "subjective::test_strategy",
       "subjective::type_safety"
     ]
-  },
-  "scan_count_at_plan_start": 66
+  }
 }

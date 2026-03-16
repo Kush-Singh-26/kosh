@@ -23,19 +23,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils/async"
 )
 
-type PostServiceDependencies struct {
-	Cfg            *config.Config
-	Cache          PostServiceCache
-	Renderer       RenderService
-	Logger         *slog.Logger
-	Metrics        *metrics.BuildMetrics
-	MdPool         *sync.Pool
-	NativeRenderer *native.Renderer
-	SourceFs       afero.Fs
-	Sink           utils.ArtifactSink
-	DiagramAdapter *cache.DiagramCacheAdapter
-}
-
+// postServiceImpl implements PostService
 type postServiceImpl struct {
 	cfg              *config.Config
 	cache            PostServiceCache

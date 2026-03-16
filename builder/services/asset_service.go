@@ -19,6 +19,9 @@ import (
 )
 
 // AssetServiceOption configures optional parameters for AssetService
+//
+// Note: Channels (AssetsReady, ContentAssetsChan) should still use
+// WithAssetsReadySignal and WithContentAssetsChannel options.
 type AssetServiceOption func(*assetServiceImpl)
 
 // WithMetrics sets the build metrics collector
@@ -27,15 +30,20 @@ func WithMetrics(m *metrics.BuildMetrics) AssetServiceOption {
 }
 
 // WithAssetsReadySignal sets the channel signaled when assets are ready
+//
+// Note: This option is still required for channel-based coordination.
 func WithAssetsReadySignal(ch chan struct{}) AssetServiceOption {
 	return func(s *assetServiceImpl) { s.assetsReady = ch }
 }
 
 // WithContentAssetsChannel sets the channel for content asset notifications
+//
+// Note: This option is still required for channel-based coordination.
 func WithContentAssetsChannel(ch <-chan []models.ScannedAsset) AssetServiceOption {
 	return func(s *assetServiceImpl) { s.contentAssetsChan = ch }
 }
 
+// assetServiceImpl implements AssetService
 type assetServiceImpl struct {
 	sourceFs          afero.Fs
 	sink              utils.ArtifactSink
@@ -50,18 +58,38 @@ type assetServiceImpl struct {
 	assetsReady       chan struct{}
 }
 
-func NewAssetService(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger, opts ...AssetServiceOption) AssetService {
+// NewAssetService creates a new AssetService with the given dependencies.
+//
+// Channel Ownership:
+//   - AssetsReady: must be set via WithAssetsReadySignal option
+//   - ContentAssetsChan: must be set via WithContentAssetsChannel option
+func NewAssetService(deps AssetServiceDependencies, opts ...AssetServiceOption) AssetService {
 	s := &assetServiceImpl{
-		sourceFs: sourceFs,
-		sink:     sink,
-		cfg:      cfg,
-		renderer: renderer,
-		logger:   logger,
+		sourceFs: deps.SourceFs,
+		sink:     deps.Sink,
+		cfg:      deps.Cfg,
+		renderer: deps.Renderer,
+		logger:   deps.Logger,
+		metrics:  deps.Metrics,
 	}
+
 	for _, opt := range opts {
 		opt(s)
 	}
+
 	return s
+}
+
+// NewAssetServiceWith creates a new AssetService with explicit parameters.
+// Deprecated: use NewAssetService(AssetServiceDependencies{...}) instead.
+func NewAssetServiceWith(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger, opts ...AssetServiceOption) AssetService {
+	return NewAssetService(AssetServiceDependencies{
+		SourceFs: sourceFs,
+		Sink:     sink,
+		Cfg:      cfg,
+		Renderer: renderer,
+		Logger:   logger,
+	}, opts...)
 }
 
 func (s *assetServiceImpl) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {

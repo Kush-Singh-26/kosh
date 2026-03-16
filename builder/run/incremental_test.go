@@ -239,9 +239,9 @@ Initial body.
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(cm, logger)
+	cacheSvc := services.NewCacheServiceWith(cm, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -353,9 +353,9 @@ Initial body.
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(cm, logger)
+	cacheSvc := services.NewCacheServiceWith(cm, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{

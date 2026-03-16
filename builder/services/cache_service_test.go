@@ -17,7 +17,7 @@ func setupCacheServiceTest(t *testing.T) (*cacheServiceImpl, *cache.Manager, fun
 	mgr, cleanup := testutil.CreateTestCache(t)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	service := NewCacheService(mgr, logger).(*cacheServiceImpl)
+	service := NewCacheServiceWith(mgr, logger).(*cacheServiceImpl)
 	return service, mgr, cleanup
 }
 
@@ -26,7 +26,7 @@ func TestNewCacheService(t *testing.T) {
 	defer cleanup()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	service := NewCacheService(mgr, logger)
+	service := NewCacheServiceWith(mgr, logger)
 
 	if service == nil {
 		t.Fatal("NewCacheService should not return nil")

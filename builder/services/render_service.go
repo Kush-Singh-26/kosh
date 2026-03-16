@@ -18,7 +18,18 @@ type renderServiceImpl struct {
 	assetsReady <-chan struct{}
 }
 
-func NewRenderService(rnd *renderer.Renderer, logger *slog.Logger) RenderService {
+// NewRenderService creates a new RenderService with the given dependencies.
+// Using dependency struct pattern for API coherence.
+func NewRenderService(deps RenderServiceDependencies) RenderService {
+	return &renderServiceImpl{
+		rnd:    deps.Renderer,
+		logger: deps.Logger,
+	}
+}
+
+// NewRenderServiceWith creates a new RenderService with explicit parameters.
+// Deprecated: use NewRenderService(RenderServiceDependencies{...}) instead.
+func NewRenderServiceWith(rnd *renderer.Renderer, logger *slog.Logger) RenderService {
 	return &renderServiceImpl{
 		rnd:    rnd,
 		logger: logger,

@@ -3,10 +3,15 @@ package services
 import (
 	"context"
 	"html/template"
+	"log/slog"
+	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/renderer"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
 )
@@ -66,6 +71,55 @@ type SiteGeneratorCache interface {
 	PostCache
 }
 
+// CacheServiceDependencies holds all dependencies for CacheService.
+// Using a struct pattern for API coherence and easier testing.
+type CacheServiceDependencies struct {
+	Manager *cache.Manager
+	Logger  *slog.Logger
+}
+
+// CacheService provides cache operations for all services.
+//
+// Error Contract:
+//   - Read errors: returned (key not found, corrupted data)
+//   - Write errors: returned (disk full, I/O error)
+//   - BatchCommit: atomic - all or nothing, returns error on any failure
+//   - Dirty tracking: in-memory only, never fails (lost on crash)
+//
+// Concurrency:
+//   - All methods are safe for concurrent calls
+//   - Dirty tracking uses sync.Map for lock-free access
+//   - Underlying bbolt DB handles its own synchronization
+type CacheService interface {
+	PostServiceCache
+}
+
+// PostServiceDependencies holds all dependencies for PostService.
+// Using a struct pattern for API coherence and easier testing.
+type PostServiceDependencies struct {
+	Cfg            *config.Config
+	Cache          PostServiceCache
+	Renderer       RenderService
+	Logger         *slog.Logger
+	Metrics        *metrics.BuildMetrics
+	MdPool         *sync.Pool
+	NativeRenderer *native.Renderer
+	SourceFs       afero.Fs
+	Sink           utils.ArtifactSink
+	DiagramAdapter *cache.DiagramCacheAdapter
+}
+
+// PostService handles markdown parsing and post processing.
+//
+// Error Contract:
+//   - Parse errors: returned immediately, caller must handle
+//   - Cache errors: logged, build continues (best-effort)
+//   - Filesystem errors: returned, build halts
+//
+// Concurrency:
+//   - Process: safe for concurrent calls (streaming mode)
+//   - ProcessSingle: not thread-safe for same path
+//   - Internal state protected by worker pool serialization
 type PostService interface {
 	// ReconfigureForBuild updates sink and source for a new build pass.
 	// Consolidates sink and filesystem injection into a single explicit call.
@@ -74,9 +128,21 @@ type PostService interface {
 	// SetAssetsGate sets the channel to wait on before rendering.
 	SetAssetsGate(ch <-chan struct{})
 
+	// Process handles streaming post processing.
+	// Returns error only for critical failures (context cancelled, pool exhausted).
+	// Individual post errors are logged and skipped.
 	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error)
+
+	// ProcessSingle processes a single post file.
+	// Returns error if file cannot be read or parsed.
 	ProcessSingle(ctx context.Context, path string, source []byte) error
+
+	// ProcessSingleWithResult processes a single post and populates result.
+	// Returns error if parsing or rendering fails.
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
+
+	// WaitForCacheCommit blocks until async cache commit completes.
+	// Safe to call even if no commit is pending.
 	WaitForCacheCommit()
 }
 
@@ -123,19 +189,24 @@ type DirtyTracker interface {
 	ClearDirty()
 }
 
-// AssetService handles static asset processing
-type AssetService interface {
-	// ReconfigureForBuild updates sink and source for a new build pass.
-	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
-
-	SetMetrics(m *metrics.BuildMetrics)
-	SetAssetsReadySignal(ch chan struct{})
-	SetContentAssetsChannel(ch <-chan []models.ScannedAsset)
-	Build(ctx context.Context) error
-	BuildForAssetChange(ctx context.Context) (map[string]string, error)
+// RenderServiceDependencies holds all dependencies for RenderService.
+// Using a struct pattern for API coherence and easier testing.
+type RenderServiceDependencies struct {
+	Renderer *renderer.Renderer
+	Logger   *slog.Logger
 }
 
-// RenderService handles rendering logic
+// RenderService handles template rendering and HTML generation.
+//
+// Error Contract:
+//   - Template errors: returned immediately (missing template, parse error)
+//   - Render errors: returned (data binding failure, I/O error)
+//   - Asset timeout: returned after 30s wait for assets
+//
+// Concurrency:
+//   - All render methods are safe for concurrent calls
+//   - Template reload is serialized internally
+//   - Asset map access protected by renderer's internal mutex
 type RenderService interface {
 	// ReconfigureForBuild updates sink and source for a new build pass.
 	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
@@ -144,11 +215,27 @@ type RenderService interface {
 	// Channel is owned by AssetService and closed when assets are ready.
 	SetAssetsGate(ch <-chan struct{})
 
+	// RenderPage renders a single post page.
+	// Returns error if template is missing or data binding fails.
 	RenderPage(path string, data models.PageData) error
+
+	// RenderIndex renders the index/pagination page.
+	// Returns error if template is missing or data binding fails.
 	RenderIndex(path string, data models.PageData) error
+
+	// Render404 renders the 404 page.
+	// Returns error if template is missing or data binding fails.
 	Render404(path string, data models.PageData) error
+
+	// RenderGraph renders the graph view page.
+	// Returns error if template is missing or data binding fails.
 	RenderGraph(path string, data models.PageData) error
+
+	// RenderSidebar renders the navigation sidebar from tree.
+	// Returns empty HTML on error (never fails).
 	RenderSidebar(tree []*models.TreeNode) template.HTML
+
+	// RegisterFile marks a file for inclusion in build output.
 	RegisterFile(path string)
 
 	// Asset methods for template rendering.
@@ -156,7 +243,68 @@ type RenderService interface {
 	SetAssets(assets map[string]string)
 	GetAssets() map[string]string
 
+	// File tracking for incremental builds.
 	GetRenderedFiles() map[string]bool
 	ClearRenderedFiles()
+
+	// Template lifecycle.
+	// ReloadTemplates reloads all templates from disk.
+	// Returns error if any template fails to parse.
 	ReloadTemplates()
+}
+
+// AssetServiceDependencies holds all dependencies for AssetService.
+// Using a struct pattern for API coherence and easier testing.
+//
+// Channel Ownership:
+//   - AssetsReady: created by caller, passed via WithAssetsReadySignal option
+//   - ContentAssetsChan: created by caller (Scanner), passed via WithContentAssetsChannel
+type AssetServiceDependencies struct {
+	SourceFs afero.Fs
+	Sink     utils.ArtifactSink
+	Cfg      *config.Config
+	Renderer RenderService
+	Logger   *slog.Logger
+	Metrics  *metrics.BuildMetrics
+}
+
+// AssetService handles static asset processing (CSS/JS bundling, image optimization).
+//
+// Error Contract:
+//   - Build errors: returned (esbuild failure, image processing error)
+//   - Copy errors: returned (file not found, permission denied)
+//   - Asset discovery: logged, build continues (best-effort for missing assets)
+//
+// Concurrency:
+//   - Build: not thread-safe, must be called once per build cycle
+//   - BuildForAssetChange: safe for concurrent calls (singleflight)
+//   - ReconfigureForBuild: not thread-safe, call before build starts
+//
+// Channel Ownership:
+//   - AssetsReadySignal: owned by AssetService, closed when assets are ready
+//   - ContentAssetsChannel: owned by caller (Scanner), AssetService reads only
+type AssetService interface {
+	// ReconfigureForBuild updates sink and source for a new build pass.
+	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
+
+	// SetMetrics sets the build metrics collector.
+	SetMetrics(m *metrics.BuildMetrics)
+
+	// SetAssetsReadySignal sets the signal channel to close when assets are ready.
+	// Channel must be created by caller and passed in before Build() is called.
+	SetAssetsReadySignal(ch chan struct{})
+
+	// SetContentAssetsChannel sets the channel for receiving discovered assets.
+	// Channel is owned by caller (Scanner), AssetService only reads.
+	SetContentAssetsChannel(ch <-chan []models.ScannedAsset)
+
+	// Build processes all assets (CSS/JS bundle, images, static files).
+	// Closes the AssetsReadySignal channel when complete.
+	// Returns error for critical failures (esbuild hung, disk full).
+	Build(ctx context.Context) error
+
+	// BuildForAssetChange processes a single changed asset.
+	// Returns updated asset map for incremental HTML rerender.
+	// Returns error if asset processing fails.
+	BuildForAssetChange(ctx context.Context) (map[string]string, error)
 }

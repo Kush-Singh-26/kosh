@@ -79,9 +79,9 @@ This is the initial body.
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(cm, logger)
+	cacheSvc := services.NewCacheServiceWith(cm, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -221,9 +221,9 @@ Body content.
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(cm, logger)
+	cacheSvc := services.NewCacheServiceWith(cm, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -342,9 +342,9 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(cm, logger)
+	cacheSvc := services.NewCacheServiceWith(cm, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -445,9 +445,9 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(cm, logger)
+	cacheSvc := services.NewCacheServiceWith(cm, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -666,9 +666,9 @@ date: "2026-03-15"
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(cm, logger)
+	cacheSvc := services.NewCacheServiceWith(cm, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{

@@ -21,7 +21,7 @@ func setupRenderServiceTest(t *testing.T) *renderServiceImpl {
 		Compress:    false,
 	}
 
-	service := NewRenderService(rnd, logger).(*renderServiceImpl)
+	service := NewRenderServiceWith(rnd, logger).(*renderServiceImpl)
 	return service
 }
 
@@ -32,7 +32,7 @@ func TestNewRenderService(t *testing.T) {
 		RenderedSet: make(map[string]bool),
 	}
 
-	service := NewRenderService(rnd, logger)
+	service := NewRenderServiceWith(rnd, logger)
 
 	if service == nil {
 		t.Fatal("NewRenderService should not return nil")
