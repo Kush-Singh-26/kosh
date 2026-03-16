@@ -98,7 +98,7 @@ func TestFullBuild(t *testing.T) {
 	}
 
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -187,7 +187,7 @@ func TestMultiVersionBuild(t *testing.T) {
 	}
 
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{

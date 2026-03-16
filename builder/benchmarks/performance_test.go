@@ -84,7 +84,8 @@ This is post number %d.
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// We need fresh services for each run or at least reset them
-		renderSvc := services.NewRenderService(renderer.NewWithFs(fs, false, sink, cfg.TemplateDir, true, logger), logger)
+		rnd := renderer.NewWithFs(fs, false, sink, cfg.TemplateDir, true, logger)
+		renderSvc := services.NewRenderServiceWith(rnd, logger)
 		assetSvc := &mocks.MockAssetService{}
 		assetSvc.SetMetrics(buildMetrics)
 		postSvc := services.NewPostService(services.PostServiceDependencies{

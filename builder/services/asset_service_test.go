@@ -55,7 +55,7 @@ body {
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := NewAssetService(sourceFs, sink, cfg, mockRend, logger)
+	svc := NewAssetServiceWith(sourceFs, sink, cfg, mockRend, logger)
 
 	ctx := context.Background()
 	if err := svc.Build(ctx); err != nil {
@@ -145,7 +145,7 @@ func TestAssetService_Build_DoesNotHardlinkSourceStaticFiles(t *testing.T) {
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := NewAssetService(sourceFs, sink, cfg, mockRend, logger)
+	svc := NewAssetServiceWith(sourceFs, sink, cfg, mockRend, logger)
 	ctx := context.Background()
 	if err := svc.Build(ctx); err != nil {
 		t.Fatalf("Asset Build failed: %v", err)
@@ -204,7 +204,7 @@ func TestAssetService_Build_DoesNotCopySourceSearchWasm(t *testing.T) {
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := NewAssetService(sourceFs, sink, cfg, mockRend, logger)
+	svc := NewAssetServiceWith(sourceFs, sink, cfg, mockRend, logger)
 	if err := svc.Build(context.Background()); err != nil {
 		t.Fatalf("asset build failed: %v", err)
 	}

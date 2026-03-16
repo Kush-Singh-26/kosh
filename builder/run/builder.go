@@ -196,14 +196,32 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	rnd := renderer.NewWithFs(vfs, cfg.CompressImages, nil, cfg.TemplateDir, cfg.IsDev, logger)
 	rnd.EnableLegacyProcessHTML = cfg.Build.EnableLegacyProcessHTML
 
-	renderSvc := services.NewRenderService(rnd, logger)
+	// assetsReady is created per-build and closed when assets are ready.
+	// RenderService and PostService wait on this channel but do not own its lifecycle.
+	assetsReady := make(chan struct{})
 
-	assetSvc := services.NewAssetService(vfs, nil, cfg, renderSvc, logger,
-		services.WithMetrics(buildMetrics))
+	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
+		Renderer: rnd,
+		Logger:   logger,
+	})
+
+	renderSvc.SetAssetsGate(assetsReady)
+
+	assetSvc := services.NewAssetService(services.AssetServiceDependencies{
+		SourceFs: vfs,
+		Sink:     nil,
+		Cfg:      cfg,
+		Renderer: renderSvc,
+		Logger:   logger,
+		Metrics:  buildMetrics,
+	}, services.WithAssetsReadySignal(assetsReady))
 
 	var cacheSvc services.PostServiceCache
 	if cacheManager != nil {
-		cacheSvc = services.NewCacheService(cacheManager, logger)
+		cacheSvc = services.NewCacheService(services.CacheServiceDependencies{
+			Manager: cacheManager,
+			Logger:  logger,
+		})
 	}
 
 	postSvc := services.NewPostService(services.PostServiceDependencies{

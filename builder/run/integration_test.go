@@ -83,9 +83,9 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
-	cacheSvc := services.NewCacheService(cacheManager, logger)
+	cacheSvc := services.NewCacheServiceWith(cacheManager, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -203,9 +203,9 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
-	cacheSvc := services.NewCacheService(cacheManager, logger)
+	cacheSvc := services.NewCacheServiceWith(cacheManager, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -318,9 +318,9 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		cacheManager, _ := cache.Open(cacheDir, false)
 		t.Cleanup(func() { _ = cacheManager.Close() })
 
-		cacheSvc := services.NewCacheService(cacheManager, logger)
+		cacheSvc := services.NewCacheServiceWith(cacheManager, logger)
 		rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-		renderSvc := services.NewRenderService(rnd, logger)
+		renderSvc := services.NewRenderServiceWith(rnd, logger)
 		assetSvc := &mocks.MockAssetService{}
 		assetSvc.SetMetrics(buildMetrics)
 		postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -430,9 +430,9 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	cacheManager, _ := cache.Open(cacheDir, false)
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
-	cacheSvc := services.NewCacheService(cacheManager, logger)
+	cacheSvc := services.NewCacheServiceWith(cacheManager, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 
 	// Use failing asset service to simulate build failure
 	failingAssetSvc := &mocks.MockAssetService{
@@ -507,7 +507,7 @@ func TestCacheService_DirtyTrackingIntegration(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
-	cacheSvc := services.NewCacheService(cacheManager, logger)
+	cacheSvc := services.NewCacheServiceWith(cacheManager, logger)
 
 	// Mark a post as dirty
 	postPath := "content/posts/hello.md"
@@ -544,7 +544,7 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
-	cacheSvc := services.NewCacheService(cacheManager, logger)
+	cacheSvc := services.NewCacheServiceWith(cacheManager, logger)
 
 	// Prepare multiple posts for batch commit
 	posts := []*cache.PostMeta{
@@ -612,7 +612,7 @@ func TestCacheService_SocialCardHashPersistence(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
-	cacheSvc := services.NewCacheService(cacheManager, logger)
+	cacheSvc := services.NewCacheServiceWith(cacheManager, logger)
 
 	// Set social card hashes
 	hashes := map[string]string{
@@ -685,9 +685,9 @@ func TestBuild_WithRealCache(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
-	cacheSvc := services.NewCacheService(cacheManager, logger)
+	cacheSvc := services.NewCacheServiceWith(cacheManager, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
@@ -739,7 +739,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = cacheManager2.Close() })
 
-	cacheSvc2 := services.NewCacheService(cacheManager2, logger)
+	cacheSvc2 := services.NewCacheServiceWith(cacheManager2, logger)
 	b.deps.Cache = cacheSvc2
 	postSvc2 := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
@@ -843,9 +843,9 @@ Content 3
 	}
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
-	cacheSvc := services.NewCacheService(cacheManager, logger)
+	cacheSvc := services.NewCacheServiceWith(cacheManager, logger)
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(rnd, logger)
+	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	postSvc := services.NewPostService(services.PostServiceDependencies{
