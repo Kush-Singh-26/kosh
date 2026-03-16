@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
@@ -194,7 +195,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	}
 	if !utils.TestingMode {
 		if abs, err := filepath.Abs(cfg.ThemeDir); err == nil {
-			cfg.ThemeDir = utils.NormalizePath(abs)
+			cfg.ThemeDir = fspkg.NormalizePath(abs)
 		}
 	}
 
@@ -203,10 +204,10 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 		cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 	} else if !filepath.IsAbs(cfg.TemplateDir) && !utils.TestingMode {
 		if abs, err := filepath.Abs(cfg.TemplateDir); err == nil {
-			cfg.TemplateDir = utils.NormalizePath(abs)
+			cfg.TemplateDir = fspkg.NormalizePath(abs)
 		}
 	} else {
-		cfg.TemplateDir = utils.NormalizePath(cfg.TemplateDir)
+		cfg.TemplateDir = fspkg.NormalizePath(cfg.TemplateDir)
 	}
 
 	if cfg.StaticDir == "" {
@@ -214,10 +215,10 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
 	} else if !filepath.IsAbs(cfg.StaticDir) && !utils.TestingMode {
 		if abs, err := filepath.Abs(cfg.StaticDir); err == nil {
-			cfg.StaticDir = utils.NormalizePath(abs)
+			cfg.StaticDir = fspkg.NormalizePath(abs)
 		}
 	} else {
-		cfg.StaticDir = utils.NormalizePath(cfg.StaticDir)
+		cfg.StaticDir = fspkg.NormalizePath(cfg.StaticDir)
 	}
 
 	// Resolve configurable directory paths to absolute paths
@@ -226,7 +227,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	}
 	if !utils.TestingMode {
 		if abs, err := filepath.Abs(cfg.ContentDir); err == nil {
-			cfg.ContentDir = utils.NormalizePath(abs)
+			cfg.ContentDir = fspkg.NormalizePath(abs)
 		}
 	}
 
@@ -235,7 +236,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	}
 	if !utils.TestingMode {
 		if abs, err := filepath.Abs(cfg.OutputDir); err == nil {
-			cfg.OutputDir = utils.NormalizePath(abs)
+			cfg.OutputDir = fspkg.NormalizePath(abs)
 		}
 	}
 
@@ -244,7 +245,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	}
 	if !utils.TestingMode {
 		if abs, err := filepath.Abs(cfg.CacheDir); err == nil {
-			cfg.CacheDir = utils.NormalizePath(abs)
+			cfg.CacheDir = fspkg.NormalizePath(abs)
 		}
 	}
 

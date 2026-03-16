@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html/template"
 	"path/filepath"
-	"runtime/debug"
 	"strings"
 
 	"github.com/spf13/afero"
@@ -21,15 +20,6 @@ func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string, source
 }
 
 func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path string, source []byte, preParsed *ParsedMarkdownResult) error {
-	defer func() {
-		if r := recover(); r != nil {
-			s.logger.Error("PANIC recovered in ProcessSingle",
-				"path", path,
-				"error", r,
-				"stack", string(debug.Stack()))
-		}
-	}()
-
 	info, err := s.sourceFs.Stat(path)
 	if err != nil {
 		s.logger.Error("Error stating file", "path", path, "error", err)
@@ -71,23 +61,17 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 		parseRes = preParsed
 	} else {
 		// Parse if not provided
-		parseRes, err = ParseMarkdown(
-			ctx,
-			source,
-			path,
-			version,
-			cleanHtmlRelPath,
-			htmlRelPath,
-			s.mdPool,
-			s.cfg,
-			s.nativeRenderer,
-			s.diagramAdapter,
-			&s.mu,
-			"",
-			0,
-			0,
-			nil,
-		)
+		parseRes, err = ParseMarkdown(ParseOptions{
+			Source:           source,
+			Path:             path,
+			Version:          version,
+			CleanHtmlRelPath: cleanHtmlRelPath,
+			HtmlRelPath:      htmlRelPath,
+			MdPool:           s.mdPool,
+			Cfg:              s.cfg,
+			NativeRenderer:   s.nativeRenderer,
+			DiagramAdapter:   s.diagramAdapter,
+		})
 		if err != nil {
 			return err
 		}

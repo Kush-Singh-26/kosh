@@ -13,11 +13,10 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/andybalholm/brotli"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
-
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 //go:embed wasm/search.wasm.br
@@ -159,7 +158,7 @@ func CompileWASMFromSource(ctx context.Context, srcPath string, destPath string)
 		return fmt.Errorf("go compiler not found in PATH: %w", err)
 	}
 
-	repoRoot := utils.RepoRoot()
+	repoRoot := fspkg.RepoRoot()
 	absSrc := srcPath
 	if !filepath.IsAbs(absSrc) {
 		absSrc = filepath.Join(repoRoot, srcPath)

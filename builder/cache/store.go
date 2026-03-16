@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/retry"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/spf13/afero"
@@ -240,7 +241,7 @@ func (s *Store) Put(category string, content []byte) (hash string, ct Compressio
 		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("temp file missing before rename: %w", err)
 	}
-	if err := utils.RenameWithRetry(context.Background(), tmpPath, path, 6, 10*time.Millisecond); err != nil {
+	if err := retry.RenameWithRetry(context.Background(), tmpPath, path, 6, 10*time.Millisecond); err != nil {
 		if fileExists(path) {
 			_ = os.Remove(tmpPath)
 			return hash, ct, nil

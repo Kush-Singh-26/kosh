@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -86,7 +87,7 @@ func TestNormalizeWatchPath_ProjectRelativeAbsolutePath(t *testing.T) {
 	b := &Builder{}
 	abs := filepath.Join(wd, "themes", "test-theme", "static", "css", "style.css")
 	got := b.normalizeWatchPath(abs)
-	expected := utils.NormalizePath("themes/test-theme/static/css/style.css")
+	expected := fspkg.NormalizePath("themes/test-theme/static/css/style.css")
 	if got != expected {
 		t.Fatalf("got %q, want %q", got, expected)
 	}

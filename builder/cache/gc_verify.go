@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	bolt "go.etcd.io/bbolt"
-
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 const quickVerifySampleSize = 10
@@ -63,7 +62,7 @@ func (m *Manager) Verify() ([]string, error) {
 				return nil
 			}
 
-			normalizedPath := utils.NormalizePath(post.Path)
+			normalizedPath := fspkg.NormalizePath(post.Path)
 			mappedID := pathsBucket.Get([]byte(normalizedPath))
 			if mappedID == nil {
 				errors = append(errors, fmt.Sprintf("missing path mapping: %s -> %s", normalizedPath, post.PostID))

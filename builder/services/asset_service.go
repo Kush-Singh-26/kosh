@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sync"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 
@@ -16,6 +17,24 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
+
+// AssetServiceOption configures optional parameters for AssetService
+type AssetServiceOption func(*assetServiceImpl)
+
+// WithMetrics sets the build metrics collector
+func WithMetrics(m *metrics.BuildMetrics) AssetServiceOption {
+	return func(s *assetServiceImpl) { s.metrics = m }
+}
+
+// WithAssetsReadySignal sets the channel signaled when assets are ready
+func WithAssetsReadySignal(ch chan struct{}) AssetServiceOption {
+	return func(s *assetServiceImpl) { s.assetsReady = ch }
+}
+
+// WithContentAssetsChannel sets the channel for content asset notifications
+func WithContentAssetsChannel(ch <-chan []models.ScannedAsset) AssetServiceOption {
+	return func(s *assetServiceImpl) { s.contentAssetsChan = ch }
+}
 
 type assetServiceImpl struct {
 	sourceFs          afero.Fs
@@ -31,14 +50,18 @@ type assetServiceImpl struct {
 	assetsReady       chan struct{}
 }
 
-func NewAssetService(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger) AssetService {
-	return &assetServiceImpl{
+func NewAssetService(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger, opts ...AssetServiceOption) AssetService {
+	s := &assetServiceImpl{
 		sourceFs: sourceFs,
 		sink:     sink,
 		cfg:      cfg,
 		renderer: renderer,
 		logger:   logger,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *assetServiceImpl) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {
@@ -92,7 +115,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 					if filepath.Base(path) == "search.wasm" {
 						return nil
 					}
-					rel, _ := utils.SafeRel(themeDir, path)
+					rel, _ := fspkg.SafeRel(themeDir, path)
 					assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
 					return nil
 				})
@@ -111,7 +134,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 						if filepath.Base(path) == "search.wasm" {
 							return nil
 						}
-						rel, _ := utils.SafeRel("static", path)
+						rel, _ := fspkg.SafeRel("static", path)
 						assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
 						return nil
 					})
@@ -144,7 +167,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		}
 
 		for _, a := range s.contentAssets {
-			rel, _ := utils.SafeRel(s.cfg.ContentDir, a.Path)
+			rel, _ := fspkg.SafeRel(s.cfg.ContentDir, a.Path)
 			assetMap[rel] = assetTask{srcPath: a.Path, info: a.Info}
 		}
 

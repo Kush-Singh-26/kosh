@@ -9,7 +9,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-// English stop words - common words that don't contribute to search relevance
 var stopWords = map[string]bool{
 	"a": true, "an": true, "and": true, "are": true, "as": true, "at": true,
 	"be": true, "but": true, "by": true, "for": true, "if": true, "in": true,
@@ -46,7 +45,6 @@ type Analyzer struct {
 	useStemming  bool
 }
 
-// NewAnalyzer creates a new analyzer with specified options
 func NewAnalyzer(useStopWords, useStemming bool) *Analyzer {
 	return &Analyzer{
 		useStopWords: useStopWords,
@@ -54,7 +52,6 @@ func NewAnalyzer(useStopWords, useStemming bool) *Analyzer {
 	}
 }
 
-// DefaultAnalyzer is the default analyzer with stemming and stop words enabled
 var DefaultAnalyzer = NewAnalyzer(true, true)
 
 // Analyze processes text and returns normalized tokens

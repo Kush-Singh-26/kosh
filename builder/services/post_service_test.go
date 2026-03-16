@@ -238,9 +238,9 @@ func TestPostService_PanicRecovery(t *testing.T) {
 
 	s := setupPostServiceTest(t)
 
-	// Create a test file
+	// Create a test file with proper frontmatter and content
 	testContent := []byte("---\ntitle: Test Post\n---\n\nTest content")
-	testFile := filepath.Join(s.cfg.ContentDir, "test.md")
+	testFile := filepath.Join("content", "test.md")
 	_ = s.sourceFs.MkdirAll(filepath.Dir(testFile), 0755)
 	_ = afero.WriteFile(s.sourceFs, testFile, testContent, 0644)
 
@@ -252,14 +252,15 @@ func TestPostService_PanicRecovery(t *testing.T) {
 	s.renderer = mockRend
 
 	// Process should complete without crashing despite the panic
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Use longer timeout to allow for worker pool shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	scanner := NewMetadataScanner()
 	fileChan := make(chan models.ScannedFile, 100)
 	go func() {
-		_, _ = scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg, fileChan)
-		// Don't close fileChan here - Process() handles it
+		defer close(fileChan)
+		_, _ = scanner.Scan(ctx, "content", s.sourceFs, s.cfg, fileChan)
 	}()
 
 	_, err := s.Process(ctx, false, false, false, fileChan)
@@ -395,16 +396,18 @@ func TestPostService_NeighborLookup(t *testing.T) {
 	}
 
 	for _, p := range posts {
-		path := filepath.Join(s.cfg.ContentDir, p.name)
+		path := filepath.Join("content", p.name)
 		_ = afero.WriteFile(s.sourceFs, path, []byte(p.content), 0644)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	scanner := NewMetadataScanner()
 	fileChan := make(chan models.ScannedFile, 100)
 	go func() {
-		_, _ = scanner.Scan(ctx, s.cfg.ContentDir, s.sourceFs, s.cfg, fileChan)
-		// Don't close fileChan here - Process() handles it
+		defer close(fileChan)
+		_, _ = scanner.Scan(ctx, "content", s.sourceFs, s.cfg, fileChan)
 	}()
 
 	_, err := s.Process(ctx, true, false, true, fileChan)

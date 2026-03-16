@@ -15,6 +15,7 @@ func TestDiagramCacheAdapter_ConcurrentSameKeyFlush(t *testing.T) {
 	defer func() { _ = m.Close() }()
 
 	a := NewDiagramCacheAdapter(m)
+	a.Start() // Explicit lifecycle start
 	defer func() { _ = a.Close() }()
 
 	const workers = 12

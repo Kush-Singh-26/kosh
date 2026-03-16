@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/fsnotify/fsnotify"
 	"github.com/zeebo/xxh3"
 
@@ -22,9 +23,9 @@ import (
 
 func indexedPostStableKey(ip models.IndexedPost) string {
 	if ip.SourcePath != "" {
-		return utils.NormalizePath(ip.SourcePath)
+		return fspkg.NormalizePath(ip.SourcePath)
 	}
-	return utils.NormalizePath(ip.Record.Link)
+	return fspkg.NormalizePath(ip.Record.Link)
 }
 
 func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
@@ -46,7 +47,7 @@ func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
 }
 
 func isSearchSourcePath(path string) bool {
-	path = utils.NormalizePath(path)
+	path = fspkg.NormalizePath(path)
 	return strings.HasPrefix(path, "cmd/search/") || strings.HasPrefix(path, "builder/search/") || strings.HasPrefix(path, "builder/models/")
 }
 
@@ -55,30 +56,30 @@ func (b *Builder) normalizeWatchPath(path string) string {
 	if err != nil {
 		wd = ""
 	}
-	return utils.NormalizeWatchPath(path, wd)
+	return fspkg.NormalizeWatchPath(path, wd)
 }
 
 func normalizeAbsoluteWatchPath(path string) string {
-	if abs, err := utils.AbsNormalizePath(path); err == nil {
+	if abs, err := fspkg.AbsNormalizePath(path); err == nil {
 		return abs
 	}
-	return utils.NormalizePath(path)
+	return fspkg.NormalizePath(path)
 }
 
 func (b *Builder) isContentPath(path string) bool {
 	path = normalizeAbsoluteWatchPath(path)
 	contentDir := normalizeAbsoluteWatchPath(b.cfg.ContentDir)
-	return utils.IsPathInOrSame(path, contentDir)
+	return fspkg.IsPathInOrSame(path, contentDir)
 }
 
 // invalidateForTemplate determines which posts to invalidate based on changed template
 func (b *Builder) invalidateForTemplate(templatePath string) []string {
-	tp := utils.NormalizePath(templatePath)
-	templateDir := utils.NormalizePath(b.cfg.TemplateDir)
-	staticDir := utils.NormalizePath(b.cfg.StaticDir)
+	tp := fspkg.NormalizePath(templatePath)
+	templateDir := fspkg.NormalizePath(b.cfg.TemplateDir)
+	staticDir := fspkg.NormalizePath(b.cfg.StaticDir)
 	if strings.HasPrefix(tp, templateDir) {
-		relTmpl, _ := utils.SafeRel(b.cfg.TemplateDir, templatePath)
-		relTmpl = utils.NormalizePath(relTmpl)
+		relTmpl, _ := fspkg.SafeRel(b.cfg.TemplateDir, templatePath)
+		relTmpl = fspkg.NormalizePath(relTmpl)
 
 		if relTmpl == "layout.html" {
 			return nil // Layout changes affect everything
@@ -145,7 +146,7 @@ func (b *Builder) isAssetPath(path string) bool {
 	staticDir := normalizeAbsoluteWatchPath(b.cfg.StaticDir)
 	siteStaticDir := normalizeAbsoluteWatchPath("static")
 
-	return utils.IsPathInOrSame(path, staticDir) || utils.IsPathInOrSame(path, siteStaticDir)
+	return fspkg.IsPathInOrSame(path, staticDir) || fspkg.IsPathInOrSame(path, siteStaticDir)
 }
 
 // buildSinglePost rebuilds only the changed post with smart change detection
@@ -174,8 +175,8 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		b.logger.Error("Failed to compute content-relative path", "path", path, "error", err)
 		return
 	}
-	relPath = utils.NormalizePath(relPath)
-	version, relPath := utils.GetVersionFromPath(utils.NormalizePath(filepath.Join("content", relPath)))
+	relPath = fspkg.NormalizePath(relPath)
+	version, relPath := utils.GetVersionFromPath(fspkg.NormalizePath(filepath.Join("content", relPath)))
 	b.logger.Debug("incremental content path resolved", "path", path, "relative", relPath, "version", version)
 	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 	cleanHtmlRelPath := htmlRelPath
@@ -228,23 +229,17 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		DevLogRebuild("Content change detected, rebuilding single post...")
 
 		// Now we parse exactly once
-		parseRes, err := services.ParseMarkdown(
-			ctx,
-			source,
-			path,
-			version,
-			cleanHtmlRelPath,
-			htmlRelPath,
-			b.mdPool,
-			b.cfg,
-			b.nativeRenderer,
-			b.deps.Diagrams,
-			&b.mu,
-			newFrontmatterHash,
-			0,
-			0,
-			nil,
-		)
+		parseRes, err := services.ParseMarkdown(services.ParseOptions{
+			Source:           source,
+			Path:             path,
+			Version:          version,
+			CleanHtmlRelPath: cleanHtmlRelPath,
+			HtmlRelPath:      htmlRelPath,
+			MdPool:           b.mdPool,
+			Cfg:              b.cfg,
+			NativeRenderer:   b.nativeRenderer,
+			DiagramAdapter:   b.deps.Diagrams,
+		})
 
 		if err != nil {
 			b.logger.Error("Error parsing markdown", "path", path, "error", err)
@@ -274,7 +269,7 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 }
 
 func (b *Builder) deletePostFromCache(path string) {
-	relPath, err := utils.SafeRel(b.cfg.ContentDir, path)
+	relPath, err := fspkg.SafeRel(b.cfg.ContentDir, path)
 	if err != nil {
 		b.logger.Error("Failed to get relative path for deletion", "path", path, "error", err)
 		return
@@ -292,7 +287,7 @@ func (b *Builder) deletePostFromCache(path string) {
 
 	// Also prune from in-memory search index
 	b.mu.Lock()
-	targetKey := utils.NormalizePath(relPath)
+	targetKey := fspkg.NormalizePath(relPath)
 	newIndexed := make([]models.IndexedPost, 0, len(b.state.indexedPosts))
 	for _, ip := range b.state.indexedPosts {
 		if indexedPostStableKey(ip) != targetKey {
@@ -316,7 +311,7 @@ func (b *Builder) updateIndexedPostCache(relPath string, parseRes *services.Pars
 	}
 
 	found := false
-	targetKey := utils.NormalizePath(relPath)
+	targetKey := fspkg.NormalizePath(relPath)
 	for i, ip := range b.state.indexedPosts {
 		if indexedPostStableKey(ip) == targetKey {
 			// Update existing record

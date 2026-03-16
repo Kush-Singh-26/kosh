@@ -13,6 +13,8 @@ import (
 
 // RenderGlobalBatch renders all unique math expressions across the entire site
 // in large parallel chunks to minimize Go-to-JS bridge overhead.
+// Each worker processes a batch of expressions in a single JS call, reducing
+// the number of context switches between Go and QuickJS runtime.
 func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []models.MathExpression) (map[string]string, error) {
 	if len(expressions) == 0 {
 		return make(map[string]string), nil
@@ -86,27 +88,9 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []models.M
 
 // RenderMath renders a single LaTeX expression to HTML using KaTeX via QuickJS
 func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode bool) (string, error) {
-	if ctx == nil {
-		ctx = context.Background()
+	if err := r.withSchedulerAndClosedCheck(ctx, utils.TaskMath); err != nil {
+		return "", err
 	}
-
-	if r.scheduler != nil {
-		if err := r.scheduler.Acquire(ctx, utils.TaskMath); err != nil {
-			return "", err
-		}
-		defer r.scheduler.Release(utils.TaskMath)
-	}
-
-	r.ensureInitialized()
-
-	r.mu.Lock()
-	if r.closed {
-		r.mu.Unlock()
-		return "", fmt.Errorf("renderer is closed")
-	}
-	r.wg.Add(1)
-	r.mu.Unlock()
-
 	defer r.wg.Done()
 
 	// Acquire worker

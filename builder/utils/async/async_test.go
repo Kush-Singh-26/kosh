@@ -1,4 +1,4 @@
-package utils
+package async
 
 import (
 	"context"
@@ -372,4 +372,285 @@ func TestFireAndForget_ReturnsImmediately(t *testing.T) {
 	if elapsed > time.Millisecond {
 		t.Errorf("FireAndForget did not return immediately: %v", elapsed)
 	}
+}
+
+// TestFireAndForgetWithCallback_Success tests successful execution without callback
+func TestFireAndForgetWithCallback_Success(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	var executed bool
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	FireAndForgetWithCallback(ctx, logger, "test success", func() error {
+		executed = true
+		wg.Done()
+		return nil
+	}, nil)
+
+	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
+
+	if !executed {
+		t.Error("FireAndForgetWithCallback did not execute the function")
+	}
+}
+
+// TestFireAndForgetWithCallback_Error tests error callback invocation
+func TestFireAndForgetWithCallback_Error(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var callbackCalled bool
+	var callbackErr error
+
+	expectedErr := errors.New("test error")
+
+	FireAndForgetWithCallback(ctx, logger, "test error", func() error {
+		defer wg.Done()
+		return expectedErr
+	}, func(err error) {
+		callbackCalled = true
+		callbackErr = err
+	})
+
+	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
+
+	if !callbackCalled {
+		t.Error("FireAndForgetWithCallback did not call onError")
+	}
+	if callbackErr != expectedErr {
+		t.Errorf("FireAndForgetWithCallback callback error mismatch: got %v, want %v", callbackErr, expectedErr)
+	}
+}
+
+// TestFireAndForgetWithCallback_NilCallback tests with nil error callback
+func TestFireAndForgetWithCallback_NilCallback(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	expectedErr := errors.New("test error")
+
+	// Should not panic with nil callback
+	FireAndForgetWithCallback(ctx, logger, "test nil callback", func() error {
+		defer wg.Done()
+		return expectedErr
+	}, nil)
+
+	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
+	// If we reach here, it worked correctly with nil callback
+}
+
+// TestFireAndForgetWithCallback_Panic tests panic recovery with callback
+func TestFireAndForgetWithCallback_Panic(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var callbackCalled bool
+
+	FireAndForgetWithCallback(ctx, logger, "test panic", func() error {
+		defer wg.Done()
+		panic("test panic")
+	}, func(err error) {
+		// Should not be called on panic
+		callbackCalled = true
+	})
+
+	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
+
+	if callbackCalled {
+		t.Error("FireAndForgetWithCallback should not call onError on panic")
+	}
+}
+
+// TestFireAndForgetWithCallback_CallbackRunsAfterError verifies callback runs after error
+func TestFireAndForgetWithCallback_CallbackRunsAfterError(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var executionOrder []string
+
+	expectedErr := errors.New("test error")
+
+	FireAndForgetWithCallback(ctx, logger, "test order", func() error {
+		defer wg.Done()
+		executionOrder = append(executionOrder, "fn")
+		return expectedErr
+	}, func(err error) {
+		executionOrder = append(executionOrder, "callback")
+	})
+
+	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
+
+	if len(executionOrder) != 2 {
+		t.Fatalf("FireAndForgetWithCallback expected 2 executions, got %d", len(executionOrder))
+	}
+	if executionOrder[0] != "fn" {
+		t.Errorf("FireAndForgetWithCallback expected fn first, got %s", executionOrder[0])
+	}
+	if executionOrder[1] != "callback" {
+		t.Errorf("FireAndForgetWithCallback expected callback second, got %s", executionOrder[1])
+	}
+}
+
+// TestFireAndForgetWithResult_Success tests successful execution with result channel
+func TestFireAndForgetWithResult_Success(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	errCh := FireAndForgetWithResult(ctx, logger, "test success", func() error {
+		return nil
+	})
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("FireAndForgetWithResult timed out")
+	}
+}
+
+// TestFireAndForgetWithResult_Error tests error returned via channel
+func TestFireAndForgetWithResult_Error(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	expectedErr := errors.New("test error")
+	errCh := FireAndForgetWithResult(ctx, logger, "test error", func() error {
+		return expectedErr
+	})
+
+	select {
+	case err := <-errCh:
+		if err != expectedErr {
+			t.Errorf("expected %v, got %v", expectedErr, err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("FireAndForgetWithResult timed out")
+	}
+}
+
+// TestFireAndForgetWithResult_Panic tests panic recovery with result channel
+func TestFireAndForgetWithResult_Panic(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	errCh := FireAndForgetWithResult(ctx, logger, "test panic", func() error {
+		panic("test panic")
+	})
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Errorf("expected nil on panic, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("FireAndForgetWithResult timed out")
+	}
+}
+
+// TestFireAndForgetWithResult_ChannelBuffered tests that channel is buffered
+func TestFireAndForgetWithResult_ChannelBuffered(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	errCh := FireAndForgetWithResult(ctx, logger, "test buffered", func() error {
+		return errors.New("test error")
+	})
+
+	time.Sleep(50 * time.Millisecond)
+
+	select {
+	case <-errCh:
+		// Expected
+	case <-time.After(1 * time.Second):
+		t.Fatal("FireAndForgetWithResult may have deadlocked - channel not buffered")
+	}
+}
+
+// TestFireAndForgetWithMetrics_Success tests successful execution with metrics
+func TestFireAndForgetWithMetrics_Success(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	var tracked bool
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	FireAndForgetWithMetrics(ctx, logger, "test metrics",
+		func() error {
+			wg.Done()
+			return nil
+		},
+		func() {
+			tracked = true
+		})
+
+	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
+
+	if tracked {
+		t.Error("trackFailure should not be called on success")
+	}
+}
+
+// TestFireAndForgetWithMetrics_Error tests metrics tracking on error
+func TestFireAndForgetWithMetrics_Error(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	var tracked bool
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	FireAndForgetWithMetrics(ctx, logger, "test metrics error",
+		func() error {
+			wg.Done()
+			return errors.New("test error")
+		},
+		func() {
+			tracked = true
+		})
+
+	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
+
+	if !tracked {
+		t.Error("trackFailure should be called on error")
+	}
+}
+
+// TestFireAndForgetWithMetrics_NilTrack tests nil trackFailure callback
+func TestFireAndForgetWithMetrics_NilTrack(t *testing.T) {
+	ctx := context.Background()
+	logger := helperLogger(t)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	FireAndForgetWithMetrics(ctx, logger, "test nil track",
+		func() error {
+			wg.Done()
+			return errors.New("test error")
+		},
+		nil)
+
+	wg.Wait()
+	time.Sleep(10 * time.Millisecond)
 }

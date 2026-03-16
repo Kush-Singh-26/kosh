@@ -112,6 +112,7 @@ func SetupCacheManager(cfg *config.Config, logger *slog.Logger) (*cache.Manager,
 	}
 
 	diagramAdapter := cache.NewDiagramCacheAdapter(cm)
+	diagramAdapter.Start() // Explicit lifecycle start
 	return cm, diagramAdapter
 }
 

@@ -9,13 +9,22 @@ import (
 	"sync"
 	"time"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	bolt "go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
-// BatchCommit commits all pending changes in a single transaction
+// BatchCommit atomically commits posts, search records, and dependencies in a single BoltDB transaction.
+// All data is encoded in parallel with bounded concurrency before the transaction begins.
+//
+// Returns:
+//   - error: BoltDB transaction failure or encoding error (partial commit not possible)
+//   - Retry behavior: Safe to retry on failure; idempotent within same build session
+//   - Thread safety: Concurrent calls are serialized via internal mutex
+//
+// Note: On error, no data is committed (all-or-nothing semantics).
 func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*SearchRecord, deps map[string]*Dependencies) error {
 	// Pre-allocate slice for parallel encoding results
 	encoded := make([]EncodedPost, len(posts))
@@ -44,7 +53,7 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 			ep := EncodedPost{
 				PostID:  []byte(p.PostID),
 				Data:    postData,
-				Path:    []byte(utils.NormalizePath(p.Path)),
+				Path:    []byte(fspkg.NormalizePath(p.Path)),
 				Version: p.Version,
 			}
 
@@ -324,7 +333,7 @@ func (m *Manager) DeletePost(postID string) error {
 		if data != nil {
 			var post PostMeta
 			if decodeErr := Decode(data, &post); decodeErr == nil {
-				postPath = utils.NormalizePath(post.Path)
+				postPath = fspkg.NormalizePath(post.Path)
 				htmlHash = post.HTMLHash
 				if err := pathsBucket.Delete([]byte(postPath)); err != nil {
 					deleteErrors = append(deleteErrors, fmt.Errorf("delete path: %w", err))

@@ -7,10 +7,9 @@ import (
 	"sync"
 	"time"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	bolt "go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func getCachedItem[T any](db *bolt.DB, bucketName string, key []byte) (*T, error) {
@@ -65,7 +64,7 @@ func (m *Manager) memCacheDelete(key string) {
 
 // GetPostByPath looks up a post by its file path in a single transaction
 func (m *Manager) GetPostByPath(path string) (*PostMeta, error) {
-	normalizedPath := utils.NormalizePath(path)
+	normalizedPath := fspkg.NormalizePath(path)
 
 	// Check in-memory cache first
 	if cached := m.memCacheGet("path:" + normalizedPath); cached != nil {

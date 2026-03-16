@@ -1,4 +1,4 @@
-package utils
+package fs
 
 import (
 	"fmt"
@@ -11,6 +11,11 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// NormalizePath normalizes a path for consistent handling across platforms.
+// - Converts backslashes to forward slashes
+// - Cleans the path (removes . and ..)
+// - Applies NFC normalization for Unicode
+// - On Windows, capitalizes drive letters
 func NormalizePath(path string) string {
 	if path == "" || path == "." {
 		return "."
@@ -46,6 +51,7 @@ func NormalizePath(path string) string {
 	return path
 }
 
+// AbsNormalizePath returns the absolute normalized path.
 func AbsNormalizePath(path string) (string, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -54,6 +60,7 @@ func AbsNormalizePath(path string) (string, error) {
 	return NormalizePath(abs), nil
 }
 
+// NormalizeURLPath normalizes a URL path.
 func NormalizeURLPath(p string) string {
 	if p == "" {
 		return "."
@@ -62,6 +69,7 @@ func NormalizeURLPath(p string) string {
 	return path.Clean(p)
 }
 
+// NormalizeWatchPath normalizes a path from a file watcher, making it relative to the working directory if needed.
 func NormalizeWatchPath(path, wd string) string {
 	nativePath := filepath.Clean(path)
 	if wd != "" {
@@ -80,6 +88,7 @@ func NormalizeWatchPath(path, wd string) string {
 	return NormalizePath(nativePath)
 }
 
+// SafeRel returns a relative path from base to target, ensuring no path traversal.
 func SafeRel(base, target string) (string, error) {
 	rel, err := filepath.Rel(base, target)
 	if err != nil {
@@ -93,6 +102,7 @@ func SafeRel(base, target string) (string, error) {
 	return NormalizePath(rel), nil
 }
 
+// WriteFileVFS writes data to a file in an afero filesystem, creating directories as needed.
 func WriteFileVFS(fs afero.Fs, path string, data []byte) error {
 	if err := fs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", path, err)
@@ -100,6 +110,8 @@ func WriteFileVFS(fs afero.Fs, path string, data []byte) error {
 	return afero.WriteFile(fs, path, data, 0644)
 }
 
+// GetRelativePrefix calculates the relative prefix needed to go up from a path.
+// E.g., "foo/bar/baz.html" -> "../../"
 func GetRelativePrefix(htmlPath string) string {
 	if len(htmlPath) == 0 {
 		return ""
@@ -154,22 +166,39 @@ func GetRealPath(fs afero.Fs, path string) (string, bool) {
 			return path, true
 		case *afero.ReadOnlyFs:
 			// ReadOnlyFs wraps another Fs
-			// We can't access the private 'source' field easily without reflection
-			// but we can try to check if it's OsFs underneath.
-			// For now, just handle the most common Kosh wrappers if we can.
 			break
 		}
 		break
 	}
 
 	// Fallback: check if the FS is a known wrapper by name or behavior
-	// This is a bit hacky but avoids heavy reflection
 	fsName := fmt.Sprintf("%T", fs)
 	if strings.Contains(fsName, "OsFs") {
 		return path, true
 	}
 
 	return "", false
+}
+
+// IsPathInOrSame checks if a path is inside or the same as a target directory.
+func IsPathInOrSame(path, targetDir string) bool {
+	return strings.HasPrefix(path, targetDir+"/") || path == targetDir
+}
+
+// RepoRoot returns the absolute path to the repository root directory.
+func RepoRoot() string {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "."
+	}
+	// builder/utils/fs/path.go -> ../../../ = repo root
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+}
+
+// RepoPath joins path parts to the repository root.
+func RepoPath(parts ...string) string {
+	all := append([]string{RepoRoot()}, parts...)
+	return filepath.Join(all...)
 }
 
 func hasNonASCII(s string) bool {
@@ -179,25 +208,4 @@ func hasNonASCII(s string) bool {
 		}
 	}
 	return false
-}
-
-func IsPathInOrSame(path, targetDir string) bool {
-	return strings.HasPrefix(path, targetDir+"/") || path == targetDir
-}
-
-// RepoRoot returns the absolute path to the repository root directory.
-// Uses runtime.Caller to find the directory relative to this file.
-func RepoRoot() string {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return "."
-	}
-	// builder/utils/fs_path.go -> ../../ = repo root
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-}
-
-// RepoPath joins path parts to the repository root.
-func RepoPath(parts ...string) string {
-	all := append([]string{RepoRoot()}, parts...)
-	return filepath.Join(all...)
 }

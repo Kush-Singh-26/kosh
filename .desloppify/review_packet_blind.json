@@ -3,9 +3,164 @@
   "mode": "holistic",
   "language": "go",
   "dimensions": [
-    "mid_level_elegance"
+    "naming_quality",
+    "logic_clarity",
+    "type_safety",
+    "contract_coherence",
+    "error_consistency",
+    "abstraction_fitness",
+    "ai_generated_debt",
+    "high_level_elegance",
+    "mid_level_elegance",
+    "low_level_elegance",
+    "cross_module_architecture",
+    "initialization_coupling",
+    "convention_outlier",
+    "dependency_health",
+    "test_strategy",
+    "api_surface_coherence",
+    "authorization_consistency",
+    "incomplete_migration",
+    "package_organization",
+    "design_coherence"
   ],
   "dimension_prompts": {
+    "naming_quality": {
+      "description": "Function/variable/file names that communicate intent",
+      "look_for": [
+        "Generic verbs that reveal nothing: process, handle, do, run, manage",
+        "Name/behavior mismatch: getX() that mutates state, isX() returning non-boolean",
+        "Vocabulary divergence from codebase norms (context provides the norms)",
+        "Abbreviations inconsistent with codebase conventions"
+      ],
+      "skip": [
+        "Standard framework names (render, mount, useEffect)",
+        "Short-lived loop variables (i, j, k)",
+        "Well-known abbreviations matching codebase convention (ctx, req, res)",
+        "Short names that are established project conventions used consistently \u2014 a name used 50+ times is a convention, not an outlier"
+      ]
+    },
+    "logic_clarity": {
+      "description": "Control flow and logic that provably does what it claims",
+      "look_for": [
+        "Identical if/else or ternary branches (same code on both sides)",
+        "Dead code paths: code after unconditional return/raise/throw/break",
+        "Always-true or always-false conditions (e.g. checking a constant)",
+        "Redundant null/undefined checks on values that cannot be null",
+        "Async functions that never await (synchronous wrapped in async)",
+        "Boolean expressions that simplify: `if x: return True else: return False`"
+      ],
+      "skip": [
+        "Deliberate no-op branches with explanatory comments",
+        "Framework lifecycle methods that must be async by contract",
+        "Guard clauses that are defensive by design"
+      ]
+    },
+    "type_safety": {
+      "description": "Type annotations that match runtime behavior",
+      "look_for": [
+        "Return type annotations that don't cover all code paths (e.g., -> str but can return None)",
+        "Parameters typed as X but called with Y (e.g., str param receiving None)",
+        "Union types that could be narrowed (Optional used where None is never valid)",
+        "Missing annotations on public API functions",
+        "Type: ignore comments without explanation",
+        "TypedDict fields marked Required but accessed via .get() with defaults \u2014 the type promises a shape the code doesn't trust",
+        "Parameters typed as dict[str, Any] where a specific TypedDict or dataclass exists",
+        "Enum types defined in the codebase but bypassed with raw string or int literal comparisons \u2014 see enum_bypass_patterns evidence",
+        "Parallel type definitions: a Literal alias that duplicates an existing enum's values"
+      ],
+      "skip": [
+        "Untyped private helpers in well-typed modules",
+        "Dynamic framework code where typing is impractical",
+        "Test code with loose typing"
+      ]
+    },
+    "contract_coherence": {
+      "description": "Functions and modules that honor their stated contracts",
+      "look_for": [
+        "Return type annotation lies: declared type doesn't match all return paths",
+        "Docstring/signature divergence: params described in docs but not in function signature",
+        "Functions named getX that mutate state (side effect hidden behind getter name)",
+        "Module-level API inconsistency: some exports follow a pattern, one doesn't",
+        "Error contracts: function says it throws but silently returns None, or vice versa"
+      ],
+      "skip": [
+        "Protocol/interface stubs (abstract methods with placeholder returns)",
+        "Test helpers where loose typing is intentional",
+        "Overloaded functions with multiple valid return types"
+      ]
+    },
+    "error_consistency": {
+      "description": "Consistent error strategies, preserved context, predictable failure modes",
+      "look_for": [
+        "Mixed error strategies: some functions throw, others return null, others use Result types",
+        "Error context lost at boundaries: catch-and-rethrow without wrapping original",
+        "Inconsistent error types: custom error classes in some modules, bare strings in others",
+        "Silent error swallowing: catches that log but don't propagate or recover",
+        "Missing error handling on I/O boundaries (file, network, parse operations)"
+      ],
+      "skip": [
+        "Intentional error boundaries at top-level handlers",
+        "Different strategies for different layers (e.g. Result in core, throw in CLI)"
+      ]
+    },
+    "abstraction_fitness": {
+      "description": "Abstractions that pay for themselves with real leverage",
+      "look_for": [
+        "Pass-through wrappers or interfaces that add no behavior, policy, or translation",
+        "Cross-cutting wrapper chains where call depth increases without added value",
+        "Interface/protocol families where most declared contracts have only one implementation",
+        "Systemic util/helper dumping grounds that create low cohesion across modules",
+        "Leaky abstractions: callers consistently bypass intended interfaces",
+        "Wide options/context bag APIs that hide true domain boundaries",
+        "Generic/type-parameter machinery used in only one concrete way",
+        "Delegation-heavy classes where most methods forward to an inner object (high delegation ratio)",
+        "Facade/re-export modules that define no logic of their own",
+        "Getter functions whose body is solely return x.get(key) \u2014 the underlying type should be an object with properties instead of dict access"
+      ],
+      "skip": [
+        "Dependency-injection or framework abstractions required for wiring/testability",
+        "Adapters that intentionally isolate external API volatility",
+        "Cases where abstraction clearly reduces duplication across multiple callers",
+        "Thin wrappers that consistently enforce policy (auth/logging/metrics/caching)",
+        "If the core issue is dependency direction or cycles, use cross_module_architecture"
+      ]
+    },
+    "ai_generated_debt": {
+      "description": "LLM-hallmark patterns: restating comments, defensive overengineering, boilerplate",
+      "look_for": [
+        "Restating comments that echo the code without adding insight (// increment counter above i++)",
+        "Nosy debug logging: entry/exit logs on every function, full object dumps to console",
+        "Defensive overengineering: null checks on non-nullable typed values, try-catch around pure expressions",
+        "Docstring bloat: multi-line docstrings on trivial 2-line functions",
+        "Pass-through wrapper functions with no added logic (just forward args to another function)",
+        "Generic names in domain code: handleData, processItem, doOperation where domain terms exist",
+        "Identical boilerplate error handling copied verbatim across multiple files"
+      ],
+      "skip": [
+        "Comments explaining WHY (business rules, non-obvious constraints, external dependencies)",
+        "Defensive checks at genuine API boundaries (user input, network, file I/O)",
+        "Generated code (protobuf, GraphQL codegen, ORM migrations)",
+        "Wrapper functions that add auth, logging, metrics, or caching"
+      ]
+    },
+    "high_level_elegance": {
+      "description": "Clear decomposition, coherent ownership, domain-aligned structure",
+      "look_for": [
+        "Top-level packages/files map to domain capabilities rather than historical accidents",
+        "Ownership and change boundaries are predictable \u2014 a new engineer can explain why this exists",
+        "Public surface (exports/entry points) is small and consistent with stated responsibility",
+        "Project contracts and reference docs match runtime reality (README/structure/philosophy are trustworthy)",
+        "Subsystem decomposition localizes change without surprising ripple edits",
+        "A small set of architectural patterns is used consistently across major areas"
+      ],
+      "skip": [
+        "When dependency direction/cycle/hub failures are the PRIMARY issue, report under cross_module_architecture (still include here if they materially blur ownership/decomposition)",
+        "When handoff mechanics are the PRIMARY issue, report under mid_level_elegance (still include here if they materially affect top-level role clarity)",
+        "When function/class internals are the PRIMARY issue, report under low_level_elegance or logic_clarity",
+        "Pure naming/style nits with no impact on role clarity"
+      ]
+    },
     "mid_level_elegance": {
       "description": "Quality of handoffs and integration seams across modules and layers",
       "look_for": [
@@ -21,6 +176,186 @@
         "Pure API/type contract defects with no seam design impact (belongs to contract_coherence)",
         "Standalone naming/style preferences that do not affect handoffs"
       ]
+    },
+    "low_level_elegance": {
+      "description": "Direct, precise function and class internals",
+      "look_for": [
+        "Control flow is direct and intention-revealing; branches are necessary and distinct",
+        "State mutation and side effects are explicit, local, and bounded",
+        "Edge-case handling is precise without defensive sprawl",
+        "Extraction level is balanced: avoids both monoliths and micro-fragmentation",
+        "Helper extraction style is consistent across related modules"
+      ],
+      "skip": [
+        "When file responsibility/package role is the PRIMARY issue, report under high_level_elegance",
+        "When inter-module seam choreography is the PRIMARY issue, report under mid_level_elegance",
+        "When dependency topology is the PRIMARY issue, report under cross_module_architecture",
+        "Provable logic/type/error defects already captured by logic_clarity, type_safety, or error_consistency"
+      ]
+    },
+    "cross_module_architecture": {
+      "description": "Dependency direction, cycles, hub modules, and boundary integrity",
+      "look_for": [
+        "Layer/dependency direction violations repeated across multiple modules",
+        "Cycles or hub modules that create large blast radius for common changes",
+        "Documented architecture contracts drifting from runtime (e.g. dynamic import boundaries)",
+        "Cross-module coordination through shared mutable state or import-time side effects",
+        "Compatibility shim paths that persist without active external need and blur boundaries",
+        "Cross-package duplication that indicates a missing shared boundary",
+        "Subsystem or package consuming a disproportionate share of the codebase \u2014 see package_size_census evidence"
+      ],
+      "skip": [
+        "Intentional facades/re-exports with clear API purpose",
+        "Framework-required patterns (Django settings, plugin registries)",
+        "Package naming/placement tidy-ups without boundary harm (belongs to package_organization)",
+        "Local readability/craft issues (belongs to low_level_elegance)"
+      ]
+    },
+    "initialization_coupling": {
+      "description": "Boot-order dependencies, import-time side effects, global singletons",
+      "look_for": [
+        "Module-level code that depends on another module having been imported first",
+        "Import-time side effects: DB connections, file I/O, network calls at module scope",
+        "Global singletons where creation order matters across modules",
+        "Environment variable reads at import time (fragile in testing)",
+        "Circular init dependencies hidden behind conditional or lazy imports",
+        "Module-level constants computed at import time alongside a dynamic getter function \u2014 consumers referencing the stale snapshot instead of calling the getter"
+      ],
+      "skip": [
+        "Standard library initialization (logging.basicConfig)",
+        "Framework bootstrap (app.configure, server.listen)"
+      ]
+    },
+    "convention_outlier": {
+      "description": "Naming convention drift, inconsistent file organization, style islands",
+      "look_for": [
+        "Naming convention drift: snake_case functions in a camelCase codebase or vice versa",
+        "Inconsistent file organization that impedes navigation (not mere structural variation between dirs)",
+        "Mixed export patterns across sibling modules (named vs default, class vs function)",
+        "Style islands: one directory uses a completely different pattern than the rest",
+        "Sibling modules following different behavioral protocols (e.g. most call a shared function, one doesn't)",
+        "Inconsistent plugin organization: sibling plugins structured differently",
+        "Large __init__.py re-export surfaces that obscure internal module structure",
+        "Mixed type strategies for domain objects (TypedDict for some, dataclass for others, NamedTuple for yet others) without documented rationale \u2014 see type_strategy_census evidence"
+      ],
+      "skip": [
+        "Intentional variation for different module types (config vs logic)",
+        "Third-party code or generated files following their own conventions",
+        "Do NOT recommend adding index/barrel files, re-export facades, or directory wrappers to 'standardize' \u2014 prefer the simpler existing pattern over consistency-for-its-own-sake",
+        "When sibling modules use different structures, report the inconsistency but do NOT suggest adding abstraction layers to unify them"
+      ]
+    },
+    "dependency_health": {
+      "description": "Unused deps, version conflicts, multiple libs for same purpose, heavy deps",
+      "look_for": [
+        "Multiple libraries for the same purpose (e.g. moment + dayjs, axios + fetch wrapper)",
+        "Heavy dependencies pulled in for light use (e.g. lodash for one function)",
+        "Circular dependency cycles visible in the import graph",
+        "Unused dependencies in package.json/requirements.txt",
+        "Version conflicts or pinning issues visible in lock files"
+      ],
+      "skip": [
+        "Dev dependencies (test, build, lint tools)",
+        "Peer dependencies required by frameworks"
+      ]
+    },
+    "test_strategy": {
+      "description": "Untested critical paths, coupling, snapshot overuse, fragility patterns",
+      "look_for": [
+        "Critical paths with zero test coverage (high-importer files, core business logic)",
+        "Test-production coupling: tests that break when implementation details change",
+        "Snapshot test overuse: >50% of tests are snapshot-based",
+        "Missing integration tests: unit tests exist but no cross-module verification",
+        "Test fragility: tests that depend on timing, ordering, or external state"
+      ],
+      "skip": [
+        "Low-value files intentionally untested (types, constants, index files)",
+        "Generated code that shouldn't have custom tests"
+      ]
+    },
+    "api_surface_coherence": {
+      "description": "Inconsistent API shapes, mixed sync/async, overloaded interfaces",
+      "look_for": [
+        "Inconsistent API shapes: similar functions with different parameter ordering or naming",
+        "Mixed sync/async in the same module's public API",
+        "Overloaded interfaces: one function doing too many things based on argument types",
+        "Missing error contracts: no documentation or types indicating what can fail",
+        "Public functions with >5 parameters (API boundary may be wrong)"
+      ],
+      "skip": [
+        "Internal/private APIs where flexibility is acceptable",
+        "Framework-imposed patterns (React hooks must follow rules of hooks)"
+      ]
+    },
+    "authorization_consistency": {
+      "description": "Auth/permission patterns consistently applied across the codebase",
+      "look_for": [
+        "Route handlers with auth decorators/middleware on some siblings but not others",
+        "RLS enabled on some tables but not siblings in the same domain",
+        "Permission strings as magic literals instead of shared constants",
+        "Mixed trust boundaries: some endpoints validate user input, siblings don't",
+        "Service role / admin bypass without audit logging or access control"
+      ],
+      "skip": [
+        "Public routes explicitly documented as unauthenticated (health checks, login, webhooks)",
+        "Internal service-to-service calls behind network-level auth",
+        "Dev/test endpoints behind feature flags or environment checks"
+      ]
+    },
+    "incomplete_migration": {
+      "description": "Old+new API coexistence, deprecated-but-called symbols, stale migration shims",
+      "look_for": [
+        "Old and new API patterns coexisting: class+functional components, axios+fetch, moment+dayjs",
+        "Deprecated symbols still called by active code (@deprecated, DEPRECATED markers)",
+        "Compatibility shims that no caller actually needs anymore",
+        "Mixed JS/TS files for the same module (incomplete TypeScript migration)",
+        "Stale migration TODOs: TODO/FIXME referencing 'migrate', 'legacy', 'old api', 'remove after'"
+      ],
+      "skip": [
+        "Active, intentional migrations with tracked progress",
+        "Backward-compatibility for external consumers (published APIs, libraries)",
+        "Gradual rollouts behind feature flags with clear ownership"
+      ]
+    },
+    "package_organization": {
+      "description": "Directory layout quality and navigability: whether placement matches ownership and change boundaries",
+      "look_for": [
+        "Use holistic_context.structure as objective evidence: root_files (fan_in/fan_out + role), directory_profiles (file_count/avg fan-in/out), and coupling_matrix (cross-directory edges)",
+        "Straggler roots: root-level files with low fan-in (<5 importers) that share concern/theme with other files should move under a focused package",
+        "Import-affinity mismatch: file imports/references are mostly from one sibling domain (>60%), but file lives outside that domain",
+        "Coupling-direction failures: reciprocal/bidirectional directory edges or obvious downstream\u2192upstream imports indicate boundary placement problems",
+        "Flat directory overload: >10 files with mixed concerns and low cohesion should be split into purpose-driven subfolders",
+        "Ambiguous folder naming: directory names do not reflect contained responsibilities"
+      ],
+      "skip": [
+        "Root-level files that ARE genuinely core \u2014 high fan-in (\u22655 importers), imported across multiple subdirectories (cli.py, state.py, utils.py, config.py)",
+        "Small projects (<20 files) where flat structure is appropriate",
+        "Framework-imposed directory layouts (src/, lib/, dist/, __pycache__/)",
+        "Test directories mirroring production structure",
+        "Aesthetic preferences without measurable navigation, ownership, or coupling impact"
+      ]
+    },
+    "design_coherence": {
+      "description": "Are structural design decisions sound \u2014 functions focused, abstractions earned, patterns consistent?",
+      "look_for": [
+        "Functions doing too many things \u2014 multiple distinct responsibilities in one body",
+        "Parameter lists that should be config/context objects \u2014 many related params passed together",
+        "Files accumulating issues across many dimensions \u2014 likely mixing unrelated concerns",
+        "Deep nesting that could be flattened with early returns or extraction",
+        "Repeated structural patterns that should be data-driven"
+      ],
+      "skip": [
+        "Functions that are long but have a single coherent responsibility",
+        "Parameter lists where grouping would obscure meaning \u2014 do NOT recommend config/context objects or dependency injection wrappers just to reduce parameter count; only group when the grouping has independent semantic meaning",
+        "Files that are large because their domain is genuinely complex, not because they mix concerns",
+        "Nesting that is inherent to the problem (e.g., recursive tree processing)",
+        "Do NOT recommend extracting callable parameters or injecting dependencies for 'testability' \u2014 direct function calls are simpler and preferred unless there is a concrete decoupling need"
+      ],
+      "meta": {
+        "display_name": "Design coherence",
+        "weight": 10.0,
+        "reset_on_scan": true
+      }
     }
   },
   "lang_guidance": {
@@ -55,7 +390,7 @@
           "cluster_size": 1,
           "name": "",
           "files": [
-            "builder/utils/retry.go"
+            "builder/utils/fs/path.go"
           ]
         },
         {
@@ -63,7 +398,31 @@
           "cluster_size": 1,
           "name": "",
           "files": [
-            "builder/utils/retry.go"
+            "builder/utils/fs/path.go"
+          ]
+        },
+        {
+          "kind": "exact",
+          "cluster_size": 1,
+          "name": "",
+          "files": [
+            "builder/utils/fs/path.go"
+          ]
+        },
+        {
+          "kind": "exact",
+          "cluster_size": 1,
+          "name": "",
+          "files": [
+            "builder/utils/fs/path.go"
+          ]
+        },
+        {
+          "kind": "exact",
+          "cluster_size": 1,
+          "name": "",
+          "files": [
+            "builder/utils/fs/path.go"
           ]
         },
         {
@@ -127,9 +486,9 @@
           "result_type": 4
         },
         "utils/": {
-          "result_type": 10
+          "result_type": 6
         },
-        "tx/": {
+        "retry/": {
           "result_type": 4
         }
       }
@@ -143,8 +502,8 @@
         },
         {
           "file": "internal/server/utils.go",
-          "loc": 158,
-          "excerpt": "package server\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"path/filepath\"\n\t\"strings\"\n\n\t\"github.com/andybalholm/brotli\"\n\n\t\"github.com/Kush-Singh-26/kosh/builder/utils\"\n)\n\nfunc validatePath(baseDir, userPath string) (string, error) {\n\t// URL-decode first to prevent encoded traversal sequences (%2e%2e%2f)\n\tdecodedPath, err := url.PathUnescape(userPath)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"invalid path encoding: %w\", err)\n\t}\n\n\tif strings.HasPrefix(decodedPath, \"\\\\\\\\\") {\n\t\treturn \"\", fmt.Errorf(\"absolute path attempt detected\")\n\t}\n\n\t// Reject volume-based absolute paths (e.g. C:\\Windows)\n\tif vol := filepath.VolumeName(decodedPath); vol != \"\" {\n\t\treturn \"\", fmt.Errorf(\"absolute path attempt detected\")\n\t}\n\n... (128 more lines)"
+          "loc": 157,
+          "excerpt": "package server\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"path/filepath\"\n\t\"strings\"\n\n\tfspkg \"github.com/Kush-Singh-26/kosh/builder/utils/fs\"\n\t\"github.com/andybalholm/brotli\"\n)\n\nfunc validatePath(baseDir, userPath string) (string, error) {\n\t// URL-decode first to prevent encoded traversal sequences (%2e%2e%2f)\n\tdecodedPath, err := url.PathUnescape(userPath)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"invalid path encoding: %w\", err)\n\t}\n\n\tif strings.HasPrefix(decodedPath, \"\\\\\\\\\") {\n\t\treturn \"\", fmt.Errorf(\"absolute path attempt detected\")\n\t}\n\n\t// Reject volume-based absolute paths (e.g. C:\\Windows)\n\tif vol := filepath.VolumeName(decodedPath); vol != \"\" {\n\t\treturn \"\", fmt.Errorf(\"absolute path attempt detected\")\n\t}\n\n\n... (127 more lines)"
         }
       ],
       "summary": {
@@ -153,7 +512,7 @@
         "total_function_signatures": 0,
         "one_impl_interface_count": 0,
         "indirection_hotspot_count": 44,
-        "wide_param_bag_count": 28,
+        "wide_param_bag_count": 29,
         "delegation_heavy_class_count": 0,
         "facade_module_count": 0,
         "typed_dict_violation_count": 0,
@@ -172,7 +531,7 @@
         {
           "file": "builder/run/build.go",
           "max_chain_depth": 4,
-          "chain_count": 100
+          "chain_count": 101
         },
         {
           "file": "builder/run/incremental.go",
@@ -307,11 +666,6 @@
           "config_bag_mentions": 28
         },
         {
-          "file": "builder/utils/tx/transaction.go",
-          "wide_functions": 0,
-          "config_bag_mentions": 28
-        },
-        {
           "file": "builder/parser/unified.go",
           "wide_functions": 0,
           "config_bag_mentions": 27
@@ -320,6 +674,11 @@
           "file": "builder/services/post_parser.go",
           "wide_functions": 0,
           "config_bag_mentions": 24
+        },
+        {
+          "file": "builder/utils/async/async.go",
+          "wide_functions": 0,
+          "config_bag_mentions": 21
         },
         {
           "file": "builder/renderer/native/d2.go",
@@ -357,7 +716,7 @@
           "config_bag_mentions": 15
         },
         {
-          "file": "builder/utils/retry.go",
+          "file": "builder/utils/retry/retry.go",
           "wide_functions": 0,
           "config_bag_mentions": 15
         },
@@ -385,7 +744,7 @@
         },
         {
           "file": "builder/run/incremental.go",
-          "loc": 596.0,
+          "loc": 597.0,
           "complexity_score": 53.0,
           "signals": [],
           "component_count": 0,
@@ -395,7 +754,7 @@
         },
         {
           "file": "builder/utils/fs_copy.go",
-          "loc": 604.0,
+          "loc": 605.0,
           "complexity_score": 48.0,
           "signals": [],
           "component_count": 0,
@@ -405,8 +764,8 @@
         },
         {
           "file": "builder/run/build.go",
-          "loc": 598.0,
-          "complexity_score": 38.0,
+          "loc": 603.0,
+          "complexity_score": 39.0,
           "signals": [],
           "component_count": 0,
           "function_count": 0,
@@ -424,11 +783,13 @@
         "Analyzer",
         "ArtifactSink",
         "AssetService",
+        "AssetServiceCache",
         "AuthorConfig",
         "Breadcrumb",
         "BufferPool",
         "BufioReaderPool",
         "BufioWriterPool",
+        "BuildArtifactCache",
         "BuildConfig",
         "BuildMetrics",
         "BuildOptions",
@@ -438,14 +799,15 @@
         "BuilderDependencies",
         "BuilderState",
         "ByteSlicePool",
-        "CacheService",
         "CacheStats",
         "Channel",
         "Config",
+        "ContentCache",
         "CopyOptions",
         "Dependencies",
         "DiagramCacheAdapter",
         "DirectoryTx",
+        "DirtyTracker",
         "DiskSink",
         "EncodedPost",
         "Event",
@@ -489,26 +851,32 @@
         "PhaseDurationSnapshot",
         "PhaseTimer",
         "PhaseTracker",
+        "PostCache",
         "PostListMeta",
         "PostMeta",
         "PostMetadata",
         "PostRecord",
         "PostResult",
         "PostService",
+        "PostServiceCache",
         "PostServiceDependencies",
         "RawHTMLBlock",
         "RawHTMLInline",
         "RefCountManager",
         "RenderService",
+        "RenderServiceCache",
         "Renderer",
         "Result",
         "Rss",
         "SSRArtifact",
         "ScannedAsset",
         "ScannedFile",
+        "ScannerCache",
         "SearchIndex",
         "SearchRecord",
         "SiteConfig",
+        "SiteGeneratorCache",
+        "SocialCardCache",
         "SocialCardsConfig",
         "Store",
         "StringBuilderPool",
@@ -554,6 +922,7 @@
         "CheckWASMFsWithSource",
         "CleanOrphans",
         "CleanupOrphans",
+        "CleanupStaleBuildDirs",
         "Clear",
         "ClearAll",
         "ClearDirty",
@@ -614,7 +983,10 @@
         "FileCount",
         "FindPrevNext",
         "FireAndForget",
+        "FireAndForgetWithCallback",
         "FireAndForgetWithCleanup",
+        "FireAndForgetWithMetrics",
+        "FireAndForgetWithResult",
         "Flush",
         "FormatDurationShort",
         "FormatPhaseSummary",
@@ -886,7 +1258,7 @@
             "embed.go",
             "wasm.go"
           ],
-          "total_loc": 238,
+          "total_loc": 237,
           "avg_fan_in": 0.0,
           "avg_fan_out": 0.0,
           "zones": {
@@ -912,7 +1284,7 @@
             "store.go",
             "types.go"
           ],
-          "total_loc": 2635,
+          "total_loc": 2643,
           "avg_fan_in": 0.0,
           "avg_fan_out": 0.0,
           "zones": {
@@ -925,7 +1297,7 @@
             "build_config.go",
             "config.go"
           ],
-          "total_loc": 500,
+          "total_loc": 501,
           "avg_fan_in": 0.0,
           "avg_fan_out": 0.0,
           "zones": {
@@ -1021,7 +1393,7 @@
             "pipeline_pwa.go",
             "setup.go"
           ],
-          "total_loc": 2470,
+          "total_loc": 2479,
           "avg_fan_in": 0.0,
           "avg_fan_out": 0.0,
           "zones": {
@@ -1060,7 +1432,7 @@
             "render_service.go",
             "scanner.go"
           ],
-          "total_loc": 2142,
+          "total_loc": 2185,
           "avg_fan_in": 0.0,
           "avg_fan_out": 0.0,
           "zones": {
@@ -1096,10 +1468,9 @@
           }
         },
         "builder\\utils/": {
-          "file_count": 30,
+          "file_count": 27,
           "files": [
             "assets.go",
-            "async.go",
             "constants.go",
             "copy_fallback.go",
             "copy_optimized_linux.go",
@@ -1112,13 +1483,11 @@
             "formatting.go",
             "fs_copy.go",
             "fs_hash.go",
-            "fs_path.go",
             "hash.go",
             "mem_sink.go",
             "minifier.go",
             "navigation.go",
             "pools.go",
-            "retry.go",
             "scheduler.go",
             "sink.go",
             "sync.go",
@@ -1129,11 +1498,11 @@
             "walk.go",
             "worker_pool.go"
           ],
-          "total_loc": 3879,
+          "total_loc": 3529,
           "avg_fan_in": 0.0,
           "avg_fan_out": 0.0,
           "zones": {
-            "production": 30
+            "production": 27
           }
         },
         "cmd\\kosh/": {
@@ -1165,7 +1534,7 @@
             "utils.go",
             "watcher.go"
           ],
-          "total_loc": 646,
+          "total_loc": 645,
           "avg_fan_in": 0.0,
           "avg_fan_out": 0.0,
           "zones": {
@@ -1176,10 +1545,17 @@
     },
     "codebase_stats": {
       "total_files": 125,
-      "total_loc": 21299
+      "total_loc": 21405
     },
     "authorization": {},
-    "ai_debt_signals": {},
+    "ai_debt_signals": {
+      "file_signals": {
+        "builder/utils/async/async.go": {
+          "comment_ratio": 0.31
+        }
+      },
+      "codebase_avg_comment_ratio": 0.071
+    },
     "migration_signals": {},
     "scan_evidence": {
       "complexity_hotspots": [
@@ -1195,7 +1571,7 @@
         },
         {
           "file": "builder/run/incremental.go",
-          "loc": 596.0,
+          "loc": 597.0,
           "complexity_score": 53.0,
           "signals": [],
           "component_count": 0,
@@ -1205,7 +1581,7 @@
         },
         {
           "file": "builder/utils/fs_copy.go",
-          "loc": 604.0,
+          "loc": 605.0,
           "complexity_score": 48.0,
           "signals": [],
           "component_count": 0,
@@ -1215,8 +1591,8 @@
         },
         {
           "file": "builder/run/build.go",
-          "loc": 598.0,
-          "complexity_score": 38.0,
+          "loc": 603.0,
+          "complexity_score": 39.0,
           "signals": [],
           "component_count": 0,
           "function_count": 0,
@@ -1230,7 +1606,7 @@
           "cluster_size": 1,
           "name": "",
           "files": [
-            "builder/utils/retry.go"
+            "builder/utils/fs/path.go"
           ]
         },
         {
@@ -1238,7 +1614,31 @@
           "cluster_size": 1,
           "name": "",
           "files": [
-            "builder/utils/retry.go"
+            "builder/utils/fs/path.go"
+          ]
+        },
+        {
+          "kind": "exact",
+          "cluster_size": 1,
+          "name": "",
+          "files": [
+            "builder/utils/fs/path.go"
+          ]
+        },
+        {
+          "kind": "exact",
+          "cluster_size": 1,
+          "name": "",
+          "files": [
+            "builder/utils/fs/path.go"
+          ]
+        },
+        {
+          "kind": "exact",
+          "cluster_size": 1,
+          "name": "",
+          "files": [
+            "builder/utils/fs/path.go"
           ]
         },
         {
@@ -1284,9 +1684,9 @@
       ],
       "large_file_distribution": {
         "count": 4,
-        "median_loc": 598,
-        "p90_loc": 604,
-        "p99_loc": 604
+        "median_loc": 603,
+        "p90_loc": 605,
+        "p99_loc": 605
       },
       "signal_density": [
         {
@@ -1299,21 +1699,21 @@
           ]
         },
         {
+          "file": "builder/utils/fs/path.go",
+          "detector_count": 2,
+          "issue_count": 6,
+          "detectors": [
+            "dupes",
+            "test_coverage"
+          ]
+        },
+        {
           "file": "cmd/kosh/root.go",
           "detector_count": 2,
           "issue_count": 3,
           "detectors": [
             "stale_wontfix",
             "unused"
-          ]
-        },
-        {
-          "file": "builder/utils/retry.go",
-          "detector_count": 2,
-          "issue_count": 3,
-          "detectors": [
-            "dupes",
-            "test_coverage"
           ]
         },
         {
@@ -1437,7 +1837,7 @@
       "package_size_census": [
         {
           "package": "builder",
-          "loc": 2452,
+          "loc": 2457,
           "pct_of_total": 99.4,
           "disproportionate": true
         },
@@ -1472,10 +1872,10 @@
         "build": 1,
         "parse": 1
       },
-      "total_names": 177
+      "total_names": 191
     },
     "error_conventions": {
-      "result_type": 11,
+      "result_type": 10,
       "try_catch": 1
     },
     "module_patterns": {
@@ -1550,9 +1950,24 @@
         "path/filepath": 2
       },
       "utils/": {
-        "os": 14,
-        "path/filepath": 12,
-        "strings": 11
+        "os": 13,
+        "path/filepath": 11,
+        "strings": 10
+      },
+      "async/": {
+        "context": 1,
+        "log/slog": 1,
+        "runtime/debug": 1
+      },
+      "fs/": {
+        "fmt": 1,
+        "path": 1,
+        "path/filepath": 1
+      },
+      "retry/": {
+        "context": 1,
+        "log/slog": 1,
+        "os": 1
       },
       "tx/": {
         "context": 1,
@@ -1603,7 +2018,7 @@
     "import_graph_summary": {},
     "zone_distribution": {
       "production": 124,
-      "test": 85,
+      "test": 89,
       "generated": 3,
       "script": 1
     },
@@ -1612,14 +2027,14 @@
         "structural: Large file: large (588 LOC) / complexity score 71"
       ],
       "builder/run/incremental.go": [
-        "structural: Large file: large (596 LOC) / complexity score 53"
+        "structural: Large file: large (597 LOC) / complexity score 53"
       ],
       "builder/utils/fs_copy.go": [
-        "structural: Large file: large (604 LOC) / complexity score 48",
+        "structural: Large file: large (605 LOC) / complexity score 48",
         "stale_wontfix: Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/fs_copy.go::"
       ],
       "builder/run/build.go": [
-        "structural: Large file: large (598 LOC) / complexity score 38"
+        "structural: Large file: large (603 LOC) / complexity score 39"
       ],
       "builder/renderer/renderer.go": [
         "responsibility_cohesion: 9 disconnected function clusters (13 functions) \u2014 likely mixed responsibilities"
@@ -1730,19 +2145,8 @@
         "test_coverage: Untested module (411 LOC, 0 importers)",
         "stale_wontfix: Stale wontfix (scan_decay): re-triage `test_coverage::builder/parser/unified.go:"
       ],
-      "builder/assets/wasm.go": [
-        "test_coverage: Untested module (227 LOC, 0 importers)"
-      ],
       "builder/models/ssr.go": [
         "test_coverage: Untested module (52 LOC, 0 importers)"
-      ],
-      "builder/utils/async.go": [
-        "test_coverage: Untested module (65 LOC, 0 importers)"
-      ],
-      "builder/utils/retry.go": [
-        "test_coverage: Untested module (82 LOC, 0 importers)",
-        "dupes: Exact dupe: RenameWithRetry (builder/utils/retry.go:12) <-> RenameWithRetry (bui",
-        "dupes: Exact dupe: RemoveAllWithRetry (builder/utils/retry.go:51) <-> RemoveAllWithRetr"
       ],
       "builder/utils/copy_optimized_windows.go": [
         "stale_wontfix: Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/copy_optimiz"
@@ -1890,17 +2294,29 @@
       ],
       "builder/utils/flock_wasm.go": [
         "stale_wontfix: Stale wontfix (scan_decay): re-triage `test_coverage::builder/utils/flock_wasm.g"
+      ],
+      "builder/utils/fs/path.go": [
+        "test_coverage: Untested module (211 LOC, 0 importers)",
+        "dupes: Exact dupe: NormalizePath (builder/utils/fs/path.go:19) <-> NormalizePath (build",
+        "dupes: Exact dupe: NormalizeWatchPath (builder/utils/fs/path.go:73) <-> NormalizeWatchP",
+        "dupes: Exact dupe: SafeRel (builder/utils/fs/path.go:92) <-> SafeRel (builder/utils/fs_",
+        "dupes: Exact dupe: GetRelativePrefix (builder/utils/fs/path.go:115) <-> GetRelativePref",
+        "dupes: Exact dupe: GetRealPath (builder/utils/fs/path.go:157) <-> GetRealPath (builder/"
       ]
     },
     "codebase_stats": {
       "total_files": 125,
-      "total_loc": 21299,
-      "avg_file_loc": 170
+      "total_loc": 21405,
+      "avg_file_loc": 171
     },
     "sibling_conventions": {},
     "ai_debt_signals": {
-      "file_signals": {},
-      "codebase_avg_comment_ratio": 0.07
+      "file_signals": {
+        "builder/utils/async/async.go": {
+          "comment_ratio": 0.31
+        }
+      },
+      "codebase_avg_comment_ratio": 0.071
     },
     "error_strategies": {
       "builder/renderer/native/math.go": "result_type",
@@ -1912,8 +2328,7 @@
       "builder/services/scanner.go": "result_type",
       "builder/testutil/sink_mock.go": "result_type",
       "builder/utils/fs_copy.go": "result_type",
-      "builder/utils/retry.go": "result_type",
-      "builder/utils/tx/transaction.go": "result_type",
+      "builder/utils/retry/retry.go": "result_type",
       "builder/utils/walk.go": "result_type"
     }
   },
@@ -1937,25 +2352,268 @@
   },
   "historical_review_issues": {
     "summary": {
-      "total_review_issues": 106,
-      "open_review_issues": 2,
+      "total_review_issues": 123,
+      "open_review_issues": 0,
       "status_counts": {
         "auto_resolved": 0,
         "deferred": 0,
         "false_positive": 0,
-        "fixed": 101,
-        "open": 2,
+        "fixed": 120,
+        "open": 0,
         "triaged_out": 0,
         "wontfix": 3
       },
-      "dimension_open_counts": {
-        "cross_module_architecture": 2
-      }
+      "dimension_open_counts": {}
     },
     "recent_issues": [
       {
+        "dimension": "abstraction_fitness",
+        "status": "fixed",
+        "summary": "CacheService composite interface embeds 5 unrelated sub-interfaces creating 25+ method monolith",
+        "suggestion": "Replace CacheService composite with direct injection of focused sub-interfaces where needed. For example, PostService only needs PostCache + DirtyTracker, while site-wide generators need BuildArtif...",
+        "related_files": [
+          "builder/services/interfaces.go",
+          "builder/services/cache_service.go"
+        ],
+        "note": "CacheService composite removed, replaced with focused interfaces",
+        "confidence": "high",
+        "first_seen": "2026-03-16T10:23:16+00:00",
+        "last_seen": "2026-03-16T10:23:16+00:00"
+      },
+      {
+        "dimension": "abstraction_fitness",
+        "status": "fixed",
+        "summary": "CacheService composite interface has 25+ methods spanning 5 unrelated concerns (post cache, content cache, social cards, build artifacts, dirty tracking)",
+        "suggestion": "Keep the focused sub-interfaces (PostCache, ContentCache, etc.) as the primary injection points. Instead of composing them into CacheService, inject only the needed sub-interface into each service....",
+        "related_files": [
+          "builder/services/interfaces.go",
+          "builder/services/cache_service.go",
+          "builder/cache/cache.go"
+        ],
+        "note": "",
+        "confidence": "high",
+        "first_seen": "2026-03-16T10:03:32+00:00",
+        "last_seen": "2026-03-16T10:03:32+00:00"
+      },
+      {
+        "dimension": "abstraction_fitness",
+        "status": "fixed",
+        "summary": "AssetProvider interface adds indirection layer when Renderer already manages assets internally with atomic snapshots",
+        "suggestion": "Remove AssetProvider interface and embed asset methods directly in RenderService. The atomic snapshot pattern in Renderer.GetAssets() already provides safe access. If testability is a concern, extr...",
+        "related_files": [
+          "builder/services/interfaces.go",
+          "builder/services/render_service.go",
+          "builder/renderer/renderer.go"
+        ],
+        "note": "Removed AssetProvider interface, embedded asset methods in RenderService",
+        "confidence": "medium",
+        "first_seen": "2026-03-16T10:03:32+00:00",
+        "last_seen": "2026-03-16T10:03:32+00:00"
+      },
+      {
+        "dimension": "abstraction_fitness",
+        "status": "fixed",
+        "summary": "FireAndForget utilities provide standardized error handling but intentionally swallow errors by logging only, limiting caller control",
+        "suggestion": "Add FireAndForgetWithResult variant that returns <-chan error for callers who need to track background operation status. Or add metrics counter integration for monitoring failure rates. For critica...",
+        "related_files": [
+          "builder/utils/async/async.go",
+          "builder/services/post_service.go",
+          "builder/run/build.go"
+        ],
+        "note": "Added FireAndForgetWithResult returning <-chan error and FireAndForgetWithMetrics for failure tracking",
+        "confidence": "medium",
+        "first_seen": "2026-03-16T10:03:32+00:00",
+        "last_seen": "2026-03-16T10:03:32+00:00"
+      },
+      {
+        "dimension": "convention_outlier",
+        "status": "fixed",
+        "summary": "Duplicate boilerplate patterns in cache write operations",
+        "suggestion": "Extract common cache write patterns into shared utilities in builder/cache package to reduce duplication",
+        "related_files": [
+          "builder/cache/cache_writes.go",
+          "builder/services/post_service.go"
+        ],
+        "note": "",
+        "confidence": "medium",
+        "first_seen": "2026-03-16T10:03:22+00:00",
+        "last_seen": "2026-03-16T10:03:22+00:00"
+      },
+      {
+        "dimension": "convention_outlier",
+        "status": "fixed",
+        "summary": "Duplicate SSR handling boilerplate across renderer and services",
+        "suggestion": "Consolidate SSR artifact handling into a single location, likely in builder/renderer/native with services consuming via interface",
+        "related_files": [
+          "builder/renderer/native/d2.go",
+          "builder/services/post_service.go"
+        ],
+        "note": "",
+        "confidence": "medium",
+        "first_seen": "2026-03-16T10:03:22+00:00",
+        "last_seen": "2026-03-16T10:03:22+00:00"
+      },
+      {
+        "dimension": "convention_outlier",
+        "status": "fixed",
+        "summary": "File copy fallback logic duplicated across utility modules",
+        "suggestion": "Integrate fallback logic into main copy utility or extract common patterns to reduce duplication",
+        "related_files": [
+          "builder/utils/copy_fallback.go"
+        ],
+        "note": "",
+        "confidence": "medium",
+        "first_seen": "2026-03-16T10:03:22+00:00",
+        "last_seen": "2026-03-16T10:03:22+00:00"
+      },
+      {
+        "dimension": "naming_quality",
+        "status": "fixed",
+        "summary": "searchSession singleton pattern with receiver 's' adds unnecessary indirection",
+        "suggestion": "Convert searchSession methods to package-level functions: extractTagFilter(query string), scoreBM25(index, queryTerms...), applyPhraseBoosts(...). This removes the unnecessary 's.' prefix and align...",
+        "related_files": [
+          "builder/search/engine.go"
+        ],
+        "note": "",
+        "confidence": "high",
+        "first_seen": "2026-03-16T10:03:08+00:00",
+        "last_seen": "2026-03-16T10:03:08+00:00"
+      },
+      {
+        "dimension": "naming_quality",
+        "status": "fixed",
+        "summary": "ProcessSingleWithResult parameter 'preParsed' renamed to 'result' loses semantic meaning",
+        "suggestion": "Standardize the parameter name to 'preParsed' in both interface and implementation to clarify this is an optional pre-parsed result being passed in, not an output. Alternatively, use 'existingParse...",
+        "related_files": [
+          "builder/services/interfaces.go",
+          "builder/services/post_service.go"
+        ],
+        "note": "",
+        "confidence": "medium",
+        "first_seen": "2026-03-16T10:03:08+00:00",
+        "last_seen": "2026-03-16T10:03:08+00:00"
+      },
+      {
         "dimension": "cross_module_architecture",
-        "status": "open",
+        "status": "fixed",
+        "summary": "Exact duplicate functions in builder/utils/fs/path.go and builder/utils/fs_path.go",
+        "suggestion": "Remove builder/utils/fs_path.go or consolidate into builder/utils/fs/path.go. The duplication suggests an incomplete migration or accidental file creation. Update all imports to use the single rema...",
+        "related_files": [
+          "builder/utils/fs/path.go",
+          "builder/utils/fs_path.go"
+        ],
+        "note": "",
+        "confidence": "high",
+        "first_seen": "2026-03-16T10:02:58+00:00",
+        "last_seen": "2026-03-16T10:02:58+00:00"
+      },
+      {
+        "dimension": "cross_module_architecture",
+        "status": "fixed",
+        "summary": "Renderer struct combines template management, asset caching, and render execution",
+        "suggestion": "Consider extracting asset relativization cache into a separate assetHelper type. The rendered file tracking could be moved to the sink layer where output state is already managed. This would leave...",
+        "related_files": [
+          "builder/renderer/renderer.go"
+        ],
+        "note": "",
+        "confidence": "medium",
+        "first_seen": "2026-03-16T10:02:58+00:00",
+        "last_seen": "2026-03-16T10:02:58+00:00"
+      },
+      {
+        "dimension": "api_surface_coherence",
+        "status": "fixed",
+        "summary": "CacheService interface has 20+ methods spanning multiple concerns (CRUD, metadata, social cards, graph, wasm)",
+        "suggestion": "Split CacheService into focused interfaces: PostCache (GetPost, ListAllPosts, GetPostsByIDs), ContentCache (StoreHTML, GetHTMLContent), SocialCardCache (Get/Set social card hashes), BuildArtifactCa...",
+        "related_files": [
+          "builder/services/interfaces.go",
+          "builder/cache/cache.go",
+          "builder/cache/cache_writes.go",
+          "builder/cache/cache_queries.go"
+        ],
+        "note": "",
+        "confidence": "high",
+        "first_seen": "2026-03-15T19:20:13+00:00",
+        "last_seen": "2026-03-15T19:20:13+00:00"
+      },
+      {
+        "dimension": "api_surface_coherence",
+        "status": "fixed",
+        "summary": "RenderService interface mixes template rendering with asset map management",
+        "suggestion": "Extract AssetProvider interface (SetAssets, GetAssets) separate from RenderService. Pass asset map as parameter to render methods: RenderPage(path string, data models.PageData, assets map[string]st...",
+        "related_files": [
+          "builder/services/interfaces.go",
+          "builder/services/render_service.go",
+          "builder/renderer/renderer.go"
+        ],
+        "note": "",
+        "confidence": "medium",
+        "first_seen": "2026-03-15T19:20:13+00:00",
+        "last_seen": "2026-03-15T19:20:13+00:00"
+      },
+      {
+        "dimension": "initialization_coupling",
+        "status": "fixed",
+        "summary": "DiagramCacheAdapter constructor starts worker goroutines as hidden side effect",
+        "suggestion": "Add explicit Start() and Stop() methods to DiagramCacheAdapter. Constructor should only initialize state. Caller explicitly calls Start() to begin worker pool. Add Close() method that calls stopCh...",
+        "related_files": [
+          "builder/cache/adapter.go",
+          "builder/services/post_service.go"
+        ],
+        "note": "",
+        "confidence": "high",
+        "first_seen": "2026-03-15T19:20:13+00:00",
+        "last_seen": "2026-03-15T19:20:13+00:00"
+      },
+      {
+        "dimension": "initialization_coupling",
+        "status": "fixed",
+        "summary": "NewBuildTransaction calls cleanupStaleBuildDirs during construction",
+        "suggestion": "Extract cleanup into separate function: CleanupStaleBuildDirs(outputDir string). Call explicitly before NewBuildTransaction if cleanup is desired. Or make cleanup optional via functional option: Ne...",
+        "related_files": [
+          "builder/utils/tx/transaction.go"
+        ],
+        "note": "",
+        "confidence": "medium",
+        "first_seen": "2026-03-15T19:20:13+00:00",
+        "last_seen": "2026-03-15T19:20:13+00:00"
+      },
+      {
+        "dimension": "error_consistency",
+        "status": "fixed",
+        "summary": "FireAndForget utilities intentionally swallow errors by logging only",
+        "suggestion": "Add optional error callback parameter: FireAndForget(ctx, logger, operation, fn, onError). Or return error channel: FireAndForgetWithFeedback(ctx, logger, operation, fn) <-chan error. Or increment...",
+        "related_files": [
+          "builder/utils/async.go",
+          "builder/cache/cache_writes.go",
+          "builder/generators/social.go"
+        ],
+        "note": "",
+        "confidence": "medium",
+        "first_seen": "2026-03-15T19:20:13+00:00",
+        "last_seen": "2026-03-15T19:20:13+00:00"
+      },
+      {
+        "dimension": "high_level_elegance",
+        "status": "fixed",
+        "summary": "builder/utils package acts as architectural gravity well with ~4000 LOC and 47 dependent files",
+        "suggestion": "Split builder/utils into focused subpackages: builder/utils/tx (BuildTransaction, DirectoryTx), builder/utils/sink (ArtifactSink, DiskSink), builder/utils/assets (BuildAssets, esbuild), builder/uti...",
+        "related_files": [
+          "builder/utils/transaction.go",
+          "builder/utils/sink.go",
+          "builder/utils/assets.go",
+          "builder/utils/fs_copy.go",
+          "builder/utils/fs_path.go",
+          "builder/utils/image_cache.go"
+        ],
+        "note": "",
+        "confidence": "high",
+        "first_seen": "2026-03-15T19:08:06+00:00",
+        "last_seen": "2026-03-15T19:08:06+00:00"
+      },
+      {
+        "dimension": "cross_module_architecture",
+        "status": "fixed",
         "summary": "builder/utils package acts as architectural gravity well with ~4000 LOC and 47 dependent files",
         "suggestion": "Split builder/utils into focused subpackages: builder/utils/transaction (BuildTransaction, DirectoryTx), builder/utils/sink (ArtifactSink, DiskSink), builder/utils/assets (BuildAssets, esbuild), bu...",
         "related_files": [
@@ -1967,11 +2625,11 @@
         "note": "",
         "confidence": "high",
         "first_seen": "2026-03-15T11:36:47+00:00",
-        "last_seen": "2026-03-15T18:12:53+00:00"
+        "last_seen": "2026-03-15T18:49:48+00:00"
       },
       {
         "dimension": "cross_module_architecture",
-        "status": "open",
+        "status": "fixed",
         "summary": "builder/run imports internal/build for WASM deployment creating cross-layer coupling",
         "suggestion": "Move WASM deployment logic from internal/build to builder/assets or builder/search/wasm_deploy.go. The builder layer should own all build-time asset deployment including WASM. internal/ should only...",
         "related_files": [
@@ -2145,248 +2803,535 @@
         "confidence": "high",
         "first_seen": "2026-03-15T11:36:47+00:00",
         "last_seen": "2026-03-15T11:36:47+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "Async goroutines lack uniform error logging pattern for fire-and-forget operations",
-        "suggestion": "Establish uniform fire-and-forget error handling pattern: (1) always log with slog.Warn/Error, (2) include operation name and key identifiers in log context, (3) consider metrics counter for fire-a...",
-        "related_files": [
-          "builder/services/post_service.go",
-          "builder/run/builder.go",
-          "builder/run/pipeline_pagination.go"
-        ],
-        "note": "",
-        "confidence": "high",
-        "first_seen": "2026-03-15T11:36:47+00:00",
-        "last_seen": "2026-03-15T11:36:47+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "Search index queue debouncing may serve stale index during rapid content changes",
-        "suggestion": "Add version counter to indexedPosts updates and include version in search regeneration. On regeneration completion, verify version matches current state - if stale, trigger immediate re-regeneratio...",
-        "related_files": [
-          "builder/run/incremental.go"
-        ],
-        "note": "",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:36:47+00:00",
-        "last_seen": "2026-03-15T11:36:47+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "DiskSink.WriteStream() error handling incomplete for mid-stream panics",
-        "suggestion": "Wrap fn(bw) call in defer/recover block: (1) defer func() { bw.Reset(nil); s.bufPool.Put(bw) }() to ensure buffer always returned clean, (2) recover panic, remove partial file, re-panic after clean...",
-        "related_files": [
-          "builder/utils/sink.go"
-        ],
-        "note": "",
-        "confidence": "high",
-        "first_seen": "2026-03-15T11:36:47+00:00",
-        "last_seen": "2026-03-15T11:36:47+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "waitForAssetsAvailability() defensive checks create ambiguity about caller responsibility",
-        "suggestion": "Make contract explicit: (1) Remove len() check - if caller has assets, don't call waitForAssets, (2) Document in interface that SetAssetsGate() must be called before any Render* methods, (3) Consid...",
-        "related_files": [
-          "builder/run/build.go"
-        ],
-        "note": "",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:36:47+00:00",
-        "last_seen": "2026-03-15T11:36:47+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "GenerateSearchIndex() merge phase duplicates map copy logic",
-        "suggestion": "Extract mergeMaps[K, V](dst, src map[K]V) helper that handles nil dst, then use consistently for all map merges. For nested maps (Inverted, Offsets, StemMap), extract mergeNestedMaps helper. This r...",
-        "related_files": [
-          "builder/generators/search.go"
-        ],
-        "note": "",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:36:47+00:00",
-        "last_seen": "2026-03-15T11:36:47+00:00"
-      },
-      {
-        "dimension": "design_coherence",
-        "status": "fixed",
-        "summary": "Duplicate boilerplate in BatchCommit between full build and incremental single-post paths",
-        "suggestion": "Extract a shared commitBuilder helper that accepts slices of post metadata, search records, and deps maps. Both BatchCommit and incremental paths would call this with their respective data. This re...",
-        "related_files": [
-          "builder/cache/cache_writes.go",
-          "builder/services/post_single.go"
-        ],
-        "note": "",
-        "confidence": "high",
-        "first_seen": "2026-03-15T11:36:47+00:00",
-        "last_seen": "2026-03-15T11:36:47+00:00"
-      },
-      {
-        "dimension": "design_coherence",
-        "status": "fixed",
-        "summary": "D2 and Math renderers share similar initialization and worker acquisition patterns",
-        "suggestion": "The duplication is partially intentional variation (D2 uses single render call, Math uses batch). However, the common preamble (context validation, scheduler acquire, closed check, wg management) c...",
-        "related_files": [
-          "builder/renderer/native/d2.go",
-          "builder/renderer/native/math.go"
-        ],
-        "note": "",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:36:47+00:00",
-        "last_seen": "2026-03-15T11:36:47+00:00"
-      },
-      {
-        "dimension": "design_coherence",
-        "status": "fixed",
-        "summary": "ParseMarkdown and ParseMarkdownMetadata have 12+ parameters, some related and groupable",
-        "suggestion": "Extract a ParseContext struct containing: Source, Path, Version, CleanHtmlRelPath, HtmlRelPath for file info; and a ParseDeps struct for MdPool, Cfg, NativeRenderer, DiagramAdapter, Mu. Cache hints...",
-        "related_files": [
-          "builder/services/post_parser.go"
-        ],
-        "note": "",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:36:47+00:00",
-        "last_seen": "2026-03-15T11:36:47+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "AssetsReady channel lifecycle and ownership unclear in multi-service handoff",
-        "suggestion": "Introduce explicit AssetsGate interface with ClearLifecycle() method to document ownership transfer, or consolidate channel creation in Builder with explicit handoff documentation. Consider merging...",
-        "related_files": [
-          "builder/services/asset_service.go",
-          "builder/services/render_service.go",
-          "builder/services/post_service.go",
-          "builder/run/build.go"
-        ],
-        "note": "Added documentation to asset_service.go clarifying channel ownership by AssetService",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:15:04+00:00",
-        "last_seen": "2026-03-15T11:15:04+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "Asset map passed through multiple layers without explicit interface contract",
-        "suggestion": "Add AssetMap type with explicit Copy() method to interfaces, document mutation boundaries in comments, or introduce AssetSnapshot struct for read-only access patterns. This makes the handoff contra...",
-        "related_files": [
-          "builder/services/render_service.go",
-          "builder/renderer/renderer.go",
-          "builder/run/build.go"
-        ],
-        "note": "Added interface documentation for SetAssets/GetAssets ownership and read-only contract",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:15:04+00:00",
-        "last_seen": "2026-03-15T11:15:04+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "Search index queue uses implicit send protocol without explicit capacity documentation",
-        "suggestion": "Extract search queue protocol into explicit interface with documented capacity semantics, or wrap in SearchQueue type with explicit Enqueue() method documenting drop behavior. Add comments explaini...",
-        "related_files": [
-          "builder/run/incremental.go",
-          "builder/run/builder.go"
-        ],
-        "note": "Added documentation to builder.go BuilderState explaining searchIndexCh buffered channel protocol",
-        "confidence": "low",
-        "first_seen": "2026-03-15T11:15:04+00:00",
-        "last_seen": "2026-03-15T11:15:04+00:00"
-      },
-      {
-        "dimension": "cross_module_architecture",
-        "status": "fixed",
-        "summary": "Builder/utils package approaching 4000 LOC may become architectural gravity well",
-        "suggestion": "Consider extracting coherent subpackages: builder/utils/transaction for BuildTransaction/DirectoryTx, builder/utils/sync for WorkerPool/Task scheduling, builder/utils/image for image processing. Ma...",
-        "related_files": [
-          "builder/utils/fs_copy.go",
-          "builder/utils/transaction.go",
-          "builder/utils/sink.go",
-          "builder/utils/worker_pool.go"
-        ],
-        "note": "",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:08:40+00:00",
-        "last_seen": "2026-03-15T11:08:40+00:00"
-      },
-      {
-        "dimension": "cross_module_architecture",
-        "status": "fixed",
-        "summary": "Search engine contains concentrated algorithmic complexity (71 complexity score, 588 LOC)",
-        "suggestion": "Extract scoring strategies (BM25, phrase boost, title/tag boost) into separate files under builder/search/scoring/. Keep engine.go as coordinator delegating to strategy packages. This improves test...",
-        "related_files": [
-          "builder/search/engine.go"
-        ],
-        "note": "",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:08:40+00:00",
-        "last_seen": "2026-03-15T11:08:40+00:00"
-      },
-      {
-        "dimension": "cross_module_architecture",
-        "status": "fixed",
-        "summary": "Call chain depth up to 4 levels in build orchestration may obscure control flow",
-        "suggestion": "Document call chain expectations in package-level comments. Consider flattening orchestration by having build.go call service methods more directly rather than through intermediate helper functions...",
-        "related_files": [
-          "builder/run/build.go",
-          "builder/run/incremental.go",
-          "builder/services/post_service.go"
-        ],
-        "note": "Added package-level documentation to build.go explaining the 4-level call chain as intentional design",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T11:08:40+00:00",
-        "last_seen": "2026-03-15T11:08:40+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "Worker pool stop in pagination pipeline lacks explicit error logging for fire-and-forget goroutine",
-        "suggestion": "Add defer with recover() and logger.Error() call in the detached goroutine at line 255, consistent with patterns in post_service.go:431 and post_single.go:226",
-        "related_files": [
-          "builder/run/pipeline_pagination.go"
-        ],
-        "note": "Added defer/recover block and slog import to pipeline_pagination.go line 255 for consistent fire-and-forget error logging pattern",
-        "confidence": "medium",
-        "first_seen": "2026-03-15T10:52:54+00:00",
-        "last_seen": "2026-03-15T10:52:54+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "Builder struct accumulates direct references to all services creating tight coupling",
-        "suggestion": "Consider introducing a BuildContext or Dependencies struct that bundles services for explicit parameter passing, or use functional options pattern for service configuration to reduce direct coupling",
-        "related_files": [
-          "builder/run/builder.go"
-        ],
-        "note": "",
-        "confidence": "high",
-        "first_seen": "2026-03-15T08:51:02+00:00",
-        "last_seen": "2026-03-15T09:59:15+00:00"
-      },
-      {
-        "dimension": "mid_level_elegance",
-        "status": "fixed",
-        "summary": "Async error propagation pattern using error channels is not uniformly applied across all goroutine boundaries",
-        "suggestion": "Standardize async error propagation: (1) All goroutines that can fail should return errors via channels, (2) Use errgroup.Group consistently for goroutine coordination, (3) Avoid silent error loggi...",
-        "related_files": [
-          "builder/run/build.go",
-          "builder/run/incremental.go",
-          "builder/services/post_service.go"
-        ],
-        "note": "",
-        "confidence": "high",
-        "first_seen": "2026-03-15T08:51:02+00:00",
-        "last_seen": "2026-03-15T09:59:15+00:00"
       }
     ]
   },
   "investigation_batches": [
+    {
+      "name": "cross_module_architecture",
+      "dimensions": [
+        "cross_module_architecture"
+      ],
+      "why": "cross_module_architecture review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "cross_module_architecture"
+        ],
+        "max_items": 20,
+        "selected_count": 8,
+        "issues": [
+          {
+            "dimension": "cross_module_architecture",
+            "status": "fixed",
+            "summary": "Exact duplicate functions in builder/utils/fs/path.go and builder/utils/fs_path.go",
+            "suggestion": "Remove builder/utils/fs_path.go or consolidate into builder/utils/fs/path.go. The duplication suggests an incomplete migration or accidental file creation. Update all imports to use the single rema...",
+            "related_files": [
+              "builder/utils/fs/path.go"
+            ],
+            "note": "",
+            "confidence": "high",
+            "first_seen": "2026-03-16T10:02:58+00:00",
+            "last_seen": "2026-03-16T10:02:58+00:00"
+          },
+          {
+            "dimension": "cross_module_architecture",
+            "status": "fixed",
+            "summary": "Renderer struct combines template management, asset caching, and render execution",
+            "suggestion": "Consider extracting asset relativization cache into a separate assetHelper type. The rendered file tracking could be moved to the sink layer where output state is already managed. This would leave...",
+            "related_files": [
+              "builder/renderer/renderer.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-16T10:02:58+00:00",
+            "last_seen": "2026-03-16T10:02:58+00:00"
+          },
+          {
+            "dimension": "cross_module_architecture",
+            "status": "fixed",
+            "summary": "builder/utils package acts as architectural gravity well with ~4000 LOC and 47 dependent files",
+            "suggestion": "Split builder/utils into focused subpackages: builder/utils/transaction (BuildTransaction, DirectoryTx), builder/utils/sink (ArtifactSink, DiskSink), builder/utils/assets (BuildAssets, esbuild), bu...",
+            "related_files": [
+              "builder/utils/sink.go",
+              "builder/utils/assets.go",
+              "builder/utils/fs_copy.go"
+            ],
+            "note": "",
+            "confidence": "high",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T18:49:48+00:00"
+          },
+          {
+            "dimension": "cross_module_architecture",
+            "status": "fixed",
+            "summary": "builder/run imports internal/build for WASM deployment creating cross-layer coupling",
+            "suggestion": "Move WASM deployment logic from internal/build to builder/assets or builder/search/wasm_deploy.go. The builder layer should own all build-time asset deployment including WASM. internal/ should only...",
+            "related_files": [
+              "builder/run/builder.go"
+            ],
+            "note": "",
+            "confidence": "high",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T18:12:53+00:00"
+          },
+          {
+            "dimension": "cross_module_architecture",
+            "status": "fixed",
+            "summary": "builder/cache has upward dependency on builder/renderer/native for SSR cache types",
+            "suggestion": "Move SSR type definitions (SSRArtifact, MathExpression, etc.) to builder/models or create builder/cache/types_ssr.go that doesn't import renderer. Cache should store opaque []byte blobs with type m...",
+            "related_files": [
+              "builder/cache/types.go",
+              "builder/cache/adapter.go",
+              "builder/renderer/native/d2.go",
+              "builder/renderer/native/math.go"
+            ],
+            "note": "Verified: Cache already uses builder/models for SSR types, no renderer import exists. Issue was stale from before decoupling was completed.",
+            "confidence": "high",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          },
+          {
+            "dimension": "cross_module_architecture",
+            "status": "fixed",
+            "summary": "Search engine concentrates 588 LOC of algorithmic complexity in single package",
+            "suggestion": "Current isolation is appropriate. Consider documenting the search package boundary more explicitly: what types are public API vs internal implementation. The complexity is justified by the domain (...",
+            "related_files": [
+              "builder/search/engine.go",
+              "builder/search/analyzer.go",
+              "builder/search/fuzzy.go",
+              "builder/search/stemmer.go"
+            ],
+            "note": "Acceptable isolation: Search engine complexity (588 LOC, complexity 71) is appropriately isolated in builder/search package. Public API (PerformSearch, ParseQuery, Analyzer) is well-defined and separation from build orchestration is correct.",
+            "confidence": "high",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          },
+          {
+            "dimension": "cross_module_architecture",
+            "status": "fixed",
+            "summary": "Channel ownership contracts are explicitly documented in service interfaces",
+            "suggestion": "This is a positive pattern - continue documenting channel ownership explicitly. Consider extending this pattern to other synchronization primitives (e.g., metadataReadyCh in post_service.go line 52...",
+            "related_files": [
+              "builder/services/interfaces.go",
+              "builder/services/asset_service.go",
+              "builder/services/render_service.go",
+              "builder/services/post_service.go"
+            ],
+            "note": "Positive pattern already implemented: Channel ownership is explicitly documented in service interfaces (interfaces.go, asset_service.go, render_service.go). This is a quality pattern to preserve.",
+            "confidence": "high",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          },
+          {
+            "dimension": "cross_module_architecture",
+            "status": "fixed",
+            "summary": "ReconfigureForBuild pattern consolidates per-build service injection",
+            "suggestion": "This is a positive pattern that improves over previous scattered setter calls (noted in AGENTS.md as 'recently fixed'). Consider extending to CacheService if it needs per-build reconfiguration. Doc...",
+            "related_files": [
+              "builder/services/interfaces.go",
+              "builder/run/build.go",
+              "builder/services/asset_service.go",
+              "builder/services/post_service.go",
+              "builder/services/render_service.go"
+            ],
+            "note": "Positive pattern already implemented: ReconfigureForBuild pattern consolidates per-build service injection in interfaces.go, build.go, and all service implementations. This replaces scattered setter calls.",
+            "confidence": "high",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          }
+        ]
+      },
+      "subjective_defer_meta": {
+        "cross_module_architecture": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "high_level_elegance",
+      "dimensions": [
+        "high_level_elegance"
+      ],
+      "why": "high_level_elegance review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "high_level_elegance"
+        ],
+        "max_items": 20,
+        "selected_count": 6,
+        "issues": [
+          {
+            "dimension": "high_level_elegance",
+            "status": "fixed",
+            "summary": "builder/utils package acts as architectural gravity well with ~4000 LOC and 47 dependent files",
+            "suggestion": "Split builder/utils into focused subpackages: builder/utils/tx (BuildTransaction, DirectoryTx), builder/utils/sink (ArtifactSink, DiskSink), builder/utils/assets (BuildAssets, esbuild), builder/uti...",
+            "related_files": [
+              "builder/utils/sink.go",
+              "builder/utils/assets.go",
+              "builder/utils/fs_copy.go"
+            ],
+            "note": "",
+            "confidence": "high",
+            "first_seen": "2026-03-15T19:08:06+00:00",
+            "last_seen": "2026-03-15T19:08:06+00:00"
+          },
+          {
+            "dimension": "high_level_elegance",
+            "status": "fixed",
+            "summary": "Search ranking logic concentrated in single 588-LOC file rather than decomposed by scoring strategy",
+            "suggestion": "Extract scoring strategies into separate types (PhraseScorer, TitleScorer, TagScorer, BM25Scorer) with a common Scorer interface. Compose these in a SearchEngine struct. This would enable independe...",
+            "related_files": [
+              "builder/search/engine.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          },
+          {
+            "dimension": "high_level_elegance",
+            "status": "fixed",
+            "summary": "PostService mixes parse orchestration, render coordination, and social card generation in one implementation",
+            "suggestion": "Consider splitting into PostParseService (handles markdown parsing, frontmatter extraction, cache lookup) and PostRenderService (handles HTML rendering, social card generation, template execution)....",
+            "related_files": [
+              "builder/services/post_service.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          },
+          {
+            "dimension": "high_level_elegance",
+            "status": "fixed",
+            "summary": "Builder struct carries many responsibilities: service lifecycle, watch coordination, WASM deployment, build orchestration",
+            "suggestion": "Extract BuildCoordinator (orchestrates build phases), WatchCoordinator (manages build queue, search index queue, debouncing), and WASMManager (handles compilation, deployment, caching). Inject thes...",
+            "related_files": [
+              "builder/run/builder.go",
+              "builder/run/build.go",
+              "builder/run/incremental.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          },
+          {
+            "dimension": "high_level_elegance",
+            "status": "fixed",
+            "summary": "Asset copy logic handles WebP conversion, VFS operations, and directory traversal in one 604-LOC file",
+            "suggestion": "Decompose into AssetCopier (handles VFS traversal and file copying), ImageProcessor (handles WebP conversion with worker pool), and AssetHashTracker (tracks hash changes for incremental builds). Th...",
+            "related_files": [
+              "builder/utils/fs_copy.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          },
+          {
+            "dimension": "high_level_elegance",
+            "status": "fixed",
+            "summary": "Incremental rebuild logic intertwines watch-mode path classification, social card rebuild checks, and build request queuing",
+            "suggestion": "Extract PathClassifier (determines which subsystem a changed file affects), ChangeHandler (implements rebuild strategy per change type), and RebuildCoordinator (orchestrates incremental vs full reb...",
+            "related_files": [
+              "builder/run/incremental.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-15T11:36:47+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          }
+        ]
+      },
+      "subjective_defer_meta": {
+        "high_level_elegance": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "convention_outlier",
+      "dimensions": [
+        "convention_outlier"
+      ],
+      "why": "convention_outlier review",
+      "judgment_finding_counts": {
+        "signature": 17,
+        "boilerplate_duplication": 5,
+        "dupes": 5
+      },
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "convention_outlier"
+        ],
+        "max_items": 20,
+        "selected_count": 3,
+        "issues": [
+          {
+            "dimension": "convention_outlier",
+            "status": "fixed",
+            "summary": "Duplicate boilerplate patterns in cache write operations",
+            "suggestion": "Extract common cache write patterns into shared utilities in builder/cache package to reduce duplication",
+            "related_files": [
+              "builder/cache/cache_writes.go",
+              "builder/services/post_service.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-16T10:03:22+00:00",
+            "last_seen": "2026-03-16T10:03:22+00:00"
+          },
+          {
+            "dimension": "convention_outlier",
+            "status": "fixed",
+            "summary": "Duplicate SSR handling boilerplate across renderer and services",
+            "suggestion": "Consolidate SSR artifact handling into a single location, likely in builder/renderer/native with services consuming via interface",
+            "related_files": [
+              "builder/renderer/native/d2.go",
+              "builder/services/post_service.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-16T10:03:22+00:00",
+            "last_seen": "2026-03-16T10:03:22+00:00"
+          },
+          {
+            "dimension": "convention_outlier",
+            "status": "fixed",
+            "summary": "File copy fallback logic duplicated across utility modules",
+            "suggestion": "Integrate fallback logic into main copy utility or extract common patterns to reduce duplication",
+            "related_files": [
+              "builder/utils/copy_fallback.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-16T10:03:22+00:00",
+            "last_seen": "2026-03-16T10:03:22+00:00"
+          }
+        ]
+      },
+      "subjective_defer_meta": {
+        "convention_outlier": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "error_consistency",
+      "dimensions": [
+        "error_consistency"
+      ],
+      "why": "error_consistency review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "error_consistency"
+        ],
+        "max_items": 20,
+        "selected_count": 1,
+        "issues": [
+          {
+            "dimension": "error_consistency",
+            "status": "fixed",
+            "summary": "FireAndForget utilities intentionally swallow errors by logging only",
+            "suggestion": "Add optional error callback parameter: FireAndForget(ctx, logger, operation, fn, onError). Or return error channel: FireAndForgetWithFeedback(ctx, logger, operation, fn) <-chan error. Or increment...",
+            "related_files": [
+              "builder/cache/cache_writes.go",
+              "builder/generators/social.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-15T19:20:13+00:00",
+            "last_seen": "2026-03-15T19:20:13+00:00"
+          }
+        ]
+      },
+      "subjective_defer_meta": {
+        "error_consistency": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "naming_quality",
+      "dimensions": [
+        "naming_quality"
+      ],
+      "why": "naming_quality review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "naming_quality"
+        ],
+        "max_items": 20,
+        "selected_count": 2,
+        "issues": [
+          {
+            "dimension": "naming_quality",
+            "status": "fixed",
+            "summary": "searchSession singleton pattern with receiver 's' adds unnecessary indirection",
+            "suggestion": "Convert searchSession methods to package-level functions: extractTagFilter(query string), scoreBM25(index, queryTerms...), applyPhraseBoosts(...). This removes the unnecessary 's.' prefix and align...",
+            "related_files": [
+              "builder/search/engine.go"
+            ],
+            "note": "",
+            "confidence": "high",
+            "first_seen": "2026-03-16T10:03:08+00:00",
+            "last_seen": "2026-03-16T10:03:08+00:00"
+          },
+          {
+            "dimension": "naming_quality",
+            "status": "fixed",
+            "summary": "ProcessSingleWithResult parameter 'preParsed' renamed to 'result' loses semantic meaning",
+            "suggestion": "Standardize the parameter name to 'preParsed' in both interface and implementation to clarify this is an optional pre-parsed result being passed in, not an output. Alternatively, use 'existingParse...",
+            "related_files": [
+              "builder/services/interfaces.go",
+              "builder/services/post_service.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-16T10:03:08+00:00",
+            "last_seen": "2026-03-16T10:03:08+00:00"
+          }
+        ]
+      },
+      "subjective_defer_meta": {
+        "naming_quality": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "abstraction_fitness",
+      "dimensions": [
+        "abstraction_fitness"
+      ],
+      "why": "abstraction_fitness review",
+      "judgment_finding_counts": {
+        "structural": 13,
+        "responsibility_cohesion": 2
+      },
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "abstraction_fitness"
+        ],
+        "max_items": 20,
+        "selected_count": 4,
+        "issues": [
+          {
+            "dimension": "abstraction_fitness",
+            "status": "fixed",
+            "summary": "CacheService composite interface embeds 5 unrelated sub-interfaces creating 25+ method monolith",
+            "suggestion": "Replace CacheService composite with direct injection of focused sub-interfaces where needed. For example, PostService only needs PostCache + DirtyTracker, while site-wide generators need BuildArtif...",
+            "related_files": [
+              "builder/services/interfaces.go",
+              "builder/services/cache_service.go"
+            ],
+            "note": "CacheService composite removed, replaced with focused interfaces",
+            "confidence": "high",
+            "first_seen": "2026-03-16T10:23:16+00:00",
+            "last_seen": "2026-03-16T10:23:16+00:00"
+          },
+          {
+            "dimension": "abstraction_fitness",
+            "status": "fixed",
+            "summary": "CacheService composite interface has 25+ methods spanning 5 unrelated concerns (post cache, content cache, social cards, build artifacts, dirty tracking)",
+            "suggestion": "Keep the focused sub-interfaces (PostCache, ContentCache, etc.) as the primary injection points. Instead of composing them into CacheService, inject only the needed sub-interface into each service....",
+            "related_files": [
+              "builder/services/interfaces.go",
+              "builder/services/cache_service.go",
+              "builder/cache/cache.go"
+            ],
+            "note": "",
+            "confidence": "high",
+            "first_seen": "2026-03-16T10:03:32+00:00",
+            "last_seen": "2026-03-16T10:03:32+00:00"
+          },
+          {
+            "dimension": "abstraction_fitness",
+            "status": "fixed",
+            "summary": "AssetProvider interface adds indirection layer when Renderer already manages assets internally with atomic snapshots",
+            "suggestion": "Remove AssetProvider interface and embed asset methods directly in RenderService. The atomic snapshot pattern in Renderer.GetAssets() already provides safe access. If testability is a concern, extr...",
+            "related_files": [
+              "builder/services/interfaces.go",
+              "builder/services/render_service.go",
+              "builder/renderer/renderer.go"
+            ],
+            "note": "Removed AssetProvider interface, embedded asset methods in RenderService",
+            "confidence": "medium",
+            "first_seen": "2026-03-16T10:03:32+00:00",
+            "last_seen": "2026-03-16T10:03:32+00:00"
+          },
+          {
+            "dimension": "abstraction_fitness",
+            "status": "fixed",
+            "summary": "FireAndForget utilities provide standardized error handling but intentionally swallow errors by logging only, limiting caller control",
+            "suggestion": "Add FireAndForgetWithResult variant that returns <-chan error for callers who need to track background operation status. Or add metrics counter integration for monitoring failure rates. For critica...",
+            "related_files": [
+              "builder/utils/async/async.go",
+              "builder/services/post_service.go",
+              "builder/run/build.go"
+            ],
+            "note": "Added FireAndForgetWithResult returning <-chan error and FireAndForgetWithMetrics for failure tracking",
+            "confidence": "medium",
+            "first_seen": "2026-03-16T10:03:32+00:00",
+            "last_seen": "2026-03-16T10:03:32+00:00"
+          }
+        ]
+      },
+      "subjective_defer_meta": {
+        "abstraction_fitness": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "dependency_health",
+      "dimensions": [
+        "dependency_health"
+      ],
+      "why": "dependency_health review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "dependency_health"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      },
+      "subjective_defer_meta": {
+        "dependency_health": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "low_level_elegance",
+      "dimensions": [
+        "low_level_elegance"
+      ],
+      "why": "low_level_elegance review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "low_level_elegance"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      },
+      "subjective_defer_meta": {
+        "low_level_elegance": {
+          "deferred_cycles": 1
+        }
+      }
+    },
     {
       "name": "mid_level_elegance",
       "dimensions": [
@@ -2399,7 +3344,7 @@
           "mid_level_elegance"
         ],
         "max_items": 20,
-        "selected_count": 12,
+        "selected_count": 1,
         "issues": [
           {
             "dimension": "mid_level_elegance",
@@ -2416,161 +3361,408 @@
             "confidence": "high",
             "first_seen": "2026-03-15T11:36:47+00:00",
             "last_seen": "2026-03-15T11:36:47+00:00"
-          },
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_strategy",
+      "dimensions": [
+        "test_strategy"
+      ],
+      "why": "test_strategy review",
+      "mechanical_finding_counts": {
+        "test_coverage": 7
+      },
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "test_strategy"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      },
+      "subjective_defer_meta": {
+        "test_strategy": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "api_surface_coherence",
+      "dimensions": [
+        "api_surface_coherence"
+      ],
+      "why": "api_surface_coherence review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "api_surface_coherence"
+        ],
+        "max_items": 20,
+        "selected_count": 2,
+        "issues": [
           {
-            "dimension": "mid_level_elegance",
+            "dimension": "api_surface_coherence",
             "status": "fixed",
-            "summary": "Async goroutines lack uniform error logging pattern for fire-and-forget operations",
-            "suggestion": "Establish uniform fire-and-forget error handling pattern: (1) always log with slog.Warn/Error, (2) include operation name and key identifiers in log context, (3) consider metrics counter for fire-a...",
+            "summary": "CacheService interface has 20+ methods spanning multiple concerns (CRUD, metadata, social cards, graph, wasm)",
+            "suggestion": "Split CacheService into focused interfaces: PostCache (GetPost, ListAllPosts, GetPostsByIDs), ContentCache (StoreHTML, GetHTMLContent), SocialCardCache (Get/Set social card hashes), BuildArtifactCa...",
             "related_files": [
-              "builder/services/post_service.go",
-              "builder/run/builder.go",
-              "builder/run/pipeline_pagination.go"
+              "builder/services/interfaces.go",
+              "builder/cache/cache.go",
+              "builder/cache/cache_writes.go",
+              "builder/cache/cache_queries.go"
             ],
             "note": "",
             "confidence": "high",
-            "first_seen": "2026-03-15T11:36:47+00:00",
-            "last_seen": "2026-03-15T11:36:47+00:00"
+            "first_seen": "2026-03-15T19:20:13+00:00",
+            "last_seen": "2026-03-15T19:20:13+00:00"
           },
           {
-            "dimension": "mid_level_elegance",
+            "dimension": "api_surface_coherence",
             "status": "fixed",
-            "summary": "Search index queue debouncing may serve stale index during rapid content changes",
-            "suggestion": "Add version counter to indexedPosts updates and include version in search regeneration. On regeneration completion, verify version matches current state - if stale, trigger immediate re-regeneratio...",
+            "summary": "RenderService interface mixes template rendering with asset map management",
+            "suggestion": "Extract AssetProvider interface (SetAssets, GetAssets) separate from RenderService. Pass asset map as parameter to render methods: RenderPage(path string, data models.PageData, assets map[string]st...",
             "related_files": [
-              "builder/run/incremental.go"
-            ],
-            "note": "",
-            "confidence": "medium",
-            "first_seen": "2026-03-15T11:36:47+00:00",
-            "last_seen": "2026-03-15T11:36:47+00:00"
-          },
-          {
-            "dimension": "mid_level_elegance",
-            "status": "fixed",
-            "summary": "DiskSink.WriteStream() error handling incomplete for mid-stream panics",
-            "suggestion": "Wrap fn(bw) call in defer/recover block: (1) defer func() { bw.Reset(nil); s.bufPool.Put(bw) }() to ensure buffer always returned clean, (2) recover panic, remove partial file, re-panic after clean...",
-            "related_files": [
-              "builder/utils/sink.go"
-            ],
-            "note": "",
-            "confidence": "high",
-            "first_seen": "2026-03-15T11:36:47+00:00",
-            "last_seen": "2026-03-15T11:36:47+00:00"
-          },
-          {
-            "dimension": "mid_level_elegance",
-            "status": "fixed",
-            "summary": "waitForAssetsAvailability() defensive checks create ambiguity about caller responsibility",
-            "suggestion": "Make contract explicit: (1) Remove len() check - if caller has assets, don't call waitForAssets, (2) Document in interface that SetAssetsGate() must be called before any Render* methods, (3) Consid...",
-            "related_files": [
-              "builder/run/build.go"
-            ],
-            "note": "",
-            "confidence": "medium",
-            "first_seen": "2026-03-15T11:36:47+00:00",
-            "last_seen": "2026-03-15T11:36:47+00:00"
-          },
-          {
-            "dimension": "mid_level_elegance",
-            "status": "fixed",
-            "summary": "GenerateSearchIndex() merge phase duplicates map copy logic",
-            "suggestion": "Extract mergeMaps[K, V](dst, src map[K]V) helper that handles nil dst, then use consistently for all map merges. For nested maps (Inverted, Offsets, StemMap), extract mergeNestedMaps helper. This r...",
-            "related_files": [
-              "builder/generators/search.go"
-            ],
-            "note": "",
-            "confidence": "medium",
-            "first_seen": "2026-03-15T11:36:47+00:00",
-            "last_seen": "2026-03-15T11:36:47+00:00"
-          },
-          {
-            "dimension": "mid_level_elegance",
-            "status": "fixed",
-            "summary": "AssetsReady channel lifecycle and ownership unclear in multi-service handoff",
-            "suggestion": "Introduce explicit AssetsGate interface with ClearLifecycle() method to document ownership transfer, or consolidate channel creation in Builder with explicit handoff documentation. Consider merging...",
-            "related_files": [
-              "builder/services/asset_service.go",
+              "builder/services/interfaces.go",
               "builder/services/render_service.go",
-              "builder/services/post_service.go",
-              "builder/run/build.go"
-            ],
-            "note": "Added documentation to asset_service.go clarifying channel ownership by AssetService",
-            "confidence": "medium",
-            "first_seen": "2026-03-15T11:15:04+00:00",
-            "last_seen": "2026-03-15T11:15:04+00:00"
-          },
-          {
-            "dimension": "mid_level_elegance",
-            "status": "fixed",
-            "summary": "Asset map passed through multiple layers without explicit interface contract",
-            "suggestion": "Add AssetMap type with explicit Copy() method to interfaces, document mutation boundaries in comments, or introduce AssetSnapshot struct for read-only access patterns. This makes the handoff contra...",
-            "related_files": [
-              "builder/services/render_service.go",
-              "builder/renderer/renderer.go",
-              "builder/run/build.go"
-            ],
-            "note": "Added interface documentation for SetAssets/GetAssets ownership and read-only contract",
-            "confidence": "medium",
-            "first_seen": "2026-03-15T11:15:04+00:00",
-            "last_seen": "2026-03-15T11:15:04+00:00"
-          },
-          {
-            "dimension": "mid_level_elegance",
-            "status": "fixed",
-            "summary": "Search index queue uses implicit send protocol without explicit capacity documentation",
-            "suggestion": "Extract search queue protocol into explicit interface with documented capacity semantics, or wrap in SearchQueue type with explicit Enqueue() method documenting drop behavior. Add comments explaini...",
-            "related_files": [
-              "builder/run/incremental.go",
-              "builder/run/builder.go"
-            ],
-            "note": "Added documentation to builder.go BuilderState explaining searchIndexCh buffered channel protocol",
-            "confidence": "low",
-            "first_seen": "2026-03-15T11:15:04+00:00",
-            "last_seen": "2026-03-15T11:15:04+00:00"
-          },
-          {
-            "dimension": "mid_level_elegance",
-            "status": "fixed",
-            "summary": "Worker pool stop in pagination pipeline lacks explicit error logging for fire-and-forget goroutine",
-            "suggestion": "Add defer with recover() and logger.Error() call in the detached goroutine at line 255, consistent with patterns in post_service.go:431 and post_single.go:226",
-            "related_files": [
-              "builder/run/pipeline_pagination.go"
-            ],
-            "note": "Added defer/recover block and slog import to pipeline_pagination.go line 255 for consistent fire-and-forget error logging pattern",
-            "confidence": "medium",
-            "first_seen": "2026-03-15T10:52:54+00:00",
-            "last_seen": "2026-03-15T10:52:54+00:00"
-          },
-          {
-            "dimension": "mid_level_elegance",
-            "status": "fixed",
-            "summary": "Builder struct accumulates direct references to all services creating tight coupling",
-            "suggestion": "Consider introducing a BuildContext or Dependencies struct that bundles services for explicit parameter passing, or use functional options pattern for service configuration to reduce direct coupling",
-            "related_files": [
-              "builder/run/builder.go"
+              "builder/renderer/renderer.go"
             ],
             "note": "",
-            "confidence": "high",
-            "first_seen": "2026-03-15T08:51:02+00:00",
-            "last_seen": "2026-03-15T09:59:15+00:00"
-          },
+            "confidence": "medium",
+            "first_seen": "2026-03-15T19:20:13+00:00",
+            "last_seen": "2026-03-15T19:20:13+00:00"
+          }
+        ]
+      },
+      "subjective_defer_meta": {
+        "api_surface_coherence": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "authorization_consistency",
+      "dimensions": [
+        "authorization_consistency"
+      ],
+      "why": "authorization_consistency review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "authorization_consistency"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      }
+    },
+    {
+      "name": "ai_generated_debt",
+      "dimensions": [
+        "ai_generated_debt"
+      ],
+      "why": "ai_generated_debt review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "ai_generated_debt"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      },
+      "subjective_defer_meta": {
+        "ai_generated_debt": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "incomplete_migration",
+      "dimensions": [
+        "incomplete_migration"
+      ],
+      "why": "incomplete_migration review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "incomplete_migration"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      },
+      "subjective_defer_meta": {
+        "incomplete_migration": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "package_organization",
+      "dimensions": [
+        "package_organization"
+      ],
+      "why": "package_organization review",
+      "judgment_finding_counts": {
+        "flat_dirs": 2
+      },
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "package_organization"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      },
+      "subjective_defer_meta": {
+        "package_organization": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "initialization_coupling",
+      "dimensions": [
+        "initialization_coupling"
+      ],
+      "why": "initialization_coupling review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "initialization_coupling"
+        ],
+        "max_items": 20,
+        "selected_count": 2,
+        "issues": [
           {
-            "dimension": "mid_level_elegance",
+            "dimension": "initialization_coupling",
             "status": "fixed",
-            "summary": "Async error propagation pattern using error channels is not uniformly applied across all goroutine boundaries",
-            "suggestion": "Standardize async error propagation: (1) All goroutines that can fail should return errors via channels, (2) Use errgroup.Group consistently for goroutine coordination, (3) Avoid silent error loggi...",
+            "summary": "DiagramCacheAdapter constructor starts worker goroutines as hidden side effect",
+            "suggestion": "Add explicit Start() and Stop() methods to DiagramCacheAdapter. Constructor should only initialize state. Caller explicitly calls Start() to begin worker pool. Add Close() method that calls stopCh...",
             "related_files": [
-              "builder/run/build.go",
-              "builder/run/incremental.go",
+              "builder/cache/adapter.go",
               "builder/services/post_service.go"
             ],
             "note": "",
             "confidence": "high",
-            "first_seen": "2026-03-15T08:51:02+00:00",
-            "last_seen": "2026-03-15T09:59:15+00:00"
+            "first_seen": "2026-03-15T19:20:13+00:00",
+            "last_seen": "2026-03-15T19:20:13+00:00"
+          },
+          {
+            "dimension": "initialization_coupling",
+            "status": "fixed",
+            "summary": "NewBuildTransaction calls cleanupStaleBuildDirs during construction",
+            "suggestion": "Extract cleanup into separate function: CleanupStaleBuildDirs(outputDir string). Call explicitly before NewBuildTransaction if cleanup is desired. Or make cleanup optional via functional option: Ne...",
+            "related_files": [
+              "builder/utils/tx/transaction.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-15T19:20:13+00:00",
+            "last_seen": "2026-03-15T19:20:13+00:00"
           }
         ]
+      },
+      "subjective_defer_meta": {
+        "initialization_coupling": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "design_coherence",
+      "dimensions": [
+        "design_coherence"
+      ],
+      "why": "design_coherence review",
+      "judgment_finding_counts": {
+        "boilerplate_duplication": 4,
+        "signature": 1,
+        "dupes": 5,
+        "responsibility_cohesion": 1
+      },
+      "mechanical_finding_counts": {
+        "unused": 11
+      },
+      "concern_signals": [
+        {
+          "type": "duplication_design",
+          "file": "builder/cache/cache_writes.go",
+          "summary": "Duplication pattern \u2014 assess if extraction is warranted",
+          "question": "Is the duplication worth extracting into a shared utility, or is it intentional variation?",
+          "evidence": [
+            "Flagged by: boilerplate_duplication, signature",
+            "[signature] 'BatchCommit' has 2 different signatures across 4 files",
+            "[boilerplate_duplication] Boilerplate block repeated across 2 files (window 6 lines): builder/cache/cache_writes.go:225, builder/cache/gc_maintenance.go:41"
+          ],
+          "fingerprint": "73652e9b991a6e15",
+          "finding_ids": [
+            "boilerplate_duplication::builder/cache/cache_writes.go::e529a69ec8c3833e",
+            "signature::builder/cache/cache_writes.go::signature_variance::BatchCommit"
+          ]
+        },
+        {
+          "type": "duplication_design",
+          "file": "builder/renderer/native/d2.go",
+          "summary": "Duplication pattern \u2014 assess if extraction is warranted",
+          "question": "Is the duplication worth extracting into a shared utility, or is it intentional variation?",
+          "evidence": [
+            "Flagged by: boilerplate_duplication",
+            "[boilerplate_duplication] Boilerplate block repeated across 2 files (window 16 lines): builder/renderer/native/d2.go:27, builder/renderer/native/math.go:98"
+          ],
+          "fingerprint": "f65c4045ab3b416b",
+          "finding_ids": [
+            "boilerplate_duplication::builder/renderer/native/d2.go::4503a8302e7c2dd2"
+          ]
+        },
+        {
+          "type": "duplication_design",
+          "file": "builder/services/post_service.go",
+          "summary": "Duplication pattern \u2014 assess if extraction is warranted",
+          "question": "Is the duplication worth extracting into a shared utility, or is it intentional variation?",
+          "evidence": [
+            "Flagged by: boilerplate_duplication",
+            "[boilerplate_duplication] Boilerplate block repeated across 2 files (window 23 lines): builder/services/post_service.go:215, builder/services/post_single.go:102",
+            "[boilerplate_duplication] Boilerplate block repeated across 2 files (window 18 lines): builder/services/post_service.go:285, builder/services/post_single.go:107"
+          ],
+          "fingerprint": "04ae625604ffe93f",
+          "finding_ids": [
+            "boilerplate_duplication::builder/services/post_service.go::7e5ecc35e5fb8bb9",
+            "boilerplate_duplication::builder/services/post_service.go::c73386fc8580b663"
+          ]
+        },
+        {
+          "type": "duplication_design",
+          "file": "builder/utils/fs/path.go",
+          "summary": "Duplication pattern \u2014 assess if extraction is warranted",
+          "question": "Is the duplication worth extracting into a shared utility, or is it intentional variation?",
+          "evidence": [
+            "Flagged by: dupes",
+            "[dupes] Exact dupe: NormalizePath (builder/utils/fs/path.go:19) <-> NormalizePath (builder/utils/fs_path.go:14) [100%]",
+            "[dupes] Exact dupe: NormalizeWatchPath (builder/utils/fs/path.go:73) <-> NormalizeWatchPath (builder/utils/fs_path.go:65) [100%]",
+            "[dupes] Exact dupe: SafeRel (builder/utils/fs/path.go:92) <-> SafeRel (builder/utils/fs_path.go:83) [100%]"
+          ],
+          "fingerprint": "13afc0c8de53f82d",
+          "finding_ids": [
+            "dupes::builder/utils/fs/path.go::GetRealPath::builder/utils/fs_path.go::GetRealPath",
+            "dupes::builder/utils/fs/path.go::GetRelativePrefix::builder/utils/fs_path.go::GetRelativePrefix",
+            "dupes::builder/utils/fs/path.go::NormalizePath::builder/utils/fs_path.go::NormalizePath",
+            "dupes::builder/utils/fs/path.go::NormalizeWatchPath::builder/utils/fs_path.go::NormalizeWatchPath",
+            "dupes::builder/utils/fs/path.go::SafeRel::builder/utils/fs_path.go::SafeRel"
+          ]
+        },
+        {
+          "type": "mixed_responsibilities",
+          "file": "builder/renderer/renderer.go",
+          "summary": "Issues from 1 detectors \u2014 may have too many responsibilities",
+          "question": "What are the distinct responsibilities? Would splitting produce modules with multiple independent consumers, or would extracted files only be imported by the parent? Only split if the extracted code would be reused.",
+          "evidence": [
+            "Flagged by: responsibility_cohesion",
+            "[responsibility_cohesion] 9 disconnected function clusters (13 functions) \u2014 likely mixed responsibilities"
+          ],
+          "fingerprint": "ecb0a79346e803b7",
+          "finding_ids": [
+            "responsibility_cohesion::builder/renderer/renderer.go::cohesion::builder/renderer/renderer.go"
+          ]
+        }
+      ],
+      "concern_signal_count": 5,
+      "historical_issue_focus": {
+        "dimensions": [
+          "design_coherence"
+        ],
+        "max_items": 20,
+        "selected_count": 1,
+        "issues": [
+          {
+            "dimension": "design_coherence",
+            "status": "fixed",
+            "summary": "Renderer struct combines template management, asset caching, and render execution",
+            "suggestion": "Consider extracting asset relativization cache into a separate assetHelper type. The rendered file tracking could be moved to the sink layer where output state is already managed. Keep Renderer foc...",
+            "related_files": [
+              "builder/renderer/renderer.go"
+            ],
+            "note": "",
+            "confidence": "medium",
+            "first_seen": "2026-03-15T05:28:52+00:00",
+            "last_seen": "2026-03-15T11:36:47+00:00"
+          }
+        ]
+      },
+      "subjective_defer_meta": {
+        "design_coherence": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "contract_coherence",
+      "dimensions": [
+        "contract_coherence"
+      ],
+      "why": "contract_coherence review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "contract_coherence"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      },
+      "subjective_defer_meta": {
+        "contract_coherence": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "logic_clarity",
+      "dimensions": [
+        "logic_clarity"
+      ],
+      "why": "logic_clarity review",
+      "judgment_finding_counts": {
+        "structural": 13
+      },
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "logic_clarity"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      },
+      "subjective_defer_meta": {
+        "logic_clarity": {
+          "deferred_cycles": 1
+        }
+      }
+    },
+    {
+      "name": "type_safety",
+      "dimensions": [
+        "type_safety"
+      ],
+      "why": "type_safety review",
+      "concern_signals": [],
+      "historical_issue_focus": {
+        "dimensions": [
+          "type_safety"
+        ],
+        "max_items": 20,
+        "selected_count": 0,
+        "issues": []
+      },
+      "subjective_defer_meta": {
+        "type_safety": {
+          "deferred_cycles": 1
+        }
       }
     }
   ],
@@ -2606,5 +3798,14 @@
     "commit_default_branch": "",
     "commit_message_template": "desloppify: {status} {count} issue(s) \u2014 {summary}",
     "trust_plugins": false
+  },
+  "prepared_packet_contract": {
+    "path": "C:\\Users\\KIIT0001\\blogs",
+    "state_path": null,
+    "dimensions": [],
+    "retrospective": true,
+    "retrospective_max_issues": 30,
+    "retrospective_max_batch_items": 20,
+    "config_hash": "8fa8a9112ef91f6e6c4b7dea960948a42120204792226b276cf91006eb492078"
   }
 }

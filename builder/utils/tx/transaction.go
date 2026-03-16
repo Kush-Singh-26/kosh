@@ -11,7 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	"github.com/Kush-Singh-26/kosh/builder/utils/retry"
 )
 
 // BuildTransaction manages the output directory lifecycle and ensures atomic publishes
@@ -33,7 +34,10 @@ type DirectoryTx struct {
 
 var buildTxnCounter atomic.Uint64
 
-func cleanupStaleBuildDirs(outputDir string) {
+// CleanupStaleBuildDirs removes stale staging and backup directories from previous builds.
+// This should be called explicitly before NewBuildTransaction if cleanup is desired.
+// Only removes directories older than 1 hour to avoid deleting active builds.
+func CleanupStaleBuildDirs(outputDir string) {
 	parent := filepath.Dir(outputDir)
 	base := filepath.Base(outputDir)
 	entries, err := os.ReadDir(parent)
@@ -50,7 +54,7 @@ func cleanupStaleBuildDirs(outputDir string) {
 			if info, err := os.Stat(fullPath); err == nil {
 				// Only cleanup if older than 1 hour to avoid deleting active staging dirs from other processes
 				if time.Since(info.ModTime()) > time.Hour {
-					_ = RemoveAllWithRetry(context.Background(), fullPath, 5, 10*time.Millisecond)
+					_ = retry.RemoveAllWithRetry(context.Background(), fullPath, 5, 10*time.Millisecond)
 				}
 			}
 		}
@@ -58,12 +62,13 @@ func cleanupStaleBuildDirs(outputDir string) {
 }
 
 // NewBuildTransaction initializes a transaction. If isCleanBuild is true, it uses a .tmp directory for staging.
+// Caller is responsible for calling CleanupStaleBuildDirs(outputDir) before this function if cleanup is desired.
 func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
-	outputDir = utils.NormalizePath(outputDir)
+	outputDir = fspkg.NormalizePath(outputDir)
 	var stagingDir string
 	var backupDir string
 	if isCleanBuild {
-		cleanupStaleBuildDirs(outputDir)
+		// Cleanup is now caller's responsibility - call CleanupStaleBuildDirs(outputDir) explicitly before this
 		// Clean up old backup directories from previous builds to reduce I/O pressure during publish
 		parent := filepath.Dir(outputDir)
 		base := filepath.Base(outputDir)
@@ -72,7 +77,7 @@ func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
 			name := entry.Name()
 			if strings.HasPrefix(name, base+".bak-") {
 				fullPath := filepath.Join(parent, name)
-				_ = RemoveAllWithRetry(context.Background(), fullPath, 5, 10*time.Millisecond)
+				_ = retry.RemoveAllWithRetry(context.Background(), fullPath, 5, 10*time.Millisecond)
 			}
 		}
 		ts := fmt.Sprintf("%d-%d", time.Now().UnixNano(), buildTxnCounter.Add(1))
@@ -107,18 +112,18 @@ func (tx *DirectoryTx) Commit(ctx context.Context) error {
 	backupDir := tx.backupDir
 	if _, err := os.Stat(tx.realOutputDir); err == nil {
 		// Try to remove old backup if it somehow exists
-		_ = RemoveAllWithRetry(ctx, backupDir, 5, 10*time.Millisecond)
-		if err := RenameWithRetry(ctx, tx.realOutputDir, backupDir, 12, 20*time.Millisecond); err != nil {
+		_ = retry.RemoveAllWithRetry(ctx, backupDir, 5, 10*time.Millisecond)
+		if err := retry.RenameWithRetry(ctx, tx.realOutputDir, backupDir, 12, 20*time.Millisecond); err != nil {
 			return fmt.Errorf("failed to backup output directory: %w", err)
 		}
 	}
 
 	// 2. Rename outputDir.tmp -> outputDir
-	if err := RenameWithRetry(ctx, tx.stagingDir, tx.realOutputDir, 12, 20*time.Millisecond); err != nil {
+	if err := retry.RenameWithRetry(ctx, tx.stagingDir, tx.realOutputDir, 12, 20*time.Millisecond); err != nil {
 		// Attempt to restore backup on failure
 		var rollbackErr error
 		if backupDir != "" {
-			rollbackErr = RenameWithRetry(ctx, backupDir, tx.realOutputDir, 12, 20*time.Millisecond)
+			rollbackErr = retry.RenameWithRetry(ctx, backupDir, tx.realOutputDir, 12, 20*time.Millisecond)
 			if rollbackErr != nil {
 				slog.Error("CRITICAL: Both publish and rollback failed",
 					"publish_error", err,
@@ -143,7 +148,7 @@ func (tx *DirectoryTx) Rollback() error {
 		return nil
 	}
 	// Clean up staging dir on failure
-	return RemoveAllWithRetry(context.Background(), tx.stagingDir, 5, 10*time.Millisecond)
+	return retry.RemoveAllWithRetry(context.Background(), tx.stagingDir, 5, 10*time.Millisecond)
 }
 
 func (tx *DirectoryTx) GetLastBuildTime() time.Time {
@@ -152,78 +157,4 @@ func (tx *DirectoryTx) GetLastBuildTime() time.Time {
 		return time.Time{}
 	}
 	return info.ModTime()
-}
-
-// RenameWithRetry attempts to rename a path with exponential backoff.
-// Critical for Windows where antivirus/indexers can briefly lock directories.
-func RenameWithRetry(ctx context.Context, oldPath, newPath string, maxRetries int, baseDelay time.Duration) error {
-	var err error
-	for i := 0; i < maxRetries; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		err = os.Rename(oldPath, newPath)
-		if err == nil {
-			return nil
-		}
-		if os.IsNotExist(err) {
-			return err
-		}
-
-		if i == 0 {
-			slog.Debug("Rename failed, retrying with backoff...", "old", oldPath, "new", newPath, "error", err)
-		}
-
-		// Use a capped backoff with jitter
-		delay := min(baseDelay*time.Duration(1<<uint(i)), 2*time.Second)
-		// Simple jitter without math/rand: ±10%
-		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
-
-		timer := time.NewTimer(delay + jitter)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-	return err
-}
-
-// RemoveAllWithRetry attempts to remove a directory tree with exponential backoff.
-// Critical for Windows where antivirus/indexers can briefly lock files.
-func RemoveAllWithRetry(ctx context.Context, path string, maxRetries int, baseDelay time.Duration) error {
-	var err error
-	for i := 0; i < maxRetries; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		err = os.RemoveAll(path)
-		if err == nil {
-			return nil
-		}
-
-		if i == 0 {
-			slog.Debug("RemoveAll failed, retrying with backoff...", "path", path, "error", err)
-		}
-
-		// Use a capped backoff with jitter
-		delay := min(baseDelay*time.Duration(1<<uint(i)), 2*time.Second)
-		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
-
-		timer := time.NewTimer(delay + jitter)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-	return err
 }

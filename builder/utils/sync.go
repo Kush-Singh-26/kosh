@@ -16,6 +16,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
+	"github.com/Kush-Singh-26/kosh/builder/utils/retry"
 )
 
 var (
@@ -280,7 +281,7 @@ func atomicWrite(ctx context.Context, path string, data []byte) error {
 	}
 
 	// Atomic rename
-	err = RenameWithRetry(ctx, tmpPath, path, 5, 10*time.Millisecond)
+	err = retry.RenameWithRetry(ctx, tmpPath, path, 5, 10*time.Millisecond)
 	if err != nil {
 		_ = os.Remove(tmpPath)
 		return err

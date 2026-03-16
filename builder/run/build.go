@@ -26,6 +26,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/async"
 	"github.com/Kush-Singh-26/kosh/builder/utils/tx"
 )
 
@@ -35,6 +36,10 @@ func (b *Builder) refreshBuildSession() {
 	// If we already have a sink/tx (e.g. injected in tests), don't overwrite it
 	if b.Sink == nil || !utils.TestingMode {
 		useStaging := !b.cfg.IsDev || b.state.isCleanBuild
+		// Explicit cleanup before creating new transaction for clean builds
+		if useStaging {
+			tx.CleanupStaleBuildDirs(b.cfg.OutputDir)
+		}
 		b.Tx = tx.NewBuildTransaction(b.cfg.OutputDir, useStaging)
 		b.Sink = utils.NewDiskSink(b.Tx.StagingDir(), b.cfg.OutputDir)
 	}
@@ -172,7 +177,7 @@ func (b *Builder) build(ctx context.Context) error {
 func (b *Builder) setupWasmDeployment(ctx context.Context) *sync.WaitGroup {
 	var wasmWg sync.WaitGroup
 	wasmWg.Add(1)
-	utils.FireAndForgetWithCleanup(ctx, b.logger, "WASM deployment",
+	async.FireAndForgetWithCleanup(ctx, b.logger, "WASM deployment",
 		func() error {
 			b.checkWasmUpdate(ctx)
 			return nil

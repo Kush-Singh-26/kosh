@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/chai2010/webp"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
@@ -218,7 +219,7 @@ func CopyFileVFS(srcFs afero.Fs, sink ArtifactSink, srcPath, destPath string, mo
 	}
 
 	// Attempt optimized syscall copy for local files
-	if realSrc, ok := GetRealPath(srcFs, srcPath); ok {
+	if realSrc, ok := fspkg.GetRealPath(srcFs, srcPath); ok {
 		err := sink.CopyFile(realSrc, destPath)
 		if err == nil {
 			if onWrite != nil {
@@ -266,7 +267,7 @@ func CopyFileWithOptionalImageProcessing(ctx context.Context, srcFs afero.Fs, si
 	ext := strings.ToLower(filepath.Ext(srcPath))
 	isImage := ext == ".jpg" || ext == ".jpeg" || ext == ".png"
 	if opts.Compress && isImage {
-		if err := processImageVFS(ctx, srcFs, sink, srcPath, destPath[:len(destPath)-len(filepath.Ext(destPath))]+".webp", srcInfoToFileInfo(info), opts); err != nil {
+		if err := processImageVFS(ctx, srcFs, sink, srcPath, destPath[:len(destPath)-len(filepath.Ext(destPath))]+".webp", info, opts); err != nil {
 			return err
 		}
 		if opts.OnWrite != nil {
@@ -281,14 +282,9 @@ func CopyFileWithOptionalImageProcessing(ctx context.Context, srcFs afero.Fs, si
 	return CopyFileVFS(srcFs, sink, srcPath, destPath, modTime, opts.OnWrite)
 }
 
-// Helper to bridge FileInfo to srcInfo parameter in processImageVFS
-func srcInfoToFileInfo(info fs.FileInfo) fs.FileInfo {
-	return info
-}
-
 func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, dstDir string, opts CopyOptions) error {
-	srcDir = NormalizePath(srcDir)
-	dstDir = NormalizePath(dstDir)
+	srcDir = fspkg.NormalizePath(srcDir)
+	dstDir = fspkg.NormalizePath(dstDir)
 	if err := sink.MkdirAll(dstDir); err != nil {
 		return fmt.Errorf("failed to create destination directory %s: %w", dstDir, err)
 	}
@@ -376,7 +372,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 			return nil
 		}
 
-		relPath, _ := SafeRel(srcDir, path)
+		relPath, _ := fspkg.SafeRel(srcDir, path)
 		ext := strings.ToLower(filepath.Ext(path))
 		baseName := filepath.Base(path)
 		if baseName == "search.wasm" {

@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/afero"
 
@@ -31,7 +32,7 @@ import (
 // BuilderDependencies bundles service dependencies for explicit injection.
 // This reduces direct coupling by grouping related services.
 type BuilderDependencies struct {
-	Cache    services.CacheService
+	Cache    services.PostServiceCache
 	Post     services.PostService
 	Asset    services.AssetService
 	Render   services.RenderService
@@ -197,10 +198,10 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 
 	renderSvc := services.NewRenderService(rnd, logger)
 
-	assetSvc := services.NewAssetService(vfs, nil, cfg, renderSvc, logger)
-	assetSvc.SetMetrics(buildMetrics)
+	assetSvc := services.NewAssetService(vfs, nil, cfg, renderSvc, logger,
+		services.WithMetrics(buildMetrics))
 
-	var cacheSvc services.CacheService
+	var cacheSvc services.PostServiceCache
 	if cacheManager != nil {
 		cacheSvc = services.NewCacheService(cacheManager, logger)
 	}
@@ -339,19 +340,19 @@ func (b *Builder) checkWasmUpdate(ctx context.Context) {
 		return
 	}
 
-	wasmBinary := utils.RepoPath("static", "wasm", "search.wasm")
+	wasmBinary := fspkg.RepoPath("static", "wasm", "search.wasm")
 	sourceAvailable := false
 	if srcMod, err := latestSearchSourceModTime(); err == nil {
 		sourceAvailable = true
 		if b.state.searchSourceDirty.Load() {
-			if err := assets.CompileWASMFromSource(ctx, utils.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
+			if err := assets.CompileWASMFromSource(ctx, fspkg.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
 				b.logger.Warn("Failed to compile Search WASM", "error", err)
 			}
 			b.state.searchSourceDirty.Store(false)
 		} else {
 			wasmInfo, statErr := os.Stat(wasmBinary)
 			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
-				if err := assets.CompileWASMFromSource(ctx, utils.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
+				if err := assets.CompileWASMFromSource(ctx, fspkg.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
 					b.logger.Warn("Failed to compile Search WASM", "error", err)
 				}
 			}
@@ -372,9 +373,9 @@ func (b *Builder) checkWasmUpdate(ctx context.Context) {
 
 func latestSearchSourceModTime() (time.Time, error) {
 	paths := []string{
-		utils.RepoPath("cmd", "search"),
-		utils.RepoPath("builder", "search"),
-		utils.RepoPath("builder", "models"),
+		fspkg.RepoPath("cmd", "search"),
+		fspkg.RepoPath("builder", "search"),
+		fspkg.RepoPath("builder", "models"),
 	}
 
 	latest := time.Time{}

@@ -666,3 +666,87 @@ func TestCacheService_EmptyBodyHash_Invalidation(t *testing.T) {
 
 	t.Log("Empty BodyHash test passed - post can be stored and retrieved")
 }
+
+// TestCacheService_ConcurrentDirtyTracking stress tests MarkDirty/ClearDirty under concurrent access
+func TestCacheService_ConcurrentDirtyTracking(t *testing.T) {
+	service, _, cleanup := setupCacheServiceTest(t)
+	defer cleanup()
+
+	const numGoroutines = 50
+	const opsPerGoroutine = 100
+
+	var wg sync.WaitGroup
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func(base int) {
+			defer wg.Done()
+			for i := 0; i < opsPerGoroutine; i++ {
+				postID := string(rune(base%26 + 'a')) + string(rune(i%26+'a'))
+				service.MarkDirty(postID)
+				_ = service.IsDirty(postID)
+			}
+		}(g)
+	}
+
+	wg.Wait()
+
+	// ClearDirty should be safe to call after concurrent MarkDirty
+	service.ClearDirty()
+
+	// Verify all are clean
+	for i := 0; i < 10; i++ {
+		postID := string(rune(i%26 + 'a')) + "0"
+		if service.IsDirty(postID) {
+			t.Errorf("Post %s should be clean after ClearDirty", postID)
+		}
+	}
+}
+
+// TestCacheService_ConcurrentMarkAndCheck verifies race-free mark and check operations
+func TestCacheService_ConcurrentMarkAndCheck(t *testing.T) {
+	service, _, cleanup := setupCacheServiceTest(t)
+	defer cleanup()
+
+	const numPosts = 100
+	var wg sync.WaitGroup
+
+	// Concurrently mark and check
+	for i := 0; i < numPosts; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			postID := string(rune(id%26 + 'a'))
+			service.MarkDirty(postID)
+			_ = service.IsDirty(postID)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Clear and verify
+	service.ClearDirty()
+}
+
+// TestCacheService_DirtyTrackingIdempotency verifies MarkDirty is idempotent
+func TestCacheService_DirtyTrackingIdempotency(t *testing.T) {
+	service, _, cleanup := setupCacheServiceTest(t)
+	defer cleanup()
+
+	postID := "test-idempotent"
+
+	// Mark multiple times
+	for i := 0; i < 10; i++ {
+		service.MarkDirty(postID)
+	}
+
+	// Should still be dirty
+	if !service.IsDirty(postID) {
+		t.Error("Post should be dirty after multiple MarkDirty calls")
+	}
+
+	// Clear once should clean all
+	service.ClearDirty()
+	if service.IsDirty(postID) {
+		t.Error("Post should be clean after ClearDirty")
+	}
+}

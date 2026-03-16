@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 
@@ -125,7 +126,7 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 	for i := 0; i < workerCount; i++ {
 		g.Go(func() error {
 			for t := range tasks {
-				relPath, err := utils.SafeRel(contentDir, t.path)
+				relPath, err := fspkg.SafeRel(contentDir, t.path)
 				if err != nil {
 					continue
 				}
