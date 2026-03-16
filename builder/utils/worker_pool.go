@@ -8,10 +8,13 @@ import (
 	"sync/atomic"
 )
 
+// MaxWorkers limits worker pool size to prevent oversaturation on systems with
+// many cores. Value of 32 balances parallelism against context-switch overhead.
+// WorkerBufferSize is the channel buffer multiplier per worker.
+// A multiplier of 4 provides enough buffering to smooth out task submission
+// bursts without excessive memory usage.
 const (
-	// MaxWorkers is the maximum number of workers in a pool
 	MaxWorkers = 32
-	// WorkerBufferSize is the channel buffer multiplier
 	WorkerBufferSize = 4
 )
 

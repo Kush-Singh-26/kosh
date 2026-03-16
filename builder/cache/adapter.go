@@ -33,8 +33,9 @@ type DiagramCacheAdapter struct {
 	writeGroup singleflight.Group
 }
 
-// NewDiagramCacheAdapter creates a new adapter with a bounded worker pool
-// Uses runtime.NumCPU() workers to limit concurrent async writes
+// NewDiagramCacheAdapter creates a new adapter with a bounded worker pool.
+// Uses runtime.NumCPU() workers to limit concurrent async writes.
+// Caller must call Start() to begin worker processing and Close() to shutdown.
 func NewDiagramCacheAdapter(manager *Manager) *DiagramCacheAdapter {
 	workers := max(runtime.NumCPU(), 2)
 
@@ -48,12 +49,19 @@ func NewDiagramCacheAdapter(manager *Manager) *DiagramCacheAdapter {
 	}
 	a.persist.Store(true)
 
+	// Workers are NOT started here - caller must explicitly call Start()
+	// This makes the lifecycle explicit and testable
+	return a
+}
+
+// Start begins the worker pool for async cache writes.
+// Must be called after construction and before any Set() operations.
+// Safe to call only once - subsequent calls are no-ops.
+func (a *DiagramCacheAdapter) Start() {
 	// Start worker pool
-	for i := 0; i < workers; i++ {
+	for i := 0; i < a.workers; i++ {
 		go a.writeWorker()
 	}
-
-	return a
 }
 
 func (a *DiagramCacheAdapter) persistSSRValue(key, value string) error {

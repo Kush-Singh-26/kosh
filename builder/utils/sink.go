@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 )
 
 // ArtifactSink provides an interface for streaming file writes during the build process.
@@ -38,13 +40,13 @@ type DiskSink struct {
 
 // NewDiskSink creates a new DiskSink with staging and real output directories
 func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
-	sDir, err := AbsNormalizePath(stagingDir)
+	sDir, err := fspkg.AbsNormalizePath(stagingDir)
 	if err != nil {
-		sDir = NormalizePath(stagingDir)
+		sDir = fspkg.NormalizePath(stagingDir)
 	}
-	rDir, err := AbsNormalizePath(realOutputDir)
+	rDir, err := fspkg.AbsNormalizePath(realOutputDir)
 	if err != nil {
-		rDir = NormalizePath(realOutputDir)
+		rDir = fspkg.NormalizePath(realOutputDir)
 	}
 	s := &DiskSink{
 		stagingDir:         sDir,
@@ -70,7 +72,7 @@ func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
 		return cached.(string), nil
 	}
 
-	cleanP := NormalizePath(p)
+	cleanP := fspkg.NormalizePath(p)
 	var resolved string
 
 	if filepath.IsAbs(filepath.FromSlash(cleanP)) {
@@ -79,7 +81,7 @@ func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		resolvedAbs = NormalizePath(resolvedAbs)
+		resolvedAbs = fspkg.NormalizePath(resolvedAbs)
 
 		// Check if the resolved path is within allowed roots
 		if isInsideDir(resolvedAbs, s.realOutputDirLower) {
@@ -87,7 +89,7 @@ func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			resolved = s.fastJoinStaging(NormalizePath(rel))
+			resolved = s.fastJoinStaging(fspkg.NormalizePath(rel))
 		} else if isInsideDir(resolvedAbs, s.stagingDirLower) {
 			resolved = resolvedAbs
 		} else {
@@ -98,7 +100,7 @@ func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
 		if isInsideDir(cleanP, s.realOutputDirLower) {
 			rel, err := filepath.Rel(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(cleanP))
 			if err == nil {
-				resolved = s.fastJoinStaging(NormalizePath(rel))
+				resolved = s.fastJoinStaging(fspkg.NormalizePath(rel))
 			} else {
 				resolved = s.fastJoinStaging(cleanP)
 			}
@@ -159,17 +161,17 @@ func (s *DiskSink) Register(p string) {
 	}
 
 	// Keep track of the final output path (real path) for orphan cleanup and syncing
-	cleanP := NormalizePath(p)
+	cleanP := fspkg.NormalizePath(p)
 	var finalPath string
 	if !filepath.IsAbs(filepath.FromSlash(cleanP)) {
-		finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(cleanP)))
+		finalPath = fspkg.NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(cleanP)))
 	} else {
 		if hasPrefixCaseInsensitive(cleanP, s.stagingDirLower) {
 			rel := cleanP[len(s.stagingDir):]
 			if len(rel) > 0 && rel[0] == '/' {
 				rel = rel[1:]
 			}
-			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(rel)))
+			finalPath = fspkg.NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(rel)))
 		} else {
 			finalPath = cleanP
 		}

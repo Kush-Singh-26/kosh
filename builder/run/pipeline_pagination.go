@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sort"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -157,7 +158,7 @@ func (b *Builder) renderPagination(ctx context.Context, allPosts, pinnedPosts []
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
 				Paginator: paginator, SiteTree: siteTree, SidebarHTML: sidebarHTML, Config: cfg, Versions: cfg.GetVersionsMetadata("", ""),
-				RelativePrefix: utils.GetRelativePrefix(relPath),
+				RelativePrefix: fspkg.GetRelativePrefix(relPath),
 			}); err != nil {
 				return fmt.Errorf("failed to render index page %d: %w", pageIdx, err)
 			}

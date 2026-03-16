@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
@@ -21,8 +22,8 @@ import (
 
 func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool) (map[string]string, error) {
 	// slog.Info("Building assets", "srcDir", srcDir, "destDir", destDir)
-	srcDir = NormalizePath(srcDir)
-	destDir = NormalizePath(destDir)
+	srcDir = fspkg.NormalizePath(srcDir)
+	destDir = fspkg.NormalizePath(destDir)
 	assets := make(map[string]string)
 
 	var jsEntryPoints []string
@@ -108,8 +109,8 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 							if d.IsDir() || filepath.Base(path) == "map.json" {
 								return nil
 							}
-							path = NormalizePath(path)
-							relPath, _ := SafeRel(cachePath, path)
+							path = fspkg.NormalizePath(path)
+							relPath, _ := fspkg.SafeRel(cachePath, path)
 							// destDir/relPath
 							// But relPath in cache is flattened?
 							// Wait, esbuild output preserves structure if Outbase is used.
@@ -190,7 +191,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			if len(outFile.Contents) == 0 && !strings.HasSuffix(strings.ToLower(outFile.Path), ".map") {
 				return fmt.Errorf("esbuild produced empty output for %s", outFile.Path)
 			}
-			fullPath := NormalizePath(outFile.Path)
+			fullPath := fspkg.NormalizePath(outFile.Path)
 			// Compute relative path from destDir for VFS
 			relPath, err := filepath.Rel(destDir, fullPath)
 			if err != nil {
@@ -245,7 +246,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			// We want the key to be "/static/js/main.js" for compatibility
 
 			entryPointAbs, _ := filepath.Abs(outInfo.EntryPoint)
-			relEntryPoint, _ := SafeRel(srcDir, NormalizePath(entryPointAbs))
+			relEntryPoint, _ := fspkg.SafeRel(srcDir, fspkg.NormalizePath(entryPointAbs))
 			relEntryPoint = strings.TrimPrefix(filepath.ToSlash(relEntryPoint), "/")
 
 			key := "/static/" + relEntryPoint
@@ -259,7 +260,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			}
 
 			// Normalize hash portion to lowercase for case-insensitive filesystems (Windows)
-			val = normalizeHashCase(val)
+			val = normalizeEsbuildHashCase(val)
 
 			assetsMu.Lock()
 			assets[key] = val
@@ -296,7 +297,10 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 	return assets, nil
 }
 
-func normalizeHashCase(path string) string {
+// normalizeEsbuildHashCase lowercases hash segments in esbuild output paths.
+// Windows filesystems are case-insensitive, so we normalize hashes like
+// ".AbCdEf12" to ".abcdef12" to ensure consistent path lookups.
+func normalizeEsbuildHashCase(path string) string {
 	// Find pattern like .HASH12345. where hash is alphanumeric and 8-12 chars
 	for i := strings.Index(path, "."); i >= 0 && i < len(path)-10; i++ {
 		// Look for extension-like pattern after a dot

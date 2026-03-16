@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"runtime"
 	"sync"
@@ -74,6 +75,34 @@ func WithScheduler(s utils.BuildScheduler) RendererOption {
 	return func(r *Renderer) {
 		r.scheduler = s
 	}
+}
+
+// withSchedulerAndClosedCheck wraps a render operation with scheduler acquisition
+// and closed-state checking. Returns error if renderer is closed or context cancelled.
+// The caller must defer r.wg.Done() after this function returns nil.
+func (r *Renderer) withSchedulerAndClosedCheck(ctx context.Context, task utils.TaskType) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if r.scheduler != nil {
+		if err := r.scheduler.Acquire(ctx, task); err != nil {
+			return err
+		}
+		defer r.scheduler.Release(task)
+	}
+
+	r.ensureInitialized()
+
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return fmt.Errorf("renderer is closed")
+	}
+	r.wg.Add(1)
+	r.mu.Unlock()
+
+	return nil
 }
 
 // New creates a new Renderer - workers are lazy-initialized

@@ -8,9 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/andybalholm/brotli"
-
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func validatePath(baseDir, userPath string) (string, error) {
@@ -30,7 +29,7 @@ func validatePath(baseDir, userPath string) (string, error) {
 	}
 
 	// Clean the path first
-	cleanUserPath := utils.NormalizeURLPath(decodedPath)
+	cleanUserPath := fspkg.NormalizeURLPath(decodedPath)
 
 	// Reject if it still tries to escape via .. (path.Clean preserves leading .. if it can't resolve them)
 	if strings.HasPrefix(cleanUserPath, "..") {
@@ -83,7 +82,7 @@ func normalizeRequestPath(rawPath, baseURL string) string {
 	if !strings.HasPrefix(rawPath, "/") {
 		rawPath = "/" + rawPath
 	}
-	rawPath = utils.NormalizeURLPath(rawPath)
+	rawPath = fspkg.NormalizeURLPath(rawPath)
 	if rawPath == "." {
 		rawPath = "/"
 	}

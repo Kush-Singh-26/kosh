@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
 
@@ -19,11 +20,12 @@ import (
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/async"
 )
 
 type PostServiceDependencies struct {
 	Cfg            *config.Config
-	Cache          CacheService
+	Cache          PostServiceCache
 	Renderer       RenderService
 	Logger         *slog.Logger
 	Metrics        *metrics.BuildMetrics
@@ -36,7 +38,7 @@ type PostServiceDependencies struct {
 
 type postServiceImpl struct {
 	cfg              *config.Config
-	cache            CacheService
+	cache            PostServiceCache
 	renderer         RenderService
 	logger           *slog.Logger
 	metrics          *metrics.BuildMetrics
@@ -151,7 +153,7 @@ func (s *postServiceImpl) runParsePhase(ctx context.Context, numWorkers int, sho
 
 func (s *postServiceImpl) parseWorkerTask(ctx context.Context, f models.ScannedFile, shouldForce, forceSocialRebuild bool, pc *postProcessContext, cardPool *utils.WorkerPool[socialCardTask]) {
 	path, version := f.Path, f.Version
-	relPath, _ := utils.SafeRel(s.cfg.ContentDir, path)
+	relPath, _ := fspkg.SafeRel(s.cfg.ContentDir, path)
 	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 
 	versionLower := strings.ToLower(version)
@@ -189,7 +191,21 @@ func (s *postServiceImpl) parseWorkerTask(ctx context.Context, f models.ScannedF
 	if !useCache {
 		var err error
 		s.metrics.IncrementCacheMiss()
-		parseRes, err = ParseMarkdown(ctx, f.Source, path, version, cleanHtmlRelPath, htmlRelPath, s.mdPool, s.cfg, s.nativeRenderer, s.diagramAdapter, &s.mu, f.FrontmatterHash, f.ReadingTime, f.BodyOffset, f.PreParsedMeta)
+		parseRes, err = ParseMarkdown(ParseOptions{
+			Source:             f.Source,
+			Path:               path,
+			Version:            version,
+			CleanHtmlRelPath:   cleanHtmlRelPath,
+			HtmlRelPath:        htmlRelPath,
+			MdPool:             s.mdPool,
+			Cfg:                s.cfg,
+			NativeRenderer:     s.nativeRenderer,
+			DiagramAdapter:     s.diagramAdapter,
+			KnownFrontmatterHash: f.FrontmatterHash,
+			KnownReadingTime:   f.ReadingTime,
+			BodyOffset:         f.BodyOffset,
+			PreParsedMeta:      f.PreParsedMeta,
+		})
 		if err != nil {
 			s.logger.Error("Failed to parse markdown", "path", path, "error", err)
 			pc.mu.Lock()
@@ -403,7 +419,7 @@ func (s *postServiceImpl) runRenderPhase(ctx context.Context, numWorkers int, pc
 			Meta: rt.parseRes.MetaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
 			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
 			TOC: rt.parseRes.TOC, Config: s.cfg, CurrentVersion: rt.version, ReadingTime: post.ReadingTime,
-			PrevPage: prev, NextPage: next, RelativePrefix: utils.GetRelativePrefix(rt.htmlRelPath),
+			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(rt.htmlRelPath),
 			HasImages: rt.parseRes.HasImages,
 		})
 	}).WithScheduler(utils.GlobalScheduler, utils.TaskMarkdown)
@@ -421,7 +437,7 @@ func (s *postServiceImpl) runRenderPhase(ctx context.Context, numWorkers int, pc
 func (s *postServiceImpl) finalizeBuild(pc *postProcessContext) {
 	if len(pc.newPostsMeta) > 0 && s.cache != nil {
 		s.cacheWg.Add(1)
-		utils.FireAndForgetWithCleanup(context.Background(), s.logger, "cache commit",
+		async.FireAndForgetWithCleanup(context.Background(), s.logger, "cache commit",
 			func() error {
 				return s.cache.BatchCommit(pc.newPostsMeta, pc.newSearchRecords, pc.newDeps)
 			},

@@ -2,6 +2,7 @@ package search
 
 import (
 	"container/heap"
+	"html"
 	"math"
 	"math/bits"
 	"slices"
@@ -541,29 +542,7 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 }
 
 func escapeToBuilder(sb *strings.Builder, s string) {
-	// Quick path if no characters need escaping
-	if !strings.ContainsAny(s, `'"&<>`) {
-		sb.WriteString(s)
-		return
-	}
-
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch c {
-		case '<':
-			sb.WriteString("&lt;")
-		case '>':
-			sb.WriteString("&gt;")
-		case '&':
-			sb.WriteString("&amp;")
-		case '"':
-			sb.WriteString("&#34;")
-		case '\'':
-			sb.WriteString("&#39;")
-		default:
-			sb.WriteByte(c)
-		}
-	}
+	sb.WriteString(html.EscapeString(s))
 }
 
 // resultHeap implements heap.Interface for a min-heap of search results

@@ -7,7 +7,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 )
 
-// cacheServiceImpl implements CacheService
+// cacheServiceImpl implements PostServiceCache
 type cacheServiceImpl struct {
 	manager *cache.Manager
 	logger  *slog.Logger
@@ -16,7 +16,7 @@ type cacheServiceImpl struct {
 	dirty sync.Map
 }
 
-func NewCacheService(manager *cache.Manager, logger *slog.Logger) CacheService {
+func NewCacheService(manager *cache.Manager, logger *slog.Logger) PostServiceCache {
 	return &cacheServiceImpl{
 		manager: manager,
 		logger:  logger,

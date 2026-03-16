@@ -295,30 +295,27 @@ func RenderParsedMarkdown(
 	return nil
 }
 
-// ParseMarkdown handles the safe parsing and processing of markdown files (Legacy/Convenience)
-func ParseMarkdown(
-	ctx context.Context,
-	source []byte,
-	path string,
-	version string,
-	cleanHtmlRelPath string,
-	htmlRelPath string,
-	mdPool *sync.Pool,
-	cfg *config.Config,
-	nativeRenderer *native.Renderer,
-	diagramAdapter *cache.DiagramCacheAdapter,
-	mu *sync.Mutex,
-	knownFrontmatterHash string,
-	knownReadingTime int,
-	bodyOffset int,
-	preParsedMeta map[string]any,
-) (*ParsedMarkdownResult, error) {
-	res, err := ParseMarkdownMetadata(ctx, source, path, version, cleanHtmlRelPath, htmlRelPath, mdPool, cfg, knownFrontmatterHash, knownReadingTime, bodyOffset, preParsedMeta)
+// ParseMarkdown handles the safe parsing and processing of markdown files
+func ParseMarkdown(opts ParseOptions) (*ParsedMarkdownResult, error) {
+	res, err := ParseMarkdownMetadata(
+		context.Background(),
+		opts.Source,
+		opts.Path,
+		opts.Version,
+		opts.CleanHtmlRelPath,
+		opts.HtmlRelPath,
+		opts.MdPool,
+		opts.Cfg,
+		opts.KnownFrontmatterHash,
+		opts.KnownReadingTime,
+		opts.BodyOffset,
+		opts.PreParsedMeta,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := RenderParsedMarkdown(source, res, mdPool, nativeRenderer, diagramAdapter); err != nil {
+	if err := RenderParsedMarkdown(opts.Source, res, opts.MdPool, opts.NativeRenderer, opts.DiagramAdapter); err != nil {
 		return nil, err
 	}
 
