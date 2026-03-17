@@ -1,4 +1,5 @@
 package renderer
+import fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 
 import (
 	"fmt"
@@ -20,17 +21,11 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 		return fmt.Errorf("failed to execute %s template for %s: %w", templateName, path, err)
 	}
 
-	// Process HTML (Fix images and internal paths) - Legacy regex post-pass
-	var finalBytes []byte
-	if r.EnableLegacyProcessHTML {
-		finalBytes = utils.ProcessHTMLBytes(buf.Bytes(), data.BaseURL, data.RelativePrefix, r.Compress)
-	} else {
-		finalBytes = buf.Bytes()
-	}
+	finalBytes := buf.Bytes()
 
 	// Optional Minification
 	if r.Compress {
-		minified, err := utils.Minifier.Bytes("text/html", finalBytes)
+		minified, err := fspkg.Minifier.Bytes("text/html", finalBytes)
 		if err == nil {
 			finalBytes = minified
 		}

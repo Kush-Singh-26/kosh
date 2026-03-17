@@ -10,7 +10,8 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/generators"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+
 	"github.com/spf13/afero"
 )
 
@@ -39,7 +40,7 @@ func (b *Builder) generatePWA(ctx context.Context, shouldForce bool) error {
 	})
 
 	g.Go(func() error {
-		iconTimer := utils.StartPhase("PWA icons")
+		iconTimer := timeutil.StartPhase("PWA icons")
 		defer iconTimer.Stop()
 
 		faviconPath := b.getFaviconPath()

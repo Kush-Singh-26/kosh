@@ -1,6 +1,8 @@
 package renderer
 
 import (
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"html/template"
 	"io"
@@ -11,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 // setupTestRenderer creates a renderer with minimal templates for testing
@@ -19,7 +20,7 @@ func setupTestRenderer(t *testing.T) *Renderer {
 	t.Helper()
 
 	// Ensure minifier is initialized
-	utils.InitMinifier()
+	fspkg.InitMinifier()
 
 	sink := testutil.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -128,24 +129,6 @@ func TestRenderer_RenderPage_WithRelativePrefix(t *testing.T) {
 
 	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("RenderPage with RelativePrefix should not produce errors, got %v", errs)
-	}
-}
-
-func TestRenderer_RenderPage_LegacyProcessHTML(t *testing.T) {
-	r := setupTestRenderer(t)
-	r.EnableLegacyProcessHTML = true
-
-	data := models.PageData{
-		Title:          "Test Page",
-		BaseURL:        "",
-		RelativePrefix: "",
-		Content:        template.HTML("<p>Content with <img src='image.png'></p>"),
-	}
-
-	r.RenderPage("test/legacy.html", data)
-
-	if errs := r.ConsumeErrors(); errs != nil {
-		t.Errorf("RenderPage with LegacyProcessHTML should not produce errors, got %v", errs)
 	}
 }
 
@@ -862,13 +845,11 @@ func TestRenderer_RenderPage_WriteError(t *testing.T) {
 }
 
 // failingSink is a test sink that always fails
-type failingSink struct{}
-
-func (f *failingSink) WriteStream(path string, fn func(io.Writer) error) error {
-	return io.ErrUnexpectedEOF
+type failingSink struct {
+	testutil.MemSink
 }
 
-func (f *failingSink) WriteBytes(path string, bytes []byte) error {
+func (f *failingSink) WriteStream(path string, fn func(io.Writer) error) error {
 	return io.ErrUnexpectedEOF
 }
 
@@ -880,33 +861,13 @@ func (f *failingSink) CopyFile(srcPath, destPath string) error {
 	return io.ErrUnexpectedEOF
 }
 
-func (f *failingSink) Mkdir(path string) error {
-	return io.ErrUnexpectedEOF
-}
-
 func (f *failingSink) MkdirAll(path string) error {
 	return io.ErrUnexpectedEOF
-}
-
-func (f *failingSink) Register(path string) {}
-
-func (f *failingSink) GetWrittenFiles() map[string]bool {
-	return nil
-}
-
-func (f *failingSink) GetOutputDir() string {
-	return ""
 }
 
 func (f *failingSink) SetMtime(path string, mtime time.Time) error {
 	return io.ErrUnexpectedEOF
 }
-
-func (f *failingSink) Commit() error {
-	return nil
-}
-
-func (f *failingSink) SetSourceTree(tree map[string]bool) {}
 
 func TestRenderer_AssetCacheInvalidation(t *testing.T) {
 	r := setupTestRenderer(t)

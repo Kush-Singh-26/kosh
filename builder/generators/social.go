@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	_ "image/png"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
-	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 
 	"github.com/chai2010/webp"
@@ -114,6 +115,83 @@ func hexToRGBA(hex string) color.RGBA {
 	return color.RGBA{uint8(r), uint8(g), uint8(b), 255}
 }
 
+// SocialCardHash generates a stable hash for social card content
+func SocialCardHash(title, description string) string {
+	cardContent := fmt.Sprintf("%s|%s", title, description)
+	return cache.HashString(cardContent)
+}
+
+// ShouldGenerateSocialCard determines if a social card needs generation
+func ShouldGenerateSocialCard(cache models.CacheService, cacheKey, currentHash, cachedCardPath string, force bool) bool {
+	if force {
+		return true
+	}
+	if _, err := os.Stat(cachedCardPath); os.IsNotExist(err) {
+		return true
+	}
+	if cache != nil {
+		storedHash, _ := cache.GetSocialCardHash(cacheKey)
+		return storedHash != currentHash
+	}
+	return false
+}
+
+// ProvideSocialCardOptions holds parameters for ProvideSocialCard
+type ProvideSocialCardOptions struct {
+	Sink        models.ArtifactSink
+	Cache       models.CacheService
+	SourceFs    afero.Fs
+	OutputDir   string
+	CacheDir    string
+	Title       string // Site title
+	DestPath    string
+	CacheKey    string
+	CardTitle   string
+	Description string
+	Badge       string
+	Force       bool
+	SocialCfg   *models.SocialCardsConfig
+	Render      models.RenderService
+	FaviconPath string
+}
+
+// ProvideSocialCard ensures a social card exists in the VFS, using cache if possible
+func ProvideSocialCard(opts ProvideSocialCardOptions) {
+	currentHash := SocialCardHash(opts.CardTitle, opts.Description)
+	cachedCardPath := filepath.Join(opts.CacheDir, "social-cards", currentHash+".webp")
+
+	needsGen := ShouldGenerateSocialCard(opts.Cache, opts.CacheKey, currentHash, cachedCardPath, opts.Force)
+
+	utils.IgnoreError(opts.Sink.MkdirAll(filepath.Dir(opts.DestPath)), "ensure social card dir in VFS")
+
+	if needsGen {
+		utils.IgnoreError(os.MkdirAll(filepath.Dir(cachedCardPath), 0755), "ensure social card dir in cache")
+
+		err := GenerateSocialCardToDisk(SocialCardOptions{
+			SrcFs:       opts.SourceFs,
+			Cfg:         opts.SocialCfg,
+			SiteTitle:   opts.Title,
+			Title:       opts.CardTitle,
+			Description: opts.Description,
+			DateStr:     opts.Badge,
+			DestPath:    cachedCardPath,
+			FaviconPath: opts.FaviconPath,
+		})
+		if err != nil {
+			return
+		}
+		if opts.Cache != nil {
+			utils.IgnoreError(opts.Cache.SetSocialCardHash(opts.CacheKey, currentHash), "update social card hash")
+		}
+	}
+
+	data, err := os.ReadFile(cachedCardPath)
+	if err == nil {
+		utils.IgnoreError(opts.Sink.WriteFile(opts.DestPath, data), "write social card to VFS")
+		opts.Render.RegisterFile(opts.DestPath)
+	}
+}
+
 // drawGradient draws a linear gradient on the context
 func drawGradient(dc *gg.Context, w, h int, colors []string, angle int) {
 	if len(colors) < 2 {
@@ -195,9 +273,22 @@ func drawDotPattern(dc *gg.Context, w, h int) {
 	}
 }
 
+// SocialCardOptions contains parameters for social card generation.
+type SocialCardOptions struct {
+	Sink        models.ArtifactSink
+	SrcFs       afero.Fs
+	Cfg         *models.SocialCardsConfig
+	SiteTitle   string
+	Title       string
+	Description string
+	DateStr     string
+	DestPath    string
+	FaviconPath string
+}
+
 // GenerateSocialCardToDisk writes directly to a file path on disk
-func GenerateSocialCardToDisk(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
-	img, err := generateSocialCardImage(srcFs, cfg, siteTitle, title, description, dateStr, faviconPath)
+func GenerateSocialCardToDisk(opts SocialCardOptions) error {
+	img, err := generateSocialCardImage(opts)
 	if err != nil {
 		return err
 	}
@@ -207,23 +298,23 @@ func GenerateSocialCardToDisk(srcFs afero.Fs, cfg *config.SocialCardsConfig, sit
 		return err
 	}
 
-	return os.WriteFile(destPath, buf.Bytes(), 0644)
+	return os.WriteFile(opts.DestPath, buf.Bytes(), 0644)
 }
 
 // GenerateSocialCard creates a configurable gradient social card.
-func GenerateSocialCard(sink utils.ArtifactSink, srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, destPath, faviconPath string) error {
-	img, err := generateSocialCardImage(srcFs, cfg, siteTitle, title, description, dateStr, faviconPath)
+func GenerateSocialCard(opts SocialCardOptions) error {
+	img, err := generateSocialCardImage(opts)
 	if err != nil {
 		return err
 	}
 
-	return sink.WriteStream(destPath, func(w io.Writer) error {
+	return opts.Sink.WriteStream(opts.DestPath, func(w io.Writer) error {
 		return webp.Encode(w, img, &webp.Options{Lossless: false, Quality: 85})
 	})
 }
 
-func getBaseSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, faviconPath string) *image.RGBA {
-	cacheKey := fmt.Sprintf("%s|%s|%s|%d|%s", siteTitle, faviconPath, cfg.Background, cfg.Angle, strings.Join(cfg.Gradient, ","))
+func getBaseSocialCardImage(opts SocialCardOptions) *image.RGBA {
+	cacheKey := fmt.Sprintf("%s|%s|%s|%d|%s", opts.SiteTitle, opts.FaviconPath, opts.Cfg.Background, opts.Cfg.Angle, strings.Join(opts.Cfg.Gradient, ","))
 	if cached, ok := baseImageCache.Load(cacheKey); ok {
 		return cached.(*image.RGBA)
 	}
@@ -231,21 +322,21 @@ func getBaseSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteT
 	dc := gg.NewContext(socialCardWidth, socialCardHeight)
 
 	// --- 1. Draw Gradient Background ---
-	allColors := append([]string{cfg.Background}, cfg.Gradient...)
-	drawGradient(dc, socialCardWidth, socialCardHeight, allColors, cfg.Angle)
+	allColors := append([]string{opts.Cfg.Background}, opts.Cfg.Gradient...)
+	drawGradient(dc, socialCardWidth, socialCardHeight, allColors, opts.Cfg.Angle)
 
 	// --- 2. Draw Dot Pattern Overlay ---
 	drawDotPattern(dc, socialCardWidth, socialCardHeight)
 
 	boldFont := "Inter-Bold.ttf"
-	textColor := hexToRGBA(cfg.TextColor)
+	textColor := hexToRGBA(opts.Cfg.TextColor)
 
 	// --- 3. Header: Logo + Brand (Top Left) ---
 	currentX := marginX
 
-	if faviconPath != "" {
+	if opts.FaviconPath != "" {
 		// Use cached favicon if available
-		im := getFaviconImage(srcFs, faviconPath)
+		im := getFaviconImage(opts.SrcFs, opts.FaviconPath)
 		if im != nil {
 			w := im.Bounds().Dx()
 			scale := iconSize / float64(w)
@@ -261,7 +352,7 @@ func getBaseSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteT
 
 	if err := setFontFace(dc, boldFont, brandFontSize); err == nil {
 		dc.SetColor(textColor)
-		dc.DrawString(siteTitle, currentX, headerY)
+		dc.DrawString(opts.SiteTitle, currentX, headerY)
 	}
 
 	// We know Image() from gg context returns an *image.RGBA
@@ -270,8 +361,8 @@ func getBaseSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteT
 	return baseImg
 }
 
-func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, siteTitle, title, description, dateStr, faviconPath string) (image.Image, error) {
-	baseImg := getBaseSocialCardImage(srcFs, cfg, siteTitle, faviconPath)
+func generateSocialCardImage(opts SocialCardOptions) (image.Image, error) {
+	baseImg := getBaseSocialCardImage(opts)
 
 	// Clone the base image
 	clonedImg := image.NewRGBA(baseImg.Bounds())
@@ -286,7 +377,7 @@ func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, site
 
 	maxWidth := float64(socialCardWidth) - (marginX * 2)
 
-	textColor := hexToRGBA(cfg.TextColor)
+	textColor := hexToRGBA(opts.Cfg.TextColor)
 	textColorSecondary := textColor
 	// Make secondary text 75% opacity (slightly darker)
 	textColorSecondary.A = uint8(float64(textColor.A) * 0.75)
@@ -294,8 +385,8 @@ func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, site
 	// --- Header: Date (Top Right) ---
 	if err := setFontFace(dc, mediumFont, dateFontSize); err == nil {
 		dc.SetColor(textColor)
-		w, _ := dc.MeasureString(dateStr)
-		dc.DrawString(dateStr, float64(socialCardWidth)-marginX-w, headerY)
+		w, _ := dc.MeasureString(opts.DateStr)
+		dc.DrawString(opts.DateStr, float64(socialCardWidth)-marginX-w, headerY)
 	}
 
 	// --- The Title (Center-Left) ---
@@ -306,16 +397,16 @@ func generateSocialCardImage(srcFs afero.Fs, cfg *config.SocialCardsConfig, site
 	}
 
 	dc.SetColor(textColor)
-	dc.DrawStringWrapped(title, marginX, titleStartY, 0, 0, maxWidth, titleLineSpacing, gg.AlignLeft)
+	dc.DrawStringWrapped(opts.Title, marginX, titleStartY, 0, 0, maxWidth, titleLineSpacing, gg.AlignLeft)
 
-	titleLines := dc.WordWrap(title, maxWidth)
+	titleLines := dc.WordWrap(opts.Title, maxWidth)
 	titleHeight := float64(len(titleLines)) * titleFontSize * titleLineSpacing
 
 	// --- The Description ---
 	if err := setFontFace(dc, regFont, descFontSize); err == nil {
 		dc.SetColor(textColorSecondary)
 		descY := titleStartY + titleHeight + 25
-		dc.DrawStringWrapped(description, marginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
+		dc.DrawStringWrapped(opts.Description, marginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
 	}
 
 	return dc.Image(), nil

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,9 +21,9 @@ func createTestCache(t *testing.T) (*Manager, func()) {
 	}
 }
 
-// createSamplePostMeta creates a sample PostMeta for testing
-func createSamplePostMeta() *PostMeta {
-	return &PostMeta{
+// createSamplePostMeta creates a sample core.PostMeta for testing
+func createSamplePostMeta() *core.PostMeta {
+	return &core.PostMeta{
 		PostID:      "test-post",
 		Title:       "Test Post",
 		Path:        "content/posts/test-post.md",
@@ -410,7 +411,7 @@ func TestManager_ListAllPosts(t *testing.T) {
 	post2 := createSamplePostMeta()
 	post2.PostID = "post-2"
 
-	if err := m.BatchCommit([]*PostMeta{post1, post2}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post1, post2}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit() failed: %v", err)
 	}
 

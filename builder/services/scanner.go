@@ -190,7 +190,7 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs 
 		if walkConcurrency > 32 {
 			walkConcurrency = 32
 		}
-		return utils.ParallelWalk(gCtx, sourceFs, contentDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
+		return fspkg.ParallelWalk(gCtx, sourceFs, contentDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
 			if err != nil || info == nil {
 				return nil
 			}

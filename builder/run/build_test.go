@@ -10,16 +10,20 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/mocks/services"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/services"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
 func TestNewBuilder_Flags(t *testing.T) {
+	utils.TestingMode = true
+	defer func() { utils.TestingMode = false }()
+
 	fs := afero.NewMemMapFs()
 	// Scaffold a minimal theme so NewBuilder doesn't exit
 	_ = fs.MkdirAll("themes/my-theme/templates", 0755)
@@ -75,8 +79,8 @@ func TestFullBuild(t *testing.T) {
 		BuildOptions: config.BuildOptions{
 			PostsPerPage: 10,
 		},
-		Features: config.FeaturesConfig{
-			Generators: config.GeneratorsConfig{
+		Features: models.FeaturesConfig{
+			Generators: models.GeneratorsConfig{
 				Sitemap: true,
 				RSS:     true,
 				Search:  true,
@@ -101,6 +105,7 @@ func TestFullBuild(t *testing.T) {
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Renderer:       renderSvc,
@@ -122,6 +127,7 @@ func TestFullBuild(t *testing.T) {
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},
@@ -190,6 +196,7 @@ func TestMultiVersionBuild(t *testing.T) {
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Renderer:       renderSvc,
@@ -211,6 +218,7 @@ func TestMultiVersionBuild(t *testing.T) {
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},

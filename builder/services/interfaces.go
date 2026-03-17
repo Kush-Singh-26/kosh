@@ -12,7 +12,8 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+
 	"github.com/spf13/afero"
 )
 
@@ -39,45 +40,6 @@ type MetadataContext struct {
 // Service-specific cache interfaces for interface segregation.
 // Each service depends only on the cache operations it actually uses.
 
-// PostServiceCache provides cache operations needed by PostService
-type PostServiceCache interface {
-	PostCache
-	ContentCache
-	SocialCardCache
-	DirtyTracker
-	Stats() (*cache.CacheStats, error)
-	IncrementBuildCount() error
-	Close() error
-}
-
-// RenderServiceCache provides cache operations needed by RenderService
-type RenderServiceCache interface {
-	ContentCache
-}
-
-// AssetServiceCache provides cache operations needed by AssetService
-type AssetServiceCache interface {
-	BuildArtifactCache
-}
-
-// ScannerCache provides cache operations needed by Scanner
-type ScannerCache interface {
-	PostCache
-}
-
-// SiteGeneratorCache provides cache operations needed by site-wide generators
-type SiteGeneratorCache interface {
-	BuildArtifactCache
-	PostCache
-}
-
-// CacheServiceDependencies holds all dependencies for CacheService.
-// Using a struct pattern for API coherence and easier testing.
-type CacheServiceDependencies struct {
-	Manager *cache.Manager
-	Logger  *slog.Logger
-}
-
 // CacheService provides cache operations for all services.
 //
 // Error Contract:
@@ -88,24 +50,65 @@ type CacheServiceDependencies struct {
 //
 // Concurrency:
 //   - All methods are safe for concurrent calls
-//   - Dirty tracking uses sync.Map for lock-free access
 //   - Underlying bbolt DB handles its own synchronization
 type CacheService interface {
-	PostServiceCache
+	// Metadata operations
+	GetPost(id string) (*cache.PostMeta, error)
+	ListAllPosts() ([]string, error)
+	GetPostByPath(path string) (*cache.PostMeta, error)
+	GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error)
+	GetPostsByTemplate(templatePath string) ([]string, error)
+	GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error)
+
+	// Dirty tracking
+	MarkDirty(postID string)
+	IsDirty(postID string) bool
+	ClearDirty()
+
+	// Content and search record operations
+	GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error)
+	GetSearchRecord(id string) (*cache.SearchRecord, error)
+	GetHTMLContent(post *cache.PostMeta) ([]byte, error)
+	StoreHTML(content []byte) (string, error)
+	StoreHTMLForPost(post *cache.PostMeta, content []byte) error
+	BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error
+	DeletePost(postID string) error
+
+	// Social card operations
+	GetSocialCardHash(path string) (string, error)
+	SetSocialCardHash(path, hash string) error
+	BatchSetSocialCardHashes(hashes map[string]string) error
+
+	// Build artifact operations (graph, WASM)
+	GetGraphHash() (string, error)
+	SetGraphHash(hash string) error
+	GetWasmHash() (string, error)
+	SetWasmHash(hash string) error
+
+	// Lifecycle and stats
+	Stats() (*cache.CacheStats, error)
+	IncrementBuildCount() error
+	Close() error
+}
+
+// CacheServiceDependencies holds all dependencies for CacheService.
+type CacheServiceDependencies struct {
+	Manager *cache.Manager
+	Logger  *slog.Logger
 }
 
 // PostServiceDependencies holds all dependencies for PostService.
 // Using a struct pattern for API coherence and easier testing.
 type PostServiceDependencies struct {
 	Cfg            *config.Config
-	Cache          PostServiceCache
+	Cache          CacheService
 	Renderer       RenderService
 	Logger         *slog.Logger
 	Metrics        *metrics.BuildMetrics
 	MdPool         *sync.Pool
 	NativeRenderer *native.Renderer
 	SourceFs       afero.Fs
-	Sink           utils.ArtifactSink
+	Sink           fspkg.ArtifactSink
 	DiagramAdapter *cache.DiagramCacheAdapter
 }
 
@@ -123,7 +126,7 @@ type PostServiceDependencies struct {
 type PostService interface {
 	// ReconfigureForBuild updates sink and source for a new build pass.
 	// Consolidates sink and filesystem injection into a single explicit call.
-	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
+	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 
 	// SetAssetsGate sets the channel to wait on before rendering.
 	SetAssetsGate(ch <-chan struct{})
@@ -146,49 +149,6 @@ type PostService interface {
 	WaitForCacheCommit()
 }
 
-// PostCache provides post metadata query operations
-type PostCache interface {
-	GetPost(id string) (*cache.PostMeta, error)
-	ListAllPosts() ([]string, error)
-	GetPostByPath(path string) (*cache.PostMeta, error)
-	GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error)
-	GetPostsByTemplate(templatePath string) ([]string, error)
-	GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error)
-}
-
-// ContentCache provides HTML content and search record operations
-type ContentCache interface {
-	GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error)
-	GetSearchRecord(id string) (*cache.SearchRecord, error)
-	GetHTMLContent(post *cache.PostMeta) ([]byte, error)
-	StoreHTML(content []byte) (string, error)
-	StoreHTMLForPost(post *cache.PostMeta, content []byte) error
-	BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error
-	DeletePost(postID string) error
-}
-
-// SocialCardCache provides social card hash operations
-type SocialCardCache interface {
-	GetSocialCardHash(path string) (string, error)
-	SetSocialCardHash(path, hash string) error
-	BatchSetSocialCardHashes(hashes map[string]string) error
-}
-
-// BuildArtifactCache provides build artifact hash operations (graph, WASM)
-type BuildArtifactCache interface {
-	GetGraphHash() (string, error)
-	SetGraphHash(hash string) error
-	GetWasmHash() (string, error)
-	SetWasmHash(hash string) error
-}
-
-// DirtyTracker provides dirty tracking for incremental builds
-type DirtyTracker interface {
-	MarkDirty(postID string)
-	IsDirty(postID string) bool
-	ClearDirty()
-}
-
 // RenderServiceDependencies holds all dependencies for RenderService.
 // Using a struct pattern for API coherence and easier testing.
 type RenderServiceDependencies struct {
@@ -209,7 +169,7 @@ type RenderServiceDependencies struct {
 //   - Asset map access protected by renderer's internal mutex
 type RenderService interface {
 	// ReconfigureForBuild updates sink and source for a new build pass.
-	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
+	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 
 	// SetAssetsGate sets the channel to wait on before rendering.
 	// Channel is owned by AssetService and closed when assets are ready.
@@ -261,7 +221,7 @@ type RenderService interface {
 //   - ContentAssetsChan: created by caller (Scanner), passed via WithContentAssetsChannel
 type AssetServiceDependencies struct {
 	SourceFs afero.Fs
-	Sink     utils.ArtifactSink
+	Sink     fspkg.ArtifactSink
 	Cfg      *config.Config
 	Renderer RenderService
 	Logger   *slog.Logger
@@ -285,7 +245,7 @@ type AssetServiceDependencies struct {
 //   - ContentAssetsChannel: owned by caller (Scanner), AssetService reads only
 type AssetService interface {
 	// ReconfigureForBuild updates sink and source for a new build pass.
-	ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs)
+	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 
 	// SetMetrics sets the build metrics collector.
 	SetMetrics(m *metrics.BuildMetrics)
@@ -307,4 +267,22 @@ type AssetService interface {
 	// Returns updated asset map for incremental HTML rerender.
 	// Returns error if asset processing fails.
 	BuildForAssetChange(ctx context.Context) (map[string]string, error)
+}
+
+// WasmService handles WASM compilation and deployment for Search.
+// Isolate WASM logic from core build loop to adhere to single-responsibility principle.
+//
+// Error Contract:
+//   - CheckAndUpdate: returns error if compilation fails or source cannot be read.
+//   - Deploy: returns error if staging directory is missing or I/O failure.
+//
+// Concurrency:
+//   - Methods are safe for concurrent calls via internal locking.
+type WasmService interface {
+	// CheckAndUpdate compiles WASM if source changed or missing.
+	CheckAndUpdate(ctx context.Context) error
+	// Deploy copies WASM to staging directory.
+	Deploy(ctx context.Context, stagingDir string) error
+	// SetSearchSourceDirty marks the search source as needing recompilation.
+	SetSearchSourceDirty(dirty bool)
 }

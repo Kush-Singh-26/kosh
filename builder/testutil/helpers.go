@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/spf13/afero"
 
@@ -116,6 +117,19 @@ func CreateTempFile(t *testing.T, content string) string {
 // ScaffoldTestSite creates a minimal kosh site in the given filesystem
 func ScaffoldTestSite(fs afero.Fs) {
 	ScaffoldTestSiteWithVersions(fs, false)
+}
+
+// WaitForCondition polls a condition until it's met or a timeout occurs
+func WaitForCondition(t *testing.T, timeout time.Duration, condition func() bool) {
+	t.Helper()
+	start := time.Now()
+	for time.Since(start) < timeout {
+		if condition() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for condition after %v", timeout)
 }
 
 // ScaffoldTestSiteWithVersions creates a kosh site, optionally with multiple versions

@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+
 )
 
-func GenerateRSS(sink utils.ArtifactSink, baseURL string, posts []models.PostMetadata, title, description string, outputPath string) (string, error) {
+func GenerateRSS(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, title, description string, outputPath string) (string, error) {
 	slog.Info("Generating RSS feed")
 
 	var items []models.Item

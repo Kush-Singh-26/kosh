@@ -57,7 +57,7 @@ func TestVerifyThemeFs_Invalid(t *testing.T) {
 		},
 	}
 
-	// VerifyThemeFs should log error and return (because TestingMode=true)
+	// VerifyThemeFs should log error and return (because utils.TestingMode=true)
 	VerifyThemeFs(fs, cfg, logger)
 
 	// If it didn't crash/exit, it passed the test of graceful failure in testing mode.

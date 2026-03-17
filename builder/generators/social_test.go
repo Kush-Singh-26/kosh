@@ -4,7 +4,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/spf13/afero"
 )
 
@@ -12,7 +12,7 @@ func TestGenerateSocialCard(t *testing.T) {
 	sink := testutil.NewMemSink()
 	srcFs := afero.NewMemMapFs()
 
-	cfg := &config.SocialCardsConfig{
+	cfg := &models.SocialCardsConfig{
 		Background: "#ffffff",
 		TextColor:  "#000000",
 		Gradient:   []string{"#f0f0f0", "#e0e0e0"},
@@ -26,7 +26,17 @@ func TestGenerateSocialCard(t *testing.T) {
 	destPath := "static/images/cards/test.webp"
 	faviconPath := ""
 
-	err := GenerateSocialCard(sink, srcFs, cfg, siteTitle, title, description, dateStr, destPath, faviconPath)
+	err := GenerateSocialCard(SocialCardOptions{
+		Sink:        sink,
+		SrcFs:       srcFs,
+		Cfg:         cfg,
+		SiteTitle:   siteTitle,
+		Title:       title,
+		Description: description,
+		DateStr:     dateStr,
+		DestPath:    destPath,
+		FaviconPath: faviconPath,
+	})
 	if err != nil {
 		t.Fatalf("GenerateSocialCard failed: %v", err)
 	}
@@ -45,7 +55,7 @@ func TestGenerateSocialCard_LongTitle(t *testing.T) {
 	sink := testutil.NewMemSink()
 	srcFs := afero.NewMemMapFs()
 
-	cfg := &config.SocialCardsConfig{
+	cfg := &models.SocialCardsConfig{
 		Background: "#ffffff",
 		TextColor:  "#000000",
 	}
@@ -56,7 +66,16 @@ func TestGenerateSocialCard_LongTitle(t *testing.T) {
 	dateStr := "March 6, 2026"
 	destPath := "static/images/cards/long.webp"
 
-	err := GenerateSocialCard(sink, srcFs, cfg, siteTitle, title, description, dateStr, destPath, "")
+	err := GenerateSocialCard(SocialCardOptions{
+		Sink:        sink,
+		SrcFs:       srcFs,
+		Cfg:         cfg,
+		SiteTitle:   siteTitle,
+		Title:       title,
+		Description: description,
+		DateStr:     dateStr,
+		DestPath:    destPath,
+	})
 	if err != nil {
 		t.Fatalf("GenerateSocialCard with long title failed: %v", err)
 	}

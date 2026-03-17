@@ -18,31 +18,34 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+
 )
 
 type Renderer struct {
-	Layout                  *template.Template
-	Index                   *template.Template
-	Graph                   *template.Template
-	NotFound                *template.Template
-	Sidebar                 *template.Template
-	Assets                  map[string]string
-	AssetsMu                sync.RWMutex
-	assetsSnapshot          atomic.Pointer[map[string]string]
-	Compress                bool
-	EnableLegacyProcessHTML bool
-	Sink                    utils.ArtifactSink
-	SourceFs                afero.Fs
-	RenderedMu              sync.RWMutex
-	RenderedSet             map[string]bool
-	renderedSnapshot        atomic.Pointer[map[string]bool]
-	logger                  *slog.Logger
-	templateDir             string
-	mu                      sync.RWMutex // Added for thread-safe template access
-	devMode                 bool
-	renderErrors            []renderError
-	errMu                   sync.Mutex
-	assetCache              sync.Map // Cache for relativized asset maps keyed by depth/prefix
+	Layout           *template.Template
+	Index            *template.Template
+	Graph            *template.Template
+	NotFound         *template.Template
+	Sidebar          *template.Template
+	Assets           map[string]string
+	AssetsMu         sync.RWMutex
+	assetsSnapshot   atomic.Pointer[map[string]string]
+	Compress         bool
+	Sink             fspkg.ArtifactSink
+	SourceFs         afero.Fs
+	RenderedMu       sync.RWMutex
+	RenderedSet      map[string]bool
+	renderedSnapshot atomic.Pointer[map[string]bool]
+	logger           *slog.Logger
+	templateDir      string
+	mu               sync.RWMutex // Added for thread-safe template access
+	devMode          bool
+	renderErrors     []renderError
+	errMu            sync.Mutex
+	assetCache       sync.Map // Cache for relativized asset maps keyed by depth/prefix
 }
 
 type renderError struct {
@@ -51,11 +54,11 @@ type renderError struct {
 	err  error
 }
 
-func New(compress bool, sink utils.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
+func New(compress bool, sink fspkg.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
 	return NewWithFs(afero.NewOsFs(), compress, sink, templateDir, devMode, logger)
 }
 
-func NewWithFs(sourceFs afero.Fs, compress bool, sink utils.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
+func NewWithFs(sourceFs afero.Fs, compress bool, sink fspkg.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
 	r := &Renderer{
 		Compress:    compress,
 		Sink:        sink,
@@ -69,7 +72,7 @@ func NewWithFs(sourceFs afero.Fs, compress bool, sink utils.ArtifactSink, templa
 	return r
 }
 
-func (r *Renderer) SetSink(sink utils.ArtifactSink) {
+func (r *Renderer) SetSink(sink fspkg.ArtifactSink) {
 	r.Sink = sink
 }
 
@@ -136,7 +139,7 @@ func (r *Renderer) ReloadTemplates() {
 		},
 		"now":       time.Now,
 		"urlEscape": url.PathEscape,
-		"slugify":   utils.Slugify,
+		"slugify":   timeutil.Slugify,
 	}
 
 	var (

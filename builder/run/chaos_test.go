@@ -8,11 +8,11 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/services"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
@@ -46,6 +46,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Renderer:       renderSvc,
@@ -59,7 +60,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewBuilderFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewBuilderFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
 	b.Sink = sink
 	b.Tx = tx
 

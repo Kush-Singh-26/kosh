@@ -7,8 +7,8 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 )
 
-// cacheServiceImpl implements PostServiceCache
-type cacheServiceImpl struct {
+// cacheService implements CacheService
+type cacheService struct {
 	manager *cache.Manager
 	logger  *slog.Logger
 
@@ -18,8 +18,8 @@ type cacheServiceImpl struct {
 
 // NewCacheService creates a new CacheService with the given dependencies.
 // Using dependency struct pattern for API coherence.
-func NewCacheService(deps CacheServiceDependencies) PostServiceCache {
-	return &cacheServiceImpl{
+func NewCacheService(deps CacheServiceDependencies) CacheService {
+	return &cacheService{
 		manager: deps.Manager,
 		logger:  deps.Logger,
 	}
@@ -27,96 +27,96 @@ func NewCacheService(deps CacheServiceDependencies) PostServiceCache {
 
 // NewCacheServiceWith creates a new CacheService with explicit parameters.
 // Deprecated: use NewCacheService(CacheServiceDependencies{...}) instead.
-func NewCacheServiceWith(manager *cache.Manager, logger *slog.Logger) PostServiceCache {
-	return &cacheServiceImpl{
+func NewCacheServiceWith(manager *cache.Manager, logger *slog.Logger) CacheService {
+	return &cacheService{
 		manager: manager,
 		logger:  logger,
 	}
 }
 
-func (s *cacheServiceImpl) GetPost(id string) (*cache.PostMeta, error) {
+func (s *cacheService) GetPost(id string) (*cache.PostMeta, error) {
 	return s.manager.GetPostByID(id)
 }
 
-func (s *cacheServiceImpl) ListAllPosts() ([]string, error) {
+func (s *cacheService) ListAllPosts() ([]string, error) {
 	return s.manager.ListAllPosts()
 }
 
-func (s *cacheServiceImpl) GetPostByPath(path string) (*cache.PostMeta, error) {
+func (s *cacheService) GetPostByPath(path string) (*cache.PostMeta, error) {
 	return s.manager.GetPostByPath(path)
 }
 
-func (s *cacheServiceImpl) GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error) {
+func (s *cacheService) GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error) {
 	return s.manager.GetPostsByIDs(ids)
 }
 
-func (s *cacheServiceImpl) GetPostsByTemplate(templatePath string) ([]string, error) {
+func (s *cacheService) GetPostsByTemplate(templatePath string) ([]string, error) {
 	return s.manager.GetPostsByTemplate(templatePath)
 }
 
-func (s *cacheServiceImpl) GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error) {
+func (s *cacheService) GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error) {
 	return s.manager.GetSearchRecords(ids)
 }
 
-func (s *cacheServiceImpl) GetSearchRecord(id string) (*cache.SearchRecord, error) {
+func (s *cacheService) GetSearchRecord(id string) (*cache.SearchRecord, error) {
 	return s.manager.GetSearchRecord(id)
 }
 
-func (s *cacheServiceImpl) GetHTMLContent(post *cache.PostMeta) ([]byte, error) {
+func (s *cacheService) GetHTMLContent(post *cache.PostMeta) ([]byte, error) {
 	return s.manager.GetHTMLContent(post)
 }
 
-func (s *cacheServiceImpl) GetSocialCardHash(path string) (string, error) {
+func (s *cacheService) GetSocialCardHash(path string) (string, error) {
 	return s.manager.GetSocialCardHash(path)
 }
 
-func (s *cacheServiceImpl) SetSocialCardHash(path, hash string) error {
+func (s *cacheService) SetSocialCardHash(path, hash string) error {
 	return s.manager.SetSocialCardHash(path, hash)
 }
 
-func (s *cacheServiceImpl) BatchSetSocialCardHashes(hashes map[string]string) error {
+func (s *cacheService) BatchSetSocialCardHashes(hashes map[string]string) error {
 	return s.manager.BatchSetSocialCardHashes(hashes)
 }
 
-func (s *cacheServiceImpl) GetGraphHash() (string, error) {
+func (s *cacheService) GetGraphHash() (string, error) {
 	return s.manager.GetGraphHash()
 }
 
-func (s *cacheServiceImpl) SetGraphHash(hash string) error {
+func (s *cacheService) SetGraphHash(hash string) error {
 	return s.manager.SetGraphHash(hash)
 }
 
-func (s *cacheServiceImpl) GetWasmHash() (string, error) {
+func (s *cacheService) GetWasmHash() (string, error) {
 	return s.manager.GetWasmHash()
 }
 
-func (s *cacheServiceImpl) SetWasmHash(hash string) error {
+func (s *cacheService) SetWasmHash(hash string) error {
 	return s.manager.SetWasmHash(hash)
 }
 
-func (s *cacheServiceImpl) StoreHTML(content []byte) (string, error) {
+func (s *cacheService) StoreHTML(content []byte) (string, error) {
 	return s.manager.StoreHTML(content)
 }
 
-func (s *cacheServiceImpl) StoreHTMLForPost(post *cache.PostMeta, content []byte) error {
+func (s *cacheService) StoreHTMLForPost(post *cache.PostMeta, content []byte) error {
 	return s.manager.StoreHTMLForPost(post, content)
 }
 
-func (s *cacheServiceImpl) BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error {
+func (s *cacheService) BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error {
 	return s.manager.BatchCommit(posts, records, deps)
 }
 
-func (s *cacheServiceImpl) DeletePost(postID string) error {
+func (s *cacheService) DeletePost(postID string) error {
 	return s.manager.DeletePost(postID)
 }
 
-func (s *cacheServiceImpl) MarkDirty(postID string) {
+func (s *cacheService) MarkDirty(postID string) {
 	s.dirty.Store(postID, true)
 	// We also call manager.MarkDirty if the manager still relies on it.
 	s.manager.MarkDirty(postID)
 }
 
-func (s *cacheServiceImpl) IsDirty(postID string) bool {
+func (s *cacheService) IsDirty(postID string) bool {
 	val, ok := s.dirty.Load(postID)
 	if !ok {
 		return false
@@ -125,7 +125,7 @@ func (s *cacheServiceImpl) IsDirty(postID string) bool {
 	return ok && dirty
 }
 
-func (s *cacheServiceImpl) ClearDirty() {
+func (s *cacheService) ClearDirty() {
 	// Use Range+Delete instead of reassignment to prevent lost dirty marks
 	s.dirty.Range(func(key, value any) bool {
 		s.dirty.Delete(key)
@@ -133,23 +133,23 @@ func (s *cacheServiceImpl) ClearDirty() {
 	})
 }
 
-func (s *cacheServiceImpl) Stats() (*cache.CacheStats, error) {
+func (s *cacheService) Stats() (*cache.CacheStats, error) {
 	return s.manager.Stats()
 }
 
-func (s *cacheServiceImpl) IncrementBuildCount() error {
+func (s *cacheService) IncrementBuildCount() error {
 	return s.manager.IncrementBuildCount()
 }
 
-func (s *cacheServiceImpl) Close() error {
+func (s *cacheService) Close() error {
 	return s.manager.Close()
 }
 
-func (s *cacheServiceImpl) GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error) {
+func (s *cacheService) GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error) {
 	return s.manager.GetPostsMetadataByVersion(version)
 }
 
 // Additional helper to expose the underlying manager if absolutely necessary (try to avoid)
-func (s *cacheServiceImpl) Manager() *cache.Manager {
+func (s *cacheService) Manager() *cache.Manager {
 	return s.manager
 }

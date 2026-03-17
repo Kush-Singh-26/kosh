@@ -13,10 +13,11 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+
 )
 
-func GenerateSearchIndex(sink utils.ArtifactSink, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
+func GenerateSearchIndex(sink fspkg.ArtifactSink, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
 	totalDocs := len(indexedPosts)
 
 	// Handle empty input - write empty index

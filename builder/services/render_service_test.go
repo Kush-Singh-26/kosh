@@ -9,7 +9,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 )
 
-func setupRenderServiceTest(t *testing.T) *renderServiceImpl {
+func setupRenderServiceTest(t *testing.T) *renderService {
 	t.Helper()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -21,7 +21,7 @@ func setupRenderServiceTest(t *testing.T) *renderServiceImpl {
 		Compress:    false,
 	}
 
-	service := NewRenderServiceWith(rnd, logger).(*renderServiceImpl)
+	service := NewRenderServiceWith(rnd, logger).(*renderService)
 	return service
 }
 
@@ -38,8 +38,8 @@ func TestNewRenderService(t *testing.T) {
 		t.Fatal("NewRenderService should not return nil")
 	}
 
-	if _, ok := service.(*renderServiceImpl); !ok {
-		t.Error("NewRenderService should return *renderServiceImpl")
+	if _, ok := service.(*renderService); !ok {
+		t.Error("NewRenderService should return *renderService")
 	}
 }
 

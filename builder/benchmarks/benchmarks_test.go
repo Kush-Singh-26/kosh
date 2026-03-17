@@ -12,6 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 // BenchmarkSearch performs search with various index sizes
@@ -80,7 +81,7 @@ func BenchmarkSortPosts(b *testing.B) {
 				// Create a copy to avoid sorting already sorted slice
 				postsCopy := make([]models.PostMetadata, len(posts))
 				copy(postsCopy, posts)
-				utils.SortPosts(postsCopy)
+				timeutil.SortPosts(postsCopy)
 			}
 		})
 	}

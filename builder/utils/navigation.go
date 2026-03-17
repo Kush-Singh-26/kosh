@@ -6,7 +6,7 @@ import (
 
 // FindPrevNext finds previous and next pages in version context.
 // currentPost: the current post metadata
-// allPosts: all posts in the current version, must be pre-sorted via SortPosts.
+// allPosts: all posts in the current version, must be pre-sorted via timeutil.SortPosts.
 // Returns: previous page, next page (nil if not found)
 func FindPrevNext(currentPost models.PostMetadata, allPosts []models.PostMetadata) (*models.NavPage, *models.NavPage) {
 	if len(allPosts) <= 1 {

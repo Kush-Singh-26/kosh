@@ -1,6 +1,8 @@
 package search
 
 import (
+	"sync"
+
 	"github.com/hashicorp/golang-lru/v2"
 )
 
@@ -9,20 +11,31 @@ import (
 
 // stemCache caches stemmed words to avoid redundant computation
 // Using LRU cache to prevent unbounded memory growth
-var stemCache *lru.Cache[string, string]
+var (
+	stemCache     *lru.Cache[string, string]
+	stemCacheOnce sync.Once
+	stemCacheErr  error
+)
 
-func init() {
-	var err error
-	stemCache, err = lru.New[string, string](10000)
-	if err != nil {
-		panic("failed to create stem cache: " + err.Error())
-	}
+// InitStemCache initializes the stemmer cache.
+// It is called automatically on first use, but can be called explicitly
+// to handle initialization errors.
+func InitStemCache() error {
+	stemCacheOnce.Do(func() {
+		stemCache, stemCacheErr = lru.New[string, string](10000)
+	})
+	return stemCacheErr
 }
 
 // StemCached returns the stemmed form of word, using a cache for efficiency
 func StemCached(word string) string {
 	if len(word) <= 2 {
 		return word
+	}
+
+	// Ensure cache is initialized
+	if err := InitStemCache(); err != nil {
+		return stem(word) // Fallback to uncached if initialization failed
 	}
 
 	// Check cache first

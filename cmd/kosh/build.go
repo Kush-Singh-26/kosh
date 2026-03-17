@@ -10,7 +10,8 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/run"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+
 	"github.com/Kush-Singh-26/kosh/internal/watch"
 )
 
@@ -49,10 +50,10 @@ func init() {
 
 func runBuild(cmd *cobra.Command, args []string) {
 	ctx := getContext()
-	utils.ResetPhaseTracking()
+	timeutil.ResetPhaseTracking()
 	if buildPhaseTimings || buildPhaseTimingsFile != "" {
-		utils.EnablePhaseTracking()
-		defer utils.DisablePhaseTracking()
+		timeutil.EnablePhaseTracking()
+		defer timeutil.DisablePhaseTracking()
 	}
 
 	var filteredArgs []string
@@ -101,7 +102,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 
 		w, err := watch.New([]string{"content", b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
 			run.DevLogRebuild("Change detected: " + event.Name)
-			utils.ResetPhaseTracking()
+			timeutil.ResetPhaseTracking()
 			b.BuildChanged(ctx, event.Name, event.Op)
 			maybePrintPhaseTimings()
 			maybeWritePhaseTimings()
@@ -138,7 +139,7 @@ func maybePrintPhaseTimings() {
 	if !buildPhaseTimings {
 		return
 	}
-	summary := utils.FormatPhaseSummary()
+	summary := timeutil.FormatPhaseSummary()
 	if summary != "" {
 		fmt.Print(summary)
 	}
@@ -148,7 +149,7 @@ func maybeWritePhaseTimings() {
 	if buildPhaseTimingsFile == "" {
 		return
 	}
-	if err := utils.WritePhaseDurationsJSON(buildPhaseTimingsFile); err != nil {
+	if err := timeutil.WritePhaseDurationsJSON(buildPhaseTimingsFile); err != nil {
 		fmt.Printf("failed to write phase timings: %v\n", err)
 	}
 }

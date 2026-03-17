@@ -76,7 +76,7 @@ func CreateSampleConfig() *config.Config {
 			Title:       "Test Site",
 			Description: "A test site",
 			BaseURL:     "https://example.com",
-			Author:      config.AuthorConfig{Name: "Test Author", URL: "https://author.example.com"},
+			Author:      models.AuthorConfig{Name: "Test Author", URL: "https://author.example.com"},
 		},
 		PathConfig: config.PathConfig{
 			ContentDir:  "content",
@@ -90,8 +90,8 @@ func CreateSampleConfig() *config.Config {
 		BuildOptions: config.BuildOptions{
 			PostsPerPage: 10,
 		},
-		Features: config.FeaturesConfig{
-			Generators: config.GeneratorsConfig{
+		Features: models.FeaturesConfig{
+			Generators: models.GeneratorsConfig{
 				Sitemap: true,
 				RSS:     true,
 				Graph:   true,
@@ -156,12 +156,12 @@ func joinTags(tags []string) string {
 	return result.String()
 }
 
-// CreateSmallHTML creates HTML content smaller than InlineHTMLThreshold
+// CreateSmallHTML creates HTML content smaller than models.InlineHTMLThreshold
 func CreateSmallHTML() []byte {
 	return []byte("<p>Small content</p>")
 }
 
-// CreateLargeHTML creates HTML content larger than InlineHTMLThreshold
+// CreateLargeHTML creates HTML content larger than models.InlineHTMLThreshold
 func CreateLargeHTML() []byte {
 	// Create content larger than 32KB
 	content := make([]byte, 35000)

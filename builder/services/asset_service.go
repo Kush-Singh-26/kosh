@@ -15,38 +15,38 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 // AssetServiceOption configures optional parameters for AssetService
 //
 // Note: Channels (AssetsReady, ContentAssetsChan) should still use
 // WithAssetsReadySignal and WithContentAssetsChannel options.
-type AssetServiceOption func(*assetServiceImpl)
+type AssetServiceOption func(*assetService)
 
 // WithMetrics sets the build metrics collector
 func WithMetrics(m *metrics.BuildMetrics) AssetServiceOption {
-	return func(s *assetServiceImpl) { s.metrics = m }
+	return func(s *assetService) { s.metrics = m }
 }
 
 // WithAssetsReadySignal sets the channel signaled when assets are ready
 //
 // Note: This option is still required for channel-based coordination.
 func WithAssetsReadySignal(ch chan struct{}) AssetServiceOption {
-	return func(s *assetServiceImpl) { s.assetsReady = ch }
+	return func(s *assetService) { s.assetsReady = ch }
 }
 
 // WithContentAssetsChannel sets the channel for content asset notifications
 //
 // Note: This option is still required for channel-based coordination.
 func WithContentAssetsChannel(ch <-chan []models.ScannedAsset) AssetServiceOption {
-	return func(s *assetServiceImpl) { s.contentAssetsChan = ch }
+	return func(s *assetService) { s.contentAssetsChan = ch }
 }
 
-// assetServiceImpl implements AssetService
-type assetServiceImpl struct {
+// assetService implements AssetService
+type assetService struct {
 	sourceFs          afero.Fs
-	sink              utils.ArtifactSink
+	sink              fspkg.ArtifactSink
 	cfg               *config.Config
 	renderer          RenderService
 	logger            *slog.Logger
@@ -55,7 +55,7 @@ type assetServiceImpl struct {
 	contentAssets     []models.ScannedAsset
 	// assetsReady is owned by AssetService, created per-build and closed when assets are ready.
 	// RenderService and PostService wait on this channel but do not own its lifecycle.
-	assetsReady       chan struct{}
+	assetsReady chan struct{}
 }
 
 // NewAssetService creates a new AssetService with the given dependencies.
@@ -64,7 +64,7 @@ type assetServiceImpl struct {
 //   - AssetsReady: must be set via WithAssetsReadySignal option
 //   - ContentAssetsChan: must be set via WithContentAssetsChannel option
 func NewAssetService(deps AssetServiceDependencies, opts ...AssetServiceOption) AssetService {
-	s := &assetServiceImpl{
+	s := &assetService{
 		sourceFs: deps.SourceFs,
 		sink:     deps.Sink,
 		cfg:      deps.Cfg,
@@ -82,7 +82,7 @@ func NewAssetService(deps AssetServiceDependencies, opts ...AssetServiceOption) 
 
 // NewAssetServiceWith creates a new AssetService with explicit parameters.
 // Deprecated: use NewAssetService(AssetServiceDependencies{...}) instead.
-func NewAssetServiceWith(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger, opts ...AssetServiceOption) AssetService {
+func NewAssetServiceWith(sourceFs afero.Fs, sink fspkg.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger, opts ...AssetServiceOption) AssetService {
 	return NewAssetService(AssetServiceDependencies{
 		SourceFs: sourceFs,
 		Sink:     sink,
@@ -92,23 +92,23 @@ func NewAssetServiceWith(sourceFs afero.Fs, sink utils.ArtifactSink, cfg *config
 	}, opts...)
 }
 
-func (s *assetServiceImpl) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {
+func (s *assetService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
 	s.sink = sink
 	s.sourceFs = fs
 }
 
-func (s *assetServiceImpl) SetMetrics(m *metrics.BuildMetrics)    { s.metrics = m }
-func (s *assetServiceImpl) SetAssetsReadySignal(ch chan struct{}) { s.assetsReady = ch }
-func (s *assetServiceImpl) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
+func (s *assetService) SetMetrics(m *metrics.BuildMetrics)    { s.metrics = m }
+func (s *assetService) SetAssetsReadySignal(ch chan struct{}) { s.assetsReady = ch }
+func (s *assetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
 	s.contentAssetsChan = ch
 }
 
-func (s *assetServiceImpl) Build(ctx context.Context) error {
+func (s *assetService) Build(ctx context.Context) error {
 	g, gCtx := errgroup.WithContext(ctx)
 
 	// 1. Unified Asset Copy Phase
 	g.Go(func() error {
-		copyTimer := utils.StartPhase("Asset copy unified")
+		copyTimer := timeutil.StartPhase("Asset copy unified")
 		defer copyTimer.Stop()
 
 		themeDir := s.cfg.StaticDir
@@ -136,7 +136,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 		discoveryGroup.Go(func() error {
 			exists, _ := afero.Exists(s.sourceFs, themeDir)
 			if exists {
-				_ = utils.ParallelWalk(dCtx, s.sourceFs, themeDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
+				_ = fspkg.ParallelWalk(dCtx, s.sourceFs, themeDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
 					if err != nil || info.IsDir() {
 						return nil
 					}
@@ -155,7 +155,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			discoveryGroup.Go(func() error {
 				exists, _ := afero.Exists(s.sourceFs, "static")
 				if exists {
-					_ = utils.ParallelWalk(dCtx, s.sourceFs, "static", walkConcurrency, func(path string, info fs.FileInfo, err error) error {
+					_ = fspkg.ParallelWalk(dCtx, s.sourceFs, "static", walkConcurrency, func(path string, info fs.FileInfo, err error) error {
 						if err != nil || info.IsDir() {
 							return nil
 						}
@@ -207,7 +207,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 			r, t := rel, task
 			copyGroup.Go(func() error {
 				dst := filepath.Join(s.cfg.OutputDir, r)
-				opts := utils.CopyOptions{
+				opts := fspkg.CopyOptions{
 					Compress:     s.cfg.CompressImages,
 					CacheDir:     s.cfg.CacheDir + "/images",
 					WebPQuality:  s.cfg.WebPQuality,
@@ -215,7 +215,15 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 					OnWrite:      s.renderer.RegisterFile,
 					ImageWorkers: s.cfg.ImageWorkers,
 				}
-				return utils.CopyFileWithOptionalImageProcessing(copyCtx, s.sourceFs, s.sink, t.srcPath, dst, t.info, opts)
+				return fspkg.CopyFileWithOptionalImageProcessing(fspkg.ProcessImageOptions{
+					Ctx:     copyCtx,
+					SrcFs:   s.sourceFs,
+					Sink:    s.sink,
+					SrcPath: t.srcPath,
+					DstPath: dst,
+					SrcInfo: t.info,
+					Opts:    opts,
+				})
 			})
 		}
 
@@ -225,7 +233,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 
 	// 2. Esbuild
 	g.Go(func() error {
-		esbuildTimer := utils.StartPhase("Asset esbuild")
+		esbuildTimer := timeutil.StartPhase("Asset esbuild")
 		defer esbuildTimer.Stop()
 		_, err := s.buildEsbuildAssets(false)
 		if s.assetsReady != nil {
@@ -238,7 +246,7 @@ func (s *assetServiceImpl) Build(ctx context.Context) error {
 	return g.Wait()
 }
 
-func (s *assetServiceImpl) copyCriticalAssets() {
+func (s *assetService) copyCriticalAssets() {
 	if s.cfg.Logo != "" {
 		_ = s.copyFileOrLink(s.cfg.Logo, s.cfg.Logo)
 	}
@@ -248,25 +256,32 @@ func (s *assetServiceImpl) copyCriticalAssets() {
 	}
 }
 
-func (s *assetServiceImpl) copyFileOrLink(src, dst string) error {
+func (s *assetService) copyFileOrLink(src, dst string) error {
 	info, err := s.sourceFs.Stat(src)
 	if err != nil {
 		return err
 	}
-	return utils.CopyFileVFS(s.sourceFs, s.sink, src, dst, info.ModTime().UnixNano(), s.renderer.RegisterFile)
+	return fspkg.CopyFileVFS(fspkg.CopyFileOptions{
+		SrcFs:   s.sourceFs,
+		Sink:    s.sink,
+		SrcPath: src,
+		DstPath: dst,
+		ModTime: info.ModTime().UnixNano(),
+		OnWrite: s.renderer.RegisterFile,
+	})
 }
 
-func (s *assetServiceImpl) buildEsbuildAssets(force bool) (map[string]string, error) {
+func (s *assetService) buildEsbuildAssets(force bool) (map[string]string, error) {
 	destStaticDir, _ := filepath.Abs(filepath.Join(s.cfg.OutputDir, "static"))
-	assets, assetErr := utils.BuildAssetsEsbuild(s.sourceFs, s.sink, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
+	assets, assetErr := fspkg.BuildAssetsEsbuild(s.sourceFs, s.sink, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
 	if assetErr == nil {
 		s.renderer.SetAssets(assets)
 	}
 	return assets, assetErr
 }
 
-func (s *assetServiceImpl) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
-	esbuildTimer := utils.StartPhase("Asset esbuild")
+func (s *assetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
+	esbuildTimer := timeutil.StartPhase("Asset esbuild")
 	defer esbuildTimer.Stop()
 	return s.buildEsbuildAssets(true)
 }

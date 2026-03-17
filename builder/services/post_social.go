@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
-func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
+func (s *postService) generateSocialCard(t socialCardTask) {
 	cachedCardPath := filepath.Join(s.cfg.CacheDir, "social-cards", t.frontmatterHash+".webp")
 	if err := os.MkdirAll(filepath.Dir(cachedCardPath), 0755); err != nil {
 		s.logger.Warn("Failed to create social card cache directory", "path", filepath.Dir(cachedCardPath), "error", err)
@@ -60,9 +60,16 @@ func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 		}
 	}
 
-	err = generators.GenerateSocialCardToDisk(s.sourceFs, &s.cfg.SocialCards, s.cfg.Title,
-		utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"),
-		utils.GetString(t.metaData, "date"), cachedCardPath, logoPath)
+	err = generators.GenerateSocialCardToDisk(generators.SocialCardOptions{
+		SrcFs:       s.sourceFs,
+		Cfg:         &s.cfg.SocialCards,
+		SiteTitle:   s.cfg.Title,
+		Title:       timeutil.ExtractStringFromMap(t.metaData, "title"),
+		Description: timeutil.ExtractStringFromMap(t.metaData, "description"),
+		DateStr:     timeutil.ExtractStringFromMap(t.metaData, "date"),
+		DestPath:    cachedCardPath,
+		FaviconPath: logoPath,
+	})
 
 	if err == nil {
 		cardDir := filepath.ToSlash(filepath.Dir(t.cardDestPath))
@@ -84,9 +91,17 @@ func (s *postServiceImpl) generateSocialCard(t socialCardTask) {
 		}
 	} else {
 		s.logger.Error("Failed to generate social card to disk", "path", cachedCardPath, "error", err)
-		if err := generators.GenerateSocialCard(s.sink, s.sourceFs, &s.cfg.SocialCards, s.cfg.Title,
-			utils.GetString(t.metaData, "title"), utils.GetString(t.metaData, "description"),
-			utils.GetString(t.metaData, "date"), t.cardDestPath, logoPath); err != nil {
+		if err := generators.GenerateSocialCard(generators.SocialCardOptions{
+			Sink:        s.sink,
+			SrcFs:       s.sourceFs,
+			Cfg:         &s.cfg.SocialCards,
+			SiteTitle:   s.cfg.Title,
+			Title:       timeutil.ExtractStringFromMap(t.metaData, "title"),
+			Description: timeutil.ExtractStringFromMap(t.metaData, "description"),
+			DateStr:     timeutil.ExtractStringFromMap(t.metaData, "date"),
+			DestPath:    t.cardDestPath,
+			FaviconPath: logoPath,
+		}); err != nil {
 			s.logger.Error("Failed to generate social card (fallback)", "path", t.cardDestPath, "error", err)
 		} else {
 			s.renderer.RegisterFile(t.cardDestPath)

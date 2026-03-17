@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// MemSink is a simple in-memory implementation of ArtifactSink for testing
+// MemSink is a simple in-memory implementation of fspkg.ArtifactSink for testing
 type MemSink struct {
 	Files map[string][]byte
 	mu    sync.RWMutex
@@ -57,7 +57,7 @@ func (m *MemSink) CopyFile(src, dst string) error              { return nil }
 // MockTransaction is a no-op implementation of BuildTransaction for testing
 type MockTransaction struct {
 	stagingDir string
-	committed  bool
+	Committed  bool
 }
 
 func NewMockTransaction(stagingDir string) *MockTransaction {
@@ -66,7 +66,7 @@ func NewMockTransaction(stagingDir string) *MockTransaction {
 
 func (m *MockTransaction) StagingDir() string { return m.stagingDir }
 func (m *MockTransaction) Commit(ctx context.Context) error {
-	m.committed = true
+	m.Committed = true
 	return nil
 }
 func (m *MockTransaction) Rollback() error             { return nil }

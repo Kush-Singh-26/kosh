@@ -2,7 +2,6 @@ package search
 
 import (
 	"container/heap"
-	"html"
 	"math"
 	"math/bits"
 	"slices"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+
 )
 
 // Constants for snippet extraction optimization
@@ -50,31 +50,34 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 	}
 
 	originalQuery := query
-	tagFilter, query := s.extractTagFilter(query)
+	tagFilter, query := extractTagFilter(query)
 	parsed := ParseQuery(query)
-	queryTerms := parsed.Terms
 
-	scores := make(map[string]float64, 100)
-	highlightTerms := make(map[string]bool)
-	for _, t := range queryTerms {
-		highlightTerms[t] = true
+	opts := SearchScoringOptions{
+		TagFilter:      tagFilter,
+		VersionFilter:  versionFilter,
+		QueryTerms:     parsed.Terms,
+		Scores:         make(map[string]float64, 100),
+		HighlightTerms: make(map[string]bool),
+		K1:             1.2,
+		B:              0.75,
 	}
 
-	s.scoreTagOnly(index, tagFilter, versionFilter, queryTerms, scores, highlightTerms)
-	s.scoreBM25(index, queryTerms, tagFilter, versionFilter, scores, highlightTerms)
-	s.applyPhraseBoosts(index, queryTerms, parsed.Phrases, versionFilter, scores, highlightTerms)
-	s.applyFallbackScoring(index, originalQuery, tagFilter, versionFilter, scores, highlightTerms)
-	s.applyTitleAndTagBoost(index, originalQuery, tagFilter, scores)
+	for _, t := range opts.QueryTerms {
+		opts.HighlightTerms[t] = true
+	}
 
-	results := s.finalizeResults(index, scores, versionFilter, highlightTerms)
+	scoreTagOnly(index, &opts)
+	scoreBM25(index, &opts)
+	applyPhraseBoosts(index, parsed.Phrases, &opts)
+	applyFallbackScoring(index, originalQuery, &opts)
+	applyTitleAndTagBoost(index, originalQuery, &opts)
+
+	results := finalizeResults(index, &opts)
 	return results
 }
 
-type searchSession struct{}
-
-var s searchSession
-
-func (s *searchSession) extractTagFilter(query string) (string, string) {
+func extractTagFilter(query string) (string, string) {
 	if strings.HasPrefix(query, "tag:") {
 		parts := strings.SplitN(query, " ", 2)
 		tag := strings.TrimPrefix(parts[0], "tag:")
@@ -86,52 +89,50 @@ func (s *searchSession) extractTagFilter(query string) (string, string) {
 	return "", query
 }
 
-func (s *searchSession) scoreTagOnly(index *models.SearchIndex, tagFilter, versionFilter string, queryTerms []string, scores map[string]float64, highlightTerms map[string]bool) {
-	if tagFilter != "" && len(queryTerms) == 0 {
-		highlightTerms[tagFilter] = true
+func scoreTagOnly(index *models.SearchIndex, opts *SearchScoringOptions) {
+	if opts.TagFilter != "" && len(opts.QueryTerms) == 0 {
+		opts.HighlightTerms[opts.TagFilter] = true
 		for id, post := range index.Posts {
-			if versionFilter != "all" && post.Version != versionFilter {
+			if opts.VersionFilter != "all" && post.Version != opts.VersionFilter {
 				continue
 			}
-			if slices.Contains(post.NormalizedTags, tagFilter) {
-				scores[id] += ScoreTagMatch
+			if slices.Contains(post.NormalizedTags, opts.TagFilter) {
+				opts.Scores[id] += ScoreTagMatch
 			}
 		}
 	}
 }
 
-func (s *searchSession) scoreBM25(index *models.SearchIndex, queryTerms []string, tagFilter, versionFilter string, scores map[string]float64, highlightTerms map[string]bool) {
-	k1 := 1.2
-	b := 0.75
-
-	for _, term := range queryTerms {
+func scoreBM25(index *models.SearchIndex, opts *SearchScoringOptions) {
+	for _, term := range opts.QueryTerms {
 		if posts, ok := index.Inverted[term]; ok {
-			s.applyBM25Score(index, posts, term, tagFilter, versionFilter, scores, k1, b, 1.0)
+			opts.Modifier = 1.0
+			applyBM25Score(index, posts, term, opts)
 		} else {
-			s.scoreFuzzy(index, term, tagFilter, versionFilter, scores, highlightTerms, k1, b)
+			scoreFuzzy(index, term, opts)
 		}
 	}
 }
 
-func (s *searchSession) applyBM25Score(index *models.SearchIndex, posts map[string][]int, term, tagFilter, versionFilter string, scores map[string]float64, k1, b, modifier float64) {
+func applyBM25Score(index *models.SearchIndex, posts map[string][]int, term string, opts *SearchScoringOptions) {
 	df := len(posts)
 	idf := math.Log(1 + (float64(index.TotalDocs)-float64(df)+0.5)/(float64(df)+0.5))
 	avgDocLen := index.AvgDocLen
 
 	for postID, positions := range posts {
 		post, ok := index.Posts[postID]
-		if !ok || (versionFilter != "all" && post.Version != versionFilter) || (tagFilter != "" && !slices.Contains(post.NormalizedTags, tagFilter)) {
+		if !ok || (opts.VersionFilter != "all" && post.Version != opts.VersionFilter) || (opts.TagFilter != "" && !slices.Contains(post.NormalizedTags, opts.TagFilter)) {
 			continue
 		}
 
 		freq := len(positions)
 		docLen := float64(index.DocLens[postID])
-		score := idf * (float64(freq) * (k1 + 1)) / (float64(freq) + k1*(1-b+b*(docLen/avgDocLen)))
-		scores[postID] += score * modifier
+		score := idf * (float64(freq) * (opts.K1 + 1)) / (float64(freq) + opts.K1*(1-opts.B+opts.B*(docLen/avgDocLen)))
+		opts.Scores[postID] += score * opts.Modifier
 	}
 }
 
-func (s *searchSession) scoreFuzzy(index *models.SearchIndex, term, tagFilter, versionFilter string, scores map[string]float64, highlightTerms map[string]bool, k1, b float64) {
+func scoreFuzzy(index *models.SearchIndex, term string, opts *SearchScoringOptions) {
 	var candidates []string
 	if index.NgramIndex != nil {
 		candidates = FuzzyExpandWithNgrams(term, index.NgramIndex, MaxEditDistance)
@@ -140,99 +141,99 @@ func (s *searchSession) scoreFuzzy(index *models.SearchIndex, term, tagFilter, v
 	}
 
 	for _, candTerm := range candidates {
-		highlightTerms[candTerm] = true
+		opts.HighlightTerms[candTerm] = true
 		if posts, ok := index.Inverted[candTerm]; ok {
-			modifier := ScoreFuzzyModifier
+			opts.Modifier = ScoreFuzzyModifier
 			if strings.HasPrefix(candTerm, term) {
-				modifier = 0.9
+				opts.Modifier = 0.9
 			}
-			s.applyBM25Score(index, posts, candTerm, tagFilter, versionFilter, scores, k1, b, modifier)
+			applyBM25Score(index, posts, candTerm, opts)
 		}
 	}
 }
 
-func (s *searchSession) applyPhraseBoosts(index *models.SearchIndex, queryTerms []string, phrases [][]string, versionFilter string, scores map[string]float64, highlightTerms map[string]bool) {
-	if len(queryTerms) > 1 {
-		for id := range scores {
-			if checkPhraseUnified(index, id, queryTerms) {
-				scores[id] += ScorePhraseMatch * 1.2
+func applyPhraseBoosts(index *models.SearchIndex, phrases [][]string, opts *SearchScoringOptions) {
+	if len(opts.QueryTerms) > 1 {
+		for id := range opts.Scores {
+			if checkPhraseUnified(index, id, opts.QueryTerms) {
+				opts.Scores[id] += ScorePhraseMatch * 1.2
 			}
 		}
 	}
 
 	for _, phraseTerms := range phrases {
 		for id, post := range index.Posts {
-			if (versionFilter != "all" && post.Version != versionFilter) || !checkPhraseUnified(index, id, phraseTerms) {
+			if (opts.VersionFilter != "all" && post.Version != opts.VersionFilter) || !checkPhraseUnified(index, id, phraseTerms) {
 				continue
 			}
-			scores[id] += ScorePhraseMatch
+			opts.Scores[id] += ScorePhraseMatch
 			for _, pt := range phraseTerms {
-				highlightTerms[pt] = true
+				opts.HighlightTerms[pt] = true
 			}
 		}
 	}
 }
 
-func (s *searchSession) applyFallbackScoring(index *models.SearchIndex, originalQuery, tagFilter, versionFilter string, scores map[string]float64, highlightTerms map[string]bool) {
-	if len(scores) > 0 || originalQuery == "" {
+func applyFallbackScoring(index *models.SearchIndex, originalQuery string, opts *SearchScoringOptions) {
+	if len(opts.Scores) > 0 || originalQuery == "" {
 		return
 	}
 
 	for id, post := range index.Posts {
-		if versionFilter != "all" && post.Version != versionFilter {
+		if opts.VersionFilter != "all" && post.Version != opts.VersionFilter {
 			continue
 		}
 
 		match := false
 		if strings.Contains(post.NormalizedTitle, originalQuery) {
-			scores[id] += ScoreTitleMatch
+			opts.Scores[id] += ScoreTitleMatch
 			match = true
 		}
 		if strings.Contains(ToLower(post.Description), originalQuery) {
-			scores[id] += 1.0
+			opts.Scores[id] += 1.0
 			match = true
 		}
 
 		if match {
 			for word := range strings.FieldsSeq(originalQuery) {
 				if len(word) > 2 {
-					highlightTerms[word] = true
+					opts.HighlightTerms[word] = true
 				}
 			}
 		}
 	}
 }
 
-func (s *searchSession) applyTitleAndTagBoost(index *models.SearchIndex, originalQuery, tagFilter string, scores map[string]float64) {
-	for id := range scores {
+func applyTitleAndTagBoost(index *models.SearchIndex, originalQuery string, opts *SearchScoringOptions) {
+	for id := range opts.Scores {
 		post, ok := index.Posts[id]
 		if !ok {
 			continue
 		}
 
 		if originalQuery != "" && strings.Contains(post.NormalizedTitle, originalQuery) {
-			scores[id] += ScoreTitleMatch
+			opts.Scores[id] += ScoreTitleMatch
 		}
 
 		for _, tag := range post.NormalizedTags {
-			if tag == originalQuery || tag == tagFilter {
-				scores[id] += ScoreTagMatch
+			if tag == originalQuery || tag == opts.TagFilter {
+				opts.Scores[id] += ScoreTagMatch
 			}
 		}
 	}
 }
 
-func (s *searchSession) finalizeResults(index *models.SearchIndex, scores map[string]float64, versionFilter string, highlightTerms map[string]bool) []Result {
-	finalHighlightTerms := make([]string, 0, len(highlightTerms))
-	for t := range highlightTerms {
+func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Result {
+	finalHighlightTerms := make([]string, 0, len(opts.HighlightTerms))
+	for t := range opts.HighlightTerms {
 		finalHighlightTerms = append(finalHighlightTerms, t)
 	}
 
-	results := make([]Result, 0, len(scores))
-	for id, score := range scores {
+	results := make([]Result, 0, len(opts.Scores))
+	for id, score := range opts.Scores {
 		post := index.Posts[id]
 		title := post.Title
-		if versionFilter == "all" && post.Version != "" {
+		if opts.VersionFilter == "all" && post.Version != "" {
 			title = "[" + post.Version + "] " + title
 		}
 
@@ -542,7 +543,23 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 }
 
 func escapeToBuilder(sb *strings.Builder, s string) {
-	sb.WriteString(html.EscapeString(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch c {
+		case '&':
+			sb.WriteString("&amp;")
+		case '\'':
+			sb.WriteString("&#39;")
+		case '"':
+			sb.WriteString("&#34;")
+		case '<':
+			sb.WriteString("&lt;")
+		case '>':
+			sb.WriteString("&gt;")
+		default:
+			sb.WriteByte(c)
+		}
+	}
 }
 
 // resultHeap implements heap.Interface for a min-heap of search results

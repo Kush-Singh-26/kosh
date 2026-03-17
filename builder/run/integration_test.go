@@ -14,12 +14,12 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/services"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
@@ -54,8 +54,8 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		BuildOptions: config.BuildOptions{
 			PostsPerPage: 10,
 		},
-		Features: config.FeaturesConfig{
-			Generators: config.GeneratorsConfig{
+		Features: models.FeaturesConfig{
+			Generators: models.GeneratorsConfig{
 				Sitemap: true,
 				RSS:     true,
 				Search:  true,
@@ -88,6 +88,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -109,6 +110,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},
@@ -208,6 +210,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -229,6 +232,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},
@@ -323,6 +327,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		renderSvc := services.NewRenderServiceWith(rnd, logger)
 		assetSvc := &mocks.MockAssetService{}
 		assetSvc.SetMetrics(buildMetrics)
+		wasmSvc := &mocks.MockWasmService{}
 		postSvc := services.NewPostService(services.PostServiceDependencies{
 			Cfg:            cfg,
 			Cache:          cacheSvc,
@@ -344,6 +349,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 				Post:     postSvc,
 				Asset:    assetSvc,
 				Render:   renderSvc,
+				Wasm:     wasmSvc,
 				Scanner:  metadataScanner,
 				Diagrams: nil,
 			},
@@ -439,6 +445,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		FailBuild: true,
 	}
 	failingAssetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
@@ -461,6 +468,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 			Post:     postSvc,
 			Asset:    failingAssetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},
@@ -616,9 +624,9 @@ func TestCacheService_SocialCardHashPersistence(t *testing.T) {
 
 	// Set social card hashes
 	hashes := map[string]string{
-		"posts/hello.md":  "abc123",
-		"posts/world.md":  "def456",
-		"pages/about.md":  "ghi789",
+		"posts/hello.md": "abc123",
+		"posts/world.md": "def456",
+		"pages/about.md": "ghi789",
 	}
 
 	err = cacheSvc.BatchSetSocialCardHashes(hashes)
@@ -690,6 +698,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -711,6 +720,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},

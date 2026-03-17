@@ -22,26 +22,29 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/search"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+
+
 )
 
-type ParseOptions struct {
-	Source []byte
-	Path   string
-
-	Version          string
-	CleanHtmlRelPath string
-	HtmlRelPath      string
-
-	MdPool         *sync.Pool
-	Cfg            *config.Config
-	NativeRenderer *native.Renderer
-	DiagramAdapter *cache.DiagramCacheAdapter
-	Mu             *sync.Mutex
-
+type ParseConfig struct {
+	Source               []byte
+	Path                 string
+	Version              string
+	CleanHtmlRelPath     string
+	HtmlRelPath          string
 	KnownFrontmatterHash string
 	KnownReadingTime     int
 	BodyOffset           int
 	PreParsedMeta        map[string]any
+}
+
+type ParseContext struct {
+	MdPool         *sync.Pool
+	Cfg            *config.Config
+	NativeRenderer *native.Renderer
+	DiagramAdapter *cache.DiagramCacheAdapter
+	MathBatchSize  int
 }
 
 type parsedFrontmatter struct {
@@ -55,20 +58,20 @@ type parsedFrontmatter struct {
 }
 
 func extractFrontmatter(metaData map[string]any) parsedFrontmatter {
-	dateStr := utils.GetString(metaData, "date")
+	dateStr := timeutil.ExtractStringFromMap(metaData, "date")
 	dateObj, _ := time.Parse("2006-01-02", dateStr)
 	weight, _ := metaData["weight"].(int)
 	if w, ok := metaData["weight"].(float64); ok && weight == 0 {
 		weight = int(w)
 	}
 	return parsedFrontmatter{
-		Title:       utils.GetString(metaData, "title"),
-		Description: utils.GetString(metaData, "description"),
+		Title:       timeutil.ExtractStringFromMap(metaData, "title"),
+		Description: timeutil.ExtractStringFromMap(metaData, "description"),
 		DateObj:     dateObj,
-		Tags:        utils.GetSlice(metaData, "tags"),
-		Pinned:      utils.GetBool(metaData, "pinned"),
+		Tags:        timeutil.ExtractSliceFromMap(metaData, "tags"),
+		Pinned:      timeutil.ExtractBoolFromMap(metaData, "pinned"),
 		Weight:      weight,
-		Draft:       utils.GetBool(metaData, "draft"),
+		Draft:       timeutil.ExtractBoolFromMap(metaData, "draft"),
 	}
 }
 
@@ -171,7 +174,7 @@ func ParseMarkdownMetadata(
 
 	readingTime := knownReadingTime
 	if readingTime <= 0 {
-		wordCount := utils.CountWords(source)
+		wordCount := timeutil.CountWords(source)
 		readingTime = int(math.Ceil(float64(wordCount) / wordsPerMinute))
 	}
 
@@ -296,26 +299,26 @@ func RenderParsedMarkdown(
 }
 
 // ParseMarkdown handles the safe parsing and processing of markdown files
-func ParseMarkdown(opts ParseOptions) (*ParsedMarkdownResult, error) {
+func ParseMarkdown(cfg ParseConfig, ctx ParseContext) (*ParsedMarkdownResult, error) {
 	res, err := ParseMarkdownMetadata(
 		context.Background(),
-		opts.Source,
-		opts.Path,
-		opts.Version,
-		opts.CleanHtmlRelPath,
-		opts.HtmlRelPath,
-		opts.MdPool,
-		opts.Cfg,
-		opts.KnownFrontmatterHash,
-		opts.KnownReadingTime,
-		opts.BodyOffset,
-		opts.PreParsedMeta,
+		cfg.Source,
+		cfg.Path,
+		cfg.Version,
+		cfg.CleanHtmlRelPath,
+		cfg.HtmlRelPath,
+		ctx.MdPool,
+		ctx.Cfg,
+		cfg.KnownFrontmatterHash,
+		cfg.KnownReadingTime,
+		cfg.BodyOffset,
+		cfg.PreParsedMeta,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := RenderParsedMarkdown(opts.Source, res, opts.MdPool, opts.NativeRenderer, opts.DiagramAdapter); err != nil {
+	if err := RenderParsedMarkdown(cfg.Source, res, ctx.MdPool, ctx.NativeRenderer, ctx.DiagramAdapter); err != nil {
 		return nil, err
 	}
 

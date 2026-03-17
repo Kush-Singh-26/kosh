@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"slices"
 	"testing"
 )
@@ -10,7 +11,7 @@ func TestBatchCommit_Empty(t *testing.T) {
 	defer cleanup()
 
 	// Empty commit should not error
-	if err := m.BatchCommit([]*PostMeta{}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit with empty posts failed: %v", err)
 	}
 }
@@ -23,7 +24,7 @@ func TestBatchCommit_RefCountAtomic(t *testing.T) {
 	post1 := createSamplePostMeta()
 	post1.PostID = "atomic-post"
 	post1.HTMLHash = "hashA"
-	if err := m.BatchCommit([]*PostMeta{post1}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post1}, nil, nil); err != nil {
 		t.Fatalf("Initial commit failed: %v", err)
 	}
 
@@ -35,7 +36,7 @@ func TestBatchCommit_RefCountAtomic(t *testing.T) {
 	post2 := createSamplePostMeta()
 	post2.PostID = "atomic-post" // Same ID
 	post2.HTMLHash = "hashB"
-	if err := m.BatchCommit([]*PostMeta{post2}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post2}, nil, nil); err != nil {
 		t.Fatalf("Update commit failed: %v", err)
 	}
 
@@ -53,7 +54,7 @@ func TestBatchCommit_SinglePost(t *testing.T) {
 
 	post := createSamplePostMeta()
 
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -79,7 +80,7 @@ func TestBatchCommit_MultiplePosts(t *testing.T) {
 	post3 := createSamplePostMeta()
 	post3.PostID = "batch-post-3"
 
-	if err := m.BatchCommit([]*PostMeta{post1, post2, post3}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post1, post2, post3}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -100,7 +101,7 @@ func TestBatchCommit_WithSearchRecords(t *testing.T) {
 	defer cleanup()
 
 	post := createSamplePostMeta()
-	record := &SearchRecord{
+	record := &core.SearchRecord{
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
 		BM25Data:        map[string]int{"test": 1},
@@ -108,11 +109,11 @@ func TestBatchCommit_WithSearchRecords(t *testing.T) {
 		NormalizedTags:  []string{"test"},
 	}
 
-	records := map[string]*SearchRecord{
+	records := map[string]*core.SearchRecord{
 		post.PostID: record,
 	}
 
-	if err := m.BatchCommit([]*PostMeta{post}, records, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, records, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -138,17 +139,17 @@ func TestBatchCommit_WithDependencies(t *testing.T) {
 	post := createSamplePostMeta()
 	post.PostID = "deps-test-post"
 
-	deps := &Dependencies{
+	deps := &core.Dependencies{
 		Templates: []string{"layouts/post.html", "partials/header.html"},
 		Tags:      []string{"go", "tutorial", "advanced"},
 		Includes:  []string{"partials/footer.html", "partials/analytics.html"},
 	}
 
-	depsMap := map[string]*Dependencies{
+	depsMap := map[string]*core.Dependencies{
 		post.PostID: deps,
 	}
 
-	if err := m.BatchCommit([]*PostMeta{post}, nil, depsMap); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, depsMap); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -172,20 +173,20 @@ func TestBatchCommit_Complete(t *testing.T) {
 	post := createSamplePostMeta()
 	post.PostID = "complete-test"
 
-	record := &SearchRecord{
+	record := &core.SearchRecord{
 		Title: "Complete Test",
 	}
 
-	deps := &Dependencies{
+	deps := &core.Dependencies{
 		Templates: []string{"layouts/post.html"},
 		Tags:      []string{"test"},
 		Includes:  []string{"partials/footer.html"},
 	}
 
 	if err := m.BatchCommit(
-		[]*PostMeta{post},
-		map[string]*SearchRecord{post.PostID: record},
-		map[string]*Dependencies{post.PostID: deps},
+		[]*core.PostMeta{post},
+		map[string]*core.SearchRecord{post.PostID: record},
+		map[string]*core.Dependencies{post.PostID: deps},
 	); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
@@ -201,7 +202,7 @@ func TestBatchCommit_Complete(t *testing.T) {
 		t.Error("Search record should be stored")
 	}
 
-	// Dependencies verification removed as GetDependencies was deleted
+	// core.Dependencies verification removed as GetDependencies was deleted
 	// But we can verify side effects like tag indexing if needed
 	tagPosts, _ := m.GetPostsByTag("test")
 	if len(tagPosts) == 0 {
@@ -219,7 +220,7 @@ func TestBatchCommit_UpdatesBuildCount(t *testing.T) {
 
 	// Commit some posts
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -235,7 +236,7 @@ func TestBatchCommit_UpdatesWriteStats(t *testing.T) {
 	defer cleanup()
 
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -341,7 +342,7 @@ func TestStoreHTMLForPost_Retrieve(t *testing.T) {
 	}
 
 	// Commit the post so we can retrieve it
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -439,11 +440,11 @@ func TestDeletePost(t *testing.T) {
 	post := createSamplePostMeta()
 	post.Tags = []string{"test", "delete"}
 
-	deps := &Dependencies{
+	deps := &core.Dependencies{
 		Tags: []string{"test", "delete"},
 	}
 
-	if err := m.BatchCommit([]*PostMeta{post}, nil, map[string]*Dependencies{post.PostID: deps}); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, map[string]*core.Dependencies{post.PostID: deps}); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -488,11 +489,11 @@ func TestDeletePost_WithSearchRecord(t *testing.T) {
 	defer cleanup()
 
 	post := createSamplePostMeta()
-	record := &SearchRecord{Title: "Test"}
+	record := &core.SearchRecord{Title: "Test"}
 
 	if err := m.BatchCommit(
-		[]*PostMeta{post},
-		map[string]*SearchRecord{post.PostID: record},
+		[]*core.PostMeta{post},
+		map[string]*core.SearchRecord{post.PostID: record},
 		nil,
 	); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
@@ -515,7 +516,7 @@ func TestDeletePost_ClearsMemoryCache(t *testing.T) {
 	defer cleanup()
 
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -549,7 +550,7 @@ func TestDeletePost_BestEffortCleanup(t *testing.T) {
 
 	// Create a minimal post without full data
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 

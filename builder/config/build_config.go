@@ -1,6 +1,7 @@
 package config
 
 import (
+
 	"time"
 
 	"github.com/spf13/afero"
@@ -18,9 +19,6 @@ type BuildConfig struct {
 	InlineHTMLThreshold int `yaml:"inlineHTMLThreshold"` // Size threshold for inline HTML storage (default: 32KB)
 	MaxFileSize         int `yaml:"maxFileSize"`         // Max file size to load in memory (default: 50MB)
 	FastZstdMax         int `yaml:"fastZstdMax"`         // Threshold for fast zstd compression (default: 64KB)
-
-	// Feature flags
-	EnableLegacyProcessHTML bool `yaml:"enableLegacyProcessHTML"` // Enable regex post-pass for HTML processing (default: true)
 
 	// Timeouts
 	ShutdownTimeout  time.Duration `yaml:"shutdownTimeout"`  // Server shutdown timeout (default: 5s)
@@ -49,9 +47,6 @@ func DefaultBuildConfig() *BuildConfig {
 		InlineHTMLThreshold: 32 * 1024,        // 32KB
 		MaxFileSize:         50 * 1024 * 1024, // 50MB
 		FastZstdMax:         64 * 1024,        // 64KB
-
-		// Feature flags
-		EnableLegacyProcessHTML: true,
 
 		// Timeouts
 		ShutdownTimeout:  5 * time.Second,
