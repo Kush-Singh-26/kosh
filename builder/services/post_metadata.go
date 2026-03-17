@@ -6,7 +6,8 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 // GroupMetadataResult holds the categorized post metadata
@@ -73,8 +74,8 @@ func GroupMetadata(cfg *config.Config, allMetadataMap *sync.Map) *GroupMetadataR
 func BuildSiteTrees(postsByVersion map[string][]models.PostMetadata) map[string][]*models.TreeNode {
 	siteTrees := make(map[string][]*models.TreeNode)
 	for ver, posts := range postsByVersion {
-		utils.SortPosts(posts)
-		siteTrees[ver] = utils.BuildSiteTree(posts, "")
+		timeutil.SortPosts(posts)
+		siteTrees[ver] = fspkg.BuildSiteTree(posts, "")
 	}
 	return siteTrees
 }

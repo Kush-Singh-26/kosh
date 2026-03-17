@@ -127,7 +127,7 @@ func (b *Builder) BuildChanged(ctx context.Context, changedPath string, op fsnot
 
 	// Mark search source as dirty if search files changed
 	if isSearchSourcePath(changedPath) {
-		b.state.searchSourceDirty.Store(true)
+		b.deps.Wasm.SetSearchSourceDirty(true)
 	}
 
 	// Queue the build request (non-blocking)
@@ -229,17 +229,22 @@ func (b *Builder) buildSinglePost(ctx context.Context, path string) {
 		DevLogRebuild("Content change detected, rebuilding single post...")
 
 		// Now we parse exactly once
-		parseRes, err := services.ParseMarkdown(services.ParseOptions{
-			Source:           source,
-			Path:             path,
-			Version:          version,
-			CleanHtmlRelPath: cleanHtmlRelPath,
-			HtmlRelPath:      htmlRelPath,
-			MdPool:           b.mdPool,
-			Cfg:              b.cfg,
-			NativeRenderer:   b.nativeRenderer,
-			DiagramAdapter:   b.deps.Diagrams,
-		})
+		parseRes, err := services.ParseMarkdown(
+			services.ParseConfig{
+				Source:           source,
+				Path:             path,
+				Version:          version,
+				CleanHtmlRelPath: cleanHtmlRelPath,
+				HtmlRelPath:      htmlRelPath,
+			},
+			services.ParseContext{
+				MdPool:         b.mdPool,
+				Cfg:            b.cfg,
+				NativeRenderer: b.nativeRenderer,
+				DiagramAdapter: b.deps.Diagrams,
+				MathBatchSize:  16,
+			},
+		)
 
 		if err != nil {
 			b.logger.Error("Error parsing markdown", "path", path, "error", err)
@@ -541,48 +546,49 @@ func (b *Builder) buildSingleFileChange(ctx context.Context, path string, op fsn
 
 	DevLogInfo("Processing queued change: " + filepath.Base(path) + " " + op.String())
 
-	// Reset rendering gates on any change
+	// Common setup for any change
+	b.cfg.BuildVersion = time.Now().UnixNano()
+	b.deps.Render.ReloadTemplates()
 	b.deps.Render.SetAssetsGate(nil)
 	b.deps.Post.SetAssetsGate(nil)
 
-	// Handle markdown files - single post rebuild
-	if strings.HasSuffix(strings.ToLower(path), ".md") && b.isContentPath(path) {
-		b.cfg.BuildVersion = time.Now().UnixNano()
-		b.deps.Render.ReloadTemplates()
-		b.deps.Post.SetAssetsGate(nil)
-
-		// Start fresh session/tracking state
-		b.refreshBuildSession()
-
-		b.buildSinglePost(ctx, path)
-		if err := b.Tx.Commit(ctx); err != nil {
-			b.logger.Error("Sync/Commit failed", "error", err)
-			b.deletePostFromCache(path)
-			return
-		}
-		b.deps.Render.ClearRenderedFiles()
-		return
-	}
-
-	// Handle CSS/JS changes - do full rebuild to update HTML with new asset hashes
 	ext := strings.ToLower(filepath.Ext(path))
-	if (ext == ".css" || ext == ".js") && b.isAssetPath(path) {
-		DevLogRebuild("CSS/JS changed, running full rebuild...")
-		b.cfg.BuildVersion = time.Now().UnixNano()
-		b.deps.Render.ReloadTemplates()
-		b.deps.Post.SetAssetsGate(nil)
-		if err := b.buildAssetOnly(ctx); err != nil {
-			b.logger.Error("Build failed", "error", err)
-			return
-		}
-		b.SaveCaches()
+	if ext == ".md" && b.isContentPath(path) {
+		b.handleMarkdownChange(ctx, path)
 		return
 	}
 
-	// Everything else - full rebuild
-	b.cfg.BuildVersion = time.Now().UnixNano()
-	b.deps.Render.ReloadTemplates()
-	b.deps.Post.SetAssetsGate(nil)
+	if (ext == ".css" || ext == ".js") && b.isAssetPath(path) {
+		b.handleAssetChange(ctx, path)
+		return
+	}
+
+	b.handleOtherChange(ctx, path)
+}
+
+func (b *Builder) handleMarkdownChange(ctx context.Context, path string) {
+	// Start fresh session/tracking state
+	b.refreshBuildSession()
+
+	b.buildSinglePost(ctx, path)
+	if err := b.Tx.Commit(ctx); err != nil {
+		b.logger.Error("Sync/Commit failed", "error", err)
+		b.deletePostFromCache(path)
+		return
+	}
+	b.deps.Render.ClearRenderedFiles()
+}
+
+func (b *Builder) handleAssetChange(ctx context.Context, path string) {
+	DevLogRebuild("CSS/JS changed, running full rebuild...")
+	if err := b.buildAssetOnly(ctx); err != nil {
+		b.logger.Error("Build failed", "error", err)
+		return
+	}
+	b.SaveCaches()
+}
+
+func (b *Builder) handleOtherChange(ctx context.Context, path string) {
 	if err := b.build(ctx); err != nil {
 		b.logger.Error("Build failed", "error", err)
 		return

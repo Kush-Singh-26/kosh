@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
@@ -204,7 +204,7 @@ func snapshotContentFs(vfs afero.Fs, destDir string, sourceDir string, cfg *conf
 	}
 
 	var mu sync.Mutex
-	return utils.ParallelWalk(context.Background(), vfs, sourceDir, 0, func(path string, info fs.FileInfo, err error) error {
+	return fspkg.ParallelWalk(context.Background(), vfs, sourceDir, 0, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

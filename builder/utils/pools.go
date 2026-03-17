@@ -1,11 +1,15 @@
 package utils
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/models"
+
+
 	"bufio"
 	"bytes"
 	"io"
 	"strings"
 	"sync"
+
 )
 
 // BufferPool manages a pool of reusable bytes.Buffer objects
@@ -28,7 +32,7 @@ func (p *BufferPool) Get() *bytes.Buffer {
 }
 
 func (p *BufferPool) Put(buf *bytes.Buffer) {
-	if buf.Cap() > MaxBufferSize {
+	if buf.Cap() > models.MaxBufferSize {
 		return
 	}
 	buf.Reset()
@@ -55,7 +59,7 @@ func (p *StringBuilderPool) Get() *strings.Builder {
 }
 
 func (p *StringBuilderPool) Put(sb *strings.Builder) {
-	if sb.Cap() > MaxBufferSize {
+	if sb.Cap() > models.MaxBufferSize {
 		return
 	}
 	sb.Reset()
@@ -71,7 +75,7 @@ func NewBufioWriterPool() *BufioWriterPool {
 	return &BufioWriterPool{
 		pool: sync.Pool{
 			New: func() any {
-				return bufio.NewWriterSize(nil, MaxBufferSize)
+				return bufio.NewWriterSize(nil, models.MaxBufferSize)
 			},
 		},
 	}
@@ -83,7 +87,7 @@ func (p *BufioWriterPool) Get(w io.Writer) *bufio.Writer {
 		writer.Reset(w)
 		return writer
 	}
-	return bufio.NewWriterSize(w, MaxBufferSize)
+	return bufio.NewWriterSize(w, models.MaxBufferSize)
 }
 
 func (p *BufioWriterPool) Put(bw *bufio.Writer) {
@@ -100,7 +104,7 @@ func NewBufioReaderPool() *BufioReaderPool {
 	return &BufioReaderPool{
 		pool: sync.Pool{
 			New: func() any {
-				return bufio.NewReaderSize(nil, MaxBufferSize)
+				return bufio.NewReaderSize(nil, models.MaxBufferSize)
 			},
 		},
 	}
@@ -112,7 +116,7 @@ func (p *BufioReaderPool) Get(r io.Reader) *bufio.Reader {
 		reader.Reset(r)
 		return reader
 	}
-	return bufio.NewReaderSize(r, MaxBufferSize)
+	return bufio.NewReaderSize(r, models.MaxBufferSize)
 }
 
 func (p *BufioReaderPool) Put(br *bufio.Reader) {

@@ -12,20 +12,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
+	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
+	"github.com/Kush-Singh-26/kosh/builder/cache/migrate"
+	"github.com/Kush-Singh-26/kosh/builder/cache/store"
 	lru "github.com/hashicorp/golang-lru/v2"
 	bolt "go.etcd.io/bbolt"
 )
 
-// memoryCacheEntry holds a cached PostMeta with expiration
+// memoryCacheEntry holds a cached core.PostMeta with expiration
 type memoryCacheEntry struct {
-	meta      *PostMeta
+	meta      *core.PostMeta
 	expiresAt time.Time
 }
 
 // Manager provides the main cache interface
 type Manager struct {
 	db       *bolt.DB
-	store    *Store
+	store    *store.Store
 	basePath string
 	cacheID  string
 	mu       sync.RWMutex
@@ -36,7 +40,7 @@ type Manager struct {
 	memCacheTTL time.Duration
 
 	// Reference counting for content-addressed storage
-	refCount *RefCountManager
+	refCount *gc.RefCountManager
 }
 
 const defaultMemCacheTTL = 5 * time.Minute
@@ -84,7 +88,7 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 	}
 
 	storePath := filepath.Join(basePath, "store")
-	store, err := NewStore(storePath)
+	store, err := store.New(storePath)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to create store: %w", err)
@@ -104,7 +108,7 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		dirty:       make(map[string]bool),
 		memCache:    lruCache,
 		memCacheTTL: defaultMemCacheTTL,
-		refCount:    newRefCountManager(db),
+		refCount:    gc.NewRefCountManager(db),
 	}
 
 	if err := m.initSchema(); err != nil {
@@ -115,9 +119,9 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 	// Verify schema and run migrations if needed
 	var currentVersion uint32
 	err = m.db.View(func(tx *bolt.Tx) error {
-		meta := tx.Bucket([]byte(BucketMeta))
+		meta := tx.Bucket([]byte(core.BucketMeta))
 		if meta != nil {
-			v := meta.Get([]byte(KeySchemaVersion))
+			v := meta.Get([]byte(core.KeySchemaVersion))
 			if v != nil {
 				currentVersion = binary.BigEndian.Uint32(v)
 			}
@@ -129,11 +133,11 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		return nil, fmt.Errorf("failed to read schema version: %w", err)
 	}
 
-	if currentVersion > 0 && currentVersion != uint32(SchemaVersion) {
-		newVer, err := RunMigrations(m.db, currentVersion, nil)
-		if err != nil || newVer != uint32(SchemaVersion) {
+	if currentVersion > 0 && currentVersion != uint32(core.SchemaVersion) {
+		newVer, err := migrate.RunMigrations(m.db, currentVersion, nil)
+		if err != nil || newVer != uint32(core.SchemaVersion) {
 			_ = m.cleanupOnError()
-			return nil, fmt.Errorf("incompatible schema version: got %d, want %d (migration failed: %w)", currentVersion, SchemaVersion, err)
+			return nil, fmt.Errorf("incompatible schema version: got %d, want %d (migration failed: %w)", currentVersion, core.SchemaVersion, err)
 		}
 	}
 
@@ -181,17 +185,17 @@ func (m *Manager) Close() error {
 // initSchema creates all buckets if they don't exist
 func (m *Manager) initSchema() error {
 	return m.db.Update(func(tx *bolt.Tx) error {
-		for _, name := range AllBuckets() {
+		for _, name := range core.AllBuckets() {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
 				return fmt.Errorf("failed to create bucket %s: %w", name, err)
 			}
 		}
 
-		meta := tx.Bucket([]byte(BucketMeta))
-		if meta.Get([]byte(KeySchemaVersion)) == nil {
+		meta := tx.Bucket([]byte(core.BucketMeta))
+		if meta.Get([]byte(core.KeySchemaVersion)) == nil {
 			v := make([]byte, 4)
-			binary.BigEndian.PutUint32(v, SchemaVersion)
-			if err := meta.Put([]byte(KeySchemaVersion), v); err != nil {
+			binary.BigEndian.PutUint32(v, uint32(core.SchemaVersion))
+			if err := meta.Put([]byte(core.KeySchemaVersion), v); err != nil {
 				return err
 			}
 		}
@@ -204,8 +208,8 @@ func (m *Manager) initSchema() error {
 func (m *Manager) VerifyCacheID(expectedID string) (needsRebuild bool, err error) {
 	var storedID []byte
 	err = m.db.View(func(tx *bolt.Tx) error {
-		meta := tx.Bucket([]byte(BucketMeta))
-		storedID = meta.Get([]byte(KeyCacheID))
+		meta := tx.Bucket([]byte(core.BucketMeta))
+		storedID = meta.Get([]byte(core.KeyCacheID))
 		return nil
 	})
 	if err != nil {
@@ -225,16 +229,16 @@ func (m *Manager) VerifyCacheID(expectedID string) (needsRebuild bool, err error
 func (m *Manager) SetCacheID(id string) error {
 	m.cacheID = id
 	return m.db.Update(func(tx *bolt.Tx) error {
-		meta := tx.Bucket([]byte(BucketMeta))
-		return meta.Put([]byte(KeyCacheID), []byte(id))
+		meta := tx.Bucket([]byte(core.BucketMeta))
+		return meta.Put([]byte(core.KeyCacheID), []byte(id))
 	})
 }
 
 // ClearAll removes all cached data (used when corruption detected)
 func (m *Manager) ClearAll() error {
 	err := m.db.Update(func(tx *bolt.Tx) error {
-		for _, name := range AllBuckets() {
-			if name == BucketMeta {
+		for _, name := range core.AllBuckets() {
+			if name == core.BucketMeta {
 				continue // Keep metadata
 			}
 			// Drop and recreate the bucket — O(1) vs O(N) key-by-key delete
@@ -276,12 +280,27 @@ func (m *Manager) clearFilesystemStore() error {
 	return nil
 }
 
-func (m *Manager) Store() *Store {
+func (m *Manager) Store() *store.Store {
 	return m.store
 }
 
 func (m *Manager) DB() *bolt.DB {
 	return m.db
+}
+
+// RunGC performs garbage collection
+func (m *Manager) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
+	return gc.RunGC(m.db, m.store, m.refCount, cfg)
+}
+
+// QuickVerify performs a fast integrity check by sampling entries
+func (m *Manager) QuickVerify() ([]string, error) {
+	return gc.QuickVerify(m.db, m.store)
+}
+
+// Verify checks cache integrity
+func (m *Manager) Verify() ([]string, error) {
+	return gc.Verify(m.db, m.store)
 }
 
 // EncodedPost holds pre-encoded data for batch commit

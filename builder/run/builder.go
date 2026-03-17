@@ -12,13 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/afero"
 
-	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
@@ -26,16 +25,19 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
-	"github.com/Kush-Singh-26/kosh/builder/utils/tx"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+
+	"github.com/Kush-Singh-26/kosh/builder/utils/fs/tx"
 )
 
 // BuilderDependencies bundles service dependencies for explicit injection.
 // This reduces direct coupling by grouping related services.
 type BuilderDependencies struct {
-	Cache    services.PostServiceCache
+	Cache    services.CacheService
 	Post     services.PostService
 	Asset    services.AssetService
 	Render   services.RenderService
+	Wasm     services.WasmService
 	Scanner  services.MetadataScanner
 	Diagrams *cache.DiagramCacheAdapter
 }
@@ -46,11 +48,10 @@ type BuilderState struct {
 	buildMu sync.Mutex
 
 	// Cached data for incremental builds
-	indexedPosts      []models.IndexedPost
-	searchSourceDirty atomic.Bool
+	indexedPosts []models.IndexedPost
 
 	// Incremental rebuild coordination
-	buildQueue                  chan buildRequest
+	buildQueue chan buildRequest
 	// searchIndexCh is a buffered channel (capacity 1) for debounced search index regeneration.
 	// Sends use non-blocking select with default case to drop pending requests when full.
 	// The processSearchIndexQueue goroutine drains with timer-based debouncing.
@@ -82,7 +83,7 @@ type Builder struct {
 
 	// Filesystems
 	SourceFs afero.Fs
-	Sink     utils.ArtifactSink
+	Sink     fspkg.ArtifactSink
 	Tx       tx.BuildTransaction
 
 	// Shared markdown parser pool for reuse in incremental builds
@@ -105,8 +106,16 @@ type buildRequest struct {
 }
 
 func init() {
-	if strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") {
-		utils.TestingMode = true
+	DetectTestingMode()
+}
+
+// DetectTestingMode inspects os.Args to determine if we are running in a test context.
+// This is called automatically in init() but can also be triggered explicitly.
+func DetectTestingMode() {
+	if len(os.Args) > 0 {
+		if strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") {
+			utils.SetTestingMode(true)
+		}
 	}
 }
 
@@ -117,13 +126,14 @@ func NewBuilder(args []string) *Builder {
 }
 
 // NewBuilderFromManual creates a builder with manual service injection (for testing/benchmarks)
-func NewBuilderFromManual(cfg *config.Config, render services.RenderService, asset services.AssetService, post services.PostService, meta services.MetadataScanner, logger *slog.Logger, m *metrics.BuildMetrics, sourceFs afero.Fs, mdPool *sync.Pool, nativeRenderer *native.Renderer) *Builder {
+func NewBuilderFromManual(cfg *config.Config, render services.RenderService, asset services.AssetService, post services.PostService, meta services.MetadataScanner, wasm services.WasmService, logger *slog.Logger, m *metrics.BuildMetrics, sourceFs afero.Fs, mdPool *sync.Pool, nativeRenderer *native.Renderer) *Builder {
 	return &Builder{
 		cfg: cfg,
 		deps: BuilderDependencies{
-			Post:   post,
-			Asset:  asset,
-			Render: render,
+			Post:    post,
+			Asset:   asset,
+			Render:  render,
+			Wasm:    wasm,
 			Scanner: meta,
 		},
 		logger:         logger,
@@ -146,7 +156,7 @@ func NewBuilderWithFs(vfs afero.Fs, cfg *config.Config) *Builder {
 
 // newBuilderWithConfigFs is the internal implementation with Fs
 func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
-	utils.InitMinifier()
+	fspkg.InitMinifier()
 
 	// Tune GC for SSG throughput (memory is pooled, so we can trade space for speed)
 	debug.SetGCPercent(200)
@@ -194,7 +204,6 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	}
 
 	rnd := renderer.NewWithFs(vfs, cfg.CompressImages, nil, cfg.TemplateDir, cfg.IsDev, logger)
-	rnd.EnableLegacyProcessHTML = cfg.Build.EnableLegacyProcessHTML
 
 	// assetsReady is created per-build and closed when assets are ready.
 	// RenderService and PostService wait on this channel but do not own its lifecycle.
@@ -216,7 +225,7 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 		Metrics:  buildMetrics,
 	}, services.WithAssetsReadySignal(assetsReady))
 
-	var cacheSvc services.PostServiceCache
+	var cacheSvc services.CacheService
 	if cacheManager != nil {
 		cacheSvc = services.NewCacheService(services.CacheServiceDependencies{
 			Manager: cacheManager,
@@ -237,6 +246,12 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 	})
 	metadataScanner := services.NewMetadataScanner()
 
+	wasmSvc := services.NewWasmService(services.WasmServiceDependencies{
+		Cfg:    cfg,
+		Logger: logger,
+		Fs:     vfs,
+	})
+
 	b := &Builder{
 		cfg: cfg,
 		deps: BuilderDependencies{
@@ -244,6 +259,7 @@ func newBuilderWithConfigFs(vfs afero.Fs, cfg *config.Config) *Builder {
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: diagramAdapter,
 		},
@@ -286,7 +302,7 @@ func (b *Builder) SetDevMode(isDev bool) {
 	config.SetDevMode(b.cfg, isDev)
 }
 
-func (b *Builder) SetSink(sink utils.ArtifactSink) {
+func (b *Builder) SetSink(sink fspkg.ArtifactSink) {
 	b.Sink = sink
 }
 
@@ -348,77 +364,6 @@ func (b *Builder) Close() {
 			_ = b.deps.Cache.Close()
 		}
 	})
-}
-
-// checkWasmUpdate handles WASM compilation and deployment for Search.
-// Skips operations in test mode to avoid filesystem dependencies.
-func (b *Builder) checkWasmUpdate(ctx context.Context) {
-	// Skip WASM operations in test mode
-	if utils.TestingMode {
-		return
-	}
-
-	wasmBinary := fspkg.RepoPath("static", "wasm", "search.wasm")
-	sourceAvailable := false
-	if srcMod, err := latestSearchSourceModTime(); err == nil {
-		sourceAvailable = true
-		if b.state.searchSourceDirty.Load() {
-			if err := assets.CompileWASMFromSource(ctx, fspkg.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
-				b.logger.Warn("Failed to compile Search WASM", "error", err)
-			}
-			b.state.searchSourceDirty.Store(false)
-		} else {
-			wasmInfo, statErr := os.Stat(wasmBinary)
-			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
-				if err := assets.CompileWASMFromSource(ctx, fspkg.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
-					b.logger.Warn("Failed to compile Search WASM", "error", err)
-				}
-			}
-		}
-	}
-
-	// Always ensure embedded WASM is deployed if missing or old.
-	// Prefer the locally compiled WASM if available so browser/runtime schema
-	// always matches the current search.bin generator.
-	if sourceAvailable {
-		// Use the source WASM (either just rebuilt or already present)
-		assets.DeployWASMFromFile(afero.NewOsFs(), b.Tx.StagingDir(), b.cfg.CacheDir, wasmBinary)
-	} else {
-		// No source available (standard user), use embedded WASM
-		assets.CheckWASM(b.Tx.StagingDir(), b.cfg.CacheDir)
-	}
-}
-
-func latestSearchSourceModTime() (time.Time, error) {
-	paths := []string{
-		fspkg.RepoPath("cmd", "search"),
-		fspkg.RepoPath("builder", "search"),
-		fspkg.RepoPath("builder", "models"),
-	}
-
-	latest := time.Time{}
-	for _, root := range paths {
-		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info.IsDir() || filepath.Ext(path) != ".go" {
-				return nil
-			}
-			if info.ModTime().After(latest) {
-				latest = info.ModTime()
-			}
-			return nil
-		})
-		if err != nil {
-			return time.Time{}, err
-		}
-	}
-
-	if latest.IsZero() {
-		return time.Time{}, os.ErrNotExist
-	}
-	return latest, nil
 }
 
 // Run executes the main build logic

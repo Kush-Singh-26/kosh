@@ -8,7 +8,7 @@ type socialCardTask struct {
 	frontmatterHash             string
 }
 
-func (s *postServiceImpl) isOutdatedVersion(version string) bool {
+func (s *postService) isOutdatedVersion(version string) bool {
 	if version == "" {
 		return false
 	}

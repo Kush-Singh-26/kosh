@@ -13,13 +13,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+
 )
 
-func (s *postServiceImpl) ProcessSingle(ctx context.Context, path string, source []byte) error {
+func (s *postService) ProcessSingle(ctx context.Context, path string, source []byte) error {
 	return s.ProcessSingleWithResult(ctx, path, source, nil)
 }
 
-func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path string, source []byte, preParsed *ParsedMarkdownResult) error {
+func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, source []byte, preParsed *ParsedMarkdownResult) error {
 	info, err := s.sourceFs.Stat(path)
 	if err != nil {
 		s.logger.Error("Error stating file", "path", path, "error", err)
@@ -27,9 +31,9 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 	}
 
 	// Check file size before loading into memory
-	if info.Size() > utils.MaxFileSize {
-		s.logger.Warn("File exceeds size limit, skipping", "path", path, "size", info.Size(), "limit", utils.MaxFileSize)
-		return fmt.Errorf("file size %d exceeds limit %d", info.Size(), utils.MaxFileSize)
+	if info.Size() > models.MaxFileSize {
+		s.logger.Warn("File exceeds size limit, skipping", "path", path, "size", info.Size(), "limit", models.MaxFileSize)
+		return fmt.Errorf("file size %d exceeds limit %d", info.Size(), models.MaxFileSize)
 	}
 
 	// source is already read and passed in to avoid TOCTOU race condition
@@ -61,17 +65,22 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 		parseRes = preParsed
 	} else {
 		// Parse if not provided
-		parseRes, err = ParseMarkdown(ParseOptions{
-			Source:           source,
-			Path:             path,
-			Version:          version,
-			CleanHtmlRelPath: cleanHtmlRelPath,
-			HtmlRelPath:      htmlRelPath,
-			MdPool:           s.mdPool,
-			Cfg:              s.cfg,
-			NativeRenderer:   s.nativeRenderer,
-			DiagramAdapter:   s.diagramAdapter,
-		})
+		parseRes, err = ParseMarkdown(
+			ParseConfig{
+				Source:           source,
+				Path:             path,
+				Version:          version,
+				CleanHtmlRelPath: cleanHtmlRelPath,
+				HtmlRelPath:      htmlRelPath,
+			},
+			ParseContext{
+				MdPool:         s.mdPool,
+				Cfg:            s.cfg,
+				NativeRenderer: s.nativeRenderer,
+				DiagramAdapter: s.diagramAdapter,
+				MathBatchSize:  16,
+			},
+		)
 		if err != nil {
 			return err
 		}
@@ -154,9 +163,9 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 		versionPosts = append(versionPosts, post)
 	}
 
-	utils.SortPosts(versionPosts)
+	timeutil.SortPosts(versionPosts)
 	prev, next := utils.FindPrevNext(post, versionPosts)
-	siteTree := utils.BuildSiteTree(versionPosts, post.Link)
+	siteTree := fspkg.BuildSiteTree(versionPosts, post.Link)
 
 	normalizedTags := make([]string, len(post.Tags))
 	for i, t := range post.Tags {
@@ -209,7 +218,7 @@ func (s *postServiceImpl) ProcessSingleWithResult(ctx context.Context, path stri
 		s.cacheWg.Add(1)
 		go func() {
 			defer s.cacheWg.Done()
-			cacheCommitTimer := utils.StartPhase("Cache commit (incremental)")
+			cacheCommitTimer := timeutil.StartPhase("Cache commit (incremental)")
 			if err := s.cache.BatchCommit(commitMeta, commitSearch, commitDeps); err != nil {
 				s.logger.Error("Failed to commit post to cache", "path", path, "error", err)
 			}

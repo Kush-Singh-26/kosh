@@ -1,8 +1,8 @@
 package services
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"context"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"html/template"
 	"io"
 	"log/slog"
@@ -22,7 +22,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 )
 
 // noopHandler is a slog.Handler that does nothing, used in tests to avoid race conditions in standard handlers.
@@ -39,7 +39,7 @@ type mockRenderService struct {
 	panicMsg    string
 }
 
-func (m *mockRenderService) SetSink(sink utils.ArtifactSink)  {}
+func (m *mockRenderService) SetSink(sink fspkg.ArtifactSink)  {}
 func (m *mockRenderService) SetSourceFs(fs afero.Fs)          {}
 func (m *mockRenderService) SetAssetsGate(ch <-chan struct{}) {}
 
@@ -50,21 +50,21 @@ func (m *mockRenderService) RenderPage(path string, data models.PageData) error 
 	return nil
 }
 
-func (m *mockRenderService) RenderIndex(path string, data models.PageData) error { return nil }
-func (m *mockRenderService) Render404(path string, data models.PageData) error   { return nil }
-func (m *mockRenderService) RenderGraph(path string, data models.PageData) error { return nil }
-func (m *mockRenderService) RenderSidebar(tree []*models.TreeNode) template.HTML { return "" }
-func (m *mockRenderService) RegisterFile(path string)                            {}
-func (m *mockRenderService) SetAssets(assets map[string]string)                  {}
-func (m *mockRenderService) GetAssets() map[string]string                        { return nil }
-func (m *mockRenderService) GetRenderedFiles() map[string]bool                   { return nil }
-func (m *mockRenderService) ClearRenderedFiles()                                 {}
-func (m *mockRenderService) ReloadTemplates()                                    {}
-func (m *mockRenderService) ConsumeErrors() []error                              { return nil }
-func (m *mockRenderService) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {}
+func (m *mockRenderService) RenderIndex(path string, data models.PageData) error      { return nil }
+func (m *mockRenderService) Render404(path string, data models.PageData) error        { return nil }
+func (m *mockRenderService) RenderGraph(path string, data models.PageData) error      { return nil }
+func (m *mockRenderService) RenderSidebar(tree []*models.TreeNode) template.HTML      { return "" }
+func (m *mockRenderService) RegisterFile(path string)                                 {}
+func (m *mockRenderService) SetAssets(assets map[string]string)                       {}
+func (m *mockRenderService) GetAssets() map[string]string                             { return nil }
+func (m *mockRenderService) GetRenderedFiles() map[string]bool                        { return nil }
+func (m *mockRenderService) ClearRenderedFiles()                                      {}
+func (m *mockRenderService) ReloadTemplates()                                         {}
+func (m *mockRenderService) ConsumeErrors() []error                                   { return nil }
+func (m *mockRenderService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {}
 
 type mockArtifactSink struct {
-	utils.ArtifactSink
+	fspkg.ArtifactSink
 	writtenFiles sync.Map
 }
 
@@ -172,7 +172,7 @@ func (m *mockCacheService) Stats() (*cache.CacheStats, error) { return nil, nil 
 func (m *mockCacheService) IncrementBuildCount() error        { return nil }
 func (m *mockCacheService) Close() error                      { return nil }
 
-func setupPostServiceTest(t *testing.T) *postServiceImpl {
+func setupPostServiceTest(t *testing.T) *postService {
 	t.Helper()
 
 	cfg := &config.Config{
@@ -209,7 +209,7 @@ func setupPostServiceTest(t *testing.T) *postServiceImpl {
 		},
 	}
 
-	return &postServiceImpl{
+	return &postService{
 		cfg:            cfg,
 		cache:          &mockCacheService{},
 		renderer:       &mockRenderService{},

@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/spf13/afero"
 
 	"gopkg.in/yaml.v3"
@@ -20,14 +20,6 @@ import (
 // Global flag to track if we're in development mode
 var isDevMode = atomic.Bool{}
 
-type MenuEntry struct {
-	Name   string `yaml:"name"`
-	URL    string `yaml:"url,omitempty"`
-	Target string `yaml:"target,omitempty"`
-	ID     string `yaml:"id,omitempty"`
-	Class  string `yaml:"class,omitempty"`
-}
-
 type Version struct {
 	Name     string `yaml:"name"`
 	Path     string `yaml:"path"` // "" for latest, "v2.0", "v1.0", etc.
@@ -35,43 +27,18 @@ type Version struct {
 	Strategy string `yaml:"strategy"` // "snapshot" or "delta"
 }
 
-type GeneratorsConfig struct {
-	Sitemap bool `yaml:"sitemap"`
-	RSS     bool `yaml:"rss"`
-	Graph   bool `yaml:"graph"`
-	PWA     bool `yaml:"pwa"`
-	Search  bool `yaml:"search"`
-}
-
-type FeaturesConfig struct {
-	RawMarkdown bool             `yaml:"rawMarkdown"`
-	Generators  GeneratorsConfig `yaml:"generators"`
-}
-
-type AuthorConfig struct {
-	Name string `yaml:"name"`
-	URL  string `yaml:"url"`
-}
-
 type ThemeConfig struct {
 	Name               string `yaml:"name"`
 	SupportsVersioning bool   `yaml:"supportsVersioning"`
 }
 
-type SocialCardsConfig struct {
-	Background string   `yaml:"background"`
-	Gradient   []string `yaml:"gradient"`
-	Angle      int      `yaml:"angle"`
-	TextColor  string   `yaml:"textColor"`
-}
-
 type SiteConfig struct {
-	Title       string       `yaml:"title"`
-	Description string       `yaml:"description"`
-	BaseURL     string       `yaml:"baseURL"`
-	Language    string       `yaml:"language"`
-	Author      AuthorConfig `yaml:"author"`
-	Menu        []MenuEntry  `yaml:"menu"`
+	Title       string              `yaml:"title"`
+	Description string              `yaml:"description"`
+	BaseURL     string              `yaml:"baseURL"`
+	Language    string              `yaml:"language"`
+	Author      models.AuthorConfig `yaml:"author"`
+	Menu        []models.MenuEntry  `yaml:"menu"`
 }
 
 type BuildOptions struct {
@@ -98,10 +65,10 @@ type Config struct {
 	BuildOptions `yaml:",inline"`
 	PathConfig   `yaml:",inline"`
 
-	Versions      []Version         `yaml:"versions"` // Documentation versions
-	Features      FeaturesConfig    `yaml:"features"` // Enable/Disable features
-	ThemeMetadata ThemeConfig       `yaml:"-"`        // Loaded from theme.yaml
-	SocialCards   SocialCardsConfig `yaml:"socialCards"`
+	Versions      []Version                `yaml:"versions"` // Documentation versions
+	Features      models.FeaturesConfig    `yaml:"features"` // Enable/Disable features
+	ThemeMetadata ThemeConfig              `yaml:"-"`        // Loaded from theme.yaml
+	SocialCards   models.SocialCardsConfig `yaml:"socialCards"`
 
 	// Internal / Runtime fields
 	ForceRebuild  bool  `yaml:"-"`
@@ -130,7 +97,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 			CompressImages: true, // Always compress for performance
 			ImageWorkers:   8,    // Default 8 parallel workers for image processing (benchmarked optimum)
 			WebPQuality:    80,   // Default WebP quality is 80
-			ParserWorkers:  0,    // 0 = auto (use GetDefaultWorkerCount)
+			ParserWorkers:  0,    // 0 = auto (use models.GetDefaultWorkerCount)
 		},
 		PathConfig: PathConfig{
 			Theme:      "blog",
@@ -140,9 +107,9 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 			CacheDir:   ".kosh-cache",
 		},
 		BuildVersion: time.Now().Unix(),
-		Features: FeaturesConfig{
+		Features: models.FeaturesConfig{
 			RawMarkdown: false,
-			Generators: GeneratorsConfig{
+			Generators: models.GeneratorsConfig{
 				Sitemap: true,
 				RSS:     true,
 				Graph:   true,
@@ -150,7 +117,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 				Search:  true,
 			},
 		},
-		SocialCards: SocialCardsConfig{
+		SocialCards: models.SocialCardsConfig{
 			Background: "#faf8f5",
 			Gradient:   []string{"#e8e0d0", "#d4c4a8"},
 			Angle:      135,
@@ -330,3 +297,12 @@ func (cfg *Config) GetVersionsMetadata(currentVersion, currentPath string) []mod
 	}
 	return results
 }
+
+// TemplateConfig interface implementation
+
+func (cfg *Config) GetMenu() []models.MenuEntry         { return cfg.Menu }
+func (cfg *Config) GetAuthor() models.AuthorConfig      { return cfg.Author }
+func (cfg *Config) GetSocial() models.SocialCardsConfig { return cfg.SocialCards }
+func (cfg *Config) GetFeatures() models.FeaturesConfig  { return cfg.Features }
+func (cfg *Config) GetSiteTitle() string                { return cfg.Title }
+func (cfg *Config) GetBaseURL() string                  { return cfg.BaseURL }

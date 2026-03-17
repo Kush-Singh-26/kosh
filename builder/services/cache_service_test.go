@@ -10,14 +10,14 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
-func setupCacheServiceTest(t *testing.T) (*cacheServiceImpl, *cache.Manager, func()) {
+func setupCacheServiceTest(t *testing.T) (*cacheService, *cache.Manager, func()) {
 	t.Helper()
 
 	// Create a test cache
 	mgr, cleanup := testutil.CreateTestCache(t)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	service := NewCacheServiceWith(mgr, logger).(*cacheServiceImpl)
+	service := NewCacheServiceWith(mgr, logger).(*cacheService)
 	return service, mgr, cleanup
 }
 
@@ -32,8 +32,8 @@ func TestNewCacheService(t *testing.T) {
 		t.Fatal("NewCacheService should not return nil")
 	}
 
-	if _, ok := service.(*cacheServiceImpl); !ok {
-		t.Error("NewCacheService should return *cacheServiceImpl")
+	if _, ok := service.(*cacheService); !ok {
+		t.Error("NewCacheService should return *cacheService")
 	}
 }
 
@@ -681,7 +681,7 @@ func TestCacheService_ConcurrentDirtyTracking(t *testing.T) {
 		go func(base int) {
 			defer wg.Done()
 			for i := 0; i < opsPerGoroutine; i++ {
-				postID := string(rune(base%26 + 'a')) + string(rune(i%26+'a'))
+				postID := string(rune(base%26+'a')) + string(rune(i%26+'a'))
 				service.MarkDirty(postID)
 				_ = service.IsDirty(postID)
 			}
@@ -695,7 +695,7 @@ func TestCacheService_ConcurrentDirtyTracking(t *testing.T) {
 
 	// Verify all are clean
 	for i := 0; i < 10; i++ {
-		postID := string(rune(i%26 + 'a')) + "0"
+		postID := string(rune(i%26+'a')) + "0"
 		if service.IsDirty(postID) {
 			t.Errorf("Post %s should be clean after ClearDirty", postID)
 		}

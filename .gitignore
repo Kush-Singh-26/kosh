@@ -77,3 +77,19 @@ builder/cache/test_migrations_*.db
 # Build output directories
 builder/benchmarks/.kosh-cache/
 builder/benchmarks/public/
+
+# Windows command artifacts
+$null
+-p
+echo
+mkdir
+Done
+invalid
+
+# Development artifacts (Python scripts, JSON reports, etc.)
+*.pyc
+__pycache__/
+*.json.bak
+desloppify_review_findings.json
+C:UsersKIIT0001blogs.desloppify*.json
+UsersKIIT0001desloppify-fix/

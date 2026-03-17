@@ -12,8 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
+
 	"github.com/fastschema/qjs"
 	"github.com/zeebo/xxh3"
 	"golang.org/x/sync/singleflight"
@@ -44,6 +45,7 @@ type Renderer struct {
 	pool           chan *instance
 	rulerPool      sync.Pool
 	numWorkers     int
+	mathBatchSize  int
 	initOnce       sync.Once
 	katexBytecode  []byte
 	wg             sync.WaitGroup
@@ -74,6 +76,14 @@ func WithWorkers(n int) RendererOption {
 func WithScheduler(s utils.BuildScheduler) RendererOption {
 	return func(r *Renderer) {
 		r.scheduler = s
+	}
+}
+
+func WithMathBatchSize(n int) RendererOption {
+	return func(r *Renderer) {
+		if n > 0 {
+			r.mathBatchSize = n
+		}
 	}
 }
 
@@ -117,9 +127,10 @@ func New(opts ...RendererOption) *Renderer {
 				return ruler
 			},
 		},
-		numWorkers: numWorkers,
-		scheduler:  utils.GlobalScheduler,
-		mathQueue:  make(chan mathRequest, 2048),
+		numWorkers:    numWorkers,
+		mathBatchSize: 16,
+		scheduler:     utils.GlobalScheduler,
+		mathQueue:     make(chan mathRequest, 2048),
 	}
 
 	for _, opt := range opts {
@@ -146,7 +157,7 @@ func (r *Renderer) mathBatchWorker() {
 		timeout := time.After(2 * time.Millisecond)
 
 	loop:
-		for len(batch) < 16 {
+		for len(batch) < r.mathBatchSize {
 			select {
 			case next, ok := <-r.mathQueue:
 				if !ok {

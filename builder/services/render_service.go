@@ -8,11 +8,12 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+
 	"github.com/spf13/afero"
 )
 
-type renderServiceImpl struct {
+type renderService struct {
 	rnd         *renderer.Renderer
 	logger      *slog.Logger
 	assetsReady <-chan struct{}
@@ -21,7 +22,7 @@ type renderServiceImpl struct {
 // NewRenderService creates a new RenderService with the given dependencies.
 // Using dependency struct pattern for API coherence.
 func NewRenderService(deps RenderServiceDependencies) RenderService {
-	return &renderServiceImpl{
+	return &renderService{
 		rnd:    deps.Renderer,
 		logger: deps.Logger,
 	}
@@ -30,83 +31,88 @@ func NewRenderService(deps RenderServiceDependencies) RenderService {
 // NewRenderServiceWith creates a new RenderService with explicit parameters.
 // Deprecated: use NewRenderService(RenderServiceDependencies{...}) instead.
 func NewRenderServiceWith(rnd *renderer.Renderer, logger *slog.Logger) RenderService {
-	return &renderServiceImpl{
+	return &renderService{
 		rnd:    rnd,
 		logger: logger,
 	}
 }
 
-func (s *renderServiceImpl) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {
+func (s *renderService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
 	s.rnd.SetSink(sink)
 	s.rnd.SourceFs = fs
 	s.rnd.ReloadTemplates()
 }
 
-func (s *renderServiceImpl) SetAssetsGate(ch <-chan struct{}) {
+func (s *renderService) SetAssetsGate(ch <-chan struct{}) {
 	s.assetsReady = ch
 }
 
-func (s *renderServiceImpl) RenderPage(path string, data models.PageData) error {
-	if s.assetsReady != nil {
-		select {
-		case <-s.assetsReady:
-		case <-time.After(30 * time.Second):
-			return fmt.Errorf("asset build timed out after 30s for page %s - esbuild may be hung", path)
-		}
+func (s *renderService) RenderPage(path string, data models.PageData) error {
+	if err := s.waitForAssets(path); err != nil {
+		return err
 	}
+	s.rnd.PreparePageData(&data)
 	return s.rnd.RenderPage(path, data)
 }
 
-func (s *renderServiceImpl) RenderIndex(path string, data models.PageData) error {
-	if s.assetsReady != nil {
-		select {
-		case <-s.assetsReady:
-		case <-time.After(30 * time.Second):
-			return fmt.Errorf("asset build timed out after 30s for index %s - esbuild may be hung", path)
-		}
+func (s *renderService) RenderIndex(path string, data models.PageData) error {
+	if err := s.waitForAssets(path); err != nil {
+		return err
 	}
+	s.rnd.PreparePageData(&data)
 	return s.rnd.RenderIndex(path, data)
 }
 
-func (s *renderServiceImpl) Render404(path string, data models.PageData) error {
+func (s *renderService) Render404(path string, data models.PageData) error {
+	// 404 typically doesn't wait for assets to avoid recursive waits or hangs
+	// but we still prepare data for consistency.
+	s.rnd.PreparePageData(&data)
 	return s.rnd.Render404(path, data)
 }
 
-func (s *renderServiceImpl) RenderGraph(path string, data models.PageData) error {
+func (s *renderService) RenderGraph(path string, data models.PageData) error {
+	if err := s.waitForAssets(path); err != nil {
+		return err
+	}
+	s.rnd.PreparePageData(&data)
+	return s.rnd.RenderGraph(path, data)
+}
+
+func (s *renderService) waitForAssets(path string) error {
 	if s.assetsReady != nil {
 		select {
 		case <-s.assetsReady:
 		case <-time.After(30 * time.Second):
-			return fmt.Errorf("asset build timed out after 30s for graph %s - esbuild may be hung", path)
+			return fmt.Errorf("asset build timed out after 30s for %s - esbuild may be hung", path)
 		}
 	}
-	return s.rnd.RenderGraph(path, data)
+	return nil
 }
 
-func (s *renderServiceImpl) RenderSidebar(tree []*models.TreeNode) template.HTML {
+func (s *renderService) RenderSidebar(tree []*models.TreeNode) template.HTML {
 	return s.rnd.RenderSidebar(tree)
 }
 
-func (s *renderServiceImpl) RegisterFile(path string) {
+func (s *renderService) RegisterFile(path string) {
 	s.rnd.RegisterFile(path)
 }
 
-func (s *renderServiceImpl) SetAssets(assets map[string]string) {
+func (s *renderService) SetAssets(assets map[string]string) {
 	s.rnd.SetAssets(assets)
 }
 
-func (s *renderServiceImpl) GetAssets() map[string]string {
+func (s *renderService) GetAssets() map[string]string {
 	return s.rnd.GetAssets()
 }
 
-func (s *renderServiceImpl) GetRenderedFiles() map[string]bool {
+func (s *renderService) GetRenderedFiles() map[string]bool {
 	return s.rnd.GetRenderedFiles()
 }
 
-func (s *renderServiceImpl) ClearRenderedFiles() {
+func (s *renderService) ClearRenderedFiles() {
 	s.rnd.ClearRenderedFiles()
 }
 
-func (s *renderServiceImpl) ReloadTemplates() {
+func (s *renderService) ReloadTemplates() {
 	s.rnd.ReloadTemplates()
 }

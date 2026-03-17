@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +17,7 @@ func TestDeletePost_BoltDBError(t *testing.T) {
 	// First, commit a post to ensure it exists
 	post := createSamplePostMeta()
 	post.PostID = "error-test-post"
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -44,7 +45,7 @@ func TestDeletePost_Concurrent(t *testing.T) {
 		post := createSamplePostMeta()
 		post.PostID = "concurrent-post-" + string(rune(i))
 		postIDs[i] = post.PostID
-		if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+		if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 			t.Fatalf("BatchCommit failed for post %d: %v", i, err)
 		}
 	}
@@ -81,7 +82,7 @@ func TestClearAll_FilesystemError(t *testing.T) {
 
 	// Add some data first
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -115,7 +116,7 @@ func TestClear_FullResetError(t *testing.T) {
 
 	// Add some data
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -134,7 +135,7 @@ func TestClear_FullResetError(t *testing.T) {
 	// Verify cache is reset (new database should be created)
 	newPost := createSamplePostMeta()
 	newPost.PostID = "new-post"
-	err = m.BatchCommit([]*PostMeta{newPost}, nil, nil)
+	err = m.BatchCommit([]*core.PostMeta{newPost}, nil, nil)
 	if err != nil {
 		t.Fatalf("BatchCommit after Clear failed: %v", err)
 	}
@@ -171,7 +172,7 @@ func TestStoreDelete_BestEffort(t *testing.T) {
 	}
 }
 
-// TestDeletePost_CorruptedData tests deletion when PostMeta data is corrupted
+// TestDeletePost_CorruptedData tests deletion when core.PostMeta data is corrupted
 func TestDeletePost_CorruptedData(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
@@ -182,14 +183,14 @@ func TestDeletePost_CorruptedData(t *testing.T) {
 
 	// Use a transaction to insert invalid data (malformed JSON)
 	err := m.db.Update(func(tx *bolt.Tx) error {
-		postsBucket := tx.Bucket([]byte(BucketPosts))
+		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		if postsBucket == nil {
 			// Create bucket if it doesn't exist (shouldn't happen in normal operation)
-			_, err := tx.CreateBucket([]byte(BucketPosts))
+			_, err := tx.CreateBucket([]byte(core.BucketPosts))
 			if err != nil {
 				return err
 			}
-			postsBucket = tx.Bucket([]byte(BucketPosts))
+			postsBucket = tx.Bucket([]byte(core.BucketPosts))
 		}
 		// Create a malformed JSON that will fail unmarshaling
 		corruptedData := []byte("{invalid json")
@@ -198,13 +199,13 @@ func TestDeletePost_CorruptedData(t *testing.T) {
 		}
 
 		// Also add to path index with corrupted data
-		pathBucket := tx.Bucket([]byte(BucketPaths))
+		pathBucket := tx.Bucket([]byte(core.BucketPaths))
 		if pathBucket == nil {
-			_, err := tx.CreateBucket([]byte(BucketPaths))
+			_, err := tx.CreateBucket([]byte(core.BucketPaths))
 			if err != nil {
 				return err
 			}
-			pathBucket = tx.Bucket([]byte(BucketPaths))
+			pathBucket = tx.Bucket([]byte(core.BucketPaths))
 		}
 		_ = pathBucket.Put([]byte(path), []byte(postID))
 

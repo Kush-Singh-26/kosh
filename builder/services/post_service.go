@@ -20,30 +20,32 @@ import (
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+
 	"github.com/Kush-Singh-26/kosh/builder/utils/async"
 )
 
-// postServiceImpl implements PostService
-type postServiceImpl struct {
-	cfg              *config.Config
-	cache            PostServiceCache
-	renderer         RenderService
-	logger           *slog.Logger
-	metrics          *metrics.BuildMetrics
-	mdPool           *sync.Pool
-	nativeRenderer   *native.Renderer
-	sourceFs         afero.Fs
-	sink             utils.ArtifactSink
-	assetsReady      <-chan struct{}
-	diagramAdapter   *cache.DiagramCacheAdapter
-	cardHashes       sync.Map
-	logoExists       sync.Map
-	cacheWg          sync.WaitGroup
-	mu               sync.Mutex
+// postService implements PostService
+type postService struct {
+	cfg            *config.Config
+	cache          CacheService
+	renderer       RenderService
+	logger         *slog.Logger
+	metrics        *metrics.BuildMetrics
+	mdPool         *sync.Pool
+	nativeRenderer *native.Renderer
+	sourceFs       afero.Fs
+	sink           fspkg.ArtifactSink
+	assetsReady    <-chan struct{}
+	diagramAdapter *cache.DiagramCacheAdapter
+	cardHashes     sync.Map
+	logoExists     sync.Map
+	cacheWg        sync.WaitGroup
+	mu             sync.Mutex
 }
 
 func NewPostService(deps PostServiceDependencies) PostService {
-	return &postServiceImpl{
+	return &postService{
 		cfg:            deps.Cfg,
 		cache:          deps.Cache,
 		renderer:       deps.Renderer,
@@ -57,13 +59,13 @@ func NewPostService(deps PostServiceDependencies) PostService {
 	}
 }
 
-func (s *postServiceImpl) ReconfigureForBuild(sink utils.ArtifactSink, fs afero.Fs) {
+func (s *postService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
 	s.sink = sink
 	s.sourceFs = fs
 }
 
-func (s *postServiceImpl) SetAssetsGate(ch <-chan struct{}) { s.assetsReady = ch }
-func (s *postServiceImpl) WaitForCacheCommit()                 { s.cacheWg.Wait() }
+func (s *postService) SetAssetsGate(ch <-chan struct{}) { s.assetsReady = ch }
+func (s *postService) WaitForCacheCommit()              { s.cacheWg.Wait() }
 
 type renderTask struct {
 	parseRes    *ParsedMarkdownResult
@@ -75,21 +77,22 @@ type renderTask struct {
 	htmlRelPath string
 }
 
-func (s *postServiceImpl) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error) {
-	numWorkers := utils.GetDefaultWorkerCount()
+func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error) {
+	numWorkers := models.GetDefaultWorkerCount()
 
-	cardPool := utils.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) {
+	cardPool := async.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) error {
 		s.generateSocialCard(task)
+		return nil
 	}).WithScheduler(utils.GlobalScheduler, utils.TaskSocialCard)
 	cardPool.Start()
-	defer cardPool.Stop()
+	defer func() { utils.IgnoreError(cardPool.Stop(), "stop card pool") }()
 
 	pc := s.runParsePhase(ctx, numWorkers, shouldForce, forceSocialRebuild, fileChan, cardPool)
 	if len(pc.errs) > 0 {
 		return nil, pc.errs[0]
 	}
 
-	utils.SortPosts(pc.allPosts)
+	timeutil.SortPosts(pc.allPosts)
 
 	s.runRenderPhase(ctx, numWorkers, pc)
 
@@ -115,7 +118,7 @@ type postProcessContext struct {
 	mu               sync.Mutex
 }
 
-func (s *postServiceImpl) runParsePhase(ctx context.Context, numWorkers int, shouldForce, forceSocialRebuild bool, fileChan <-chan models.ScannedFile, cardPool *utils.WorkerPool[socialCardTask]) *postProcessContext {
+func (s *postService) runParsePhase(ctx context.Context, numWorkers int, shouldForce, forceSocialRebuild bool, fileChan <-chan models.ScannedFile, cardPool *async.WorkerPool[socialCardTask]) *postProcessContext {
 	pc := &postProcessContext{
 		tagMap:           make(map[string][]models.PostMetadata),
 		newSearchRecords: make(map[string]*cache.SearchRecord),
@@ -123,23 +126,24 @@ func (s *postServiceImpl) runParsePhase(ctx context.Context, numWorkers int, sho
 	}
 
 	s.logger.Info("Processing posts (streaming mode)")
-	timer := utils.StartPhase("Process posts (stream)")
+	timer := timeutil.StartPhase("Process posts (stream)")
 	defer timer.Stop()
 
-	parsePool := utils.NewWorkerPool(ctx, numWorkers, func(f models.ScannedFile) {
+	parsePool := async.NewWorkerPool(ctx, numWorkers, func(f models.ScannedFile) error {
 		s.parseWorkerTask(ctx, f, shouldForce, forceSocialRebuild, pc, cardPool)
+		return nil
 	}).WithScheduler(utils.GlobalScheduler, utils.TaskMarkdown)
 
 	parsePool.Start()
 	for f := range fileChan {
 		parsePool.Submit(f)
 	}
-	parsePool.Stop()
+	_ = parsePool.Stop()
 
 	return pc
 }
 
-func (s *postServiceImpl) parseWorkerTask(ctx context.Context, f models.ScannedFile, shouldForce, forceSocialRebuild bool, pc *postProcessContext, cardPool *utils.WorkerPool[socialCardTask]) {
+func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile, shouldForce, forceSocialRebuild bool, pc *postProcessContext, cardPool *async.WorkerPool[socialCardTask]) {
 	path, version := f.Path, f.Version
 	relPath, _ := fspkg.SafeRel(s.cfg.ContentDir, path)
 	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
@@ -170,30 +174,38 @@ func (s *postServiceImpl) parseWorkerTask(ctx context.Context, f models.ScannedF
 		}
 	}
 
-	// 2. Math processing from cache
-	if useCache && s.diagramAdapter != nil && len(parseRes.MathExpressions) > 0 {
-		htmlContent = s.processCachedMath(htmlContent, parseRes.MathExpressions)
+	// 2. Math processing from cache (only if we have cached HTML content)
+	// If math processing fails, invalidate cache to force re-parse
+	if useCache && htmlContent != "" && len(parseRes.MathExpressions) > 0 {
+		var mathOk bool
+		htmlContent, mathOk = s.processCachedMath(htmlContent, parseRes.MathExpressions)
+		useCache = useCache && mathOk
 	}
 
 	// 3. Full Parse if needed
 	if !useCache {
 		var err error
 		s.metrics.IncrementCacheMiss()
-		parseRes, err = ParseMarkdown(ParseOptions{
-			Source:             f.Source,
-			Path:               path,
-			Version:            version,
-			CleanHtmlRelPath:   cleanHtmlRelPath,
-			HtmlRelPath:        htmlRelPath,
-			MdPool:             s.mdPool,
-			Cfg:                s.cfg,
-			NativeRenderer:     s.nativeRenderer,
-			DiagramAdapter:     s.diagramAdapter,
-			KnownFrontmatterHash: f.FrontmatterHash,
-			KnownReadingTime:   f.ReadingTime,
-			BodyOffset:         f.BodyOffset,
-			PreParsedMeta:      f.PreParsedMeta,
-		})
+		parseRes, err = ParseMarkdown(
+			ParseConfig{
+				Source:               f.Source,
+				Path:                 path,
+				Version:              version,
+				CleanHtmlRelPath:     cleanHtmlRelPath,
+				HtmlRelPath:          htmlRelPath,
+				KnownFrontmatterHash: f.FrontmatterHash,
+				KnownReadingTime:     f.ReadingTime,
+				BodyOffset:           f.BodyOffset,
+				PreParsedMeta:        f.PreParsedMeta,
+			},
+			ParseContext{
+				MdPool:         s.mdPool,
+				Cfg:            s.cfg,
+				NativeRenderer: s.nativeRenderer,
+				DiagramAdapter: s.diagramAdapter,
+				MathBatchSize:  16,
+			},
+		)
 		if err != nil {
 			s.logger.Error("Failed to parse markdown", "path", path, "error", err)
 			pc.mu.Lock()
@@ -220,7 +232,7 @@ func (s *postServiceImpl) parseWorkerTask(ctx context.Context, f models.ScannedF
 	s.metrics.IncrementPostsProcessed()
 }
 
-func (s *postServiceImpl) checkCache(relPath string, f models.ScannedFile, shouldForce bool) (*cache.PostMeta, bool) {
+func (s *postService) checkCache(relPath string, f models.ScannedFile, shouldForce bool) (*cache.PostMeta, bool) {
 	if s.cache == nil || shouldForce {
 		return nil, false
 	}
@@ -232,7 +244,7 @@ func (s *postServiceImpl) checkCache(relPath string, f models.ScannedFile, shoul
 	return cachedMeta, fastBail
 }
 
-func (s *postServiceImpl) loadFromCache(cachedMeta *cache.PostMeta, htmlRelPath string) (*ParsedMarkdownResult, string, bool) {
+func (s *postService) loadFromCache(cachedMeta *cache.PostMeta, htmlRelPath string) (*ParsedMarkdownResult, string, bool) {
 	cachedHTML, err := s.cache.GetHTMLContent(cachedMeta)
 	if err != nil || cachedHTML == nil {
 		return nil, "", false
@@ -265,20 +277,41 @@ func (s *postServiceImpl) loadFromCache(cachedMeta *cache.PostMeta, htmlRelPath 
 	return res, string(cachedHTML), true
 }
 
-func (s *postServiceImpl) processCachedMath(html string, exprs []models.MathExpression) string {
+// processCachedMath attempts to render math expressions from the diagram cache.
+// It checks both memory and persistent storage for cached math.
+//
+// Returns:
+//   - string: HTML with math expressions replaced (or original if none found)
+//   - bool: true if ALL math expressions were successfully resolved, false otherwise
+//
+// If false is returned, callers should typically re-parse to render missing math.
+func (s *postService) processCachedMath(html string, exprs []models.MathExpression) (string, bool) {
+	if s.diagramAdapter == nil || len(exprs) == 0 {
+		return html, true
+	}
+
 	renderedMath := make(map[string]string)
+	missingCount := 0
 	for _, expr := range exprs {
-		if v, ok := s.diagramAdapter.GetLocal(expr.Hash); ok {
+		if v, ok := s.diagramAdapter.Get(expr.Hash); ok {
 			renderedMath[expr.Hash] = v
+		} else {
+			missingCount++
 		}
 	}
-	if len(renderedMath) > 0 {
-		return mdParser.ReplaceMathExpressions(html, exprs, renderedMath)
+
+	if missingCount > 0 {
+		s.logger.Debug("Math cache miss", "missing", missingCount, "total", len(exprs))
+		return html, false
 	}
-	return html
+
+	if len(renderedMath) > 0 {
+		return mdParser.ReplaceMathExpressions(html, exprs, renderedMath), true
+	}
+	return html, true
 }
 
-func (s *postServiceImpl) renderMath(ctx context.Context, path string, res *ParsedMarkdownResult) string {
+func (s *postService) renderMath(ctx context.Context, path string, res *ParsedMarkdownResult) string {
 	if len(res.MathExpressions) == 0 {
 		return res.HTMLContent
 	}
@@ -312,7 +345,12 @@ func (s *postServiceImpl) renderMath(ctx context.Context, path string, res *Pars
 	return mdParser.ReplaceMathExpressions(res.HTMLContent, res.MathExpressions, rendered)
 }
 
-func (s *postServiceImpl) queueSocialCard(relPath string, res *ParsedMarkdownResult, htmlRelPath string, force bool, pool *utils.WorkerPool[socialCardTask]) {
+// queueSocialCard queues a social card generation task.
+//
+// Fire-and-forget: Social card generation is a best-effort operation.
+// Errors are logged but don't fail the build. Missing social cards
+// don't affect the site's functionality - they just won't appear in OpenGraph tags.
+func (s *postService) queueSocialCard(relPath string, res *ParsedMarkdownResult, htmlRelPath string, force bool, pool *async.WorkerPool[socialCardTask]) {
 	cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp"))
 	cardHash, _ := s.cardHashes.Load(relPath)
 	if force || cardHash != res.FrontmatterHash {
@@ -325,7 +363,7 @@ func (s *postServiceImpl) queueSocialCard(relPath string, res *ParsedMarkdownRes
 	}
 }
 
-func (s *postServiceImpl) aggregateParseResult(pc *postProcessContext, f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, version, relPath, htmlRelPath string, ssrHashes []string, useCache bool) {
+func (s *postService) aggregateParseResult(pc *postProcessContext, f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, version, relPath, htmlRelPath string, ssrHashes []string, useCache bool) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
@@ -360,7 +398,9 @@ func (s *postServiceImpl) aggregateParseResult(pc *postProcessContext, f models.
 			Meta: res.MetaData, TOC: res.TOC, Version: version, SSRInputHashes: ssrHashes,
 			CardHash: res.FrontmatterHash, HasImages: res.HasImages, MathExpressions: res.MathExpressions,
 		}
-		_ = s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent))
+		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
+			s.logger.Warn("Failed to store HTML for post", "path", relPath, "error", err)
+		}
 		newSearch := &cache.SearchRecord{
 			Title: post.Title, NormalizedTitle: res.SearchRecord.NormalizedTitle,
 			BM25Data: res.WordFreqs, DocLen: res.DocLen, Content: res.SearchRecord.Content,
@@ -373,7 +413,7 @@ func (s *postServiceImpl) aggregateParseResult(pc *postProcessContext, f models.
 	}
 }
 
-func (s *postServiceImpl) runRenderPhase(ctx context.Context, numWorkers int, pc *postProcessContext) {
+func (s *postService) runRenderPhase(ctx context.Context, numWorkers int, pc *postProcessContext) {
 	// Prepare versioned navigation
 	postsByVersion := make(map[string][]models.PostMetadata)
 	postPosByVersion := make(map[string]map[string]int)
@@ -381,14 +421,14 @@ func (s *postServiceImpl) runRenderPhase(ctx context.Context, numWorkers int, pc
 		postsByVersion[p.Version] = append(postsByVersion[p.Version], p)
 	}
 	for ver, posts := range postsByVersion {
-		utils.SortPosts(posts)
+		timeutil.SortPosts(posts)
 		postPosByVersion[ver] = make(map[string]int)
 		for i, p := range posts {
 			postPosByVersion[ver][p.Link] = i
 		}
 	}
 
-	renderPool := utils.NewWorkerPool(ctx, numWorkers, func(rt renderTask) {
+	renderPool := async.NewWorkerPool(ctx, numWorkers, func(rt renderTask) error {
 		post := rt.parseRes.Post
 		imagePath := s.cfg.BaseURL + "/static/images/cards/" + strings.TrimSuffix(rt.htmlRelPath, ".html") + ".webp"
 		var prev, next *models.NavPage
@@ -410,19 +450,26 @@ func (s *postServiceImpl) runRenderPhase(ctx context.Context, numWorkers int, pc
 			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(rt.htmlRelPath),
 			HasImages: rt.parseRes.HasImages,
 		})
+		return nil
 	}).WithScheduler(utils.GlobalScheduler, utils.TaskMarkdown)
 
 	renderPool.Start()
 	for _, rt := range pc.readyToRender {
 		renderPool.Submit(rt)
 	}
-	renderPool.Stop()
+	_ = renderPool.Stop()
 }
 
 // finalizeBuild commits cache changes asynchronously.
-// Cache commits are fire-and-forget: errors are logged but don't fail the build,
-// as the cache will rebuild on next run. This avoids blocking the build pipeline.
-func (s *postServiceImpl) finalizeBuild(pc *postProcessContext) {
+//
+// Fire-and-forget: Cache commits are best-effort operations.
+// Errors are logged but don't fail the build, as the cache will rebuild
+// on the next run. This avoids blocking the build pipeline, ensuring that
+// transient storage failures don't block site deployment.
+//
+// Concurrency: Safe for concurrent calls within the same build session.
+// The WaitForCacheCommit method can be used to wait for completion if needed.
+func (s *postService) finalizeBuild(pc *postProcessContext) {
 	if len(pc.newPostsMeta) > 0 && s.cache != nil {
 		s.cacheWg.Add(1)
 		async.FireAndForgetWithCleanup(context.Background(), s.logger, "cache commit",

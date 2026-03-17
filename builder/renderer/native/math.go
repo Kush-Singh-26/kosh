@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/fastschema/qjs"
 )
@@ -41,7 +43,7 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []models.M
 	}
 
 	slog.Info("Global math batch render", "total", len(uniqueExprs), "workers", r.numWorkers)
-	timer := utils.StartPhase("Global math render")
+	timer := timeutil.StartPhase("Global math render")
 	defer timer.Stop()
 
 	// 2. Chunk expressions by number of workers

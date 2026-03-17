@@ -1,9 +1,9 @@
 package services
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"bytes"
 	"context"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/mocks/services"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 )
 
 func TestAssetService_Build(t *testing.T) {
@@ -55,7 +55,13 @@ body {
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := NewAssetServiceWith(sourceFs, sink, cfg, mockRend, logger)
+	svc := NewAssetService(AssetServiceDependencies{
+		SourceFs: sourceFs,
+		Sink:     sink,
+		Cfg:      cfg,
+		Renderer: mockRend,
+		Logger:   logger,
+	})
 
 	ctx := context.Background()
 	if err := svc.Build(ctx); err != nil {
@@ -141,11 +147,17 @@ func TestAssetService_Build_DoesNotHardlinkSourceStaticFiles(t *testing.T) {
 	}
 
 	sourceFs := afero.NewOsFs()
-	sink := utils.NewDiskSink(outputDir, outputDir)
+	sink := fspkg.NewDiskSink(outputDir, outputDir)
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := NewAssetServiceWith(sourceFs, sink, cfg, mockRend, logger)
+	svc := NewAssetService(AssetServiceDependencies{
+		SourceFs: sourceFs,
+		Sink:     sink,
+		Cfg:      cfg,
+		Renderer: mockRend,
+		Logger:   logger,
+	})
 	ctx := context.Background()
 	if err := svc.Build(ctx); err != nil {
 		t.Fatalf("Asset Build failed: %v", err)
@@ -200,11 +212,17 @@ func TestAssetService_Build_DoesNotCopySourceSearchWasm(t *testing.T) {
 	}
 
 	sourceFs := afero.NewOsFs()
-	sink := utils.NewDiskSink(outputDir, outputDir)
+	sink := fspkg.NewDiskSink(outputDir, outputDir)
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := NewAssetServiceWith(sourceFs, sink, cfg, mockRend, logger)
+	svc := NewAssetService(AssetServiceDependencies{
+		SourceFs: sourceFs,
+		Sink:     sink,
+		Cfg:      cfg,
+		Renderer: mockRend,
+		Logger:   logger,
+	})
 	if err := svc.Build(context.Background()); err != nil {
 		t.Fatalf("asset build failed: %v", err)
 	}

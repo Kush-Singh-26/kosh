@@ -8,10 +8,9 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
 )
-
-var testingMode = false
 
 // cleanupWg tracks background deletion goroutines for proper shutdown
 var cleanupWg sync.WaitGroup
@@ -59,7 +58,7 @@ func cleanDirAsync(fs afero.Fs, path string) {
 		return
 	}
 
-	if testingMode {
+	if utils.TestingMode {
 		_ = fs.RemoveAll(path)
 		return
 	}

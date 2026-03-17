@@ -14,11 +14,11 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/services"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
 
@@ -70,6 +70,9 @@ func TestIsAssetPath(t *testing.T) {
 						StaticDir: tt.staticDir,
 					},
 				},
+				deps: BuilderDependencies{
+					Wasm: &mocks.MockWasmService{},
+				},
 			}
 			got := b.isAssetPath(tt.path)
 			if got != tt.want {
@@ -84,7 +87,11 @@ func TestNormalizeWatchPath_ProjectRelativeAbsolutePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
-	b := &Builder{}
+	b := &Builder{
+		deps: BuilderDependencies{
+			Wasm: &mocks.MockWasmService{},
+		},
+	}
 	abs := filepath.Join(wd, "themes", "test-theme", "static", "css", "style.css")
 	got := b.normalizeWatchPath(abs)
 	expected := fspkg.NormalizePath("themes/test-theme/static/css/style.css")
@@ -154,6 +161,9 @@ func TestInvalidateForTemplate(t *testing.T) {
 						TemplateDir: tt.templateDir,
 						StaticDir:   tt.staticDir,
 					},
+				},
+				deps: BuilderDependencies{
+					Wasm: &mocks.MockWasmService{},
 				},
 			}
 			got := b.invalidateForTemplate(tt.templatePath)
@@ -244,6 +254,7 @@ Initial body.
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -265,6 +276,7 @@ Initial body.
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},
@@ -358,6 +370,7 @@ Initial body.
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -379,6 +392,7 @@ Initial body.
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},

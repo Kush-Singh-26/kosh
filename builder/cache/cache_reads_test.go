@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"testing"
 )
 
@@ -12,7 +13,7 @@ func TestGetPostByPath(t *testing.T) {
 	post := createSamplePostMeta()
 	post.Path = "content/posts/my-post.md"
 
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -54,7 +55,7 @@ func TestGetPostByID(t *testing.T) {
 	post := createSamplePostMeta()
 	post.PostID = "my-unique-post-id"
 
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -100,7 +101,7 @@ func TestGetPostsByIDs(t *testing.T) {
 	post3 := createSamplePostMeta()
 	post3.PostID = "post-3"
 
-	if err := m.BatchCommit([]*PostMeta{post1, post2, post3}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post1, post2, post3}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -148,7 +149,7 @@ func TestGetSearchRecord(t *testing.T) {
 
 	// Create post with search record
 	post := createSamplePostMeta()
-	record := &SearchRecord{
+	record := &core.SearchRecord{
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
 		BM25Data:        map[string]int{"test": 1, "post": 2},
@@ -156,11 +157,11 @@ func TestGetSearchRecord(t *testing.T) {
 		NormalizedTags:  []string{"test", "go"},
 	}
 
-	records := map[string]*SearchRecord{
+	records := map[string]*core.SearchRecord{
 		post.PostID: record,
 	}
 
-	if err := m.BatchCommit([]*PostMeta{post}, records, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, records, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -204,15 +205,15 @@ func TestGetSearchRecords(t *testing.T) {
 	post2 := createSamplePostMeta()
 	post2.PostID = "post-2"
 
-	record1 := &SearchRecord{Title: "Post 1"}
-	record2 := &SearchRecord{Title: "Post 2"}
+	record1 := &core.SearchRecord{Title: "Post 1"}
+	record2 := &core.SearchRecord{Title: "Post 2"}
 
-	records := map[string]*SearchRecord{
+	records := map[string]*core.SearchRecord{
 		"post-1": record1,
 		"post-2": record2,
 	}
 
-	if err := m.BatchCommit([]*PostMeta{post1, post2}, records, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post1, post2}, records, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -267,8 +268,8 @@ func TestGetHTMLContent_Empty(t *testing.T) {
 
 	// Get HTML content
 	content, err := m.GetHTMLContent(post)
-	if err != nil {
-		t.Fatalf("GetHTMLContent failed: %v", err)
+	if err != core.ErrNoContent {
+		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 
 	if content != nil {
@@ -293,17 +294,17 @@ func TestGetPostsByTag(t *testing.T) {
 	post3.PostID = "post-3"
 	post3.Tags = []string{"python", "tutorial"}
 
-	deps1 := &Dependencies{Tags: post1.Tags}
-	deps2 := &Dependencies{Tags: post2.Tags}
-	deps3 := &Dependencies{Tags: post3.Tags}
+	deps1 := &core.Dependencies{Tags: post1.Tags}
+	deps2 := &core.Dependencies{Tags: post2.Tags}
+	deps3 := &core.Dependencies{Tags: post3.Tags}
 
-	depsMap := map[string]*Dependencies{
+	depsMap := map[string]*core.Dependencies{
 		"post-1": deps1,
 		"post-2": deps2,
 		"post-3": deps3,
 	}
 
-	if err := m.BatchCommit([]*PostMeta{post1, post2, post3}, nil, depsMap); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post1, post2, post3}, nil, depsMap); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -354,15 +355,15 @@ func TestGetPostsByTemplate(t *testing.T) {
 	post2 := createSamplePostMeta()
 	post2.PostID = "post-2"
 
-	deps1 := &Dependencies{Templates: []string{"layouts/post.html", "partials/header.html"}}
-	deps2 := &Dependencies{Templates: []string{"layouts/post.html"}}
+	deps1 := &core.Dependencies{Templates: []string{"layouts/post.html", "partials/header.html"}}
+	deps2 := &core.Dependencies{Templates: []string{"layouts/post.html"}}
 
-	depsMap := map[string]*Dependencies{
+	depsMap := map[string]*core.Dependencies{
 		"post-1": deps1,
 		"post-2": deps2,
 	}
 
-	if err := m.BatchCommit([]*PostMeta{post1, post2}, nil, depsMap); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post1, post2}, nil, depsMap); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -386,7 +387,7 @@ func TestGetCachedItem_Generic(t *testing.T) {
 	post := createSamplePostMeta()
 	post.PostID = "generic-test"
 
-	if err := m.BatchCommit([]*PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 

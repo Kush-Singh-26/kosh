@@ -1,37 +1,39 @@
 package utils
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/zeebo/xxh3"
 	"gopkg.in/yaml.v3"
-
-	"github.com/Kush-Singh-26/kosh/builder/models"
 )
+
+var ErrEmptyData = errors.New("empty data")
 
 func GetFrontmatterHash(metaData map[string]any) (string, error) {
 	h := xxh3.New()
 
-	writeStringXXH3(h, GetString(metaData, "title"))
+	writeStringXXH3(h, timeutil.ExtractStringFromMap(metaData, "title"))
 	_, _ = h.Write([]byte{0})
-	writeStringXXH3(h, GetString(metaData, "description"))
+	writeStringXXH3(h, timeutil.ExtractStringFromMap(metaData, "description"))
 	_, _ = h.Write([]byte{0})
 
 	// Handle date explicitly to avoid timezone-related non-determinism
 	if dateVal, ok := metaData["date"].(time.Time); ok {
 		writeStringXXH3(h, dateVal.Format("2006-01-02"))
 	} else {
-		writeStringXXH3(h, GetString(metaData, "date"))
+		writeStringXXH3(h, timeutil.ExtractStringFromMap(metaData, "date"))
 	}
 	_, _ = h.Write([]byte{0})
 
 	// Sort in-place (caller shouldn't rely on original order)
-	tags := GetSlice(metaData, "tags")
+	tags := timeutil.ExtractSliceFromMap(metaData, "tags")
 	if len(tags) > 0 {
 		sort.Strings(tags)
 		for _, tag := range tags {
@@ -138,37 +140,11 @@ func GetFrontmatterHashFromSource(source []byte) (string, error) {
 
 func ParseFrontmatter(data []byte) (map[string]any, error) {
 	if len(data) == 0 {
-		return nil, nil
+		return nil, ErrEmptyData
 	}
 	metaData := make(map[string]any)
 	if err := yaml.Unmarshal(data, &metaData); err != nil {
 		return nil, err
 	}
 	return metaData, nil
-}
-
-type postGraphInfo struct {
-	Title string   `json:"title"`
-	Link  string   `json:"link"`
-	Tags  []string `json:"tags"`
-}
-
-func GetGraphHash(posts []models.PostMetadata) (string, error) {
-	graphInfo := make([]postGraphInfo, 0, len(posts))
-	for _, p := range posts {
-		graphInfo = append(graphInfo, postGraphInfo{
-			Title: p.Title,
-			Link:  p.Link,
-			Tags:  p.Tags,
-		})
-	}
-
-	data, err := json.Marshal(graphInfo)
-	if err != nil {
-		return "", err
-	}
-
-	hash := xxh3.Hash128(data)
-	b := hash.Bytes()
-	return hex.EncodeToString(b[:]), nil
 }

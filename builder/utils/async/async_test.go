@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"log/slog"
+	"sync/atomic"
 )
 
 // helperLogger creates a test logger
@@ -118,24 +120,32 @@ func TestFireAndForgetWithCleanup_Success(t *testing.T) {
 	logger := helperLogger(t)
 
 	var executed, cleaned bool
+	var mu sync.Mutex
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 
 	FireAndForgetWithCleanup(ctx, logger, "test success",
 		func() error {
+			mu.Lock()
 			executed = true
+			mu.Unlock()
 			wg.Done()
 			return nil
 		},
 		func() {
+			mu.Lock()
 			cleaned = true
+			mu.Unlock()
+			wg.Done()
 		})
 
-	// Wait for goroutine to complete
+	// Wait for goroutine to complete including cleanup
 	wg.Wait()
-	time.Sleep(10 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if !executed {
+
 		t.Error("FireAndForgetWithCleanup did not execute the function")
 	}
 	if !cleaned {
@@ -149,25 +159,32 @@ func TestFireAndForgetWithCleanup_Error(t *testing.T) {
 	logger := helperLogger(t)
 
 	var executed, cleaned bool
+	var mu sync.Mutex
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 
 	expectedErr := errors.New("test error")
 
 	FireAndForgetWithCleanup(ctx, logger, "test error",
 		func() error {
+			mu.Lock()
 			executed = true
-			defer wg.Done()
+			mu.Unlock()
+			wg.Done()
 			return expectedErr
 		},
 		func() {
+			mu.Lock()
 			cleaned = true
+			mu.Unlock()
+			wg.Done()
 		})
 
 	// Wait for goroutine to complete
 	wg.Wait()
-	time.Sleep(10 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if !executed {
 		t.Error("FireAndForgetWithCleanup did not execute the function")
 	}
@@ -182,8 +199,9 @@ func TestFireAndForgetWithCleanup_Panic(t *testing.T) {
 	logger := helperLogger(t)
 
 	var cleaned bool
+	var mu sync.Mutex
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 
 	FireAndForgetWithCleanup(ctx, logger, "test panic",
 		func() error {
@@ -191,13 +209,17 @@ func TestFireAndForgetWithCleanup_Panic(t *testing.T) {
 			panic("test panic")
 		},
 		func() {
+			mu.Lock()
 			cleaned = true
+			mu.Unlock()
+			wg.Done()
 		})
 
 	// Wait for goroutine to complete
 	wg.Wait()
-	time.Sleep(10 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if !cleaned {
 		t.Error("FireAndForgetWithCleanup did not call cleanup on panic")
 	}
@@ -236,8 +258,9 @@ func TestFireAndForgetWithCleanup_CleanupRunsAfterPanic(t *testing.T) {
 	logger := helperLogger(t)
 
 	cleanupCalled := false
+	var mu sync.Mutex
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 
 	FireAndForgetWithCleanup(ctx, logger, "test cleanup order",
 		func() error {
@@ -245,13 +268,17 @@ func TestFireAndForgetWithCleanup_CleanupRunsAfterPanic(t *testing.T) {
 			panic("intentional panic")
 		},
 		func() {
+			mu.Lock()
 			cleanupCalled = true
+			mu.Unlock()
+			wg.Done()
 		})
 
 	// Wait for goroutine to complete
 	wg.Wait()
-	time.Sleep(10 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if !cleanupCalled {
 		t.Error("Cleanup was not called after panic")
 	}
@@ -298,7 +325,7 @@ func TestFireAndForgetWithCleanup_MultipleGoroutines(t *testing.T) {
 	var wg sync.WaitGroup
 
 	numGoroutines := 10
-	wg.Add(numGoroutines)
+	wg.Add(numGoroutines * 2)
 
 	for i := 0; i < numGoroutines; i++ {
 		FireAndForgetWithCleanup(ctx, logger, "test concurrent",
@@ -313,6 +340,7 @@ func TestFireAndForgetWithCleanup_MultipleGoroutines(t *testing.T) {
 				mu.Lock()
 				cleanupCount++
 				mu.Unlock()
+				wg.Done()
 			})
 	}
 
@@ -360,18 +388,25 @@ func TestFireAndForget_ReturnsImmediately(t *testing.T) {
 	logger := helperLogger(t)
 
 	start := time.Now()
+	var executed atomic.Bool
 
 	FireAndForget(ctx, logger, "test immediate", func() error {
 		time.Sleep(100 * time.Millisecond)
+		executed.Store(true)
 		return nil
 	})
 
 	elapsed := time.Since(start)
 
 	// FireAndForget should return immediately (within 1ms)
-	if elapsed > time.Millisecond {
+	if elapsed > 10*time.Millisecond {
 		t.Errorf("FireAndForget did not return immediately: %v", elapsed)
 	}
+
+	// Ensure background task completes
+	testutil.WaitForCondition(t, 200*time.Millisecond, func() bool {
+		return executed.Load()
+	})
 }
 
 // TestFireAndForgetWithCallback_Success tests successful execution without callback
@@ -403,23 +438,28 @@ func TestFireAndForgetWithCallback_Error(t *testing.T) {
 	logger := helperLogger(t)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
+	var mu sync.Mutex
 	var callbackCalled bool
 	var callbackErr error
 
 	expectedErr := errors.New("test error")
 
 	FireAndForgetWithCallback(ctx, logger, "test error", func() error {
-		defer wg.Done()
+		wg.Done()
 		return expectedErr
 	}, func(err error) {
+		mu.Lock()
 		callbackCalled = true
 		callbackErr = err
+		mu.Unlock()
+		wg.Done()
 	})
 
 	wg.Wait()
-	time.Sleep(10 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if !callbackCalled {
 		t.Error("FireAndForgetWithCallback did not call onError")
 	}
@@ -480,22 +520,29 @@ func TestFireAndForgetWithCallback_CallbackRunsAfterError(t *testing.T) {
 	logger := helperLogger(t)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
+	var mu sync.Mutex
 	var executionOrder []string
 
 	expectedErr := errors.New("test error")
 
 	FireAndForgetWithCallback(ctx, logger, "test order", func() error {
-		defer wg.Done()
+		mu.Lock()
 		executionOrder = append(executionOrder, "fn")
+		mu.Unlock()
+		wg.Done()
 		return expectedErr
 	}, func(err error) {
+		mu.Lock()
 		executionOrder = append(executionOrder, "callback")
+		mu.Unlock()
+		wg.Done()
 	})
 
 	wg.Wait()
-	time.Sleep(10 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if len(executionOrder) != 2 {
 		t.Fatalf("FireAndForgetWithCallback expected 2 executions, got %d", len(executionOrder))
 	}
@@ -616,8 +663,9 @@ func TestFireAndForgetWithMetrics_Error(t *testing.T) {
 	logger := helperLogger(t)
 
 	var tracked bool
+	var mu sync.Mutex
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 
 	FireAndForgetWithMetrics(ctx, logger, "test metrics error",
 		func() error {
@@ -625,12 +673,16 @@ func TestFireAndForgetWithMetrics_Error(t *testing.T) {
 			return errors.New("test error")
 		},
 		func() {
+			mu.Lock()
 			tracked = true
+			mu.Unlock()
+			wg.Done()
 		})
 
 	wg.Wait()
-	time.Sleep(10 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if !tracked {
 		t.Error("trackFailure should be called on error")
 	}

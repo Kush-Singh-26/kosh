@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"encoding/binary"
 	"fmt"
 	"log/slog"
@@ -9,23 +10,27 @@ import (
 	"sync"
 	"time"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	bolt "go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 )
 
 // BatchCommit atomically commits posts, search records, and dependencies in a single BoltDB transaction.
 // All data is encoded in parallel with bounded concurrency before the transaction begins.
 //
-// Returns:
-//   - error: BoltDB transaction failure or encoding error (partial commit not possible)
+// Error Contract:
+//   - Returns error on BoltDB transaction failure or encoding error (partial commit not possible)
 //   - Retry behavior: Safe to retry on failure; idempotent within same build session
 //   - Thread safety: Concurrent calls are serialized via internal mutex
+//   - On error, no data is committed (all-or-nothing semantics)
 //
-// Note: On error, no data is committed (all-or-nothing semantics).
-func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*SearchRecord, deps map[string]*Dependencies) error {
+// Usage Note:
+// BatchCommit is designed for asynchronous fire-and-forget calls from the build pipeline.
+// It is safe to call without checking the error - the caller should log the error for visibility,
+// but the build should continue. On failure, the cache will rebuild on the next run.
+func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, deps map[string]*core.Dependencies) error {
 	// Pre-allocate slice for parallel encoding results
 	encoded := make([]EncodedPost, len(posts))
 
@@ -38,7 +43,7 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 	for i, post := range posts {
 		idx, p := i, post
 		g.Go(func() error {
-			postData, err := Encode(p)
+			postData, err := core.Encode(p)
 			if err != nil {
 				encodeMu.Lock()
 				if encodeErr == nil {
@@ -58,7 +63,7 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 			}
 
 			if sr, ok := searchRecords[p.PostID]; ok {
-				srData, err := Encode(sr)
+				srData, err := core.Encode(sr)
 				if err != nil {
 					encodeMu.Lock()
 					if encodeErr == nil {
@@ -73,7 +78,7 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 			}
 
 			if d, ok := deps[p.PostID]; ok {
-				depsData, err := Encode(d)
+				depsData, err := core.Encode(d)
 				if err != nil {
 					encodeMu.Lock()
 					if encodeErr == nil {
@@ -159,14 +164,14 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 	}
 
 	err := m.db.Update(func(tx *bolt.Tx) error {
-		postsBucket := tx.Bucket([]byte(BucketPosts))
+		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 
 		// Phase 1: Collect old HTML hashes for refcount delta (inside the tx)
 		oldHashes := make(map[string]string) // postID -> oldHTMLHash
 		for _, ep := range encoded {
 			if existing := postsBucket.Get(ep.PostID); existing != nil {
-				var oldPost PostMeta
-				if err := Decode(existing, &oldPost); err == nil && oldPost.HTMLHash != "" {
+				var oldPost core.PostMeta
+				if err := core.Decode(existing, &oldPost); err == nil && oldPost.HTMLHash != "" {
 					oldHashes[string(ep.PostID)] = oldPost.HTMLHash
 				}
 			}
@@ -186,32 +191,32 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 		if err := writeOps(postsBucket, ops.posts); err != nil {
 			return err
 		}
-		if err := writeOps(tx.Bucket([]byte(BucketPaths)), ops.paths); err != nil {
+		if err := writeOps(tx.Bucket([]byte(core.BucketPaths)), ops.paths); err != nil {
 			return err
 		}
-		if err := writeOps(tx.Bucket([]byte(BucketSearch)), ops.search); err != nil {
+		if err := writeOps(tx.Bucket([]byte(core.BucketSearch)), ops.search); err != nil {
 			return err
 		}
-		if err := writeOps(tx.Bucket([]byte(BucketPostDeps)), ops.deps); err != nil {
+		if err := writeOps(tx.Bucket([]byte(core.BucketPostDeps)), ops.deps); err != nil {
 			return err
 		}
-		if err := writeOps(tx.Bucket([]byte(BucketTags)), ops.tags); err != nil {
+		if err := writeOps(tx.Bucket([]byte(core.BucketTags)), ops.tags); err != nil {
 			return err
 		}
-		if err := writeOps(tx.Bucket([]byte(BucketDepsTemplates)), ops.templates); err != nil {
+		if err := writeOps(tx.Bucket([]byte(core.BucketDepsTemplates)), ops.templates); err != nil {
 			return err
 		}
-		if err := writeOps(tx.Bucket([]byte(BucketDepsIncludes)), ops.includes); err != nil {
+		if err := writeOps(tx.Bucket([]byte(core.BucketDepsIncludes)), ops.includes); err != nil {
 			return err
 		}
-		if err := writeOps(tx.Bucket([]byte(BucketVersions)), ops.versions); err != nil {
+		if err := writeOps(tx.Bucket([]byte(core.BucketVersions)), ops.versions); err != nil {
 			return err
 		}
 
 		// Phase 3: Adjust refcounts atomically inside the same transaction
 		for _, ep := range encoded {
-			var newPost PostMeta
-			if err := Decode(ep.Data, &newPost); err != nil {
+			var newPost core.PostMeta
+			if err := core.Decode(ep.Data, &newPost); err != nil {
 				continue
 			}
 			oldHash := oldHashes[string(ep.PostID)]
@@ -229,14 +234,14 @@ func (m *Manager) BatchCommit(posts []*PostMeta, searchRecords map[string]*Searc
 			}
 		}
 
-		stats := tx.Bucket([]byte(BucketStats))
+		stats := tx.Bucket([]byte(core.BucketStats))
 		buildCount := uint32(1)
-		if data := stats.Get([]byte(KeyBuildCount)); data != nil {
+		if data := stats.Get([]byte(core.KeyBuildCount)); data != nil {
 			buildCount = binary.BigEndian.Uint32(data) + 1
 		}
 		countData := make([]byte, 4)
 		binary.BigEndian.PutUint32(countData, buildCount)
-		if err := stats.Put([]byte(KeyBuildCount), countData); err != nil {
+		if err := stats.Put([]byte(core.KeyBuildCount), countData); err != nil {
 			return err
 		}
 
@@ -264,8 +269,8 @@ func (m *Manager) StoreHTML(content []byte) (string, error) {
 // StoreHTMLForPost stores HTML for a specific post, inlining if small.
 // Note: Refcount adjustments are handled atomically inside BatchCommit,
 // not here. This method only sets the HTMLHash/InlineHTML fields on the post struct.
-func (m *Manager) StoreHTMLForPost(post *PostMeta, content []byte) error {
-	if len(content) < utils.InlineHTMLThreshold {
+func (m *Manager) StoreHTMLForPost(post *core.PostMeta, content []byte) error {
+	if len(content) < models.InlineHTMLThreshold {
 		// Small content is inlined directly, no hash needed
 		post.InlineHTML = content
 		post.HTMLHash = ""
@@ -283,30 +288,30 @@ func (m *Manager) StoreHTMLForPost(post *PostMeta, content []byte) error {
 }
 
 // StoreSSR stores an SSR artifact and its content
-func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*SSRArtifact, error) {
+func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*core.SSRArtifact, error) {
 	category := filepath.Join("ssr", ssrType)
 	outputHash, ct, err := m.store.Put(category, content)
 	if err != nil {
 		return nil, err
 	}
 
-	artifact := &SSRArtifact{
+	artifact := &core.SSRArtifact{
 		Type:       ssrType,
 		InputHash:  inputHash,
 		OutputHash: outputHash,
 		Size:       int64(len(content)),
 		CreatedAt:  time.Now().Unix(),
-		Compressed: ct != CompressionNone,
+		Compressed: ct != core.CompressionNone,
 	}
 
 	key := ssrType + ":" + inputHash
-	data, err := Encode(artifact)
+	data, err := core.Encode(artifact)
 	if err != nil {
 		return nil, err
 	}
 
 	err = m.db.Batch(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BucketSSR))
+		bucket := tx.Bucket([]byte(core.BucketSSR))
 		return bucket.Put([]byte(key), data)
 	})
 
@@ -320,19 +325,19 @@ func (m *Manager) DeletePost(postID string) error {
 	var deleteErrors []error
 
 	err := m.db.Update(func(tx *bolt.Tx) error {
-		postsBucket := tx.Bucket([]byte(BucketPosts))
-		pathsBucket := tx.Bucket([]byte(BucketPaths))
-		searchBucket := tx.Bucket([]byte(BucketSearch))
-		depsBucket := tx.Bucket([]byte(BucketPostDeps))
-		tagsBucket := tx.Bucket([]byte(BucketTags))
-		versionsBucket := tx.Bucket([]byte(BucketVersions))
+		postsBucket := tx.Bucket([]byte(core.BucketPosts))
+		pathsBucket := tx.Bucket([]byte(core.BucketPaths))
+		searchBucket := tx.Bucket([]byte(core.BucketSearch))
+		depsBucket := tx.Bucket([]byte(core.BucketPostDeps))
+		tagsBucket := tx.Bucket([]byte(core.BucketTags))
+		versionsBucket := tx.Bucket([]byte(core.BucketVersions))
 
 		postIDBytes := []byte(postID)
 
 		data := postsBucket.Get(postIDBytes)
 		if data != nil {
-			var post PostMeta
-			if decodeErr := Decode(data, &post); decodeErr == nil {
+			var post core.PostMeta
+			if decodeErr := core.Decode(data, &post); decodeErr == nil {
 				postPath = fspkg.NormalizePath(post.Path)
 				htmlHash = post.HTMLHash
 				if err := pathsBucket.Delete([]byte(postPath)); err != nil {

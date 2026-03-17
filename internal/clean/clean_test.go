@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
 )
 
 func TestRunFs_CleanAll(t *testing.T) {
-	testingMode = true
-	defer func() { testingMode = false }()
+	utils.SetTestingMode(true)
+	defer func() { utils.SetTestingMode(false) }()
 
 	fs := afero.NewMemMapFs()
 
@@ -38,8 +39,8 @@ func TestRunFs_CleanAll(t *testing.T) {
 }
 
 func TestRunFs_CleanRootOnly(t *testing.T) {
-	testingMode = true
-	defer func() { testingMode = false }()
+	utils.SetTestingMode(true)
+	defer func() { utils.SetTestingMode(false) }()
 
 	fs := afero.NewMemMapFs()
 	_ = fs.MkdirAll("public/v1", 0755)

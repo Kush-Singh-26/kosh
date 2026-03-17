@@ -2,6 +2,7 @@ package cache
 
 import (
 	"bytes"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -25,7 +26,7 @@ func getCachedItem[T any](db *bolt.DB, bucketName string, key []byte) (*T, error
 		}
 
 		var item T
-		if err := Decode(data, &item); err != nil {
+		if err := core.Decode(data, &item); err != nil {
 			return err
 		}
 		result = &item
@@ -34,8 +35,8 @@ func getCachedItem[T any](db *bolt.DB, bucketName string, key []byte) (*T, error
 	return result, err
 }
 
-// memCacheGet retrieves a PostMeta from the in-memory cache
-func (m *Manager) memCacheGet(key string) *PostMeta {
+// memCacheGet retrieves a core.PostMeta from the in-memory cache
+func (m *Manager) memCacheGet(key string) *core.PostMeta {
 	entry, ok := m.memCache.Get(key)
 	if !ok {
 		return nil
@@ -49,8 +50,8 @@ func (m *Manager) memCacheGet(key string) *PostMeta {
 	return entry.meta
 }
 
-// memCacheSet stores a PostMeta in the in-memory cache
-func (m *Manager) memCacheSet(key string, meta *PostMeta) {
+// memCacheSet stores a core.PostMeta in the in-memory cache
+func (m *Manager) memCacheSet(key string, meta *core.PostMeta) {
 	m.memCache.Add(key, &memoryCacheEntry{
 		meta:      meta,
 		expiresAt: time.Now().Add(m.memCacheTTL),
@@ -63,7 +64,7 @@ func (m *Manager) memCacheDelete(key string) {
 }
 
 // GetPostByPath looks up a post by its file path in a single transaction
-func (m *Manager) GetPostByPath(path string) (*PostMeta, error) {
+func (m *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
 	normalizedPath := fspkg.NormalizePath(path)
 
 	// Check in-memory cache first
@@ -71,10 +72,10 @@ func (m *Manager) GetPostByPath(path string) (*PostMeta, error) {
 		return cached, nil
 	}
 
-	var result *PostMeta
+	var result *core.PostMeta
 	err := m.db.View(func(tx *bolt.Tx) error {
 		// First lookup the postID from paths bucket
-		paths := tx.Bucket([]byte(BucketPaths))
+		paths := tx.Bucket([]byte(core.BucketPaths))
 		if paths == nil {
 			return nil
 		}
@@ -84,7 +85,7 @@ func (m *Manager) GetPostByPath(path string) (*PostMeta, error) {
 		}
 
 		// Then get the post from posts bucket in the same transaction
-		posts := tx.Bucket([]byte(BucketPosts))
+		posts := tx.Bucket([]byte(core.BucketPosts))
 		if posts == nil {
 			return nil
 		}
@@ -93,8 +94,8 @@ func (m *Manager) GetPostByPath(path string) (*PostMeta, error) {
 			return nil
 		}
 
-		var meta PostMeta
-		if err := Decode(data, &meta); err != nil {
+		var meta core.PostMeta
+		if err := core.Decode(data, &meta); err != nil {
 			return err
 		}
 		result = &meta
@@ -110,14 +111,14 @@ func (m *Manager) GetPostByPath(path string) (*PostMeta, error) {
 }
 
 // GetPostByID retrieves a post by its PostID
-func (m *Manager) GetPostByID(postID string) (*PostMeta, error) {
+func (m *Manager) GetPostByID(postID string) (*core.PostMeta, error) {
 	// Check in-memory cache first
 	cacheKey := "id:" + postID
 	if cached := m.memCacheGet(cacheKey); cached != nil {
 		return cached, nil
 	}
 
-	result, err := getCachedItem[PostMeta](m.db, BucketPosts, []byte(postID))
+	result, err := getCachedItem[core.PostMeta](m.db, core.BucketPosts, []byte(postID))
 	if err == nil && result != nil {
 		m.memCacheSet(cacheKey, result)
 	}
@@ -126,8 +127,8 @@ func (m *Manager) GetPostByID(postID string) (*PostMeta, error) {
 
 // GetPostsByIDs retrieves multiple posts by their PostIDs in a single transaction
 // Uses parallel decoding for better performance with large batches
-func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*PostMeta, error) {
-	result := make(map[string]*PostMeta, len(postIDs))
+func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMeta, error) {
+	result := make(map[string]*core.PostMeta, len(postIDs))
 	if len(postIDs) == 0 {
 		return result, nil
 	}
@@ -140,7 +141,7 @@ func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*PostMeta, error) 
 	rawItems := make([]rawData, 0, len(postIDs))
 
 	err := m.db.View(func(tx *bolt.Tx) error {
-		postsBucket := tx.Bucket([]byte(BucketPosts))
+		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 
 		for _, id := range postIDs {
 			data := postsBucket.Get([]byte(id))
@@ -157,7 +158,7 @@ func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*PostMeta, error) 
 		return result, err
 	}
 
-	// Decode in parallel for large batches
+	// core.Decode in parallel for large batches
 	if len(rawItems) > 10 {
 		var mu sync.Mutex
 		var g errgroup.Group
@@ -166,8 +167,8 @@ func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*PostMeta, error) 
 		for _, item := range rawItems {
 			it := item
 			g.Go(func() error {
-				postMeta := new(PostMeta)
-				if err := Decode(it.data, postMeta); err == nil {
+				postMeta := new(core.PostMeta)
+				if err := core.Decode(it.data, postMeta); err == nil {
 					mu.Lock()
 					result[it.id] = postMeta
 					mu.Unlock()
@@ -179,8 +180,8 @@ func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*PostMeta, error) 
 	} else {
 		// Sequential for small batches (avoids goroutine overhead)
 		for _, item := range rawItems {
-			postMeta := new(PostMeta)
-			if err := Decode(item.data, postMeta); err == nil {
+			postMeta := new(core.PostMeta)
+			if err := core.Decode(item.data, postMeta); err == nil {
 				result[item.id] = postMeta
 			}
 		}
@@ -195,7 +196,7 @@ func (m *Manager) GetPostsByTemplate(templatePath string) ([]string, error) {
 	key := []byte(templatePath)
 
 	err := m.db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BucketDepsTemplates))
+		bucket := tx.Bucket([]byte(core.BucketDepsTemplates))
 		if bucket == nil {
 			return nil
 		}
@@ -211,14 +212,14 @@ func (m *Manager) GetPostsByTemplate(templatePath string) ([]string, error) {
 }
 
 // GetSearchRecords retrieves multiple search records by PostIDs
-func (m *Manager) GetSearchRecords(postIDs []string) (map[string]*SearchRecord, error) {
-	result := make(map[string]*SearchRecord, len(postIDs))
+func (m *Manager) GetSearchRecords(postIDs []string) (map[string]*core.SearchRecord, error) {
+	result := make(map[string]*core.SearchRecord, len(postIDs))
 	if len(postIDs) == 0 {
 		return result, nil
 	}
 
 	err := m.db.View(func(tx *bolt.Tx) error {
-		searchBucket := tx.Bucket([]byte(BucketSearch))
+		searchBucket := tx.Bucket([]byte(core.BucketSearch))
 
 		for _, id := range postIDs {
 			data := searchBucket.Get([]byte(id))
@@ -226,8 +227,8 @@ func (m *Manager) GetSearchRecords(postIDs []string) (map[string]*SearchRecord, 
 				continue
 			}
 
-			var record SearchRecord
-			if err := Decode(data, &record); err != nil {
+			var record core.SearchRecord
+			if err := core.Decode(data, &record); err != nil {
 				continue
 			}
 			result[id] = &record
@@ -239,29 +240,29 @@ func (m *Manager) GetSearchRecords(postIDs []string) (map[string]*SearchRecord, 
 }
 
 // GetSearchRecord retrieves the search record for a post
-func (m *Manager) GetSearchRecord(postID string) (*SearchRecord, error) {
-	return getCachedItem[SearchRecord](m.db, BucketSearch, []byte(postID))
+func (m *Manager) GetSearchRecord(postID string) (*core.SearchRecord, error) {
+	return getCachedItem[core.SearchRecord](m.db, core.BucketSearch, []byte(postID))
 }
 
 // GetSSRArtifact retrieves an SSR artifact
-func (m *Manager) GetSSRArtifact(ssrType, inputHash string) (*SSRArtifact, error) {
+func (m *Manager) GetSSRArtifact(ssrType, inputHash string) (*core.SSRArtifact, error) {
 	key := ssrType + ":" + inputHash
-	return getCachedItem[SSRArtifact](m.db, BucketSSR, []byte(key))
+	return getCachedItem[core.SSRArtifact](m.db, core.BucketSSR, []byte(key))
 }
 
 // GetSSRContent retrieves the actual content for an SSR artifact
-func (m *Manager) GetSSRContent(ssrType string, artifact *SSRArtifact) ([]byte, error) {
+func (m *Manager) GetSSRContent(ssrType string, artifact *core.SSRArtifact) ([]byte, error) {
 	category := filepath.Join("ssr", ssrType)
 	return m.store.Get(category, artifact.OutputHash, artifact.Compressed)
 }
 
 // GetHTMLContent retrieves HTML content for a post
-func (m *Manager) GetHTMLContent(post *PostMeta) ([]byte, error) {
+func (m *Manager) GetHTMLContent(post *core.PostMeta) ([]byte, error) {
 	if len(post.InlineHTML) > 0 {
 		return post.InlineHTML, nil
 	}
 	if post.HTMLHash == "" {
-		return nil, nil
+		return nil, core.ErrNoContent
 	}
 	return m.store.Get("html", post.HTMLHash, true)
 }
@@ -271,7 +272,7 @@ func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
 	var ids []string
 
 	err := m.db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BucketTags))
+		bucket := tx.Bucket([]byte(core.BucketTags))
 		if bucket == nil {
 			return nil
 		}
@@ -292,12 +293,12 @@ func (m *Manager) GetPostsMetadataByVersion(version string) ([]PostListMeta, err
 	var result []PostListMeta
 
 	err := m.db.View(func(tx *bolt.Tx) error {
-		versionsBucket := tx.Bucket([]byte(BucketVersions))
+		versionsBucket := tx.Bucket([]byte(core.BucketVersions))
 		if versionsBucket == nil {
 			return nil
 		}
 
-		postsBucket := tx.Bucket([]byte(BucketPosts))
+		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		if postsBucket == nil {
 			return nil
 		}
@@ -309,8 +310,8 @@ func (m *Manager) GetPostsMetadataByVersion(version string) ([]PostListMeta, err
 
 			v := postsBucket.Get(postID)
 			if v != nil {
-				var meta PostMeta
-				if err := Decode(v, &meta); err == nil {
+				var meta core.PostMeta
+				if err := core.Decode(v, &meta); err == nil {
 					result = append(result, PostListMeta{
 						Title:   meta.Title,
 						Link:    meta.Link,
@@ -325,13 +326,4 @@ func (m *Manager) GetPostsMetadataByVersion(version string) ([]PostListMeta, err
 	})
 
 	return result, err
-}
-
-// PostListMeta contains minimal metadata needed for navigation/sorting
-type PostListMeta struct {
-	Title   string
-	Link    string
-	Weight  int
-	Version string
-	Date    time.Time
 }

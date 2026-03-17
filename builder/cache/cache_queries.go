@@ -2,6 +2,7 @@ package cache
 
 import (
 	"encoding/binary"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"path/filepath"
 
 	bolt "go.etcd.io/bbolt"
@@ -10,7 +11,7 @@ import (
 func (m *Manager) ListAllPosts() ([]string, error) {
 	var ids []string
 	err := m.db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BucketPosts))
+		bucket := tx.Bucket([]byte(core.BucketPosts))
 		return bucket.ForEach(func(k, _ []byte) error {
 			ids = append(ids, string(k))
 			return nil
@@ -19,29 +20,29 @@ func (m *Manager) ListAllPosts() ([]string, error) {
 	return ids, err
 }
 
-func (m *Manager) Stats() (*CacheStats, error) {
-	stats := &CacheStats{
-		SchemaVersion: SchemaVersion,
+func (m *Manager) Stats() (*core.CacheStats, error) {
+	stats := &core.CacheStats{
+		SchemaVersion: core.SchemaVersion,
 	}
 
 	err := m.db.View(func(tx *bolt.Tx) error {
-		postsBucket := tx.Bucket([]byte(BucketPosts))
+		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		stats.TotalPosts = postsBucket.Stats().KeyN
 
-		ssrBucket := tx.Bucket([]byte(BucketSSR))
+		ssrBucket := tx.Bucket([]byte(core.BucketSSR))
 		stats.TotalSSR = ssrBucket.Stats().KeyN
 
-		statsBucket := tx.Bucket([]byte(BucketStats))
-		if data := statsBucket.Get([]byte(KeyBuildCount)); data != nil {
+		statsBucket := tx.Bucket([]byte(core.BucketStats))
+		if data := statsBucket.Get([]byte(core.KeyBuildCount)); data != nil {
 			stats.BuildCount = int(binary.BigEndian.Uint32(data))
 		}
-		if data := statsBucket.Get([]byte(KeyLastGC)); data != nil {
+		if data := statsBucket.Get([]byte(core.KeyLastGC)); data != nil {
 			stats.LastGC = int64(binary.BigEndian.Uint64(data))
 		}
 
 		return postsBucket.ForEach(func(k, v []byte) error {
-			var post PostMeta
-			if err := Decode(v, &post); err == nil {
+			var post core.PostMeta
+			if err := core.Decode(v, &post); err == nil {
 				if len(post.InlineHTML) > 0 {
 					stats.InlinePosts++
 				} else if post.HTMLHash != "" {
@@ -69,7 +70,7 @@ func (m *Manager) Stats() (*CacheStats, error) {
 func (m *Manager) GetSocialCardHash(path string) (string, error) {
 	var hash string
 	err := m.db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BucketSocialCard))
+		bucket := tx.Bucket([]byte(core.BucketSocialCard))
 		if bucket == nil {
 			return nil
 		}
@@ -85,7 +86,7 @@ func (m *Manager) GetSocialCardHash(path string) (string, error) {
 // SetSocialCardHash stores the hash for a social card
 func (m *Manager) SetSocialCardHash(path, hash string) error {
 	return m.db.Update(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BucketSocialCard))
+		bucket := tx.Bucket([]byte(core.BucketSocialCard))
 		if bucket == nil {
 			return nil
 		}
@@ -99,7 +100,7 @@ func (m *Manager) BatchSetSocialCardHashes(hashes map[string]string) error {
 		return nil
 	}
 	return m.db.Update(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BucketSocialCard))
+		bucket := tx.Bucket([]byte(core.BucketSocialCard))
 		if bucket == nil {
 			return nil
 		}
@@ -116,8 +117,8 @@ func (m *Manager) BatchSetSocialCardHashes(hashes map[string]string) error {
 func (m *Manager) GetGraphHash() (string, error) {
 	var hash string
 	err := m.db.View(func(tx *bolt.Tx) error {
-		meta := tx.Bucket([]byte(BucketMeta))
-		data := meta.Get([]byte(KeyGraphHash))
+		meta := tx.Bucket([]byte(core.BucketMeta))
+		data := meta.Get([]byte(core.KeyGraphHash))
 		if data != nil {
 			hash = string(data)
 		}
@@ -129,8 +130,8 @@ func (m *Manager) GetGraphHash() (string, error) {
 // SetGraphHash stores the graph data hash
 func (m *Manager) SetGraphHash(hash string) error {
 	return m.db.Update(func(tx *bolt.Tx) error {
-		meta := tx.Bucket([]byte(BucketMeta))
-		return meta.Put([]byte(KeyGraphHash), []byte(hash))
+		meta := tx.Bucket([]byte(core.BucketMeta))
+		return meta.Put([]byte(core.KeyGraphHash), []byte(hash))
 	})
 }
 
@@ -138,8 +139,8 @@ func (m *Manager) SetGraphHash(hash string) error {
 func (m *Manager) GetWasmHash() (string, error) {
 	var hash string
 	err := m.db.View(func(tx *bolt.Tx) error {
-		meta := tx.Bucket([]byte(BucketMeta))
-		data := meta.Get([]byte(KeyWasmHash))
+		meta := tx.Bucket([]byte(core.BucketMeta))
+		data := meta.Get([]byte(core.KeyWasmHash))
 		if data != nil {
 			hash = string(data)
 		}
@@ -151,7 +152,7 @@ func (m *Manager) GetWasmHash() (string, error) {
 // SetWasmHash stores the WASM source hash
 func (m *Manager) SetWasmHash(hash string) error {
 	return m.db.Update(func(tx *bolt.Tx) error {
-		meta := tx.Bucket([]byte(BucketMeta))
-		return meta.Put([]byte(KeyWasmHash), []byte(hash))
+		meta := tx.Bucket([]byte(core.BucketMeta))
+		return meta.Put([]byte(core.KeyWasmHash), []byte(hash))
 	})
 }

@@ -16,12 +16,12 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/services"
-	"github.com/Kush-Singh-26/kosh/builder/services/mocks"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/Kush-Singh-26/kosh/builder/utils"
 )
@@ -84,6 +84,7 @@ This is the initial body.
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -105,6 +106,7 @@ This is the initial body.
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},
@@ -226,6 +228,7 @@ Body content.
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -247,6 +250,7 @@ Body content.
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},
@@ -347,6 +351,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -368,6 +373,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},
@@ -450,6 +456,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -471,6 +478,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},
@@ -671,6 +679,7 @@ date: "2026-03-15"
 	renderSvc := services.NewRenderServiceWith(rnd, logger)
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
 	postSvc := services.NewPostService(services.PostServiceDependencies{
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -692,6 +701,7 @@ date: "2026-03-15"
 			Post:     postSvc,
 			Asset:    assetSvc,
 			Render:   renderSvc,
+			Wasm:     wasmSvc,
 			Scanner:  metadataScanner,
 			Diagrams: nil,
 		},

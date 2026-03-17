@@ -11,16 +11,18 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+
 	"github.com/disintegration/imaging"
 	"github.com/spf13/afero"
 )
 
 // GenerateSW creates the service worker only if needed (smart build)
-func GenerateSW(sink utils.ArtifactSink, destDir string, buildVersion int64, forceRebuild bool, baseURL string, assets map[string]string) error {
+func GenerateSW(sink fspkg.ArtifactSink, destDir string, buildVersion int64, forceRebuild bool, baseURL string, assets map[string]string) error {
 	swPath := filepath.Join(destDir, "sw.js")
 
 	// 1. Smart Check: If not forcing rebuild and SW exists, skip
-	if !forceRebuild && !TestingMode {
+	if !forceRebuild && !utils.TestingMode {
 		if _, err := os.Stat(swPath); err == nil {
 			sink.Register(swPath)
 			return nil
@@ -76,11 +78,11 @@ self.addEventListener('fetch', function(event) {
 }
 
 // GenerateManifest creates the manifest.json dynamically with a smart build check
-func GenerateManifest(sink utils.ArtifactSink, destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool) error {
+func GenerateManifest(sink fspkg.ArtifactSink, destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool) error {
 	manifestPath := filepath.Join(destDir, "manifest.json")
 
 	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
-	if !forceRebuild && !TestingMode {
+	if !forceRebuild && !utils.TestingMode {
 		if _, err := os.Stat(manifestPath); err == nil {
 			sink.Register(manifestPath)
 			return nil
@@ -209,7 +211,7 @@ func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string) (PWAIconsData, error) 
 }
 
 // WritePWAIcons writes pre-encoded icon bytes to the destination directory via sink.
-func WritePWAIcons(sink utils.ArtifactSink, destDir string, icons PWAIconsData) error {
+func WritePWAIcons(sink fspkg.ArtifactSink, destDir string, icons PWAIconsData) error {
 	if err := sink.MkdirAll(destDir); err != nil {
 		return err
 	}
@@ -228,7 +230,7 @@ func WritePWAIcons(sink utils.ArtifactSink, destDir string, icons PWAIconsData) 
 }
 
 // GeneratePWAIcons generates 192x192 and 512x512 icons from favicon.png
-func GeneratePWAIcons(srcFs afero.Fs, sink utils.ArtifactSink, srcPath, destDir string) error {
+func GeneratePWAIcons(srcFs afero.Fs, sink fspkg.ArtifactSink, srcPath, destDir string) error {
 	icons, err := GeneratePWAIconBytes(srcFs, srcPath)
 	if err != nil {
 		return err
