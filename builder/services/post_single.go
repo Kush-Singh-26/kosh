@@ -1,5 +1,10 @@
 package services
 
+// Error Handling Strategy:
+// - Recoverable errors: Return error to caller (triggers fallback to full build)
+// - Non-recoverable errors: Return error to abort build
+// - Fire-and-forget errors: Log only (cache writes, social card generation)
+
 import (
 	"context"
 	"fmt"
@@ -10,13 +15,13 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-
 )
 
 func (s *postService) ProcessSingle(ctx context.Context, path string, source []byte) error {
@@ -45,7 +50,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		}
 	}
 
-	version, relPath := utils.GetVersionFromPath(path)
+	version, relPath := navigation.GetVersionFromPath(path)
 	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 
 	cleanHtmlRelPath := htmlRelPath
@@ -78,7 +83,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 				Cfg:            s.cfg,
 				NativeRenderer: s.nativeRenderer,
 				DiagramAdapter: s.diagramAdapter,
-				MathBatchSize:  16,
+				MathBatchSize:  DefaultMathBatchSize,
 			},
 		)
 		if err != nil {
@@ -164,7 +169,10 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 	}
 
 	timeutil.SortPosts(versionPosts)
-	prev, next := utils.FindPrevNext(post, versionPosts)
+	prev, next, err := navigation.FindPrevNext(post, versionPosts)
+	if err != nil {
+		s.logger.Debug("Navigation resolution failed", "path", path, "error", err)
+	}
 	siteTree := fspkg.BuildSiteTree(versionPosts, post.Link)
 
 	normalizedTags := make([]string, len(post.Tags))
@@ -180,7 +188,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		}
 
 		frontmatterHash := parseRes.FrontmatterHash
-		bodyHash := utils.GetBodyHash(source)
+		bodyHash := hashing.GetBodyHash(source)
 
 		newMeta := &cache.PostMeta{
 			PostID: postID, Path: relPath, ModTime: info.ModTime().Unix(),
@@ -231,15 +239,16 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		cachedHash, _ := s.cache.GetSocialCardHash(relPath)
 		cardExists := cachedHash != "" && cachedHash == parseRes.FrontmatterHash
 		if !cardExists {
-			if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err == nil {
-				s.generateSocialCard(socialCardTask{
-					path:            relPath,
-					relPath:         cardRelPath,
-					cardDestPath:    cardDestPath,
-					metaData:        metaData,
-					frontmatterHash: parseRes.FrontmatterHash,
-				})
+			if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err != nil {
+				return err
 			}
+			s.generateSocialCard(socialCardTask{
+				path:            relPath,
+				relPath:         cardRelPath,
+				cardDestPath:    cardDestPath,
+				metaData:        metaData,
+				frontmatterHash: parseRes.FrontmatterHash,
+			})
 		}
 	}
 

@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 
 	"github.com/Kush-Singh-26/kosh/internal/watch"
@@ -92,28 +92,28 @@ func runBuild(cmd *cobra.Command, args []string) {
 	printStartupBanner(mode, cfg)
 
 	if buildWatch {
-		b := run.NewBuilder(filteredArgs)
+		b := orchestration.NewEngine(filteredArgs)
 		if err := b.Build(ctx); err != nil {
-			run.DevLogError("Initial build failed: " + err.Error())
+			orchestration.DevLogError("Initial build failed: " + err.Error())
 			os.Exit(1)
 		}
 		maybePrintPhaseTimings()
 		maybeWritePhaseTimings()
 
 		w, err := watch.New([]string{"content", b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
-			run.DevLogRebuild("Change detected: " + event.Name)
+			orchestration.DevLogRebuild("Change detected: " + event.Name)
 			timeutil.ResetPhaseTracking()
 			b.BuildChanged(ctx, event.Name, event.Op)
 			maybePrintPhaseTimings()
 			maybeWritePhaseTimings()
 		})
 		if err != nil {
-			run.DevLogError("Watcher failed: " + err.Error())
+			orchestration.DevLogError("Watcher failed: " + err.Error())
 			os.Exit(1)
 		}
 		w.Start()
 	} else {
-		if err := run.Run(filteredArgs); err != nil {
+		if err := orchestration.Run(filteredArgs); err != nil {
 			os.Exit(1)
 		}
 		maybePrintPhaseTimings()

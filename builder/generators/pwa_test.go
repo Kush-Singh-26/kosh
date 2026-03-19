@@ -1,11 +1,11 @@
 package generators
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
 func TestGenerateSW(t *testing.T) {
@@ -18,7 +18,7 @@ func TestGenerateSW(t *testing.T) {
 		"/static/css/layout.css": "layout.abc.css",
 	}
 
-	err := GenerateSW(sink, destDir, buildVersion, forceRebuild, baseURL, assets)
+	err := GenerateSW(sink, destDir, buildVersion, forceRebuild, baseURL, assets, true)
 	if err != nil {
 		t.Fatalf("GenerateSW failed: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestGenerateManifest(t *testing.T) {
 	siteDescription := "Blog Description"
 	forceRebuild := true
 
-	err := GenerateManifest(sink, destDir, baseURL, siteTitle, siteDescription, forceRebuild)
+	err := GenerateManifest(sink, destDir, baseURL, siteTitle, siteDescription, forceRebuild, true)
 	if err != nil {
 		t.Fatalf("GenerateManifest failed: %v", err)
 	}

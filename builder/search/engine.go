@@ -3,16 +3,11 @@ package search
 import (
 	"container/heap"
 	"math"
-	"math/bits"
 	"slices"
 	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-
 )
 
 // Constants for snippet extraction optimization
@@ -351,195 +346,45 @@ func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []
 	return true
 }
 
+// ExtractSnippet extracts a search snippet from content, highlighting matching terms.
+// This is a refactored version using helper functions for better maintainability.
 func ExtractSnippet(content string, terms []string, termOffsets map[string][]int) string {
 	if len(content) == 0 {
 		return ""
 	}
-	if len(content) > MaxSnippetContentLength {
-		content = content[:MaxSnippetContentLength]
-		// Align to rune boundary to avoid invalid UTF-8
-		for len(content) > 0 && !utf8.RuneStart(content[len(content)-1]) {
-			content = content[:len(content)-1]
-		}
-		// If the last byte is the start of a multi-byte rune but we don't have the rest,
-		// we should also trim it.
-		r, sz := utf8.DecodeLastRuneInString(content)
-		if r == utf8.RuneError && sz == 1 {
-			content = content[:len(content)-1]
-		}
-	}
 
+	// Truncate content if too long
+	content = truncateContent(content)
+
+	// Handle case with no search terms
 	if len(terms) == 0 {
-		if len(content) > DefaultSnippetLength {
-			b := utils.SharedStringBuilderPool.Get()
-			defer utils.SharedStringBuilderPool.Put(b)
-			escapeToBuilder(b, content[:DefaultSnippetLength])
-			b.WriteString("...")
-			return b.String()
-		}
-		b := utils.SharedStringBuilderPool.Get()
-		defer utils.SharedStringBuilderPool.Put(b)
-		escapeToBuilder(b, content)
-		return b.String()
+		return buildSimpleSnippet(content)
 	}
 
-	type match struct {
-		pos  int
-		term string
-	}
-	var matches []match
+	// Find all term matches
+	matches := findMatches(content, terms, termOffsets)
 
-	if len(termOffsets) > 0 {
-		for _, term := range terms {
-			if offsets, ok := termOffsets[term]; ok {
-				for i := 0; i < len(offsets); i += 2 {
-					start := offsets[i]
-					if start < len(content) {
-						matches = append(matches, match{pos: start, term: term})
-					}
-				}
-			}
-		}
-	}
-
+	// If no matches found, return simple snippet
 	if len(matches) == 0 {
-		contentLower := ToLower(content)
-		for _, term := range terms {
-			if len(term) < 2 {
-				continue
-			}
-			curr := 0
-			for {
-				idx := strings.Index(contentLower[curr:], term)
-				if idx == -1 {
-					break
-				}
-				matches = append(matches, match{pos: curr + idx, term: term})
-				curr += idx + len(term)
-			}
-		}
+		return buildSimpleSnippet(content)
 	}
 
-	if len(matches) == 0 {
-		if len(content) > DefaultSnippetLength {
-			b := utils.SharedStringBuilderPool.Get()
-			defer utils.SharedStringBuilderPool.Put(b)
-			escapeToBuilder(b, content[:DefaultSnippetLength])
-			b.WriteString("...")
-			return b.String()
-		}
-		b := utils.SharedStringBuilderPool.Get()
-		defer utils.SharedStringBuilderPool.Put(b)
-		escapeToBuilder(b, content)
-		return b.String()
-	}
-
-	slices.SortFunc(matches, func(a, b match) int {
+	// Sort matches by position
+	slices.SortFunc(matches, func(a, b snippetMatch) int {
 		return a.pos - b.pos
 	})
 
+	// Create term to index mapping for scoring
 	termToIndex := make(map[string]int, len(terms))
 	for i, t := range terms {
 		termToIndex[t] = i
 	}
 
-	bestStart := matches[0].pos
-	maxScore := 0
-	windowSize := DefaultSnippetLength
+	// Find the best window position for the snippet
+	start, end := findBestSnippetWindow(matches, content, termToIndex)
 
-	for i := 0; i < len(matches); i++ {
-		count := 0
-		var mask uint64
-		for j := i; j < len(matches) && matches[j].pos < matches[i].pos+windowSize; j++ {
-			count++
-			if idx, ok := termToIndex[matches[j].term]; ok {
-				if idx < 64 {
-					mask |= (1 << uint(idx))
-				}
-			}
-		}
-
-		score := bits.OnesCount64(mask)*100 + count
-		if score > maxScore {
-			maxScore = score
-			bestStart = matches[i].pos
-		}
-	}
-
-	start := max(bestStart-SnippetContextBefore, 0)
-	// Align to rune boundary to avoid panic
-	for start > 0 && !utf8.RuneStart(content[start]) {
-		start--
-	}
-
-	end := start + windowSize + SnippetContextBefore
-	if end > len(content) {
-		end = len(content)
-		start = max(end-(windowSize+SnippetContextBefore), 0)
-		for start > 0 && !utf8.RuneStart(content[start]) {
-			start--
-		}
-	} else {
-		// Align end to rune boundary
-		for end < len(content) && !utf8.RuneStart(content[end]) {
-			end++
-		}
-	}
-
-	if start > 0 {
-		idx := strings.Index(content[start:], " ")
-		if idx != -1 && idx < 15 {
-			start += idx + 1
-		}
-	}
-
-	b := utils.SharedStringBuilderPool.Get()
-	b.Grow(int(float64(end-start) * 1.2))
-
-	if start > 0 {
-		b.WriteString("...")
-	}
-
-	lastPos := start
-	for _, m := range matches {
-		if m.pos < start {
-			continue
-		}
-		if m.pos >= end {
-			break
-		}
-		if m.pos < lastPos {
-			continue
-		}
-
-		escapeToBuilder(b, content[lastPos:m.pos])
-
-		// Find word end (including trailing \w*)
-		actualEnd := m.pos + len(m.term)
-		// Match \w* behavior (unicode letter or number)
-		for actualEnd < end {
-			r, sz := utf8.DecodeRuneInString(content[actualEnd:])
-			if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' {
-				break
-			}
-			actualEnd += sz
-		}
-
-		b.WriteString("<b>")
-		escapeToBuilder(b, content[m.pos:actualEnd])
-		b.WriteString("</b>")
-		lastPos = actualEnd
-	}
-
-	escapeToBuilder(b, content[lastPos:end])
-
-	if end < len(content) {
-		b.WriteString("...")
-	}
-
-	res := b.String()
-	utils.SharedStringBuilderPool.Put(b)
-	return res
+	// Build the final snippet with highlighted matches
+	return buildSnippetText(content, matches, start, end, true)
 }
 
 func escapeToBuilder(sb *strings.Builder, s string) {

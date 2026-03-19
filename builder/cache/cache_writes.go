@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"encoding/binary"
 	"fmt"
 	"log/slog"
@@ -10,11 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
+
 	bolt "go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 // BatchCommit atomically commits posts, search records, and dependencies in a single BoltDB transaction.

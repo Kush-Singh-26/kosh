@@ -6,10 +6,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/fastschema/qjs"
 )
 
@@ -90,7 +89,7 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []models.M
 
 // RenderMath renders a single LaTeX expression to HTML using KaTeX via QuickJS
 func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode bool) (string, error) {
-	if err := r.withSchedulerAndClosedCheck(ctx, utils.TaskMath); err != nil {
+	if err := r.withSchedulerAndClosedCheck(ctx, scheduler.TaskMath); err != nil {
 		return "", err
 	}
 	defer r.wg.Done()
@@ -138,10 +137,10 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 	}
 
 	if r.scheduler != nil {
-		if err := r.scheduler.Acquire(ctx, utils.TaskMath); err != nil {
+		if err := r.scheduler.Acquire(ctx, scheduler.TaskMath); err != nil {
 			return nil, err
 		}
-		defer r.scheduler.Release(utils.TaskMath)
+		defer r.scheduler.Release(scheduler.TaskMath)
 	}
 
 	r.ensureInitialized()

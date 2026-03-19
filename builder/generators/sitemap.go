@@ -9,8 +9,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
-
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 func GenerateSitemap(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) (string, error) {

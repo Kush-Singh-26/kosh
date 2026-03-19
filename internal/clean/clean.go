@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/run"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/spf13/afero"
 )
 
@@ -16,10 +16,10 @@ import (
 var cleanupWg sync.WaitGroup
 
 func Run(cleanCache, cleanAllVersions bool) {
-	RunFs(afero.NewOsFs(), cleanCache, cleanAllVersions)
+	RunFs(afero.NewOsFs(), cleanCache, cleanAllVersions, buildCtx.DetectTestingMode())
 }
 
-func RunFs(fs afero.Fs, cleanCache, cleanAllVersions bool) {
+func RunFs(fs afero.Fs, cleanCache, cleanAllVersions bool, isTesting bool) {
 	start := time.Now()
 
 	// Get outputDir from config (fallback to "public")
@@ -30,9 +30,9 @@ func RunFs(fs afero.Fs, cleanCache, cleanAllVersions bool) {
 	}
 
 	if cleanAllVersions {
-		cleanDirAsync(fs, outputDir)
+		cleanDirAsync(fs, outputDir, isTesting)
 	} else {
-		cleanRootFilesOnly(fs, outputDir, cfg)
+		cleanRootFilesOnly(fs, outputDir, cfg, isTesting)
 	}
 
 	if cleanCache {
@@ -40,10 +40,10 @@ func RunFs(fs afero.Fs, cleanCache, cleanAllVersions bool) {
 		if cfg != nil && cfg.CacheDir != "" {
 			cacheDir = cfg.CacheDir
 		}
-		cleanDirAsync(fs, cacheDir)
+		cleanDirAsync(fs, cacheDir, isTesting)
 	}
 
-	run.DevLogInfo(fmt.Sprintf("Clean initiated in %v.", time.Since(start)))
+	orchestration.DevLogInfo(fmt.Sprintf("Clean initiated in %v.", time.Since(start)))
 }
 
 // WaitForCleanup blocks until all background cleanup goroutines complete.
@@ -52,13 +52,13 @@ func WaitForCleanup() {
 	cleanupWg.Wait()
 }
 
-func cleanDirAsync(fs afero.Fs, path string) {
+func cleanDirAsync(fs afero.Fs, path string, isTesting bool) {
 	exists, _ := afero.Exists(fs, path)
 	if !exists {
 		return
 	}
 
-	if utils.TestingMode {
+	if isTesting {
 		_ = fs.RemoveAll(path)
 		return
 	}
@@ -88,7 +88,7 @@ func removePathAsync(fs afero.Fs, path string) {
 	}()
 }
 
-func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config) {
+func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config, isTesting bool) {
 	exists, _ := afero.Exists(fs, outputDir)
 	if !exists {
 		return
@@ -96,7 +96,7 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config) {
 
 	if cfg == nil {
 		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  Failed to load config, cleaning entire %s directory\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), outputDir)
-		cleanDirAsync(fs, outputDir)
+		cleanDirAsync(fs, outputDir, isTesting)
 		return
 	}
 
@@ -109,7 +109,7 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config) {
 
 	if len(preservePaths) == 0 {
 		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  No versions configured, cleaning entire %s directory\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), outputDir)
-		cleanDirAsync(fs, outputDir)
+		cleanDirAsync(fs, outputDir, isTesting)
 		return
 	}
 

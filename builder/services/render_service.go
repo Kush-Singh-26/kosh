@@ -1,19 +1,26 @@
 package services
 
+// Error Handling Strategy:
+// - Recoverable errors: Return error to caller (triggers fallback to full build)
+// - Non-recoverable errors: Return error to abort build
+// - Fire-and-forget errors: Log only (cache writes, social card generation)
+
 import (
 	"fmt"
 	"html/template"
 	"log/slog"
 	"time"
 
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 
 	"github.com/spf13/afero"
 )
 
 type renderService struct {
+	ctx         *buildCtx.BuildContext
 	rnd         *renderer.Renderer
 	logger      *slog.Logger
 	assetsReady <-chan struct{}
@@ -23,17 +30,9 @@ type renderService struct {
 // Using dependency struct pattern for API coherence.
 func NewRenderService(deps RenderServiceDependencies) RenderService {
 	return &renderService{
+		ctx:    deps.Ctx,
 		rnd:    deps.Renderer,
 		logger: deps.Logger,
-	}
-}
-
-// NewRenderServiceWith creates a new RenderService with explicit parameters.
-// Deprecated: use NewRenderService(RenderServiceDependencies{...}) instead.
-func NewRenderServiceWith(rnd *renderer.Renderer, logger *slog.Logger) RenderService {
-	return &renderService{
-		rnd:    rnd,
-		logger: logger,
 	}
 }
 

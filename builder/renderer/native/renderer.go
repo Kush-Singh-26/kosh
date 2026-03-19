@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 
 	"github.com/fastschema/qjs"
 	"github.com/zeebo/xxh3"
@@ -53,7 +53,7 @@ type Renderer struct {
 	closed         bool
 	mathGroup      singleflight.Group
 	D2Singleflight singleflight.Group // Shared group to deduplicate D2 diagram rendering across posts
-	scheduler      utils.BuildScheduler
+	scheduler      scheduler.BuildScheduler
 	mathQueue      chan mathRequest
 }
 
@@ -73,7 +73,7 @@ func WithWorkers(n int) RendererOption {
 	}
 }
 
-func WithScheduler(s utils.BuildScheduler) RendererOption {
+func WithScheduler(s scheduler.BuildScheduler) RendererOption {
 	return func(r *Renderer) {
 		r.scheduler = s
 	}
@@ -90,9 +90,15 @@ func WithMathBatchSize(n int) RendererOption {
 // withSchedulerAndClosedCheck wraps a render operation with scheduler acquisition
 // and closed-state checking. Returns error if renderer is closed or context cancelled.
 // The caller must defer r.wg.Done() after this function returns nil.
-func (r *Renderer) withSchedulerAndClosedCheck(ctx context.Context, task utils.TaskType) error {
+func (r *Renderer) withSchedulerAndClosedCheck(ctx context.Context, task scheduler.TaskType) error {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+
+	if r.scheduler != nil {
+		if err := r.scheduler.Acquire(ctx, task); err != nil {
+			return err
+		}
 	}
 
 	if r.scheduler != nil {
@@ -129,7 +135,7 @@ func New(opts ...RendererOption) *Renderer {
 		},
 		numWorkers:    numWorkers,
 		mathBatchSize: 16,
-		scheduler:     utils.GlobalScheduler,
+		scheduler:     scheduler.GetGlobalScheduler(),
 		mathQueue:     make(chan mathRequest, 2048),
 	}
 

@@ -1,13 +1,13 @@
 package renderer
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"errors"
 	"log/slog"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
 func setupRendererTest(t *testing.T) *Renderer {

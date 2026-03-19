@@ -21,3 +21,7 @@ func (m *MockScanner) Scan(ctx context.Context, contentDir string, sourceFs afer
 	}
 	return m.Result, m.Err
 }
+
+func (m *MockScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error) {
+	return models.ScannedFile{}, nil
+}

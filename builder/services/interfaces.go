@@ -2,17 +2,20 @@ package services
 
 import (
 	"context"
+	"errors"
 	"html/template"
 	"log/slog"
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 
 	"github.com/spf13/afero"
 )
@@ -37,13 +40,21 @@ type MetadataContext struct {
 	AnyPostChanged bool
 }
 
-// Service-specific cache interfaces for interface segregation.
-// Each service depends only on the cache operations it actually uses.
+// MetadataScanner scans content directory for markdown files and extracts metadata.
+type MetadataScanner interface {
+	Scan(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error)
+	ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error)
+}
+
+// IsCacheMiss returns true if the error is a cache miss (sentinel ErrNoContent).
+func IsCacheMiss(err error) bool {
+	return errors.Is(err, core.ErrNoContent)
+}
 
 // CacheService provides cache operations for all services.
 //
 // Error Contract:
-//   - Read errors: returned (key not found, corrupted data)
+//   - Read errors: returns IsCacheMiss(err) == true if key not found, other errors for I/O or corruption
 //   - Write errors: returned (disk full, I/O error)
 //   - BatchCommit: atomic - all or nothing, returns error on any failure
 //   - Dirty tracking: in-memory only, never fails (lost on crash)
@@ -52,47 +63,32 @@ type MetadataContext struct {
 //   - All methods are safe for concurrent calls
 //   - Underlying bbolt DB handles its own synchronization
 type CacheService interface {
-	// Metadata operations
-	GetPost(id string) (*cache.PostMeta, error)
-	ListAllPosts() ([]string, error)
-	GetPostByPath(path string) (*cache.PostMeta, error)
-	GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error)
-	GetPostsByTemplate(templatePath string) ([]string, error)
-	GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error)
+	models.PostCache
+	models.SearchCache
+	models.SocialCardCache
+	models.BuildArtifactCache
 
-	// Dirty tracking
-	MarkDirty(postID string)
-	IsDirty(postID string) bool
-	ClearDirty()
-
-	// Content and search record operations
-	GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error)
-	GetSearchRecord(id string) (*cache.SearchRecord, error)
-	GetHTMLContent(post *cache.PostMeta) ([]byte, error)
-	StoreHTML(content []byte) (string, error)
-	StoreHTMLForPost(post *cache.PostMeta, content []byte) error
-	BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error
-	DeletePost(postID string) error
-
-	// Social card operations
-	GetSocialCardHash(path string) (string, error)
-	SetSocialCardHash(path, hash string) error
-	BatchSetSocialCardHashes(hashes map[string]string) error
-
-	// Build artifact operations (graph, WASM)
 	GetGraphHash() (string, error)
 	SetGraphHash(hash string) error
 	GetWasmHash() (string, error)
 	SetWasmHash(hash string) error
 
-	// Lifecycle and stats
 	Stats() (*cache.CacheStats, error)
 	IncrementBuildCount() error
 	Close() error
 }
 
+// PostServiceCache is a narrowed interface for PostService.
+type PostServiceCache interface {
+	models.PostCache
+	models.SearchCache
+	models.SocialCardCache
+	models.BuildArtifactCache
+}
+
 // CacheServiceDependencies holds all dependencies for CacheService.
 type CacheServiceDependencies struct {
+	Ctx     *buildCtx.BuildContext
 	Manager *cache.Manager
 	Logger  *slog.Logger
 }
@@ -100,8 +96,9 @@ type CacheServiceDependencies struct {
 // PostServiceDependencies holds all dependencies for PostService.
 // Using a struct pattern for API coherence and easier testing.
 type PostServiceDependencies struct {
+	Ctx            *buildCtx.BuildContext
 	Cfg            *config.Config
-	Cache          CacheService
+	Cache          PostServiceCache
 	Renderer       RenderService
 	Logger         *slog.Logger
 	Metrics        *metrics.BuildMetrics
@@ -152,6 +149,7 @@ type PostService interface {
 // RenderServiceDependencies holds all dependencies for RenderService.
 // Using a struct pattern for API coherence and easier testing.
 type RenderServiceDependencies struct {
+	Ctx      *buildCtx.BuildContext
 	Renderer *renderer.Renderer
 	Logger   *slog.Logger
 }
@@ -220,6 +218,7 @@ type RenderService interface {
 //   - AssetsReady: created by caller, passed via WithAssetsReadySignal option
 //   - ContentAssetsChan: created by caller (Scanner), passed via WithContentAssetsChannel
 type AssetServiceDependencies struct {
+	Ctx      *buildCtx.BuildContext
 	SourceFs afero.Fs
 	Sink     fspkg.ArtifactSink
 	Cfg      *config.Config

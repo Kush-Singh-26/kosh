@@ -1,9 +1,8 @@
 package renderer
 
 import (
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"html/template"
 	"io"
 	"log/slog"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )

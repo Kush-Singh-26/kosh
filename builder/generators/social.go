@@ -14,13 +14,13 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 
 	"github.com/chai2010/webp"
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
-	"github.com/hashicorp/golang-lru/v2"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
 )
 
@@ -40,16 +40,20 @@ const (
 
 var (
 	fontCache      *lru.Cache[string, *truetype.Font]
+	fontCacheOnce  sync.Once
 	faviconCache   sync.Map
 	baseImageCache sync.Map
 )
 
-func init() {
-	var err error
-	fontCache, err = lru.New[string, *truetype.Font](20)
-	if err != nil {
-		panic("failed to create font cache: " + err.Error())
-	}
+func getFontCache() *lru.Cache[string, *truetype.Font] {
+	fontCacheOnce.Do(func() {
+		var err error
+		fontCache, err = lru.New[string, *truetype.Font](20)
+		if err != nil {
+			panic("failed to create font cache: " + err.Error())
+		}
+	})
+	return fontCache
 }
 
 func getFaviconImage(fs afero.Fs, path string) image.Image {
@@ -75,7 +79,8 @@ func getFaviconImage(fs afero.Fs, path string) image.Image {
 }
 
 func loadFont(name string) (*truetype.Font, error) {
-	if f, ok := fontCache.Get(name); ok {
+	cache := getFontCache()
+	if f, ok := cache.Get(name); ok {
 		return f, nil
 	}
 
@@ -122,7 +127,7 @@ func SocialCardHash(title, description string) string {
 }
 
 // ShouldGenerateSocialCard determines if a social card needs generation
-func ShouldGenerateSocialCard(cache models.CacheService, cacheKey, currentHash, cachedCardPath string, force bool) bool {
+func ShouldGenerateSocialCard(cache models.SocialCardCache, cacheKey, currentHash, cachedCardPath string, force bool) bool {
 	if force {
 		return true
 	}
@@ -139,7 +144,7 @@ func ShouldGenerateSocialCard(cache models.CacheService, cacheKey, currentHash, 
 // ProvideSocialCardOptions holds parameters for ProvideSocialCard
 type ProvideSocialCardOptions struct {
 	Sink        models.ArtifactSink
-	Cache       models.CacheService
+	Cache       models.SocialCardCache
 	SourceFs    afero.Fs
 	OutputDir   string
 	CacheDir    string
@@ -162,10 +167,10 @@ func ProvideSocialCard(opts ProvideSocialCardOptions) {
 
 	needsGen := ShouldGenerateSocialCard(opts.Cache, opts.CacheKey, currentHash, cachedCardPath, opts.Force)
 
-	utils.IgnoreError(opts.Sink.MkdirAll(filepath.Dir(opts.DestPath)), "ensure social card dir in VFS")
+	buildCtx.IgnoreError(opts.Sink.MkdirAll(filepath.Dir(opts.DestPath)), "ensure social card dir in VFS")
 
 	if needsGen {
-		utils.IgnoreError(os.MkdirAll(filepath.Dir(cachedCardPath), 0755), "ensure social card dir in cache")
+		buildCtx.IgnoreError(os.MkdirAll(filepath.Dir(cachedCardPath), 0755), "ensure social card dir in cache")
 
 		err := GenerateSocialCardToDisk(SocialCardOptions{
 			SrcFs:       opts.SourceFs,
@@ -181,13 +186,13 @@ func ProvideSocialCard(opts ProvideSocialCardOptions) {
 			return
 		}
 		if opts.Cache != nil {
-			utils.IgnoreError(opts.Cache.SetSocialCardHash(opts.CacheKey, currentHash), "update social card hash")
+			buildCtx.IgnoreError(opts.Cache.SetSocialCardHash(opts.CacheKey, currentHash), "update social card hash")
 		}
 	}
 
 	data, err := os.ReadFile(cachedCardPath)
 	if err == nil {
-		utils.IgnoreError(opts.Sink.WriteFile(opts.DestPath, data), "write social card to VFS")
+		buildCtx.IgnoreError(opts.Sink.WriteFile(opts.DestPath, data), "write social card to VFS")
 		opts.Render.RegisterFile(opts.DestPath)
 	}
 }

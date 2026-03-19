@@ -4,13 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 
 	"encoding/hex"
+
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/zeebo/xxh3"
 )
 
@@ -39,13 +38,6 @@ func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
 	hash := xxh3.Hash128(data)
 	b := hash.Bytes()
 	return hex.EncodeToString(b[:]), nil
-}
-
-func init() {
-	// fmt.Printf("DEBUG: os.Args[0] = %s\n", os.Args[0])
-	if strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") || strings.Contains(os.Args[0], "_test") {
-		utils.SetTestingMode(true)
-	}
 }
 
 func GenerateGraph(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, outputPath string) (string, error) {

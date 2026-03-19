@@ -5,8 +5,10 @@ import (
 	"os"
 	"testing"
 
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
 
 func setupRenderServiceTest(t *testing.T) *renderService {
@@ -21,7 +23,11 @@ func setupRenderServiceTest(t *testing.T) *renderService {
 		Compress:    false,
 	}
 
-	service := NewRenderServiceWith(rnd, logger).(*renderService)
+	service := NewRenderService(RenderServiceDependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Renderer: rnd,
+		Logger:   logger,
+	}).(*renderService)
 	return service
 }
 
@@ -32,7 +38,11 @@ func TestNewRenderService(t *testing.T) {
 		RenderedSet: make(map[string]bool),
 	}
 
-	service := NewRenderServiceWith(rnd, logger)
+	service := NewRenderService(RenderServiceDependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Renderer: rnd,
+		Logger:   logger,
+	})
 
 	if service == nil {
 		t.Fatal("NewRenderService should not return nil")

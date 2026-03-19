@@ -9,12 +9,14 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
-	"github.com/Kush-Singh-26/kosh/builder/mocks/services"
+	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/spf13/afero"
@@ -66,7 +68,7 @@ This is post number %d.
 	cfg.Features.Generators.RSS = true
 	cfg.Features.Generators.Sitemap = true
 
-	logger := run.InitLogger()
+	logger := orchestration.InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	defer func() { _ = nativeRenderer.Close() }()
@@ -85,11 +87,16 @@ This is post number %d.
 	for i := 0; i < b.N; i++ {
 		// We need fresh services for each run or at least reset them
 		rnd := renderer.NewWithFs(fs, false, sink, cfg.TemplateDir, true, logger)
-		renderSvc := services.NewRenderServiceWith(rnd, logger)
+		renderSvc := services.NewRenderService(services.RenderServiceDependencies{
+			Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+			Renderer: rnd,
+			Logger:   logger,
+		})
 		assetSvc := &mocks.MockAssetService{}
 		assetSvc.SetMetrics(buildMetrics)
 		wasmSvc := &mocks.MockWasmService{}
 		postSvc := services.NewPostService(services.PostServiceDependencies{
+			Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
 			Cfg:            cfg,
 			Renderer:       renderSvc,
 			Logger:         logger,
@@ -100,12 +107,12 @@ This is post number %d.
 		})
 		metadataScanner := services.NewMetadataScanner()
 
-		builder := run.NewBuilderFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+		engine := orchestration.NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
 
-		builder.Sink = sink
-		builder.Tx = tx
+		engine.Sink = sink
+		engine.Tx = tx
 
-		if err := builder.Build(context.Background()); err != nil {
+		if err := engine.Build(context.Background()); err != nil {
 			b.Fatal(err)
 		}
 	}

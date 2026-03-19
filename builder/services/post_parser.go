@@ -4,27 +4,22 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
-	"strings"
 	"sync"
 	"time"
-
-	"github.com/yuin/goldmark"
-	meta "github.com/yuin/goldmark-meta"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
-	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/Kush-Singh-26/kosh/builder/search"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
 )
 
 type ParseConfig struct {
@@ -97,7 +92,8 @@ type ParsedMarkdownResult struct {
 	BodyOnly        []byte
 }
 
-// ParseMarkdownMetadata handles the semantic parsing and metadata extraction
+// ParseMarkdownMetadata handles the semantic parsing and metadata extraction.
+// This is a refactored version using helper functions for better maintainability.
 func ParseMarkdownMetadata(
 	ctx context.Context,
 	source []byte,
@@ -114,38 +110,11 @@ func ParseMarkdownMetadata(
 ) (*ParsedMarkdownResult, error) {
 	res := &ParsedMarkdownResult{}
 
-	// Strip frontmatter to avoid double parse
-	bodyOnly := source
-	if bodyOffset > 0 && bodyOffset < len(source) {
-		bodyOnly = source[bodyOffset:]
-	} else if bytes.HasPrefix(source, []byte("---")) {
-		if idx := bytes.Index(source[3:], []byte("---")); idx != -1 {
-			bodyOnly = source[idx+6:]
-		}
-	}
-	res.BodyOnly = bodyOnly
+	// Step 1: Strip frontmatter
+	res.BodyOnly = stripFrontmatter(source, bodyOffset)
 
-	var docNode ast.Node
-	var mdCtx parser.Context
-	var parseErr error
-
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				parseErr = fmt.Errorf("panic during markdown parsing: %v", r)
-			}
-		}()
-
-		mdCtx = parser.NewContext()
-		mdParser.WithContext(mdCtx, ctx)
-		mdCtx.Set(mdParser.ContextKeyFilePath, path)
-
-		mdEngine := mdPool.Get().(goldmark.Markdown)
-		defer mdPool.Put(mdEngine)
-
-		docNode = mdEngine.Parser().Parse(text.NewReader(bodyOnly), parser.WithContext(mdCtx))
-	}()
-
+	// Step 2: Parse markdown with panic recovery
+	docNode, mdCtx, parseErr := parseMarkdownWithRecovery(res.BodyOnly, path, mdPool, ctx)
 	if parseErr != nil {
 		return nil, parseErr
 	}
@@ -154,106 +123,30 @@ func ParseMarkdownMetadata(
 	res.Context = mdCtx
 	res.SSRHashes = mdParser.GetSSRHashes(mdCtx)
 
-	if preParsedMeta != nil {
-		res.MetaData = preParsedMeta
-	} else if bytes.HasPrefix(source, []byte("---")) {
-		parts := bytes.SplitN(source, []byte("---"), 3)
-		if len(parts) >= 3 {
-			res.MetaData, _ = utils.ParseFrontmatter(parts[1])
-		}
-	}
+	// Step 3: Extract metadata
+	res.MetaData = extractMetadata(mdCtx, source, preParsedMeta)
 
-	if res.MetaData == nil {
-		res.MetaData = meta.Get(mdCtx)
-	}
-
+	// Step 4: Extract frontmatter data and build post metadata
 	fm := extractFrontmatter(res.MetaData)
 	res.TOC = mdParser.GetTOC(mdCtx)
 
-	postLink := utils.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
+	postLink := navigation.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
+	readingTime := computeReadingTime(source, knownReadingTime)
 
-	readingTime := knownReadingTime
-	if readingTime <= 0 {
-		wordCount := timeutil.CountWords(source)
-		readingTime = int(math.Ceil(float64(wordCount) / wordsPerMinute))
-	}
+	res.Post = buildPostMetadata(fm, postLink, readingTime, version)
 
-	res.Post = models.PostMetadata{
-		Title: fm.Title, Link: postLink,
-		Description: fm.Description, Tags: fm.Tags,
-		ReadingTime: readingTime, Pinned: fm.Pinned, Weight: fm.Weight,
-		DateObj: fm.DateObj, Draft: fm.Draft, Version: version,
-	}
-
+	// Step 5: Get plain text and build search record
 	res.PlainText = mdParser.GetPlainText(mdCtx)
+	res.SearchRecord = buildSearchRecord(res.Post, htmlRelPath, res.PlainText)
 
-	// Pre-compute normalized fields for search
-	normalizedTags := make([]string, len(res.Post.Tags))
-	for i, t := range res.Post.Tags {
-		normalizedTags[i] = strings.ToLower(t)
-	}
-
-	res.SearchRecord = models.PostRecord{
-		ID:              0, // Temporary ID, assigned in post_service.go
-		Title:           res.Post.Title,
-		NormalizedTitle: strings.ToLower(res.Post.Title),
-		Link:            htmlRelPath,
-		Description:     res.Post.Description,
-		Tags:            res.Post.Tags,
-		NormalizedTags:  normalizedTags,
-		Content:         res.PlainText,
-		Version:         res.Post.Version,
-	}
-
-	// Use pooled analyzer for tokenization if search is enabled
+	// Step 6: Tokenize and build search data if search is enabled
 	if cfg.Features.Generators.Search {
-		sb := utils.SharedStringBuilderPool.Get()
-		defer utils.SharedStringBuilderPool.Put(sb)
-
-		sb.Grow(len(res.SearchRecord.Title) + len(res.SearchRecord.Description) + len(res.PlainText) + 200)
-		sb.WriteString(res.SearchRecord.Title)
-		sb.WriteByte(' ')
-		sb.WriteString(res.SearchRecord.Description)
-		sb.WriteByte(' ')
-		for _, t := range res.SearchRecord.Tags {
-			sb.WriteString(t)
-			sb.WriteByte(' ')
-		}
-		metaOffset := sb.Len()
-		sb.WriteString(res.PlainText)
-
-		words, freshStemMap, positions, rawOffsets := search.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
-
-		res.WordFreqs = make(map[string]int, len(words)/2)
-		for _, w := range words {
-			res.WordFreqs[w]++
-		}
-		res.DocLen = len(words)
-		res.StemMap = freshStemMap
-		res.PositionalIndex = positions
-
-		// Shift offsets to be relative to PlainText content only
-		res.ByteOffsets = make(map[string][]int, len(rawOffsets))
-		for term, termOffsets := range rawOffsets {
-			bodyOffsets := make([]int, 0, len(termOffsets))
-			for i := 0; i < len(termOffsets); i += 2 {
-				start := termOffsets[i]
-				end := termOffsets[i+1]
-				if start >= metaOffset {
-					bodyOffsets = append(bodyOffsets, start-metaOffset, end-metaOffset)
-				}
-			}
-			if len(bodyOffsets) > 0 {
-				res.ByteOffsets[term] = bodyOffsets
-			}
-		}
+		res.WordFreqs, res.DocLen, res.StemMap, res.PositionalIndex, res.ByteOffsets =
+			tokenizeSearchData(res.SearchRecord, res.PlainText)
 	}
 
-	if knownFrontmatterHash != "" {
-		res.FrontmatterHash = knownFrontmatterHash
-	} else {
-		res.FrontmatterHash, _ = utils.GetFrontmatterHash(res.MetaData)
-	}
+	// Step 7: Compute frontmatter hash
+	res.FrontmatterHash = computeFrontmatterHash(res.MetaData, knownFrontmatterHash)
 
 	return res, nil
 }
@@ -278,8 +171,8 @@ func RenderParsedMarkdown(
 	mdEngine := mdPool.Get().(goldmark.Markdown)
 	defer mdPool.Put(mdEngine)
 
-	buf := utils.SharedBufferPool.Get()
-	defer utils.SharedBufferPool.Put(buf)
+	buf := pools.SharedBufferPool.Get()
+	defer pools.SharedBufferPool.Put(buf)
 
 	if err := mdEngine.Renderer().Render(buf, body, res.AST); err != nil {
 		return fmt.Errorf("failed to render markdown: %w", err)

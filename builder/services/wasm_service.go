@@ -10,19 +10,21 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
 )
 
 // WasmServiceDependencies holds all dependencies for WasmService.
 type WasmServiceDependencies struct {
+	Ctx    *buildCtx.BuildContext
 	Cfg    *config.Config
 	Logger *slog.Logger
 	Fs     afero.Fs
 }
 
 type wasmService struct {
+	ctx    *buildCtx.BuildContext
 	cfg    *config.Config
 	logger *slog.Logger
 	fs     afero.Fs
@@ -33,6 +35,7 @@ type wasmService struct {
 // NewWasmService creates a new WasmService with the given dependencies.
 func NewWasmService(deps WasmServiceDependencies) WasmService {
 	return &wasmService{
+		ctx:    deps.Ctx,
 		cfg:    deps.Cfg,
 		logger: deps.Logger,
 		fs:     deps.Fs,
@@ -41,7 +44,7 @@ func NewWasmService(deps WasmServiceDependencies) WasmService {
 
 func (s *wasmService) CheckAndUpdate(ctx context.Context) error {
 	// Skip WASM operations in test mode
-	if utils.TestingMode {
+	if s.ctx != nil && s.ctx.IsTesting {
 		return nil
 	}
 
@@ -69,7 +72,7 @@ func (s *wasmService) CheckAndUpdate(ctx context.Context) error {
 
 func (s *wasmService) Deploy(ctx context.Context, stagingDir string) error {
 	// Skip WASM operations in test mode
-	if utils.TestingMode {
+	if s.ctx != nil && s.ctx.IsTesting {
 		return nil
 	}
 

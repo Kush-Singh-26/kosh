@@ -6,7 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 )
 
 var stopWords = map[string]bool{
@@ -95,8 +95,8 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 	offsets := make(map[string][]int, estUnique)
 	localStemCache := make(map[string]string, estUnique/2)
 
-	bufPtr := utils.SharedByteSlicePool.Get()
-	defer utils.SharedByteSlicePool.Put(bufPtr)
+	bufPtr := pools.SharedByteSlicePool.Get()
+	defer pools.SharedByteSlicePool.Put(bufPtr)
 
 	idx := 0
 	for _, token := range tokens {
@@ -193,8 +193,8 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, original
 		tokenPool.Put(tokensPtr)
 	}()
 
-	bufPtr := utils.SharedByteSlicePool.Get()
-	defer utils.SharedByteSlicePool.Put(bufPtr)
+	bufPtr := pools.SharedByteSlicePool.Get()
+	defer pools.SharedByteSlicePool.Put(bufPtr)
 
 	for _, token := range tokens {
 		var orig string
@@ -225,20 +225,6 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, original
 		}
 	}
 	return stemmed, originals
-}
-
-// Tokenize splits text into tokens and returns a slice of strings.
-//
-// Deprecated: Use [TokenizeWithUnicodeInto] for better performance.
-// This function allocates a new string slice and copies all token values.
-// For internal use, prefer TokenizeWithUnicodeInto which avoids allocations.
-func Tokenize(text string) []string {
-	tokens := TokenizeWithUnicode(text)
-	res := make([]string, len(tokens))
-	for i, t := range tokens {
-		res[i] = t.Value
-	}
-	return res
 }
 
 // Token represents a word with its byte offsets in the original text

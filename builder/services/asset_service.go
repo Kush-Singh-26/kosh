@@ -1,5 +1,10 @@
 package services
 
+// Error Handling Strategy:
+// - Recoverable errors: Return error to caller (triggers fallback to full build)
+// - Non-recoverable errors: Return error to abort build
+// - Fire-and-forget errors: Log only (cache writes, social card generation)
+
 import (
 	"context"
 	"io/fs"
@@ -8,11 +13,12 @@ import (
 	"runtime"
 	"sync"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
@@ -45,6 +51,7 @@ func WithContentAssetsChannel(ch <-chan []models.ScannedAsset) AssetServiceOptio
 
 // assetService implements AssetService
 type assetService struct {
+	ctx               *buildCtx.BuildContext
 	sourceFs          afero.Fs
 	sink              fspkg.ArtifactSink
 	cfg               *config.Config
@@ -65,6 +72,7 @@ type assetService struct {
 //   - ContentAssetsChan: must be set via WithContentAssetsChannel option
 func NewAssetService(deps AssetServiceDependencies, opts ...AssetServiceOption) AssetService {
 	s := &assetService{
+		ctx:      deps.Ctx,
 		sourceFs: deps.SourceFs,
 		sink:     deps.Sink,
 		cfg:      deps.Cfg,
@@ -78,18 +86,6 @@ func NewAssetService(deps AssetServiceDependencies, opts ...AssetServiceOption) 
 	}
 
 	return s
-}
-
-// NewAssetServiceWith creates a new AssetService with explicit parameters.
-// Deprecated: use NewAssetService(AssetServiceDependencies{...}) instead.
-func NewAssetServiceWith(sourceFs afero.Fs, sink fspkg.ArtifactSink, cfg *config.Config, renderer RenderService, logger *slog.Logger, opts ...AssetServiceOption) AssetService {
-	return NewAssetService(AssetServiceDependencies{
-		SourceFs: sourceFs,
-		Sink:     sink,
-		Cfg:      cfg,
-		Renderer: renderer,
-		Logger:   logger,
-	}, opts...)
 }
 
 func (s *assetService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {

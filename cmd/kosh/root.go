@@ -7,9 +7,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/run"
-	"github.com/spf13/cobra"
 	"charm.land/fang/v2"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
+	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
@@ -36,20 +36,20 @@ func getContext() context.Context {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigChan
-		run.DevLogInfo("Received signal: " + sig.String() + ". Initiating graceful shutdown...")
+		orchestration.DevLogInfo("Received signal: " + sig.String() + ". Initiating graceful shutdown...")
 		cancel()
 
 		// Second signal forces exit
 		select {
 		case sig2 := <-sigChan:
-			run.DevLogInfo("Received second signal: " + sig2.String() + ". Forcing exit.")
+			orchestration.DevLogInfo("Received second signal: " + sig2.String() + ". Forcing exit.")
 			os.Exit(1)
 		case <-time.After(2 * time.Second):
 			// After 2 seconds, the user can still force exit with another Ctrl+C
 			// but we keep the listener alive just in case.
 			go func() {
 				sig3 := <-sigChan
-				run.DevLogInfo("Received forceful signal: " + sig3.String() + ". Exiting.")
+				orchestration.DevLogInfo("Received forceful signal: " + sig3.String() + ". Exiting.")
 				os.Exit(1)
 			}()
 		}

@@ -3,14 +3,10 @@ package build
 import (
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
 )
 
 func TestCheckWASMFs(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Test initial write — files should land under outputDir, not CWD

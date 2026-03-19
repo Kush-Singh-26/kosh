@@ -1,12 +1,9 @@
 // Package cache provides a BoltDB + content-addressed filesystem cache for Kosh SSG.
 package core
 
-//go:generate msgp
-
 import (
 	"encoding/hex"
 	"fmt"
-	"time"
 
 	"github.com/tinylib/msgp/msgp"
 	"github.com/zeebo/xxh3"
@@ -17,96 +14,36 @@ import (
 var ErrNoContent = fmt.Errorf("no content found in cache")
 
 // PostMeta stores metadata about a cached post
-type PostMeta struct {
-	PostID          string
-	Path            string
-	ModTime         int64
-	ContentHash     string // Frontmatter hash
-	BodyHash        string // Body content hash
-	HTMLHash        string // Only for large posts
-	InlineHTML      []byte // < 32KB posts stored inline
-	SSRInputHashes  []string
-	Title           string
-	Date            time.Time
-	Tags            []string
-	WordCount       int
-	ReadingTime     int
-	Description     string
-	Link            string
-	Weight          int
-	Pinned          bool
-	Draft           bool
-	Meta            map[string]any
-	TOC             []models.TOCEntry
-	Version         string
-	CardHash        string
-	HasImages       bool
-	MathExpressions []models.MathExpression
-}
+type PostMeta = models.PostMeta
 
 // SSRArtifact stores server-side rendered content (D2 diagrams, KaTeX math)
-// Type is stored as string for backward compatibility with existing cache data
-type SSRArtifact struct {
-	Type       string // "d2" or "math" - use models.SSRTypeD2/String() for conversion
-	InputHash  string
-	OutputHash string
-	RefCount   int
-	Size       int64
-	CreatedAt  int64
-	Compressed bool
-}
+type SSRArtifact = models.SSRArtifact
 
 // SearchRecord stores pre-computed search data for BM25
-type SearchRecord struct {
-	Title           string
-	NormalizedTitle string
-	BM25Data        map[string]int // word -> frequency
-	DocLen          int
-	Content         string
-	NormalizedTags  []string
-	StemMap         map[string]string
-	PositionalIndex map[string][]int
-	ByteOffsets     map[string][]int
-}
+type SearchRecord = models.SearchRecord
 
 // Dependencies tracks what a post depends on
-type Dependencies struct {
-	Templates []string
-	Includes  []string
-	Tags      []string
-}
+type Dependencies = models.Dependencies
 
 // PostListMeta contains minimal metadata needed for navigation/sorting
-type PostListMeta struct {
-	Title   string
-	Link    string
-	Weight  int
-	Version string
-	Date    time.Time
-}
+type PostListMeta = models.PostListMeta
 
 // CacheStats holds runtime statistics
-type CacheStats struct {
-	TotalPosts    int
-	TotalSSR      int
-	StoreBytes    int64
-	LastGC        int64
-	BuildCount    int
-	SchemaVersion int
-	InlinePosts   int
-	HashedPosts   int
-}
+type CacheStats = models.CacheStats
 
-type CompressionType int
+type CompressionType = models.CompressionType
 
 const (
-	CompressionNone CompressionType = iota
-	CompressionZstdFast
-	CompressionZstdLevel3
+	CompressionNone       = models.CompressionNone
+	CompressionZstdFast   = models.CompressionZstdFast
+	CompressionZstdLevel3 = models.CompressionZstdLevel3
 )
 
 const (
-	SchemaVersion = 7
+	// SchemaVersion is the current cache schema version.
+	// This should be kept in sync with models.CurrentSchemaVersion (search index schema).
+	// Both are currently at version 10 (as of 2026-03-19).
+	SchemaVersion = 10
 )
 
 func HashContent(data []byte) string {

@@ -9,26 +9,27 @@ import (
 	"sync"
 	"sync/atomic"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-
-	"github.com/Kush-Singh-26/kosh/builder/utils/async"
 )
 
 // postService implements PostService
 type postService struct {
+	ctx            *buildCtx.BuildContext
 	cfg            *config.Config
-	cache          CacheService
+	cache          PostServiceCache
 	renderer       RenderService
 	logger         *slog.Logger
 	metrics        *metrics.BuildMetrics
@@ -46,6 +47,7 @@ type postService struct {
 
 func NewPostService(deps PostServiceDependencies) PostService {
 	return &postService{
+		ctx:            deps.Ctx,
 		cfg:            deps.Cfg,
 		cache:          deps.Cache,
 		renderer:       deps.Renderer,
@@ -83,9 +85,9 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 	cardPool := async.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) error {
 		s.generateSocialCard(task)
 		return nil
-	}).WithScheduler(utils.GlobalScheduler, utils.TaskSocialCard)
+	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskSocialCard)
 	cardPool.Start()
-	defer func() { utils.IgnoreError(cardPool.Stop(), "stop card pool") }()
+	defer func() { buildCtx.IgnoreError(cardPool.Stop(), "stop card pool") }()
 
 	pc := s.runParsePhase(ctx, numWorkers, shouldForce, forceSocialRebuild, fileChan, cardPool)
 	if len(pc.errs) > 0 {
@@ -110,9 +112,9 @@ type postProcessContext struct {
 	tagMap           map[string][]models.PostMetadata
 	anyPostChanged   atomic.Bool
 	readyToRender    []renderTask
-	newPostsMeta     []*cache.PostMeta
-	newSearchRecords map[string]*cache.SearchRecord
-	newDeps          map[string]*cache.Dependencies
+	newPostsMeta     []*models.PostMeta
+	newSearchRecords map[string]*models.SearchRecord
+	newDeps          map[string]*models.Dependencies
 	indexedPosts     []models.IndexedPost
 	errs             []error
 	mu               sync.Mutex
@@ -121,8 +123,8 @@ type postProcessContext struct {
 func (s *postService) runParsePhase(ctx context.Context, numWorkers int, shouldForce, forceSocialRebuild bool, fileChan <-chan models.ScannedFile, cardPool *async.WorkerPool[socialCardTask]) *postProcessContext {
 	pc := &postProcessContext{
 		tagMap:           make(map[string][]models.PostMetadata),
-		newSearchRecords: make(map[string]*cache.SearchRecord),
-		newDeps:          make(map[string]*cache.Dependencies),
+		newSearchRecords: make(map[string]*models.SearchRecord),
+		newDeps:          make(map[string]*models.Dependencies),
 	}
 
 	s.logger.Info("Processing posts (streaming mode)")
@@ -132,7 +134,7 @@ func (s *postService) runParsePhase(ctx context.Context, numWorkers int, shouldF
 	parsePool := async.NewWorkerPool(ctx, numWorkers, func(f models.ScannedFile) error {
 		s.parseWorkerTask(ctx, f, shouldForce, forceSocialRebuild, pc, cardPool)
 		return nil
-	}).WithScheduler(utils.GlobalScheduler, utils.TaskMarkdown)
+	}).WithScheduler(scheduler.GetGlobalScheduler(), scheduler.TaskMarkdown)
 
 	parsePool.Start()
 	for f := range fileChan {
@@ -203,7 +205,7 @@ func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile,
 				Cfg:            s.cfg,
 				NativeRenderer: s.nativeRenderer,
 				DiagramAdapter: s.diagramAdapter,
-				MathBatchSize:  16,
+				MathBatchSize:  DefaultMathBatchSize,
 			},
 		)
 		if err != nil {
@@ -214,6 +216,11 @@ func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile,
 			return
 		}
 		pc.anyPostChanged.Store(true)
+
+		// Set Title from ScannedFile if not already set by parser
+		if parseRes.Post.Title == "" {
+			parseRes.Post.Title = f.Title
+		}
 
 		htmlContent = s.renderMath(ctx, path, parseRes)
 		finalSSRHashes = parseRes.SSRHashes
@@ -232,7 +239,7 @@ func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile,
 	s.metrics.IncrementPostsProcessed()
 }
 
-func (s *postService) checkCache(relPath string, f models.ScannedFile, shouldForce bool) (*cache.PostMeta, bool) {
+func (s *postService) checkCache(relPath string, f models.ScannedFile, shouldForce bool) (*models.PostMeta, bool) {
 	if s.cache == nil || shouldForce {
 		return nil, false
 	}
@@ -244,7 +251,7 @@ func (s *postService) checkCache(relPath string, f models.ScannedFile, shouldFor
 	return cachedMeta, fastBail
 }
 
-func (s *postService) loadFromCache(cachedMeta *cache.PostMeta, htmlRelPath string) (*ParsedMarkdownResult, string, bool) {
+func (s *postService) loadFromCache(cachedMeta *models.PostMeta, htmlRelPath string) (*ParsedMarkdownResult, string, bool) {
 	cachedHTML, err := s.cache.GetHTMLContent(cachedMeta)
 	if err != nil || cachedHTML == nil {
 		return nil, "", false
@@ -390,7 +397,7 @@ func (s *postService) aggregateParseResult(pc *postProcessContext, f models.Scan
 
 	if !useCache && s.cache != nil {
 		postID := cache.GeneratePostID("", relPath)
-		newMeta := &cache.PostMeta{
+		newMeta := &models.PostMeta{
 			PostID: postID, Path: relPath, ModTime: f.Info.ModTime().Unix(),
 			ContentHash: res.FrontmatterHash, BodyHash: f.BodyHash, Title: post.Title, Date: post.DateObj,
 			Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
@@ -401,7 +408,7 @@ func (s *postService) aggregateParseResult(pc *postProcessContext, f models.Scan
 		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
 			s.logger.Warn("Failed to store HTML for post", "path", relPath, "error", err)
 		}
-		newSearch := &cache.SearchRecord{
+		newSearch := &models.SearchRecord{
 			Title: post.Title, NormalizedTitle: res.SearchRecord.NormalizedTitle,
 			BM25Data: res.WordFreqs, DocLen: res.DocLen, Content: res.SearchRecord.Content,
 			NormalizedTags: res.SearchRecord.NormalizedTags, StemMap: res.StemMap,
@@ -409,7 +416,7 @@ func (s *postService) aggregateParseResult(pc *postProcessContext, f models.Scan
 		}
 		pc.newPostsMeta = append(pc.newPostsMeta, newMeta)
 		pc.newSearchRecords[postID] = newSearch
-		pc.newDeps[postID] = &cache.Dependencies{Tags: post.Tags}
+		pc.newDeps[postID] = &models.Dependencies{Tags: post.Tags}
 	}
 }
 
@@ -432,7 +439,7 @@ func (s *postService) runRenderPhase(ctx context.Context, numWorkers int, pc *po
 		post := rt.parseRes.Post
 		imagePath := s.cfg.BaseURL + "/static/images/cards/" + strings.TrimSuffix(rt.htmlRelPath, ".html") + ".webp"
 		var prev, next *models.NavPage
-		if pos, ok := postPosByVersion[rt.version][post.Link]; ok {
+		if pos, ok := postPosByVersion[rt.version][rt.f.Link]; ok {
 			vp := postsByVersion[rt.version]
 			if pos > 0 {
 				prev = &models.NavPage{Title: vp[pos-1].Title, Link: vp[pos-1].Link}
@@ -445,13 +452,13 @@ func (s *postService) runRenderPhase(ctx context.Context, numWorkers int, pc *po
 		s.renderer.RenderPage(rt.destPath, models.PageData{
 			Title: post.Title, Description: post.Description, Content: template.HTML(rt.htmlContent),
 			Meta: rt.parseRes.MetaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
-			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
+			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: rt.f.Link, Image: imagePath,
 			TOC: rt.parseRes.TOC, Config: s.cfg, CurrentVersion: rt.version, ReadingTime: post.ReadingTime,
 			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(rt.htmlRelPath),
 			HasImages: rt.parseRes.HasImages,
 		})
 		return nil
-	}).WithScheduler(utils.GlobalScheduler, utils.TaskMarkdown)
+	}).WithScheduler(scheduler.GetGlobalScheduler(), scheduler.TaskMarkdown)
 
 	renderPool.Start()
 	for _, rt := range pc.readyToRender {

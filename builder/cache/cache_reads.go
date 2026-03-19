@@ -2,13 +2,14 @@ package cache
 
 import (
 	"bytes"
-	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
+
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	bolt "go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
 )
@@ -18,11 +19,11 @@ func getCachedItem[T any](db *bolt.DB, bucketName string, key []byte) (*T, error
 	err := db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(bucketName))
 		if bucket == nil {
-			return nil
+			return core.ErrNoContent
 		}
 		data := bucket.Get(key)
 		if data == nil {
-			return nil
+			return core.ErrNoContent
 		}
 
 		var item T
@@ -77,21 +78,21 @@ func (m *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
 		// First lookup the postID from paths bucket
 		paths := tx.Bucket([]byte(core.BucketPaths))
 		if paths == nil {
-			return nil
+			return core.ErrNoContent
 		}
 		postID := paths.Get([]byte(normalizedPath))
 		if postID == nil {
-			return nil
+			return core.ErrNoContent
 		}
 
 		// Then get the post from posts bucket in the same transaction
 		posts := tx.Bucket([]byte(core.BucketPosts))
 		if posts == nil {
-			return nil
+			return core.ErrNoContent
 		}
 		data := posts.Get(postID)
 		if data == nil {
-			return nil
+			return core.ErrNoContent
 		}
 
 		var meta core.PostMeta

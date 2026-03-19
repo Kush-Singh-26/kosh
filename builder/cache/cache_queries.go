@@ -2,8 +2,9 @@ package cache
 
 import (
 	"encoding/binary"
-	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"path/filepath"
+
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -72,12 +73,13 @@ func (m *Manager) GetSocialCardHash(path string) (string, error) {
 	err := m.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketSocialCard))
 		if bucket == nil {
-			return nil
+			return core.ErrNoContent
 		}
 		data := bucket.Get([]byte(path))
-		if data != nil {
-			hash = string(data)
+		if data == nil {
+			return core.ErrNoContent
 		}
+		hash = string(data)
 		return nil
 	})
 	return hash, err
@@ -119,9 +121,10 @@ func (m *Manager) GetGraphHash() (string, error) {
 	err := m.db.View(func(tx *bolt.Tx) error {
 		meta := tx.Bucket([]byte(core.BucketMeta))
 		data := meta.Get([]byte(core.KeyGraphHash))
-		if data != nil {
-			hash = string(data)
+		if data == nil {
+			return core.ErrNoContent
 		}
+		hash = string(data)
 		return nil
 	})
 	return hash, err
@@ -141,9 +144,10 @@ func (m *Manager) GetWasmHash() (string, error) {
 	err := m.db.View(func(tx *bolt.Tx) error {
 		meta := tx.Bucket([]byte(core.BucketMeta))
 		data := meta.Get([]byte(core.KeyWasmHash))
-		if data != nil {
-			hash = string(data)
+		if data == nil {
+			return core.ErrNoContent
 		}
+		hash = string(data)
 		return nil
 	})
 	return hash, err

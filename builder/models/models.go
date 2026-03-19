@@ -40,12 +40,21 @@ type MetadataScannerResult struct {
 // ScannedFile carries minimal file info to avoid a second filesystem walk in post processing.
 type ScannedFile struct {
 	Path            string
+	RelPath         string
 	Version         string
+	Title           string
+	Description     string
+	Date            string
+	Draft           bool
+	Pinned          bool
+	Weight          int
+	Tags            []string
 	Info            fs.FileInfo
 	BodyHash        string
 	FrontmatterHash string
 	ReadingTime     int
 	BodyOffset      int
+	Link            string
 	Source          []byte         // Pre-read source bytes to avoid double-read
 	PreParsedMeta   map[string]any // Pre-parsed frontmatter to avoid double-parse
 }

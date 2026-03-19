@@ -145,7 +145,7 @@ func TestStem_Consistency(t *testing.T) {
 // TestStem_Variations tests related word forms stem to same root
 func TestStem_Variations(t *testing.T) {
 	tests := []struct {
-		words  []string
+		words    []string
 		sameRoot bool
 	}{
 		{[]string{"run", "runs", "running"}, false}, // Porter doesn't stem all to same root

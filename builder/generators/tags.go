@@ -8,11 +8,13 @@ import (
 	"runtime"
 	"sort"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-	"github.com/Kush-Singh-26/kosh/builder/utils/async"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	"github.com/Kush-Singh-26/kosh/builder/pathutil"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
@@ -42,7 +44,7 @@ type TagOptions struct {
 	Cfg                *config.Config
 	Sink               fspkg.ArtifactSink
 	Render             models.RenderService
-	Cache              models.CacheService
+	Cache              models.SocialCardCache
 	SourceFs           afero.Fs
 	TagMap             map[string][]models.PostMetadata
 	ForceSocialRebuild bool
@@ -57,13 +59,13 @@ func RenderTags(opts TagOptions) error {
 
 	var allTags []models.TagData
 	for t, posts := range opts.TagMap {
-		slug := timeutil.Slugify(t)
+		slug := pathutil.Slugify(t)
 		allTags = append(allTags, models.TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("/tags/%s.html", slug)})
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 
 	workers := BoundedTagSocialCardWorkers()
-	tagCardsTimer := timeutil.StartPhase("Tags social cards")
+	tagCardsTimer := metrics.StartPhase("Tags social cards")
 	tagCardPool := async.NewWorkerPool(opts.Ctx, workers, func(task TagSocialCardTask) error {
 		tagCard := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/tags/%s.webp", task.Slug))
 
@@ -114,14 +116,14 @@ func RenderTags(opts TagOptions) error {
 	} else {
 		// Use file reading helper if needed, or just standard os.ReadFile
 		if data, err := afero.ReadFile(afero.NewOsFs(), tagsIndexCache); err == nil {
-			utils.IgnoreError(sink.MkdirAll(filepath.Dir(tagsIndexCard)), "create tags index card dir")
-			utils.IgnoreError(sink.WriteFile(tagsIndexCard, data), "write cached tags index card")
+			buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(tagsIndexCard)), "create tags index card dir")
+			buildCtx.IgnoreError(sink.WriteFile(tagsIndexCard, data), "write cached tags index card")
 			render.RegisterFile(tagsIndexCard)
 		}
 	}
 
 	// Generate Tags Index
-	tagRenderTimer := timeutil.StartPhase("Tags HTML rendering")
+	tagRenderTimer := metrics.StartPhase("Tags HTML rendering")
 	if err := render.RenderPage(filepath.Join(cfg.OutputDir, "tags/index.html"), models.PageData{
 		Title: "All Tags", IsTagsIndex: true, AllTags: allTags,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
@@ -150,8 +152,8 @@ func RenderTags(opts TagOptions) error {
 			tagCardPool.Submit(TagSocialCardTask{Slug: slug, Title: tagName, Count: len(tagPosts)})
 		} else if data, err := afero.ReadFile(afero.NewOsFs(), cached); err == nil {
 			tagCard := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/tags/%s.webp", slug))
-			utils.IgnoreError(sink.MkdirAll(filepath.Dir(tagCard)), "create tag card dir")
-			utils.IgnoreError(sink.WriteFile(tagCard, data), "write cached tag card")
+			buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(tagCard)), "create tag card dir")
+			buildCtx.IgnoreError(sink.WriteFile(tagCard, data), "write cached tag card")
 			render.RegisterFile(tagCard)
 		}
 
@@ -174,13 +176,13 @@ func RenderTags(opts TagOptions) error {
 	err := g.Wait()
 	tagRenderTimer.Stop()
 
-	go func() {
+	func() {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Debug("Tag card pool stop recovered", "panic", r)
 			}
 		}()
-		utils.IgnoreError(tagCardPool.Stop(), "stop tag card pool")
+		buildCtx.IgnoreError(tagCardPool.Stop(), "stop tag card pool")
 		tagCardsTimer.Stop()
 	}()
 

@@ -1,9 +1,10 @@
 package parser
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	"strings"
 	"testing"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestReplaceMathExpressions(t *testing.T) {

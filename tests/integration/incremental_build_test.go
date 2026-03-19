@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/spf13/afero"
 )
@@ -37,7 +37,7 @@ func TestIncrementalBuildIntegration(t *testing.T) {
 	cfg.StaticDir = absStaticDir
 	cfg.IsDev = true // Enable dev mode for incremental rebuilds
 
-	b := run.NewBuilderWithFs(fs, cfg)
+	b := orchestration.NewEngineWithFs(fs, cfg)
 	defer b.Close()
 
 	ctx := context.Background()
@@ -60,7 +60,7 @@ This content was updated.`
 	_ = afero.WriteFile(fs, postPath, []byte(updatedContent), 0644)
 
 	// Create a NEW builder for the incremental part to ensure isCleanBuild is false
-	b = run.NewBuilderWithFs(fs, cfg)
+	b = orchestration.NewEngineWithFs(fs, cfg)
 	defer b.Close()
 
 	// Run incremental build

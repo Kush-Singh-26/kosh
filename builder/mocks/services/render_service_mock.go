@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 
 	"github.com/spf13/afero"
 )

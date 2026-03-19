@@ -4,20 +4,20 @@ import (
 	"bytes"
 	"context"
 	"io/fs"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
 var yamlDelim = []byte("---")
@@ -49,47 +49,35 @@ func extractFrontmatterBool(frontmatter []byte, re *regexp.Regexp) bool {
 	if len(match) < 2 {
 		return false
 	}
-	return strings.ToLower(string(bytes.TrimSpace(match[1]))) == "true"
+	return string(bytes.TrimSpace(match[1])) == "true"
 }
 
 // extractFrontmatterInt extracts an integer field from frontmatter
-func extractFrontmatterInt(frontmatter []byte, re *regexp.Regexp) (int, bool) {
+func extractFrontmatterInt(frontmatter []byte, re *regexp.Regexp) int {
 	match := re.FindSubmatch(frontmatter)
 	if len(match) < 2 {
-		return 0, false
+		return 0
 	}
-	val, err := strconv.Atoi(string(bytes.TrimSpace(match[1])))
-	if err != nil {
-		return 0, false
-	}
-	return val, true
+	val, _ := strconv.Atoi(string(bytes.TrimSpace(match[1])))
+	return val
 }
 
-// extractTagsSimple extracts tags from frontmatter using simple string parsing
-// Handles formats: tags: [tag1, tag2] or tags: [tag1,tag2]
-func extractTagsSimple(frontmatter []byte) []string {
+// extractFrontmatterTags extracts tags from frontmatter [tag1, tag2]
+func extractFrontmatterTags(frontmatter []byte) []string {
 	match := tagsLineRegex.FindSubmatch(frontmatter)
 	if len(match) < 2 {
 		return nil
 	}
-	tagsStr := string(bytes.TrimSpace(match[1]))
-	if tagsStr == "" {
-		return nil
-	}
-	parts := strings.Split(tagsStr, ",")
+	rawTags := string(match[1])
+	parts := strings.Split(rawTags, ",")
 	tags := make([]string, 0, len(parts))
 	for _, p := range parts {
-		tag := strings.TrimSpace(p)
-		tag = strings.Trim(tag, `"'`)
+		tag := strings.Trim(strings.TrimSpace(p), "\"'")
 		if tag != "" {
 			tags = append(tags, tag)
 		}
 	}
 	return tags
-}
-
-type MetadataScanner interface {
-	Scan(ctx context.Context, contentDir string, sourceFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error)
 }
 
 type metadataScanner struct{}
@@ -98,223 +86,139 @@ func NewMetadataScanner() MetadataScanner {
 	return &metadataScanner{}
 }
 
-func (s *metadataScanner) Scan(ctx context.Context, contentDir string, sourceFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error) {
-	var (
-		mu             sync.Mutex
-		has404         bool
-		assets         []models.ScannedAsset
-		scannedFiles   []models.ScannedFile
-		tagMap         = make(map[string][]models.LightPostMetadata)
-		postsByVersion = make(map[string][]models.LightPostMetadata)
-		allMetadata    []models.LightPostMetadata
-	)
-
-	workerCount := min(runtime.NumCPU(),
-		// Cap scanning workers to prevent I/O saturation
-		8)
-	g, gCtx := errgroup.WithContext(ctx)
-
-	// Task channel for parsing workers
-	type scanTask struct {
-		path    string
-		version string
-		info    fs.FileInfo
+func (s *metadataScanner) Scan(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error) {
+	result := &models.MetadataScannerResult{
+		Files:         make([]models.ScannedFile, 0, 50),
+		ContentAssets: make([]models.ScannedAsset, 0, 10),
 	}
-	tasks := make(chan scanTask, 1024)
 
-	// Start parsing workers
-	for i := 0; i < workerCount; i++ {
-		g.Go(func() error {
-			for t := range tasks {
-				relPath, err := fspkg.SafeRel(contentDir, t.path)
-				if err != nil {
-					continue
-				}
-				htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
+	var mu sync.Mutex
+	g, ctx := errgroup.WithContext(ctx)
+	// Limit concurrency for filesystem walk/read
+	g.SetLimit(runtime.NumCPU() * 2)
 
-				cleanHtmlRelPath := htmlRelPath
-				versionLower := strings.ToLower(t.version)
-				if t.version != "" {
-					cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, versionLower+"/")
-				}
-
-				source, err := afero.ReadFile(sourceFs, t.path)
-				if err != nil {
-					continue
-				}
-
-				meta, preParsedMeta, frontmatterHash, bodyHash, readingTime, bodyOffset := s.extractFrontmatter(source, relPath, t.version, cleanHtmlRelPath, htmlRelPath, cfg)
-				if meta.Path == "" {
-					continue
-				}
-
-				sf := models.ScannedFile{
-					Path:            t.path,
-					Version:         t.version,
-					Info:            t.info,
-					BodyHash:        bodyHash,
-					FrontmatterHash: frontmatterHash,
-					ReadingTime:     readingTime,
-					BodyOffset:      bodyOffset,
-					Source:          source,
-					PreParsedMeta:   preParsedMeta,
-				}
-
-				if fileChan != nil {
-					select {
-					case fileChan <- sf:
-					case <-gCtx.Done():
-						return gCtx.Err()
-					}
-				}
-
-				mu.Lock()
-				allMetadata = append(allMetadata, meta)
-				postsByVersion[meta.Version] = append(postsByVersion[meta.Version], meta)
-				for _, tag := range meta.Tags {
-					key := strings.ToLower(strings.TrimSpace(tag))
-					tagMap[key] = append(tagMap[key], meta)
-				}
-				scannedFiles = append(scannedFiles, sf)
-				mu.Unlock()
-			}
+	err := afero.Walk(srcFs, contentDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
 			return nil
-		})
-	}
-
-	// Run discovery walk with optimized concurrency
-	g.Go(func() error {
-		defer close(tasks)
-		// Use higher concurrency for discovery on modern SSDs
-		walkConcurrency := max(workerCount*2, 8)
-		if walkConcurrency > 32 {
-			walkConcurrency = 32
 		}
-		return fspkg.ParallelWalk(gCtx, sourceFs, contentDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
-			if err != nil || info == nil {
-				return nil
-			}
-			if !info.IsDir() {
-				if strings.HasSuffix(strings.ToLower(path), ".md") && !strings.Contains(path, "_index.md") {
-					if strings.Contains(path, "404.md") {
-						mu.Lock()
-						has404 = true
-						mu.Unlock()
-						return nil
-					}
-					ver, _ := utils.GetVersionFromPath(path)
-					select {
-					case tasks <- scanTask{path, ver, info}:
-					case <-gCtx.Done():
-						return gCtx.Err()
-					}
 
-					// If raw markdown is enabled, also treat it as an asset to be copied
-					if cfg.Features.RawMarkdown {
-						mu.Lock()
-						assets = append(assets, models.ScannedAsset{Path: path, Info: info})
-						mu.Unlock()
-					}
-					return nil
-				}
-				mu.Lock()
-				assets = append(assets, models.ScannedAsset{Path: path, Info: info})
-				mu.Unlock()
+		if filepath.Ext(path) != ".md" {
+			mu.Lock()
+			result.ContentAssets = append(result.ContentAssets, models.ScannedAsset{
+				Path: path,
+				Info: info,
+			})
+			mu.Unlock()
+			return nil
+		}
+
+		if filepath.Base(path) == "404.md" {
+			mu.Lock()
+			result.Has404 = true
+			mu.Unlock()
+		}
+
+		g.Go(func() error {
+			f, err := s.ScanFile(srcFs, cfg, path)
+			if err != nil {
+				return nil // Skip individual file errors
 			}
+
+			if fileChan != nil {
+				select {
+				case fileChan <- f:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+
+			mu.Lock()
+			result.Files = append(result.Files, f)
+			mu.Unlock()
 			return nil
 		})
+
+		return nil
 	})
+
+	if err != nil {
+		return nil, err
+	}
 
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
-	return &models.MetadataScannerResult{
-		Metadata:       allMetadata,
-		TagMap:         tagMap,
-		PostsByVersion: postsByVersion,
-		Files:          scannedFiles,
-		ContentAssets:  assets,
-		Has404:         has404,
-	}, nil
+	return result, nil
 }
 
-func (s *metadataScanner) extractFrontmatter(source []byte, relPath, version, cleanHtmlRelPath, htmlRelPath string, cfg *config.Config) (models.LightPostMetadata, map[string]any, string, string, int, int) {
-	parts := bytes.SplitN(source, yamlDelim, 3)
-	if len(parts) < 3 {
-		return models.LightPostMetadata{}, nil, "", "", 0, 0
+// Remove ScanVersioned entirely as it's unused and superseded by Scan
+
+func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error) {
+	data, err := afero.ReadFile(srcFs, path)
+	if err != nil {
+		return models.ScannedFile{}, err
 	}
 
-	frontmatter := bytes.TrimSpace(parts[1])
+	info, err := srcFs.Stat(path)
+	if err != nil {
+		return models.ScannedFile{}, err
+	}
 
-	// Optimized: Use lightweight regex/string extraction for common fields
-	// This avoids full YAML unmarshaling overhead for the common case
+	relPath, _ := filepath.Rel(cfg.ContentDir, path)
+	version, _ := navigation.GetVersionFromPath(path)
+
+	// Extract frontmatter and body quickly
+	parts := bytes.SplitN(data, yamlDelim, 3)
+	var frontmatter, body []byte
+	var bodyOffset int
+	if len(parts) >= 3 {
+		frontmatter = bytes.TrimSpace(parts[1])
+		body = bytes.TrimSpace(parts[2])
+		// Calculate offset for search snippet context
+		bodyOffset = bytes.Index(data, parts[2])
+	} else {
+		body = bytes.TrimSpace(data)
+		bodyOffset = 0
+	}
+
 	title, _ := extractFrontmatterField(frontmatter, titleRegex)
+	if title == "" {
+		title = strings.TrimSuffix(filepath.Base(path), ".md")
+	}
+
 	description, _ := extractFrontmatterField(frontmatter, descriptionRegex)
-	dateStr, _ := extractFrontmatterField(frontmatter, dateRegex)
-	tags := extractTagsSimple(frontmatter)
-	isPinned := extractFrontmatterBool(frontmatter, pinnedRegex)
-	isDraft := extractFrontmatterBool(frontmatter, draftRegex)
-	weight, _ := extractFrontmatterInt(frontmatter, weightRegex)
+	date, _ := extractFrontmatterField(frontmatter, dateRegex)
+	draft := extractFrontmatterBool(frontmatter, draftRegex)
+	pinned := extractFrontmatterBool(frontmatter, pinnedRegex)
+	weight := extractFrontmatterInt(frontmatter, weightRegex)
+	tags := extractFrontmatterTags(frontmatter)
 
-	dateObj, _ := time.Parse("2006-01-02", dateStr)
+	bodyHash := hashing.HashBytes(body)
+	cleanHtmlRelPath := strings.TrimSuffix(relPath, filepath.Ext(relPath)) + ".html"
 
-	// Optimized: Defer word count/reading time to post processing to allow cache reuse
-	readingTime := 0
+	postLink := navigation.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
 
-	body := bytes.TrimSpace(parts[2])
-	bodyHash := utils.HashBytes(body)
-
-	// Compute body offset relative to source
-	bodyOffset := len(parts[0]) + len(yamlDelim) + len(parts[1]) + len(yamlDelim)
-
-	postLink := utils.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
-
-	frontmatterHash := utils.GetFrontmatterHashFromValues(
-		title,
-		description,
-		dateStr,
-		tags,
-		isPinned,
+	frontmatterHash := hashing.GetFrontmatterHashFromValues(
+		title, description, date, tags, pinned,
 	)
 
-	// Build minimal fmMap for compatibility with downstream code
-	// Only include fields that were successfully extracted
-	fmMap := make(map[string]any)
-	if title != "" {
-		fmMap["title"] = title
-	}
-	if description != "" {
-		fmMap["description"] = description
-	}
-	if dateStr != "" {
-		fmMap["date"] = dateStr
-	}
-	if len(tags) > 0 {
-		fmMap["tags"] = tags
-	}
-	if isPinned {
-		fmMap["pinned"] = true
-	}
-	if isDraft {
-		fmMap["draft"] = true
-	}
-	if weight != 0 {
-		fmMap["weight"] = weight
-	}
-
-	return models.LightPostMetadata{
-		Path:        relPath,
-		Version:     version,
-		Title:       title,
-		DateObj:     dateObj,
-		Tags:        tags,
-		Pinned:      isPinned,
-		Weight:      weight,
-		ReadingTime: readingTime,
-		Draft:       isDraft,
-		Description: description,
-		Link:        postLink,
-		HTMLPath:    htmlRelPath,
-	}, fmMap, frontmatterHash, bodyHash, readingTime, bodyOffset
+	return models.ScannedFile{
+		Path:            path,
+		RelPath:         relPath,
+		Version:         version,
+		Title:           title,
+		Description:     description,
+		Date:            date,
+		Draft:           draft,
+		Pinned:          pinned,
+		Weight:          weight,
+		Tags:            tags,
+		FrontmatterHash: frontmatterHash,
+		BodyHash:        bodyHash,
+		BodyOffset:      bodyOffset,
+		Link:            postLink,
+		Info:            info,
+		Source:          data, // Pre-read source bytes
+	}, nil
 }

@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"html/template"
 	"io"
 	"log/slog"
@@ -14,15 +13,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
+
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 // noopHandler is a slog.Handler that does nothing, used in tests to avoid race conditions in standard handlers.
@@ -63,6 +66,7 @@ func (m *mockRenderService) ReloadTemplates()                                   
 func (m *mockRenderService) ConsumeErrors() []error                                   { return nil }
 func (m *mockRenderService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {}
 
+// mockArtifactSink is a mock ArtifactSink for testing
 type mockArtifactSink struct {
 	fspkg.ArtifactSink
 	writtenFiles sync.Map
@@ -210,6 +214,7 @@ func setupPostServiceTest(t *testing.T) *postService {
 	}
 
 	return &postService{
+		ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
 		cfg:            cfg,
 		cache:          &mockCacheService{},
 		renderer:       &mockRenderService{},
@@ -424,14 +429,15 @@ func TestPostService_NeighborLookup(t *testing.T) {
 	}
 
 	// Post 2 (March 2nd)
-	// Sorting is descending date: Post 3 (Mar 3), Post 2 (Mar 2), Post 1 (Mar 1).
-	// Next of March 2 is Post 1 (older).
-	// Prev of March 2 is Post 3 (newer).
+	// Sorted descending: Post 3 (Mar 3), Post 2 (Mar 2), Post 1 (Mar 1).
+	// Prev (newer) = Post 3, Next (older) = Post 1.
 
-	if data.NextPage == nil || data.NextPage.Title != "Post 1" {
-		t.Errorf("Post 2 NextPage mismatch: got %v, want Post 1", data.NextPage)
-	}
+	t.Logf("Post 2 path: %s, Prev: %v, Next: %v", post2Path, data.PrevPage, data.NextPage)
+
 	if data.PrevPage == nil || data.PrevPage.Title != "Post 3" {
 		t.Errorf("Post 2 PrevPage mismatch: got %v, want Post 3", data.PrevPage)
+	}
+	if data.NextPage == nil || data.NextPage.Title != "Post 1" {
+		t.Errorf("Post 2 NextPage mismatch: got %v, want Post 1", data.NextPage)
 	}
 }
