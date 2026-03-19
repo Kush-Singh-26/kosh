@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 )
 
 func recoveryMiddleware(next http.Handler) http.Handler {
@@ -53,7 +53,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		duration := time.Since(start)
 		// Skip logging for SSE /events endpoint - not useful to log heartbeats
 		if r.URL.Path != "/events" && (sw.status >= 400 || duration > 500*time.Millisecond) {
-			run.HTTPLog(r.Method, r.URL.Path, sw.status, duration)
+			orchestration.HTTPLog(r.Method, r.URL.Path, sw.status, duration)
 		}
 	})
 }
@@ -95,7 +95,7 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 
 	go func() {
 		<-ctx.Done()
-		run.DevLogInfo("Shutting down server...")
+		orchestration.DevLogInfo("Shutting down server...")
 		stopWatcher()
 	}()
 
@@ -203,7 +203,7 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 
 	go func() {
 		<-ctx.Done()
-		run.DevLogInfo("Shutting down HTTP server...")
+		orchestration.DevLogInfo("Shutting down HTTP server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
@@ -211,16 +211,16 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 		}
 	}()
 
-	run.DevLogInfo("Serving on http://" + addr)
+	orchestration.DevLogInfo("Serving on http://" + addr)
 	if *host == "0.0.0.0" {
-		run.DevLogInfo("Accessible on your local network")
+		orchestration.DevLogInfo("Accessible on your local network")
 	}
 
-	run.DevLogInfo("Auto-reload enabled via /events")
+	orchestration.DevLogInfo("Auto-reload enabled via /events")
 
 	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 		slog.Error("HTTP server error", "error", err)
 		os.Exit(1)
 	}
-	run.DevLogSuccess("Server stopped")
+	orchestration.DevLogSuccess("Server stopped")
 }

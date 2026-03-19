@@ -5,14 +5,10 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/spf13/afero"
 )
 
 func TestRunFs_CleanAll(t *testing.T) {
-	utils.SetTestingMode(true)
-	defer func() { utils.SetTestingMode(false) }()
-
 	fs := afero.NewMemMapFs()
 
 	// Create Project structure
@@ -25,7 +21,7 @@ func TestRunFs_CleanAll(t *testing.T) {
 	_ = afero.WriteFile(fs, filepath.Join(outputDir, "index.html"), []byte("test"), 0644)
 	_ = fs.MkdirAll(cacheDir, 0755)
 
-	RunFs(fs, true, true)
+	RunFs(fs, true, true, true)
 
 	exists, _ := afero.DirExists(fs, outputDir)
 	if exists {
@@ -39,9 +35,6 @@ func TestRunFs_CleanAll(t *testing.T) {
 }
 
 func TestRunFs_CleanRootOnly(t *testing.T) {
-	utils.SetTestingMode(true)
-	defer func() { utils.SetTestingMode(false) }()
-
 	fs := afero.NewMemMapFs()
 	_ = fs.MkdirAll("public/v1", 0755)
 	_ = afero.WriteFile(fs, "public/index.html", []byte("test"), 0644)
@@ -71,7 +64,7 @@ versions:
 		},
 	}
 
-	cleanRootFilesOnly(fs, "public", cfg)
+	cleanRootFilesOnly(fs, "public", cfg, true)
 
 	exists, _ := afero.Exists(fs, "public/index.html")
 	if exists {

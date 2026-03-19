@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
-
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 func GenerateRSS(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, title, description string, outputPath string) (string, error) {

@@ -7,15 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/andybalholm/brotli"
 	"github.com/spf13/afero"
 )
 
 func TestCheckWASM(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	// Create temp directory
 	tmpDir := t.TempDir()
 	outputDir := filepath.Join(tmpDir, "public")
@@ -32,9 +28,6 @@ func TestCheckWASM(t *testing.T) {
 }
 
 func TestCheckWASMFsWithSource_Embedded(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Test with nil source (uses embedded)
@@ -51,9 +44,6 @@ func TestCheckWASMFsWithSource_Embedded(t *testing.T) {
 }
 
 func TestCheckWASMFsWithSource_Custom(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Create custom WASM data
@@ -85,9 +75,6 @@ func TestCheckWASMFsWithSource_Custom(t *testing.T) {
 }
 
 func TestCheckWASMFsWithSource_CacheHit(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 	cacheDir := "cache"
 
@@ -107,9 +94,6 @@ func TestCheckWASMFsWithSource_CacheHit(t *testing.T) {
 }
 
 func TestCheckWASMFsWithSource_InitError(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Simulate init error by setting wasmInitErr
@@ -125,9 +109,6 @@ func TestCheckWASMFsWithSource_InitError(t *testing.T) {
 }
 
 func TestCheckWASMFsWithSource_MkdirError(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	// Use read-only fs to trigger mkdir error
 	fs := afero.NewReadOnlyFs(afero.NewMemMapFs())
 
@@ -138,9 +119,6 @@ func TestCheckWASMFsWithSource_MkdirError(t *testing.T) {
 }
 
 func TestDeployWASMFromFile(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Create source WASM file
@@ -161,9 +139,6 @@ func TestDeployWASMFromFile(t *testing.T) {
 }
 
 func TestDeployWASMFromFile_NotExist(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Source file doesn't exist - should fall back to embedded
@@ -597,9 +572,6 @@ func TestDecompressBrotli_Invalid(t *testing.T) {
 }
 
 func TestCheckWASMFsWithSource_DirectoryCreation(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Test with nested output directory
@@ -615,9 +587,6 @@ func TestCheckWASMFsWithSource_DirectoryCreation(t *testing.T) {
 }
 
 func TestCheckWASMFs_ExistingFile(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Pre-create file with correct embedded WASM
@@ -637,9 +606,6 @@ func TestCheckWASMFs_ExistingFile(t *testing.T) {
 }
 
 func TestCheckWASMFs_ExistingFileDifferent(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Pre-create file with different content
@@ -657,9 +623,6 @@ func TestCheckWASMFs_ExistingFileDifferent(t *testing.T) {
 }
 
 func TestCheckWASMFs_OnlyWasmExists(t *testing.T) {
-	utils.TestingMode = true
-	defer func() { utils.TestingMode = false }()
-
 	fs := afero.NewMemMapFs()
 
 	// Create only .wasm file (no .br)

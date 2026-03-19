@@ -8,14 +8,15 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"log/slog"
+
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
-	"log/slog"
 )
 
 // PaginationOptions holds dependencies for pagination rendering
@@ -24,7 +25,7 @@ type PaginationOptions struct {
 	Cfg         *config.Config
 	Sink        models.ArtifactSink
 	Render      models.RenderService
-	Cache       models.CacheService
+	Cache       models.SocialCardCache
 	SourceFs    afero.Fs
 	AllPosts    []models.PostMetadata
 	PinnedPosts []models.PostMetadata
@@ -69,8 +70,8 @@ func RenderPagination(opts PaginationOptions) error {
 		homeCardTimer.Stop()
 	} else {
 		if data, err := os.ReadFile(homeCached); err == nil {
-			utils.IgnoreError(sink.MkdirAll(filepath.Dir(homeCardPath)), "create home card dir")
-			utils.IgnoreError(sink.WriteFile(homeCardPath, data), "write cached home card")
+			buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(homeCardPath)), "create home card dir")
+			buildCtx.IgnoreError(sink.WriteFile(homeCardPath, data), "write cached home card")
 			render.RegisterFile(homeCardPath)
 		}
 	}

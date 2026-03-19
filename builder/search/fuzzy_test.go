@@ -308,8 +308,8 @@ func TestMin3(t *testing.T) {
 
 func TestParsedQueryExtended(t *testing.T) {
 	tests := []struct {
-		query     string
-		wantTerms int
+		query       string
+		wantTerms   int
 		wantPhrases int
 	}{
 		{"hello world", 2, 0},

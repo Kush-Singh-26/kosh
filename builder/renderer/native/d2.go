@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"oss.terrastruct.com/d2/d2graph"
 	"oss.terrastruct.com/d2/d2layouts/d2dagrelayout"
 	"oss.terrastruct.com/d2/d2lib"
@@ -16,7 +16,7 @@ import (
 
 // RenderD2 renders a D2 diagram to SVG with the specified theme ID.
 func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (string, error) {
-	if err := r.withSchedulerAndClosedCheck(ctx, utils.TaskD2); err != nil {
+	if err := r.withSchedulerAndClosedCheck(ctx, scheduler.TaskD2); err != nil {
 		return "", err
 	}
 	defer r.wg.Done()

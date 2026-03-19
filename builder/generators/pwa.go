@@ -10,19 +10,18 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 
 	"github.com/disintegration/imaging"
 	"github.com/spf13/afero"
 )
 
 // GenerateSW creates the service worker only if needed (smart build)
-func GenerateSW(sink fspkg.ArtifactSink, destDir string, buildVersion int64, forceRebuild bool, baseURL string, assets map[string]string) error {
+func GenerateSW(sink fspkg.ArtifactSink, destDir string, buildVersion int64, forceRebuild bool, baseURL string, assets map[string]string, isTesting bool) error {
 	swPath := filepath.Join(destDir, "sw.js")
 
 	// 1. Smart Check: If not forcing rebuild and SW exists, skip
-	if !forceRebuild && !utils.TestingMode {
+	if !forceRebuild && !isTesting {
 		if _, err := os.Stat(swPath); err == nil {
 			sink.Register(swPath)
 			return nil
@@ -78,11 +77,11 @@ self.addEventListener('fetch', function(event) {
 }
 
 // GenerateManifest creates the manifest.json dynamically with a smart build check
-func GenerateManifest(sink fspkg.ArtifactSink, destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool) error {
+func GenerateManifest(sink fspkg.ArtifactSink, destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool, isTesting bool) error {
 	manifestPath := filepath.Join(destDir, "manifest.json")
 
 	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
-	if !forceRebuild && !utils.TestingMode {
+	if !forceRebuild && !isTesting {
 		if _, err := os.Stat(manifestPath); err == nil {
 			sink.Register(manifestPath)
 			return nil

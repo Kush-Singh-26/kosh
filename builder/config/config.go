@@ -9,9 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
 
 	"gopkg.in/yaml.v3"
@@ -156,11 +157,13 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	// Load build configuration from kosh.build.yaml
 	cfg.Build = LoadBuildConfigFs(fs)
 
+	isTesting := buildCtx.DetectTestingMode()
+
 	// 3. Apply Smart Defaults and resolve to absolute paths
 	if cfg.ThemeDir == "" {
 		cfg.ThemeDir = "themes"
 	}
-	if !utils.TestingMode {
+	if !isTesting {
 		if abs, err := filepath.Abs(cfg.ThemeDir); err == nil {
 			cfg.ThemeDir = fspkg.NormalizePath(abs)
 		}
@@ -169,7 +172,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	if cfg.TemplateDir == "" {
 		// Default: themes/<theme>/templates
 		cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
-	} else if !filepath.IsAbs(cfg.TemplateDir) && !utils.TestingMode {
+	} else if !filepath.IsAbs(cfg.TemplateDir) && !isTesting {
 		if abs, err := filepath.Abs(cfg.TemplateDir); err == nil {
 			cfg.TemplateDir = fspkg.NormalizePath(abs)
 		}
@@ -180,7 +183,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	if cfg.StaticDir == "" {
 		// Default: themes/<theme>/static
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
-	} else if !filepath.IsAbs(cfg.StaticDir) && !utils.TestingMode {
+	} else if !filepath.IsAbs(cfg.StaticDir) && !isTesting {
 		if abs, err := filepath.Abs(cfg.StaticDir); err == nil {
 			cfg.StaticDir = fspkg.NormalizePath(abs)
 		}
@@ -192,7 +195,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	if cfg.ContentDir == "" {
 		cfg.ContentDir = "content"
 	}
-	if !utils.TestingMode {
+	if !isTesting {
 		if abs, err := filepath.Abs(cfg.ContentDir); err == nil {
 			cfg.ContentDir = fspkg.NormalizePath(abs)
 		}
@@ -201,7 +204,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	if cfg.OutputDir == "" {
 		cfg.OutputDir = "public"
 	}
-	if !utils.TestingMode {
+	if !isTesting {
 		if abs, err := filepath.Abs(cfg.OutputDir); err == nil {
 			cfg.OutputDir = fspkg.NormalizePath(abs)
 		}
@@ -210,7 +213,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	if cfg.CacheDir == "" {
 		cfg.CacheDir = ".kosh-cache"
 	}
-	if !utils.TestingMode {
+	if !isTesting {
 		if abs, err := filepath.Abs(cfg.CacheDir); err == nil {
 			cfg.CacheDir = fspkg.NormalizePath(abs)
 		}
@@ -276,10 +279,10 @@ func (cfg *Config) GetVersionsMetadata(currentVersion, currentPath string) []mod
 		var url string
 		if v.Path == "" {
 			// Latest version - use root path with cleanPath
-			url = utils.BuildURL(cfg.BaseURL, "", cleanPath)
+			url = navigation.BuildURL(cfg.BaseURL, "", cleanPath)
 		} else {
 			// Versioned path - prepend version to cleanPath
-			url = utils.BuildURL(cfg.BaseURL, v.Path, cleanPath)
+			url = navigation.BuildURL(cfg.BaseURL, v.Path, cleanPath)
 		}
 
 		name := v.Name

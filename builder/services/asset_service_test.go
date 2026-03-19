@@ -3,18 +3,19 @@ package services
 import (
 	"bytes"
 	"context"
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
+
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/mocks/services"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 func TestAssetService_Build(t *testing.T) {

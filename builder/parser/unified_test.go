@@ -56,12 +56,12 @@ func TestReplacementStruct(t *testing.T) {
 	// Test that replacement struct works correctly
 	oldNode := ast.NewText()
 	newNode := ast.NewText()
-	
+
 	replacement := &replacement{
 		old: oldNode,
 		new: newNode,
 	}
-	
+
 	if replacement.old != oldNode {
 		t.Error("Expected old to match oldNode")
 	}
@@ -76,7 +76,7 @@ func TestD2BlockInfoStruct(t *testing.T) {
 		code: "test d2 code",
 		hash: "abc123",
 	}
-	
+
 	if info.code != "test d2 code" {
 		t.Errorf("Expected code 'test d2 code', got %q", info.code)
 	}

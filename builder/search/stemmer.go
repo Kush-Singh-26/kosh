@@ -3,7 +3,7 @@ package search
 import (
 	"sync"
 
-	"github.com/hashicorp/golang-lru/v2"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // Porter Stemmer implementation for English

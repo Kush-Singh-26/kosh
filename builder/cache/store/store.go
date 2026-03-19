@@ -13,8 +13,8 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
-	"github.com/Kush-Singh-26/kosh/builder/utils/retry"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/retry"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/spf13/afero"
@@ -247,7 +247,7 @@ func (s *Store) Get(category string, hash string, compressed bool) ([]byte, erro
 		}
 		data, err = os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("artifact not found: %s", hash)
+			return nil, core.ErrNoContent
 		}
 		compressed = !compressed
 	}
@@ -283,7 +283,7 @@ func (s *Store) Delete(category string, hash string) error {
 func (s *Store) ListHashes(category string) ([]string, error) {
 	categoryPath := filepath.Join(s.basePath, category)
 	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
-		return nil, nil
+		return []string{}, nil
 	}
 
 	var hashes []string

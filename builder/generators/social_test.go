@@ -1,8 +1,9 @@
 package generators
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"testing"
+
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/spf13/afero"

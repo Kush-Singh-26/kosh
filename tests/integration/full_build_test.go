@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/spf13/afero"
 )
@@ -45,7 +45,7 @@ func TestFullBuildIntegration(t *testing.T) {
 	cfg.Features.Generators.Graph = true
 
 	// Create Builder
-	b := run.NewBuilderWithFs(fs, cfg)
+	b := orchestration.NewEngineWithFs(fs, cfg)
 	defer b.Close()
 
 	// Execute Build

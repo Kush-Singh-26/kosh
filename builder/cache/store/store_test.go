@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
-	"github.com/Kush-Singh-26/kosh/builder/utils/retry"
+	"github.com/Kush-Singh-26/kosh/builder/retry"
 )
 
 func TestRenameWithRetry_Succeeds(t *testing.T) {

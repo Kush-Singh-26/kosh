@@ -1,11 +1,12 @@
 package cache
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 )
 
 // createTestCache creates a temporary cache for testing

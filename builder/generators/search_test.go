@@ -1,10 +1,11 @@
 package generators
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"bytes"
 	"path/filepath"
 	"testing"
+
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 
 	"github.com/andybalholm/brotli"
 	"github.com/tinylib/msgp/msgp"

@@ -111,7 +111,11 @@ func TestTokenize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Tokenize(tt.input)
+			tokens := TokenizeWithUnicodeInto(tt.input, nil)
+			got := make([]string, len(tokens))
+			for i, token := range tokens {
+				got[i] = token.Value
+			}
 			if !reflect.DeepEqual(got, tt.expected) {
 				t.Errorf("Tokenize(%q) = %v, want %v", tt.input, got, tt.expected)
 			}
@@ -424,11 +428,11 @@ func TestSearch_FuzzyMatchingThresholds(t *testing.T) {
 // TestSearch_SnippetExtractionBoundaries verifies snippet extraction at edge cases
 func TestSearch_SnippetExtractionBoundaries(t *testing.T) {
 	tests := []struct {
-		name      string
-		content   string
-		terms     []string
-		offsets   map[string][]int
-		wantSub   string
+		name       string
+		content    string
+		terms      []string
+		offsets    map[string][]int
+		wantSub    string
 		notWantSub string
 	}{
 		{
@@ -451,9 +455,9 @@ func TestSearch_SnippetExtractionBoundaries(t *testing.T) {
 			wantSub: "<b>fox</b>",
 		},
 		{
-			name:    "no offsets falls back to search",
-			content: "The quick brown fox jumps over the lazy dog. " + strings.Repeat("More text. ", 20),
-			terms:   []string{"The"},
+			name:       "no offsets falls back to search",
+			content:    "The quick brown fox jumps over the lazy dog. " + strings.Repeat("More text. ", 20),
+			terms:      []string{"The"},
 			notWantSub: "<b>The</b>", // Without offsets, highlighting won't work
 		},
 	}

@@ -40,6 +40,27 @@ var registeredMigrations = []Migration{
 			return nil
 		},
 	},
+	{
+		FromVersion: 7,
+		ToVersion:   10,
+		Description: "Migration to align cache schema with search schema (v10)",
+		Migrate: func(tx *bolt.Tx, logger *slog.Logger) error {
+			logger.Info("Purging all cache buckets due to schema version alignment (v7 -> v10)")
+			// Purge all cache buckets except meta bucket
+			for _, b := range core.AllBuckets() {
+				if b == core.BucketMeta {
+					continue
+				}
+				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bolt.ErrBucketNotFound) { //nolint:staticcheck // bolt.ErrBucketNotFound is deprecated in 1.4+
+					return err
+				}
+				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // RunMigrations runs all pending migrations for the current schema

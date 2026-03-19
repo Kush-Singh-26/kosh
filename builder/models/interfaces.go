@@ -16,10 +16,39 @@ type RenderService interface {
 	RegisterFile(path string)
 }
 
-// CacheService provides cache operations for site-wide generators.
-type CacheService interface {
+// PostCache provides post metadata access.
+type PostCache interface {
+	GetPost(id string) (*PostMeta, error)
+	ListAllPosts() ([]string, error)
+	GetPostByPath(path string) (*PostMeta, error)
+	GetPostsByIDs(ids []string) (map[string]*PostMeta, error)
+	GetPostsByTemplate(templatePath string) ([]string, error)
+	GetPostsMetadataByVersion(version string) ([]PostListMeta, error)
+}
+
+// SearchCache provides access to search indices.
+type SearchCache interface {
+	GetSearchRecords(ids []string) (map[string]*SearchRecord, error)
+	GetSearchRecord(id string) (*SearchRecord, error)
+}
+
+// SocialCardCache tracks social card generation state.
+type SocialCardCache interface {
 	GetSocialCardHash(path string) (string, error)
 	SetSocialCardHash(path, hash string) error
+	BatchSetSocialCardHashes(hashes map[string]string) error
+}
+
+// BuildArtifactCache provides operations for storing build results (HTML, etc).
+type BuildArtifactCache interface {
+	GetHTMLContent(post *PostMeta) ([]byte, error)
+	StoreHTML(content []byte) (string, error)
+	StoreHTMLForPost(post *PostMeta, content []byte) error
+	BatchCommit(posts []*PostMeta, records map[string]*SearchRecord, deps map[string]*Dependencies) error
+	DeletePost(postID string) error
+	MarkDirty(postID string)
+	IsDirty(postID string) bool
+	ClearDirty()
 }
 
 // ArtifactSink is an interface for writing build artifacts.

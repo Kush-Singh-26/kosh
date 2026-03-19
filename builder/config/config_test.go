@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/spf13/afero"
 )
 
@@ -240,6 +240,10 @@ func TestLoad_AbsolutePaths(t *testing.T) {
 	cleanup := changeToTempDir(t)
 	defer cleanup()
 
+	oldArgs := os.Args
+	os.Args = []string{"kosh"}
+	defer func() { os.Args = oldArgs }()
+
 	cfg := Load([]string{})
 
 	// All paths should be absolute
@@ -437,7 +441,7 @@ func TestGetVersionsMetadata(t *testing.T) {
 						prefixLower := strings.ToLower(tt.currentVersion) + "/"
 						expectedPath = strings.TrimPrefix(expectedPath, prefixLower)
 					}
-					expectedURL := utils.BuildURL(cfg.BaseURL, v.Path, expectedPath)
+					expectedURL := navigation.BuildURL(cfg.BaseURL, v.Path, expectedPath)
 					if results[i].URL != expectedURL {
 						t.Errorf("Version %d URL = %q, want %q", i, results[i].URL, expectedURL)
 					}

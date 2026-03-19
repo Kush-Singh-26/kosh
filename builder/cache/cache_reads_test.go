@@ -1,8 +1,9 @@
 package cache
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"testing"
+
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 )
 
 func TestGetPostByPath(t *testing.T) {
@@ -38,8 +39,8 @@ func TestGetPostByPath_NotFound(t *testing.T) {
 
 	// Try to get non-existent path
 	retrieved, err := m.GetPostByPath("content/posts/non-existent.md")
-	if err != nil {
-		t.Fatalf("GetPostByPath should not error: %v", err)
+	if err != core.ErrNoContent {
+		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 
 	if retrieved != nil {
@@ -80,8 +81,8 @@ func TestGetPostByID_NotFound(t *testing.T) {
 
 	// Try to get non-existent ID
 	retrieved, err := m.GetPostByID("non-existent-id")
-	if err != nil {
-		t.Fatalf("GetPostByID should not error: %v", err)
+	if err != core.ErrNoContent {
+		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 
 	if retrieved != nil {
@@ -186,8 +187,8 @@ func TestGetSearchRecord_NotFound(t *testing.T) {
 
 	// Try to get non-existent record
 	retrieved, err := m.GetSearchRecord("non-existent")
-	if err != nil {
-		t.Fatalf("GetSearchRecord should not error: %v", err)
+	if err != core.ErrNoContent {
+		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 
 	if retrieved != nil {

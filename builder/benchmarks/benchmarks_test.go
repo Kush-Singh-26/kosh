@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
@@ -64,7 +64,7 @@ func BenchmarkGetFrontmatterHash(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = utils.GetFrontmatterHash(metaData)
+		_, _ = hashing.GetFrontmatterHash(metaData)
 	}
 }
 
@@ -94,7 +94,7 @@ func BenchmarkTokenize(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = search.Tokenize(text)
+		_ = search.TokenizeWithUnicodeInto(text, nil)
 	}
 }
 

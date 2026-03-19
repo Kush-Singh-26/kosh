@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )

@@ -1,12 +1,12 @@
 package renderer
-import fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
 
 import (
 	"fmt"
 	"io"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 // executeTemplateAndWrite executes a template, processes HTML, optionally minifies, and writes via sink.
@@ -14,8 +14,8 @@ import (
 func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data models.PageData, templateName string) error {
 	r.PreparePageData(&data)
 
-	buf := utils.SharedBufferPool.Get()
-	defer utils.SharedBufferPool.Put(buf)
+	buf := pools.SharedBufferPool.Get()
+	defer pools.SharedBufferPool.Put(buf)
 
 	if err := tmpl.Execute(buf, data); err != nil {
 		return fmt.Errorf("failed to execute %s template for %s: %w", templateName, path, err)

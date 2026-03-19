@@ -1,15 +1,15 @@
 package renderer
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"bytes"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/spf13/afero"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 
+	"github.com/spf13/afero"
 )
 
 func TestRenderer_ReloadTemplates(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/internal/clean"
 )
 
@@ -38,8 +38,8 @@ func runClean(cmd *cobra.Command, args []string) {
 	printStartupBanner(mode, config.Load([]string{}))
 	clean.Run(cleanCache, cleanAll)
 
-	run.DevLogInfo("Rebuilding site...")
-	if err := run.Run([]string{}); err != nil {
-		run.DevLogError("Rebuild failed: " + err.Error())
+	orchestration.DevLogInfo("Rebuilding site...")
+	if err := orchestration.Run([]string{}); err != nil {
+		orchestration.DevLogError("Rebuild failed: " + err.Error())
 	}
 }

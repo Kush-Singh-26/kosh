@@ -31,10 +31,10 @@ func TestParseSSRType(t *testing.T) {
 	}{
 		{"d2", SSRTypeD2},
 		{"math", SSRTypeMath},
-		{"unknown", SSRTypeD2},       // Default to D2
-		{"", SSRTypeD2},              // Empty string defaults
-		{"D2", SSRTypeD2},            // Case sensitive - defaults
-		{"Math", SSRTypeD2},          // Case sensitive - defaults
+		{"unknown", SSRTypeD2}, // Default to D2
+		{"", SSRTypeD2},        // Empty string defaults
+		{"D2", SSRTypeD2},      // Case sensitive - defaults
+		{"Math", SSRTypeD2},    // Case sensitive - defaults
 	}
 
 	for _, tt := range tests {
@@ -63,9 +63,9 @@ func TestParseSSRTypeAndStringRoundTrip(t *testing.T) {
 
 func TestMathExpression(t *testing.T) {
 	tests := []struct {
-		name        string
-		expr        MathExpression
-		expectHash  bool
+		name       string
+		expr       MathExpression
+		expectHash bool
 	}{
 		{
 			name: "inline math",

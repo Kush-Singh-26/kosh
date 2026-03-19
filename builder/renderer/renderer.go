@@ -17,11 +17,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-
 )
 
 type Renderer struct {
@@ -379,8 +378,8 @@ func (r *Renderer) RenderSidebar(tree []*models.TreeNode) template.HTML {
 		return ""
 	}
 
-	buf := utils.SharedBufferPool.Get()
-	defer utils.SharedBufferPool.Put(buf)
+	buf := pools.SharedBufferPool.Get()
+	defer pools.SharedBufferPool.Put(buf)
 
 	// Wrap in a map so we can add other global context if needed
 	data := map[string]any{

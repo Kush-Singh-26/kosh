@@ -5,10 +5,13 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // cacheService implements CacheService
 type cacheService struct {
+	ctx     *buildCtx.BuildContext
 	manager *cache.Manager
 	logger  *slog.Logger
 
@@ -20,6 +23,7 @@ type cacheService struct {
 // Using dependency struct pattern for API coherence.
 func NewCacheService(deps CacheServiceDependencies) CacheService {
 	return &cacheService{
+		ctx:     deps.Ctx,
 		manager: deps.Manager,
 		logger:  deps.Logger,
 	}
@@ -34,7 +38,7 @@ func NewCacheServiceWith(manager *cache.Manager, logger *slog.Logger) CacheServi
 	}
 }
 
-func (s *cacheService) GetPost(id string) (*cache.PostMeta, error) {
+func (s *cacheService) GetPost(id string) (*models.PostMeta, error) {
 	return s.manager.GetPostByID(id)
 }
 
@@ -42,11 +46,11 @@ func (s *cacheService) ListAllPosts() ([]string, error) {
 	return s.manager.ListAllPosts()
 }
 
-func (s *cacheService) GetPostByPath(path string) (*cache.PostMeta, error) {
+func (s *cacheService) GetPostByPath(path string) (*models.PostMeta, error) {
 	return s.manager.GetPostByPath(path)
 }
 
-func (s *cacheService) GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error) {
+func (s *cacheService) GetPostsByIDs(ids []string) (map[string]*models.PostMeta, error) {
 	return s.manager.GetPostsByIDs(ids)
 }
 
@@ -54,15 +58,15 @@ func (s *cacheService) GetPostsByTemplate(templatePath string) ([]string, error)
 	return s.manager.GetPostsByTemplate(templatePath)
 }
 
-func (s *cacheService) GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error) {
+func (s *cacheService) GetSearchRecords(ids []string) (map[string]*models.SearchRecord, error) {
 	return s.manager.GetSearchRecords(ids)
 }
 
-func (s *cacheService) GetSearchRecord(id string) (*cache.SearchRecord, error) {
+func (s *cacheService) GetSearchRecord(id string) (*models.SearchRecord, error) {
 	return s.manager.GetSearchRecord(id)
 }
 
-func (s *cacheService) GetHTMLContent(post *cache.PostMeta) ([]byte, error) {
+func (s *cacheService) GetHTMLContent(post *models.PostMeta) ([]byte, error) {
 	return s.manager.GetHTMLContent(post)
 }
 
@@ -98,11 +102,11 @@ func (s *cacheService) StoreHTML(content []byte) (string, error) {
 	return s.manager.StoreHTML(content)
 }
 
-func (s *cacheService) StoreHTMLForPost(post *cache.PostMeta, content []byte) error {
+func (s *cacheService) StoreHTMLForPost(post *models.PostMeta, content []byte) error {
 	return s.manager.StoreHTMLForPost(post, content)
 }
 
-func (s *cacheService) BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error {
+func (s *cacheService) BatchCommit(posts []*models.PostMeta, records map[string]*models.SearchRecord, deps map[string]*models.Dependencies) error {
 	return s.manager.BatchCommit(posts, records, deps)
 }
 
@@ -145,7 +149,7 @@ func (s *cacheService) Close() error {
 	return s.manager.Close()
 }
 
-func (s *cacheService) GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error) {
+func (s *cacheService) GetPostsMetadataByVersion(version string) ([]models.PostListMeta, error) {
 	return s.manager.GetPostsMetadataByVersion(version)
 }
 

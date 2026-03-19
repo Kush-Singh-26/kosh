@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/run"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/internal/server"
 	"github.com/Kush-Singh-26/kosh/internal/watch"
 )
@@ -67,22 +67,22 @@ func runServe(cmd *cobra.Command, args []string) {
 			cfg.BaseURL = "http://localhost:2604"
 		}
 		printStartupBanner("Live Preview", cfg)
-		b := run.NewBuilderWithConfig(cfg)
+		b := orchestration.NewEngineWithConfig(cfg)
 		b.SetDevMode(true)
 		if err := b.Build(ctx); err != nil {
-			run.DevLogError("Build failed: " + err.Error())
+			orchestration.DevLogError("Build failed: " + err.Error())
 			os.Exit(1)
 		}
 
 		go func() {
 			w, err := watch.New([]string{b.Config().ContentDir, b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
-				run.DevLogChange(event.Name, "watch")
+				orchestration.DevLogChange(event.Name, "watch")
 				server.SetBuildActive(true)
 				b.BuildChanged(ctx, event.Name, event.Op)
 				server.SetBuildActive(false)
 			})
 			if err != nil {
-				run.DevLogError("Watcher failed: " + err.Error())
+				orchestration.DevLogError("Watcher failed: " + err.Error())
 				return
 			}
 			w.Start()

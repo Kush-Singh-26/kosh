@@ -13,7 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/andybalholm/brotli"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"

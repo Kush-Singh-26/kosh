@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/Kush-Singh-26/kosh/builder/utils"
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
@@ -144,14 +144,14 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 			fcb := n.(*ast.FencedCodeBlock)
 			lang := strings.ToLower(strings.TrimSpace(string(fcb.Language(source))))
 			if lang == "d2" {
-				buf := utils.SharedBufferPool.Get()
+				buf := pools.SharedBufferPool.Get()
 				lines := fcb.Lines()
 				for i := 0; i < lines.Len(); i++ {
 					line := lines.At(i)
 					buf.Write(line.Value(source))
 				}
 				code := strings.TrimSpace(buf.String())
-				utils.SharedBufferPool.Put(buf)
+				pools.SharedBufferPool.Put(buf)
 
 				if code != "" {
 					hash := native.HashContent("d2", code)
@@ -326,7 +326,7 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 		if pair.light == "" && pair.dark == "" {
 			continue
 		}
-		buf := utils.SharedBufferPool.Get()
+		buf := pools.SharedBufferPool.Get()
 		buf.WriteString(`<div class="d2-container" data-diagram="true"><div class="d2-light">`)
 		buf.WriteString(pair.light)
 		buf.WriteString(`</div><div class="d2-dark">`)
@@ -336,7 +336,7 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 		content := make([]byte, buf.Len())
 		copy(content, buf.Bytes())
 		rawNode := &RawHTMLBlock{Content: content}
-		utils.SharedBufferPool.Put(buf)
+		pools.SharedBufferPool.Put(buf)
 		*toReplace = append(*toReplace, replacement{old: block.node, new: rawNode})
 	}
 }

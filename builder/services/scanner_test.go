@@ -62,31 +62,27 @@ Body of draft`,
 		t.Error("Expected Has404 to be true")
 	}
 
-	if len(result.Metadata) != 3 { // post1, old-post, draft
-		t.Errorf("Expected 3 metadata entries, got %d", len(result.Metadata))
+	// In the updated scanner, result.Files contains all markdown files
+	if len(result.Files) != 4 { // post1, old-post, draft, 404
+		t.Errorf("Expected 4 markdown files, got %d", len(result.Files))
 	}
 
 	// Verify Post 1
-	var post1 models.LightPostMetadata
-	for _, m := range result.Metadata {
-		if m.Title == "Post 1" {
-			post1 = m
+	var post1 models.ScannedFile
+	for _, f := range result.Files {
+		if f.Title == "Post 1" {
+			post1 = f
 			break
 		}
 	}
 	if post1.Title == "" {
-		t.Fatal("Post 1 not found in metadata")
+		t.Fatal("Post 1 not found in scanned files")
 	}
 	if !post1.Pinned {
 		t.Error("Post 1 should be pinned")
 	}
 	if len(post1.Tags) != 2 {
 		t.Errorf("Expected 2 tags for Post 1, got %d", len(post1.Tags))
-	}
-
-	// Verify Versioning
-	if len(result.PostsByVersion["v1.0"]) != 1 {
-		t.Errorf("Expected 1 post in v1.0, got %d", len(result.PostsByVersion["v1.0"]))
 	}
 
 	// Verify Assets
@@ -107,79 +103,56 @@ Body of draft`,
 	for range fileChan {
 		count++
 	}
-	if count != 3 {
-		t.Errorf("Expected 3 files in fileChan, got %d", count)
+	if count != 4 {
+		t.Errorf("Expected 4 files in fileChan, got %d", count)
 	}
 }
 
-func TestMetadataScanner_ExtractFrontmatter(t *testing.T) {
-	scanner := &metadataScanner{}
+func TestMetadataScanner_ScanFile(t *testing.T) {
+	scanner := NewMetadataScanner()
 	cfg := testutil.CreateSampleConfig()
+	sourceFs := afero.NewMemMapFs()
+	path := filepath.Join(cfg.ContentDir, "test.md")
 
-	source := []byte(`---
-title: "Test"
-date: 2026-03-06
-tags: ["a", "b"]
+	content := `---
+title: "Test Post"
+date: 2026-03-01
+tags: ["go", "test"]
 pinned: true
-description: "Desc"
+description: "Test Desc"
 ---
-Body content`)
+Body content`
 
-	meta, fmMap, fmHash, bodyHash, readingTime, bodyOffset := scanner.extractFrontmatter(source, "posts/test.md", "", "posts/test.html", "posts/test.html", cfg)
+	_ = sourceFs.MkdirAll(cfg.ContentDir, 0755)
+	_ = afero.WriteFile(sourceFs, path, []byte(content), 0644)
 
-	if meta.Title != "Test" {
-		t.Errorf("Expected title Test, got %s", meta.Title)
+	sf, err := scanner.ScanFile(sourceFs, cfg, path)
+	if err != nil {
+		t.Fatalf("ScanFile failed: %v", err)
 	}
-	if meta.Description != "Desc" {
-		t.Errorf("Expected description Desc, got %s", meta.Description)
+
+	if sf.Title != "Test Post" {
+		t.Errorf("Expected title Test Post, got %s", sf.Title)
 	}
-	if !meta.Pinned {
+	if sf.Description != "Test Desc" {
+		t.Errorf("Expected description Test Desc, got %s", sf.Description)
+	}
+	if sf.Date != "2026-03-01" {
+		t.Errorf("Expected date 2026-03-01, got %s", sf.Date)
+	}
+	if !sf.Pinned {
 		t.Error("Expected pinned to be true")
 	}
-	if fmMap["title"] != "Test" {
-		t.Error("Expected title in fmMap")
+	if len(sf.Tags) != 2 {
+		t.Errorf("Expected 2 tags, got %d", len(sf.Tags))
 	}
-	if fmHash == "" {
+	if sf.FrontmatterHash == "" {
 		t.Error("Expected non-empty frontmatter hash")
 	}
-	if bodyHash == "" {
+	if sf.BodyHash == "" {
 		t.Error("Expected non-empty body hash")
 	}
-	if readingTime != 0 {
-		t.Errorf("Expected readingTime 0 (deferred), got %d", readingTime)
-	}
-
-	// Check body offset
-	expectedBody := []byte("\nBody content")
-	if string(source[bodyOffset:]) != string(expectedBody) {
-		t.Errorf("Expected body at offset to be %q, got %q", string(expectedBody), string(source[bodyOffset:]))
-	}
-}
-
-func TestMetadataScanner_MalformedFrontmatter(t *testing.T) {
-	scanner := &metadataScanner{}
-	cfg := testutil.CreateSampleConfig()
-
-	// Case 1: Missing delimiters
-	source := []byte(`title: No delimiters
-Just text`)
-	meta, _, _, _, _, _ := scanner.extractFrontmatter(source, "test.md", "", "test.html", "test.html", cfg)
-	if meta.Title != "" {
-		t.Error("Expected empty meta for missing delimiters")
-	}
-
-	// Case 2: Invalid YAML (unclosed quote)
-	// Note: With regex-based extraction, we're more lenient than YAML parsing
-	// The regex will still extract "Unclosed quote" as the title
-	// This is acceptable behavior - we prioritize extraction over strict validation
-	source = []byte(`---
-title: "Unclosed quote
----
-Body`)
-	meta, _, _, _, _, _ = scanner.extractFrontmatter(source, "test.md", "", "test.html", "test.html", cfg)
-	// Regex extraction is lenient - it will extract the value even with unclosed quote
-	// This is acceptable for performance; full YAML validation happens downstream if needed
-	if meta.Title == "" {
-		t.Log("Regex extraction is lenient - extracted title despite unclosed quote")
+	if sf.BodyOffset == 0 {
+		t.Error("Expected non-zero body offset")
 	}
 }

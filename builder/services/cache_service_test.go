@@ -69,8 +69,12 @@ func TestCacheService_GetPost_NotFound(t *testing.T) {
 
 	// Try to get a non-existent post
 	retrieved, err := service.GetPost("non-existent-post")
-	if err != nil {
-		t.Fatalf("GetPost should not error for missing post: %v", err)
+	if err == nil {
+		t.Fatal("GetPost should error for missing post")
+	}
+
+	if !IsCacheMiss(err) {
+		t.Fatalf("Expected cache miss error, got %v", err)
 	}
 
 	if retrieved != nil {
@@ -137,6 +141,25 @@ func TestCacheService_GetPostByPath(t *testing.T) {
 
 	if retrieved.Path != post.Path {
 		t.Errorf("Path = %q, want %q", retrieved.Path, post.Path)
+	}
+}
+
+func TestCacheService_GetPostByPath_NotFound(t *testing.T) {
+	service, _, cleanup := setupCacheServiceTest(t)
+	defer cleanup()
+
+	// Retrieve by non-existent path
+	retrieved, err := service.GetPostByPath("non-existent.md")
+	if err == nil {
+		t.Fatal("GetPostByPath should error for missing path")
+	}
+
+	if !IsCacheMiss(err) {
+		t.Fatalf("Expected cache miss error, got %v", err)
+	}
+
+	if retrieved != nil {
+		t.Error("GetPostByPath should return nil for missing path")
 	}
 }
 
@@ -342,8 +365,11 @@ func TestCacheService_DeletePost(t *testing.T) {
 
 	// Verify post is deleted
 	retrieved, err = service.GetPost(post.PostID)
-	if err != nil {
-		t.Fatalf("GetPost failed after delete: %v", err)
+	if err == nil {
+		t.Fatal("GetPost should error after delete")
+	}
+	if !IsCacheMiss(err) {
+		t.Fatalf("Expected cache miss error, got %v", err)
 	}
 	if retrieved != nil {
 		t.Error("Post should not exist after deletion")
@@ -374,8 +400,12 @@ func TestCacheService_SocialCardHash(t *testing.T) {
 
 	// Get non-existent path
 	hash, err = service.GetSocialCardHash("non-existent.md")
-	if err != nil {
-		t.Fatalf("GetSocialCardHash should not error: %v", err)
+	if err == nil {
+		t.Fatal("GetSocialCardHash should error for missing path")
+	}
+
+	if !IsCacheMiss(err) {
+		t.Fatalf("Expected cache miss error, got %v", err)
 	}
 
 	if hash != "" {

@@ -13,8 +13,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/utils/fs"
-
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 func GenerateSearchIndex(sink fspkg.ArtifactSink, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
