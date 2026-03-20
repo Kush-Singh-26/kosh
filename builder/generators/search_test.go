@@ -2,7 +2,6 @@ package generators
 
 import (
 	"bytes"
-	"path/filepath"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -15,7 +14,6 @@ import (
 
 func TestGenerateSearchIndex(t *testing.T) {
 	sink := testutil.NewMemSink()
-	outputDir := "public"
 
 	indexedPosts := []models.IndexedPost{
 		{
@@ -41,12 +39,12 @@ func TestGenerateSearchIndex(t *testing.T) {
 		},
 	}
 
-	resultPath, err := GenerateSearchIndex(sink, outputDir, indexedPosts)
+	resultPath, err := GenerateSearchIndex(sink, indexedPosts)
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed: %v", err)
 	}
 
-	expectedPath := filepath.ToSlash(filepath.Join(outputDir, "search.bin"))
+	expectedPath := "search.bin"
 	if resultPath != expectedPath {
 		t.Errorf("Expected result path %s, got %s", expectedPath, resultPath)
 	}
@@ -94,12 +92,12 @@ func TestGenerateSearchIndex(t *testing.T) {
 
 func TestGenerateSearchIndex_Empty(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, err := GenerateSearchIndex(sink, "public", []models.IndexedPost{})
+	_, err := GenerateSearchIndex(sink, []models.IndexedPost{})
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with empty posts: %v", err)
 	}
 
-	content := sink.Files["public/search.bin"]
+	content := sink.Files["search.bin"]
 	if len(content) == 0 {
 		t.Fatal("Expected search.bin to be written even for empty input")
 	}
@@ -118,12 +116,12 @@ func TestGenerateSearchIndex_Empty(t *testing.T) {
 
 func TestGenerateSearchIndex_Nil(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, err := GenerateSearchIndex(sink, "public", nil)
+	_, err := GenerateSearchIndex(sink, nil)
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with nil posts: %v", err)
 	}
 
-	if _, ok := sink.Files["public/search.bin"]; !ok {
+	if _, ok := sink.Files["search.bin"]; !ok {
 		t.Error("Expected search.bin to be written for nil input")
 	}
 }

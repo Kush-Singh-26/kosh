@@ -21,6 +21,7 @@ import (
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
@@ -132,7 +133,7 @@ func (s *assetService) Build(ctx context.Context) error {
 		discoveryGroup.Go(func() error {
 			exists, _ := afero.Exists(s.sourceFs, themeDir)
 			if exists {
-				_ = fspkg.ParallelWalk(dCtx, s.sourceFs, themeDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
+				if err := fspkg.ParallelWalk(dCtx, s.sourceFs, themeDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
 					if err != nil || info.IsDir() {
 						return nil
 					}
@@ -142,7 +143,9 @@ func (s *assetService) Build(ctx context.Context) error {
 					rel, _ := fspkg.SafeRel(themeDir, path)
 					assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
 					return nil
-				})
+				}); err != nil {
+					s.logger.Log(dCtx, slog.LevelWarn, "theme asset walk error", "dir", themeDir, "err", err)
+				}
 			}
 			return nil
 		})
@@ -151,7 +154,7 @@ func (s *assetService) Build(ctx context.Context) error {
 			discoveryGroup.Go(func() error {
 				exists, _ := afero.Exists(s.sourceFs, "static")
 				if exists {
-					_ = fspkg.ParallelWalk(dCtx, s.sourceFs, "static", walkConcurrency, func(path string, info fs.FileInfo, err error) error {
+					if err := fspkg.ParallelWalk(dCtx, s.sourceFs, "static", walkConcurrency, func(path string, info fs.FileInfo, err error) error {
 						if err != nil || info.IsDir() {
 							return nil
 						}
@@ -161,7 +164,9 @@ func (s *assetService) Build(ctx context.Context) error {
 						rel, _ := fspkg.SafeRel("static", path)
 						assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
 						return nil
-					})
+					}); err != nil {
+						s.logger.Log(dCtx, slog.LevelWarn, "static asset walk error", "dir", "static", "err", err)
+					}
 				}
 				return nil
 			})
@@ -219,6 +224,12 @@ func (s *assetService) Build(ctx context.Context) error {
 					DstPath: dst,
 					SrcInfo: t.info,
 					Opts:    opts,
+					Scheduler: func() scheduler.BuildScheduler {
+						if s.ctx != nil {
+							return s.ctx.Scheduler
+						}
+						return scheduler.GetGlobalScheduler()
+					}(),
 				})
 			})
 		}

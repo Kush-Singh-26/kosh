@@ -3,17 +3,39 @@ package models
 import (
 	"html/template"
 	"io"
+	"time"
 )
+
+// ArtifactSink is an interface for writing build artifacts.
+// Mirrors fs.ArtifactSink for use by models-layer consumers.
+type ArtifactSink interface {
+	WriteFile(path string, data []byte) error
+	WriteStream(path string, writer func(io.Writer) error) error
+	CopyFile(srcPath, destPath string) error
+	MkdirAll(path string) error
+	Register(path string)
+	GetWrittenFiles() map[string]bool
+	GetOutputDir() string
+	SetMtime(path string, mtime time.Time) error
+}
 
 // HTML is a type alias for template.HTML to avoid importing html/template everywhere
 type HTML = template.HTML
 
 // RenderService handles template rendering and HTML generation.
+// Mirrors services.RenderService for use by models-layer consumers.
 type RenderService interface {
-	RenderIndex(path string, data PageData) error
 	RenderPage(path string, data PageData) error
+	RenderIndex(path string, data PageData) error
+	Render404(path string, data PageData) error
+	RenderGraph(path string, data PageData) error
 	RenderSidebar(tree []*TreeNode) HTML
 	RegisterFile(path string)
+	SetAssets(assets map[string]string)
+	GetAssets() map[string]string
+	GetRenderedFiles() map[string]bool
+	ClearRenderedFiles()
+	ReloadTemplates()
 }
 
 // PostCache provides post metadata access.
@@ -49,13 +71,4 @@ type BuildArtifactCache interface {
 	MarkDirty(postID string)
 	IsDirty(postID string) bool
 	ClearDirty()
-}
-
-// ArtifactSink is an interface for writing build artifacts.
-// This matches the implementation in builder/utils/fs/sink.go
-type ArtifactSink interface {
-	WriteFile(path string, data []byte) error
-	WriteStream(path string, writer func(io.Writer) error) error
-	MkdirAll(path string) error
-	Register(path string)
 }

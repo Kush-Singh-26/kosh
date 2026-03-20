@@ -19,6 +19,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
@@ -77,7 +78,11 @@ This is the initial body.
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheServiceWith(cm, logger)
+	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Manager: cm,
+		Logger:  logger,
+	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
 	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
 		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
@@ -102,26 +107,9 @@ This is the initial body.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Cache:    cacheSvc,
-			Post:     postSvc,
-			Asset:    assetSvc,
-			Render:   renderSvc,
-			Wasm:     wasmSvc,
-			Scanner:  metadataScanner,
-			Diagrams: nil,
-		},
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		SourceFs:       fs,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		Sink:           sink,
-		Tx:             tx,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b.Sink = sink
+	b.Tx = tx
 
 	// Phase 1: Initial full build
 	ctx := context.Background()
@@ -224,7 +212,11 @@ Body content.
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheServiceWith(cm, logger)
+	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Manager: cm,
+		Logger:  logger,
+	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
 	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
 		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
@@ -249,26 +241,9 @@ Body content.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Cache:    cacheSvc,
-			Post:     postSvc,
-			Asset:    assetSvc,
-			Render:   renderSvc,
-			Wasm:     wasmSvc,
-			Scanner:  metadataScanner,
-			Diagrams: nil,
-		},
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		SourceFs:       fs,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		Sink:           sink,
-		Tx:             tx,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b.Sink = sink
+	b.Tx = tx
 
 	// Phase 1: Initial build
 	ctx := context.Background()
@@ -350,7 +325,11 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheServiceWith(cm, logger)
+	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Manager: cm,
+		Logger:  logger,
+	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
 	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
 		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
@@ -375,26 +354,9 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Cache:    cacheSvc,
-			Post:     postSvc,
-			Asset:    assetSvc,
-			Render:   renderSvc,
-			Wasm:     wasmSvc,
-			Scanner:  metadataScanner,
-			Diagrams: nil,
-		},
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		SourceFs:       fs,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		Sink:           sink,
-		Tx:             tx,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b.Sink = sink
+	b.Tx = tx
 
 	// Phase 1: Initial build
 	ctx := context.Background()
@@ -458,7 +420,11 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheServiceWith(cm, logger)
+	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Manager: cm,
+		Logger:  logger,
+	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
 	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
 		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
@@ -483,26 +449,9 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Cache:    cacheSvc,
-			Post:     postSvc,
-			Asset:    assetSvc,
-			Render:   renderSvc,
-			Wasm:     wasmSvc,
-			Scanner:  metadataScanner,
-			Diagrams: nil,
-		},
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		SourceFs:       fs,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		Sink:           sink,
-		Tx:             tx,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b.Sink = sink
+	b.Tx = tx
 
 	// Phase 1: Initial build
 	ctx := context.Background()
@@ -544,9 +493,9 @@ func TestIncrementalBuild_SearchSourceChange(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isSearchSourcePath(tt.path)
+			got := watch.IsSearchSourcePath(tt.path)
 			if got != tt.want {
-				t.Errorf("isSearchSourcePath(%q) = %v, want %v", tt.path, got, tt.want)
+				t.Errorf("IsSearchSourcePath(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
 	}
@@ -684,7 +633,11 @@ date: "2026-03-15"
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheServiceWith(cm, logger)
+	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Manager: cm,
+		Logger:  logger,
+	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
 	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
 		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
@@ -709,26 +662,9 @@ date: "2026-03-15"
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Cache:    cacheSvc,
-			Post:     postSvc,
-			Asset:    assetSvc,
-			Render:   renderSvc,
-			Wasm:     wasmSvc,
-			Scanner:  metadataScanner,
-			Diagrams: nil,
-		},
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		SourceFs:       fs,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		Sink:           sink,
-		Tx:             tx,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b.Sink = sink
+	b.Tx = tx
 
 	ctx := context.Background()
 	if err := b.Build(ctx); err != nil {

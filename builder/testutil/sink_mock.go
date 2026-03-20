@@ -11,12 +11,17 @@ import (
 
 // MemSink is a simple in-memory implementation of fspkg.ArtifactSink for testing
 type MemSink struct {
-	Files map[string][]byte
-	mu    sync.RWMutex
+	Files     map[string][]byte
+	OutputDir string
+	mu        sync.RWMutex
 }
 
 func NewMemSink() *MemSink {
 	return &MemSink{Files: make(map[string][]byte)}
+}
+
+func NewMemSinkWithDir(dir string) *MemSink {
+	return &MemSink{Files: make(map[string][]byte), OutputDir: dir}
 }
 
 func (m *MemSink) WriteFile(path string, data []byte) error {
@@ -47,12 +52,21 @@ func (m *MemSink) GetWrittenFiles() map[string]bool {
 	}
 	return res
 }
-func (m *MemSink) GetOutputDir() string { return "" }
+func (m *MemSink) GetOutputDir() string { return m.OutputDir }
 func (m *MemSink) WriteHardlink(src, dst string) (bool, error) {
 	return false, nil
 }
 func (m *MemSink) SetMtime(path string, mtime time.Time) error { return nil }
-func (m *MemSink) CopyFile(src, dst string) error              { return nil }
+func (m *MemSink) CopyFile(src, dst string) error {
+	dst = filepath.ToSlash(dst)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if data, ok := m.Files[filepath.ToSlash(src)]; ok {
+		m.Files[dst] = data
+		return nil
+	}
+	return nil
+}
 
 // MockTransaction is a no-op implementation of BuildTransaction for testing
 type MockTransaction struct {

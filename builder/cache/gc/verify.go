@@ -7,17 +7,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/store"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	bolt "go.etcd.io/bbolt"
+	"go.etcd.io/bbolt"
 )
 
 const quickVerifySampleSize = 10
 
 // QuickVerify performs a fast integrity check by sampling entries
-func QuickVerify(db *bolt.DB, s *store.Store) ([]string, error) {
+func QuickVerify(db *bbolt.DB, s *store.Store) ([]string, error) {
 	var errors []string
 	sampleCount := 0
 
-	err := db.View(func(tx *bolt.Tx) error {
+	err := db.View(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		if postsBucket == nil {
 			return nil // Empty cache is valid
@@ -49,10 +49,10 @@ func QuickVerify(db *bolt.DB, s *store.Store) ([]string, error) {
 }
 
 // Verify checks cache integrity
-func Verify(db *bolt.DB, s *store.Store) ([]string, error) {
+func Verify(db *bbolt.DB, s *store.Store) ([]string, error) {
 	var errors []string
 
-	err := db.View(func(tx *bolt.Tx) error {
+	err := db.View(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		pathsBucket := tx.Bucket([]byte(core.BucketPaths))
 
@@ -83,7 +83,7 @@ func Verify(db *bolt.DB, s *store.Store) ([]string, error) {
 		return nil, err
 	}
 
-	err = db.View(func(tx *bolt.Tx) error {
+	err = db.View(func(tx *bbolt.Tx) error {
 		ssrBucket := tx.Bucket([]byte(core.BucketSSR))
 		return ssrBucket.ForEach(func(k, v []byte) error {
 			var artifact core.SSRArtifact

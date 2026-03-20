@@ -12,9 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/pathutil"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
@@ -59,13 +57,13 @@ func RenderTags(opts TagOptions) error {
 
 	var allTags []models.TagData
 	for t, posts := range opts.TagMap {
-		slug := pathutil.Slugify(t)
+		slug := timeutil.Slugify(t)
 		allTags = append(allTags, models.TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("/tags/%s.html", slug)})
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
 
 	workers := BoundedTagSocialCardWorkers()
-	tagCardsTimer := metrics.StartPhase("Tags social cards")
+	tagCardsTimer := timeutil.StartPhase("Tags social cards")
 	tagCardPool := async.NewWorkerPool(opts.Ctx, workers, func(task TagSocialCardTask) error {
 		tagCard := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/tags/%s.webp", task.Slug))
 
@@ -123,7 +121,7 @@ func RenderTags(opts TagOptions) error {
 	}
 
 	// Generate Tags Index
-	tagRenderTimer := metrics.StartPhase("Tags HTML rendering")
+	tagRenderTimer := timeutil.StartPhase("Tags HTML rendering")
 	if err := render.RenderPage(filepath.Join(cfg.OutputDir, "tags/index.html"), models.PageData{
 		Title: "All Tags", IsTagsIndex: true, AllTags: allTags,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,

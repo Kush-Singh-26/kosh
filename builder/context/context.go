@@ -2,9 +2,8 @@ package buildCtx
 
 import (
 	"log/slog"
-	"os"
-	"strings"
 
+	"github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
 
@@ -29,11 +28,7 @@ func NewBuildContext(isTesting, isDev, isClean bool, s scheduler.BuildScheduler,
 }
 
 // DetectTestingMode inspects os.Args to determine if we are running in a test context.
+// Deprecated: Use fs.DetectTestingMode() directly.
 func DetectTestingMode() bool {
-	if len(os.Args) > 0 {
-		if strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") || strings.Contains(os.Args[0], "_test") {
-			return true
-		}
-	}
-	return false
+	return fs.DetectTestingMode()
 }

@@ -281,7 +281,7 @@ type WasmService interface {
 	// CheckAndUpdate compiles WASM if source changed or missing.
 	CheckAndUpdate(ctx context.Context) error
 	// Deploy copies WASM to staging directory.
-	Deploy(ctx context.Context, stagingDir string) error
+	Deploy(ctx context.Context, sink fspkg.ArtifactSink) error
 	// SetSearchSourceDirty marks the search source as needing recompilation.
 	SetSearchSourceDirty(dirty bool)
 }

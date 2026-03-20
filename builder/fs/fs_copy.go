@@ -97,8 +97,17 @@ func (c *imageCache) set(key imageCacheKey, data []byte) {
 	c.cache.Add(key, data)
 }
 
-// globalImageCache limits to 400 items or ~100MB of memory for better cache hit rates
-var globalImageCache = newImageCache(400, 100*1024*1024)
+var (
+	globalImageCache     *imageCache
+	globalImageCacheOnce sync.Once
+)
+
+func GetImageCache() *imageCache {
+	globalImageCacheOnce.Do(func() {
+		globalImageCache = newImageCache(400, 100*1024*1024)
+	})
+	return globalImageCache
+}
 
 var keyBufPool = sync.Pool{
 	New: func() any {
@@ -213,6 +222,7 @@ type CopyOptions struct {
 	ImageWorkers int
 	WebPQuality  int
 	Metrics      ImageMetrics
+	Scheduler    scheduler.BuildScheduler
 }
 
 type CopyFileOptions struct {
@@ -275,13 +285,14 @@ func CopyFileVFS(opts CopyFileOptions) error {
 }
 
 type ProcessImageOptions struct {
-	Ctx     context.Context
-	SrcFs   afero.Fs
-	Sink    ArtifactSink
-	SrcPath string
-	DstPath string
-	SrcInfo fs.FileInfo
-	Opts    CopyOptions
+	Ctx       context.Context
+	SrcFs     afero.Fs
+	Sink      ArtifactSink
+	SrcPath   string
+	DstPath   string
+	SrcInfo   fs.FileInfo
+	Opts      CopyOptions
+	Scheduler scheduler.BuildScheduler
 }
 
 func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
@@ -291,6 +302,9 @@ func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 		dstPath := opts.DstPath[:len(opts.DstPath)-len(filepath.Ext(opts.DstPath))] + ".webp"
 		newOpts := opts
 		newOpts.DstPath = dstPath
+		if opts.Scheduler == nil {
+			newOpts.Scheduler = opts.Opts.Scheduler
+		}
 		if err := convertToWebPVFS(newOpts); err != nil {
 			return err
 		}
@@ -359,13 +373,14 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 						}()
 						target := filepath.Join(dstDir, task.relPath)
 						if err := convertToWebPVFS(ProcessImageOptions{
-							Ctx:     ctx,
-							SrcFs:   srcFs,
-							Sink:    sink,
-							SrcPath: task.path,
-							DstPath: target,
-							SrcInfo: task.info,
-							Opts:    opts,
+							Ctx:       ctx,
+							SrcFs:     srcFs,
+							Sink:      sink,
+							SrcPath:   task.path,
+							DstPath:   target,
+							SrcInfo:   task.info,
+							Opts:      opts,
+							Scheduler: opts.Scheduler,
 						}); err != nil {
 							errMu.Lock()
 							errs = append(errs, fmt.Errorf("failed to process image %s: %w", task.path, err))
@@ -484,7 +499,7 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 		modTime: opts.SrcInfo.ModTime().UnixNano(),
 	}
 
-	if cached, ok := globalImageCache.get(memCacheKey); ok {
+	if cached, ok := GetImageCache().get(memCacheKey); ok {
 		if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
 			return fmt.Errorf("failed to create image directory: %w", err)
 		}
@@ -515,7 +530,7 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 			// Still set memory cache on hit
 			cachedData, readErr := afero.ReadAll(f)
 			if readErr == nil {
-				globalImageCache.set(memCacheKey, cachedData)
+				GetImageCache().set(memCacheKey, cachedData)
 				if !isNil(opts.Opts.Metrics) {
 					opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cachedData)))
 				}
@@ -538,10 +553,16 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 	}
 
 	// Optimized: Acquire scheduler only for real work (cache miss)
-	if err := scheduler.GetGlobalScheduler().Acquire(opts.Ctx, scheduler.TaskImage); err != nil {
-		return err
+	sched := opts.Scheduler
+	if sched == nil {
+		sched = opts.Opts.Scheduler
 	}
-	defer scheduler.GetGlobalScheduler().Release(scheduler.TaskImage)
+	if sched != nil {
+		if err := sched.Acquire(opts.Ctx, scheduler.TaskImage); err != nil {
+			return err
+		}
+		defer sched.Release(scheduler.TaskImage)
+	}
 
 	// Direct stream from filesystem
 	f, err := opts.SrcFs.Open(opts.SrcPath)
@@ -627,7 +648,7 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 	// Clone exact-sized slice for the LRU cache
 	cacheData := make([]byte, len(encodedData))
 	copy(cacheData, encodedData)
-	globalImageCache.set(memCacheKey, cacheData)
+	GetImageCache().set(memCacheKey, cacheData)
 
 	if cacheFile != "" {
 		queueImageCacheWrite(cacheFile, cacheData, true)

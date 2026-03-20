@@ -9,11 +9,11 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/store"
-	bolt "go.etcd.io/bbolt"
+	"go.etcd.io/bbolt"
 )
 
 // RunGC performs garbage collection logic
-func RunGC(db *bolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig) (*GCResult, error) {
+func RunGC(db *bbolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig) (*GCResult, error) {
 	start := time.Now()
 	result := &GCResult{}
 
@@ -21,7 +21,7 @@ func RunGC(db *bolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig)
 	liveHTMLHashes := make(map[string]bool)
 	liveSSRHashes := make(map[string]bool)
 
-	err := db.View(func(tx *bolt.Tx) error {
+	err := db.View(func(tx *bbolt.Tx) error {
 		// Scan posts for HTML hashes
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		err := postsBucket.ForEach(func(_, v []byte) error {
@@ -98,7 +98,7 @@ func RunGC(db *bolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig)
 
 	// Step 5: Reconcile SSR RefCounts
 	if !cfg.DryRun {
-		_ = db.Update(func(tx *bolt.Tx) error {
+		_ = db.Update(func(tx *bbolt.Tx) error {
 			ssrBucket := tx.Bucket([]byte(core.BucketSSR))
 
 			refCounts := make(map[string]int)
@@ -142,7 +142,7 @@ func RunGC(db *bolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig)
 
 	// Step 5: Update GC stats
 	if !cfg.DryRun {
-		_ = db.Update(func(tx *bolt.Tx) error {
+		_ = db.Update(func(tx *bbolt.Tx) error {
 			statsBucket := tx.Bucket([]byte(core.BucketStats))
 
 			countData := make([]byte, 4)

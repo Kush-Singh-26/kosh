@@ -52,21 +52,21 @@ type parsedFrontmatter struct {
 	Draft       bool
 }
 
-func extractFrontmatter(metaData map[string]any) parsedFrontmatter {
-	dateStr := timeutil.ExtractStringFromMap(metaData, "date")
+func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
+	dateStr := timeutil.ExtractStringFromMap(metadata, "date")
 	dateObj, _ := time.Parse("2006-01-02", dateStr)
-	weight, _ := metaData["weight"].(int)
-	if w, ok := metaData["weight"].(float64); ok && weight == 0 {
+	weight, _ := metadata["weight"].(int)
+	if w, ok := metadata["weight"].(float64); ok && weight == 0 {
 		weight = int(w)
 	}
 	return parsedFrontmatter{
-		Title:       timeutil.ExtractStringFromMap(metaData, "title"),
-		Description: timeutil.ExtractStringFromMap(metaData, "description"),
+		Title:       timeutil.ExtractStringFromMap(metadata, "title"),
+		Description: timeutil.ExtractStringFromMap(metadata, "description"),
 		DateObj:     dateObj,
-		Tags:        timeutil.ExtractSliceFromMap(metaData, "tags"),
-		Pinned:      timeutil.ExtractBoolFromMap(metaData, "pinned"),
+		Tags:        timeutil.ExtractSliceFromMap(metadata, "tags"),
+		Pinned:      timeutil.ExtractBoolFromMap(metadata, "pinned"),
 		Weight:      weight,
-		Draft:       timeutil.ExtractBoolFromMap(metaData, "draft"),
+		Draft:       timeutil.ExtractBoolFromMap(metadata, "draft"),
 	}
 }
 
@@ -75,7 +75,7 @@ type ParsedMarkdownResult struct {
 	AST             ast.Node
 	Context         parser.Context
 	HTMLContent     string
-	MetaData        map[string]any
+	Metadata        map[string]any
 	Post            models.PostMetadata
 	SearchRecord    models.PostRecord
 	TOC             []models.TOCEntry
@@ -124,10 +124,10 @@ func ParseMarkdownMetadata(
 	res.SSRHashes = mdParser.GetSSRHashes(mdCtx)
 
 	// Step 3: Extract metadata
-	res.MetaData = extractMetadata(mdCtx, source, preParsedMeta)
+	res.Metadata = extractMetadata(mdCtx, source, preParsedMeta)
 
 	// Step 4: Extract frontmatter data and build post metadata
-	fm := extractFrontmatter(res.MetaData)
+	fm := extractFrontmatter(res.Metadata)
 	res.TOC = mdParser.GetTOC(mdCtx)
 
 	postLink := navigation.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
@@ -146,7 +146,7 @@ func ParseMarkdownMetadata(
 	}
 
 	// Step 7: Compute frontmatter hash
-	res.FrontmatterHash = computeFrontmatterHash(res.MetaData, knownFrontmatterHash)
+	res.FrontmatterHash = computeFrontmatterHash(res.Metadata, knownFrontmatterHash)
 
 	return res, nil
 }

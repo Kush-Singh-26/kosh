@@ -79,3 +79,6 @@ builder/benchmarks/public/
 *.pyc
 __pycache__/
 *.json.bak
+
+# Generated social card images (created at build time, not committed)
+builder/services/social-cards/*.webp

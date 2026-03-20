@@ -1,19 +1,28 @@
 package fs
 
 import (
+	"sync"
+
 	"github.com/tdewolff/minify/v2"
 	"github.com/tdewolff/minify/v2/html"
 )
 
-// Global Minifier Instance
-var Minifier *minify.M
+var (
+	globalMinifier     *minify.M
+	globalMinifierOnce sync.Once
+)
 
 func InitMinifier() {
-	Minifier = minify.New()
-	// Configure HTML minifier to keep end tags for tables
-	// Without this, </td>, </th>, </tr> are stripped which breaks table rendering
-	htmlMinifier := &html.Minifier{
-		KeepEndTags: true,
-	}
-	Minifier.Add("text/html", htmlMinifier)
+	GetMinifier()
+}
+
+func GetMinifier() *minify.M {
+	globalMinifierOnce.Do(func() {
+		globalMinifier = minify.New()
+		htmlMinifier := &html.Minifier{
+			KeepEndTags: true,
+		}
+		globalMinifier.Add("text/html", htmlMinifier)
+	})
+	return globalMinifier
 }

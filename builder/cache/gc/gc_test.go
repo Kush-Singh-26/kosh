@@ -8,13 +8,13 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/store"
-	bolt "go.etcd.io/bbolt"
+	"go.etcd.io/bbolt"
 )
 
 func TestRunGC(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "meta.db")
-	db, err := bolt.Open(dbPath, 0644, nil)
+	db, err := bbolt.Open(dbPath, 0644, nil)
 	if err != nil {
 		t.Fatalf("Failed to open BoltDB: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestRunGC(t *testing.T) {
 	defer s.Close()
 
 	// Init buckets
-	err = db.Update(func(tx *bolt.Tx) error {
+	err = db.Update(func(tx *bbolt.Tx) error {
 		for _, name := range core.AllBuckets() {
 			_, _ = tx.CreateBucketIfNotExists([]byte(name))
 		}
@@ -46,7 +46,7 @@ func TestRunGC(t *testing.T) {
 	var htmlHash string
 
 	// Manually store to have full control
-	err = db.Update(func(tx *bolt.Tx) error {
+	err = db.Update(func(tx *bbolt.Tx) error {
 		var err error
 		htmlHash, _, err = s.Put("html", htmlContent)
 		return err
@@ -55,7 +55,7 @@ func TestRunGC(t *testing.T) {
 		t.Fatalf("Failed to setup test data: %v", err)
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
+	err = db.Update(func(tx *bbolt.Tx) error {
 		post := &core.PostMeta{
 			PostID:   postID,
 			Path:     "test.md",
@@ -83,7 +83,7 @@ func TestRunGC(t *testing.T) {
 	}
 
 	// 3. Delete the post from BoltDB (simulating source file deletion)
-	err = db.Update(func(tx *bolt.Tx) error {
+	err = db.Update(func(tx *bbolt.Tx) error {
 		return tx.Bucket([]byte(core.BucketPosts)).Delete([]byte(postID))
 	})
 	if err != nil {

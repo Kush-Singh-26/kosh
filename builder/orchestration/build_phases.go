@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-	"github.com/zeebo/xxh3"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -83,10 +81,7 @@ func (b *Engine) setupPhase(ctx context.Context) (*buildSetupResult, error) {
 
 // assetPhase starts the asset building pipeline
 func (b *Engine) assetPhase(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) *buildAssetResult {
-	assetsReady, assetWg, assetErrChan := b.setupAssetBuilding(ctx, contentAssetsChan)
-
-	// Tell the post service to wait for assets before entering render phase
-	b.Deps.Render.SetAssetsGate(assetsReady)
+	assetsReady, assetWg, assetErrChan := b.Assets.SetupBuilding(ctx, contentAssetsChan)
 
 	return &buildAssetResult{
 		assetsReady:  assetsReady,
@@ -161,7 +156,7 @@ func (b *Engine) processPhase(
 	}
 
 	// Check if assets changed since last site-wide render
-	assetsChanged := b.checkAssetsChanged(assets.assetsReady)
+	assetsChanged := b.Assets.CheckChanged(ctx, assets.assetsReady)
 
 	// Site-wide generators
 	metadataCtx := &services.MetadataContext{
@@ -220,36 +215,6 @@ func (b *Engine) createOutputDirectories() error {
 		}
 	}
 	return nil
-}
-
-// setupAssetBuilding starts asset building in a goroutine
-func (b *Engine) setupAssetBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) (<-chan struct{}, *sync.WaitGroup, <-chan error) {
-	slog.Info("Building assets...")
-	assetTimer := timeutil.StartPhase("Asset building")
-	b.Deps.Render.SetAssets(map[string]string{})
-
-	if setter, ok := b.Deps.Asset.(interface {
-		SetContentAssetsChannel(<-chan []models.ScannedAsset)
-	}); ok {
-		setter.SetContentAssetsChannel(contentAssetsChan)
-	}
-
-	assetsReady := make(chan struct{})
-	b.Deps.Asset.SetAssetsReadySignal(assetsReady)
-
-	assetErrChan := make(chan error, 1)
-	var assetWg sync.WaitGroup
-	assetWg.Add(1)
-	go func() {
-		defer assetWg.Done()
-		if err := b.copyStaticAndBuildAssets(ctx); err != nil {
-			assetErrChan <- err
-		}
-		close(assetErrChan)
-		assetTimer.Stop()
-	}()
-
-	return assetsReady, &assetWg, assetErrChan
 }
 
 // waitForScannerAndAssets waits for scanner and asset building to complete
@@ -321,7 +286,7 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup) erro
 	// Reset ForceRebuild AFTER all async checks have completed
 	b.Cfg.ForceRebuild = false
 
-	if err := b.Deps.Wasm.Deploy(ctx, b.Tx.StagingDir()); err != nil {
+	if err := b.Deps.Wasm.Deploy(ctx, b.Sink); err != nil {
 		b.Logger.Warn("Failed to deploy Search WASM", "error", err)
 	}
 	if err := b.Tx.Commit(ctx); err != nil {
@@ -374,8 +339,8 @@ func (b *Engine) setupSiteWideRendering(
 	// Return a function that runs site-wide generators with the provided metadata
 	runSiteWide := func(cb *services.MetadataContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
 		// Update in-memory cache for incremental search
-		if cb.IndexedPosts != nil {
-			b.State.IndexedPosts = cb.IndexedPosts
+		if b.Search != nil && cb.IndexedPosts != nil {
+			b.Search.SetIndexedPosts(cb.IndexedPosts)
 		}
 
 		if b.shouldSkipSiteWideRendering(cb, assetsChanged) {
@@ -389,11 +354,11 @@ func (b *Engine) setupSiteWideRendering(
 
 			// Pagination and Tags render HTML pages (need assets for CSS/JS paths)
 			siteWideGroup.Go(func() error {
-				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
+				b.Assets.WaitForAvailability(siteWideCtx, assetsReady)
 				return b.renderPagination(siteWideCtx, cb.AllPosts, cb.PinnedPosts, b.Cfg.ForceRebuild)
 			})
 			siteWideGroup.Go(func() error {
-				b.waitForAssetsAvailability(siteWideCtx, assetsReady)
+				b.Assets.WaitForAvailability(siteWideCtx, assetsReady)
 				return b.renderTags(siteWideCtx, cb.TagMap, forceSocialRebuild)
 			})
 			// Sitemap, RSS, Search are pure data generators (no HTML assets needed)
@@ -404,7 +369,7 @@ func (b *Engine) setupSiteWideRendering(
 			wasmWg.Add(1)
 			go func() {
 				defer wasmWg.Done()
-				b.waitForAssetsAvailability(ctx, assetsReady)
+				b.Assets.WaitForAvailability(ctx, assetsReady)
 				if err := b.generatePWA(ctx, b.Cfg.ForceRebuild); err != nil {
 					b.Logger.Warn("PWA generation failed", "error", err)
 				}
@@ -424,34 +389,6 @@ func (b *Engine) setupSiteWideRendering(
 	return runSiteWide, nil
 }
 
-// checkAssetsChanged computes a hash of the current asset map to detect changes
-func (b *Engine) checkAssetsChanged(assetsReady <-chan struct{}) bool {
-	b.waitForAssetsAvailability(context.Background(), assetsReady)
-	assets := b.Deps.Render.GetAssets()
-	if len(assets) == 0 {
-		return false
-	}
-
-	// Compute a simple hash of the asset map
-	assetKeys := make([]string, 0, len(assets))
-	for k := range assets {
-		assetKeys = append(assetKeys, k)
-	}
-	sort.Strings(assetKeys)
-	hasher := xxh3.New()
-	for _, k := range assetKeys {
-		_, _ = hasher.WriteString(k)
-		_, _ = hasher.WriteString(assets[k])
-	}
-	currentAssetHash := hasher.Sum64()
-
-	changed := currentAssetHash != b.State.LastAssetHash
-	if changed {
-		b.State.LastAssetHash = currentAssetHash
-	}
-	return changed
-}
-
 // shouldSkipSiteWideRendering determines if site-wide generators can be skipped
 func (b *Engine) shouldSkipSiteWideRendering(cb *services.MetadataContext, assetsChanged bool) bool {
 	useStaging := !b.Cfg.IsDev || b.State.IsCleanBuild
@@ -460,19 +397,6 @@ func (b *Engine) shouldSkipSiteWideRendering(cb *services.MetadataContext, asset
 		return false
 	}
 	return true
-}
-
-func (b *Engine) waitForAssetsAvailability(ctx context.Context, assetsReady <-chan struct{}) {
-	if len(b.Deps.Render.GetAssets()) > 0 {
-		return
-	}
-	if assetsReady == nil {
-		return
-	}
-	select {
-	case <-assetsReady:
-	case <-ctx.Done():
-	}
 }
 
 func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, assetsReady <-chan struct{}) error {
@@ -509,9 +433,9 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 	// Search Index - only when indexedPosts provided
 	if b.Cfg.Features.Generators.Search && indexedPosts != nil {
 		g.Go(func() error {
-			_, err := generators.GenerateSearchIndex(b.Sink, b.Cfg.OutputDir, indexedPosts)
+			searchPath, err := generators.GenerateSearchIndex(b.Sink, indexedPosts)
 			if err == nil {
-				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "search.bin"))
+				b.Deps.Render.RegisterFile(searchPath)
 			} else {
 				b.Logger.Error("Failed to generate search index", "error", err)
 				return err

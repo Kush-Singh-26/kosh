@@ -1,28 +1,21 @@
 package orchestration
 
-// Error Handling Strategy:
-// - Recoverable errors: Return error to caller (triggers fallback to full build)
-// - Non-recoverable errors: Return error to abort build
-// - Fire-and-forget errors: Log only (cache writes, social card generation)
-
 import (
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/fsnotify/fsnotify"
-	"github.com/zeebo/xxh3"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
-	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 
 	"github.com/spf13/afero"
@@ -53,45 +46,46 @@ func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
 	return result
 }
 
-func isSearchSourcePath(path string) bool {
-	path = fspkg.NormalizePath(path)
-	return strings.HasPrefix(path, "cmd/search/") || strings.HasPrefix(path, "builder/search/") || strings.HasPrefix(path, "builder/models/")
-}
-
 func (b *Engine) normalizeWatchPath(path string) string {
-	wd, err := os.Getwd()
-	if err != nil {
-		wd = ""
+	if b.Watch != nil {
+		return b.Watch.NormalizeWatchPath(path)
 	}
+	wd, _ := os.Getwd()
 	return fspkg.NormalizeWatchPath(path, wd)
 }
 
-func normalizeAbsoluteWatchPath(path string) string {
-	if abs, err := fspkg.AbsNormalizePath(path); err == nil {
-		return abs
-	}
-	return fspkg.NormalizePath(path)
-}
-
 func (b *Engine) isContentPath(path string) bool {
-	path = normalizeAbsoluteWatchPath(path)
-	contentDir := normalizeAbsoluteWatchPath(b.Cfg.ContentDir)
-	return fspkg.IsPathInOrSame(path, contentDir)
+	if b.Watch != nil {
+		return b.Watch.IsContentPath(path)
+	}
+	absPath, _ := fspkg.AbsNormalizePath(path)
+	contentDir, _ := fspkg.AbsNormalizePath(b.Cfg.ContentDir)
+	return fspkg.IsPathInOrSame(absPath, contentDir)
 }
 
-// invalidateForTemplate determines which posts to invalidate based on changed template
+func (b *Engine) isAssetPath(path string) bool {
+	if b.Watch != nil {
+		return b.Watch.IsAssetPath(path)
+	}
+	absPath, _ := fspkg.AbsNormalizePath(path)
+	staticDir, _ := fspkg.AbsNormalizePath(b.Cfg.StaticDir)
+	siteStaticDir, _ := fspkg.AbsNormalizePath("static")
+	return fspkg.IsPathInOrSame(absPath, staticDir) || fspkg.IsPathInOrSame(absPath, siteStaticDir)
+}
+
 func (b *Engine) invalidateForTemplate(templatePath string) []string {
+	if b.Watch != nil {
+		return b.Watch.InvalidateForTemplate(templatePath)
+	}
 	tp := fspkg.NormalizePath(templatePath)
 	templateDir := fspkg.NormalizePath(b.Cfg.TemplateDir)
 	staticDir := fspkg.NormalizePath(b.Cfg.StaticDir)
 	if strings.HasPrefix(tp, templateDir) {
 		relTmpl, _ := fspkg.SafeRel(b.Cfg.TemplateDir, templatePath)
 		relTmpl = fspkg.NormalizePath(relTmpl)
-
 		if relTmpl == "layout.html" {
-			return nil // Layout changes affect everything
+			return nil
 		}
-
 		if b.Deps.Cache != nil {
 			ids, err := b.Deps.Cache.GetPostsByTemplate(relTmpl)
 			if err == nil && len(ids) > 0 {
@@ -110,7 +104,6 @@ func (b *Engine) invalidateForTemplate(templatePath string) []string {
 	if strings.HasPrefix(tp, staticDir) {
 		return nil
 	}
-
 	switch tp {
 	case "kosh.yaml":
 		return nil
@@ -132,28 +125,13 @@ func (b *Engine) BuildChanged(ctx context.Context, changedPath string, op fsnoti
 
 	DevLogInfo("Change detected: " + filepath.Base(changedPath) + " " + op.String())
 
-	// Mark search source as dirty if search files changed
-	if isSearchSourcePath(changedPath) {
+	if watch.IsSearchSourcePath(changedPath) {
 		b.Deps.Wasm.SetSearchSourceDirty(true)
 	}
 
-	// Queue the build request (non-blocking)
-	select {
-	case b.State.BuildQueue <- BuildRequest{Paths: []string{changedPath}, Op: op}:
-		// Queued successfully
-	default:
-		// Queue full - merge with existing by updating operation for same path
-		// This is ok - the queued request will process the latest state
+	if b.Watch != nil {
+		b.Watch.EnqueueChange(changedPath, op)
 	}
-}
-
-// isAssetPath checks if a path is within the static assets directories
-func (b *Engine) isAssetPath(path string) bool {
-	path = normalizeAbsoluteWatchPath(path)
-	staticDir := normalizeAbsoluteWatchPath(b.Cfg.StaticDir)
-	siteStaticDir := normalizeAbsoluteWatchPath("static")
-
-	return fspkg.IsPathInOrSame(path, staticDir) || fspkg.IsPathInOrSame(path, siteStaticDir)
 }
 
 // PostChangeType represents the type of change detected in a post
@@ -294,8 +272,10 @@ func (b *Engine) buildSinglePost(ctx context.Context, path string) {
 				return
 			}
 		} else {
-			// Update the in-memory indexedPosts cache for faster search regeneration
-			b.updateIndexedPostCache(relPath, parseRes)
+			// Update the search index cache for faster regeneration
+			if b.Search != nil {
+				b.Search.UpdateIndexedPostCache(relPath, parseRes)
+			}
 		}
 		b.SaveCaches()
 
@@ -328,266 +308,25 @@ func (b *Engine) deletePostFromCache(path string) {
 	}
 
 	// Also prune from in-memory search index
-	targetKey := fspkg.NormalizePath(relPath)
-	newIndexed := make([]models.IndexedPost, 0, len(b.State.IndexedPosts))
-	for _, ip := range b.State.IndexedPosts {
-		if indexedPostStableKey(ip) != targetKey {
-			newIndexed = append(newIndexed, ip)
-		}
+	if b.Search != nil {
+		b.Search.PruneDeletedPost(relPath)
 	}
-	b.State.IndexedPosts = newIndexed
 
 	b.Logger.Info("Removed deleted post from cache", "path", relPath)
 	DevLogChange(relPath, "delete")
 }
 
-// updateIndexedPostCache updates a single entry in the in-memory cache
-func (b *Engine) updateIndexedPostCache(relPath string, parseRes *services.ParsedMarkdownResult) {
-	if len(b.State.IndexedPosts) == 0 {
-		return
-	}
-
-	found := false
-	targetKey := fspkg.NormalizePath(relPath)
-	for i, ip := range b.State.IndexedPosts {
-		if indexedPostStableKey(ip) == targetKey {
-			// Update existing record
-			b.State.IndexedPosts[i] = models.IndexedPost{
-				Record:          parseRes.SearchRecord,
-				SourcePath:      targetKey,
-				WordFreqs:       parseRes.WordFreqs,
-				DocLen:          parseRes.DocLen,
-				StemMap:         parseRes.StemMap,
-				PositionalIndex: parseRes.PositionalIndex,
-			}
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		// New post added to existing cache
-		b.State.IndexedPosts = append(b.State.IndexedPosts, models.IndexedPost{
-			Record:          parseRes.SearchRecord,
-			SourcePath:      targetKey,
-			WordFreqs:       parseRes.WordFreqs,
-			DocLen:          parseRes.DocLen,
-			StemMap:         parseRes.StemMap,
-			PositionalIndex: parseRes.PositionalIndex,
-		})
-	}
-}
-
-// regenerateSearchIndex rebuilds the search index from cached post data.
-// It uses a channel-based debouncer to avoid deadlocks when buildMu is held.
-// regenerateSearchIndex triggers asynchronous search index regeneration.
-// Uses a buffered channel (capacity 1) to debounce rapid updates.
-// The channel is non-blocking: if a regeneration is already pending,
-// new requests are dropped as the pending one will process the latest state.
-// This prevents deadlocks when BuildMu is held during incremental builds.
+// buildSingleFileChange processes a single file change (called from build queue processor).
+// The change has already been classified by WatchCoordinator.
+// regenerateSearchIndex triggers asynchronous search index regeneration via the WatchCoordinator.
+// The coordinator handles debouncing and lock management to prevent deadlocks.
 func (b *Engine) regenerateSearchIndex(ctx context.Context) error {
-	// Non-blocking send to search index queue
-	// If queue is full, request is already pending, so skip
-	select {
-	case b.State.SearchIndexCh <- struct{}{}:
-	default:
+	if b.Watch != nil {
+		b.Watch.TriggerSearchRegeneration()
 	}
 	return nil
 }
 
-func (b *Engine) doRegenerateSearchIndex(ctx context.Context) error {
-	if b.Deps.Cache == nil {
-		return nil
-	}
-
-	var indexedPosts []models.IndexedPost
-	if len(b.State.IndexedPosts) > 0 {
-		// Use in-memory cache if available (very fast)
-		indexedPosts = b.State.IndexedPosts
-	} else {
-		// Fallback to BoltDB only if cache is empty
-		postIDs, err := b.Deps.Cache.ListAllPosts()
-		if err != nil {
-			return err
-		}
-		if len(postIDs) == 0 {
-			return nil
-		}
-		posts, err := b.Deps.Cache.GetPostsByIDs(postIDs)
-		if err != nil {
-			return err
-		}
-		searchRecords, err := b.Deps.Cache.GetSearchRecords(postIDs)
-		if err != nil {
-			return err
-		}
-
-		sort.Strings(postIDs)
-		indexedPosts = make([]models.IndexedPost, 0, len(posts))
-		for _, postID := range postIDs {
-			postMeta, ok := posts[postID]
-			if !ok || postMeta == nil {
-				continue
-			}
-			searchRec, ok := searchRecords[postID]
-			if !ok || searchRec == nil {
-				continue
-			}
-			htmlRelPath := strings.ToLower(strings.Replace(postMeta.Path, ".md", ".html", 1))
-			indexedPosts = append(indexedPosts, models.IndexedPost{
-				Record: models.PostRecord{
-					ID:              xxh3.HashString(htmlRelPath),
-					Title:           postMeta.Title,
-					NormalizedTitle: searchRec.NormalizedTitle,
-					Link:            htmlRelPath,
-					Description:     postMeta.Description,
-					Tags:            postMeta.Tags,
-					NormalizedTags:  searchRec.NormalizedTags,
-					Version:         postMeta.Version,
-				},
-				SourcePath:      postMeta.Path,
-				WordFreqs:       searchRec.BM25Data,
-				DocLen:          searchRec.DocLen,
-				StemMap:         searchRec.StemMap,
-				PositionalIndex: searchRec.PositionalIndex,
-			})
-		}
-		// Warm the cache
-		b.State.IndexedPosts = indexedPosts
-	}
-
-	if len(indexedPosts) == 0 {
-		return nil
-	}
-	indexedPosts = dedupeIndexedPosts(indexedPosts)
-	b.State.IndexedPosts = indexedPosts
-
-	// Generate search index file
-	path, err := generators.GenerateSearchIndex(b.Sink, b.Cfg.OutputDir, indexedPosts)
-	if err != nil {
-		return err
-	}
-	b.Deps.Render.RegisterFile(path)
-
-	return nil
-}
-
-// ProcessSearchIndexQueue processes search index regeneration requests from the channel.
-// It debounces multiple requests and acquires buildMu safely to avoid deadlocks.
-// Search regeneration is fire-and-forget: errors are logged but don't block the build,
-// as the search index can be rebuilt on next full build.
-// processSearchIndexQueue implements timer-based debouncing for search regeneration.
-// Uses a 500ms debounce (100ms for burst start) to coalesce rapid changes.
-// The goroutine acquires BuildMu to safely access IndexedPosts and regenerate.
-// This design prevents:
-// 1. Deadlocks when BuildMu is already held by incremental builds
-// 2. Excessive regeneration during rapid file changes
-// 3. Stale search indices after multiple updates
-func (b *Engine) processSearchIndexQueue() {
-	var pending bool
-	var timer *time.Timer
-	var timerRunning bool
-
-	for range b.State.SearchIndexCh {
-		// Mark as pending
-		pending = true
-
-		// Start or reset debounce timer
-		if !timerRunning {
-			// Calculate delay: 500ms since last run, or 100ms for burst start
-			delay := 500 * time.Millisecond
-			if time.Since(b.State.LastSearchIndexRegeneration) > 2*time.Second {
-				delay = 100 * time.Millisecond
-			}
-
-			timer = time.AfterFunc(delay, func() {
-				// Timer fired, try to acquire lock
-				if pending {
-					pending = false
-					// Use goroutine to avoid blocking if lock is held
-					go func() {
-						b.State.BuildMu.Lock()
-						defer b.State.BuildMu.Unlock()
-
-						// Perform the actual regeneration
-						b.State.LastSearchIndexRegeneration = time.Now()
-						if err := b.doRegenerateSearchIndex(context.Background()); err != nil {
-							b.Logger.Error("Search index regeneration failed", "error", err)
-						}
-					}()
-				}
-			})
-			timerRunning = true
-		}
-	}
-
-	// Channel closed, cleanup
-	if timer != nil && timerRunning {
-		timer.Stop()
-	}
-}
-
-// ProcessBuildQueue processes build requests from the watch mode queue.
-// It debounces multiple file changes and processes them in batches.
-// processBuildQueue implements file change batching for watch mode.
-// Merges multiple file changes within a 100ms debounce window.
-// Uses a map to track the latest operation per path.
-// This prevents:
-// 1. fsnotify buffer overflow from rapid changes
-// 2. Redundant rebuilds for the same file
-// 3. Race conditions between concurrent file modifications
-func (b *Engine) processBuildQueue() {
-	var mergedPaths map[string]fsnotify.Op
-	debounce := time.NewTimer(100 * time.Millisecond)
-	defer debounce.Stop()
-
-	for {
-		select {
-		case req, ok := <-b.State.BuildQueue:
-			if !ok {
-				// Channel closed, process any pending and exit
-				if len(mergedPaths) > 0 {
-					b.State.BuildMu.Lock()
-					for path, op := range mergedPaths {
-						b.buildSingleFileChange(context.Background(), path, op)
-					}
-					b.State.BuildMu.Unlock()
-				}
-				return
-			}
-			// Merge requests for the same path
-			if mergedPaths == nil {
-				mergedPaths = make(map[string]fsnotify.Op)
-			}
-			for _, path := range req.Paths {
-				// Keep the most recent operation for each path
-				mergedPaths[path] = req.Op
-			}
-			// Reset debounce timer
-			if !debounce.Stop() {
-				select {
-				case <-debounce.C:
-				default:
-				}
-			}
-			debounce.Reset(100 * time.Millisecond)
-
-		case <-debounce.C:
-			// Process pending builds
-			if len(mergedPaths) > 0 {
-				b.State.BuildMu.Lock()
-				for path, op := range mergedPaths {
-					b.buildSingleFileChange(context.Background(), path, op)
-				}
-				b.State.BuildMu.Unlock()
-				// Reset for next batch
-				mergedPaths = nil
-			}
-		}
-	}
-}
-
-// buildSingleFileChange processes a single file change (called from build queue processor)
 func (b *Engine) buildSingleFileChange(ctx context.Context, path string, op fsnotify.Op) {
 	select {
 	case <-ctx.Done():
@@ -597,21 +336,24 @@ func (b *Engine) buildSingleFileChange(ctx context.Context, path string, op fsno
 
 	DevLogInfo("Processing queued change: " + filepath.Base(path) + " " + op.String())
 
-	// Common setup for any change
 	b.Cfg.BuildVersion = time.Now().UnixNano()
 	b.Deps.Render.ReloadTemplates()
 	b.Deps.Render.SetAssetsGate(nil)
 	b.Deps.Post.SetAssetsGate(nil)
 
-	ext := strings.ToLower(filepath.Ext(path))
-	if ext == ".md" && b.isContentPath(path) {
-		b.handleMarkdownChange(ctx, path)
-		return
-	}
-
-	if (ext == ".css" || ext == ".js") && b.isAssetPath(path) {
-		b.handleAssetChange(ctx, path)
-		return
+	if b.Watch != nil {
+		evt := b.Watch.ClassifyChange(path, op)
+		switch evt.Type {
+		case watch.ChangeTypeContent:
+			b.handleMarkdownChange(ctx, path)
+			return
+		case watch.ChangeTypeAsset:
+			b.handleAssetChange(ctx, path)
+			return
+		case watch.ChangeTypeDelete:
+			b.handleMarkdownChange(ctx, path)
+			return
+		}
 	}
 
 	b.handleOtherChange(ctx, path)

@@ -13,6 +13,8 @@ import (
 //msgp:ignore TreeNode Breadcrumb NavPage VersionInfo PostMetadata TagData Paginator PageData UrlSet Url Rss Channel Item GraphNode GraphLink GraphData LightPostMetadata MetadataScannerResult ScannedFile ScannedAsset MenuEntry AuthorConfig GeneratorsConfig FeaturesConfig SocialCardsConfig
 
 // LightPostMetadata is a minimal post metadata structure for site-wide discovery
+// and scanning. It contains the basic fields needed to identify a post and
+// determine if it needs a full rebuild.
 type LightPostMetadata struct {
 	Path        string
 	Version     string
@@ -99,7 +101,9 @@ type VersionInfo struct {
 	IsCurrent bool
 }
 
-// PostMetadata represents the frontmatter and derived data of a markdown post.
+// PostMetadata represents the frontmatter and derived data of a markdown post
+// for template rendering. It is the primary data structure passed to HTML templates
+// for displaying post lists, navigation, and page content.
 type PostMetadata struct {
 	Title       string
 	Link        string
@@ -224,12 +228,14 @@ type TemplateConfig interface {
 
 // --- Sitemap Structures ---
 
-type UrlSet struct {
+// URLSet represents a sitemap urlset.
+type URLSet struct {
 	XMLName xml.Name `xml:"http://www.sitemaps.org/schemas/sitemap/0.9 urlset"`
-	Urls    []Url    `xml:"url"`
+	URLs    []URL    `xml:"url"`
 }
 
-type Url struct {
+// URL represents a sitemap url entry.
+type URL struct {
 	Loc     string `xml:"loc"`
 	LastMod string `xml:"lastmod,omitempty"`
 }
@@ -277,9 +283,13 @@ type GraphData struct {
 	Links []GraphLink `json:"links"`
 }
 
-// --- Search Structures ---
-
+// PostRecord represents a search-optimized record for BM25 indexing and
+// search functionality. It contains normalized fields for efficient text
+// matching and version-aware search.
 type PostRecord struct {
+	// ID is a uint64 representation of the post's link, used for compact
+	// in-memory indexing. Note that search.bin uses decimal strings of this ID
+	// for serialization compatibility, while BoltDB cache uses 128-bit hex strings.
 	ID              uint64
 	Title           string
 	NormalizedTitle string // Lowercase title for search

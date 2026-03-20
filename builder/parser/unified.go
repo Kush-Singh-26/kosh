@@ -68,8 +68,8 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 					ctx.headingLevel = heading.Level
 					ctx.headingText.Reset()
 					id, _ := heading.AttributeString("id")
-					if id != nil {
-						ctx.headingID = string(id.([]byte))
+					if idBytes, ok := id.([]byte); ok {
+						ctx.headingID = string(idBytes)
 					} else {
 						ctx.headingID = ""
 					}
@@ -273,8 +273,10 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 			b := d2Blocks[idx]
 			pairVal, exists := t.Cache.Load(b.hash)
 			if exists {
-				results[idx] = pairVal.(themePair)
-				return
+				if pair, ok := pairVal.(themePair); ok {
+					results[idx] = pair
+					return
+				}
 			}
 			if t.Renderer == nil {
 				return
@@ -283,7 +285,9 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 			if t.D2Group != nil {
 				v, err, _ := t.D2Group.Do(b.hash, func() (any, error) {
 					if pairVal, exists := t.Cache.Load(b.hash); exists {
-						return pairVal.(themePair), nil
+						if pair, ok := pairVal.(themePair); ok {
+							return pair, nil
+						}
 					}
 					lightSVG, err := t.Renderer.RenderD2(ctx, b.code, 0)
 					if err != nil {
@@ -304,7 +308,9 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 					return pair, nil
 				})
 				if err == nil {
-					results[idx] = v.(themePair)
+					if pair, ok := v.(themePair); ok {
+						results[idx] = pair
+					}
 				}
 			}
 		}(firstIdx)

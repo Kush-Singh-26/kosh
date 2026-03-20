@@ -44,7 +44,7 @@ imageWorkers: 8
 
 Entry path:
 
-- `builder/run/build.go`
+- `builder/orchestration/build.go`
 
 This path is used by:
 
@@ -65,7 +65,7 @@ High-level phases:
 
 Entry path:
 
-- `builder/run/incremental.go`
+- `builder/orchestration/incremental.go`
 
 Important behavior:
 
@@ -144,8 +144,8 @@ CSS/JS changes must never leave HTML one build behind.
 
 Important files:
 
-- `builder/run/build.go`
-- `builder/run/incremental.go`
+- `builder/orchestration/build.go`
+- `builder/orchestration/incremental.go`
 - `builder/services/asset_service.go`
 - `builder/services/render_service.go`
 
@@ -200,7 +200,7 @@ GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
 go test ./...
 
 # Targeted tests
-go test ./builder/parser ./builder/services ./builder/run ./builder/utils
+go test ./builder/parser ./builder/services ./builder/orchestration ./builder/utils
 
 # With clean verification
 go test ./builder/utils ./builder/services ./builder/run ./internal/clean
@@ -264,6 +264,13 @@ Files:
 - `builder/models/cache.go` - Cache stats and types
 
 Current schema version: 10
+
+### RepoRoot Implementation
+
+- `builder/fs/path.go` provides `RepoRoot()` and `RepoPath()` functions.
+- **Important**: Standard users (installed binary) should NEVER rely on `RepoRoot()` as it resolves to `.` (cwd). Source compilation features are only for developers.
+- Developers: If you must modify paths, prefer explicit configuration over magic path traversal.
+- **Configuration**: Use `KOSH_REPO_ROOT` environment variable to override root detection.
 
 ## Important Subsystems
 
@@ -408,7 +415,7 @@ imageWorkers: 8
 ### Fast targeted checks
 
 ```bash
-go test ./builder/parser ./builder/services ./builder/run ./builder/utils
+go test ./builder/parser ./builder/services ./builder/orchestration ./builder/utils
 go test ./builder/utils ./builder/services ./builder/run ./internal/clean
 ```
 

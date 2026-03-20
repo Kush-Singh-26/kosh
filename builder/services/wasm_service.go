@@ -48,10 +48,10 @@ func (s *wasmService) CheckAndUpdate(ctx context.Context) error {
 		return nil
 	}
 
-	wasmBinary := fspkg.RepoPath("static", "wasm", "search.wasm")
+	wasmBinary := filepath.Join(s.cfg.KoshSourceRoot, "static", "wasm", "search.wasm")
 	if srcMod, err := s.latestSearchSourceModTime(); err == nil {
 		if s.searchSourceDirty.Load() {
-			if err := assets.CompileWASMFromSource(ctx, fspkg.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
+			if err := assets.CompileWASMFromSource(ctx, fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "cmd", "search", "main.go")), wasmBinary, s.cfg.KoshSourceRoot); err != nil {
 				s.logger.Warn("Failed to compile Search WASM", "error", err)
 				return err
 			}
@@ -59,7 +59,7 @@ func (s *wasmService) CheckAndUpdate(ctx context.Context) error {
 		} else {
 			wasmInfo, statErr := os.Stat(wasmBinary)
 			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
-				if err := assets.CompileWASMFromSource(ctx, fspkg.RepoPath("cmd", "search", "main.go"), wasmBinary); err != nil {
+				if err := assets.CompileWASMFromSource(ctx, fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "cmd", "search", "main.go")), wasmBinary, s.cfg.KoshSourceRoot); err != nil {
 					s.logger.Warn("Failed to compile Search WASM", "error", err)
 					return err
 				}
@@ -70,13 +70,13 @@ func (s *wasmService) CheckAndUpdate(ctx context.Context) error {
 	return nil
 }
 
-func (s *wasmService) Deploy(ctx context.Context, stagingDir string) error {
+func (s *wasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) error {
 	// Skip WASM operations in test mode
 	if s.ctx != nil && s.ctx.IsTesting {
 		return nil
 	}
 
-	wasmBinary := fspkg.RepoPath("static", "wasm", "search.wasm")
+	wasmBinary := filepath.Join(s.cfg.KoshSourceRoot, "static", "wasm", "search.wasm")
 	_, err := s.fs.Stat(wasmBinary)
 	sourceAvailable := err == nil
 
@@ -85,10 +85,10 @@ func (s *wasmService) Deploy(ctx context.Context, stagingDir string) error {
 	// always matches the current search.bin generator.
 	if sourceAvailable {
 		// Use the source WASM (either just rebuilt or already present)
-		assets.DeployWASMFromFile(s.fs, stagingDir, s.cfg.CacheDir, wasmBinary)
+		assets.DeployWASMFromFile(s.fs, sink, s.cfg.CacheDir, wasmBinary)
 	} else {
 		// No source available (standard user), use embedded WASM
-		assets.CheckWASM(stagingDir, s.cfg.CacheDir)
+		assets.CheckWASM(sink, s.cfg.CacheDir)
 	}
 
 	return nil
@@ -100,9 +100,9 @@ func (s *wasmService) SetSearchSourceDirty(dirty bool) {
 
 func (s *wasmService) latestSearchSourceModTime() (time.Time, error) {
 	paths := []string{
-		fspkg.RepoPath("cmd", "search"),
-		fspkg.RepoPath("builder", "search"),
-		fspkg.RepoPath("builder", "models"),
+		fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "cmd", "search")),
+		fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "builder", "search")),
+		fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "builder", "models")),
 	}
 
 	latest := time.Time{}

@@ -236,6 +236,10 @@ type Token struct {
 
 var isWordPartASCII [256]bool
 
+// init populates the ASCII word-part lookup table. This is a standard Go pattern
+// for compile-time constant data — the table is read-only and shared across all
+// tokenization calls. No external state is inspected; no side effects beyond
+// populating an internal lookup array.
 func init() {
 	for i := range 256 {
 		r := rune(i)

@@ -5,14 +5,14 @@ import (
 	"log/slog"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
-	bolt "go.etcd.io/bbolt"
+	"go.etcd.io/bbolt"
 )
 
 type RefCountManager struct {
-	db *bolt.DB
+	db *bbolt.DB
 }
 
-func NewRefCountManager(db *bolt.DB) *RefCountManager {
+func NewRefCountManager(db *bbolt.DB) *RefCountManager {
 	return &RefCountManager{db: db}
 }
 
@@ -21,13 +21,13 @@ func (m *RefCountManager) Decrement(hash string) (uint32, error) {
 		return 0, nil
 	}
 	var newCount uint32
-	err := m.db.Update(func(tx *bolt.Tx) error {
+	err := m.db.Update(func(tx *bbolt.Tx) error {
 		return m.DecrementTx(tx, hash, &newCount)
 	})
 	return newCount, err
 }
 
-func (m *RefCountManager) DecrementTx(tx *bolt.Tx, hash string, newCountOut *uint32) error {
+func (m *RefCountManager) DecrementTx(tx *bbolt.Tx, hash string, newCountOut *uint32) error {
 	bucket := tx.Bucket([]byte(core.BucketRefCount))
 	if bucket == nil {
 		return nil
@@ -51,12 +51,12 @@ func (m *RefCountManager) Increment(hash string) error {
 	if hash == "" {
 		return nil
 	}
-	return m.db.Update(func(tx *bolt.Tx) error {
+	return m.db.Update(func(tx *bbolt.Tx) error {
 		return m.IncrementTx(tx, hash)
 	})
 }
 
-func (m *RefCountManager) IncrementTx(tx *bolt.Tx, hash string) error {
+func (m *RefCountManager) IncrementTx(tx *bbolt.Tx, hash string) error {
 	bucket := tx.Bucket([]byte(core.BucketRefCount))
 	if bucket == nil {
 		return nil
@@ -76,7 +76,7 @@ func (m *RefCountManager) Get(hash string) uint32 {
 		return 0
 	}
 	var count uint32
-	_ = m.db.View(func(tx *bolt.Tx) error {
+	_ = m.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketRefCount))
 		if bucket == nil {
 			return nil
@@ -95,7 +95,7 @@ func (m *RefCountManager) Reconcile() error {
 
 // ReconcileWithLog recomputes all refcounts from the posts bucket and logs discrepancies.
 func (m *RefCountManager) ReconcileWithLog(logger *slog.Logger) error {
-	return m.db.Update(func(tx *bolt.Tx) error {
+	return m.db.Update(func(tx *bbolt.Tx) error {
 		refBucket := tx.Bucket([]byte(core.BucketRefCount))
 		if refBucket == nil {
 			return nil

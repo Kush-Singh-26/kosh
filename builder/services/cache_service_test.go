@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
@@ -17,7 +19,11 @@ func setupCacheServiceTest(t *testing.T) (*cacheService, *cache.Manager, func())
 	mgr, cleanup := testutil.CreateTestCache(t)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	service := NewCacheServiceWith(mgr, logger).(*cacheService)
+	service := NewCacheService(CacheServiceDependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Manager: mgr,
+		Logger:  logger,
+	}).(*cacheService)
 	return service, mgr, cleanup
 }
 
@@ -26,7 +32,11 @@ func TestNewCacheService(t *testing.T) {
 	defer cleanup()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	service := NewCacheServiceWith(mgr, logger)
+	service := NewCacheService(CacheServiceDependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Manager: mgr,
+		Logger:  logger,
+	})
 
 	if service == nil {
 		t.Fatal("NewCacheService should not return nil")

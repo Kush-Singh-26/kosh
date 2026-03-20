@@ -7,7 +7,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 
-	bolt "go.etcd.io/bbolt"
+	"go.etcd.io/bbolt"
 )
 
 // Clear removes all cache data
@@ -37,7 +37,7 @@ func (m *Manager) Rebuild() error {
 
 // IncrementBuildCount increments the build counter
 func (m *Manager) IncrementBuildCount() error {
-	return m.db.Update(func(tx *bolt.Tx) error {
+	return m.db.Update(func(tx *bbolt.Tx) error {
 		statsBucket := tx.Bucket([]byte(core.BucketStats))
 
 		buildCount := uint32(1)

@@ -28,7 +28,7 @@ func (s *postService) generateSocialCard(t socialCardTask) {
 		})
 		if errWrite == nil {
 			if s.cache != nil {
-				s.cardHashes.Store(t.path, t.frontmatterHash)
+				_ = s.cache.SetSocialCardHash(t.path, t.frontmatterHash)
 			}
 			s.renderer.RegisterFile(t.cardDestPath)
 			return
@@ -45,18 +45,9 @@ func (s *postService) generateSocialCard(t socialCardTask) {
 	}
 
 	if logoPath != "" {
-		if exists, ok := s.logoExists.Load(logoPath); ok {
-			if !exists.(bool) {
-				logoPath = ""
-			}
-		} else {
-			if _, err := s.sourceFs.Stat(logoPath); err != nil {
-				s.logger.Warn("Logo/favicon not found, social card may not render correctly", "path", logoPath, "error", err)
-				s.logoExists.Store(logoPath, false)
-				logoPath = ""
-			} else {
-				s.logoExists.Store(logoPath, true)
-			}
+		if _, err := s.sourceFs.Stat(logoPath); err != nil {
+			s.logger.Warn("Logo/favicon not found, social card may not render correctly", "path", logoPath, "error", err)
+			logoPath = ""
 		}
 	}
 
@@ -64,9 +55,9 @@ func (s *postService) generateSocialCard(t socialCardTask) {
 		SrcFs:       s.sourceFs,
 		Cfg:         &s.cfg.SocialCards,
 		SiteTitle:   s.cfg.Title,
-		Title:       timeutil.ExtractStringFromMap(t.metaData, "title"),
-		Description: timeutil.ExtractStringFromMap(t.metaData, "description"),
-		DateStr:     timeutil.ExtractStringFromMap(t.metaData, "date"),
+		Title:       timeutil.ExtractStringFromMap(t.metadata, "title"),
+		Description: timeutil.ExtractStringFromMap(t.metadata, "description"),
+		DateStr:     timeutil.ExtractStringFromMap(t.metadata, "date"),
 		DestPath:    cachedCardPath,
 		FaviconPath: logoPath,
 	})
@@ -87,7 +78,7 @@ func (s *postService) generateSocialCard(t socialCardTask) {
 		}
 
 		if s.cache != nil && t.frontmatterHash != "" {
-			s.cardHashes.Store(t.path, t.frontmatterHash)
+			_ = s.cache.SetSocialCardHash(t.path, t.frontmatterHash)
 		}
 	} else {
 		s.logger.Error("Failed to generate social card to disk", "path", cachedCardPath, "error", err)
@@ -96,9 +87,9 @@ func (s *postService) generateSocialCard(t socialCardTask) {
 			SrcFs:       s.sourceFs,
 			Cfg:         &s.cfg.SocialCards,
 			SiteTitle:   s.cfg.Title,
-			Title:       timeutil.ExtractStringFromMap(t.metaData, "title"),
-			Description: timeutil.ExtractStringFromMap(t.metaData, "description"),
-			DateStr:     timeutil.ExtractStringFromMap(t.metaData, "date"),
+			Title:       timeutil.ExtractStringFromMap(t.metadata, "title"),
+			Description: timeutil.ExtractStringFromMap(t.metadata, "description"),
+			DateStr:     timeutil.ExtractStringFromMap(t.metadata, "date"),
 			DestPath:    t.cardDestPath,
 			FaviconPath: logoPath,
 		}); err != nil {

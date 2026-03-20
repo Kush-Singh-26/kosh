@@ -10,13 +10,13 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	bolt "go.etcd.io/bbolt"
+	"go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
 )
 
-func getCachedItem[T any](db *bolt.DB, bucketName string, key []byte) (*T, error) {
+func getCachedItem[T any](db *bbolt.DB, bucketName string, key []byte) (*T, error) {
 	var result *T
-	err := db.View(func(tx *bolt.Tx) error {
+	err := db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(bucketName))
 		if bucket == nil {
 			return core.ErrNoContent
@@ -74,7 +74,7 @@ func (m *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
 	}
 
 	var result *core.PostMeta
-	err := m.db.View(func(tx *bolt.Tx) error {
+	err := m.db.View(func(tx *bbolt.Tx) error {
 		// First lookup the postID from paths bucket
 		paths := tx.Bucket([]byte(core.BucketPaths))
 		if paths == nil {
@@ -141,7 +141,7 @@ func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMeta, er
 	}
 	rawItems := make([]rawData, 0, len(postIDs))
 
-	err := m.db.View(func(tx *bolt.Tx) error {
+	err := m.db.View(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 
 		for _, id := range postIDs {
@@ -196,7 +196,7 @@ func (m *Manager) GetPostsByTemplate(templatePath string) ([]string, error) {
 	var ids []string
 	key := []byte(templatePath)
 
-	err := m.db.View(func(tx *bolt.Tx) error {
+	err := m.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketDepsTemplates))
 		if bucket == nil {
 			return nil
@@ -219,7 +219,7 @@ func (m *Manager) GetSearchRecords(postIDs []string) (map[string]*core.SearchRec
 		return result, nil
 	}
 
-	err := m.db.View(func(tx *bolt.Tx) error {
+	err := m.db.View(func(tx *bbolt.Tx) error {
 		searchBucket := tx.Bucket([]byte(core.BucketSearch))
 
 		for _, id := range postIDs {
@@ -272,7 +272,7 @@ func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
 	prefix := []byte(tag + "/")
 	var ids []string
 
-	err := m.db.View(func(tx *bolt.Tx) error {
+	err := m.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketTags))
 		if bucket == nil {
 			return nil
@@ -293,7 +293,7 @@ func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
 func (m *Manager) GetPostsMetadataByVersion(version string) ([]PostListMeta, error) {
 	var result []PostListMeta
 
-	err := m.db.View(func(tx *bolt.Tx) error {
+	err := m.db.View(func(tx *bbolt.Tx) error {
 		versionsBucket := tx.Bucket([]byte(core.BucketVersions))
 		if versionsBucket == nil {
 			return nil

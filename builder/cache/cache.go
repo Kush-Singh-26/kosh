@@ -17,7 +17,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache/migrate"
 	"github.com/Kush-Singh-26/kosh/builder/cache/store"
 	lru "github.com/hashicorp/golang-lru/v2"
-	bolt "go.etcd.io/bbolt"
+	"go.etcd.io/bbolt"
 )
 
 // memoryCacheEntry holds a cached core.PostMeta with expiration
@@ -28,7 +28,7 @@ type memoryCacheEntry struct {
 
 // Manager provides the main cache interface
 type Manager struct {
-	db       *bolt.DB
+	db       *bbolt.DB
 	store    *store.Store
 	basePath string
 	cacheID  string
@@ -69,9 +69,9 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		}
 	}
 
-	opts := &bolt.Options{
+	opts := &bbolt.Options{
 		Timeout:         timeout,
-		FreelistType:    bolt.FreelistArrayType,
+		FreelistType:    bbolt.FreelistArrayType,
 		PageSize:        16384,
 		InitialMmapSize: initialSize,
 	}
@@ -82,7 +82,7 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		opts.NoGrowSync = false
 	}
 
-	db, err := bolt.Open(dbPath, 0644, opts)
+	db, err := bbolt.Open(dbPath, 0644, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open BoltDB: %w", err)
 	}
@@ -118,7 +118,7 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 
 	// Verify schema and run migrations if needed
 	var currentVersion uint32
-	err = m.db.View(func(tx *bolt.Tx) error {
+	err = m.db.View(func(tx *bbolt.Tx) error {
 		meta := tx.Bucket([]byte(core.BucketMeta))
 		if meta != nil {
 			v := meta.Get([]byte(core.KeySchemaVersion))
@@ -184,7 +184,7 @@ func (m *Manager) Close() error {
 
 // initSchema creates all buckets if they don't exist
 func (m *Manager) initSchema() error {
-	return m.db.Update(func(tx *bolt.Tx) error {
+	return m.db.Update(func(tx *bbolt.Tx) error {
 		for _, name := range core.AllBuckets() {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
 				return fmt.Errorf("failed to create bucket %s: %w", name, err)
@@ -207,7 +207,7 @@ func (m *Manager) initSchema() error {
 // VerifyCacheID checks if the cache ID matches
 func (m *Manager) VerifyCacheID(expectedID string) (needsRebuild bool, err error) {
 	var storedID []byte
-	err = m.db.View(func(tx *bolt.Tx) error {
+	err = m.db.View(func(tx *bbolt.Tx) error {
 		meta := tx.Bucket([]byte(core.BucketMeta))
 		storedID = meta.Get([]byte(core.KeyCacheID))
 		return nil
@@ -228,7 +228,7 @@ func (m *Manager) VerifyCacheID(expectedID string) (needsRebuild bool, err error
 // SetCacheID updates the cache ID
 func (m *Manager) SetCacheID(id string) error {
 	m.cacheID = id
-	return m.db.Update(func(tx *bolt.Tx) error {
+	return m.db.Update(func(tx *bbolt.Tx) error {
 		meta := tx.Bucket([]byte(core.BucketMeta))
 		return meta.Put([]byte(core.KeyCacheID), []byte(id))
 	})
@@ -236,13 +236,13 @@ func (m *Manager) SetCacheID(id string) error {
 
 // ClearAll removes all cached data (used when corruption detected)
 func (m *Manager) ClearAll() error {
-	err := m.db.Update(func(tx *bolt.Tx) error {
+	err := m.db.Update(func(tx *bbolt.Tx) error {
 		for _, name := range core.AllBuckets() {
 			if name == core.BucketMeta {
 				continue // Keep metadata
 			}
 			// Drop and recreate the bucket — O(1) vs O(N) key-by-key delete
-			if err := tx.DeleteBucket([]byte(name)); err != nil && !errors.Is(err, bolt.ErrBucketNotFound) { //nolint:staticcheck // bolt.ErrBucketNotFound is deprecated in 1.4+
+			if err := tx.DeleteBucket([]byte(name)); err != nil && !errors.Is(err, bbolt.ErrBucketNotFound) { //nolint:staticcheck // bbolt.ErrBucketNotFound is deprecated in 1.4+
 				return err
 			}
 			if _, err := tx.CreateBucket([]byte(name)); err != nil {
@@ -284,7 +284,7 @@ func (m *Manager) Store() *store.Store {
 	return m.store
 }
 
-func (m *Manager) DB() *bolt.DB {
+func (m *Manager) DB() *bbolt.DB {
 	return m.db
 }
 
@@ -335,7 +335,7 @@ type bucketOps struct {
 }
 
 // writeOps performs sequential writes to a bucket
-func writeOps(bucket *bolt.Bucket, ops []batchOp) error {
+func writeOps(bucket *bbolt.Bucket, ops []batchOp) error {
 	if bucket == nil {
 		return nil
 	}

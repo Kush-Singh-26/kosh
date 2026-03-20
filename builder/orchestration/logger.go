@@ -22,52 +22,30 @@ const (
 
 var devTimeFormat = "15:04:05"
 
-func DevLog(message string) {
-	now := time.Now().Format(devTimeFormat)
-	fmt.Fprintf(os.Stdout, "%s%s %s⚡%s %s%s\n", dim, now, cyan, reset, message, reset)
-}
+var rebuildLevel = slog.Level(slog.LevelWarn + 1)
 
 func DevLogChange(path, changeType string) {
-	now := time.Now().Format(devTimeFormat)
-	var color string
-	switch changeType {
-	case "css", "asset":
-		color = cyan
-	case "content":
-		color = yellow
-	case "full", "new", "frontmatter":
-		color = green
-	case "delete":
-		color = red
-	default:
-		color = cyan
-	}
-	fmt.Fprintf(os.Stdout, "%s%s %s⚡%s %s %s(%s)%s\n", dim, now, color, reset, path, dim, changeType, reset)
+	slog.Log(context.Background(), rebuildLevel, "file change", "path", path, "type", changeType)
 }
 
 func DevLogRebuild(action string) {
-	now := time.Now().Format(devTimeFormat)
-	fmt.Fprintf(os.Stdout, "%s%s %s📦%s %s%s\n", dim, now, green, reset, action, reset)
+	slog.Log(context.Background(), rebuildLevel, action)
 }
 
 func DevLogSuccess(message string) {
-	now := time.Now().Format(devTimeFormat)
-	fmt.Fprintf(os.Stdout, "%s%s %s✓%s %s%s\n", dim, now, green, reset, message, reset)
+	slog.Log(context.Background(), slog.LevelInfo, message)
 }
 
 func DevLogSkip(message string) {
-	now := time.Now().Format(devTimeFormat)
-	fmt.Fprintf(os.Stdout, "%s%s %s◯%s %s%s\n", dim, now, dim, reset, message, reset)
+	slog.Log(context.Background(), rebuildLevel, message, "skipped", true)
 }
 
 func DevLogInfo(message string) {
-	now := time.Now().Format(devTimeFormat)
-	fmt.Fprintf(os.Stdout, "%s%s %sℹ%s  %s%s\n", dim, now, cyan, reset, message, reset)
+	slog.Log(context.Background(), slog.LevelInfo, message)
 }
 
 func DevLogError(message string) {
-	now := time.Now().Format(devTimeFormat)
-	fmt.Fprintf(os.Stdout, "%s%s %s✗%s %s%s\n", dim, now, red, reset, message, reset)
+	slog.Log(context.Background(), slog.LevelError, message)
 }
 
 func HTTPLog(method, path string, status int, duration time.Duration) {
@@ -171,6 +149,9 @@ func getLevelColor(level slog.Level) string {
 	case slog.LevelError:
 		return "\033[91mERR\033[0m"
 	default:
+		if level == rebuildLevel {
+			return "\033[92mREB\033[0m"
+		}
 		return "\033[96mINF\033[0m"
 	}
 }
@@ -186,12 +167,13 @@ func getLevelString(level slog.Level) string {
 	case slog.LevelError:
 		return "ERR"
 	default:
+		if level == rebuildLevel {
+			return "REB"
+		}
 		return "INF"
 	}
 }
 
 func InitLogger() *slog.Logger {
-	logger := slog.New(NewConsoleHandler(os.Stdout))
-	slog.SetDefault(logger)
-	return logger
+	return slog.New(NewConsoleHandler(os.Stdout))
 }

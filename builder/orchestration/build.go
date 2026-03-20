@@ -18,7 +18,6 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 // refreshBuildSession creates a fresh Transaction and Sink for a new build pass.
@@ -61,56 +60,41 @@ func (b *Engine) build(ctx context.Context) error {
 }
 
 func (b *Engine) buildAssetOnly(ctx context.Context) error {
-	if b.Metrics != nil {
-		b.Metrics.Reset()
-	}
-	b.Deps.Render.SetAssets(map[string]string{})
-
-	slog.Info("Building assets...")
-	assetTimer := timeutil.StartPhase("Asset building")
-
 	// Start fresh session/tracking state
 	b.refreshBuildSession()
 
-	assets, err := b.Deps.Asset.BuildForAssetChange(ctx)
-	assetTimer.Stop()
-	if err != nil {
-		return fmt.Errorf("failed to build assets: %w", err)
-	}
+	return b.Assets.BuildAssetOnly(ctx, func(ctx context.Context) error {
+		b.Deps.Post.SetAssetsGate(nil)
+		b.State.ForceGenerators.Store(true)
 
-	b.Deps.Render.SetAssets(assets)
-	b.Deps.Render.ClearRenderedFiles()
-	b.Deps.Render.SetAssetsGate(nil)
-	b.Deps.Post.SetAssetsGate(nil)
-	b.State.ForceGenerators.Store(true)
+		fileChan := make(chan models.ScannedFile, 1024)
+		go func() {
+			defer close(fileChan)
+			if _, err := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.SourceFs, b.Cfg, fileChan); err != nil {
+				slog.Debug("metadata scan in asset-only build error", "error", err)
+			}
+		}()
 
-	fileChan := make(chan models.ScannedFile, 1024)
-	go func() {
-		defer close(fileChan)
-		if _, err := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.SourceFs, b.Cfg, fileChan); err != nil {
-			slog.Debug("metadata scan in asset-only build error", "error", err)
+		shouldForce := false
+		forceSocialRebuild := false
+		outputMissing := false
+		_, err := b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan)
+		if err != nil {
+			return fmt.Errorf("post processing failed: %w", err)
 		}
-	}()
 
-	shouldForce := false
-	forceSocialRebuild := false
-	outputMissing := false
-	_, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan)
-	if err != nil {
-		return fmt.Errorf("post processing failed: %w", err)
-	}
+		if err := b.Tx.Commit(ctx); err != nil {
+			return fmt.Errorf("failed to publish build transaction: %w", err)
+		}
 
-	if err := b.Tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to publish build transaction: %w", err)
-	}
+		b.cleanupOrphans()
 
-	b.cleanupOrphans()
+		b.Metrics.RecordEnd()
+		DevLogSuccess("Build complete")
+		b.Metrics.Print()
 
-	b.Metrics.RecordEnd()
-	DevLogSuccess("Build complete")
-	b.Metrics.Print()
-
-	return nil
+		return nil
+	})
 }
 
 func (b *Engine) Build(ctx context.Context) error {
@@ -143,11 +127,4 @@ func (b *Engine) Build(ctx context.Context) error {
 	}
 
 	return b.build(ctx)
-}
-
-func (b *Engine) copyStaticAndBuildAssets(ctx context.Context) error {
-	if err := b.Deps.Asset.Build(ctx); err != nil {
-		return fmt.Errorf("failed to build assets: %w", err)
-	}
-	return nil
 }
