@@ -4,34 +4,34 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+	"github.com/zeebo/xxh3"
+	"gopkg.in/yaml.v3"
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/zeebo/xxh3"
-	"gopkg.in/yaml.v3"
 )
 
 var ErrEmptyData = errors.New("empty data")
 
-func GetFrontmatterHash(metaData map[string]any) (string, error) {
+func GetFrontmatterHash(metadata map[string]any) (string, error) {
 	h := xxh3.New()
 
-	writeStringXXH3(h, ExtractStringFromMap(metaData, "title"))
+	writeStringXXH3(h, timeutil.ExtractStringFromMap(metadata, "title"))
 	_, _ = h.Write([]byte{0})
-	writeStringXXH3(h, ExtractStringFromMap(metaData, "description"))
+	writeStringXXH3(h, timeutil.ExtractStringFromMap(metadata, "description"))
 	_, _ = h.Write([]byte{0})
 
 	// Handle date explicitly to avoid timezone-related non-determinism
-	if dateVal, ok := metaData["date"].(time.Time); ok {
+	if dateVal, ok := metadata["date"].(time.Time); ok {
 		writeStringXXH3(h, dateVal.Format("2006-01-02"))
 	} else {
-		writeStringXXH3(h, ExtractStringFromMap(metaData, "date"))
+		writeStringXXH3(h, timeutil.ExtractStringFromMap(metadata, "date"))
 	}
 	_, _ = h.Write([]byte{0})
 
 	// Sort in-place (caller shouldn't rely on original order)
-	tags := ExtractSliceFromMap(metaData, "tags")
+	tags := timeutil.ExtractSliceFromMap(metadata, "tags")
 	if len(tags) > 0 {
 		sort.Strings(tags)
 		for _, tag := range tags {
@@ -41,7 +41,7 @@ func GetFrontmatterHash(metaData map[string]any) (string, error) {
 	}
 
 	// Pinned flag
-	if isPinned, _ := metaData["pinned"].(bool); isPinned {
+	if isPinned, _ := metadata["pinned"].(bool); isPinned {
 		_, _ = h.Write([]byte{1})
 	} else {
 		_, _ = h.Write([]byte{0})
@@ -129,23 +129,23 @@ func GetFrontmatterHashFromSource(source []byte) (string, error) {
 	}
 
 	frontmatter := bytes.TrimSpace(parts[1])
-	metaData, err := ParseFrontmatter(frontmatter)
+	metadata, err := ParseFrontmatter(frontmatter)
 	if err != nil {
 		if errors.Is(err, ErrEmptyData) {
 			return "", nil
 		}
 		return "", err
 	}
-	return GetFrontmatterHash(metaData)
+	return GetFrontmatterHash(metadata)
 }
 
 func ParseFrontmatter(data []byte) (map[string]any, error) {
 	if len(data) == 0 {
 		return nil, ErrEmptyData
 	}
-	metaData := make(map[string]any)
-	if err := yaml.Unmarshal(data, &metaData); err != nil {
+	metadata := make(map[string]any)
+	if err := yaml.Unmarshal(data, &metadata); err != nil {
 		return nil, err
 	}
-	return metaData, nil
+	return metadata, nil
 }

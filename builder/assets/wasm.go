@@ -26,6 +26,10 @@ var searchWasmBr []byte
 var embeddedWasmHash string
 var wasmInitErr error
 
+// init eagerly decompresses and hashes the embedded search WASM at import time.
+// This is intentional: the hash is read on every deploy check, so caching it here
+// avoids repeated decompression overhead. Error is stored for lazy handling rather
+// than panicking during import, preserving library safety.
 func init() {
 	raw, err := decompressBrotli(searchWasmBr)
 	if err != nil {
@@ -39,17 +43,21 @@ func init() {
 
 // CheckWASM ensures the search engine WASM is present and up-to-date.
 // Uses hash comparison to avoid unnecessary writes when WASM hasn't changed.
-func CheckWASM(outputDir string, cacheDir string) bool {
-	return CheckWASMFs(afero.NewOsFs(), outputDir, cacheDir)
+func CheckWASM(sink fspkg.ArtifactSink, cacheDir string) bool {
+	return CheckWASMFs(afero.NewOsFs(), sink, cacheDir)
 }
 
-func CheckWASMFs(fs afero.Fs, outputDir string, cacheDir string) bool {
-	return CheckWASMFsWithSource(fs, outputDir, cacheDir, nil)
+func CheckWASMFs(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string) bool {
+	return CheckWASMFsWithSource(fs, sink, cacheDir, nil)
 }
 
-func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourceWasm []byte) bool {
-	wasmOut := filepath.Join(outputDir, "static/wasm/search.wasm")
-	brOut := wasmOut + ".br"
+func CheckWASMFsWithSource(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string, sourceWasm []byte) bool {
+	wasmRelPath := "static/wasm/search.wasm"
+	brRelPath := wasmRelPath + ".br"
+
+	outputDir := sink.GetOutputDir()
+	wasmOut := filepath.Join(outputDir, wasmRelPath)
+	brOut := filepath.Join(outputDir, brRelPath)
 
 	var wasmBytes []byte
 	var wasmHash string
@@ -69,7 +77,7 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 		wasmHash = hashBytes(sourceWasm)
 	}
 
-	if err := fs.MkdirAll(filepath.Dir(wasmOut), 0755); err != nil {
+	if err := sink.MkdirAll(filepath.Dir(wasmRelPath)); err != nil {
 		slog.Warn("Failed to create WASM directory", "error", err)
 	}
 
@@ -86,8 +94,8 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 			cachePath := filepath.Join(cacheDir, "wasm", wasmHash+".br")
 			if cachedBr, err := os.ReadFile(cachePath); err == nil {
 				slog.Info("Using cached Search WASM...")
-				_ = afero.WriteFile(fs, wasmOut, wasmBytes, 0644)
-				_ = afero.WriteFile(fs, brOut, cachedBr, 0644)
+				_ = sink.WriteFile(wasmRelPath, wasmBytes)
+				_ = sink.WriteFile(brRelPath, cachedBr)
 				return true
 			}
 		}
@@ -122,11 +130,11 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 		}
 	}
 
-	if err := afero.WriteFile(fs, wasmOut, wasmBytes, 0644); err != nil {
+	if err := sink.WriteFile(wasmRelPath, wasmBytes); err != nil {
 		slog.Error("Failed to write WASM", "error", err)
 		return false
 	}
-	if err := afero.WriteFile(fs, brOut, wasmBrBytes, 0644); err != nil {
+	if err := sink.WriteFile(brRelPath, wasmBrBytes); err != nil {
 		slog.Error("Failed to write WASM.br", "error", err)
 		return false
 	}
@@ -138,27 +146,27 @@ func CheckWASMFsWithSource(fs afero.Fs, outputDir string, cacheDir string, sourc
 	return true
 }
 
-func DeployWASMFromFile(fs afero.Fs, outputDir, cacheDir, sourcePath string) bool {
+func DeployWASMFromFile(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePath string) bool {
 	data, err := afero.ReadFile(fs, sourcePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return CheckWASMFs(fs, outputDir, cacheDir)
+			return CheckWASMFs(fs, sink, cacheDir)
 		}
 		slog.Warn("Failed to read source WASM", "path", sourcePath, "error", err)
-		return CheckWASMFs(fs, outputDir, cacheDir)
+		return CheckWASMFs(fs, sink, cacheDir)
 	}
-	return CheckWASMFsWithSource(fs, outputDir, cacheDir, data)
+	return CheckWASMFsWithSource(fs, sink, cacheDir, data)
 }
 
 // CompileWASMFromSource builds the search engine WASM from Go source.
 // This is used for developer convenience during development.
-func CompileWASMFromSource(ctx context.Context, srcPath string, destPath string) error {
+func CompileWASMFromSource(ctx context.Context, srcPath string, destPath string, repoRoot string) error {
 	goPath, err := exec.LookPath("go")
 	if err != nil {
 		return fmt.Errorf("go compiler not found in PATH: %w", err)
 	}
 
-	repoRoot := fspkg.RepoRoot()
+	repoRoot = fspkg.NormalizePath(repoRoot)
 	absSrc := srcPath
 	if !filepath.IsAbs(absSrc) {
 		absSrc = filepath.Join(repoRoot, srcPath)

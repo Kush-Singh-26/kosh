@@ -50,20 +50,10 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		}
 	}
 
-	version, relPath := navigation.GetVersionFromPath(path)
-	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
+	relPath, _ := fspkg.SafeRel(s.cfg.ContentDir, path)
+	version, _ := navigation.GetVersionFromPath(path)
 
-	cleanHtmlRelPath := htmlRelPath
-	if version != "" {
-		cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(version)+"/")
-	}
-
-	var destPath string
-	if version != "" {
-		destPath = filepath.Join(s.cfg.OutputDir, version, cleanHtmlRelPath)
-	} else {
-		destPath = filepath.Join(s.cfg.OutputDir, htmlRelPath)
-	}
+	htmlRelPath, cleanHtmlRelPath, destPath := ComputePathVars(s.cfg.OutputDir, relPath, version)
 
 	var parseRes *ParsedMarkdownResult
 	if preParsed != nil {
@@ -121,7 +111,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 
 		htmlContent = mdParser.ReplaceMathExpressions(htmlContent, parseRes.MathExpressions, rendered)
 	}
-	metaData := parseRes.MetaData
+	metadata := parseRes.Metadata
 	post := parseRes.Post
 	toc := parseRes.TOC
 	ssrHashes := parseRes.SSRHashes
@@ -174,6 +164,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		s.logger.Debug("Navigation resolution failed", "path", path, "error", err)
 	}
 	siteTree := fspkg.BuildSiteTree(versionPosts, post.Link)
+	cardRelPath, cardDestPath, cardImageURL := CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
 
 	normalizedTags := make([]string, len(post.Tags))
 	for i, t := range post.Tags {
@@ -196,7 +187,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 			Title: post.Title, Date: post.DateObj, Tags: post.Tags,
 			ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight,
-			Draft: post.Draft, Meta: metaData, TOC: cacheTOC, Version: version,
+			Draft: post.Draft, Meta: metadata, TOC: cacheTOC, Version: version,
 			SSRInputHashes: ssrHashes,
 			CardHash:       frontmatterHash,
 			HasImages:      parseRes.HasImages,
@@ -233,9 +224,6 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 			cacheCommitTimer.Stop()
 		}()
 		// 2. Generate/Copy Social Card
-		cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
-		cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", cardRelPath))
-
 		cachedHash, _ := s.cache.GetSocialCardHash(relPath)
 		cardExists := cachedHash != "" && cachedHash == parseRes.FrontmatterHash
 		if !cardExists {
@@ -246,33 +234,21 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 				path:            relPath,
 				relPath:         cardRelPath,
 				cardDestPath:    cardDestPath,
-				metaData:        metaData,
-				frontmatterHash: parseRes.FrontmatterHash,
+				metadata:        metadata,
+				frontmatterHash: frontmatterHash,
 			})
+		} else {
+			s.sink.Register(cardDestPath)
 		}
-	}
-
-	cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
-	imagePath := s.cfg.BaseURL + "/static/images/cards/" + cardRelPath
-	if img, ok := metaData["image"].(string); ok {
-		if s.cfg.CompressImages && !strings.HasPrefix(img, "http") {
-			ext := filepath.Ext(img)
-			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
-				img = img[:len(img)-len(ext)] + ".webp"
-			}
-		}
-		imagePath = s.cfg.BaseURL + img
 	}
 
 	s.renderer.RenderPage(destPath, models.PageData{
 		Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
-		Meta: metaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
-		TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: imagePath,
-		TOC: toc, Config: s.cfg, SiteTree: siteTree,
-		CurrentVersion: version, IsOutdated: s.isOutdatedVersion(version),
-		Versions: s.cfg.GetVersionsMetadata(version, cleanHtmlRelPath),
-		PrevPage: prev, NextPage: next, HasImages: parseRes.HasImages,
+		Meta: metadata, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
+		TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: cardImageURL,
+		TOC: toc, Config: s.cfg, CurrentVersion: version, ReadingTime: post.ReadingTime,
+		PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(htmlRelPath),
+		HasImages: parseRes.HasImages, SiteTree: siteTree,
 	})
-
 	return nil
 }

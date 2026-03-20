@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 // executeTemplateAndWrite executes a template, processes HTML, optionally minifies, and writes via sink.
@@ -25,7 +25,11 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 
 	// Optional Minification
 	if r.Compress {
-		minified, err := fspkg.Minifier.Bytes("text/html", finalBytes)
+		minifier := r.Minifier
+		if minifier == nil {
+			minifier = fspkg.GetMinifier()
+		}
+		minified, err := minifier.Bytes("text/html", finalBytes)
 		if err == nil {
 			finalBytes = minified
 		}

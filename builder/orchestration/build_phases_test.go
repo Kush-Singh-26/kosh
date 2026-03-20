@@ -7,11 +7,9 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/spf13/afero"
@@ -34,21 +32,9 @@ func TestSetupPhase(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Wasm:   wasmSvc,
-			Render: renderSvc,
-			Asset:  assetSvc,
-			Post:   postSvc,
-		},
-		Logger:   logger,
-		Metrics:  buildMetrics,
-		Sink:     sink,
-		Tx:       tx,
-		SourceFs: fs,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, nil, wasmSvc, logger, buildMetrics, fs, nil, nil)
+	b.Sink = sink
+	b.Tx = tx
 
 	ctx := context.Background()
 	res, err := b.setupPhase(ctx)
@@ -65,15 +51,9 @@ func TestAssetPhase(t *testing.T) {
 	logger := InitLogger()
 	renderSvc := mocks.NewMockRenderService()
 	assetSvc := &mocks.MockAssetService{}
+	cfg := &config.Config{}
 
-	b := &Engine{
-		Deps: EngineDependencies{
-			Render: renderSvc,
-			Asset:  assetSvc,
-		},
-		Logger: logger,
-		Ctx:    buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, nil, nil, nil, logger, nil, nil, nil, nil)
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
 	ctx := context.Background()
@@ -104,14 +84,7 @@ func TestScanPhase(t *testing.T) {
 
 	logger := InitLogger()
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Scanner: scanner,
-		},
-		SourceFs: fs,
-	}
+	b := NewEngineFromManual(cfg, nil, nil, nil, scanner, nil, logger, nil, fs, nil, nil)
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
 	ctx := context.Background()
@@ -142,27 +115,22 @@ func TestCheckAssetsChanged(t *testing.T) {
 	renderSvc.SetAssets(map[string]string{
 		"style.css": "hash1",
 	})
+	cfg := &config.Config{}
 
-	b := &Engine{
-		Deps: EngineDependencies{
-			Render: renderSvc,
-		},
-		Logger: logger,
-		Ctx:    buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-	}
-	b.State.LastAssetHash = 0
+	b := NewEngineFromManual(cfg, renderSvc, nil, nil, nil, nil, logger, nil, nil, nil, nil)
 
 	assetsReady := make(chan struct{})
 	close(assetsReady)
+	ctx := context.Background()
 
 	// First call - should be true as lastAssetHash is 0
-	changed := b.checkAssetsChanged(assetsReady)
+	changed := b.Assets.CheckChanged(ctx, assetsReady)
 	if !changed {
 		t.Error("expected assets to be marked as changed on first call")
 	}
 
 	// Second call - should be false as hash matches
-	changed = b.checkAssetsChanged(assetsReady)
+	changed = b.Assets.CheckChanged(ctx, assetsReady)
 	if changed {
 		t.Error("expected assets to be marked as unchanged on second call")
 	}
@@ -171,7 +139,7 @@ func TestCheckAssetsChanged(t *testing.T) {
 	renderSvc.SetAssets(map[string]string{
 		"style.css": "hash2",
 	})
-	changed = b.checkAssetsChanged(assetsReady)
+	changed = b.Assets.CheckChanged(ctx, assetsReady)
 	if !changed {
 		t.Error("expected assets to be marked as changed after modification")
 	}
@@ -179,12 +147,10 @@ func TestCheckAssetsChanged(t *testing.T) {
 
 func TestShouldSkipSiteWideRendering(t *testing.T) {
 	logger := InitLogger()
-	b := &Engine{
-		Cfg: &config.Config{
-			IsDev: true,
-		},
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	cfg := &config.Config{
+		IsDev: true,
 	}
+	b := NewEngineFromManual(cfg, nil, nil, nil, nil, nil, logger, nil, nil, nil, nil)
 
 	cb := &services.MetadataContext{
 		AnyPostChanged: false,
@@ -229,18 +195,9 @@ func TestFinalizePhase(t *testing.T) {
 	m := metrics.NewBuildMetrics()
 	logger := InitLogger()
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Wasm:   wasmSvc,
-			Render: renderSvc,
-		},
-		Sink:    sink,
-		Tx:      tx,
-		Metrics: m,
-		Logger:  logger,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, nil, nil, nil, wasmSvc, logger, m, nil, nil, nil)
+	b.Sink = sink
+	b.Tx = tx
 
 	var wasmWg sync.WaitGroup
 	ctx := context.Background()

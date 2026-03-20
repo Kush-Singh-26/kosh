@@ -12,13 +12,12 @@ import (
 // TestResolveContentPaths_VariousPaths tests path resolution with versions
 func TestResolveContentPaths_VariousPaths(t *testing.T) {
 	// Create a minimal engine for testing
-	engine := &Engine{
-		Cfg: &config.Config{
-			PathConfig: config.PathConfig{
-				ContentDir: "content",
-			},
+	cfg := &config.Config{
+		PathConfig: config.PathConfig{
+			ContentDir: "content",
 		},
 	}
+	engine := NewEngineFromManual(cfg, nil, nil, nil, nil, nil, InitLogger(), nil, nil, nil, nil)
 
 	tests := []struct {
 		name        string
@@ -59,7 +58,7 @@ func TestResolveContentPaths_VariousPaths(t *testing.T) {
 
 // TestComputePostHashes_Consistency tests that hash computation is consistent
 func TestComputePostHashes_Consistency(t *testing.T) {
-	engine := &Engine{}
+	engine := NewEngineFromManual(nil, nil, nil, nil, nil, nil, InitLogger(), nil, nil, nil, nil)
 
 	// Test with frontmatter
 	sourceWithFrontmatter := []byte("---\ntitle: Test\n---\n\n# Test Post\n\nThis is a test.")
@@ -82,11 +81,7 @@ func TestComputePostHashes_Consistency(t *testing.T) {
 
 // TestDeterminePostChange_AllCases tests all change detection scenarios
 func TestDeterminePostChange_AllCases(t *testing.T) {
-	engine := &Engine{
-		Deps: EngineDependencies{
-			Cache: nil, // No cache means new post
-		},
-	}
+	engine := NewEngineFromManual(nil, nil, nil, nil, nil, nil, InitLogger(), nil, nil, nil, nil)
 
 	// Test with no cache (should return PostChangeNew)
 	changeType := engine.determinePostChange("test.md", "hash1", "hash2")

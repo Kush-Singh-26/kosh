@@ -113,30 +113,12 @@ func TestFullBuild(t *testing.T) {
 		SourceFs:       fs,
 	})
 	metadataScanner := services.NewMetadataScanner()
-
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, true, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Cache:    nil,
-			Post:     postSvc,
-			Asset:    assetSvc,
-			Render:   renderSvc,
-			Wasm:     wasmSvc,
-			Scanner:  metadataScanner,
-			Diagrams: nil,
-		},
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		SourceFs:       fs,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		Sink:           sink,
-		Tx:             tx,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b.Sink = sink
+	b.Tx = tx
 
 	ctx := context.Background()
 	err := b.Build(ctx)
@@ -151,7 +133,7 @@ func TestFullBuild(t *testing.T) {
 		"public/posts/hello.html",
 		"public/sitemap/sitemap.xml",
 		"public/rss.xml",
-		"public/search.bin",
+		"search.bin",
 		"public/graph.json",
 		"public/.nojekyll",
 	}
@@ -206,30 +188,12 @@ func TestMultiVersionBuild(t *testing.T) {
 		SourceFs:       fs,
 	})
 	metadataScanner := services.NewMetadataScanner()
-
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, true, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Cache:    nil,
-			Post:     postSvc,
-			Asset:    assetSvc,
-			Render:   renderSvc,
-			Wasm:     wasmSvc,
-			Scanner:  metadataScanner,
-			Diagrams: nil,
-		},
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		SourceFs:       fs,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		Sink:           sink,
-		Tx:             tx,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b.Sink = sink
+	b.Tx = tx
 
 	ctx := context.Background()
 	err := b.Build(ctx)

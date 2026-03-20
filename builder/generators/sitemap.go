@@ -8,24 +8,24 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func GenerateSitemap(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) (string, error) {
 	slog.Info("Generating sitemap")
 
-	var urls []models.Url
+	var urls []models.URL
 
 	// 1. Add Home Page
-	urls = append(urls, models.Url{
+	urls = append(urls, models.URL{
 		Loc:     baseURL + "/",
 		LastMod: time.Now().Format("2006-01-02"),
 	})
 
 	// 2. Add Blog Posts
 	for _, p := range posts {
-		urls = append(urls, models.Url{
+		urls = append(urls, models.URL{
 			Loc:     p.Link,
 			LastMod: p.DateObj.Format("2006-01-02"),
 		})
@@ -41,7 +41,7 @@ func GenerateSitemap(sink fspkg.ArtifactSink, baseURL string, posts []models.Pos
 			}
 		}
 
-		urls = append(urls, models.Url{
+		urls = append(urls, models.URL{
 			Loc:     fmt.Sprintf("%s/tags/%s.html", baseURL, url.PathEscape(t)),
 			LastMod: latest.Format("2006-01-02"),
 		})
@@ -54,7 +54,7 @@ func GenerateSitemap(sink fspkg.ArtifactSink, baseURL string, posts []models.Pos
 		}
 		enc := xml.NewEncoder(w)
 		enc.Indent("", "  ")
-		return enc.Encode(models.UrlSet{Urls: urls})
+		return enc.Encode(models.URLSet{URLs: urls})
 	})
 	if err != nil {
 		return "", err

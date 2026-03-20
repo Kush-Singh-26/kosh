@@ -67,17 +67,12 @@ func TestIsAssetPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := InitLogger()
-			b := &Engine{
-				Cfg: &config.Config{
-					PathConfig: config.PathConfig{
-						StaticDir: tt.staticDir,
-					},
-				},
-				Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-				Deps: EngineDependencies{
-					Wasm: &mocks.MockWasmService{},
+			cfg := &config.Config{
+				PathConfig: config.PathConfig{
+					StaticDir: tt.staticDir,
 				},
 			}
+			b := NewEngineFromManual(cfg, nil, nil, nil, nil, &mocks.MockWasmService{}, logger, nil, nil, nil, nil)
 			got := b.isAssetPath(tt.path)
 			if got != tt.want {
 				t.Errorf("isAssetPath(%q) = %v, want %v", tt.path, got, tt.want)
@@ -92,12 +87,8 @@ func TestNormalizeWatchPath_ProjectRelativeAbsolutePath(t *testing.T) {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 	logger := InitLogger()
-	b := &Engine{
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Wasm: &mocks.MockWasmService{},
-		},
-	}
+	cfg := &config.Config{}
+	b := NewEngineFromManual(cfg, nil, nil, nil, nil, &mocks.MockWasmService{}, logger, nil, nil, nil, nil)
 	abs := filepath.Join(wd, "themes", "test-theme", "static", "css", "style.css")
 	got := b.normalizeWatchPath(abs)
 	expected := fspkg.NormalizePath("themes/test-theme/static/css/style.css")
@@ -113,10 +104,8 @@ func TestIsContentPathWithAbsoluteConfiguredContentDir(t *testing.T) {
 	}
 	contentDir := filepath.Join(wd, "content")
 	logger := InitLogger()
-	b := &Engine{
-		Cfg: &config.Config{PathConfig: config.PathConfig{ContentDir: contentDir}},
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-	}
+	cfg := &config.Config{PathConfig: config.PathConfig{ContentDir: contentDir}}
+	b := NewEngineFromManual(cfg, nil, nil, nil, nil, nil, logger, nil, nil, nil, nil)
 	path := filepath.Join(contentDir, "posts", "hello.md")
 	if !b.isContentPath(path) {
 		t.Fatalf("expected absolute markdown path to match absolute content dir")
@@ -166,18 +155,13 @@ func TestInvalidateForTemplate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := InitLogger()
-			b := &Engine{
-				Cfg: &config.Config{
-					PathConfig: config.PathConfig{
-						TemplateDir: tt.templateDir,
-						StaticDir:   tt.staticDir,
-					},
-				},
-				Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-				Deps: EngineDependencies{
-					Wasm: &mocks.MockWasmService{},
+			cfg := &config.Config{
+				PathConfig: config.PathConfig{
+					TemplateDir: tt.templateDir,
+					StaticDir:   tt.staticDir,
 				},
 			}
+			b := NewEngineFromManual(cfg, nil, nil, nil, nil, &mocks.MockWasmService{}, logger, nil, nil, nil, nil)
 			got := b.invalidateForTemplate(tt.templatePath)
 			if (got == nil) != tt.wantNil {
 				t.Errorf("invalidateForTemplate(%q) returned nil=%v, want nil=%v", tt.templatePath, got == nil, tt.wantNil)
@@ -258,7 +242,11 @@ Initial body.
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheServiceWith(cm, logger)
+	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Manager: cm,
+		Logger:  logger,
+	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
 	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
 		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
@@ -283,26 +271,9 @@ Initial body.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Cache:    cacheSvc,
-			Post:     postSvc,
-			Asset:    assetSvc,
-			Render:   renderSvc,
-			Wasm:     wasmSvc,
-			Scanner:  metadataScanner,
-			Diagrams: nil,
-		},
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		SourceFs:       fs,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		Sink:           sink,
-		Tx:             tx,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b.Sink = sink
+	b.Tx = tx
 
 	ctx := context.Background()
 	if err := b.Build(ctx); err != nil {
@@ -377,7 +348,11 @@ Initial body.
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheServiceWith(cm, logger)
+	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		Manager: cm,
+		Logger:  logger,
+	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
 	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
 		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
@@ -402,26 +377,9 @@ Initial body.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := &Engine{
-		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
-		Deps: EngineDependencies{
-			Cache:    cacheSvc,
-			Post:     postSvc,
-			Asset:    assetSvc,
-			Render:   renderSvc,
-			Wasm:     wasmSvc,
-			Scanner:  metadataScanner,
-			Diagrams: nil,
-		},
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		SourceFs:       fs,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		Sink:           sink,
-		Tx:             tx,
-	}
+	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b.Sink = sink
+	b.Tx = tx
 
 	ctx := context.Background()
 	if err := b.Build(ctx); err != nil {

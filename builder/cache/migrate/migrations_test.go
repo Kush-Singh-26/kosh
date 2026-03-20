@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
-	bolt "go.etcd.io/bbolt"
+	"go.etcd.io/bbolt"
 )
 
 func TestRunMigrations_NoOp(t *testing.T) {
 	dbPath := "test_migrations_noop.db"
-	db, err := bolt.Open(dbPath, 0600, nil)
+	db, err := bbolt.Open(dbPath, 0600, nil)
 	if err != nil {
 		t.Fatalf("Failed to open DB: %v", err)
 	}
@@ -20,7 +20,7 @@ func TestRunMigrations_NoOp(t *testing.T) {
 	defer func() { _ = os.Remove(dbPath) }()
 
 	// Ensure BucketMeta exists
-	_ = db.Update(func(tx *bolt.Tx) error {
+	_ = db.Update(func(tx *bbolt.Tx) error {
 		_, _ = tx.CreateBucketIfNotExists([]byte(core.BucketMeta))
 		return nil
 	})
@@ -38,14 +38,14 @@ func TestRunMigrations_NoOp(t *testing.T) {
 
 func TestRunMigrations_V1ToV2(t *testing.T) {
 	dbPath := "test_migrations_v1v2.db"
-	db, err := bolt.Open(dbPath, 0600, nil)
+	db, err := bbolt.Open(dbPath, 0600, nil)
 	if err != nil {
 		t.Fatalf("Failed to open DB: %v", err)
 	}
 	defer func() { _ = db.Close() }()
 	defer func() { _ = os.Remove(dbPath) }()
 
-	_ = db.Update(func(tx *bolt.Tx) error {
+	_ = db.Update(func(tx *bbolt.Tx) error {
 		meta, _ := tx.CreateBucketIfNotExists([]byte(core.BucketMeta))
 		v := make([]byte, 4)
 		binary.BigEndian.PutUint32(v, 1) // Start at version 1
@@ -62,7 +62,7 @@ func TestRunMigrations_V1ToV2(t *testing.T) {
 			FromVersion: 1,
 			ToVersion:   2,
 			Description: "Test migration V1 to V2",
-			Migrate: func(tx *bolt.Tx, logger *slog.Logger) error {
+			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 				migrationRun = true
 				return nil
 			},
@@ -83,7 +83,7 @@ func TestRunMigrations_V1ToV2(t *testing.T) {
 	}
 
 	// Verify schema version in DB was stored correctly
-	_ = db.View(func(tx *bolt.Tx) error {
+	_ = db.View(func(tx *bbolt.Tx) error {
 		v := tx.Bucket([]byte(core.BucketMeta)).Get([]byte(core.KeySchemaVersion))
 		storedVer := binary.BigEndian.Uint32(v)
 		if storedVer != 2 {
@@ -97,14 +97,14 @@ func TestRunMigrations_V1ToV2(t *testing.T) {
 // run in the correct sequence.
 func TestCacheSchema_MigrationPath(t *testing.T) {
 	dbPath := "test_migrations_path.db"
-	db, err := bolt.Open(dbPath, 0600, nil)
+	db, err := bbolt.Open(dbPath, 0600, nil)
 	if err != nil {
 		t.Fatalf("Failed to open DB: %v", err)
 	}
 	defer func() { _ = db.Close() }()
 	defer func() { _ = os.Remove(dbPath) }()
 
-	_ = db.Update(func(tx *bolt.Tx) error {
+	_ = db.Update(func(tx *bbolt.Tx) error {
 		meta, _ := tx.CreateBucketIfNotExists([]byte(core.BucketMeta))
 		v := make([]byte, 4)
 		binary.BigEndian.PutUint32(v, 1)
@@ -120,7 +120,7 @@ func TestCacheSchema_MigrationPath(t *testing.T) {
 			FromVersion: 1,
 			ToVersion:   2,
 			Description: "Migration 1->2",
-			Migrate: func(tx *bolt.Tx, logger *slog.Logger) error {
+			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 				migrationOrder = append(migrationOrder, 2)
 				return nil
 			},
@@ -129,7 +129,7 @@ func TestCacheSchema_MigrationPath(t *testing.T) {
 			FromVersion: 2,
 			ToVersion:   3,
 			Description: "Migration 2->3",
-			Migrate: func(tx *bolt.Tx, logger *slog.Logger) error {
+			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 				migrationOrder = append(migrationOrder, 3)
 				return nil
 			},
@@ -138,7 +138,7 @@ func TestCacheSchema_MigrationPath(t *testing.T) {
 			FromVersion: 3,
 			ToVersion:   4,
 			Description: "Migration 3->4",
-			Migrate: func(tx *bolt.Tx, logger *slog.Logger) error {
+			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 				migrationOrder = append(migrationOrder, 4)
 				return nil
 			},
@@ -170,7 +170,7 @@ func TestCacheSchema_MigrationPath(t *testing.T) {
 // explicit schema version are treated as v1 and migrated correctly.
 func TestCacheSchema_BackwardCompatibility(t *testing.T) {
 	dbPath := "test_migrations_compat.db"
-	db, err := bolt.Open(dbPath, 0600, nil)
+	db, err := bbolt.Open(dbPath, 0600, nil)
 	if err != nil {
 		t.Fatalf("Failed to open DB: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestCacheSchema_BackwardCompatibility(t *testing.T) {
 	defer func() { _ = os.Remove(dbPath) }()
 
 	// Create bucket without schema version (simulates old cache)
-	_ = db.Update(func(tx *bolt.Tx) error {
+	_ = db.Update(func(tx *bbolt.Tx) error {
 		_, _ = tx.CreateBucketIfNotExists([]byte(core.BucketMeta))
 		// Don't set schema version
 		return nil
@@ -193,7 +193,7 @@ func TestCacheSchema_BackwardCompatibility(t *testing.T) {
 			FromVersion: 0,
 			ToVersion:   1,
 			Description: "Initialize schema",
-			Migrate: func(tx *bolt.Tx, logger *slog.Logger) error {
+			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 				migrationRan = true
 				return nil
 			},

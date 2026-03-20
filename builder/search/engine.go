@@ -417,7 +417,9 @@ func (h resultHeap) Less(i, j int) bool { return h.results[i].Score < h.results[
 func (h resultHeap) Swap(i, j int)      { h.results[i], h.results[j] = h.results[j], h.results[i] }
 
 func (h *resultHeap) Push(x any) {
-	h.results = append(h.results, x.(Result))
+	if r, ok := x.(Result); ok {
+		h.results = append(h.results, r)
+	}
 }
 
 func (h *resultHeap) Pop() any {

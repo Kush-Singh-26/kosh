@@ -6,8 +6,13 @@ import (
 	"time"
 )
 
-// PostMeta stores metadata about a cached post
+// PostMeta stores metadata about a cached post in BoltDB. It includes
+// hashes for content and body to detect changes, and can inline small
+// HTML content (<32KB) directly in the metadata bucket for O(1) retrieval.
 type PostMeta struct {
+	// PostID is a hex-encoded string (128-bit xxh3 hash) used as a unique
+	// key in the cache. This is different from the decimal/uint64 ID used
+	// in the search index.
 	PostID          string
 	Path            string
 	ModTime         int64
@@ -54,7 +59,9 @@ type Dependencies struct {
 	Tags      []string
 }
 
-// PostListMeta contains minimal metadata needed for navigation/sorting
+// PostListMeta contains minimal metadata needed for navigation/sorting only.
+// It is used to quickly build version-aware navigation trees and post lists
+// without loading full PostMeta records from the cache.
 type PostListMeta struct {
 	Title   string
 	Link    string

@@ -4,15 +4,16 @@ package config
 import (
 	"flag"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
 
 	"gopkg.in/yaml.v3"
@@ -72,11 +73,12 @@ type Config struct {
 	SocialCards   models.SocialCardsConfig `yaml:"socialCards"`
 
 	// Internal / Runtime fields
-	ForceRebuild  bool  `yaml:"-"`
-	ForceLock     bool  `yaml:"-"`
-	IncludeDrafts bool  `yaml:"-"`
-	BuildVersion  int64 `yaml:"-"`
-	IsDev         bool  `yaml:"-"`
+	ForceRebuild   bool   `yaml:"-"`
+	ForceLock      bool   `yaml:"-"`
+	IncludeDrafts  bool   `yaml:"-"`
+	BuildVersion   int64  `yaml:"-"`
+	IsDev          bool   `yaml:"-"`
+	KoshSourceRoot string `yaml:"-"` // Repository root for WASM compilation
 
 	// Build configuration (loaded from kosh.build.yaml)
 	Build *BuildConfig `yaml:"-"`
@@ -246,6 +248,12 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 
 	if cfg.WebPQuality < 1 || cfg.WebPQuality > 100 {
 		cfg.WebPQuality = 80 // enforce valid range
+	}
+
+	// Set repository root for WASM compilation and source lookups
+	cfg.KoshSourceRoot = os.Getenv("KOSH_REPO_ROOT")
+	if cfg.KoshSourceRoot == "" {
+		cfg.KoshSourceRoot = fspkg.RepoRoot()
 	}
 
 	return cfg

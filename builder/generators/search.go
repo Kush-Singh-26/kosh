@@ -11,20 +11,18 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/tinylib/msgp/msgp"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
-func GenerateSearchIndex(sink fspkg.ArtifactSink, outputDir string, indexedPosts []models.IndexedPost) (string, error) {
+func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedPost) (string, error) {
 	totalDocs := len(indexedPosts)
+	outputDir := sink.GetOutputDir()
 
 	// Handle empty input - write empty index
 	if indexedPosts == nil || totalDocs == 0 {
-		if err := sink.MkdirAll(outputDir); err != nil {
-			return "", err
-		}
-		outputPath := filepath.ToSlash(filepath.Join(outputDir, "search.bin"))
+		outputPath := "search.bin"
 
 		// Create empty search index with valid schema
 		emptyIndex := models.SearchIndex{
@@ -54,7 +52,7 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, outputDir string, indexedPosts
 		if err != nil {
 			return "", err
 		}
-		return outputPath, nil
+		return filepath.Join(outputDir, outputPath), nil
 	}
 
 	numWorkers := min(runtime.NumCPU(),
@@ -207,11 +205,7 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, outputDir string, indexedPosts
 
 	index.NgramIndex = search.BuildNgramIndex(index.Inverted)
 
-	if err := sink.MkdirAll(outputDir); err != nil {
-		return "", err
-	}
-
-	outputPath := filepath.ToSlash(filepath.Join(outputDir, "search.bin"))
+	outputPath := "search.bin"
 	err := sink.WriteStream(outputPath, func(w io.Writer) error {
 		bw := brotli.NewWriterLevel(w, 4)
 
@@ -233,5 +227,5 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, outputDir string, indexedPosts
 		return "", err
 	}
 
-	return outputPath, nil
+	return filepath.Join(outputDir, outputPath), nil
 }

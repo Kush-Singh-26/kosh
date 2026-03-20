@@ -14,11 +14,12 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
+	"github.com/tdewolff/minify/v2"
 	"golang.org/x/sync/errgroup"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
@@ -40,11 +41,12 @@ type Renderer struct {
 	renderedSnapshot atomic.Pointer[map[string]bool]
 	logger           *slog.Logger
 	templateDir      string
-	mu               sync.RWMutex // Added for thread-safe template access
+	mu               sync.RWMutex
 	devMode          bool
 	renderErrors     []renderError
 	errMu            sync.Mutex
-	assetCache       sync.Map // Cache for relativized asset maps keyed by depth/prefix
+	assetCache       sync.Map
+	Minifier         *minify.M
 }
 
 type renderError struct {
@@ -66,6 +68,7 @@ func NewWithFs(sourceFs afero.Fs, compress bool, sink fspkg.ArtifactSink, templa
 		logger:      logger,
 		templateDir: templateDir,
 		devMode:     devMode,
+		Minifier:    fspkg.GetMinifier(),
 	}
 	r.ReloadTemplates()
 	return r

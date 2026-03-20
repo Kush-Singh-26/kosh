@@ -11,11 +11,11 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 
-	bolt "go.etcd.io/bbolt"
+	"go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // BatchCommit atomically commits posts, search records, and dependencies in a single BoltDB transaction.
@@ -164,7 +164,7 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 		m.memCacheDelete("path:" + string(ep.Path))
 	}
 
-	err := m.db.Update(func(tx *bolt.Tx) error {
+	err := m.db.Update(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 
 		// Phase 1: Collect old HTML hashes for refcount delta (inside the tx)
@@ -311,7 +311,7 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*core.SSR
 		return nil, err
 	}
 
-	err = m.db.Batch(func(tx *bolt.Tx) error {
+	err = m.db.Batch(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketSSR))
 		return bucket.Put([]byte(key), data)
 	})
@@ -325,7 +325,7 @@ func (m *Manager) DeletePost(postID string) error {
 	var htmlHash string
 	var deleteErrors []error
 
-	err := m.db.Update(func(tx *bolt.Tx) error {
+	err := m.db.Update(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		pathsBucket := tx.Bucket([]byte(core.BucketPaths))
 		searchBucket := tx.Bucket([]byte(core.BucketSearch))

@@ -4,7 +4,6 @@ import (
 	"context"
 	"html/template"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -39,8 +38,6 @@ type postService struct {
 	sink           fspkg.ArtifactSink
 	assetsReady    <-chan struct{}
 	diagramAdapter *cache.DiagramCacheAdapter
-	cardHashes     sync.Map
-	logoExists     sync.Map
 	cacheWg        sync.WaitGroup
 	mu             sync.Mutex
 }
@@ -134,7 +131,7 @@ func (s *postService) runParsePhase(ctx context.Context, numWorkers int, shouldF
 	parsePool := async.NewWorkerPool(ctx, numWorkers, func(f models.ScannedFile) error {
 		s.parseWorkerTask(ctx, f, shouldForce, forceSocialRebuild, pc, cardPool)
 		return nil
-	}).WithScheduler(scheduler.GetGlobalScheduler(), scheduler.TaskMarkdown)
+	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
 
 	parsePool.Start()
 	for f := range fileChan {
@@ -147,19 +144,9 @@ func (s *postService) runParsePhase(ctx context.Context, numWorkers int, shouldF
 
 func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile, shouldForce, forceSocialRebuild bool, pc *postProcessContext, cardPool *async.WorkerPool[socialCardTask]) {
 	path, version := f.Path, f.Version
-	relPath, _ := fspkg.SafeRel(s.cfg.ContentDir, path)
-	htmlRelPath := strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
+	relPath := f.RelPath
 
-	versionLower := strings.ToLower(version)
-	cleanHtmlRelPath := htmlRelPath
-	if version != "" {
-		cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, versionLower+"/")
-	}
-
-	destPath := filepath.Join(s.cfg.OutputDir, htmlRelPath)
-	if version != "" {
-		destPath = filepath.Join(s.cfg.OutputDir, version, cleanHtmlRelPath)
-	}
+	htmlRelPath, cleanHtmlRelPath, destPath := ComputePathVars(s.cfg.OutputDir, relPath, version)
 
 	// 1. Check Cache
 	cachedMeta, useCache := s.checkCache(relPath, f, shouldForce)
@@ -262,7 +249,7 @@ func (s *postService) loadFromCache(cachedMeta *models.PostMeta, htmlRelPath str
 	}
 
 	res := &ParsedMarkdownResult{
-		MetaData: cachedMeta.Meta, TOC: cachedMeta.TOC,
+		Metadata: cachedMeta.Meta, TOC: cachedMeta.TOC,
 		FrontmatterHash: cachedMeta.ContentHash, SSRHashes: cachedMeta.SSRInputHashes,
 		HasImages: cachedMeta.HasImages, MathExpressions: cachedMeta.MathExpressions,
 		SearchRecord: models.PostRecord{
@@ -358,12 +345,15 @@ func (s *postService) renderMath(ctx context.Context, path string, res *ParsedMa
 // Errors are logged but don't fail the build. Missing social cards
 // don't affect the site's functionality - they just won't appear in OpenGraph tags.
 func (s *postService) queueSocialCard(relPath string, res *ParsedMarkdownResult, htmlRelPath string, force bool, pool *async.WorkerPool[socialCardTask]) {
-	cardDestPath := filepath.ToSlash(filepath.Join(s.cfg.OutputDir, "static", "images", "cards", strings.TrimSuffix(htmlRelPath, ".html")+".webp"))
-	cardHash, _ := s.cardHashes.Load(relPath)
+	cardRelPath, cardDestPath, _ := CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
+	var cardHash string
+	if s.cache != nil {
+		cardHash, _ = s.cache.GetSocialCardHash(relPath)
+	}
 	if force || cardHash != res.FrontmatterHash {
 		pool.Submit(socialCardTask{
-			path: relPath, relPath: strings.TrimSuffix(htmlRelPath, ".html") + ".webp",
-			cardDestPath: cardDestPath, metaData: res.MetaData, frontmatterHash: res.FrontmatterHash,
+			path: relPath, relPath: cardRelPath,
+			cardDestPath: cardDestPath, metadata: res.Metadata, frontmatterHash: res.FrontmatterHash,
 		})
 	} else {
 		s.sink.Register(cardDestPath)
@@ -402,7 +392,7 @@ func (s *postService) aggregateParseResult(pc *postProcessContext, f models.Scan
 			ContentHash: res.FrontmatterHash, BodyHash: f.BodyHash, Title: post.Title, Date: post.DateObj,
 			Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
-			Meta: res.MetaData, TOC: res.TOC, Version: version, SSRInputHashes: ssrHashes,
+			Meta: res.Metadata, TOC: res.TOC, Version: version, SSRInputHashes: ssrHashes,
 			CardHash: res.FrontmatterHash, HasImages: res.HasImages, MathExpressions: res.MathExpressions,
 		}
 		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
@@ -437,7 +427,7 @@ func (s *postService) runRenderPhase(ctx context.Context, numWorkers int, pc *po
 
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(rt renderTask) error {
 		post := rt.parseRes.Post
-		imagePath := s.cfg.BaseURL + "/static/images/cards/" + strings.TrimSuffix(rt.htmlRelPath, ".html") + ".webp"
+		_, _, cardImageURL := CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, rt.htmlRelPath)
 		var prev, next *models.NavPage
 		if pos, ok := postPosByVersion[rt.version][rt.f.Link]; ok {
 			vp := postsByVersion[rt.version]
@@ -451,14 +441,14 @@ func (s *postService) runRenderPhase(ctx context.Context, numWorkers int, pc *po
 
 		s.renderer.RenderPage(rt.destPath, models.PageData{
 			Title: post.Title, Description: post.Description, Content: template.HTML(rt.htmlContent),
-			Meta: rt.parseRes.MetaData, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
-			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: rt.f.Link, Image: imagePath,
+			Meta: rt.parseRes.Metadata, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
+			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: rt.f.Link, Image: cardImageURL,
 			TOC: rt.parseRes.TOC, Config: s.cfg, CurrentVersion: rt.version, ReadingTime: post.ReadingTime,
 			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(rt.htmlRelPath),
 			HasImages: rt.parseRes.HasImages,
 		})
 		return nil
-	}).WithScheduler(scheduler.GetGlobalScheduler(), scheduler.TaskMarkdown)
+	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
 
 	renderPool.Start()
 	for _, rt := range pc.readyToRender {

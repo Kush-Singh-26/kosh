@@ -2,10 +2,12 @@ package fs
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/spf13/afero"
 	"golang.org/x/text/unicode/norm"
@@ -185,20 +187,60 @@ func IsPathInOrSame(path, targetDir string) bool {
 	return strings.HasPrefix(path, targetDir+"/") || path == targetDir
 }
 
+var (
+	repoRoot     string
+	repoRootOnce sync.Once
+)
+
+// SetRepoRoot explicitly sets the repository root path.
+// This should be called early in the application lifecycle to ensure
+// all path calculations are based on the correct root.
+func SetRepoRoot(root string) {
+	repoRoot = root
+	repoRootOnce.Do(func() {}) // Prevent DetectTestingMode/runtime.Caller from overriding
+}
+
 // RepoRoot returns the absolute path to the repository root directory.
+// It checks KOSH_REPO_ROOT, explicitly set repo root, or falls back to
+// runtime.Caller(0) only in testing mode.
 func RepoRoot() string {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return "."
+	repoRootOnce.Do(func() {
+		// 1. Check environment variable
+		if envRoot := os.Getenv("KOSH_REPO_ROOT"); envRoot != "" {
+			repoRoot = envRoot
+			return
+		}
+
+		// 2. Fallback to runtime.Caller ONLY if in testing mode
+		if DetectTestingMode() {
+			_, file, _, ok := runtime.Caller(0)
+			if ok {
+				// builder/fs/path.go -> ../../ = repo root
+				repoRoot = filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+			}
+		}
+	})
+
+	if repoRoot == "" {
+		return "." // Fallback for standard users (production)
 	}
-	// builder/utils/fs/path.go -> ../../../ = repo root
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+	return repoRoot
 }
 
 // RepoPath joins path parts to the repository root.
 func RepoPath(parts ...string) string {
 	all := append([]string{RepoRoot()}, parts...)
 	return filepath.Join(all...)
+}
+
+// DetectTestingMode inspects os.Args to determine if we are running in a test context.
+func DetectTestingMode() bool {
+	if len(os.Args) > 0 {
+		if strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") || strings.Contains(os.Args[0], "_test") {
+			return true
+		}
+	}
+	return false
 }
 
 func hasNonASCII(s string) bool {

@@ -3,13 +3,94 @@ package assets
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/andybalholm/brotli"
 	"github.com/spf13/afero"
+
+	"github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
+
+// fsSink wraps MemSink and mirrors writes to an afero.Fs so that
+// hashFileFs checks (which read from afero) see the deployed files.
+type fsSink struct {
+	*testutil.MemSink
+	fs afero.Fs
+}
+
+func newFsSink(outputDir string, fs afero.Fs) *fsSink {
+	return &fsSink{MemSink: testutil.NewMemSinkWithDir(outputDir), fs: fs}
+}
+
+func (f *fsSink) WriteFile(path string, data []byte) error {
+	absPath := filepath.Join(f.OutputDir, path)
+	if err := f.fs.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
+		return err
+	}
+	if err := afero.WriteFile(f.fs, absPath, data, 0644); err != nil {
+		return err
+	}
+	return f.MemSink.WriteFile(path, data)
+}
+
+func (f *fsSink) MkdirAll(path string) error {
+	absPath := filepath.Join(f.OutputDir, path)
+	return f.fs.MkdirAll(absPath, 0755)
+}
+
+// dirSink writes directly to a real directory (for tests using afero.NewOsFs).
+type dirSink struct {
+	outputDir string
+}
+
+func newDirSink(dir string) *dirSink {
+	return &dirSink{outputDir: dir}
+}
+
+func (d *dirSink) WriteFile(path string, data []byte) error {
+	absPath := filepath.Join(d.outputDir, path)
+	if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(absPath, data, 0644)
+}
+
+func (d *dirSink) WriteStream(path string, fn func(io.Writer) error) error {
+	absPath := filepath.Join(d.outputDir, path)
+	if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
+		return err
+	}
+	f, err := os.Create(absPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return fn(f)
+}
+
+func (d *dirSink) CopyFile(srcPath, destPath string) error {
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		return err
+	}
+	return d.WriteFile(destPath, data)
+}
+
+func (d *dirSink) MkdirAll(path string) error {
+	return os.MkdirAll(filepath.Join(d.outputDir, path), 0755)
+}
+
+func (d *dirSink) Register(path string)             {}
+func (d *dirSink) GetWrittenFiles() map[string]bool { return nil }
+func (d *dirSink) GetOutputDir() string             { return d.outputDir }
+func (d *dirSink) SetMtime(path string, mtime time.Time) error {
+	return os.Chtimes(filepath.Join(d.outputDir, path), mtime, mtime)
+}
 
 // TestHashBytes tests the hashBytes function
 func TestHashBytes(t *testing.T) {
@@ -162,9 +243,10 @@ func TestCheckWASMFsWithEmbedded(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outputDir := "/output"
 	cacheDir := "/cache"
+	sink := newFsSink(outputDir, fs)
 
 	// Test with embedded WASM (sourceWasm = nil)
-	result := CheckWASMFsWithSource(fs, outputDir, cacheDir, nil)
+	result := CheckWASMFsWithSource(fs, sink, cacheDir, nil)
 
 	// Should deploy embedded WASM successfully
 	if !result {
@@ -191,11 +273,12 @@ func TestCheckWASMFsWithSourceWasm(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outputDir := "/output"
 	cacheDir := "/cache"
+	sink := newFsSink(outputDir, fs)
 
 	// Create test WASM data
 	sourceWasm := []byte("test wasm content")
 
-	result := CheckWASMFsWithSource(fs, outputDir, cacheDir, sourceWasm)
+	result := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
 
 	if !result {
 		t.Error("CheckWASMFsWithSource() with source WASM should return true")
@@ -214,16 +297,17 @@ func TestCheckWASMFsNoChange(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outputDir := "/output"
 	cacheDir := "/cache"
+	sink := newFsSink(outputDir, fs)
 
 	// First call - should deploy
 	sourceWasm := []byte("test wasm content")
-	result1 := CheckWASMFsWithSource(fs, outputDir, cacheDir, sourceWasm)
+	result1 := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
 	if !result1 {
 		t.Error("First CheckWASMFsWithSource() should deploy WASM")
 	}
 
 	// Second call with same content - should return false (no change)
-	result2 := CheckWASMFsWithSource(fs, outputDir, cacheDir, sourceWasm)
+	result2 := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
 	if result2 {
 		t.Error("Second CheckWASMFsWithSource() with same content should return false")
 	}
@@ -234,31 +318,32 @@ func TestCheckWASMFsCacheHit(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outputDir := "/output"
 	cacheDir := "/cache"
+	sink := newFsSink(outputDir, fs)
 
 	// Create test WASM
 	sourceWasm := []byte("test wasm content")
 
 	// First call to populate cache
-	CheckWASMFsWithSource(fs, outputDir, cacheDir, sourceWasm)
+	CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
 
 	// Clear output directory
 	_ = fs.RemoveAll(outputDir)
 
 	// Second call should use cache
-	result := CheckWASMFsWithSource(fs, outputDir, cacheDir, sourceWasm)
+	result := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
 	if !result {
 		t.Error("CheckWASMFsWithSource() with cache hit should return true")
 	}
 }
 
-// TestCheckWASMFsDirectoryCreation tests that output directory is created
 func TestCheckWASMFsDirectoryCreation(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outputDir := "/deep/nested/output/path"
 	cacheDir := "/cache"
+	sink := newFsSink(outputDir, fs)
 
 	sourceWasm := []byte("test wasm content")
-	result := CheckWASMFsWithSource(fs, outputDir, cacheDir, sourceWasm)
+	result := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
 
 	if !result {
 		t.Error("CheckWASMFsWithSource() should succeed with nested output path")
@@ -272,18 +357,18 @@ func TestCheckWASMFsDirectoryCreation(t *testing.T) {
 	}
 }
 
-// TestDeployWASMFromFile tests DeployWASMFromFile function
 func TestDeployWASMFromFile(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outputDir := "/output"
 	cacheDir := "/cache"
+	sink := newFsSink(outputDir, fs)
 
 	// Create source WASM file
 	sourcePath := "/source/search.wasm"
 	sourceContent := []byte("test wasm content from file")
 	_ = afero.WriteFile(fs, sourcePath, sourceContent, 0644)
 
-	result := DeployWASMFromFile(fs, outputDir, cacheDir, sourcePath)
+	result := DeployWASMFromFile(fs, sink, cacheDir, sourcePath)
 
 	if !result {
 		t.Error("DeployWASMFromFile() should return true on success")
@@ -297,17 +382,17 @@ func TestDeployWASMFromFile(t *testing.T) {
 	}
 }
 
-// TestDeployWASMFromFileNotFound tests DeployWASMFromFile when source file doesn't exist
 func TestDeployWASMFromFileNotFound(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outputDir := "/output"
 	cacheDir := "/cache"
+	sink := newFsSink(outputDir, fs)
 
 	// Non-existent source path
 	sourcePath := "/nonexistent/search.wasm"
 
 	// Should fall back to CheckWASMFs (embedded)
-	result := DeployWASMFromFile(fs, outputDir, cacheDir, sourcePath)
+	result := DeployWASMFromFile(fs, sink, cacheDir, sourcePath)
 
 	// Should still succeed using embedded WASM
 	if !result {
@@ -323,7 +408,7 @@ func TestCompileWASMFromSource(t *testing.T) {
 	srcPath := "cmd/search/main.go"
 	destPath := "/tmp/test-search.wasm"
 
-	err := CompileWASMFromSource(ctx, srcPath, destPath)
+	err := CompileWASMFromSource(ctx, srcPath, destPath, fs.RepoRoot())
 	if err != nil {
 		t.Errorf("CompileWASMFromSource() error = %v", err)
 	}
@@ -419,19 +504,18 @@ func TestWasmInitErr(t *testing.T) {
 
 // TestCheckWASM tests the public CheckWASM function
 func TestCheckWASM(t *testing.T) {
-	// Create temp directory
+	// Create temp directory for real filesystem writes
 	tmpDir := t.TempDir()
-	outputDir := filepath.Join(tmpDir, "output")
-	cacheDir := filepath.Join(tmpDir, "cache")
+	cacheDir := ""
+	sink := newDirSink(tmpDir)
 
-	result := CheckWASM(outputDir, cacheDir)
-
+	result := CheckWASM(sink, cacheDir)
 	if !result {
 		t.Error("CheckWASM() should return true on success")
 	}
 
-	// Verify files were created
-	wasmPath := filepath.Join(outputDir, "static/wasm/search.wasm")
+	// Verify files were created on real filesystem
+	wasmPath := filepath.Join(tmpDir, "static/wasm/search.wasm")
 	if _, err := os.Stat(wasmPath); os.IsNotExist(err) {
 		t.Errorf("WASM file not created at %s", wasmPath)
 	}
@@ -442,9 +526,9 @@ func TestCheckWASMFs(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outputDir := "/output"
 	cacheDir := "/cache"
+	sink := newFsSink(outputDir, fs)
 
-	result := CheckWASMFs(fs, outputDir, cacheDir)
-
+	result := CheckWASMFs(fs, sink, cacheDir)
 	if !result {
 		t.Error("CheckWASMFs() should return true on success")
 	}
