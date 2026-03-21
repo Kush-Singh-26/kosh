@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
-	"github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/retry"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
@@ -82,7 +82,7 @@ func SyncVFS(ctx context.Context, srcFs afero.Fs, targetDir string, dirtyFiles m
 	tx := fs.NewTxSync(slog.Default())
 	defer func() {
 		if !tx.IsCommitted() {
-			tx.Rollback()
+			tx.Rollback(ctx)
 		}
 	}()
 

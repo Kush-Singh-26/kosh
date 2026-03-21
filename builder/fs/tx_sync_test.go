@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -65,7 +66,7 @@ func TestTxSyncRollback(t *testing.T) {
 	_ = os.WriteFile(newPath, []byte("brand_new"), 0644)
 
 	// Rollback should restore backups and delete brand new files
-	tx.Rollback()
+	tx.Rollback(context.Background())
 
 	content, _ := os.ReadFile(existingPath)
 	if string(content) != "old" {
