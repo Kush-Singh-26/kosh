@@ -2105,7 +2105,7 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 			if z.PositionalIndex == nil {
-				z.PositionalIndex = make(map[string][]int, zb0005)
+				z.PositionalIndex = make(map[string][]uint32, zb0005)
 			} else if len(z.PositionalIndex) > 0 {
 				clear(z.PositionalIndex)
 			}
@@ -2117,7 +2117,7 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 					err = msgp.WrapError(err, "PositionalIndex")
 					return
 				}
-				var za0007 []int
+				var za0007 []uint32
 				var zb0006 uint32
 				zb0006, err = dc.ReadArrayHeader()
 				if err != nil {
@@ -2127,10 +2127,10 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 				if cap(za0007) >= int(zb0006) {
 					za0007 = (za0007)[:zb0006]
 				} else {
-					za0007 = make([]int, zb0006)
+					za0007 = make([]uint32, zb0006)
 				}
 				for za0008 := range za0007 {
-					za0007[za0008], err = dc.ReadInt()
+					za0007[za0008], err = dc.ReadUint32()
 					if err != nil {
 						err = msgp.WrapError(err, "PositionalIndex", za0006, za0008)
 						return
@@ -2146,7 +2146,7 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 			if z.ByteOffsets == nil {
-				z.ByteOffsets = make(map[string][]int, zb0007)
+				z.ByteOffsets = make(map[string][]uint32, zb0007)
 			} else if len(z.ByteOffsets) > 0 {
 				clear(z.ByteOffsets)
 			}
@@ -2158,7 +2158,7 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 					err = msgp.WrapError(err, "ByteOffsets")
 					return
 				}
-				var za0010 []int
+				var za0010 []uint32
 				var zb0008 uint32
 				zb0008, err = dc.ReadArrayHeader()
 				if err != nil {
@@ -2168,10 +2168,10 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 				if cap(za0010) >= int(zb0008) {
 					za0010 = (za0010)[:zb0008]
 				} else {
-					za0010 = make([]int, zb0008)
+					za0010 = make([]uint32, zb0008)
 				}
 				for za0011 := range za0010 {
-					za0010[za0011], err = dc.ReadInt()
+					za0010[za0011], err = dc.ReadUint32()
 					if err != nil {
 						err = msgp.WrapError(err, "ByteOffsets", za0009, za0011)
 						return
@@ -2316,7 +2316,7 @@ func (z *SearchRecord) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 		for za0008 := range za0007 {
-			err = en.WriteInt(za0007[za0008])
+			err = en.WriteUint32(za0007[za0008])
 			if err != nil {
 				err = msgp.WrapError(err, "PositionalIndex", za0006, za0008)
 				return
@@ -2345,7 +2345,7 @@ func (z *SearchRecord) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 		for za0011 := range za0010 {
-			err = en.WriteInt(za0010[za0011])
+			err = en.WriteUint32(za0010[za0011])
 			if err != nil {
 				err = msgp.WrapError(err, "ByteOffsets", za0009, za0011)
 				return
@@ -2398,7 +2398,7 @@ func (z *SearchRecord) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, za0006)
 		o = msgp.AppendArrayHeader(o, uint32(len(za0007)))
 		for za0008 := range za0007 {
-			o = msgp.AppendInt(o, za0007[za0008])
+			o = msgp.AppendUint32(o, za0007[za0008])
 		}
 	}
 	// string "ByteOffsets"
@@ -2408,7 +2408,7 @@ func (z *SearchRecord) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, za0009)
 		o = msgp.AppendArrayHeader(o, uint32(len(za0010)))
 		for za0011 := range za0010 {
-			o = msgp.AppendInt(o, za0010[za0011])
+			o = msgp.AppendUint32(o, za0010[za0011])
 		}
 	}
 	return
@@ -2539,12 +2539,12 @@ func (z *SearchRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 			if z.PositionalIndex == nil {
-				z.PositionalIndex = make(map[string][]int, zb0005)
+				z.PositionalIndex = make(map[string][]uint32, zb0005)
 			} else if len(z.PositionalIndex) > 0 {
 				clear(z.PositionalIndex)
 			}
 			for zb0005 > 0 {
-				var za0007 []int
+				var za0007 []uint32
 				zb0005--
 				var za0006 string
 				za0006, bts, err = msgp.ReadStringBytes(bts)
@@ -2561,10 +2561,10 @@ func (z *SearchRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				if cap(za0007) >= int(zb0006) {
 					za0007 = (za0007)[:zb0006]
 				} else {
-					za0007 = make([]int, zb0006)
+					za0007 = make([]uint32, zb0006)
 				}
 				for za0008 := range za0007 {
-					za0007[za0008], bts, err = msgp.ReadIntBytes(bts)
+					za0007[za0008], bts, err = msgp.ReadUint32Bytes(bts)
 					if err != nil {
 						err = msgp.WrapError(err, "PositionalIndex", za0006, za0008)
 						return
@@ -2580,12 +2580,12 @@ func (z *SearchRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 			if z.ByteOffsets == nil {
-				z.ByteOffsets = make(map[string][]int, zb0007)
+				z.ByteOffsets = make(map[string][]uint32, zb0007)
 			} else if len(z.ByteOffsets) > 0 {
 				clear(z.ByteOffsets)
 			}
 			for zb0007 > 0 {
-				var za0010 []int
+				var za0010 []uint32
 				zb0007--
 				var za0009 string
 				za0009, bts, err = msgp.ReadStringBytes(bts)
@@ -2602,10 +2602,10 @@ func (z *SearchRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				if cap(za0010) >= int(zb0008) {
 					za0010 = (za0010)[:zb0008]
 				} else {
-					za0010 = make([]int, zb0008)
+					za0010 = make([]uint32, zb0008)
 				}
 				for za0011 := range za0010 {
-					za0010[za0011], bts, err = msgp.ReadIntBytes(bts)
+					za0010[za0011], bts, err = msgp.ReadUint32Bytes(bts)
 					if err != nil {
 						err = msgp.WrapError(err, "ByteOffsets", za0009, za0011)
 						return
@@ -2649,14 +2649,14 @@ func (z *SearchRecord) Msgsize() (s int) {
 	if z.PositionalIndex != nil {
 		for za0006, za0007 := range z.PositionalIndex {
 			_ = za0007
-			s += msgp.StringPrefixSize + len(za0006) + msgp.ArrayHeaderSize + (len(za0007) * (msgp.IntSize))
+			s += msgp.StringPrefixSize + len(za0006) + msgp.ArrayHeaderSize + (len(za0007) * (msgp.Uint32Size))
 		}
 	}
 	s += 12 + msgp.MapHeaderSize
 	if z.ByteOffsets != nil {
 		for za0009, za0010 := range z.ByteOffsets {
 			_ = za0010
-			s += msgp.StringPrefixSize + len(za0009) + msgp.ArrayHeaderSize + (len(za0010) * (msgp.IntSize))
+			s += msgp.StringPrefixSize + len(za0009) + msgp.ArrayHeaderSize + (len(za0010) * (msgp.Uint32Size))
 		}
 	}
 	return

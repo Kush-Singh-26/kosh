@@ -85,8 +85,8 @@ type ParsedMarkdownResult struct {
 	WordFreqs       map[string]int
 	DocLen          int
 	StemMap         map[string]string
-	PositionalIndex map[string][]int
-	ByteOffsets     map[string][]int
+	PositionalIndex map[string][]uint32
+	ByteOffsets     map[string][]uint32
 	MathExpressions []models.MathExpression
 	HasImages       bool
 	BodyOnly        []byte

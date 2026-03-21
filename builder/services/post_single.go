@@ -217,6 +217,7 @@ func (s *postService) commitPostCache(parseRes *ParsedMarkdownResult, post model
 		NormalizedTags:  normalizedTags,
 		StemMap:         parseRes.StemMap,
 		PositionalIndex: parseRes.PositionalIndex,
+		ByteOffsets:     parseRes.ByteOffsets,
 	}
 	newDep := &cache.Dependencies{Tags: post.Tags}
 

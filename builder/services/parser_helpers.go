@@ -135,7 +135,7 @@ func buildSearchRecord(
 func tokenizeSearchData(
 	searchRecord models.PostRecord,
 	plainText string,
-) (wordFreqs map[string]int, docLen int, stemMap map[string]string, positionalIndex map[string][]int, byteOffsets map[string][]int) {
+) (wordFreqs map[string]int, docLen int, stemMap map[string]string, positionalIndex map[string][]uint32, byteOffsets map[string][]uint32) {
 	sb := pools.SharedStringBuilderPool.Get()
 	defer pools.SharedStringBuilderPool.Put(sb)
 
@@ -159,10 +159,15 @@ func tokenizeSearchData(
 	}
 	docLen = len(words)
 	stemMap = freshStemMap
-	positionalIndex = positions
 
-	// Shift offsets to be relative to PlainText content only
-	byteOffsets = make(map[string][]int, len(rawOffsets))
+	// Encode positions using delta encoding
+	positionalIndex = make(map[string][]uint32, len(positions))
+	for term, posList := range positions {
+		positionalIndex[term] = models.EncodePositions(posList)
+	}
+
+	// Shift and encode offsets using delta format
+	byteOffsets = make(map[string][]uint32, len(rawOffsets))
 	for term, termOffsets := range rawOffsets {
 		bodyOffsets := make([]int, 0, len(termOffsets))
 		for i := 0; i < len(termOffsets); i += 2 {
@@ -173,7 +178,7 @@ func tokenizeSearchData(
 			}
 		}
 		if len(bodyOffsets) > 0 {
-			byteOffsets[term] = bodyOffsets
+			byteOffsets[term] = models.EncodeOffsets(bodyOffsets)
 		}
 	}
 

@@ -296,10 +296,14 @@ func BuildNgramIndex(inverted map[string]map[string][]uint32) map[string][]strin
 	ngramIndex := make(map[string][]string)
 	for _, r := range results {
 		for tg, termList := range r {
-			if len(termList) > MaxNgramPostings {
-				continue
-			}
 			ngramIndex[tg] = append(ngramIndex[tg], termList...)
+		}
+	}
+
+	// Prune common trigrams that point to too many terms
+	for tg, termList := range ngramIndex {
+		if len(termList) > MaxNgramPostings {
+			delete(ngramIndex, tg)
 		}
 	}
 
