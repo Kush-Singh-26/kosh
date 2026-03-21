@@ -64,8 +64,8 @@ func TestSearchIndex_Msgp(t *testing.T) {
 		DocLens:       map[string]int64{"1": 10},
 		AvgDocLen:     10.5,
 		TotalDocs:     1,
-		Inverted:      map[string]map[string][]int{"word": {"1": {1, 2}}},
-		Offsets:       map[string]map[string][]int{"word": {"1": {0, 4}}},
+		Inverted:      map[string]map[string][]uint32{"word": {"1": {1, 2}}},
+		Offsets:       map[string]map[string][]uint32{"word": {"1": {0, 4}}},
 	}
 
 	var buf bytes.Buffer

@@ -28,7 +28,7 @@ func TestSearchIndex_RoundTrip(t *testing.T) {
 		AvgDocLen: 12.0,
 		TotalDocs: 1,
 		StemMap:   map[string][]string{"test": {"tests", "testing"}},
-		Inverted: map[string]map[string][]int{
+		Inverted: map[string]map[string][]uint32{
 			"test": {"0": {0, 5, 10}},
 		},
 	}

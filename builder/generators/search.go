@@ -28,11 +28,11 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 		emptyIndex := models.SearchIndex{
 			SchemaVersion: models.CurrentSchemaVersion,
 			Posts:         make(map[string]models.PostRecord),
-			Inverted:      make(map[string]map[string][]int),
+			Inverted:      make(map[string]map[string][]uint32),
 			DocLens:       make(map[string]int64),
 			StemMap:       make(map[string][]string),
 			TotalDocs:     0,
-			Offsets:       make(map[string]map[string][]int),
+			Offsets:       make(map[string]map[string][]uint32),
 			AvgDocLen:     0,
 		}
 
@@ -71,11 +71,11 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 	index := models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         make(map[string]models.PostRecord, totalDocs),
-		Inverted:      make(map[string]map[string][]int, globalCap),
+		Inverted:      make(map[string]map[string][]uint32, globalCap),
 		DocLens:       make(map[string]int64, totalDocs),
 		StemMap:       make(map[string][]string, globalCap/2),
 		TotalDocs:     int64(totalDocs),
-		Offsets:       make(map[string]map[string][]int, globalCap),
+		Offsets:       make(map[string]map[string][]uint32, globalCap),
 	}
 
 	// 1. Parallel collection of posts, doc lengths, and doc-word positions
@@ -83,8 +83,8 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 
 	type partialResult struct {
 		posts    map[string]models.PostRecord
-		inverted map[string]map[string][]int
-		offsets  map[string]map[string][]int
+		inverted map[string]map[string][]uint32
+		offsets  map[string]map[string][]uint32
 		docLens  map[string]int64
 		stemMap  map[string]map[string]bool
 		totalLen int64
@@ -108,8 +108,8 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 			workerCap := max(int(float64(chunkUniqueWords)*0.7), 64)
 
 			localPosts := make(map[string]models.PostRecord, end-start)
-			localInverted := make(map[string]map[string][]int, workerCap)
-			localOffsets := make(map[string]map[string][]int, workerCap)
+			localInverted := make(map[string]map[string][]uint32, workerCap)
+			localOffsets := make(map[string]map[string][]uint32, workerCap)
 			localDocLens := make(map[string]int64, end-start)
 			localStemMap := make(map[string]map[string]bool, workerCap/2)
 			var localTotalLen int64
@@ -124,16 +124,16 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 
 				for word, positions := range ip.PositionalIndex {
 					if _, ok := localInverted[word]; !ok {
-						localInverted[word] = make(map[string][]int, 4)
+						localInverted[word] = make(map[string][]uint32, 4)
 					}
-					localInverted[word][idStr] = positions
+					localInverted[word][idStr] = models.EncodePositions(positions)
 				}
 
 				for word, off := range ip.ByteOffsets {
 					if _, ok := localOffsets[word]; !ok {
-						localOffsets[word] = make(map[string][]int, 4)
+						localOffsets[word] = make(map[string][]uint32, 4)
 					}
-					localOffsets[word][idStr] = off
+					localOffsets[word][idStr] = models.EncodeOffsets(off)
 				}
 
 				for orig, stem := range ip.StemMap {

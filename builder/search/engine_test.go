@@ -30,14 +30,14 @@ func TestPerformSearch_PhraseBoost(t *testing.T) {
 
 	index := &models.SearchIndex{
 		Posts:     posts,
-		Inverted:  make(map[string]map[string][]int),
+		Inverted:  make(map[string]map[string][]uint32),
 		DocLens:   map[string]int64{"0": 4, "1": 6},
 		TotalDocs: 2,
 		AvgDocLen: 5.0,
 	}
 
-	index.Inverted["go"] = map[string][]int{"0": {1}, "1": {0}}
-	index.Inverted["programming"] = map[string][]int{"0": {2}, "1": {4}}
+	index.Inverted["go"] = map[string][]uint32{"0": {1}, "1": {0}}
+	index.Inverted["programming"] = map[string][]uint32{"0": {2}, "1": {4}}
 
 	results := PerformSearch(index, "go programming", "all")
 
@@ -155,16 +155,16 @@ func TestPerformSearch(t *testing.T) {
 
 	index := &models.SearchIndex{
 		Posts:     posts,
-		Inverted:  make(map[string]map[string][]int),
+		Inverted:  make(map[string]map[string][]uint32),
 		DocLens:   make(map[string]int64),
 		TotalDocs: 3,
 		AvgDocLen: 5.0,
 	}
 
 	// Helper to populate inverted index
-	addTerm := func(term string, postID string, pos int) {
+	addTerm := func(term string, postID string, pos uint32) {
 		if index.Inverted[term] == nil {
-			index.Inverted[term] = make(map[string][]int)
+			index.Inverted[term] = make(map[string][]uint32)
 		}
 		index.Inverted[term][postID] = append(index.Inverted[term][postID], pos)
 	}
@@ -254,7 +254,7 @@ func TestPerformSearch(t *testing.T) {
 
 func TestPhraseAdjacency(t *testing.T) {
 	index := &models.SearchIndex{
-		Inverted: map[string]map[string][]int{
+		Inverted: map[string]map[string][]uint32{
 			"quick": {"0": {1}},
 			"brown": {"0": {2}},
 			"fox":   {"0": {3}},
@@ -370,15 +370,15 @@ func TestSearch_UnicodeHandling(t *testing.T) {
 
 	index := &models.SearchIndex{
 		Posts:     posts,
-		Inverted:  make(map[string]map[string][]int),
+		Inverted:  make(map[string]map[string][]uint32),
 		DocLens:   map[string]int64{"0": 5},
 		TotalDocs: 1,
 		AvgDocLen: 5.0,
 	}
 
 	// Set up inverted index for searchable terms
-	index.Inverted["café"] = map[string][]int{"0": {4}}
-	index.Inverted["testing"] = map[string][]int{"0": {0}}
+	index.Inverted["café"] = map[string][]uint32{"0": {4}}
+	index.Inverted["testing"] = map[string][]uint32{"0": {0}}
 
 	// Should not panic on Unicode content
 	results := PerformSearch(index, "café", "all")
@@ -406,14 +406,14 @@ func TestSearch_FuzzyMatchingThresholds(t *testing.T) {
 
 	index := &models.SearchIndex{
 		Posts:     posts,
-		Inverted:  make(map[string]map[string][]int),
+		Inverted:  make(map[string]map[string][]uint32),
 		DocLens:   map[string]int64{"0": 4, "1": 5},
 		TotalDocs: 2,
 		AvgDocLen: 4.5,
 	}
 
-	index.Inverted["exact"] = map[string][]int{"0": {0}}
-	index.Inverted["exacr"] = map[string][]int{"1": {4}}
+	index.Inverted["exact"] = map[string][]uint32{"0": {0}}
+	index.Inverted["exacr"] = map[string][]uint32{"1": {4}}
 
 	results := PerformSearch(index, "exact", "all")
 	if len(results) < 1 {
@@ -491,13 +491,13 @@ func TestSearch_VersionFilterBehavior(t *testing.T) {
 				Content: "Content for version 2",
 			},
 		},
-		Inverted:  make(map[string]map[string][]int),
+		Inverted:  make(map[string]map[string][]uint32),
 		DocLens:   map[string]int64{"0": 5, "1": 5},
 		TotalDocs: 2,
 		AvgDocLen: 5.0,
 	}
 
-	index.Inverted["content"] = map[string][]int{"0": {0}, "1": {0}}
+	index.Inverted["content"] = map[string][]uint32{"0": {0}, "1": {0}}
 
 	// All versions should return both
 	resultsAll := PerformSearch(index, "content", "all")
