@@ -36,23 +36,3 @@ func (b *Engine) renderTags(ctx context.Context, tagMap map[string][]models.Post
 		FaviconPath:        b.getFaviconPath(),
 	})
 }
-
-func (b *Engine) provideSocialCard(destPath string, cacheKey string, title, description, badge string, force bool) {
-	generators.ProvideSocialCard(generators.ProvideSocialCardOptions{
-		Sink:        b.Sink,
-		Cache:       b.Deps.Cache,
-		SourceFs:    b.SourceFs,
-		OutputDir:   b.Cfg.OutputDir,
-		CacheDir:    b.Cfg.CacheDir,
-		Title:       b.Cfg.Title,
-		DestPath:    destPath,
-		CacheKey:    cacheKey,
-		CardTitle:   title,
-		Description: description,
-		Badge:       badge,
-		Force:       force,
-		SocialCfg:   &b.Cfg.SocialCards,
-		Render:      b.Deps.Render,
-		FaviconPath: b.getFaviconPath(),
-	})
-}

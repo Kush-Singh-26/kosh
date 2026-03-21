@@ -300,19 +300,37 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 
 // normalizeEsbuildHashCase lowercases hash segments in esbuild output paths.
 // Windows filesystems are case-insensitive, so we normalize hashes like
-// ".AbCdEf12" to ".abcdef12" to ensure consistent path lookups.
+// "main.AbCdEf12.css" to "main.abcdef12.css" to ensure consistent path lookups.
 func normalizeEsbuildHashCase(path string) string {
-	// Find pattern like .HASH12345. where hash is alphanumeric and 8-12 chars
-	for i := strings.Index(path, "."); i >= 0 && i < len(path)-10; i++ {
-		// Look for extension-like pattern after a dot
-		if i+9 < len(path) {
-			hashPart := path[i+1 : i+9]
-			if isAlphanumericHash(hashPart) {
-				return path[:i+1] + strings.ToLower(hashPart) + path[i+9:]
+	if path == "" {
+		return path
+	}
+
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+
+	segments := strings.Split(base, ".")
+	if len(segments) < 2 {
+		return path
+	}
+
+	changed := false
+	for i, seg := range segments {
+		// esbuild hashes are typically 8 characters (default) or more
+		if isAlphanumericHash(seg) {
+			lowered := strings.ToLower(seg)
+			if lowered != seg {
+				segments[i] = lowered
+				changed = true
 			}
 		}
 	}
-	return path
+
+	if !changed {
+		return path
+	}
+
+	return filepath.Join(dir, strings.Join(segments, "."))
 }
 
 func isAlphanumericHash(s string) bool {

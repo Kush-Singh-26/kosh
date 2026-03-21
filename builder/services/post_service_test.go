@@ -206,7 +206,7 @@ func setupPostServiceTest(t *testing.T) *postService {
 	t.Cleanup(func() {
 		_ = nativeRenderer.Close()
 	})
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {
@@ -263,13 +263,9 @@ func TestPostService_PanicRecovery(t *testing.T) {
 	defer cancel()
 
 	scanner := NewMetadataScanner()
-	fileChan := make(chan models.ScannedFile, 100)
-	go func() {
-		defer close(fileChan)
-		_, _ = scanner.Scan(ctx, "content", s.sourceFs, s.cfg, fileChan)
-	}()
+	metadataResult, _ := scanner.Scan(ctx, "content", s.sourceFs, s.cfg, nil)
 
-	_, err := s.Process(ctx, false, false, false, fileChan)
+	_, err := s.Process(ctx, false, false, false, metadataResult.Files)
 
 	// We expect successful completion (not a crash)
 	logf("Process completed with error: %v", err)
@@ -350,7 +346,7 @@ func TestDecoupledPipeline(t *testing.T) {
 	}
 	mdPool := &sync.Pool{
 		New: func() any {
-			return mdParser.New(cfg, nil, nil, nil)
+			return mdParser.New(cfg, nil, mdParser.NewMemorySSRMap(), nil)
 		},
 	}
 
@@ -410,13 +406,9 @@ func TestPostService_NeighborLookup(t *testing.T) {
 	defer cancel()
 
 	scanner := NewMetadataScanner()
-	fileChan := make(chan models.ScannedFile, 100)
-	go func() {
-		defer close(fileChan)
-		_, _ = scanner.Scan(ctx, "content", s.sourceFs, s.cfg, fileChan)
-	}()
+	metadataResult, _ := scanner.Scan(ctx, "content", s.sourceFs, s.cfg, nil)
 
-	_, err := s.Process(ctx, true, false, true, fileChan)
+	_, err := s.Process(ctx, true, false, true, metadataResult.Files)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
@@ -39,7 +40,7 @@ func TestGetPostByPath_NotFound(t *testing.T) {
 
 	// Try to get non-existent path
 	retrieved, err := m.GetPostByPath("content/posts/non-existent.md")
-	if err != core.ErrNoContent {
+	if !errors.Is(err, core.ErrNoContent) {
 		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 
@@ -81,7 +82,7 @@ func TestGetPostByID_NotFound(t *testing.T) {
 
 	// Try to get non-existent ID
 	retrieved, err := m.GetPostByID("non-existent-id")
-	if err != core.ErrNoContent {
+	if !errors.Is(err, core.ErrNoContent) {
 		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 
@@ -187,7 +188,7 @@ func TestGetSearchRecord_NotFound(t *testing.T) {
 
 	// Try to get non-existent record
 	retrieved, err := m.GetSearchRecord("non-existent")
-	if err != core.ErrNoContent {
+	if !errors.Is(err, core.ErrNoContent) {
 		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 
@@ -269,7 +270,7 @@ func TestGetHTMLContent_Empty(t *testing.T) {
 
 	// Get HTML content
 	content, err := m.GetHTMLContent(post)
-	if err != core.ErrNoContent {
+	if !errors.Is(err, core.ErrNoContent) {
 		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 

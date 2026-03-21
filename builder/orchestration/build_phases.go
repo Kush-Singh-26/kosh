@@ -151,7 +151,7 @@ func (b *Engine) processPhase(
 	runSiteWide, _ := b.setupSiteWideRendering(ctx, assets.assetsReady, setup.wasmWg, setup.forceSocialRebuild)
 
 	// Process Posts (render HTML with WebP image rewrites)
-	postResult, processErr := b.processPosts(ctx, b.Cfg.ForceRebuild, setup.forceSocialRebuild, b.State.IsCleanBuild, scan.fileChan)
+	postResult, processErr := b.processPosts(ctx, b.Cfg.ForceRebuild, setup.forceSocialRebuild, b.State.IsCleanBuild, metadataResult.Files)
 	if processErr != nil {
 		return fmt.Errorf("post processing failed: %w", processErr)
 	}
@@ -303,8 +303,8 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup) erro
 }
 
 // processPosts executes post processing and returns the result
-func (b *Engine) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*services.PostResult, error) {
-	return b.Deps.Post.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan)
+func (b *Engine) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*services.PostResult, error) {
+	return b.Deps.Post.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, files)
 }
 
 // finalizePhase handles post-build cleanup and commit
@@ -414,6 +414,17 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"))
 			} else {
 				b.Logger.Error("Failed to generate sitemap", "error", err)
+				return err
+			}
+			return nil
+		})
+
+		g.Go(func() error {
+			_, err := generators.GenerateRobotsTxt(b.Sink, b.Cfg.BaseURL, filepath.Join(b.Cfg.OutputDir, "robots.txt"))
+			if err == nil {
+				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "robots.txt"))
+			} else {
+				b.Logger.Error("Failed to generate robots.txt", "error", err)
 				return err
 			}
 			return nil

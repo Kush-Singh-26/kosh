@@ -12,10 +12,10 @@ import (
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -26,7 +26,7 @@ func BenchmarkMarkdownParsing(b *testing.B) {
 	cfg := &config.Config{}
 	r := native.New()
 	defer func() { _ = r.Close() }()
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := r.GetD2Singleflight()
 	parser := mdParser.New(cfg, r, diagramCache, d2Group)
 
@@ -72,7 +72,7 @@ This is post number %d.
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	defer func() { _ = nativeRenderer.Close() }()
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"strings"
 	"time"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -14,6 +15,8 @@ import (
 
 func GenerateSitemap(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) (string, error) {
 	slog.Info("Generating sitemap")
+
+	baseURL = strings.TrimRight(baseURL, "/")
 
 	var urls []models.URL
 

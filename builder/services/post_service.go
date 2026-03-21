@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
@@ -39,7 +40,6 @@ type postService struct {
 	assetsReady    <-chan struct{}
 	diagramAdapter *cache.DiagramCacheAdapter
 	cacheWg        sync.WaitGroup
-	mu             sync.Mutex
 }
 
 func NewPostService(deps PostServiceDependencies) PostService {
@@ -76,7 +76,14 @@ type renderTask struct {
 	htmlRelPath string
 }
 
-func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error) {
+type searchTask struct {
+	record    models.PostRecord
+	plainText string
+	indexed   *models.IndexedPost
+	cached    *models.SearchRecord
+}
+
+func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*PostResult, error) {
 	numWorkers := models.GetDefaultWorkerCount()
 
 	cardPool := async.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) error {
@@ -86,16 +93,68 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 	cardPool.Start()
 	defer func() { buildCtx.IgnoreError(cardPool.Stop(), "stop card pool") }()
 
-	pc := s.runParsePhase(ctx, numWorkers, shouldForce, forceSocialRebuild, fileChan, cardPool)
-	if len(pc.errs) > 0 {
-		return nil, pc.errs[0]
+	// Search Indexing Pool (Background)
+	searchPool := async.NewWorkerPool(ctx, numWorkers, func(task searchTask) error {
+		wordFreqs, docLen, stemMap, posIndex, byteOffsets := tokenizeSearchData(task.record, task.plainText)
+
+		// Update in-memory index result
+		task.indexed.WordFreqs = wordFreqs
+		task.indexed.DocLen = docLen
+		task.indexed.StemMap = stemMap
+		task.indexed.PositionalIndex = posIndex
+		task.indexed.ByteOffsets = byteOffsets
+
+		// Update BoltDB cache record if present
+		if task.cached != nil {
+			task.cached.BM25Data = wordFreqs
+			task.cached.DocLen = docLen
+			task.cached.StemMap = stemMap
+			task.cached.PositionalIndex = posIndex
+			task.cached.ByteOffsets = byteOffsets
+		}
+		return nil
+	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
+	searchPool.Start()
+	defer func() { buildCtx.IgnoreError(searchPool.Stop(), "stop search pool") }()
+
+	// Pre-calculate navigation info using fast-scanned file metadata
+	navInfo := s.prepareNavigationInfo(files)
+
+	renderChan := make(chan renderTask, numWorkers*2)
+	pc := &postProcessContext{
+		tagMap:           make(map[string][]models.PostMetadata),
+		newSearchRecords: make(map[string]*models.SearchRecord),
+		newDeps:          make(map[string]*models.Dependencies),
 	}
 
-	timeutil.SortPosts(pc.allPosts)
+	// Start render phase concurrently with parse phase (pipelining)
+	var renderWg sync.WaitGroup
+	renderWg.Add(1)
+	go func() {
+		defer renderWg.Done()
+		s.runStreamingRenderPhase(ctx, numWorkers, navInfo, renderChan)
+	}()
 
-	s.runRenderPhase(ctx, numWorkers, pc)
+	err := s.runStreamingParsePhase(ctx, numWorkers, shouldForce, forceSocialRebuild, files, cardPool, searchPool, pc, renderChan)
+	close(renderChan)
+	renderWg.Wait()
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Wait for search indexing to complete before returning results
+	_ = searchPool.Stop()
 
 	s.finalizeBuild(pc)
+
+	// Sort allPosts to ensure deterministic ordering across builds
+	timeutil.SortPosts(pc.allPosts)
+	timeutil.SortPosts(pc.pinnedPosts)
+	// Sort tagMap values (slices of posts) for deterministic output
+	for _, posts := range pc.tagMap {
+		timeutil.SortPosts(posts)
+	}
 
 	return &PostResult{
 		AllPosts: pc.allPosts, PinnedPosts: pc.pinnedPosts, TagMap: pc.tagMap,
@@ -103,12 +162,101 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 	}, nil
 }
 
+type navInfo struct {
+	postsByVersion   map[string][]models.PostMetadata
+	postPosByVersion map[string]map[string]int
+}
+
+func (s *postService) prepareNavigationInfo(files []models.ScannedFile) navInfo {
+	postsByVersion := make(map[string][]models.PostMetadata)
+	postPosByVersion := make(map[string]map[string]int)
+
+	for _, f := range files {
+		if f.Draft && !s.cfg.IncludeDrafts {
+			continue
+		}
+		d, _ := time.Parse("2006-01-02", f.Date)
+		if d.IsZero() {
+			d = f.Info.ModTime()
+		}
+		post := models.PostMetadata{
+			Title: f.Title, Link: f.Link, Weight: f.Weight,
+			Pinned: f.Pinned, Draft: f.Draft, Version: f.Version,
+			DateObj: d, Description: f.Description, Tags: f.Tags,
+			ReadingTime: f.ReadingTime,
+		}
+		postsByVersion[f.Version] = append(postsByVersion[f.Version], post)
+	}
+
+	for ver, posts := range postsByVersion {
+		timeutil.SortPosts(posts)
+		postPosByVersion[ver] = make(map[string]int)
+		for i, p := range posts {
+			postPosByVersion[ver][p.Link] = i
+		}
+	}
+
+	return navInfo{postsByVersion: postsByVersion, postPosByVersion: postPosByVersion}
+}
+
+func (s *postService) runStreamingParsePhase(ctx context.Context, numWorkers int, shouldForce, forceSocialRebuild bool, files []models.ScannedFile, cardPool *async.WorkerPool[socialCardTask], searchPool *async.WorkerPool[searchTask], pc *postProcessContext, renderChan chan<- renderTask) error {
+	s.logger.Info("Processing posts (pipelined mode)")
+	timer := timeutil.StartPhase("Process posts (stream)")
+	defer timer.Stop()
+
+	parsePool := async.NewWorkerPool(ctx, numWorkers, func(f models.ScannedFile) error {
+		s.parseWorkerTaskStreaming(ctx, f, shouldForce, forceSocialRebuild, pc, cardPool, searchPool, renderChan)
+		return nil
+	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
+
+	parsePool.Start()
+	for _, f := range files {
+		parsePool.Submit(f)
+	}
+	return parsePool.Stop()
+}
+
+func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, renderChan <-chan renderTask) {
+	renderPool := async.NewWorkerPool(ctx, numWorkers, func(rt renderTask) error {
+		post := rt.parseRes.Post
+		_, _, cardImageURL := CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, rt.htmlRelPath)
+		var prev, next *models.NavPage
+		if pos, ok := nav.postPosByVersion[rt.version][rt.f.Link]; ok {
+			vp := nav.postsByVersion[rt.version]
+			if pos > 0 {
+				prev = &models.NavPage{Title: vp[pos-1].Title, Link: vp[pos-1].Link}
+			}
+			if pos < len(vp)-1 {
+				next = &models.NavPage{Title: vp[pos+1].Title, Link: vp[pos+1].Link}
+			}
+		}
+
+		if err := s.renderer.RenderPage(rt.destPath, models.PageData{
+			Title: post.Title, Description: post.Description, Content: template.HTML(rt.htmlContent),
+			Meta: rt.parseRes.Metadata, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
+			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: rt.f.Link, Image: cardImageURL,
+			TOC: rt.parseRes.TOC, Config: s.cfg, CurrentVersion: rt.version, ReadingTime: post.ReadingTime,
+			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(rt.htmlRelPath),
+			HasImages: rt.parseRes.HasImages,
+			JSONLD:    models.GeneratePostJSONLD(post, s.cfg.Author),
+		}); err != nil {
+			return err
+		}
+		return nil
+	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
+
+	renderPool.Start()
+	for rt := range renderChan {
+		renderPool.Submit(rt)
+	}
+	_ = renderPool.Stop()
+}
+
 type postProcessContext struct {
 	allPosts         []models.PostMetadata
 	pinnedPosts      []models.PostMetadata
 	tagMap           map[string][]models.PostMetadata
 	anyPostChanged   atomic.Bool
-	readyToRender    []renderTask
 	newPostsMeta     []*models.PostMeta
 	newSearchRecords map[string]*models.SearchRecord
 	newDeps          map[string]*models.Dependencies
@@ -117,32 +265,7 @@ type postProcessContext struct {
 	mu               sync.Mutex
 }
 
-func (s *postService) runParsePhase(ctx context.Context, numWorkers int, shouldForce, forceSocialRebuild bool, fileChan <-chan models.ScannedFile, cardPool *async.WorkerPool[socialCardTask]) *postProcessContext {
-	pc := &postProcessContext{
-		tagMap:           make(map[string][]models.PostMetadata),
-		newSearchRecords: make(map[string]*models.SearchRecord),
-		newDeps:          make(map[string]*models.Dependencies),
-	}
-
-	s.logger.Info("Processing posts (streaming mode)")
-	timer := timeutil.StartPhase("Process posts (stream)")
-	defer timer.Stop()
-
-	parsePool := async.NewWorkerPool(ctx, numWorkers, func(f models.ScannedFile) error {
-		s.parseWorkerTask(ctx, f, shouldForce, forceSocialRebuild, pc, cardPool)
-		return nil
-	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
-
-	parsePool.Start()
-	for f := range fileChan {
-		parsePool.Submit(f)
-	}
-	_ = parsePool.Stop()
-
-	return pc
-}
-
-func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile, shouldForce, forceSocialRebuild bool, pc *postProcessContext, cardPool *async.WorkerPool[socialCardTask]) {
+func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.ScannedFile, shouldForce, forceSocialRebuild bool, pc *postProcessContext, cardPool *async.WorkerPool[socialCardTask], searchPool *async.WorkerPool[searchTask], renderChan chan<- renderTask) {
 	path, version := f.Path, f.Version
 	relPath := f.RelPath
 
@@ -164,7 +287,6 @@ func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile,
 	}
 
 	// 2. Math processing from cache (only if we have cached HTML content)
-	// If math processing fails, invalidate cache to force re-parse
 	if useCache && htmlContent != "" && len(parseRes.MathExpressions) > 0 {
 		var mathOk bool
 		htmlContent, mathOk = s.processCachedMath(htmlContent, parseRes.MathExpressions)
@@ -175,6 +297,12 @@ func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile,
 	if !useCache {
 		var err error
 		s.metrics.IncrementCacheMiss()
+
+		readingTime := f.ReadingTime
+		if cachedMeta != nil && cachedMeta.BodyHash == f.BodyHash && cachedMeta.ReadingTime > 0 {
+			readingTime = cachedMeta.ReadingTime
+		}
+
 		parseRes, err = ParseMarkdown(
 			ParseConfig{
 				Source:               f.Source,
@@ -183,7 +311,7 @@ func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile,
 				CleanHtmlRelPath:     cleanHtmlRelPath,
 				HtmlRelPath:          htmlRelPath,
 				KnownFrontmatterHash: f.FrontmatterHash,
-				KnownReadingTime:     f.ReadingTime,
+				KnownReadingTime:     readingTime,
 				BodyOffset:           f.BodyOffset,
 				PreParsedMeta:        f.PreParsedMeta,
 			},
@@ -204,7 +332,6 @@ func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile,
 		}
 		pc.anyPostChanged.Store(true)
 
-		// Set Title from ScannedFile if not already set by parser
 		if parseRes.Post.Title == "" {
 			parseRes.Post.Title = f.Title
 		}
@@ -221,9 +348,76 @@ func (s *postService) parseWorkerTask(ctx context.Context, f models.ScannedFile,
 	// 4. Social Card
 	s.queueSocialCard(relPath, parseRes, htmlRelPath, forceSocialRebuild, cardPool)
 
-	// 5. Aggregate Results
-	s.aggregateParseResult(pc, f, parseRes, post, htmlContent, destPath, version, relPath, htmlRelPath, finalSSRHashes, useCache)
+	// 5. Aggregate and stream
+	s.aggregateAndStream(pc, f, parseRes, post, htmlContent, destPath, version, relPath, htmlRelPath, finalSSRHashes, useCache, renderChan, searchPool)
 	s.metrics.IncrementPostsProcessed()
+}
+
+func (s *postService) aggregateAndStream(pc *postProcessContext, f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, version, relPath, htmlRelPath string, ssrHashes []string, useCache bool, renderChan chan<- renderTask, searchPool *async.WorkerPool[searchTask]) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	searchRecord := res.SearchRecord
+	searchRecord.ID = xxh3.HashString(searchRecord.Link)
+
+	// Add to indexed posts
+	idx := len(pc.indexedPosts)
+	pc.indexedPosts = append(pc.indexedPosts, models.IndexedPost{
+		Record: searchRecord, WordFreqs: res.WordFreqs, DocLen: res.DocLen,
+		StemMap: res.StemMap, PositionalIndex: res.PositionalIndex, ByteOffsets: res.ByteOffsets,
+	})
+
+	var newSearch *models.SearchRecord
+	if !useCache && s.cache != nil {
+		newSearch = &models.SearchRecord{
+			Title: post.Title, NormalizedTitle: res.SearchRecord.NormalizedTitle,
+			Content: res.SearchRecord.Content, NormalizedTags: res.SearchRecord.NormalizedTags,
+		}
+		postID := cache.GeneratePostID("", relPath)
+		pc.newSearchRecords[postID] = newSearch
+	}
+
+	// If search is enabled and NOT from cache, offload analysis
+	if s.cfg.Features.Generators.Search && !useCache {
+		searchPool.Submit(searchTask{
+			record:    searchRecord,
+			plainText: res.PlainText,
+			indexed:   &pc.indexedPosts[idx],
+			cached:    newSearch,
+		})
+	}
+
+	pc.allPosts = append(pc.allPosts, post)
+	if post.Pinned {
+		pc.pinnedPosts = append(pc.pinnedPosts, post)
+	}
+	for _, tag := range post.Tags {
+		k := strings.ToLower(strings.TrimSpace(tag))
+		pc.tagMap[k] = append(pc.tagMap[k], post)
+	}
+
+	// Stream to renderer
+	renderChan <- renderTask{
+		parseRes: res, f: f, htmlContent: htmlContent,
+		destPath: destPath, version: version, relPath: relPath, htmlRelPath: htmlRelPath,
+	}
+
+	if !useCache && s.cache != nil {
+		postID := cache.GeneratePostID("", relPath)
+		newMeta := &models.PostMeta{
+			PostID: postID, Path: relPath, ModTime: f.Info.ModTime().Unix(),
+			ContentHash: res.FrontmatterHash, BodyHash: f.BodyHash, Title: post.Title, Date: post.DateObj,
+			Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
+			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
+			Meta: res.Metadata, TOC: res.TOC, Version: version, SSRInputHashes: ssrHashes,
+			CardHash: res.FrontmatterHash, HasImages: res.HasImages, MathExpressions: res.MathExpressions,
+		}
+		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
+			s.logger.Warn("Failed to store HTML for post", "path", relPath, "error", err)
+		}
+		pc.newPostsMeta = append(pc.newPostsMeta, newMeta)
+		pc.newDeps[postID] = &models.Dependencies{Tags: post.Tags}
+	}
 }
 
 func (s *postService) checkCache(relPath string, f models.ScannedFile, shouldForce bool) (*models.PostMeta, bool) {
@@ -271,14 +465,6 @@ func (s *postService) loadFromCache(cachedMeta *models.PostMeta, htmlRelPath str
 	return res, string(cachedHTML), true
 }
 
-// processCachedMath attempts to render math expressions from the diagram cache.
-// It checks both memory and persistent storage for cached math.
-//
-// Returns:
-//   - string: HTML with math expressions replaced (or original if none found)
-//   - bool: true if ALL math expressions were successfully resolved, false otherwise
-//
-// If false is returned, callers should typically re-parse to render missing math.
 func (s *postService) processCachedMath(html string, exprs []models.MathExpression) (string, bool) {
 	if s.diagramAdapter == nil || len(exprs) == 0 {
 		return html, true
@@ -287,15 +473,17 @@ func (s *postService) processCachedMath(html string, exprs []models.MathExpressi
 	renderedMath := make(map[string]string)
 	missingCount := 0
 	for _, expr := range exprs {
-		if v, ok := s.diagramAdapter.Get(expr.Hash); ok {
-			renderedMath[expr.Hash] = v
+		key := "math:" + expr.Hash
+		if v, ok := s.diagramAdapter.Get(key); ok {
+			if s, ok := v.(string); ok {
+				renderedMath[expr.Hash] = s
+			}
 		} else {
 			missingCount++
 		}
 	}
 
 	if missingCount > 0 {
-		s.logger.Debug("Math cache miss", "missing", missingCount, "total", len(exprs))
 		return html, false
 	}
 
@@ -313,8 +501,11 @@ func (s *postService) renderMath(ctx context.Context, path string, res *ParsedMa
 	cachedSubset := make(map[string]string)
 	if s.diagramAdapter != nil {
 		for _, e := range res.MathExpressions {
-			if v, ok := s.diagramAdapter.GetLocal(e.Hash); ok {
-				cachedSubset[e.Hash] = v
+			key := "math:" + e.Hash
+			if v, ok := s.diagramAdapter.GetLocal(key); ok {
+				if s, ok := v.(string); ok {
+					cachedSubset[e.Hash] = s
+				}
 			}
 		}
 	}
@@ -325,10 +516,11 @@ func (s *postService) renderMath(ctx context.Context, path string, res *ParsedMa
 	}
 
 	if s.diagramAdapter != nil && len(rendered) > 0 {
-		newMath := make(map[string]string)
+		newMath := make(map[string]any)
 		for h, v := range rendered {
 			if _, ok := cachedSubset[h]; !ok {
-				newMath[h] = v
+				key := "math:" + h
+				newMath[key] = v
 			}
 		}
 		if len(newMath) > 0 {
@@ -339,11 +531,6 @@ func (s *postService) renderMath(ctx context.Context, path string, res *ParsedMa
 	return mdParser.ReplaceMathExpressions(res.HTMLContent, res.MathExpressions, rendered)
 }
 
-// queueSocialCard queues a social card generation task.
-//
-// Fire-and-forget: Social card generation is a best-effort operation.
-// Errors are logged but don't fail the build. Missing social cards
-// don't affect the site's functionality - they just won't appear in OpenGraph tags.
 func (s *postService) queueSocialCard(relPath string, res *ParsedMarkdownResult, htmlRelPath string, force bool, pool *async.WorkerPool[socialCardTask]) {
 	cardRelPath, cardDestPath, _ := CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
 	var cardHash string
@@ -360,112 +547,6 @@ func (s *postService) queueSocialCard(relPath string, res *ParsedMarkdownResult,
 	}
 }
 
-func (s *postService) aggregateParseResult(pc *postProcessContext, f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, version, relPath, htmlRelPath string, ssrHashes []string, useCache bool) {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
-
-	searchRecord := res.SearchRecord
-	searchRecord.ID = xxh3.HashString(searchRecord.Link)
-	pc.indexedPosts = append(pc.indexedPosts, models.IndexedPost{
-		Record: searchRecord, WordFreqs: res.WordFreqs, DocLen: res.DocLen,
-		StemMap: res.StemMap, PositionalIndex: res.PositionalIndex, ByteOffsets: res.ByteOffsets,
-	})
-
-	pc.allPosts = append(pc.allPosts, post)
-	if post.Pinned {
-		pc.pinnedPosts = append(pc.pinnedPosts, post)
-	}
-	for _, tag := range post.Tags {
-		k := strings.ToLower(strings.TrimSpace(tag))
-		pc.tagMap[k] = append(pc.tagMap[k], post)
-	}
-
-	pc.readyToRender = append(pc.readyToRender, renderTask{
-		parseRes: res, f: f, htmlContent: htmlContent,
-		destPath: destPath, version: version, relPath: relPath, htmlRelPath: htmlRelPath,
-	})
-
-	if !useCache && s.cache != nil {
-		postID := cache.GeneratePostID("", relPath)
-		newMeta := &models.PostMeta{
-			PostID: postID, Path: relPath, ModTime: f.Info.ModTime().Unix(),
-			ContentHash: res.FrontmatterHash, BodyHash: f.BodyHash, Title: post.Title, Date: post.DateObj,
-			Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
-			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
-			Meta: res.Metadata, TOC: res.TOC, Version: version, SSRInputHashes: ssrHashes,
-			CardHash: res.FrontmatterHash, HasImages: res.HasImages, MathExpressions: res.MathExpressions,
-		}
-		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
-			s.logger.Warn("Failed to store HTML for post", "path", relPath, "error", err)
-		}
-		newSearch := &models.SearchRecord{
-			Title: post.Title, NormalizedTitle: res.SearchRecord.NormalizedTitle,
-			BM25Data: res.WordFreqs, DocLen: res.DocLen, Content: res.SearchRecord.Content,
-			NormalizedTags: res.SearchRecord.NormalizedTags, StemMap: res.StemMap,
-			PositionalIndex: res.PositionalIndex, ByteOffsets: res.ByteOffsets,
-		}
-		pc.newPostsMeta = append(pc.newPostsMeta, newMeta)
-		pc.newSearchRecords[postID] = newSearch
-		pc.newDeps[postID] = &models.Dependencies{Tags: post.Tags}
-	}
-}
-
-func (s *postService) runRenderPhase(ctx context.Context, numWorkers int, pc *postProcessContext) {
-	// Prepare versioned navigation
-	postsByVersion := make(map[string][]models.PostMetadata)
-	postPosByVersion := make(map[string]map[string]int)
-	for _, p := range pc.allPosts {
-		postsByVersion[p.Version] = append(postsByVersion[p.Version], p)
-	}
-	for ver, posts := range postsByVersion {
-		timeutil.SortPosts(posts)
-		postPosByVersion[ver] = make(map[string]int)
-		for i, p := range posts {
-			postPosByVersion[ver][p.Link] = i
-		}
-	}
-
-	renderPool := async.NewWorkerPool(ctx, numWorkers, func(rt renderTask) error {
-		post := rt.parseRes.Post
-		_, _, cardImageURL := CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, rt.htmlRelPath)
-		var prev, next *models.NavPage
-		if pos, ok := postPosByVersion[rt.version][rt.f.Link]; ok {
-			vp := postsByVersion[rt.version]
-			if pos > 0 {
-				prev = &models.NavPage{Title: vp[pos-1].Title, Link: vp[pos-1].Link}
-			}
-			if pos < len(vp)-1 {
-				next = &models.NavPage{Title: vp[pos+1].Title, Link: vp[pos+1].Link}
-			}
-		}
-
-		s.renderer.RenderPage(rt.destPath, models.PageData{
-			Title: post.Title, Description: post.Description, Content: template.HTML(rt.htmlContent),
-			Meta: rt.parseRes.Metadata, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
-			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: rt.f.Link, Image: cardImageURL,
-			TOC: rt.parseRes.TOC, Config: s.cfg, CurrentVersion: rt.version, ReadingTime: post.ReadingTime,
-			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(rt.htmlRelPath),
-			HasImages: rt.parseRes.HasImages,
-		})
-		return nil
-	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
-
-	renderPool.Start()
-	for _, rt := range pc.readyToRender {
-		renderPool.Submit(rt)
-	}
-	_ = renderPool.Stop()
-}
-
-// finalizeBuild commits cache changes asynchronously.
-//
-// Fire-and-forget: Cache commits are best-effort operations.
-// Errors are logged but don't fail the build, as the cache will rebuild
-// on the next run. This avoids blocking the build pipeline, ensuring that
-// transient storage failures don't block site deployment.
-//
-// Concurrency: Safe for concurrent calls within the same build session.
-// The WaitForCacheCommit method can be used to wait for completion if needed.
 func (s *postService) finalizeBuild(pc *postProcessContext) {
 	if len(pc.newPostsMeta) > 0 && s.cache != nil {
 		s.cacheWg.Add(1)

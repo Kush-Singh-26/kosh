@@ -197,9 +197,10 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 			} else {
 				// Explicitly set Content-Type for CSS and JS to avoid sniffing issues
 				ext := strings.ToLower(filepath.Ext(fullPath))
-				if ext == ".css" {
+				switch ext {
+				case ".css":
 					w.Header().Set("Content-Type", "text/css; charset=utf-8")
-				} else if ext == ".js" {
+				case ".js":
 					w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 				}
 			}

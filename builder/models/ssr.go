@@ -50,3 +50,10 @@ type MathExpression struct {
 	// Hash is the content hash used for caching and deduplication
 	Hash string `json:"-" msg:"hash"`
 }
+
+// SSRThemePair stores both light and dark versions together for atomic access.
+// This structure is primarily used for D2 diagrams which have separate themes.
+type SSRThemePair struct {
+	Light string `msg:"light"`
+	Dark  string `msg:"dark"`
+}

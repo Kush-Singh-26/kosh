@@ -25,13 +25,23 @@ Typical consumer site repo example used during development:
 
 ## Current Stable State
 
-- Version string in CLI: `v1.3.9`
+- Version string in CLI: `v1.4.0`
 - Production-ready
 - Dev-mode correctness issues recently fixed:
   - search schema mismatch in dev
   - stale asset-map lag on CSS changes
   - source-tree mutation from hardlink-based asset writes
   - incremental markdown rebuild path using absolute watcher paths
+  - persistent SSR cache for diagrams and math
+  - reading-time reuse during frontmatter-only updates
+  - automatic cache garbage collection
+- New features implemented:
+  - Pipelined parse+render with streaming workers
+  - Overlapping asset discovery and copying via channels
+  - Decoupled search analysis via background worker pool
+  - SEO suite: JSON-LD structured data + robots.txt generator
+  - SVG minification via tdewolff/minify
+  - A11y linting: build-time warnings for missing image alt text
 - Current recommended image settings:
 
 ```yaml
@@ -307,7 +317,7 @@ Current notes:
 
 - scanner performs lightweight frontmatter extraction
 - parser is still the source of truth for full semantic parse
-- narrowed hash reuse was added, but reading-time reuse was intentionally deferred
+- narrowed hash reuse is used for reading-time and data reuse during frontmatter-only updates
 
 ### Search
 
@@ -334,7 +344,7 @@ Files:
 Current notes:
 
 - math SSR was narrowed to a single-scan match-list reuse approach
-- persisted D2 SSR cache is intentionally deferred / optional
+- persistent D2 and Math SSR cache is active in BoltDB
 
 ## Performance State
 
@@ -377,7 +387,6 @@ imageWorkers: 8
 ### Still intentionally deferred / optional
 
 - search-analysis restructure
-- persisted D2 SSR cache
 
 ## Safe Change Boundaries
 

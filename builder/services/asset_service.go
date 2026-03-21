@@ -26,9 +26,6 @@ import (
 )
 
 // AssetServiceOption configures optional parameters for AssetService
-//
-// Note: Channels (AssetsReady, ContentAssetsChan) should still use
-// WithAssetsReadySignal and WithContentAssetsChannel options.
 type AssetServiceOption func(*assetService)
 
 // WithMetrics sets the build metrics collector
@@ -37,15 +34,11 @@ func WithMetrics(m *metrics.BuildMetrics) AssetServiceOption {
 }
 
 // WithAssetsReadySignal sets the channel signaled when assets are ready
-//
-// Note: This option is still required for channel-based coordination.
 func WithAssetsReadySignal(ch chan struct{}) AssetServiceOption {
 	return func(s *assetService) { s.assetsReady = ch }
 }
 
 // WithContentAssetsChannel sets the channel for content asset notifications
-//
-// Note: This option is still required for channel-based coordination.
 func WithContentAssetsChannel(ch <-chan []models.ScannedAsset) AssetServiceOption {
 	return func(s *assetService) { s.contentAssetsChan = ch }
 }
@@ -60,17 +53,9 @@ type assetService struct {
 	logger            *slog.Logger
 	metrics           *metrics.BuildMetrics
 	contentAssetsChan <-chan []models.ScannedAsset
-	contentAssets     []models.ScannedAsset
-	// assetsReady is owned by AssetService, created per-build and closed when assets are ready.
-	// RenderService and PostService wait on this channel but do not own its lifecycle.
-	assetsReady chan struct{}
+	assetsReady       chan struct{}
 }
 
-// NewAssetService creates a new AssetService with the given dependencies.
-//
-// Channel Ownership:
-//   - AssetsReady: must be set via WithAssetsReadySignal option
-//   - ContentAssetsChan: must be set via WithContentAssetsChannel option
 func NewAssetService(deps AssetServiceDependencies, opts ...AssetServiceOption) AssetService {
 	s := &assetService{
 		ctx:      deps.Ctx,
@@ -100,12 +85,18 @@ func (s *assetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) 
 	s.contentAssetsChan = ch
 }
 
+type assetTask struct {
+	srcPath string
+	relPath string
+	info    fs.FileInfo
+}
+
 func (s *assetService) Build(ctx context.Context) error {
 	g, gCtx := errgroup.WithContext(ctx)
 
-	// 1. Unified Asset Copy Phase
+	// 1. Unified Asset Discovery and Copy Phase (Pipelined)
 	g.Go(func() error {
-		copyTimer := timeutil.StartPhase("Asset copy unified")
+		copyTimer := timeutil.StartPhase("Asset discovery and copy")
 		defer copyTimer.Stop()
 
 		themeDir := s.cfg.StaticDir
@@ -113,133 +104,107 @@ func (s *assetService) Build(ctx context.Context) error {
 			themeDir = "themes/blog/static"
 		}
 
-		// Calculate worker count early for discovery phase
 		numWorkers := s.cfg.ImageWorkers
 		if numWorkers <= 0 {
 			numWorkers = runtime.NumCPU()
 		}
 
-		type assetTask struct {
-			srcPath string
-			info    fs.FileInfo
-		}
-		// Use a sync.Map for thread-safe discovery to avoid any potential race conditions
-		var assetSyncMap sync.Map
+		// Channel for streaming discovery to copy workers
+		assetChan := make(chan assetTask, 128)
+		// Track seen files to handle overrides (project static > theme static)
+		var seen sync.Map
 
-		// Discovery with higher concurrency for modern SSDs
+		copyGroup, copyCtx := errgroup.WithContext(gCtx)
+		// Dispatch with STRICT limit (128 for Windows to avoid I/O contention)
+		copyGroup.SetLimit(128)
+
+		// Start copy workers before discovery begins
+		discoveryWg := sync.WaitGroup{}
+		discoveryWg.Add(1)
+		go func() {
+			defer discoveryWg.Done()
+			for task := range assetChan {
+				t := task
+				copyGroup.Go(func() error {
+					dst := filepath.Join(s.cfg.OutputDir, t.relPath)
+					opts := fspkg.CopyOptions{
+						Compress:     s.cfg.CompressImages,
+						MinifySVGs:   s.cfg.MinifySVGs,
+						CacheDir:     s.cfg.CacheDir + "/images",
+						WebPQuality:  s.cfg.WebPQuality,
+						Metrics:      s.metrics,
+						OnWrite:      s.renderer.RegisterFile,
+						ImageWorkers: s.cfg.ImageWorkers,
+					}
+					return fspkg.CopyFileWithOptionalImageProcessing(fspkg.ProcessImageOptions{
+						Ctx:     copyCtx,
+						SrcFs:   s.sourceFs,
+						Sink:    s.sink,
+						SrcPath: t.srcPath,
+						DstPath: dst,
+						RelPath: t.relPath,
+						SrcInfo: t.info,
+						Opts:    opts,
+						Scheduler: func() scheduler.BuildScheduler {
+							if s.ctx != nil {
+								return s.ctx.Scheduler
+							}
+							return scheduler.GetGlobalScheduler()
+						}(),
+					})
+				})
+			}
+		}()
+
+		// Discovery phase: walk project static FIRST (overrides), then theme static
 		discoveryGroup, dCtx := errgroup.WithContext(gCtx)
 		walkConcurrency := max(numWorkers/2, 4)
 
-		discoveryGroup.Go(func() error {
-			exists, _ := afero.Exists(s.sourceFs, themeDir)
-			if exists {
-				if err := fspkg.ParallelWalk(dCtx, s.sourceFs, themeDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
-					if err != nil || info.IsDir() {
-						return nil
-					}
-					if filepath.Base(path) == "search.wasm" {
-						return nil
-					}
-					rel, _ := fspkg.SafeRel(themeDir, path)
-					assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
-					return nil
-				}); err != nil {
-					s.logger.Log(dCtx, slog.LevelWarn, "theme asset walk error", "dir", themeDir, "error", err)
-				}
-			}
-			return nil
-		})
-
+		// Project static discovery (High Priority)
 		if themeDir != "static" {
 			discoveryGroup.Go(func() error {
-				exists, _ := afero.Exists(s.sourceFs, "static")
-				if exists {
-					if err := fspkg.ParallelWalk(dCtx, s.sourceFs, "static", walkConcurrency, func(path string, info fs.FileInfo, err error) error {
-						if err != nil || info.IsDir() {
-							return nil
+				return s.walkDirStreaming(dCtx, "static", "static", walkConcurrency, assetChan, &seen)
+			})
+		}
+
+		// Theme static discovery
+		discoveryGroup.Go(func() error {
+			return s.walkDirStreaming(dCtx, themeDir, themeDir, walkConcurrency, assetChan, &seen)
+		})
+
+		// Wait for content assets (passed from Scanner)
+		if s.contentAssetsChan != nil {
+			discoveryGroup.Go(func() error {
+				select {
+				case assets, ok := <-s.contentAssetsChan:
+					if ok && assets != nil {
+						for _, a := range assets {
+							rel, _ := fspkg.SafeRel(s.cfg.ContentDir, a.Path)
+							if _, loaded := seen.LoadOrStore(rel, true); !loaded {
+								assetChan <- assetTask{srcPath: a.Path, relPath: rel, info: a.Info}
+							}
 						}
-						if filepath.Base(path) == "search.wasm" {
-							return nil
-						}
-						rel, _ := fspkg.SafeRel("static", path)
-						assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
-						return nil
-					}); err != nil {
-						s.logger.Log(dCtx, slog.LevelWarn, "static asset walk error", "dir", "static", "error", err)
 					}
+				case <-dCtx.Done():
+					return dCtx.Err()
 				}
 				return nil
 			})
 		}
 
-		_ = discoveryGroup.Wait()
+		err := discoveryGroup.Wait()
+		close(assetChan)
+		discoveryWg.Wait()
 
-		// Convert sync.Map to a regular map for the copy phase
-		assetMap := make(map[string]assetTask, 256)
-		assetSyncMap.Range(func(key, value any) bool {
-			assetMap[key.(string)] = value.(assetTask)
-			return true
-		})
-
-		// Wait for content assets if channel provided
-		if s.contentAssetsChan != nil {
-			select {
-			case assets, ok := <-s.contentAssetsChan:
-				if ok && assets != nil {
-					s.contentAssets = assets
-				} else {
-					s.contentAssets = []models.ScannedAsset{}
-				}
-			case <-gCtx.Done():
-				return gCtx.Err()
-			}
-		}
-
-		for _, a := range s.contentAssets {
-			rel, _ := fspkg.SafeRel(s.cfg.ContentDir, a.Path)
-			assetMap[rel] = assetTask{srcPath: a.Path, info: a.Info}
-		}
-
-		// Dispatch with STRICT limit (128 for Windows to avoid I/O contention)
-		copyGroup, copyCtx := errgroup.WithContext(gCtx)
-		copyGroup.SetLimit(128)
-
-		for rel, task := range assetMap {
-			r, t := rel, task
-			copyGroup.Go(func() error {
-				dst := filepath.Join(s.cfg.OutputDir, r)
-				opts := fspkg.CopyOptions{
-					Compress:     s.cfg.CompressImages,
-					CacheDir:     s.cfg.CacheDir + "/images",
-					WebPQuality:  s.cfg.WebPQuality,
-					Metrics:      s.metrics,
-					OnWrite:      s.renderer.RegisterFile,
-					ImageWorkers: s.cfg.ImageWorkers,
-				}
-				return fspkg.CopyFileWithOptionalImageProcessing(fspkg.ProcessImageOptions{
-					Ctx:     copyCtx,
-					SrcFs:   s.sourceFs,
-					Sink:    s.sink,
-					SrcPath: t.srcPath,
-					DstPath: dst,
-					RelPath: r,
-					SrcInfo: t.info,
-					Opts:    opts,
-					Scheduler: func() scheduler.BuildScheduler {
-						if s.ctx != nil {
-							return s.ctx.Scheduler
-						}
-						return scheduler.GetGlobalScheduler()
-					}(),
-				})
-			})
+		if err != nil {
+			return err
 		}
 
 		s.copyCriticalAssets()
 		return copyGroup.Wait()
 	})
 
-	// 2. Esbuild
+	// 2. Esbuild Bundling (CSS/JS)
 	g.Go(func() error {
 		esbuildTimer := timeutil.StartPhase("Asset esbuild")
 		defer esbuildTimer.Stop()
@@ -252,6 +217,32 @@ func (s *assetService) Build(ctx context.Context) error {
 	})
 
 	return g.Wait()
+}
+
+func (s *assetService) walkDirStreaming(ctx context.Context, dir, prefix string, concurrency int, assetChan chan<- assetTask, seen *sync.Map) error {
+	exists, _ := afero.Exists(s.sourceFs, dir)
+	if !exists {
+		return nil
+	}
+
+	return fspkg.ParallelWalk(ctx, s.sourceFs, dir, concurrency, func(path string, info fs.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if filepath.Base(path) == "search.wasm" {
+			return nil
+		}
+		rel, _ := fspkg.SafeRel(dir, path)
+		fullRel := "static/" + rel
+		if _, loaded := seen.LoadOrStore(fullRel, true); !loaded {
+			select {
+			case assetChan <- assetTask{srcPath: path, relPath: fullRel, info: info}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		return nil
+	})
 }
 
 func (s *assetService) copyCriticalAssets() {
@@ -282,7 +273,6 @@ func (s *assetService) copyFileOrLink(src, dst string) error {
 func (s *assetService) buildEsbuildAssets(force bool) (map[string]string, error) {
 	destStaticDir, _ := filepath.Abs(filepath.Join(s.cfg.OutputDir, "static"))
 
-	// Determine effective static directory (mirroring Build logic)
 	srcDir := s.cfg.StaticDir
 	if srcDir == "" {
 		srcDir = "themes/blog/static"

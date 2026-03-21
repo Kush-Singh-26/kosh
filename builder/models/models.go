@@ -174,6 +174,9 @@ type PageData struct {
 
 	// Config-driven fields
 	Config TemplateConfig // To access Config fields in templates (Menu, Author, etc.)
+
+	// SEO
+	JSONLD template.HTML
 }
 
 // MenuEntry defines a single menu item in site navigation.

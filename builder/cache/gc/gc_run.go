@@ -74,7 +74,7 @@ func RunGC(db *bbolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig
 		}
 
 		// Clean SSR artifacts
-		for _, ssrType := range []string{"d2", "katex"} {
+		for _, ssrType := range []string{"d2", "math", "math-inline", "math-block", "katex"} {
 			category := filepath.Join("ssr", ssrType)
 			deleted, freedBytes, err := s.CleanOrphans(category, liveSSRHashes, maxAge)
 			if err == nil {

@@ -139,11 +139,7 @@ func ParseMarkdownMetadata(
 	res.PlainText = mdParser.GetPlainText(mdCtx)
 	res.SearchRecord = buildSearchRecord(res.Post, htmlRelPath, res.PlainText)
 
-	// Step 6: Tokenize and build search data if search is enabled
-	if cfg.Features.Generators.Search {
-		res.WordFreqs, res.DocLen, res.StemMap, res.PositionalIndex, res.ByteOffsets =
-			tokenizeSearchData(res.SearchRecord, res.PlainText)
-	}
+	// Step 6: Search Analysis (DEFERRED to background worker)
 
 	// Step 7: Compute frontmatter hash
 	res.FrontmatterHash = computeFrontmatterHash(res.Metadata, knownFrontmatterHash)

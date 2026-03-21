@@ -14,10 +14,10 @@ func TestDiskSink_NestingBug(t *testing.T) {
 	realOut := filepath.Join(cwd, "public")
 
 	// Ensure they don't exist
-	os.RemoveAll(staging)
-	os.RemoveAll(realOut)
-	defer os.RemoveAll(staging)
-	defer os.RemoveAll(realOut)
+	_ = os.RemoveAll(staging)
+	_ = os.RemoveAll(realOut)
+	defer func() { _ = os.RemoveAll(staging) }()
+	defer func() { _ = os.RemoveAll(realOut) }()
 
 	sink := NewDiskSink(staging, realOut)
 
@@ -57,7 +57,7 @@ func TestDiskSink_RegisterNestingBug(t *testing.T) {
 
 	writtenFiles := sink.GetWrittenFiles()
 	expectedFinalPath := filepath.Join(realOut, "404.html")
-	
+
 	found := false
 	for f := range writtenFiles {
 		if f == expectedFinalPath {

@@ -66,7 +66,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {
@@ -179,7 +179,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {
@@ -290,7 +290,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		buildMetrics := metrics.NewBuildMetrics()
 		nativeRenderer := native.New()
 		t.Cleanup(func() { _ = nativeRenderer.Close() })
-		diagramCache := &sync.Map{}
+		diagramCache := mdParser.NewMemorySSRMap()
 		d2Group := nativeRenderer.GetD2Singleflight()
 		mdPool := &sync.Pool{
 			New: func() any {
@@ -406,7 +406,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {
@@ -652,7 +652,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {
@@ -809,7 +809,7 @@ Content 3
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {
@@ -856,13 +856,12 @@ Content 3
 	ctx := context.Background()
 
 	// Scan files first
-	fileChan := make(chan models.ScannedFile, len(postContents))
+	var files []models.ScannedFile
 	for path := range postContents {
 		info, _ := fs.Stat(path)
 		source, _ := afero.ReadFile(fs, path)
-		fileChan <- models.ScannedFile{Path: path, Info: info, Source: source}
+		files = append(files, models.ScannedFile{Path: path, Info: info, Source: source})
 	}
-	close(fileChan)
 
 	// Process posts concurrently via the builder's ProcessAll
 	errChan := make(chan error, 1)
@@ -871,7 +870,7 @@ Content 3
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := postSvc.Process(ctx, false, false, false, fileChan)
+		_, err := postSvc.Process(ctx, false, false, false, files)
 		if err != nil {
 			errChan <- err
 		}

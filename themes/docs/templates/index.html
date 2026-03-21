@@ -29,6 +29,20 @@
             document.documentElement.setAttribute('data-theme', savedTheme);
         })();
     </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "{{ .Config.Title }}",
+      "url": "{{ .BaseURL }}/",
+      "description": "{{ .Config.Description }}",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "{{ .BaseURL }}/?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
 </head>
 
 <body>

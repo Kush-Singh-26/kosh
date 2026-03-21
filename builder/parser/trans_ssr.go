@@ -9,12 +9,6 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-// themePair stores both light and dark versions together for atomic access
-type themePair struct {
-	light string
-	dark  string
-}
-
 // --- Custom AST node for raw HTML injection ---
 
 // KindRawHTMLBlock is the NodeKind for RawHTMLBlock

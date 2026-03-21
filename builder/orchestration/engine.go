@@ -6,11 +6,14 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+
+	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -227,11 +230,30 @@ func (b *Engine) SaveCaches() {
 	if b.Deps.Post != nil {
 		b.Deps.Post.WaitForCacheCommit()
 	}
+	if b.Deps.Diagrams != nil {
+		_ = b.Deps.Diagrams.Flush()
+	}
 	if b.Deps.Cache != nil {
 		// Manager implementation handles the actual DB commit
 		if manager, ok := b.Deps.Cache.(interface{ Save() error }); ok {
 			_ = manager.Save()
 		}
+
+		// Trigger garbage collection every 20 builds
+		if count, err := b.Deps.Cache.IncrementBuildCount(); err == nil && count >= 20 {
+			b.Logger.Info("Triggering scheduled cache garbage collection", "builds", count)
+			if result, err := b.Deps.Cache.RunGC(gc.GCConfig{
+				MaxAge: 7 * 24 * time.Hour,
+			}); err != nil {
+				b.Logger.Warn("Cache garbage collection failed", "error", err)
+			} else {
+				b.Logger.Info("Cache garbage collection complete",
+					"deleted_blobs", result.DeletedBlobs,
+					"deleted_bytes", result.DeletedBytes,
+					"duration", result.Duration)
+			}
+		}
+
 		DevLogSuccess("Saved caches")
 	}
 }
@@ -241,6 +263,10 @@ func (b *Engine) Close() {
 	b.State.CloseOnce.Do(func() {
 		if b.Watch != nil {
 			b.Watch.Close()
+		}
+
+		if b.Deps.Diagrams != nil {
+			_ = b.Deps.Diagrams.Close()
 		}
 
 		if b.NativeRenderer != nil {

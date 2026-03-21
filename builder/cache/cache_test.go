@@ -371,8 +371,12 @@ func TestManager_IncrementBuildCount(t *testing.T) {
 	initialCount := stats.BuildCount
 
 	// Increment
-	if err := m.IncrementBuildCount(); err != nil {
+	count, err := m.IncrementBuildCount()
+	if err != nil {
 		t.Fatalf("IncrementBuildCount() failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected count 1, got %d", count)
 	}
 
 	// Check stats
@@ -382,8 +386,12 @@ func TestManager_IncrementBuildCount(t *testing.T) {
 	}
 
 	// Increment again
-	if err := m.IncrementBuildCount(); err != nil {
+	count, err = m.IncrementBuildCount()
+	if err != nil {
 		t.Fatalf("IncrementBuildCount() second call failed: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("Expected count 2, got %d", count)
 	}
 
 	stats, _ = m.Stats()

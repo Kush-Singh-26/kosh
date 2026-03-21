@@ -185,7 +185,7 @@ type imageCacheEntry struct {
 func initImageCacheWriter() {
 	imageCacheWriter.once.Do(func() {
 		// Increased channel depth to smooth out I/O spikes
-		imageCacheWriter.ch = make(chan imageCacheEntry, 256)
+		imageCacheWriter.ch = make(chan imageCacheEntry, 2048)
 		// Launch multiple workers for async writes if needed, but 1 is usually enough for sequential disk
 		go func() {
 			for entry := range imageCacheWriter.ch {
@@ -236,6 +236,7 @@ type ImageMetrics interface {
 
 type CopyOptions struct {
 	Compress     bool
+	MinifySVGs   bool
 	ExcludeExts  []string
 	OnWrite      func(string)
 	CacheDir     string
@@ -337,17 +338,34 @@ func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 		if opts.RelPath != "" {
 			// Normalize to URL format (forward slashes, leading slash)
 			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
-			relDst := "/" + strings.TrimPrefix(filepath.ToSlash(dstPath), "/")
-			// If dstPath was absolute, filepath.ToSlash(dstPath) might be absolute too.
-			// Let's ensure relDst is actually relative to the output root if possible.
-			// Actually, just use opts.RelPath to derive relDst.
-			relDst = relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
+			// Derive webp path from source relPath
+			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
 			RecordConvertedImage(relSrc, relDst)
 		}
 		// Also record the file system path mapping for robustness
 		RecordConvertedImage(opts.DstPath, dstPath)
 		return nil
 	}
+
+	if opts.Opts.MinifySVGs && ext == ".svg" {
+		data, err := afero.ReadFile(opts.SrcFs, opts.SrcPath)
+		if err == nil {
+			m := GetMinifier()
+			minified, err := m.Bytes("image/svg+xml", data)
+			if err == nil {
+				if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+					return err
+				}
+				if err := opts.Sink.WriteFile(opts.DstPath, minified); err == nil {
+					if opts.Opts.OnWrite != nil {
+						opts.Opts.OnWrite(opts.DstPath)
+					}
+					return nil
+				}
+			}
+		}
+	}
+
 	modTime := int64(0)
 	if opts.SrcInfo != nil {
 		modTime = opts.SrcInfo.ModTime().UnixNano()

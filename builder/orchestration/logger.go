@@ -61,7 +61,7 @@ func HTTPLog(method, path string, status int, duration time.Duration) {
 	default:
 		statusColor = green
 	}
-	fmt.Fprintf(os.Stdout, "%s%s %s%s %s %s%d%s %s%dms%s\n",
+	_, _ = fmt.Fprintf(os.Stdout, "%s%s %s%s %s %s%d%s %s%dms%s\n",
 		dim, now, bold, method, path, statusColor, status, reset, dim, duration.Milliseconds(), reset)
 }
 
@@ -92,7 +92,7 @@ func (h *consoleHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	timeStr := r.Time.Format(h.timeFormat)
 
-	fmt.Fprintf(h.output, "\033[90m%s\033[0m %s ", timeStr, color)
+	_, _ = fmt.Fprintf(h.output, "\033[90m%s\033[0m %s ", timeStr, color)
 	h.writeMessage(r.Message)
 
 	// Write handler attributes
@@ -108,15 +108,15 @@ func (h *consoleHandler) Handle(ctx context.Context, r slog.Record) error {
 		})
 	}
 
-	fmt.Fprintf(h.output, "\033[0m\n")
+	_, _ = fmt.Fprintf(h.output, "\033[0m\n")
 	return nil
 }
 
 func (h *consoleHandler) writeMessage(msg string) {
 	if h.group != "" {
-		fmt.Fprintf(h.output, "[\033[1m%s\033[0m] %s", h.group, msg)
+		_, _ = fmt.Fprintf(h.output, "[\033[1m%s\033[0m] %s", h.group, msg)
 	} else {
-		fmt.Fprintf(h.output, "%s", msg)
+		_, _ = fmt.Fprintf(h.output, "%s", msg)
 	}
 }
 
@@ -124,26 +124,26 @@ func (h *consoleHandler) writeAttr(a slog.Attr) {
 	value := a.Value.Resolve()
 	switch value.Kind() {
 	case slog.KindString:
-		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.String())
+		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.String())
 	case slog.KindInt64:
-		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%d", a.Key, value.Int64())
+		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%d", a.Key, value.Int64())
 	case slog.KindUint64:
-		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%d", a.Key, value.Uint64())
+		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%d", a.Key, value.Uint64())
 	case slog.KindFloat64:
-		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%.2f", a.Key, value.Float64())
+		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%.2f", a.Key, value.Float64())
 	case slog.KindBool:
-		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%v", a.Key, value.Bool())
+		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%v", a.Key, value.Bool())
 	case slog.KindDuration:
-		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.Duration())
+		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.Duration())
 	case slog.KindTime:
-		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.Time().Format(time.RFC3339))
+		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.Time().Format(time.RFC3339))
 	case slog.KindGroup:
 		attrs := value.Group()
 		for _, ga := range attrs {
 			h.writeAttr(ga)
 		}
 	default:
-		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%v", a.Key, value)
+		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%v", a.Key, value)
 	}
 }
 
@@ -183,24 +183,6 @@ func getLevelColor(level slog.Level) string {
 			return "\033[92mREB\033[0m"
 		}
 		return "\033[96mINF\033[0m"
-	}
-}
-
-func getLevelString(level slog.Level) string {
-	switch level {
-	case slog.LevelDebug:
-		return "DBG"
-	case slog.LevelInfo:
-		return "INF"
-	case slog.LevelWarn:
-		return "WRN"
-	case slog.LevelError:
-		return "ERR"
-	default:
-		if level == rebuildLevel {
-			return "REB"
-		}
-		return "INF"
 	}
 }
 

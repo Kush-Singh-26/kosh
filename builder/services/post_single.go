@@ -86,8 +86,11 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		cachedSubset := make(map[string]string)
 		if s.diagramAdapter != nil {
 			for _, expr := range parseRes.MathExpressions {
-				if v, ok := s.diagramAdapter.GetLocal(expr.Hash); ok {
-					cachedSubset[expr.Hash] = v
+				key := "math:" + expr.Hash
+				if v, ok := s.diagramAdapter.GetLocal(key); ok {
+					if s, ok := v.(string); ok {
+						cachedSubset[expr.Hash] = s
+					}
 				}
 			}
 		}
@@ -98,10 +101,11 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		}
 
 		if s.diagramAdapter != nil && len(rendered) > 0 {
-			newMath := make(map[string]string)
+			newMath := make(map[string]any)
 			for h, v := range rendered {
 				if _, ok := cachedSubset[h]; !ok {
-					newMath[h] = v
+					key := "math:" + h
+					newMath[key] = v
 				}
 			}
 			if len(newMath) > 0 {
@@ -242,13 +246,16 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		}
 	}
 
-	s.renderer.RenderPage(destPath, models.PageData{
+	if err := s.renderer.RenderPage(destPath, models.PageData{
 		Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
 		Meta: metadata, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
 		TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: cardImageURL,
 		TOC: toc, Config: s.cfg, CurrentVersion: version, ReadingTime: post.ReadingTime,
 		PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(htmlRelPath),
 		HasImages: parseRes.HasImages, SiteTree: siteTree,
-	})
+		JSONLD: models.GeneratePostJSONLD(post, s.cfg.Author),
+	}); err != nil {
+		return err
+	}
 	return nil
 }

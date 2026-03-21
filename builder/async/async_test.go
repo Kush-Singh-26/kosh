@@ -455,7 +455,7 @@ func TestFireAndForgetWithCallback_Error(t *testing.T) {
 	if !callbackCalled {
 		t.Error("FireAndForgetWithCallback did not call onError")
 	}
-	if callbackErr != expectedErr {
+	if !errors.Is(callbackErr, expectedErr) {
 		t.Errorf("FireAndForgetWithCallback callback error mismatch: got %v, want %v", callbackErr, expectedErr)
 	}
 }
@@ -575,7 +575,7 @@ func TestFireAndForgetWithResult_Error(t *testing.T) {
 
 	select {
 	case err := <-errCh:
-		if err != expectedErr {
+		if !errors.Is(err, expectedErr) {
 			t.Errorf("expected %v, got %v", expectedErr, err)
 		}
 	case <-time.After(5 * time.Second):

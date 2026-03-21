@@ -2,8 +2,6 @@
 package parser
 
 import (
-	"sync"
-
 	chroma_html "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	admonitions "github.com/stefanfritsch/goldmark-admonitions"
@@ -51,7 +49,7 @@ func codeBlockWrapper(w util.BufWriter, c highlighting.CodeBlockContext, enterin
 }
 
 // New creates a new Goldmark markdown parser with SSR support for diagrams
-func New(cfg *config.Config, renderer *native.Renderer, diagramCache *sync.Map, d2Group *singleflight.Group) goldmark.Markdown {
+func New(cfg *config.Config, renderer *native.Renderer, diagramCache SSRMap, d2Group *singleflight.Group) goldmark.Markdown {
 	baseURL := cfg.BaseURL
 	compress := cfg.CompressImages
 

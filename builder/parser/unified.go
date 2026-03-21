@@ -18,11 +18,37 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+// SSRMap provides a key-value interface for server-side rendered content.
+// This allows the transformer to use either a raw sync.Map or a persistent
+// cache adapter.
+type SSRMap interface {
+	Load(key string) (any, bool)
+	Store(key string, value any)
+}
+
+// MemorySSRMap is a thread-safe in-memory implementation of SSRMap
+// using sync.Map.
+type MemorySSRMap struct {
+	m sync.Map
+}
+
+func NewMemorySSRMap() *MemorySSRMap {
+	return &MemorySSRMap{}
+}
+
+func (m *MemorySSRMap) Load(key string) (any, bool) {
+	return m.m.Load(key)
+}
+
+func (m *MemorySSRMap) Store(key string, value any) {
+	m.m.Store(key, value)
+}
+
 type unifiedTransformer struct {
 	BaseURL  string
 	Compress bool
 	Renderer *native.Renderer
-	Cache    *sync.Map
+	Cache    SSRMap
 	D2Group  *singleflight.Group
 }
 
@@ -132,10 +158,34 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 
 			if isLink {
 				t.processDestination(ln, ln.Destination, pc)
+
+				// A11y Lint: check for empty link text (no child text and no aria-label)
+				ariaLabel := getAttrValue(n, "aria-label")
+				hasText := hasTextChild(ln, source)
+				if strings.TrimSpace(ariaLabel) == "" && !hasText {
+					filePath, _ := pc.Get(ContextKeyFilePath).(string)
+					slog.Warn("A11y Lint: Link has no text or aria-label",
+						"file", filePath,
+						"href", string(ln.Destination))
+				}
 			} else {
 				t.processDestination(img, img.Destination, pc)
 				t.processImageDestination(img, img.Destination)
 				img.SetAttribute([]byte("loading"), []byte("lazy"))
+
+				// A11y Lint: check for alt text
+				var altText string
+				if n := img.FirstChild(); n != nil {
+					if textNode, ok := n.(*ast.Text); ok {
+						altText = string(textNode.Value(source))
+					}
+				}
+				if strings.TrimSpace(altText) == "" {
+					filePath, _ := pc.Get(ContextKeyFilePath).(string)
+					slog.Warn("A11y Lint: Image missing alt text",
+						"file", filePath,
+						"src", string(img.Destination))
+				}
 			}
 		}
 
@@ -251,7 +301,7 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 }
 
 func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Context, toReplace *[]replacement) {
-	results := make([]themePair, len(d2Blocks))
+	results := make([]models.SSRThemePair, len(d2Blocks))
 	var wg sync.WaitGroup
 	ctx := GetContext(pc)
 
@@ -271,9 +321,10 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 		go func(idx int) {
 			defer wg.Done()
 			b := d2Blocks[idx]
-			pairVal, exists := t.Cache.Load(b.hash)
+			key := "d2:" + b.hash
+			pairVal, exists := t.Cache.Load(key)
 			if exists {
-				if pair, ok := pairVal.(themePair); ok {
+				if pair, ok := pairVal.(models.SSRThemePair); ok {
 					results[idx] = pair
 					return
 				}
@@ -284,8 +335,8 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 
 			if t.D2Group != nil {
 				v, err, _ := t.D2Group.Do(b.hash, func() (any, error) {
-					if pairVal, exists := t.Cache.Load(b.hash); exists {
-						if pair, ok := pairVal.(themePair); ok {
+					if pairVal, exists := t.Cache.Load(key); exists {
+						if pair, ok := pairVal.(models.SSRThemePair); ok {
 							return pair, nil
 						}
 					}
@@ -294,21 +345,21 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 						if !errors.Is(err, context.Canceled) {
 							slog.Warn("D2 light render failed", "error", err)
 						}
-						return themePair{}, err
+						return models.SSRThemePair{}, err
 					}
 					darkSVG, err := t.Renderer.RenderD2(ctx, b.code, 200)
 					if err != nil {
 						if !errors.Is(err, context.Canceled) {
 							slog.Warn("D2 dark render failed", "error", err)
 						}
-						return themePair{}, err
+						return models.SSRThemePair{}, err
 					}
-					pair := themePair{light: lightSVG, dark: darkSVG}
-					t.Cache.Store(b.hash, pair)
+					pair := models.SSRThemePair{Light: lightSVG, Dark: darkSVG}
+					t.Cache.Store(key, pair)
 					return pair, nil
 				})
 				if err == nil {
-					if pair, ok := v.(themePair); ok {
+					if pair, ok := v.(models.SSRThemePair); ok {
 						results[idx] = pair
 					}
 				}
@@ -329,14 +380,14 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 
 	for i, block := range d2Blocks {
 		pair := results[i]
-		if pair.light == "" && pair.dark == "" {
+		if pair.Light == "" && pair.Dark == "" {
 			continue
 		}
 		buf := pools.SharedBufferPool.Get()
 		buf.WriteString(`<div class="d2-container" data-diagram="true"><div class="d2-light">`)
-		buf.WriteString(pair.light)
+		buf.WriteString(pair.Light)
 		buf.WriteString(`</div><div class="d2-dark">`)
-		buf.WriteString(pair.dark)
+		buf.WriteString(pair.Dark)
 		buf.WriteString(`</div><span class="zoom-hint">🔍 Click to zoom</span></div>`)
 
 		content := make([]byte, buf.Len())
@@ -414,4 +465,27 @@ func (t *unifiedTransformer) processDestination(n ast.Node, dest []byte, pc pars
 			node.Destination = newDest
 		}
 	}
+}
+
+func hasTextChild(link *ast.Link, source []byte) bool {
+	for child := link.FirstChild(); child != nil; child = child.NextSibling() {
+		if _, ok := child.(*ast.Text); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func getAttrValue(n ast.Node, key string) string {
+	attr, _ := n.AttributeString(key)
+	if attr == nil {
+		return ""
+	}
+	switch v := attr.(type) {
+	case []byte:
+		return string(v)
+	case string:
+		return v
+	}
+	return ""
 }

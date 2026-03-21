@@ -8,6 +8,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"go.etcd.io/bbolt"
+	bbolterrors "go.etcd.io/bbolt/errors"
 )
 
 // Migration represents a schema migration step
@@ -30,7 +31,7 @@ var registeredMigrations = []Migration{
 				if b == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolt.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
 				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
@@ -51,7 +52,7 @@ var registeredMigrations = []Migration{
 				if b == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolt.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
 				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
@@ -71,7 +72,7 @@ var registeredMigrations = []Migration{
 				if b == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolt.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
 				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
@@ -91,7 +92,7 @@ var registeredMigrations = []Migration{
 				if b == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolt.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
 				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
@@ -111,7 +112,7 @@ var registeredMigrations = []Migration{
 				if b == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolt.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
 				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {

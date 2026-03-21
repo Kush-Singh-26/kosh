@@ -72,7 +72,7 @@ This is the initial body.
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
@@ -206,7 +206,7 @@ Body content.
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
@@ -319,7 +319,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
@@ -414,7 +414,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
@@ -627,7 +627,7 @@ date: "2026-03-15"
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 

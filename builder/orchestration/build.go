@@ -66,18 +66,15 @@ func (b *Engine) buildAssetOnly(ctx context.Context) error {
 		b.Deps.Post.SetAssetsGate(nil)
 		b.State.ForceGenerators.Store(true)
 
-		fileChan := make(chan models.ScannedFile, 1024)
-		go func() {
-			defer close(fileChan)
-			if _, err := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.SourceFs, b.Cfg, fileChan); err != nil {
-				b.Logger.Debug("metadata scan in asset-only build error", "error", err)
-			}
-		}()
+		metadataResult, err := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.SourceFs, b.Cfg, nil)
+		if err != nil {
+			return fmt.Errorf("metadata scan failed: %w", err)
+		}
 
 		shouldForce := false
 		forceSocialRebuild := false
 		outputMissing := false
-		_, err := b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan)
+		_, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, metadataResult.Files)
 		if err != nil {
 			return fmt.Errorf("post processing failed: %w", err)
 		}

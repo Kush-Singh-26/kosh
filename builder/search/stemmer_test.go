@@ -17,7 +17,7 @@ func TestStem_Basic(t *testing.T) {
 		{"easily", "easili"},
 		{"processing", "processing"},
 		{"processed", "processed"},
-		{"processes", "processs"},
+		{"processes", "processs"}, //nolint:misspell // intentional: stemmer output for test coverage
 		{"caresses", "caresss"},
 		{"ponies", "ponii"},
 		{"caress", "caress"},
