@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -50,8 +51,8 @@ func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, sourceFs afero.Fs) {
 }
 
 // SetupBuilding starts the asset building process in a separate goroutine.
-// Returns a signal channel for readiness, a wait group for completion, and an error channel.
-func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) (<-chan struct{}, *sync.WaitGroup, <-chan error) {
+// Returns a signal channel for full readiness, discovery signal, wait group, and error channel.
+func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) (<-chan struct{}, <-chan struct{}, *sync.WaitGroup, <-chan error) {
 	m.deps.Logger.Info("Building assets...")
 	assetTimer := timeutil.StartPhase("Asset building")
 
@@ -88,7 +89,18 @@ func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []mo
 		assetTimer.Stop()
 	}()
 
-	return assetsReady, &assetWg, assetErrChan
+	// discoveryReady is populated by Build() when the image rewrite map is ready.
+	// Poll briefly so we can return it immediately to the caller.
+	var discoveryReady <-chan struct{}
+	for i := 0; i < 50; i++ {
+		if ch := m.deps.Asset.DiscoveryReady(); ch != nil {
+			discoveryReady = ch
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return assetsReady, discoveryReady, &assetWg, assetErrChan
 }
 
 // CheckChanged computes a hash of the current asset map to detect changes since last site-wide render.
