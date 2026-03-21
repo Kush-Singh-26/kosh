@@ -43,6 +43,10 @@ func (b *Engine) setupPhase(ctx context.Context) (*buildSetupResult, error) {
 		b.Metrics.Reset()
 	}
 
+	if b.Health != nil {
+		b.Health.Reset()
+	}
+
 	// Always start each full build pass with a fresh session/tracking state
 	b.refreshBuildSession()
 
@@ -335,6 +339,10 @@ func (b *Engine) finalizePhase(ctx context.Context, wasmWg *sync.WaitGroup) erro
 	b.Metrics.RecordEnd()
 	b.Logger.Info("Build complete")
 	b.Metrics.Print()
+
+	if b.Health != nil {
+		b.Health.LogSummary()
+	}
 
 	return nil
 }

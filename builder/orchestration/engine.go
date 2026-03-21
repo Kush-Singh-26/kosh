@@ -90,6 +90,9 @@ type Engine struct {
 
 	// Build-time state (separate from dependencies)
 	State EngineState
+
+	// Build health tracking
+	Health *BuildHealthRegistry
 }
 
 // BuildRequest represents a queued build request from watch mode
@@ -128,6 +131,7 @@ func NewEngineFromManual(cfg *config.Config, render services.RenderService, asse
 		SourceFs:       sourceFs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Health:         NewBuildHealthRegistry(),
 	}
 
 	// Initialize asset manager
