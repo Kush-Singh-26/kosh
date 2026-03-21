@@ -3,9 +3,9 @@ package mocks
 import (
 	"context"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 
 	"github.com/spf13/afero"
 )
@@ -52,6 +52,10 @@ func (m *MockAssetService) Build(ctx context.Context) error {
 
 func (m *MockAssetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
 	return map[string]string{}, nil
+}
+
+func (m *MockAssetService) DiscoveryReady() <-chan struct{} {
+	return m.assetsReady // For mock, discoveryReady == assetsReady (instant)
 }
 
 func (m *MockAssetService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {

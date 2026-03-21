@@ -54,6 +54,7 @@ type assetService struct {
 	metrics           *metrics.BuildMetrics
 	contentAssetsChan <-chan []models.ScannedAsset
 	assetsReady       chan struct{}
+	discoveryReady    chan struct{}
 }
 
 func NewAssetService(deps AssetServiceDependencies, opts ...AssetServiceOption) AssetService {
@@ -85,6 +86,10 @@ func (s *assetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) 
 	s.contentAssetsChan = ch
 }
 
+func (s *assetService) DiscoveryReady() <-chan struct{} {
+	return s.discoveryReady
+}
+
 type assetTask struct {
 	srcPath string
 	relPath string
@@ -93,6 +98,10 @@ type assetTask struct {
 
 func (s *assetService) Build(ctx context.Context) error {
 	g, gCtx := errgroup.WithContext(ctx)
+
+	// discoveryReady signals that the image/WebP rewrite map is populated.
+	// This allows post-processing to begin before all images are fully compressed.
+	s.discoveryReady = make(chan struct{})
 
 	// 1. Unified Asset Discovery and Copy Phase (Pipelined)
 	g.Go(func() error {
@@ -196,6 +205,11 @@ func (s *assetService) Build(ctx context.Context) error {
 		close(assetChan)
 		discoveryWg.Wait()
 
+		// Signal discovery complete so post-processing can start
+		// while image compression continues in the background
+		close(s.discoveryReady)
+		s.discoveryReady = nil // consumed, prevent reuse
+
 		if err != nil {
 			return err
 		}
@@ -209,14 +223,19 @@ func (s *assetService) Build(ctx context.Context) error {
 		esbuildTimer := timeutil.StartPhase("Asset esbuild")
 		defer esbuildTimer.Stop()
 		_, err := s.buildEsbuildAssets(false)
-		if s.assetsReady != nil {
-			close(s.assetsReady)
-			s.assetsReady = nil
-		}
 		return err
 	})
 
-	return g.Wait()
+	err := g.Wait()
+
+	// Close assetsReady signal only after ALL processing (including esbuild) is complete.
+	// This ensures RenderService waits for CSS/JS hashes before committing.
+	if s.assetsReady != nil {
+		close(s.assetsReady)
+		s.assetsReady = nil
+	}
+
+	return err
 }
 
 func (s *assetService) walkDirStreaming(ctx context.Context, dir, prefix string, concurrency int, assetChan chan<- assetTask, seen *sync.Map) error {

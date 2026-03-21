@@ -24,9 +24,10 @@ type buildSetupResult struct {
 
 // buildAssetResult holds synchronization primitives for asset building
 type buildAssetResult struct {
-	assetsReady  <-chan struct{}
-	assetWg      *sync.WaitGroup
-	assetErrChan <-chan error
+	assetsReady    <-chan struct{}
+	discoveryReady <-chan struct{} // signals when image rewrite map is populated
+	assetWg        *sync.WaitGroup
+	assetErrChan   <-chan error
 }
 
 // buildScanResult holds channels for the parallel metadata scan
@@ -80,12 +81,13 @@ func (b *Engine) setupPhase(ctx context.Context) (*buildSetupResult, error) {
 
 // assetPhase starts the asset building pipeline
 func (b *Engine) assetPhase(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) *buildAssetResult {
-	assetsReady, assetWg, assetErrChan := b.Assets.SetupBuilding(ctx, contentAssetsChan)
+	assetsReady, discoveryReady, assetWg, assetErrChan := b.Assets.SetupBuilding(ctx, contentAssetsChan)
 
 	return &buildAssetResult{
-		assetsReady:  assetsReady,
-		assetWg:      assetWg,
-		assetErrChan: assetErrChan,
+		assetsReady:    assetsReady,
+		discoveryReady: discoveryReady,
+		assetWg:        assetWg,
+		assetErrChan:   assetErrChan,
 	}
 }
 
@@ -128,12 +130,12 @@ func (b *Engine) processPhase(
 	assets *buildAssetResult,
 	scan *buildScanResult,
 ) error {
-	// Wait for scanner and assets BEFORE rendering posts.
-	// This ensures all image conversions (PNG/JPG/JPEG -> WebP) are complete
-	// and the rewrite map is populated before any HTML is rendered.
-	metadataResult, scannerErr, assetErr := b.waitForScannerAndAssets(
+	// Wait for scanner and discovery BEFORE rendering posts.
+	// This ensures the image/WebP rewrite map is populated so HTML can reference
+	// the correct paths. Image compression continues in the background while posts render.
+	metadataResult, discoveryReady, scannerErr, assetErr, _ := b.waitForScannerAndAssets(
 		scan.scannerReady, scan.metadataResultChan, scan.scannerErrChan,
-		assets.assetWg, assets.assetErrChan,
+		assets.assetWg, assets.assetErrChan, assets.discoveryReady,
 	)
 	if scannerErr != nil {
 		return fmt.Errorf("metadata scan failed: %w", scannerErr)
@@ -147,8 +149,13 @@ func (b *Engine) processPhase(
 		siteWideHas404 = true
 	}
 
-	// Set up site-wide generators
+	// Set up site-wide generators (need full asset completion)
 	runSiteWide, _ := b.setupSiteWideRendering(ctx, assets.assetsReady, setup.wasmWg, setup.forceSocialRebuild)
+
+	// Wait for discovery signal so image rewrite map is ready before post-processing
+	if discoveryReady != nil {
+		<-discoveryReady
+	}
 
 	// Process Posts (render HTML with WebP image rewrites)
 	postResult, processErr := b.processPosts(ctx, b.Cfg.ForceRebuild, setup.forceSocialRebuild, b.State.IsCleanBuild, metadataResult.Files)
@@ -221,21 +228,26 @@ func (b *Engine) createOutputDirectories() error {
 	return nil
 }
 
-// waitForScannerAndAssets waits for scanner and asset building to complete
+// waitForScannerAndAssets waits for scanner and asset building to complete.
+// The discoveryReady signal unblocks post-processing while image compression continues.
 func (b *Engine) waitForScannerAndAssets(
 	scannerReady <-chan struct{},
 	metadataResultChan <-chan *models.MetadataScannerResult,
 	scannerErrChan <-chan error,
 	assetWg *sync.WaitGroup,
 	assetErrChan <-chan error,
-) (*models.MetadataScannerResult, error, error) {
+	discoveryReady <-chan struct{},
+) (*models.MetadataScannerResult, <-chan struct{}, error, error, error) {
 	<-scannerReady
 
 	// Receive scanner result and error
 	metadataResult := <-metadataResultChan
 	scannerErr := <-scannerErrChan
 
-	assetWg.Wait()
+	// Return discoveryReady separately so post-processing can unblock on it.
+	// The caller will wait for assetWg separately if needed.
+	discoverySignal := discoveryReady
+
 	var assetErr error
 	select {
 	case err := <-assetErrChan:
@@ -243,7 +255,7 @@ func (b *Engine) waitForScannerAndAssets(
 	default:
 	}
 
-	return metadataResult, scannerErr, assetErr
+	return metadataResult, discoverySignal, scannerErr, assetErr, nil
 }
 
 // waitForSiteWideRendering waits for site-wide generators and renders 404 if needed

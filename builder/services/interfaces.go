@@ -246,7 +246,8 @@ type AssetServiceDependencies struct {
 //   - ReconfigureForBuild: not thread-safe, call before build starts
 //
 // Channel Ownership:
-//   - AssetsReadySignal: owned by AssetService, closed when assets are ready
+//   - DiscoveryReady: closed by Build() when image rewrite map is populated (discovery done)
+//   - AssetsReadySignal: closed by Build() when all asset processing is complete
 //   - ContentAssetsChannel: owned by caller (Scanner), AssetService reads only
 type AssetService interface {
 	// ReconfigureForBuild updates sink and source for a new build pass.
@@ -264,9 +265,16 @@ type AssetService interface {
 	SetContentAssetsChannel(ch <-chan []models.ScannedAsset)
 
 	// Build processes all assets (CSS/JS bundle, images, static files).
-	// Closes the AssetsReadySignal channel when complete.
+	// Closes the DiscoveryReady channel first (when rewrite map is populated),
+	// then closes the AssetsReadySignal channel when all processing is complete.
 	// Returns error for critical failures (esbuild hung, disk full).
 	Build(ctx context.Context) error
+
+	// DiscoveryReady returns a channel that is closed when asset discovery is complete
+	// and the image/WebP rewrite map is populated. Callers can wait on this channel
+	// to unblock post-processing before all images are fully compressed.
+	// Safe to call after Build() returns. Returns nil if Build() has not been called.
+	DiscoveryReady() <-chan struct{}
 
 	// BuildForAssetChange processes a single changed asset.
 	// Returns updated asset map for incremental HTML rerender.
