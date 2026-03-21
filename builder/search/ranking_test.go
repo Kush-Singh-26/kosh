@@ -10,16 +10,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
-type rankingTestCase struct {
-	name           string
-	query          string
-	versionFilter  string
-	setup          func() *models.SearchIndex
-	wantTopN       []uint64
-	wantFirst      uint64
-	wantScoreOrder bool
-}
-
 func buildRankingIndex() *models.SearchIndex {
 	posts := map[string]models.PostRecord{
 		"0": {
