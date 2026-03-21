@@ -54,6 +54,18 @@ func Stem(word string) string {
 	return stem(word)
 }
 
+// StemTerms applies stemming to a slice of terms
+func StemTerms(terms []string) []string {
+	if len(terms) == 0 {
+		return nil
+	}
+	result := make([]string, len(terms))
+	for i, term := range terms {
+		result[i] = StemCached(term)
+	}
+	return result
+}
+
 // stem is the internal stemming implementation
 func stem(word string) string {
 	if len(word) <= 2 {
