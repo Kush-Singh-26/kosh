@@ -94,6 +94,11 @@ func (m *mockArtifactSink) Register(path string) {
 	m.writtenFiles.Store(path, true)
 }
 
+func (m *mockArtifactSink) SetMtime(path string, mtime time.Time) error { return nil }
+func (m *mockArtifactSink) Stat(path string) (os.FileInfo, error) {
+	return nil, os.ErrNotExist
+}
+
 func (m *mockArtifactSink) GetWrittenFiles() map[string]bool {
 	res := make(map[string]bool)
 	m.writtenFiles.Range(func(key, value any) bool {

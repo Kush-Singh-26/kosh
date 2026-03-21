@@ -2,6 +2,8 @@ package fs
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -51,6 +53,27 @@ func (s *MemSink) CopyFile(src, dst string) error {
 }
 
 func (s *MemSink) SetMtime(path string, mtime time.Time) error { return nil }
+
+func (s *MemSink) Stat(path string) (os.FileInfo, error) {
+	data, ok := s.Files.Load(path)
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	b := data.([]byte)
+	return &memFileInfo{name: filepath.Base(path), size: int64(len(b))}, nil
+}
+
+type memFileInfo struct {
+	name string
+	size int64
+}
+
+func (f *memFileInfo) Name() string       { return f.name }
+func (f *memFileInfo) Size() int64        { return f.size }
+func (f *memFileInfo) Mode() os.FileMode  { return 0644 }
+func (f *memFileInfo) ModTime() time.Time { return time.Now() }
+func (f *memFileInfo) IsDir() bool        { return false }
+func (f *memFileInfo) Sys() any           { return nil }
 
 type byteBuffer struct {
 	data []byte

@@ -123,9 +123,12 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 
 	if b.Cfg.Features.Generators.Search && indexedPosts != nil {
 		g.Go(func() error {
-			searchPath, err := generators.GenerateSearchIndex(b.Sink, indexedPosts)
+			searchPath, size, err := generators.GenerateSearchIndex(b.Sink, indexedPosts)
 			if err == nil {
 				b.Deps.Render.RegisterFile(searchPath)
+				if b.Health != nil {
+					b.Health.RecordSearchStats(int64(len(indexedPosts)), size)
+				}
 			} else {
 				b.Logger.Error("Failed to generate search index", "error", err)
 				return err

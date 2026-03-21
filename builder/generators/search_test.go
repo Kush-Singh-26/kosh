@@ -24,13 +24,13 @@ func TestGenerateSearchIndex(t *testing.T) {
 				Content: "Body of post 1",
 			},
 			DocLen: 4,
-			PositionalIndex: map[string][]int{
+			PositionalIndex: map[string][]uint32{
 				"body": {0},
 				"post": {2},
 			},
-			ByteOffsets: map[string][]int{
+			ByteOffsets: map[string][]uint32{
 				"body": {0, 4},
-				"post": {8, 12},
+				"post": {8, 4}, // Format: [start1, length1, start2-start1, length2, ...]
 			},
 			StemMap: map[string]string{
 				"body": "body",
@@ -39,9 +39,13 @@ func TestGenerateSearchIndex(t *testing.T) {
 		},
 	}
 
-	resultPath, err := GenerateSearchIndex(sink, indexedPosts)
+	resultPath, size, err := GenerateSearchIndex(sink, indexedPosts)
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed: %v", err)
+	}
+
+	if size == 0 {
+		t.Error("Expected non-zero size")
 	}
 
 	expectedPath := "search.bin"
@@ -92,7 +96,7 @@ func TestGenerateSearchIndex(t *testing.T) {
 
 func TestGenerateSearchIndex_Empty(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, err := GenerateSearchIndex(sink, []models.IndexedPost{})
+	_, _, err := GenerateSearchIndex(sink, []models.IndexedPost{})
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with empty posts: %v", err)
 	}
@@ -116,7 +120,7 @@ func TestGenerateSearchIndex_Empty(t *testing.T) {
 
 func TestGenerateSearchIndex_Nil(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, err := GenerateSearchIndex(sink, nil)
+	_, _, err := GenerateSearchIndex(sink, nil)
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with nil posts: %v", err)
 	}

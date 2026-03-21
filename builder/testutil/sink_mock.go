@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -57,6 +58,18 @@ func (m *MemSink) WriteHardlink(src, dst string) (bool, error) {
 	return false, nil
 }
 func (m *MemSink) SetMtime(path string, mtime time.Time) error { return nil }
+
+func (m *MemSink) Stat(path string) (os.FileInfo, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	path = filepath.ToSlash(path)
+	data, ok := m.Files[path]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return &memFileInfo{name: filepath.Base(path), size: int64(len(data))}, nil
+}
+
 func (m *MemSink) CopyFile(src, dst string) error {
 	dst = filepath.ToSlash(dst)
 	m.mu.Lock()
@@ -86,6 +99,18 @@ func (m *MockTransaction) Commit(ctx context.Context) error {
 func (m *MockTransaction) Rollback() error             { return nil }
 func (m *MockTransaction) GetLastBuildTime() time.Time { return time.Time{} }
 
+type memFileInfo struct {
+	name string
+	size int64
+}
+
+func (f *memFileInfo) Name() string       { return f.name }
+func (f *memFileInfo) Size() int64        { return f.size }
+func (f *memFileInfo) Mode() os.FileMode  { return 0644 }
+func (f *memFileInfo) ModTime() time.Time { return time.Now() }
+func (f *memFileInfo) IsDir() bool        { return false }
+func (f *memFileInfo) Sys() any           { return nil }
+
 // FailingSink is a sink that always returns errors
 type FailingSink struct {
 	MemSink
@@ -102,4 +127,8 @@ func (f *FailingSink) WriteStream(path string, fn func(io.Writer) error) error {
 
 func (f *FailingSink) MkdirAll(path string) error {
 	return f.Err
+}
+
+func (f *FailingSink) Stat(path string) (os.FileInfo, error) {
+	return nil, f.Err
 }

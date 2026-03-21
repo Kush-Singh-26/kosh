@@ -53,6 +53,10 @@ type BuildHealthRegistry struct {
 	slowPhases     atomic.Int64
 	criticalEvents atomic.Int64
 
+	// Search metrics
+	searchDocs atomic.Int64
+	searchSize atomic.Int64 // in bytes
+
 	// Timing
 	startTime time.Time
 }
@@ -74,6 +78,8 @@ func (r *BuildHealthRegistry) Reset() {
 	r.rollbacks.Store(0)
 	r.slowPhases.Store(0)
 	r.criticalEvents.Store(0)
+	r.searchDocs.Store(0)
+	r.searchSize.Store(0)
 	r.startTime = time.Now()
 }
 
@@ -129,6 +135,11 @@ func (r *BuildHealthRegistry) RecordRollback(msg string) {
 	}
 	r.rollbacks.Add(1)
 	r.recordEvent(event)
+}
+
+func (r *BuildHealthRegistry) RecordSearchStats(docs int64, size int64) {
+	r.searchDocs.Store(docs)
+	r.searchSize.Store(size)
 }
 
 func (r *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Duration) {
@@ -207,6 +218,8 @@ type BuildHealthReport struct {
 	HealthScore    int           `json:"health_score"`
 	HealthLevel    string        `json:"health_level"`
 	EventCount     int           `json:"event_count"`
+	SearchDocs     int64         `json:"search_docs"`
+	SearchSize     int64         `json:"search_size"`
 }
 
 func (r *BuildHealthRegistry) Report() BuildHealthReport {
@@ -217,6 +230,8 @@ func (r *BuildHealthRegistry) Report() BuildHealthReport {
 	retries := r.retries.Load()
 	rollbacks := r.rollbacks.Load()
 	slowPhases := r.slowPhases.Load()
+	searchDocs := r.searchDocs.Load()
+	searchSize := r.searchSize.Load()
 
 	healthScore := 100
 	if rollbacks > 0 {
@@ -259,6 +274,8 @@ func (r *BuildHealthRegistry) Report() BuildHealthReport {
 		HealthScore:    healthScore,
 		HealthLevel:    healthLevel,
 		EventCount:     eventCount,
+		SearchDocs:     searchDocs,
+		SearchSize:     searchSize,
 	}
 }
 
@@ -273,7 +290,9 @@ func (r *BuildHealthRegistry) LogSummary() {
 			"rollbacks", report.Rollbacks,
 			"slow_phases", report.SlowPhases,
 			"health_score", report.HealthScore,
-			"health_level", report.HealthLevel)
+			"health_level", report.HealthLevel,
+			"search_docs", report.SearchDocs,
+			"search_size_kb", report.SearchSize/1024)
 	}
 
 	if report.HealthLevel == "critical" {

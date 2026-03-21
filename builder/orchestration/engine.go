@@ -148,6 +148,7 @@ func NewEngineFromManual(cfg *config.Config, render services.RenderService, asse
 	b.Search = search.NewManager(search.ManagerDependencies{
 		Cfg:    cfg,
 		Logger: logger,
+		Health: b.Health,
 	})
 	if render != nil {
 		b.Search.Reconfigure(nil, render)

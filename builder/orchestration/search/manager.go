@@ -20,6 +20,7 @@ type Manager struct {
 	cfg    *config.Config
 	cache  services.CacheService
 	logger *slog.Logger
+	health HealthRegistry
 
 	sink   fspkg.ArtifactSink
 	render services.RenderService
@@ -28,10 +29,15 @@ type Manager struct {
 	indexedPosts []models.IndexedPost
 }
 
+type HealthRegistry interface {
+	RecordSearchStats(docs int64, size int64)
+}
+
 type ManagerDependencies struct {
 	Cfg    *config.Config
 	Cache  services.CacheService
 	Logger *slog.Logger
+	Health HealthRegistry
 }
 
 func NewManager(deps ManagerDependencies) *Manager {
@@ -39,6 +45,7 @@ func NewManager(deps ManagerDependencies) *Manager {
 		cfg:    deps.Cfg,
 		cache:  deps.Cache,
 		logger: deps.Logger,
+		health: deps.Health,
 	}
 }
 
@@ -138,11 +145,15 @@ func (m *Manager) RegenerateIndex(ctx context.Context) error {
 	m.indexedPosts = indexedPosts
 	m.mu.Unlock()
 
-	path, err := generators.GenerateSearchIndex(sink, indexedPosts)
+	path, size, err := generators.GenerateSearchIndex(sink, indexedPosts)
 	if err != nil {
 		return err
 	}
 	render.RegisterFile(path)
+
+	if m.health != nil {
+		m.health.RecordSearchStats(int64(len(indexedPosts)), size)
+	}
 
 	return nil
 }
