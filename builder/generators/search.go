@@ -13,7 +13,7 @@ import (
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/search"
+	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
 func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedPost) (string, error) {
@@ -203,7 +203,7 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 		index.StemMap[stem] = origins
 	}
 
-	index.NgramIndex = search.BuildNgramIndex(index.Inverted)
+	index.NgramIndex = core.BuildNgramIndex(index.Inverted)
 
 	outputPath := "search.bin"
 	err := sink.WriteStream(outputPath, func(w io.Writer) error {

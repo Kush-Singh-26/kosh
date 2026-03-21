@@ -1,4 +1,4 @@
-package search
+package core
 
 import (
 	"runtime"
@@ -182,7 +182,7 @@ func FuzzyExpand(term string, inverted map[string]map[string][]int, maxDist int)
 // FuzzyExpandWithNgrams uses n-gram index for faster fuzzy candidate generation
 func FuzzyExpandWithNgrams(term string, ngramIndex map[string][]string, maxDist int) []string {
 	// Generate trigrams for the term
-	trigrams := generateTrigrams(term)
+	trigrams := GenerateTrigrams(term)
 
 	// Count how many trigrams each candidate shares
 	candidateScores := make(map[string]int)
@@ -211,9 +211,9 @@ func FuzzyExpandWithNgrams(term string, ngramIndex map[string][]string, maxDist 
 	return results
 }
 
-// generateTrigrams creates trigram (3-character) sequences from a word
+// GenerateTrigrams creates trigram (3-character) sequences from a word
 // Uses a byte-slice approach for ASCII strings to reduce allocations
-func generateTrigrams(word string) []string {
+func GenerateTrigrams(word string) []string {
 	n := len(word)
 
 	// Fast path for ASCII strings (common case)
@@ -278,7 +278,7 @@ func BuildNgramIndex(inverted map[string]map[string][]int) map[string][]string {
 
 			for j := start; j < end; j++ {
 				term := terms[j]
-				trigrams := generateTrigrams(term)
+				trigrams := GenerateTrigrams(term)
 				for _, tg := range trigrams {
 					localNgram[tg] = append(localNgram[tg], term)
 				}

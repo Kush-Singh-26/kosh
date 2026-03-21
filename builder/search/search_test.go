@@ -3,6 +3,8 @@ package search
 import (
 	"strings"
 	"testing"
+
+	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
 func TestStemmer(t *testing.T) {
@@ -70,7 +72,7 @@ func TestStemmer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := Stem(tt.input)
+			result := core.Stem(tt.input)
 			if len(result) == 0 {
 				t.Errorf("Stem(%q) returned empty string", tt.input)
 			}
@@ -91,7 +93,7 @@ func TestStemmerConsistency(t *testing.T) {
 	for _, group := range wordGroups {
 		stems := make(map[string]bool)
 		for _, word := range group {
-			stems[Stem(word)] = true
+			stems[core.Stem(word)] = true
 		}
 		if len(stems) > 2 {
 			t.Errorf("Words %v produced too many different stems: %v", group, stems)
@@ -134,7 +136,7 @@ func TestAnalyzer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := DefaultAnalyzer.Analyze(tt.input)
+			result := core.DefaultAnalyzer.Analyze(tt.input)
 
 			for _, want := range tt.contains {
 				found := false
@@ -179,7 +181,7 @@ func TestLevenshteinDistance(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.a+"_"+tt.b, func(t *testing.T) {
-			result := LevenshteinDistance(tt.a, tt.b)
+			result := core.LevenshteinDistance(tt.a, tt.b)
 			if result != tt.expected {
 				t.Errorf("LevenshteinDistance(%q, %q) = %d, want %d", tt.a, tt.b, result, tt.expected)
 			}
@@ -208,7 +210,7 @@ func TestFuzzyMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.term+"_"+tt.target, func(t *testing.T) {
-			result := FuzzyMatch(tt.term, tt.target, tt.maxDist)
+			result := core.FuzzyMatch(tt.term, tt.target, tt.maxDist)
 			if result != tt.expected {
 				t.Errorf("FuzzyMatch(%q, %q, %d) = %v, want %v", tt.term, tt.target, tt.maxDist, result, tt.expected)
 			}
@@ -249,7 +251,7 @@ func TestParseQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ParseQuery(tt.query)
+			result := core.ParseQuery(tt.query)
 
 			for _, want := range tt.wantTerms {
 				found := false
@@ -268,7 +270,7 @@ func TestParseQuery(t *testing.T) {
 				found := false
 				for _, got := range result.Phrases {
 					// Compare tokenized phrase
-					if strings.Join(got, " ") == strings.Join(DefaultAnalyzer.Analyze(want), " ") {
+					if strings.Join(got, " ") == strings.Join(core.DefaultAnalyzer.Analyze(want), " ") {
 						found = true
 						break
 					}
@@ -293,7 +295,7 @@ func TestTrigramGeneration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := generateTrigrams(tt.input)
+			result := core.GenerateTrigrams(tt.input)
 			if len(result) != len(tt.expected) {
 				t.Errorf("generateTrigrams(%q) returned %d trigrams, want %d", tt.input, len(result), len(tt.expected))
 				return
@@ -309,7 +311,7 @@ func TestTrigramGeneration(t *testing.T) {
 
 func TestAnalyzerWithPositions(t *testing.T) {
 	input := "the quick brown fox"
-	_, _, positions, offsets := DefaultAnalyzer.AnalyzeWithPositions(input)
+	_, _, positions, offsets := core.DefaultAnalyzer.AnalyzeWithPositions(input)
 
 	// "the" is a stop word, it should have a position (0) but not be in the results?
 	// Wait, my implementation skips stop words from results but INCREMENTS idx.
@@ -345,14 +347,14 @@ func TestStopWords(t *testing.T) {
 	stopWordList := []string{"the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "shall", "can", "need", "dare", "ought", "used", "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into", "through", "during", "before", "after", "above", "below", "between", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "just", "also"}
 
 	for _, word := range stopWordList {
-		if !IsStopWord(word) {
+		if !core.IsStopWord(word) {
 			t.Errorf("IsStopWord(%q) = false, want true", word)
 		}
 	}
 
 	nonStopWords := []string{"machine", "learning", "transformer", "neural", "network", "optimization"}
 	for _, word := range nonStopWords {
-		if IsStopWord(word) {
+		if core.IsStopWord(word) {
 			t.Errorf("IsStopWord(%q) = true, want false", word)
 		}
 	}

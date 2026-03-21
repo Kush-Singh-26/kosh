@@ -1,6 +1,6 @@
 //go:build !js || !wasm
 
-package search
+package core
 
 import (
 	"html"
