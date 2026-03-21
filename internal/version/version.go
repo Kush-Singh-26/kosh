@@ -31,20 +31,20 @@ func RunFs(vfs afero.Fs, args []string) {
 
 	cfg := loadConfigFs(vfs)
 	if cfg == nil {
-		fmt.Println("❌ Error: Could not load kosh.yaml")
+		slog.Error("Could not load kosh.yaml")
 		return
 	}
 
 	for _, v := range cfg.Versions {
 		if v.Name == versionName {
-			fmt.Printf("❌ Error: Version '%s' already exists in kosh.yaml\n", versionName)
+			slog.Error("Version already exists", "version", versionName)
 			return
 		}
 	}
 
 	latestIdx, latestVersion := findLatestVersion(cfg)
 	if latestVersion == nil {
-		fmt.Println("❌ Error: No current 'latest' version found in config")
+		slog.Error("No current 'latest' version found in config")
 		return
 	}
 
@@ -84,20 +84,20 @@ func RunFs(vfs afero.Fs, args []string) {
 		frozenDestDir := filepath.Join("content", frozenPath)
 		if exists, _ := afero.Exists(vfs, frozenDestDir); exists {
 			if versionPaths[frozenPath] {
-				fmt.Printf("❌ Error: Directory '%s' already exists and is registered as a version\n", frozenDestDir)
+				slog.Error("Directory already exists and is registered as a version", "dir", frozenDestDir)
 				return
 			}
-			fmt.Printf("⚠️  Warning: Directory '%s' exists but is not registered. Renaming to backup...\n", frozenDestDir)
+			slog.Warn("Directory exists but is not registered. Renaming to backup...", "dir", frozenDestDir)
 			backupDir := frozenDestDir + ".backup"
 			if err := vfs.Rename(frozenDestDir, backupDir); err != nil {
-				fmt.Printf("❌ Error: Could not rename existing directory: %v\n", err)
+				slog.Error("Could not rename existing directory", "error", err)
 				return
 			}
-			fmt.Printf("   Backup created at: %s\n", backupDir)
+			slog.Info("Backup created", "path", backupDir)
 		}
-		fmt.Printf("📸 Freezing version %s to content/%s/...\n", latestVersion.Name, frozenPath)
+		slog.Info("Freezing version", "version", latestVersion.Name, "path", "content/"+frozenPath+"/")
 		if err := snapshotContentFs(vfs, frozenDestDir, frozenSourceDir, cfg); err != nil {
-			fmt.Printf("❌ Error during snapshot: %v\n", err)
+			slog.Error("Error during snapshot", "error", err)
 			return
 		}
 	}
@@ -105,48 +105,47 @@ func RunFs(vfs afero.Fs, args []string) {
 	// Handle new version folder creation (all-in-folders style)
 	if newVersionDir != "" {
 		if exists, _ := afero.Exists(vfs, newVersionDir); exists {
-			fmt.Printf("❌ Error: Directory '%s' already exists\n", newVersionDir)
+			slog.Error("Directory already exists", "dir", newVersionDir)
 			return
 		}
 		// Copy from current latest version
 		sourceDir := filepath.Join("content", latestVersion.Path)
-		fmt.Printf("📸 Creating new version %s at content/%s/...\n", versionName, versionName)
+		slog.Info("Creating new version", "version", versionName, "path", "content/"+versionName+"/")
 		if err := snapshotContentFs(vfs, newVersionDir, sourceDir, cfg); err != nil {
-			fmt.Printf("❌ Error creating new version: %v\n", err)
+			slog.Error("Error creating new version", "error", err)
 			return
 		}
 	}
 
-	fmt.Printf("📝 Updating version configuration...\n")
+	slog.Info("Updating version configuration...")
 
 	if err := updateVersionConfigFs(vfs, cfg, latestIdx, versionName, frozenPath, newVersionPath); err != nil {
-		fmt.Printf("❌ Error updating kosh.yaml: %v\n", err)
+		slog.Error("Error updating kosh.yaml", "error", err)
 		return
 	}
 
-	fmt.Printf("\n✅ Version transition complete!\n")
+	slog.Info("Version transition complete")
 	if latestVersion.Path != "" {
-		fmt.Printf("   Previous latest: %s (content/%s/) → frozen\n", latestVersion.Name, latestVersion.Path)
-		fmt.Printf("   New working version: %s (content/%s/)\n", versionName, versionName)
+		slog.Info("Previous latest frozen", "name", latestVersion.Name, "path", latestVersion.Path)
+		slog.Info("New working version", "name", versionName, "path", versionName)
 	} else {
-		fmt.Printf("   Previous latest: %s → frozen at content/%s/\n", latestVersion.Name, frozenPath)
-		fmt.Printf("   New working version: %s (content/ root)\n", versionName)
+		slog.Info("Previous latest frozen", "name", latestVersion.Name, "path", frozenPath)
+		slog.Info("New working version", "name", versionName, "path", "root")
 	}
-	fmt.Printf("   Config updated with proper version ordering\n")
+	slog.Info("Config updated with proper version ordering")
 }
 
 func printVersionInfoFs(fs afero.Fs) {
 	cfg := loadConfigFs(fs)
 	if cfg == nil {
-		fmt.Println("❌ Error: Could not load kosh.yaml")
+		slog.Error("Could not load kosh.yaml")
 		return
 	}
 
-	fmt.Println("📚 Version Information")
-	fmt.Println("======================")
+	slog.Info("Version Information")
 
 	if len(cfg.Versions) == 0 {
-		fmt.Println("   No versions configured")
+		slog.Info("No versions configured")
 		return
 	}
 
@@ -159,17 +158,13 @@ func printVersionInfoFs(fs afero.Fs) {
 		if path == "" {
 			path = "(root)"
 		}
-		fmt.Printf("%s %d. %s - %s", marker, i+1, v.Name, path)
-		if v.IsLatest {
-			fmt.Printf(" [LATEST]")
-		}
-		fmt.Println()
+		slog.Info(fmt.Sprintf("%s %d. %s - %s", marker, i+1, v.Name, path), "latest", v.IsLatest)
 	}
 
 	_, latest := findLatestVersion(cfg)
 	if latest != nil {
-		fmt.Printf("\n💡 Current working version: %s\n", latest.Name)
-		fmt.Println("   Edit files in content/ to update this version")
+		slog.Info("Current working version", "name", latest.Name)
+		slog.Info("Edit files in content/ to update this version")
 	}
 }
 

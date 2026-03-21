@@ -62,8 +62,6 @@ func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
 	}
 	// Seed the directory cache with the staging and real output roots.
 	// Use lowercase for case-insensitive matching in the cache.
-	s.dirCache.Store(strings.ToLower(sDir), true)
-	s.dirCache.Store(strings.ToLower(rDir), true)
 	return s
 }
 
@@ -73,49 +71,44 @@ func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
 	}
 
 	cleanP := NormalizePath(p)
-	var resolved string
-
+	
+	// Resolve to absolute path for robust comparison
+	var absP string
 	if filepath.IsAbs(filepath.FromSlash(cleanP)) {
-		// Resolve and validate absolute paths before checking prefixes
-		resolvedAbs, err := filepath.Abs(filepath.FromSlash(cleanP))
+		absP = cleanP
+	} else {
+		var err error
+		absP, err = filepath.Abs(filepath.FromSlash(cleanP))
 		if err != nil {
 			return "", err
 		}
-		resolvedAbs = NormalizePath(resolvedAbs)
+		absP = NormalizePath(absP)
+	}
+	
+	absPLower := strings.ToLower(absP)
+	var resolved string
 
-		// Check if the resolved path is within allowed roots
-		if isInsideDir(resolvedAbs, s.realOutputDirLower) {
-			rel, err := filepath.Rel(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(resolvedAbs))
-			if err != nil {
-				return "", err
-			}
-			resolved = s.fastJoinStaging(NormalizePath(rel))
-		} else if isInsideDir(resolvedAbs, s.stagingDirLower) {
-			resolved = resolvedAbs
-		} else {
-			return "", fmt.Errorf("refusing to write outside output roots: %s", p)
+	if isInsideDir(absPLower, s.stagingDirLower) {
+		resolved = absP
+	} else if isInsideDir(absPLower, s.realOutputDirLower) {
+		rel, err := filepath.Rel(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(absP))
+		if err != nil {
+			return "", err
 		}
+		resolved = s.fastJoinStaging(NormalizePath(rel))
+	} else if !filepath.IsAbs(filepath.FromSlash(cleanP)) {
+		// If it was relative and NOT inside realOutputDir, we assume it's relative to staging root
+		resolved = s.fastJoinStaging(cleanP)
 	} else {
-		// If it's a relative path starting with realOutputDir, relativize it
-		if isInsideDir(cleanP, s.realOutputDirLower) {
-			rel, err := filepath.Rel(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(cleanP))
-			if err == nil {
-				resolved = s.fastJoinStaging(NormalizePath(rel))
-			} else {
-				resolved = s.fastJoinStaging(cleanP)
-			}
-		} else {
-			resolved = s.fastJoinStaging(cleanP)
-		}
+		return "", fmt.Errorf("refusing to write outside output roots: %s", p)
 	}
 
 	s.pathCache.Store(p, resolved)
 	return resolved, nil
 }
 
-// isInsideDir checks if path is inside dirLower (which must be lowercase and normalized)
-func isInsideDir(path, dirLower string) bool {
-	pathLower := strings.ToLower(path)
+// isInsideDir checks if pathLower is inside dirLower (both must be lowercase and normalized)
+func isInsideDir(pathLower, dirLower string) bool {
 	if pathLower == dirLower {
 		return true
 	}
@@ -123,7 +116,7 @@ func isInsideDir(path, dirLower string) bool {
 		return false
 	}
 	// Ensure it's a sub-path, not just a prefix (e.g. /public and /public-data)
-	return len(path) > len(dirLower) && (path[len(dirLower)] == '/' || path[len(dirLower)] == '\\')
+	return len(pathLower) > len(dirLower) && (pathLower[len(dirLower)] == '/' || pathLower[len(dirLower)] == '\\')
 }
 
 func (s *DiskSink) fastJoinStaging(rel string) string {
@@ -137,45 +130,43 @@ func (s *DiskSink) fastJoinStaging(rel string) string {
 	return sb.String()
 }
 
-// hasPrefixCaseInsensitive checks if s starts with prefixLower (which must be lowercase).
-func hasPrefixCaseInsensitive(s, prefixLower string) bool {
-	if len(s) < len(prefixLower) {
-		return false
-	}
-	for i := 0; i < len(prefixLower); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c |= 0x20 // Fast ASCII lowercase
-		}
-		if c != prefixLower[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func (s *DiskSink) Register(p string) {
 	if cached, ok := s.regCache.Load(p); ok {
 		s.writtenPaths.Store(cached.(string), true)
 		return
 	}
 
-	// Keep track of the final output path (real path) for orphan cleanup and syncing
 	cleanP := NormalizePath(p)
 	var finalPath string
-	if !filepath.IsAbs(filepath.FromSlash(cleanP)) {
-		finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(cleanP)))
+	
+	// Resolve to absolute path for consistent tracking
+	var absP string
+	if filepath.IsAbs(filepath.FromSlash(cleanP)) {
+		absP = cleanP
 	} else {
-		if hasPrefixCaseInsensitive(cleanP, s.stagingDirLower) {
-			rel := cleanP[len(s.stagingDir):]
-			if len(rel) > 0 && rel[0] == '/' {
-				rel = rel[1:]
-			}
-			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(rel)))
+		var err error
+		absP, err = filepath.Abs(filepath.FromSlash(cleanP))
+		if err != nil {
+			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(cleanP)))
 		} else {
-			finalPath = cleanP
+			absP = NormalizePath(absP)
 		}
 	}
+	
+	if absP != "" {
+		absPLower := strings.ToLower(absP)
+		if isInsideDir(absPLower, s.stagingDirLower) {
+			rel, _ := filepath.Rel(filepath.FromSlash(s.stagingDir), filepath.FromSlash(absP))
+			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(rel)))
+		} else if isInsideDir(absPLower, s.realOutputDirLower) {
+			finalPath = absP
+		} else if !filepath.IsAbs(filepath.FromSlash(cleanP)) {
+			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(cleanP)))
+		} else {
+			finalPath = absP
+		}
+	}
+
 	finalPathOS := filepath.FromSlash(finalPath)
 	s.regCache.Store(p, finalPathOS)
 	s.writtenPaths.Store(finalPathOS, true)

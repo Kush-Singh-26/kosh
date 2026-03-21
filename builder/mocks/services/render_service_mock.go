@@ -4,8 +4,8 @@ import (
 	"html/template"
 	"sync"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 
 	"github.com/spf13/afero"
 )
@@ -119,4 +119,9 @@ func (m *MockRenderService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afer
 	m.recordCall("ReconfigureForBuild")
 	m.Sink = sink
 	m.SourceFs = fs
+}
+
+func (m *MockRenderService) Has404Template() bool {
+	m.recordCall("Has404Template")
+	return true
 }

@@ -55,6 +55,9 @@ func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []mo
 	m.deps.Logger.Info("Building assets...")
 	assetTimer := timeutil.StartPhase("Asset building")
 
+	// Reset converted image tracking so rewrite is fresh for this build
+	fspkg.ResetConvertedImages()
+
 	// Reset rendered assets in memory before starting fresh build pass
 	m.deps.Render.SetAssets(map[string]string{})
 
@@ -135,11 +138,11 @@ func (m *Manager) WaitForAvailability(ctx context.Context, assetsReady <-chan st
 }
 
 // BuildAssetOnly handles incremental CSS/JS changes by rebuilding assets and re-triggering post processing.
-// This is used for fast feedback when only styling/scripting changes.
 func (m *Manager) BuildAssetOnly(ctx context.Context, buildPass func(ctx context.Context) error) error {
 	if m.deps.Metrics != nil {
 		m.deps.Metrics.Reset()
 	}
+	fspkg.ResetConvertedImages()
 	m.deps.Render.SetAssets(map[string]string{})
 
 	m.deps.Logger.Info("Building assets...")

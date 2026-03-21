@@ -115,3 +115,7 @@ func (s *renderService) ClearRenderedFiles() {
 func (s *renderService) ReloadTemplates() {
 	s.rnd.ReloadTemplates()
 }
+
+func (s *renderService) Has404Template() bool {
+	return s.rnd.Has404Template()
+}

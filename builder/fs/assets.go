@@ -197,6 +197,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 				return fmt.Errorf("failed to compute relative path for %s: %w", fullPath, err)
 			}
 			vfsPath := filepath.Join(destDir, relPath)
+			vfsPath = normalizeEsbuildHashCase(vfsPath)
 
 			dir := filepath.Dir(vfsPath)
 			if err := sink.MkdirAll(dir); err != nil {
@@ -216,6 +217,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 				// rel is css/main.css
 				rel, err := filepath.Rel(destDir, vfsPath)
 				if err == nil {
+					rel = normalizeEsbuildHashCase(rel)
 					cacheFile := filepath.Join(cachePath, rel)
 					_ = os.MkdirAll(filepath.Dir(cacheFile), 0755)
 					_ = os.WriteFile(cacheFile, outFile.Contents, 0644)

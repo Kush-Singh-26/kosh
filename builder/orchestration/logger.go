@@ -69,6 +69,8 @@ type consoleHandler struct {
 	output     io.Writer
 	mu         sync.Mutex
 	timeFormat string
+	attrs      []slog.Attr
+	group      string
 }
 
 func NewConsoleHandler(output io.Writer) *consoleHandler {
@@ -93,6 +95,12 @@ func (h *consoleHandler) Handle(ctx context.Context, r slog.Record) error {
 	fmt.Fprintf(h.output, "\033[90m%s\033[0m %s ", timeStr, color)
 	h.writeMessage(r.Message)
 
+	// Write handler attributes
+	for _, a := range h.attrs {
+		h.writeAttr(a)
+	}
+
+	// Write record attributes
 	if r.NumAttrs() > 0 {
 		r.Attrs(func(a slog.Attr) bool {
 			h.writeAttr(a)
@@ -105,7 +113,11 @@ func (h *consoleHandler) Handle(ctx context.Context, r slog.Record) error {
 }
 
 func (h *consoleHandler) writeMessage(msg string) {
-	fmt.Fprintf(h.output, "%s", msg)
+	if h.group != "" {
+		fmt.Fprintf(h.output, "[\033[1m%s\033[0m] %s", h.group, msg)
+	} else {
+		fmt.Fprintf(h.output, "%s", msg)
+	}
 }
 
 func (h *consoleHandler) writeAttr(a slog.Attr) {
@@ -125,17 +137,35 @@ func (h *consoleHandler) writeAttr(a slog.Attr) {
 		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.Duration())
 	case slog.KindTime:
 		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.Time().Format(time.RFC3339))
+	case slog.KindGroup:
+		attrs := value.Group()
+		for _, ga := range attrs {
+			h.writeAttr(ga)
+		}
 	default:
 		fmt.Fprintf(h.output, " \033[36m%s\033[0m=%v", a.Key, value)
 	}
 }
 
 func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return h
+	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
+	copy(newAttrs, h.attrs)
+	copy(newAttrs[len(h.attrs):], attrs)
+	return &consoleHandler{
+		output:     h.output,
+		timeFormat: h.timeFormat,
+		attrs:      newAttrs,
+		group:      h.group,
+	}
 }
 
 func (h *consoleHandler) WithGroup(name string) slog.Handler {
-	return h
+	return &consoleHandler{
+		output:     h.output,
+		timeFormat: h.timeFormat,
+		attrs:      h.attrs,
+		group:      name,
+	}
 }
 
 func getLevelColor(level slog.Level) string {

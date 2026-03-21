@@ -144,7 +144,7 @@ func (s *assetService) Build(ctx context.Context) error {
 					assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
 					return nil
 				}); err != nil {
-					s.logger.Log(dCtx, slog.LevelWarn, "theme asset walk error", "dir", themeDir, "err", err)
+					s.logger.Log(dCtx, slog.LevelWarn, "theme asset walk error", "dir", themeDir, "error", err)
 				}
 			}
 			return nil
@@ -165,7 +165,7 @@ func (s *assetService) Build(ctx context.Context) error {
 						assetSyncMap.Store("static/"+rel, assetTask{srcPath: path, info: info})
 						return nil
 					}); err != nil {
-						s.logger.Log(dCtx, slog.LevelWarn, "static asset walk error", "dir", "static", "err", err)
+						s.logger.Log(dCtx, slog.LevelWarn, "static asset walk error", "dir", "static", "error", err)
 					}
 				}
 				return nil
@@ -222,6 +222,7 @@ func (s *assetService) Build(ctx context.Context) error {
 					Sink:    s.sink,
 					SrcPath: t.srcPath,
 					DstPath: dst,
+					RelPath: r,
 					SrcInfo: t.info,
 					Opts:    opts,
 					Scheduler: func() scheduler.BuildScheduler {
@@ -280,7 +281,14 @@ func (s *assetService) copyFileOrLink(src, dst string) error {
 
 func (s *assetService) buildEsbuildAssets(force bool) (map[string]string, error) {
 	destStaticDir, _ := filepath.Abs(filepath.Join(s.cfg.OutputDir, "static"))
-	assets, assetErr := fspkg.BuildAssetsEsbuild(s.sourceFs, s.sink, s.cfg.StaticDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
+
+	// Determine effective static directory (mirroring Build logic)
+	srcDir := s.cfg.StaticDir
+	if srcDir == "" {
+		srcDir = "themes/blog/static"
+	}
+
+	assets, assetErr := fspkg.BuildAssetsEsbuild(s.sourceFs, s.sink, srcDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
 	if assetErr == nil {
 		s.renderer.SetAssets(assets)
 	}

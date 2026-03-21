@@ -3,6 +3,7 @@ package renderer
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -22,6 +23,11 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 	}
 
 	finalBytes := buf.Bytes()
+
+	// Rewrite PNG/JPG/JPEG image references to WebP if compression is enabled
+	if r.Compress {
+		finalBytes = rewriteImageRefs(finalBytes)
+	}
 
 	// Optional Minification
 	if r.Compress {
@@ -58,4 +64,206 @@ func (r *Renderer) RenderPage(path string, data models.PageData) error {
 	}
 
 	return r.executeTemplateAndWrite(path, layout, data, "layout")
+}
+
+func rewriteImageRefs(html []byte) []byte {
+	converted := fspkg.GetConvertedImages()
+	if len(converted) == 0 {
+		return html
+	}
+
+	result := make([]byte, 0, len(html))
+	i := 0
+	for i < len(html) {
+		tagStart := findTagStart(html, i)
+		if tagStart < 0 {
+			result = append(result, html[i:]...)
+			break
+		}
+
+		result = append(result, html[i:tagStart]...)
+		i = tagStart
+
+		end := findTagEnd(html, i)
+		if end < 0 {
+			result = append(result, html[i:]...)
+			break
+		}
+
+		if isImgTag(html, i) {
+			tagContent := html[tagStart : end+1]
+			rewritten := rewriteImgTag(tagContent, converted)
+			result = append(result, rewritten...)
+		} else {
+			result = append(result, html[tagStart:end+1]...)
+		}
+		i = end + 1
+	}
+
+	return result
+}
+
+func findTagStart(html []byte, i int) int {
+	for ; i+2 < len(html); i++ {
+		if html[i] == '<' {
+			c := html[i+1]
+			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func isImgTag(html []byte, i int) bool {
+	if i+4 > len(html) {
+		return false
+	}
+	// Case insensitive "img" check
+	if (html[i+1] == 'i' || html[i+1] == 'I') &&
+		(html[i+2] == 'm' || html[i+2] == 'M') &&
+		(html[i+3] == 'g' || html[i+3] == 'G') {
+		// Ensure it's not just the prefix of another tag like <image>
+		if i+4 < len(html) {
+			c := html[i+4]
+			return c == ' ' || c == '>' || c == '/' || c == '\t' || c == '\n' || c == '\r'
+		}
+		return true
+	}
+	return false
+}
+
+func findTagEnd(html []byte, i int) int {
+	inQuote := false
+	var quoteChar byte
+	for ; i < len(html); i++ {
+		if inQuote {
+			if html[i] == quoteChar {
+				inQuote = false
+			}
+			continue
+		}
+		if html[i] == '"' || html[i] == '\'' {
+			inQuote = true
+			quoteChar = html[i]
+			continue
+		}
+		if html[i] == '>' {
+			return i
+		}
+	}
+	return -1
+}
+
+func rewriteImgTag(tag []byte, converted map[string]string) []byte {
+	result := make([]byte, 0, len(tag))
+	// 1. Skip the "<img" part
+	i := 4 // length of "<img"
+	result = append(result, tag[:i]...)
+
+	for i < len(tag) {
+		// Skip whitespace before attribute name
+		for i < len(tag) && (tag[i] == ' ' || tag[i] == '\t' || tag[i] == '\n' || tag[i] == '\r') {
+			result = append(result, tag[i])
+			i++
+		}
+
+		if i >= len(tag) || tag[i] == '>' || tag[i] == '/' {
+			result = append(result, tag[i:]...)
+			break
+		}
+
+		// 2. Find attribute name
+		nameStart := i
+		for i < len(tag) && tag[i] != '=' && tag[i] != ' ' && tag[i] != '\t' && tag[i] != '\n' && tag[i] != '\r' && tag[i] != '>' && tag[i] != '/' {
+			i++
+		}
+		attrName := string(tag[nameStart:i])
+		result = append(result, tag[nameStart:i]...)
+
+		// Skip whitespace before '='
+		for i < len(tag) && (tag[i] == ' ' || tag[i] == '\t' || tag[i] == '\n' || tag[i] == '\r') {
+			result = append(result, tag[i])
+			i++
+		}
+
+		if i >= len(tag) || tag[i] != '=' {
+			continue
+		}
+
+		// Consume '='
+		result = append(result, '=')
+		i++
+
+		// Skip whitespace after '='
+		for i < len(tag) && (tag[i] == ' ' || tag[i] == '\t' || tag[i] == '\n' || tag[i] == '\r') {
+			result = append(result, tag[i])
+			i++
+		}
+
+		if i >= len(tag) {
+			break
+		}
+
+		// Handle quoted value
+		if tag[i] == '"' || tag[i] == '\'' {
+			quote := tag[i]
+			result = append(result, quote)
+			i++
+			valStart := i
+			for i < len(tag) && tag[i] != quote {
+				i++
+			}
+			val := string(tag[valStart:i])
+
+			if strings.EqualFold(attrName, "src") {
+				rewritten := rewriteImgSrc(val, converted)
+				result = append(result, []byte(rewritten)...)
+			} else {
+				result = append(result, tag[valStart:i]...)
+			}
+
+			if i < len(tag) {
+				result = append(result, quote)
+				i++
+			}
+		} else {
+			// Unquoted value (rare in modern HTML but possible)
+			valStart := i
+			for i < len(tag) && tag[i] != ' ' && tag[i] != '\t' && tag[i] != '\n' && tag[i] != '\r' && tag[i] != '>' && tag[i] != '/' {
+				i++
+			}
+			val := string(tag[valStart:i])
+			if strings.EqualFold(attrName, "src") {
+				rewritten := rewriteImgSrc(val, converted)
+				result = append(result, []byte(rewritten)...)
+			} else {
+				result = append(result, tag[valStart:i]...)
+			}
+		}
+	}
+	return result
+}
+
+func rewriteImgSrc(src string, converted map[string]string) string {
+	lower := strings.ToLower(src)
+	var suffix string
+	if strings.HasSuffix(lower, ".png") {
+		suffix = ".png"
+	} else if strings.HasSuffix(lower, ".jpg") {
+		suffix = ".jpg"
+	} else if strings.HasSuffix(lower, ".jpeg") {
+		suffix = ".jpeg"
+	} else {
+		return src
+	}
+
+	// Try to find exact match in converted map
+	if webpDst, ok := converted[src]; ok {
+		return webpDst
+	}
+
+	// Fallback to simple extension swap
+	prefix := src[:len(src)-len(suffix)]
+	return prefix + ".webp"
 }

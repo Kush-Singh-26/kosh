@@ -2,6 +2,7 @@ package clean
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sync"
 	"time"
@@ -72,11 +73,11 @@ func removePathAsync(fs afero.Fs, path string) {
 	tempName := fmt.Sprintf("%s_deleting_%d", base, time.Now().UnixNano())
 	tempPath := filepath.Join(dir, tempName)
 
-	fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  Moving '%s' to trash...\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), path)
+	slog.Info("Moving to trash", "path", path)
 	if err := fs.Rename(path, tempPath); err != nil {
-		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[91m✗\033[0m  Rename failed (%v), deleting synchronously...\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), err)
+		slog.Warn("Rename failed, deleting synchronously", "error", err)
 		if err := fs.RemoveAll(path); err != nil {
-			fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[91m✗\033[0m  Failed to remove '%s': %v\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), path, err)
+			slog.Error("Failed to remove path", "path", path, "error", err)
 		}
 		return
 	}
@@ -95,7 +96,7 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config, isTes
 	}
 
 	if cfg == nil {
-		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  Failed to load config, cleaning entire %s directory\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), outputDir)
+		slog.Info("Failed to load config, cleaning entire directory", "dir", outputDir)
 		cleanDirAsync(fs, outputDir, isTesting)
 		return
 	}
@@ -108,14 +109,14 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config, isTes
 	}
 
 	if len(preservePaths) == 0 {
-		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  No versions configured, cleaning entire %s directory\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), outputDir)
+		slog.Info("No versions configured, cleaning entire directory", "dir", outputDir)
 		cleanDirAsync(fs, outputDir, isTesting)
 		return
 	}
 
 	files, err := afero.ReadDir(fs, outputDir)
 	if err != nil {
-		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[91m✗\033[0m  Failed to read output directory: %v\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), err)
+		slog.Error("Failed to read output directory", "error", err)
 		return
 	}
 
@@ -128,11 +129,12 @@ func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config, isTes
 	}
 
 	if len(toDelete) == 0 {
-		fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  No files to clean (only version folders present)\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second())
+		slog.Info("No files to clean (only version folders present)")
 		return
 	}
 
-	fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  Cleaning root files (%d items), preserving %d version folders...\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), len(toDelete), len(preservePaths))
+	slog.Info("Cleaning root files, preserving version folders",
+		"items", len(toDelete), "versions", len(preservePaths))
 
 	for _, name := range toDelete {
 		itemPath := filepath.Join(outputDir, name)

@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 	"text/template"
-	"time"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 
@@ -155,7 +155,7 @@ func GenerateManifest(sink fspkg.ArtifactSink, destDir string, baseURL string, s
 type PWAIconsData map[int][]byte
 
 // GeneratePWAIconBytes generates 192x192 and 512x512 icon PNG bytes from the source icon.
-func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string) (PWAIconsData, error) {
+func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string, logger *slog.Logger) (PWAIconsData, error) {
 	// Source must exist
 	srcFile, err := srcFs.Open(srcPath)
 	if err != nil {
@@ -181,7 +181,9 @@ func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string) (PWAIconsData, error) 
 		go func(idx, sz int) {
 			defer wg.Done()
 
-			fmt.Printf("\033[90m%02d:%02d:%02d\033[0m \033[96mℹ\033[0m  Generating PWA Icon: %dx%d\n", time.Now().Hour(), time.Now().Minute(), time.Now().Second(), sz, sz)
+			if logger != nil {
+				logger.Info("Generating PWA Icon", "size", fmt.Sprintf("%dx%d", sz, sz))
+			}
 			dst := imaging.Resize(src, sz, sz, imaging.Lanczos)
 
 			var buf bytes.Buffer
@@ -229,8 +231,8 @@ func WritePWAIcons(sink fspkg.ArtifactSink, destDir string, icons PWAIconsData) 
 }
 
 // GeneratePWAIcons generates 192x192 and 512x512 icons from favicon.png
-func GeneratePWAIcons(srcFs afero.Fs, sink fspkg.ArtifactSink, srcPath, destDir string) error {
-	icons, err := GeneratePWAIconBytes(srcFs, srcPath)
+func GeneratePWAIcons(srcFs afero.Fs, sink fspkg.ArtifactSink, srcPath, destDir string, logger *slog.Logger) error {
+	icons, err := GeneratePWAIconBytes(srcFs, srcPath, logger)
 	if err != nil {
 		return err
 	}

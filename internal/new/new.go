@@ -2,6 +2,7 @@ package new
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -41,7 +42,7 @@ func Run(args []string) {
 // RunFs creates a new blog post file using the provided filesystem
 func RunFs(fs afero.Fs, args []string) {
 	if len(args) < 1 {
-		fmt.Println("Usage: kosh new \"My New Post Title\"")
+		slog.Info("Usage: kosh new \"My New Post Title\"")
 		return
 	}
 
@@ -49,7 +50,7 @@ func RunFs(fs afero.Fs, args []string) {
 	// Create a safe filename slug
 	slug := sanitizeSlug(title)
 	if slug == "" {
-		fmt.Println("❌ Error: Title produces empty slug after sanitization")
+		slog.Error("Title produces empty slug after sanitization")
 		return
 	}
 	filename := fmt.Sprintf("content/%s.md", slug)
@@ -72,14 +73,14 @@ Start writing here...
 	// Check if file exists to avoid overwriting
 	exists, _ := afero.Exists(fs, filename)
 	if exists {
-		fmt.Println("❌ Error: File already exists:", filename)
+		slog.Error("File already exists", "path", filename)
 		return
 	}
 
 	if err := afero.WriteFile(fs, filename, []byte(content), 0644); err != nil {
-		fmt.Println("Error creating file:", err)
+		slog.Error("Error creating file", "error", err)
 		return
 	}
 
-	fmt.Printf("✅ Created: %s\n", filename)
+	slog.Info("Created", "path", filename)
 }

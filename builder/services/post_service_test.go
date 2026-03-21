@@ -20,12 +20,12 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 // noopHandler is a slog.Handler that does nothing, used in tests to avoid race conditions in standard handlers.
@@ -65,6 +65,7 @@ func (m *mockRenderService) ClearRenderedFiles()                                
 func (m *mockRenderService) ReloadTemplates()                                         {}
 func (m *mockRenderService) ConsumeErrors() []error                                   { return nil }
 func (m *mockRenderService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {}
+func (m *mockRenderService) Has404Template() bool                                     { return true }
 
 // mockArtifactSink is a mock ArtifactSink for testing
 type mockArtifactSink struct {

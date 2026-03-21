@@ -99,12 +99,11 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 		stopWatcher()
 	}()
 
-	fileServer := http.FileServer(http.Dir(staticDir))
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/events", handleSSE)
 
-	mux.HandleFunc("/", compressionHandler(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// If build is active, wait for it to complete or request cancellation
 		if ch := waitForBuild(); ch != nil {
 			select {
@@ -132,65 +131,89 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 		}
 
 		// Handle pre-compressed files.
-		// Skip WASM and binary files: WebAssembly.instantiateStreaming requires
-		// raw bytes — setting Content-Encoding on a WASM response causes the
-		// browser's Fetch decompression pipeline to abort with
-		// "Response body loading was aborted".
 		acceptEncoding := r.Header.Get("Accept-Encoding")
 		ext := strings.ToLower(filepath.Ext(normalizedPath))
-		if ext != ".wasm" && ext != ".bin" {
-			if strings.Contains(acceptEncoding, "br") {
-				if _, err := os.Stat(fullPath + ".br"); err == nil {
-					w.Header().Set("Content-Encoding", "br")
-					w.Header().Set("Vary", "Accept-Encoding")
-					fullPath += ".br"
-				}
+		preCompressed := false
+		if ext != ".wasm" && ext != ".bin" && strings.Contains(acceptEncoding, "br") {
+			if _, err := os.Stat(fullPath + ".br"); err == nil {
+				fullPath += ".br"
+				preCompressed = true
 			}
 		}
 
-		fileInfo, err := os.Stat(fullPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				slog.Debug("File not found", "fullPath", fullPath, "normalizedPath", normalizedPath)
-				w.WriteHeader(http.StatusNotFound)
-				notFoundPath := filepath.Join(staticDir, "404.html")
-				if content, readErr := os.ReadFile(notFoundPath); readErr == nil {
-					_, _ = w.Write(content)
+		// Inner handler for file serving
+		serve := func(w http.ResponseWriter, r *http.Request) {
+			fileInfo, err := os.Stat(fullPath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					w.Header().Set("Content-Type", "text/html; charset=utf-8")
+					w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+					w.Header().Set("Pragma", "no-cache")
+					w.Header().Set("Expires", "0")
+					w.WriteHeader(http.StatusNotFound)
+					notFoundPath := filepath.Join(staticDir, "404.html")
+					if content, readErr := os.ReadFile(notFoundPath); readErr == nil {
+						_, _ = w.Write(content)
+					} else {
+						_, _ = w.Write([]byte("404 - Page Not Found"))
+					}
 				} else {
-					_, _ = w.Write([]byte("404 - Page Not Found"))
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte("500 - Internal Server Error"))
 				}
-			} else {
-				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = w.Write([]byte("500 - Internal Server Error"))
-			}
-			return
-		}
-
-		filename := filepath.Base(normalizedPath)
-
-		// Special handling for directory requests - serve index.html directly
-		// This prevents Go's http.FileServer from redirecting /tags/ to tags/
-		if fileInfo.IsDir() {
-			indexPath := filepath.Join(fullPath, "index.html")
-			if indexInfo, err := os.Stat(indexPath); err == nil && !indexInfo.IsDir() {
-				// Serve index.html directly without redirect
-				http.ServeFile(w, r, indexPath)
 				return
 			}
+
+			filename := filepath.Base(normalizedPath)
+
+			// Special handling for directory requests - serve index.html directly
+			if fileInfo.IsDir() {
+				indexPath := filepath.Join(fullPath, "index.html")
+				if indexInfo, err := os.Stat(indexPath); err == nil && !indexInfo.IsDir() {
+					http.ServeFile(w, r, indexPath)
+					return
+				}
+			}
+
+			// Set Cache-Control
+			if isHashedAsset(filename) {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else if fileInfo.IsDir() || strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".wasm") || strings.HasSuffix(filename, ".bin") {
+				w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+				w.Header().Set("Pragma", "no-cache")
+				w.Header().Set("Expires", "0")
+			} else {
+				w.Header().Set("Cache-Control", "public, max-age=60")
+			}
+
+			// Handle Pre-compressed headers
+			if preCompressed {
+				w.Header().Set("Content-Encoding", "br")
+				w.Header().Set("Vary", "Accept-Encoding")
+				originalExt := strings.ToLower(filepath.Ext(normalizedPath))
+				if contentType := mime.TypeByExtension(originalExt); contentType != "" {
+					w.Header().Set("Content-Type", contentType)
+				}
+			} else {
+				// Explicitly set Content-Type for CSS and JS to avoid sniffing issues
+				ext := strings.ToLower(filepath.Ext(fullPath))
+				if ext == ".css" {
+					w.Header().Set("Content-Type", "text/css; charset=utf-8")
+				} else if ext == ".js" {
+					w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+				}
+			}
+
+			// Use ServeFile with the explicit fullPath
+			http.ServeFile(w, r, fullPath)
 		}
 
-		if isHashedAsset(filename) {
-			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		} else if fileInfo.IsDir() || strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".wasm") || strings.HasSuffix(filename, ".bin") {
-			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
-			w.Header().Set("Pragma", "no-cache")
-			w.Header().Set("Expires", "0")
+		if preCompressed {
+			serve(w, r)
 		} else {
-			w.Header().Set("Cache-Control", "public, max-age=60")
+			compressionHandler(serve)(w, r)
 		}
-
-		fileServer.ServeHTTP(w, r)
-	}))
+	})
 
 	if reloadEvents != nil {
 		go broadcastReload(reloadEvents)
