@@ -23,6 +23,7 @@ type ArtifactSink interface {
 	GetWrittenFiles() map[string]bool
 	GetOutputDir() string
 	SetMtime(path string, mtime time.Time) error
+	Stat(path string) (os.FileInfo, error)
 }
 
 // DiskSink implements ArtifactSink for disk-based writes with staging directory support
@@ -71,7 +72,7 @@ func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
 	}
 
 	cleanP := NormalizePath(p)
-	
+
 	// Resolve to absolute path for robust comparison
 	var absP string
 	if filepath.IsAbs(filepath.FromSlash(cleanP)) {
@@ -84,7 +85,7 @@ func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
 		}
 		absP = NormalizePath(absP)
 	}
-	
+
 	absPLower := strings.ToLower(absP)
 	var resolved string
 
@@ -138,7 +139,7 @@ func (s *DiskSink) Register(p string) {
 
 	cleanP := NormalizePath(p)
 	var finalPath string
-	
+
 	// Resolve to absolute path for consistent tracking
 	var absP string
 	if filepath.IsAbs(filepath.FromSlash(cleanP)) {
@@ -152,7 +153,7 @@ func (s *DiskSink) Register(p string) {
 			absP = NormalizePath(absP)
 		}
 	}
-	
+
 	if absP != "" {
 		absPLower := strings.ToLower(absP)
 		if isInsideDir(absPLower, s.stagingDirLower) {
@@ -293,6 +294,14 @@ func (s *DiskSink) SetMtime(path string, mtime time.Time) error {
 		return err
 	}
 	return os.Chtimes(filepath.FromSlash(target), mtime, mtime)
+}
+
+func (s *DiskSink) Stat(path string) (os.FileInfo, error) {
+	target, err := s.resolvePathForWrite(path)
+	if err != nil {
+		return nil, err
+	}
+	return os.Stat(filepath.FromSlash(target))
 }
 
 func (s *DiskSink) CopyFile(src, dst string) error {

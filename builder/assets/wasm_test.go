@@ -43,6 +43,11 @@ func (f *fsSink) MkdirAll(path string) error {
 	return f.fs.MkdirAll(absPath, 0755)
 }
 
+func (f *fsSink) Stat(path string) (os.FileInfo, error) {
+	absPath := filepath.Join(f.OutputDir, path)
+	return f.fs.Stat(absPath)
+}
+
 // dirSink writes directly to a real directory (for tests using afero.NewOsFs).
 type dirSink struct {
 	outputDir string
@@ -90,6 +95,10 @@ func (d *dirSink) GetWrittenFiles() map[string]bool { return nil }
 func (d *dirSink) GetOutputDir() string             { return d.outputDir }
 func (d *dirSink) SetMtime(path string, mtime time.Time) error {
 	return os.Chtimes(filepath.Join(d.outputDir, path), mtime, mtime)
+}
+
+func (d *dirSink) Stat(path string) (os.FileInfo, error) {
+	return os.Stat(filepath.Join(d.outputDir, path))
 }
 
 // TestHashBytes tests the hashBytes function

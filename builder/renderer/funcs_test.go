@@ -870,6 +870,10 @@ func (f *failingSink) SetMtime(path string, mtime time.Time) error {
 	return io.ErrUnexpectedEOF
 }
 
+func (f *failingSink) Stat(path string) (os.FileInfo, error) {
+	return nil, io.ErrUnexpectedEOF
+}
+
 func TestRenderer_AssetCacheInvalidation(t *testing.T) {
 	r := setupTestRenderer(t)
 

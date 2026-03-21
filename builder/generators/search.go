@@ -16,7 +16,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
-func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedPost) (string, error) {
+func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedPost) (string, int64, error) {
 	totalDocs := len(indexedPosts)
 	outputDir := sink.GetOutputDir()
 
@@ -36,6 +36,7 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 			AvgDocLen:     0,
 		}
 
+		var size int64
 		err := sink.WriteStream(outputPath, func(w io.Writer) error {
 			bw := brotli.NewWriterLevel(w, 4)
 			mw := msgp.NewWriter(bw)
@@ -47,12 +48,21 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 				_ = bw.Close()
 				return err
 			}
-			return bw.Close()
+			if err := bw.Close(); err != nil {
+				return err
+			}
+			return nil
 		})
 		if err != nil {
-			return "", err
+			return "", 0, err
 		}
-		return filepath.Join(outputDir, outputPath), nil
+
+		// Get file size
+		if info, err := sink.Stat(outputPath); err == nil {
+			size = info.Size()
+		}
+
+		return filepath.Join(outputDir, outputPath), size, nil
 	}
 
 	numWorkers := min(runtime.NumCPU(),
@@ -206,6 +216,7 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 	index.NgramIndex = core.BuildNgramIndex(index.Inverted)
 
 	outputPath := "search.bin"
+	var size int64
 	err := sink.WriteStream(outputPath, func(w io.Writer) error {
 		bw := brotli.NewWriterLevel(w, 4)
 
@@ -224,8 +235,12 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 		return bw.Close()
 	})
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
-	return filepath.Join(outputDir, outputPath), nil
+	if info, err := sink.Stat(outputPath); err == nil {
+		size = info.Size()
+	}
+
+	return filepath.Join(outputDir, outputPath), size, nil
 }
