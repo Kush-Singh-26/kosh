@@ -27,7 +27,7 @@ func TestSearchIndex_MsgpackEncoding(t *testing.T) {
 		Posts: map[string]PostRecord{
 			"1": {ID: 1, Title: "Test Post"},
 		},
-		Inverted: map[string]map[string][]int{
+		Inverted: map[string]map[string][]uint32{
 			"test": {"1": {1, 10}},
 		},
 		DocLens:   map[string]int64{"1": 100},

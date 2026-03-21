@@ -110,7 +110,7 @@ func scoreBM25(index *models.SearchIndex, opts *SearchScoringOptions) {
 	}
 }
 
-func applyBM25Score(index *models.SearchIndex, posts map[string][]int, term string, opts *SearchScoringOptions) {
+func applyBM25Score(index *models.SearchIndex, posts map[string][]uint32, term string, opts *SearchScoringOptions) {
 	df := len(posts)
 	idf := math.Log(1 + (float64(index.TotalDocs)-float64(df)+0.5)/(float64(df)+0.5))
 	avgDocLen := index.AvgDocLen
@@ -281,7 +281,7 @@ func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Re
 		for _, term := range finalHighlightTerms {
 			if docMap, ok := index.Offsets[term]; ok {
 				if offsets, found := docMap[id]; found {
-					termOffsets[term] = offsets
+					termOffsets[term] = models.DecodeOffsets(offsets)
 				}
 			}
 		}
@@ -313,6 +313,10 @@ func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []
 		return false
 	}
 
+	decoded := models.DecodePositions(candidates)
+	posList := make([]int, len(decoded))
+	copy(posList, decoded)
+
 	for i := 1; i < len(phraseTerms); i++ {
 		nextWord := phraseTerms[i]
 		nextPostMap, ok := index.Inverted[nextWord]
@@ -324,14 +328,15 @@ func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []
 			return false
 		}
 
+		nextDecoded := models.DecodePositions(nextPositions)
 		var newCandidates []int
 		p1, p2 := 0, 0
-		for p1 < len(candidates) && p2 < len(nextPositions) {
-			if nextPositions[p2] == candidates[p1]+1 {
-				newCandidates = append(newCandidates, nextPositions[p2])
+		for p1 < len(posList) && p2 < len(nextDecoded) {
+			if nextDecoded[p2] == posList[p1]+1 {
+				newCandidates = append(newCandidates, nextDecoded[p2])
 				p1++
 				p2++
-			} else if nextPositions[p2] < candidates[p1]+1 {
+			} else if nextDecoded[p2] < posList[p1]+1 {
 				p2++
 			} else {
 				p1++
@@ -341,7 +346,7 @@ func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []
 		if len(newCandidates) == 0 {
 			return false
 		}
-		candidates = newCandidates
+		posList = newCandidates
 	}
 
 	return true

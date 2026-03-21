@@ -71,21 +71,21 @@ func buildRankingIndex() *models.SearchIndex {
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         posts,
-		Inverted:      make(map[string]map[string][]int),
-		Offsets:       make(map[string]map[string][]int),
+		Inverted:      make(map[string]map[string][]uint32),
+		Offsets:       make(map[string]map[string][]uint32),
 		DocLens:       make(map[string]int64),
 		TotalDocs:     6,
 		AvgDocLen:     10.0,
-		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]int)),
+		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]uint32)),
 	}
 
-	addTerm := func(term string, postID string, pos int) {
+	addTerm := func(term string, postID string, pos uint32) {
 		if index.Inverted[term] == nil {
-			index.Inverted[term] = make(map[string][]int)
+			index.Inverted[term] = make(map[string][]uint32)
 		}
 		index.Inverted[term][postID] = append(index.Inverted[term][postID], pos)
 		if index.Offsets[term] == nil {
-			index.Offsets[term] = make(map[string][]int)
+			index.Offsets[term] = make(map[string][]uint32)
 		}
 	}
 
@@ -180,15 +180,15 @@ func TestRanking_PhraseMatch(t *testing.T) {
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         posts,
-		Inverted:      map[string]map[string][]int{},
-		Offsets:       map[string]map[string][]int{},
+		Inverted:      map[string]map[string][]uint32{},
+		Offsets:       map[string]map[string][]uint32{},
 		DocLens:       map[string]int64{"0": 5, "1": 5},
 		TotalDocs:     2,
 		AvgDocLen:     5.0,
 	}
 
-	index.Inverted["neural"] = map[string][]int{"0": {0}}
-	index.Inverted["network"] = map[string][]int{"0": {1}, "1": {0}}
+	index.Inverted["neural"] = map[string][]uint32{"0": {0}}
+	index.Inverted["network"] = map[string][]uint32{"0": {1}, "1": {0}}
 
 	results := PerformSearch(index, "neural network", "all")
 
@@ -292,15 +292,15 @@ func TestRanking_FuzzyMatch(t *testing.T) {
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         posts,
-		Inverted:      map[string]map[string][]int{},
-		Offsets:       map[string]map[string][]int{},
+		Inverted:      map[string]map[string][]uint32{},
+		Offsets:       map[string]map[string][]uint32{},
 		DocLens:       map[string]int64{"0": 3, "1": 5},
 		TotalDocs:     2,
 		AvgDocLen:     4.0,
-		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]int)),
+		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]uint32)),
 	}
 
-	index.Inverted["program"] = map[string][]int{"0": {0}}
+	index.Inverted["program"] = map[string][]uint32{"0": {0}}
 
 	results := PerformSearch(index, "programming", "all")
 
@@ -336,15 +336,15 @@ func TestRanking_ScoreOrdering(t *testing.T) {
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         posts,
-		Inverted:      map[string]map[string][]int{},
-		Offsets:       map[string]map[string][]int{},
+		Inverted:      map[string]map[string][]uint32{},
+		Offsets:       map[string]map[string][]uint32{},
 		DocLens:       map[string]int64{"0": 3, "1": 5},
 		TotalDocs:     2,
 		AvgDocLen:     4.0,
-		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]int)),
+		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]uint32)),
 	}
 
-	index.Inverted["word"] = map[string][]int{"0": {2}, "1": {3}}
+	index.Inverted["word"] = map[string][]uint32{"0": {2}, "1": {3}}
 
 	results := PerformSearch(index, "word", "all")
 
@@ -360,7 +360,7 @@ func TestRanking_ScoreOrdering(t *testing.T) {
 
 func TestRanking_TopKLimit(t *testing.T) {
 	posts := map[string]models.PostRecord{}
-	inverted := map[string]map[string][]int{}
+	inverted := map[string]map[string][]uint32{}
 
 	for i := 0; i < 50; i++ {
 		pid := string(rune(i))
@@ -371,14 +371,14 @@ func TestRanking_TopKLimit(t *testing.T) {
 			Content:         "test content",
 			NormalizedTags:  []string{},
 		}
-		inverted["test"] = map[string][]int{pid: {0}}
+		inverted["test"] = map[string][]uint32{pid: {0}}
 	}
 
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         posts,
 		Inverted:      inverted,
-		Offsets:       map[string]map[string][]int{},
+		Offsets:       map[string]map[string][]uint32{},
 		DocLens:       map[string]int64{},
 		TotalDocs:     50,
 		AvgDocLen:     5.0,
@@ -433,15 +433,15 @@ func TestRanking_PhraseWithQuotes(t *testing.T) {
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         posts,
-		Inverted:      map[string]map[string][]int{},
-		Offsets:       map[string]map[string][]int{},
+		Inverted:      map[string]map[string][]uint32{},
+		Offsets:       map[string]map[string][]uint32{},
 		DocLens:       map[string]int64{"0": 5, "1": 5},
 		TotalDocs:     2,
 		AvgDocLen:     5.0,
 	}
 
-	index.Inverted["neural"] = map[string][]int{"0": {0}, "1": {0}}
-	index.Inverted["network"] = map[string][]int{"0": {1}, "1": {1}}
+	index.Inverted["neural"] = map[string][]uint32{"0": {0}, "1": {0}}
+	index.Inverted["network"] = map[string][]uint32{"0": {1}, "1": {1}}
 
 	results := PerformSearch(index, `"neural networks"`, "all")
 

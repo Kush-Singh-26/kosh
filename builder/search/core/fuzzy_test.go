@@ -203,7 +203,7 @@ func TestGenerateTrigrams_Unicode(t *testing.T) {
 }
 
 func TestFuzzyExpand(t *testing.T) {
-	inverted := map[string]map[string][]int{
+	inverted := map[string]map[string][]uint32{
 		"test":    {"doc1": {1}},
 		"testing": {"doc2": {2}},
 		"tes":     {"doc3": {3}},
@@ -263,7 +263,7 @@ func TestFuzzyExpandWithNgrams(t *testing.T) {
 }
 
 func TestBuildNgramIndex(t *testing.T) {
-	inverted := map[string]map[string][]int{
+	inverted := map[string]map[string][]uint32{
 		"test":    {"doc1": {1}},
 		"testing": {"doc2": {2}},
 		"best":    {"doc3": {3}},

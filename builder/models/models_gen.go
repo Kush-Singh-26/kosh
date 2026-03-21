@@ -1167,7 +1167,7 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 			if z.Inverted == nil {
-				z.Inverted = make(map[string]map[string][]int, zb0008)
+				z.Inverted = make(map[string]map[string][]uint32, zb0008)
 			} else if len(z.Inverted) > 0 {
 				clear(z.Inverted)
 			}
@@ -1179,7 +1179,7 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 					err = msgp.WrapError(err, "Inverted")
 					return
 				}
-				var za0012 map[string][]int
+				var za0012 map[string][]uint32
 				var zb0009 uint32
 				zb0009, err = dc.ReadMapHeader()
 				if err != nil {
@@ -1187,7 +1187,7 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 				if za0012 == nil {
-					za0012 = make(map[string][]int, zb0009)
+					za0012 = make(map[string][]uint32, zb0009)
 				} else if len(za0012) > 0 {
 					clear(za0012)
 				}
@@ -1199,7 +1199,7 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 						err = msgp.WrapError(err, "Inverted", za0011)
 						return
 					}
-					var za0014 []int
+					var za0014 []uint32
 					var zb0010 uint32
 					zb0010, err = dc.ReadArrayHeader()
 					if err != nil {
@@ -1209,10 +1209,10 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 					if cap(za0014) >= int(zb0010) {
 						za0014 = (za0014)[:zb0010]
 					} else {
-						za0014 = make([]int, zb0010)
+						za0014 = make([]uint32, zb0010)
 					}
 					for za0015 := range za0014 {
-						za0014[za0015], err = dc.ReadInt()
+						za0014[za0015], err = dc.ReadUint32()
 						if err != nil {
 							err = msgp.WrapError(err, "Inverted", za0011, za0013, za0015)
 							return
@@ -1230,7 +1230,7 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 			if z.Offsets == nil {
-				z.Offsets = make(map[string]map[string][]int, zb0011)
+				z.Offsets = make(map[string]map[string][]uint32, zb0011)
 			} else if len(z.Offsets) > 0 {
 				clear(z.Offsets)
 			}
@@ -1242,7 +1242,7 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 					err = msgp.WrapError(err, "Offsets")
 					return
 				}
-				var za0017 map[string][]int
+				var za0017 map[string][]uint32
 				var zb0012 uint32
 				zb0012, err = dc.ReadMapHeader()
 				if err != nil {
@@ -1250,7 +1250,7 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 				if za0017 == nil {
-					za0017 = make(map[string][]int, zb0012)
+					za0017 = make(map[string][]uint32, zb0012)
 				} else if len(za0017) > 0 {
 					clear(za0017)
 				}
@@ -1262,7 +1262,7 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 						err = msgp.WrapError(err, "Offsets", za0016)
 						return
 					}
-					var za0019 []int
+					var za0019 []uint32
 					var zb0013 uint32
 					zb0013, err = dc.ReadArrayHeader()
 					if err != nil {
@@ -1272,10 +1272,10 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 					if cap(za0019) >= int(zb0013) {
 						za0019 = (za0019)[:zb0013]
 					} else {
-						za0019 = make([]int, zb0013)
+						za0019 = make([]uint32, zb0013)
 					}
 					for za0020 := range za0019 {
-						za0019[za0020], err = dc.ReadInt()
+						za0019[za0020], err = dc.ReadUint32()
 						if err != nil {
 							err = msgp.WrapError(err, "Offsets", za0016, za0018, za0020)
 							return
@@ -1464,7 +1464,7 @@ func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 			for za0015 := range za0014 {
-				err = en.WriteInt(za0014[za0015])
+				err = en.WriteUint32(za0014[za0015])
 				if err != nil {
 					err = msgp.WrapError(err, "Inverted", za0011, za0013, za0015)
 					return
@@ -1505,7 +1505,7 @@ func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 			for za0020 := range za0019 {
-				err = en.WriteInt(za0019[za0020])
+				err = en.WriteUint32(za0019[za0020])
 				if err != nil {
 					err = msgp.WrapError(err, "Offsets", za0016, za0018, za0020)
 					return
@@ -1577,7 +1577,7 @@ func (z *SearchIndex) MarshalMsg(b []byte) (o []byte, err error) {
 			o = msgp.AppendString(o, za0013)
 			o = msgp.AppendArrayHeader(o, uint32(len(za0014)))
 			for za0015 := range za0014 {
-				o = msgp.AppendInt(o, za0014[za0015])
+				o = msgp.AppendUint32(o, za0014[za0015])
 			}
 		}
 	}
@@ -1591,7 +1591,7 @@ func (z *SearchIndex) MarshalMsg(b []byte) (o []byte, err error) {
 			o = msgp.AppendString(o, za0018)
 			o = msgp.AppendArrayHeader(o, uint32(len(za0019)))
 			for za0020 := range za0019 {
-				o = msgp.AppendInt(o, za0019[za0020])
+				o = msgp.AppendUint32(o, za0019[za0020])
 			}
 		}
 	}
@@ -1780,12 +1780,12 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 			if z.Inverted == nil {
-				z.Inverted = make(map[string]map[string][]int, zb0008)
+				z.Inverted = make(map[string]map[string][]uint32, zb0008)
 			} else if len(z.Inverted) > 0 {
 				clear(z.Inverted)
 			}
 			for zb0008 > 0 {
-				var za0012 map[string][]int
+				var za0012 map[string][]uint32
 				zb0008--
 				var za0011 string
 				za0011, bts, err = msgp.ReadStringBytes(bts)
@@ -1800,12 +1800,12 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 				if za0012 == nil {
-					za0012 = make(map[string][]int, zb0009)
+					za0012 = make(map[string][]uint32, zb0009)
 				} else if len(za0012) > 0 {
 					clear(za0012)
 				}
 				for zb0009 > 0 {
-					var za0014 []int
+					var za0014 []uint32
 					zb0009--
 					var za0013 string
 					za0013, bts, err = msgp.ReadStringBytes(bts)
@@ -1822,10 +1822,10 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					if cap(za0014) >= int(zb0010) {
 						za0014 = (za0014)[:zb0010]
 					} else {
-						za0014 = make([]int, zb0010)
+						za0014 = make([]uint32, zb0010)
 					}
 					for za0015 := range za0014 {
-						za0014[za0015], bts, err = msgp.ReadIntBytes(bts)
+						za0014[za0015], bts, err = msgp.ReadUint32Bytes(bts)
 						if err != nil {
 							err = msgp.WrapError(err, "Inverted", za0011, za0013, za0015)
 							return
@@ -1843,12 +1843,12 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 			if z.Offsets == nil {
-				z.Offsets = make(map[string]map[string][]int, zb0011)
+				z.Offsets = make(map[string]map[string][]uint32, zb0011)
 			} else if len(z.Offsets) > 0 {
 				clear(z.Offsets)
 			}
 			for zb0011 > 0 {
-				var za0017 map[string][]int
+				var za0017 map[string][]uint32
 				zb0011--
 				var za0016 string
 				za0016, bts, err = msgp.ReadStringBytes(bts)
@@ -1863,12 +1863,12 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 				if za0017 == nil {
-					za0017 = make(map[string][]int, zb0012)
+					za0017 = make(map[string][]uint32, zb0012)
 				} else if len(za0017) > 0 {
 					clear(za0017)
 				}
 				for zb0012 > 0 {
-					var za0019 []int
+					var za0019 []uint32
 					zb0012--
 					var za0018 string
 					za0018, bts, err = msgp.ReadStringBytes(bts)
@@ -1885,10 +1885,10 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					if cap(za0019) >= int(zb0013) {
 						za0019 = (za0019)[:zb0013]
 					} else {
-						za0019 = make([]int, zb0013)
+						za0019 = make([]uint32, zb0013)
 					}
 					for za0020 := range za0019 {
-						za0019[za0020], bts, err = msgp.ReadIntBytes(bts)
+						za0019[za0020], bts, err = msgp.ReadUint32Bytes(bts)
 						if err != nil {
 							err = msgp.WrapError(err, "Offsets", za0016, za0018, za0020)
 							return

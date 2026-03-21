@@ -46,7 +46,7 @@ func BenchmarkPerformSearch(b *testing.B) {
 	}
 	index := &models.SearchIndex{
 		Posts:     posts,
-		Inverted:  map[string]map[string][]int{"kosh": {"1": {10}}},
+		Inverted:  map[string]map[string][]uint32{"kosh": {"1": {10}}},
 		DocLens:   make(map[string]int64),
 		TotalDocs: 100,
 		AvgDocLen: 10,

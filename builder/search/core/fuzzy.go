@@ -152,7 +152,7 @@ func FuzzyMatch(term, target string, maxDist int) bool {
 
 // FuzzyExpand generates candidate terms for fuzzy matching
 // Returns terms within the inverted index that are similar to the input
-func FuzzyExpand(term string, inverted map[string]map[string][]int, maxDist int) []string {
+func FuzzyExpand(term string, inverted map[string]map[string][]uint32, maxDist int) []string {
 	var candidates []string
 	termLen := len([]rune(term))
 
@@ -253,8 +253,12 @@ func GenerateTrigrams(word string) []string {
 	return trigrams
 }
 
-// BuildNgramIndex builds a trigram index for fast fuzzy lookups
-func BuildNgramIndex(inverted map[string]map[string][]int) map[string][]string {
+// MaxNgramPostings is the threshold for n-gram pruning.
+// Trigrams that map to more than this many terms are dropped.
+const MaxNgramPostings = 50
+
+// BuildNgramIndex builds a trigram index for fast fuzzy lookups with pruning
+func BuildNgramIndex(inverted map[string]map[string][]uint32) map[string][]string {
 	numWorkers := min(runtime.NumCPU(), 8)
 
 	terms := make([]string, 0, len(inverted))
@@ -288,10 +292,13 @@ func BuildNgramIndex(inverted map[string]map[string][]int) map[string][]string {
 	}
 	wg.Wait()
 
-	// Merge results
+	// Merge results with pruning
 	ngramIndex := make(map[string][]string)
 	for _, r := range results {
 		for tg, termList := range r {
+			if len(termList) > MaxNgramPostings {
+				continue
+			}
 			ngramIndex[tg] = append(ngramIndex[tg], termList...)
 		}
 	}
