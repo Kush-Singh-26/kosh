@@ -71,7 +71,7 @@ func (b *Engine) generatePWA(ctx context.Context, shouldForce bool) error {
 
 		if needsGeneration {
 			// Generate icons to memory once, then write to both sink and cache.
-			icons, err := generators.GeneratePWAIconBytes(b.SourceFs, faviconPath)
+			icons, err := generators.GeneratePWAIconBytes(b.SourceFs, faviconPath, b.Logger)
 			if err == nil {
 				if wErr := generators.WritePWAIcons(b.Sink, filepath.Join(b.Cfg.OutputDir, "static/images"), icons); wErr == nil {
 					b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "static/images/icon-192.png"))

@@ -209,6 +209,10 @@ type RenderService interface {
 	// ReloadTemplates reloads all templates from disk.
 	// Returns error if any template fails to parse.
 	ReloadTemplates()
+
+	// Has404Template returns true if the 404.html template was successfully loaded.
+	// This allows the build pipeline to render a 404 page even without a content/404.md file.
+	Has404Template() bool
 }
 
 // AssetServiceDependencies holds all dependencies for AssetService.

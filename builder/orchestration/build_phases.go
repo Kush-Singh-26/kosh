@@ -3,7 +3,6 @@ package orchestration
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -120,27 +119,18 @@ func (b *Engine) scanPhase(ctx context.Context, contentAssetsChan chan []models.
 	}
 }
 
-// processPhase executes post processing and site-wide orchestration
+// processPhase executes post processing and site-wide orchestration.
+// Assets (including image compression) MUST complete before post rendering,
+// since post rendering rewrites PNG/JPG/JPEG image references to WebP.
 func (b *Engine) processPhase(
 	ctx context.Context,
 	setup *buildSetupResult,
 	assets *buildAssetResult,
 	scan *buildScanResult,
 ) error {
-	// Set up site-wide generators
-	runSiteWide, _ := b.setupSiteWideRendering(ctx, assets.assetsReady, setup.wasmWg, setup.forceSocialRebuild)
-
-	// Process Posts
-	var siteWideHas404 bool
-	postResult, processErr := b.processPosts(ctx, b.Cfg.ForceRebuild, setup.forceSocialRebuild, b.State.IsCleanBuild, scan.fileChan)
-	if processErr != nil {
-		return fmt.Errorf("post processing failed: %w", processErr)
-	}
-	if postResult.Has404 {
-		siteWideHas404 = true
-	}
-
-	// Wait for scanner and assets
+	// Wait for scanner and assets BEFORE rendering posts.
+	// This ensures all image conversions (PNG/JPG/JPEG -> WebP) are complete
+	// and the rewrite map is populated before any HTML is rendered.
 	metadataResult, scannerErr, assetErr := b.waitForScannerAndAssets(
 		scan.scannerReady, scan.metadataResultChan, scan.scannerErrChan,
 		assets.assetWg, assets.assetErrChan,
@@ -151,7 +141,21 @@ func (b *Engine) processPhase(
 	if assetErr != nil {
 		return fmt.Errorf("failed to build assets: %w", assetErr)
 	}
+
+	var siteWideHas404 bool
 	if metadataResult != nil && metadataResult.Has404 {
+		siteWideHas404 = true
+	}
+
+	// Set up site-wide generators
+	runSiteWide, _ := b.setupSiteWideRendering(ctx, assets.assetsReady, setup.wasmWg, setup.forceSocialRebuild)
+
+	// Process Posts (render HTML with WebP image rewrites)
+	postResult, processErr := b.processPosts(ctx, b.Cfg.ForceRebuild, setup.forceSocialRebuild, b.State.IsCleanBuild, scan.fileChan)
+	if processErr != nil {
+		return fmt.Errorf("post processing failed: %w", processErr)
+	}
+	if postResult.Has404 {
 		siteWideHas404 = true
 	}
 
@@ -169,7 +173,7 @@ func (b *Engine) processPhase(
 	siteWideGroup, siteTimer := runSiteWide(metadataCtx, assetsChanged)
 
 	// Wait for site-wide rendering
-	return b.waitForSiteWideRendering(siteWideGroup, siteTimer, siteWideHas404)
+	return b.waitForSiteWideRendering(siteWideGroup, siteTimer, siteWideHas404 || b.Deps.Render.Has404Template())
 }
 
 // setupWasmDeployment launches WASM compilation asynchronously.
@@ -260,8 +264,8 @@ func (b *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTim
 
 	if siteWideHas404 {
 		if err := b.Deps.Render.Render404(filepath.Join(b.Cfg.OutputDir, "404.html"), models.PageData{
-			Title: "404 Not Found", BaseURL: b.Cfg.BaseURL, TabTitle: "404 Not Found",
-			Config: b.Cfg, RelativePrefix: "",
+			Title: "404 Not Found", BaseURL: "", TabTitle: "404 Not Found",
+			Config: b.Cfg, RelativePrefix: "/",
 		}); err != nil {
 			return fmt.Errorf("failed to render 404 page: %w", err)
 		}
@@ -278,7 +282,7 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup) erro
 	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, ".nojekyll"))
 
 	// Sync/Commit transaction
-	slog.Info("Publishing output...")
+	b.Logger.Info("Publishing output...")
 	syncTimer := timeutil.StartPhase("Publish")
 	// Ensure WASM compilation and PWA generation finished before deploying and publishing
 	wasmWg.Wait()
@@ -318,7 +322,7 @@ func (b *Engine) finalizePhase(ctx context.Context, wasmWg *sync.WaitGroup) erro
 
 	// Build complete
 	b.Metrics.RecordEnd()
-	DevLogSuccess("Build complete")
+	b.Logger.Info("Build complete")
 	b.Metrics.Print()
 
 	return nil
@@ -348,7 +352,7 @@ func (b *Engine) setupSiteWideRendering(
 		}
 
 		siteWideOnce.Do(func() {
-			slog.Info("Rendering pagination, tags, metadata and PWA...")
+			b.Logger.Info("Rendering pagination, tags, metadata and PWA...")
 			siteTimer = timeutil.StartPhase("Site-wide rendering")
 			siteWideGroup, siteWideCtx = errgroup.WithContext(ctx)
 
@@ -459,10 +463,10 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 			if err := b.Deps.Render.RenderGraph(filepath.Join(b.Cfg.OutputDir, "graph.html"), models.PageData{
 				Title:          "Graph View",
 				TabTitle:       "Knowledge Graph | " + b.Cfg.Title,
-				BaseURL:        b.Cfg.BaseURL,
+				BaseURL:        "",
 				BuildVersion:   b.Cfg.BuildVersion,
 				Config:         b.Cfg,
-				RelativePrefix: "",
+				RelativePrefix: "/",
 			}); err != nil {
 				return fmt.Errorf("failed to render graph page: %w", err)
 			}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,6 +19,10 @@ var rootCmd = &cobra.Command{
 	Long: `Kosh is a high-performance Static Site Generator built in Go.
 It supports full builds, incremental development rebuilds, CSS/JS asset fingerprinting,
 WebP image conversion for eligible local raster images, SSR for math and D2, and Go+WASM search.`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Initialize standardized themed logger for all commands
+		slog.SetDefault(orchestration.InitLogger())
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		printStartupBanner("CLI Help", nil)
 		_ = cmd.Help()

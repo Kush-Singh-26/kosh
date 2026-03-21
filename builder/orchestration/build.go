@@ -13,7 +13,6 @@ package orchestration
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
@@ -71,7 +70,7 @@ func (b *Engine) buildAssetOnly(ctx context.Context) error {
 		go func() {
 			defer close(fileChan)
 			if _, err := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.SourceFs, b.Cfg, fileChan); err != nil {
-				slog.Debug("metadata scan in asset-only build error", "error", err)
+				b.Logger.Debug("metadata scan in asset-only build error", "error", err)
 			}
 		}()
 
@@ -90,7 +89,7 @@ func (b *Engine) buildAssetOnly(ctx context.Context) error {
 		b.cleanupOrphans()
 
 		b.Metrics.RecordEnd()
-		DevLogSuccess("Build complete")
+		b.Logger.Info("Build complete")
 		b.Metrics.Print()
 
 		return nil

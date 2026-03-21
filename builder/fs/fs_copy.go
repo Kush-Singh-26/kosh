@@ -53,9 +53,10 @@ type imageCache struct {
 }
 
 type fileTask struct {
-	path    string
-	relPath string
-	info    fs.FileInfo
+	path            string
+	relPath         string
+	originalRelPath string
+	info            fs.FileInfo
 }
 
 func newImageCache(maxItems int, maxBytes int64) *imageCache {
@@ -107,6 +108,25 @@ func GetImageCache() *imageCache {
 		globalImageCache = newImageCache(400, 100*1024*1024)
 	})
 	return globalImageCache
+}
+
+var convertedImagePaths sync.Map
+
+func RecordConvertedImage(originalDst, webpDst string) {
+	convertedImagePaths.Store(originalDst, webpDst)
+}
+
+func GetConvertedImages() map[string]string {
+	result := make(map[string]string)
+	convertedImagePaths.Range(func(key, value any) bool {
+		result[key.(string)] = value.(string)
+		return true
+	})
+	return result
+}
+
+func ResetConvertedImages() {
+	convertedImagePaths = sync.Map{}
 }
 
 var keyBufPool = sync.Pool{
@@ -252,7 +272,7 @@ func CopyFileVFS(opts CopyFileOptions) error {
 			return nil
 		}
 		// Fallback to streaming if optimized copy fails
-		slog.Debug("Optimized copy failed, falling back to streaming", "src", opts.SrcPath, "error", err)
+		slog.Debug("Optimized copy failed, falling back to streaming", "path", opts.SrcPath, "error", err)
 	}
 
 	in, err := opts.SrcFs.Open(opts.SrcPath)
@@ -290,6 +310,7 @@ type ProcessImageOptions struct {
 	Sink      ArtifactSink
 	SrcPath   string
 	DstPath   string
+	RelPath   string // Relative path from static/content root
 	SrcInfo   fs.FileInfo
 	Opts      CopyOptions
 	Scheduler scheduler.BuildScheduler
@@ -311,6 +332,20 @@ func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 		if opts.Opts.OnWrite != nil {
 			opts.Opts.OnWrite(dstPath)
 		}
+
+		// Record conversion mapping for URL rewriting
+		if opts.RelPath != "" {
+			// Normalize to URL format (forward slashes, leading slash)
+			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
+			relDst := "/" + strings.TrimPrefix(filepath.ToSlash(dstPath), "/")
+			// If dstPath was absolute, filepath.ToSlash(dstPath) might be absolute too.
+			// Let's ensure relDst is actually relative to the output root if possible.
+			// Actually, just use opts.RelPath to derive relDst.
+			relDst = relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
+			RecordConvertedImage(relSrc, relDst)
+		}
+		// Also record the file system path mapping for robustness
+		RecordConvertedImage(opts.DstPath, dstPath)
 		return nil
 	}
 	modTime := int64(0)
@@ -385,8 +420,18 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 							errMu.Lock()
 							errs = append(errs, fmt.Errorf("failed to process image %s: %w", task.path, err))
 							errMu.Unlock()
-						} else if opts.OnWrite != nil {
-							opts.OnWrite(target)
+						} else {
+							if opts.OnWrite != nil {
+								opts.OnWrite(target)
+							}
+							if task.originalRelPath != "" {
+								// File system path mapping
+								RecordConvertedImage(filepath.Join(dstDir, task.originalRelPath), target)
+								// URL format mapping (ensure leading slash)
+								relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(task.originalRelPath), "/")
+								relDst := "/" + strings.TrimPrefix(filepath.ToSlash(task.relPath), "/")
+								RecordConvertedImage(relSrc, relDst)
+							}
 						}
 					}()
 				}
@@ -456,13 +501,23 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink ArtifactSink, srcDir, 
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case imageQueue <- fileTask{path, finalRelPath, info}:
+			case imageQueue <- fileTask{
+				path:            path,
+				relPath:         finalRelPath,
+				originalRelPath: relPath,
+				info:            info,
+			}:
 			}
 		} else {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case nonImageQueue <- fileTask{path, finalRelPath, info}:
+			case nonImageQueue <- fileTask{
+				path:            path,
+				relPath:         finalRelPath,
+				originalRelPath: "",
+				info:            info,
+			}:
 			}
 		}
 		return nil

@@ -2,6 +2,7 @@ package scaffold
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/spf13/afero"
@@ -77,7 +78,7 @@ func Run(args []string) {
 
 // RunFs initializes a new Kosh project using the provided filesystem
 func RunFs(fs afero.Fs, args []string) {
-	fmt.Println("🌱 Initializing new Kosh project...")
+	slog.Info("Initializing new Kosh project...")
 
 	// 1. Create Directories
 	dirs := []string{
@@ -89,22 +90,22 @@ func RunFs(fs afero.Fs, args []string) {
 
 	for _, dir := range dirs {
 		if err := fs.MkdirAll(dir, 0755); err != nil {
-			fmt.Printf("❌ Failed to create directory '%s': %v\n", dir, err)
+			slog.Error("Failed to create directory", "dir", dir, "error", err)
 			return
 		}
-		fmt.Printf("   📁 Created '%s/'\n", dir)
+		slog.Info("Created directory", "path", dir+"/")
 	}
 
 	// 2. Create kosh.yaml
 	exists, _ := afero.Exists(fs, "kosh.yaml")
 	if !exists {
 		if err := afero.WriteFile(fs, "kosh.yaml", []byte(defaultKoshYaml), 0644); err != nil {
-			fmt.Printf("❌ Failed to create kosh.yaml: %v\n", err)
+			slog.Error("Failed to create kosh.yaml", "error", err)
 			return
 		}
-		fmt.Println("   📄 Created 'kosh.yaml'")
+		slog.Info("Created kosh.yaml")
 	} else {
-		fmt.Println("   ⚠️ 'kosh.yaml' already exists, skipping.")
+		slog.Warn("kosh.yaml already exists, skipping")
 	}
 
 	// 3. Create first post
@@ -112,12 +113,12 @@ func RunFs(fs afero.Fs, args []string) {
 	if !exists {
 		content := fmt.Sprintf(firstPost, time.Now().Format("2006-01-02"))
 		if err := afero.WriteFile(fs, "content/hello-world.md", []byte(content), 0644); err != nil {
-			fmt.Printf("❌ Failed to create first post: %v\n", err)
+			slog.Error("Failed to create first post", "error", err)
 		} else {
-			fmt.Println("   📝 Created 'content/hello-world.md'")
+			slog.Info("Created content/hello-world.md")
 		}
 	}
 
-	fmt.Println("\n✅ Project initialized successfully!")
-	fmt.Println("   👉 Clone a theme into 'themes/' to get started.")
+	slog.Info("Project initialized successfully!")
+	slog.Info("👉 Clone a theme into themes/ to get started.")
 }

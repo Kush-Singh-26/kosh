@@ -145,11 +145,12 @@ func isHashedAsset(filename string) bool {
 		return false
 	}
 	hashPart := filename[prevDot+1 : hashEnd]
+	// esbuild uses alphanumeric hashes of length 8
 	if len(hashPart) < 8 || len(hashPart) > 12 {
 		return false
 	}
 	for _, c := range hashPart {
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
 			return false
 		}
 	}
