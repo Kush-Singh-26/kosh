@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
@@ -50,6 +51,21 @@ func SortPosts(posts []models.PostMetadata) {
 func ExtractStringFromMap(m map[string]any, k string) string {
 	if v, ok := m[k]; ok {
 		return fmt.Sprintf("%v", v)
+	}
+	return ""
+}
+
+func ExtractDateStringFromMap(m map[string]any, k string) string {
+	if v, ok := m[k]; ok {
+		if t, ok := v.(time.Time); ok {
+			return t.Format("2006-01-02")
+		}
+		if s, ok := v.(string); ok {
+			if t, err := time.Parse("2006-01-02", s); err == nil {
+				return t.Format("2006-01-02")
+			}
+			return s
+		}
 	}
 	return ""
 }

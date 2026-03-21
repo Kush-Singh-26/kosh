@@ -19,6 +19,7 @@ import (
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
@@ -219,7 +220,7 @@ func (s *postService) runStreamingParsePhase(ctx context.Context, numWorkers int
 func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, renderChan <-chan renderTask) {
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(rt renderTask) error {
 		post := rt.parseRes.Post
-		_, _, cardImageURL := CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, rt.htmlRelPath)
+		_, _, cardImageURL := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, rt.htmlRelPath)
 		var prev, next *models.NavPage
 		if pos, ok := nav.postPosByVersion[rt.version][rt.f.Link]; ok {
 			vp := nav.postsByVersion[rt.version]
@@ -269,7 +270,7 @@ func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.Sca
 	path, version := f.Path, f.Version
 	relPath := f.RelPath
 
-	htmlRelPath, cleanHtmlRelPath, destPath := ComputePathVars(s.cfg.OutputDir, relPath, version)
+	htmlRelPath, cleanHtmlRelPath, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath, version)
 
 	// 1. Check Cache
 	cachedMeta, useCache := s.checkCache(relPath, f, shouldForce)
@@ -532,7 +533,7 @@ func (s *postService) renderMath(ctx context.Context, path string, res *ParsedMa
 }
 
 func (s *postService) queueSocialCard(relPath string, res *ParsedMarkdownResult, htmlRelPath string, force bool, pool *async.WorkerPool[socialCardTask]) {
-	cardRelPath, cardDestPath, _ := CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
+	cardRelPath, cardDestPath, _ := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
 	var cardHash string
 	if s.cache != nil {
 		cardHash, _ = s.cache.GetSocialCardHash(relPath)

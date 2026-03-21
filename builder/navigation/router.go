@@ -1,15 +1,21 @@
-package services
+package navigation
 
 import (
 	"path/filepath"
 	"strings"
 )
 
-// ComputePathVars derives all path variants needed for post processing.
-// relPath should be the full relative path from the content directory (including version prefix if any).
-// Returns: htmlRelPath, cleanHtmlRelPath, destPath
+type PostPaths struct {
+	HTMLRelPath      string
+	CleanHTMLRelPath string
+	DestPath         string
+	Link             string
+	CardRelPath      string
+	CardDestPath     string
+	CardImageURL     string
+}
+
 func ComputePathVars(outputDir, relPath, version string) (htmlRelPath, cleanHtmlRelPath, destPath string) {
-	// Normalize to forward slashes for consistent prefix stripping
 	relPath = filepath.ToSlash(relPath)
 	htmlRelPath = strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 
@@ -27,7 +33,6 @@ func ComputePathVars(outputDir, relPath, version string) (htmlRelPath, cleanHtml
 	return
 }
 
-// CardPaths computes paths and URLs for a post's social card.
 func CardPaths(baseURL, outputDir, htmlRelPath string) (cardRelPath, cardDestPath, cardImageURL string) {
 	cardRelPath = strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
 	cardDestPath = filepath.ToSlash(filepath.Join(outputDir, "static", "images", "cards", cardRelPath))

@@ -125,7 +125,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 
 	relPath, _ := fspkg.SafeRel(s.cfg.ContentDir, path)
 	version, _ := navigation.GetVersionFromPath(path)
-	htmlRelPath, cleanHtmlRelPath, destPath := ComputePathVars(s.cfg.OutputDir, relPath, version)
+	htmlRelPath, cleanHtmlRelPath, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath, version)
 
 	var parseRes *ParsedMarkdownResult
 	if preParsed != nil {
@@ -155,7 +155,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 	htmlContent := s.renderMathSSR(ctx, parseRes.HTMLContent, parseRes.MathExpressions)
 	post := parseRes.Post
 	nav := s.resolveNavigation(post, version)
-	cardRelPath, cardDestPath, cardImageURL := CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
+	cardRelPath, cardDestPath, cardImageURL := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
 
 	if s.cfg.Features.RawMarkdown {
 		mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"

@@ -154,120 +154,85 @@ func (r *Renderer) ReloadTemplates() {
 
 	var (
 		layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl *template.Template
+		sidebarTmpl                                    *template.Template
 		mu                                             sync.Mutex
 	)
 
-	g := new(errgroup.Group)
-
-	// Layout (Essential)
-	g.Go(func() error {
-		path := filepath.Join(r.templateDir, "layout.html")
+	loadTmpl := func(name, fileName string) (*template.Template, error) {
+		path := filepath.Join(r.templateDir, fileName)
 		content, err := afero.ReadFile(r.SourceFs, path)
 		if err != nil {
-			return fmt.Errorf("failed to read layout template: %w", err)
+			return nil, err
 		}
-		tmpl, err := template.New("layout.html").Funcs(funcMap).Parse(string(content))
+		tmpl, err := template.New(fileName).Funcs(funcMap).Parse(string(content))
 		if err != nil {
-			return fmt.Errorf("failed to parse layout template: %w", err)
+			return nil, err
 		}
 		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
-		layoutTmpl = tmpl
 		if info != nil {
-			tc.setTemplate("layout", tmpl, info.ModTime(), content)
+			tc.setTemplate(name, tmpl, info.ModTime(), content)
 		}
+		mu.Unlock()
+		return tmpl, nil
+	}
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		t, err := loadTmpl("layout", "layout.html")
+		if err != nil {
+			return fmt.Errorf("failed to read layout template: %w", err)
+		}
+		mu.Lock()
+		layoutTmpl = t
 		mu.Unlock()
 		return nil
 	})
 
-	// Index
 	g.Go(func() error {
-		path := filepath.Join(r.templateDir, "index.html")
-		content, err := afero.ReadFile(r.SourceFs, path)
+		t, err := loadTmpl("index", "index.html")
 		if err != nil {
 			r.logger.Warn("Index template not found, falling back to layout", "dir", r.templateDir)
 			return nil
 		}
-		tmpl, err := template.New("index.html").Funcs(funcMap).Parse(string(content))
-		if err != nil {
-			r.logger.Warn("Failed to parse index template", "path", path, "error", err)
-			return nil
-		}
-		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
-		indexTmpl = tmpl
-		if info != nil {
-			tc.setTemplate("index", tmpl, info.ModTime(), content)
-		}
+		indexTmpl = t
 		mu.Unlock()
 		return nil
 	})
 
-	// Graph
 	g.Go(func() error {
-		path := filepath.Join(r.templateDir, "graph.html")
-		content, err := afero.ReadFile(r.SourceFs, path)
+		t, err := loadTmpl("graph", "graph.html")
 		if err != nil {
 			r.logger.Warn("Graph template not found, skipping graph page", "dir", r.templateDir)
 			return nil
 		}
-		tmpl, err := template.New("graph.html").Funcs(funcMap).Parse(string(content))
-		if err != nil {
-			r.logger.Warn("Failed to parse graph template", "path", path, "error", err)
-			return nil
-		}
-		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
-		graphTmpl = tmpl
-		if info != nil {
-			tc.setTemplate("graph", tmpl, info.ModTime(), content)
-		}
+		graphTmpl = t
 		mu.Unlock()
 		return nil
 	})
 
-	// 404
 	g.Go(func() error {
-		path := filepath.Join(r.templateDir, "404.html")
-		content, err := afero.ReadFile(r.SourceFs, path)
+		t, err := loadTmpl("404", "404.html")
 		if err != nil {
 			r.logger.Warn("404 template not found, falling back to layout", "dir", r.templateDir)
 			return nil
 		}
-		tmpl, err := template.New("404.html").Funcs(funcMap).Parse(string(content))
-		if err != nil {
-			r.logger.Warn("Failed to parse 404 template", "path", path, "error", err)
-			return nil
-		}
-		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
-		notFoundTmpl = tmpl
-		if info != nil {
-			tc.setTemplate("404", tmpl, info.ModTime(), content)
-		}
+		notFoundTmpl = t
 		mu.Unlock()
 		return nil
 	})
 
-	// Sidebar (Optional Component)
-	var sidebarTmpl *template.Template
 	g.Go(func() error {
-		path := filepath.Join(r.templateDir, "sidebar.html")
-		content, err := afero.ReadFile(r.SourceFs, path)
+		t, err := loadTmpl("sidebar", "sidebar.html")
 		if err != nil {
-			return nil // Optional
-		}
-		tmpl, err := template.New("sidebar.html").Funcs(funcMap).Parse(string(content))
-		if err != nil {
-			r.logger.Warn("Failed to parse sidebar template", "path", path, "error", err)
 			return nil
 		}
-		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
-		sidebarTmpl = tmpl
-		if info != nil {
-			tc.setTemplate("sidebar", tmpl, info.ModTime(), content)
-		}
+		sidebarTmpl = t
 		mu.Unlock()
 		return nil
 	})

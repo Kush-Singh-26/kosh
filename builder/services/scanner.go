@@ -5,9 +5,7 @@ import (
 	"context"
 	"io/fs"
 	"path/filepath"
-	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -18,67 +16,10 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 var yamlDelim = []byte("---")
-
-// Lightweight frontmatter field extractors using regex/string parsing
-// These avoid full YAML unmarshaling for the common case of needing only a few fields
-var (
-	titleRegex       = regexp.MustCompile(`(?m)^title:\s*["']?([^"'\n]+)["']?\s*$`)
-	descriptionRegex = regexp.MustCompile(`(?m)^description:\s*["']?([^"'\n]+)["']?\s*$`)
-	dateRegex        = regexp.MustCompile(`(?m)^date:\s*["']?(\d{4}-\d{2}-\d{2})["']?\s*$`)
-	draftRegex       = regexp.MustCompile(`(?m)^draft:\s*(true|false)\s*$`)
-	pinnedRegex      = regexp.MustCompile(`(?m)^pinned:\s*(true|false)\s*$`)
-	weightRegex      = regexp.MustCompile(`(?m)^weight:\s*(\d+)\s*$`)
-	tagsLineRegex    = regexp.MustCompile(`(?m)^tags:\s*\[(.*?)\]\s*$`)
-)
-
-// extractFrontmatterField extracts a single string field from frontmatter using regex
-func extractFrontmatterField(frontmatter []byte, re *regexp.Regexp) (string, bool) {
-	match := re.FindSubmatch(frontmatter)
-	if len(match) < 2 {
-		return "", false
-	}
-	return string(bytes.TrimSpace(match[1])), true
-}
-
-// extractFrontmatterBool extracts a boolean field from frontmatter
-func extractFrontmatterBool(frontmatter []byte, re *regexp.Regexp) bool {
-	match := re.FindSubmatch(frontmatter)
-	if len(match) < 2 {
-		return false
-	}
-	return string(bytes.TrimSpace(match[1])) == "true"
-}
-
-// extractFrontmatterInt extracts an integer field from frontmatter
-func extractFrontmatterInt(frontmatter []byte, re *regexp.Regexp) int {
-	match := re.FindSubmatch(frontmatter)
-	if len(match) < 2 {
-		return 0
-	}
-	val, _ := strconv.Atoi(string(bytes.TrimSpace(match[1])))
-	return val
-}
-
-// extractFrontmatterTags extracts tags from frontmatter [tag1, tag2]
-func extractFrontmatterTags(frontmatter []byte) []string {
-	match := tagsLineRegex.FindSubmatch(frontmatter)
-	if len(match) < 2 {
-		return nil
-	}
-	rawTags := string(match[1])
-	parts := strings.Split(rawTags, ",")
-	tags := make([]string, 0, len(parts))
-	for _, p := range parts {
-		tag := strings.Trim(strings.TrimSpace(p), "\"'")
-		if tag != "" {
-			tags = append(tags, tag)
-		}
-	}
-	return tags
-}
 
 type metadataScanner struct{}
 
@@ -94,7 +35,6 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, srcFs afe
 
 	var mu sync.Mutex
 	g, ctx := errgroup.WithContext(ctx)
-	// Limit concurrency for filesystem walk/read
 	g.SetLimit(runtime.NumCPU() * 2)
 
 	err := afero.Walk(srcFs, contentDir, func(path string, info fs.FileInfo, err error) error {
@@ -121,7 +61,7 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, srcFs afe
 		g.Go(func() error {
 			f, err := s.ScanFile(srcFs, cfg, path)
 			if err != nil {
-				return nil // Skip individual file errors
+				return nil
 			}
 
 			if fileChan != nil {
@@ -152,8 +92,6 @@ func (s *metadataScanner) Scan(ctx context.Context, contentDir string, srcFs afe
 	return result, nil
 }
 
-// Remove ScanVersioned entirely as it's unused and superseded by Scan
-
 func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error) {
 	data, err := afero.ReadFile(srcFs, path)
 	if err != nil {
@@ -168,35 +106,40 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 	relPath, _ := filepath.Rel(cfg.ContentDir, path)
 	version, _ := navigation.GetVersionFromPath(path)
 
-	// Extract frontmatter and body quickly
-	parts := bytes.SplitN(data, yamlDelim, 3)
-	var frontmatter, body []byte
+	var frontmatter []byte
+	var body []byte
 	var bodyOffset int
+	parts := bytes.SplitN(data, yamlDelim, 3)
 	if len(parts) >= 3 {
 		frontmatter = bytes.TrimSpace(parts[1])
 		body = bytes.TrimSpace(parts[2])
-		// Calculate offset for search snippet context
 		bodyOffset = bytes.Index(data, parts[2])
 	} else {
 		body = bytes.TrimSpace(data)
 		bodyOffset = 0
 	}
 
-	title, _ := extractFrontmatterField(frontmatter, titleRegex)
+	preParsedMeta, _ := hashing.ParseFrontmatter(frontmatter)
+
+	title := timeutil.ExtractStringFromMap(preParsedMeta, "title")
 	if title == "" {
 		title = strings.TrimSuffix(filepath.Base(path), ".md")
 	}
+	description := timeutil.ExtractStringFromMap(preParsedMeta, "description")
+	date := timeutil.ExtractDateStringFromMap(preParsedMeta, "date")
+	draft := timeutil.ExtractBoolFromMap(preParsedMeta, "draft")
+	pinned := timeutil.ExtractBoolFromMap(preParsedMeta, "pinned")
 
-	description, _ := extractFrontmatterField(frontmatter, descriptionRegex)
-	date, _ := extractFrontmatterField(frontmatter, dateRegex)
-	draft := extractFrontmatterBool(frontmatter, draftRegex)
-	pinned := extractFrontmatterBool(frontmatter, pinnedRegex)
-	weight := extractFrontmatterInt(frontmatter, weightRegex)
-	tags := extractFrontmatterTags(frontmatter)
+	weight := 0
+	if w, ok := preParsedMeta["weight"].(int); ok {
+		weight = w
+	} else if w, ok := preParsedMeta["weight"].(float64); ok {
+		weight = int(w)
+	}
 
+	tags := timeutil.ExtractSliceFromMap(preParsedMeta, "tags")
 	bodyHash := hashing.HashBytes(body)
 	cleanHtmlRelPath := strings.TrimSuffix(relPath, filepath.Ext(relPath)) + ".html"
-
 	postLink := navigation.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
 
 	frontmatterHash := hashing.GetFrontmatterHashFromValues(
@@ -214,11 +157,12 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 		Pinned:          pinned,
 		Weight:          weight,
 		Tags:            tags,
-		FrontmatterHash: frontmatterHash,
+		Info:            info,
 		BodyHash:        bodyHash,
+		FrontmatterHash: frontmatterHash,
 		BodyOffset:      bodyOffset,
 		Link:            postLink,
-		Info:            info,
-		Source:          data, // Pre-read source bytes
+		Source:          data,
+		PreParsedMeta:   preParsedMeta,
 	}, nil
 }
