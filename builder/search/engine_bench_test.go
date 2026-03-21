@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
 func BenchmarkExtractSnippet(b *testing.B) {
@@ -27,7 +28,7 @@ func BenchmarkLevenshteinDistance(b *testing.B) {
 	s2 := "programing"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = LevenshteinDistance(s1, s2)
+		_ = core.LevenshteinDistance(s1, s2)
 	}
 }
 

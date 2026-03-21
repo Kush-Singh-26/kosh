@@ -12,6 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
+	"github.com/Kush-Singh-26/kosh/builder/search/core"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
@@ -94,7 +95,7 @@ func BenchmarkTokenize(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = search.TokenizeWithUnicodeInto(text, nil)
+		_ = core.TokenizeWithUnicodeInto(text, nil)
 	}
 }
 
@@ -135,7 +136,7 @@ func BenchmarkStemCached(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, word := range words {
-			_ = search.StemCached(word)
+			_ = core.StemCached(word)
 		}
 	}
 }
@@ -152,7 +153,7 @@ func BenchmarkStemUncached(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, word := range words {
-			_ = search.Stem(word)
+			_ = core.Stem(word)
 		}
 	}
 }
@@ -166,7 +167,7 @@ func BenchmarkStemCachedRepeated(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for range 100 {
-			_ = search.StemCached(word)
+			_ = core.StemCached(word)
 		}
 	}
 }
@@ -179,7 +180,7 @@ func BenchmarkStemUncachedRepeated(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for range 100 {
-			_ = search.Stem(word)
+			_ = core.Stem(word)
 		}
 	}
 }
@@ -192,7 +193,7 @@ func BenchmarkFuzzyExpand(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = search.FuzzyExpand(term, index.Inverted, 2)
+		_ = core.FuzzyExpand(term, index.Inverted, 2)
 	}
 }
 
@@ -204,7 +205,7 @@ func BenchmarkFuzzyExpandWithNgrams(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = search.FuzzyExpandWithNgrams(term, index.NgramIndex, 2)
+		_ = core.FuzzyExpandWithNgrams(term, index.NgramIndex, 2)
 	}
 }
 
@@ -215,13 +216,13 @@ func BenchmarkBuildNgramIndex(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = search.BuildNgramIndex(index.Inverted)
+		_ = core.BuildNgramIndex(index.Inverted)
 	}
 }
 
 // BenchmarkAnalyze tests text analysis with stemming
 func BenchmarkAnalyze(b *testing.B) {
-	analyzer := search.NewAnalyzer(true, true)
+	analyzer := core.NewAnalyzer(true, true)
 	text := strings.Repeat("The quick brown fox jumps over the lazy dog. ", 10)
 
 	b.ResetTimer()
@@ -233,7 +234,7 @@ func BenchmarkAnalyze(b *testing.B) {
 
 // BenchmarkAnalyzeNoStemming tests text analysis without stemming
 func BenchmarkAnalyzeNoStemming(b *testing.B) {
-	analyzer := search.NewAnalyzer(true, false)
+	analyzer := core.NewAnalyzer(true, false)
 	text := strings.Repeat("The quick brown fox jumps over the lazy dog. ", 10)
 
 	b.ResetTimer()
@@ -258,7 +259,7 @@ func BenchmarkLevenshteinDistance(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, tt := range tests {
-			_ = search.LevenshteinDistance(tt.a, tt.b)
+			_ = core.LevenshteinDistance(tt.a, tt.b)
 		}
 	}
 }
@@ -306,7 +307,7 @@ func createMockSearchIndex(size int) *models.SearchIndex {
 
 func createMockSearchIndexWithNgrams(size int) *models.SearchIndex {
 	index := createMockSearchIndex(size)
-	index.NgramIndex = search.BuildNgramIndex(index.Inverted)
+	index.NgramIndex = core.BuildNgramIndex(index.Inverted)
 	return index
 }
 

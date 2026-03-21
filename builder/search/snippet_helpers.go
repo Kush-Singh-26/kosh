@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Kush-Singh-26/kosh/builder/pools"
+	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
 // match represents a term match position
@@ -55,7 +56,7 @@ func findMatches(content string, terms []string, termOffsets map[string][]int) [
 
 	// If no matches from offsets, search in content
 	if len(matches) == 0 {
-		contentLower := ToLower(content)
+		contentLower := core.ToLower(content)
 		for _, term := range terms {
 			if len(term) < 2 {
 				continue

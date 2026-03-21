@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
 // Constants for snippet extraction optimization
@@ -38,15 +39,15 @@ type Result struct {
 
 // PerformSearch executes a search query against the index with fuzzy, prefix and phrase support
 func PerformSearch(index *models.SearchIndex, query string, versionFilter string) []Result {
-	query = NormalizeNFC(query)
-	query = ToLower(strings.TrimSpace(query))
+	query = core.NormalizeNFC(query)
+	query = core.ToLower(strings.TrimSpace(query))
 	if query == "" {
 		return nil
 	}
 
 	originalQuery := query
 	tagFilter, query := extractTagFilter(query)
-	parsed := ParseQuery(query)
+	parsed := core.ParseQuery(query)
 
 	opts := SearchScoringOptions{
 		TagFilter:      tagFilter,
@@ -130,9 +131,9 @@ func applyBM25Score(index *models.SearchIndex, posts map[string][]int, term stri
 func scoreFuzzy(index *models.SearchIndex, term string, opts *SearchScoringOptions) {
 	var candidates []string
 	if index.NgramIndex != nil {
-		candidates = FuzzyExpandWithNgrams(term, index.NgramIndex, MaxEditDistance)
+		candidates = core.FuzzyExpandWithNgrams(term, index.NgramIndex, core.MaxEditDistance)
 	} else {
-		candidates = FuzzyExpand(term, index.Inverted, MaxEditDistance)
+		candidates = core.FuzzyExpand(term, index.Inverted, core.MaxEditDistance)
 	}
 
 	for _, candTerm := range candidates {
@@ -184,7 +185,7 @@ func applyFallbackScoring(index *models.SearchIndex, originalQuery string, opts 
 			opts.Scores[id] += ScoreTitleMatch
 			match = true
 		}
-		if strings.Contains(ToLower(post.Description), originalQuery) {
+		if strings.Contains(core.ToLower(post.Description), originalQuery) {
 			opts.Scores[id] += 1.0
 			match = true
 		}

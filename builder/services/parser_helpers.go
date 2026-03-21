@@ -11,7 +11,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
-	"github.com/Kush-Singh-26/kosh/builder/search"
+	"github.com/Kush-Singh-26/kosh/builder/search/core"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 
 	"github.com/yuin/goldmark"
@@ -151,7 +151,7 @@ func tokenizeSearchData(
 	metaOffset := sb.Len()
 	sb.WriteString(plainText)
 
-	words, freshStemMap, positions, rawOffsets := search.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
+	words, freshStemMap, positions, rawOffsets := core.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
 
 	wordFreqs = make(map[string]int, len(words)/2)
 	for _, w := range words {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
 func TestPerformSearch_PhraseBoost(t *testing.T) {
@@ -111,7 +112,7 @@ func TestTokenize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tokens := TokenizeWithUnicodeInto(tt.input, nil)
+			tokens := core.TokenizeWithUnicodeInto(tt.input, nil)
 			got := make([]string, len(tokens))
 			for i, token := range tokens {
 				got[i] = token.Value

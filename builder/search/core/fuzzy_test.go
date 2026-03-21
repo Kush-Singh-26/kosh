@@ -1,4 +1,4 @@
-package search
+package core
 
 import (
 	"testing"
@@ -163,7 +163,7 @@ func TestGenerateTrigrams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.word, func(t *testing.T) {
-			result := generateTrigrams(tt.word)
+			result := GenerateTrigrams(tt.word)
 			if len(result) != len(tt.expected) {
 				t.Errorf("generateTrigrams(%q) returned %d trigrams, want %d", tt.word, len(result), len(tt.expected))
 			}
@@ -189,7 +189,7 @@ func TestGenerateTrigrams_Unicode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.word, func(t *testing.T) {
-			result := generateTrigrams(tt.word)
+			result := GenerateTrigrams(tt.word)
 			if len(result) != len(tt.expected) {
 				t.Errorf("generateTrigrams(%q) returned %d trigrams, want %d", tt.word, len(result), len(tt.expected))
 			}
