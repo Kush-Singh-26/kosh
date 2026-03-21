@@ -48,8 +48,8 @@ type SearchRecord struct {
 	Content         string
 	NormalizedTags  []string
 	StemMap         map[string]string
-	PositionalIndex map[string][]int
-	ByteOffsets     map[string][]int
+	PositionalIndex map[string][]uint32
+	ByteOffsets     map[string][]uint32
 }
 
 // Dependencies tracks what a post depends on

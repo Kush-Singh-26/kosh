@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-//msgp:ignore TreeNode Breadcrumb NavPage VersionInfo PostMetadata TagData Paginator PageData UrlSet Url Rss Channel Item GraphNode GraphLink GraphData LightPostMetadata MetadataScannerResult ScannedFile ScannedAsset MenuEntry AuthorConfig GeneratorsConfig FeaturesConfig SocialCardsConfig
+//msgp:ignore TreeNode Breadcrumb NavPage VersionInfo PostMetadata TagData Paginator PageData URLSet URL Rss Channel Item GraphNode GraphLink GraphData LightPostMetadata MetadataScannerResult ScannedFile ScannedAsset MenuEntry AuthorConfig GeneratorsConfig FeaturesConfig SocialCardsConfig
 
 // LightPostMetadata is a minimal post metadata structure for site-wide discovery
 // and scanning. It contains the basic fields needed to identify a post and
@@ -311,8 +311,8 @@ type IndexedPost struct {
 	WordFreqs       map[string]int
 	DocLen          int
 	StemMap         map[string]string // original word -> stem
-	PositionalIndex map[string][]int  // used during indexing; encoded to uint32 for storage
-	ByteOffsets     map[string][]int  // word -> [start, end, start, end...]
+	PositionalIndex map[string][]uint32
+	ByteOffsets     map[string][]uint32
 }
 
 const CurrentSchemaVersion = 11

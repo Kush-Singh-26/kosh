@@ -80,6 +80,7 @@ func (m *Manager) UpdateIndexedPostCache(relPath string, parseRes *services.Pars
 				DocLen:          parseRes.DocLen,
 				StemMap:         parseRes.StemMap,
 				PositionalIndex: parseRes.PositionalIndex,
+				ByteOffsets:     parseRes.ByteOffsets,
 			}
 			found = true
 			break
@@ -94,6 +95,7 @@ func (m *Manager) UpdateIndexedPostCache(relPath string, parseRes *services.Pars
 			DocLen:          parseRes.DocLen,
 			StemMap:         parseRes.StemMap,
 			PositionalIndex: parseRes.PositionalIndex,
+			ByteOffsets:     parseRes.ByteOffsets,
 		})
 	}
 }
@@ -203,6 +205,7 @@ func (m *Manager) ensureIndexedPosts() ([]models.IndexedPost, error) {
 			DocLen:          searchRec.DocLen,
 			StemMap:         searchRec.StemMap,
 			PositionalIndex: searchRec.PositionalIndex,
+			ByteOffsets:     searchRec.ByteOffsets,
 		})
 	}
 	return indexedPosts, nil

@@ -106,7 +106,7 @@ func (z *IndexedPost) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 			if z.PositionalIndex == nil {
-				z.PositionalIndex = make(map[string][]int, zb0004)
+				z.PositionalIndex = make(map[string][]uint32, zb0004)
 			} else if len(z.PositionalIndex) > 0 {
 				clear(z.PositionalIndex)
 			}
@@ -118,7 +118,7 @@ func (z *IndexedPost) DecodeMsg(dc *msgp.Reader) (err error) {
 					err = msgp.WrapError(err, "PositionalIndex")
 					return
 				}
-				var za0006 []int
+				var za0006 []uint32
 				var zb0005 uint32
 				zb0005, err = dc.ReadArrayHeader()
 				if err != nil {
@@ -128,10 +128,10 @@ func (z *IndexedPost) DecodeMsg(dc *msgp.Reader) (err error) {
 				if cap(za0006) >= int(zb0005) {
 					za0006 = (za0006)[:zb0005]
 				} else {
-					za0006 = make([]int, zb0005)
+					za0006 = make([]uint32, zb0005)
 				}
 				for za0007 := range za0006 {
-					za0006[za0007], err = dc.ReadInt()
+					za0006[za0007], err = dc.ReadUint32()
 					if err != nil {
 						err = msgp.WrapError(err, "PositionalIndex", za0005, za0007)
 						return
@@ -147,7 +147,7 @@ func (z *IndexedPost) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 			if z.ByteOffsets == nil {
-				z.ByteOffsets = make(map[string][]int, zb0006)
+				z.ByteOffsets = make(map[string][]uint32, zb0006)
 			} else if len(z.ByteOffsets) > 0 {
 				clear(z.ByteOffsets)
 			}
@@ -159,7 +159,7 @@ func (z *IndexedPost) DecodeMsg(dc *msgp.Reader) (err error) {
 					err = msgp.WrapError(err, "ByteOffsets")
 					return
 				}
-				var za0009 []int
+				var za0009 []uint32
 				var zb0007 uint32
 				zb0007, err = dc.ReadArrayHeader()
 				if err != nil {
@@ -169,10 +169,10 @@ func (z *IndexedPost) DecodeMsg(dc *msgp.Reader) (err error) {
 				if cap(za0009) >= int(zb0007) {
 					za0009 = (za0009)[:zb0007]
 				} else {
-					za0009 = make([]int, zb0007)
+					za0009 = make([]uint32, zb0007)
 				}
 				for za0010 := range za0009 {
-					za0009[za0010], err = dc.ReadInt()
+					za0009[za0010], err = dc.ReadUint32()
 					if err != nil {
 						err = msgp.WrapError(err, "ByteOffsets", za0008, za0010)
 						return
@@ -290,7 +290,7 @@ func (z *IndexedPost) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 		for za0007 := range za0006 {
-			err = en.WriteInt(za0006[za0007])
+			err = en.WriteUint32(za0006[za0007])
 			if err != nil {
 				err = msgp.WrapError(err, "PositionalIndex", za0005, za0007)
 				return
@@ -319,7 +319,7 @@ func (z *IndexedPost) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 		for za0010 := range za0009 {
-			err = en.WriteInt(za0009[za0010])
+			err = en.WriteUint32(za0009[za0010])
 			if err != nil {
 				err = msgp.WrapError(err, "ByteOffsets", za0008, za0010)
 				return
@@ -367,7 +367,7 @@ func (z *IndexedPost) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, za0005)
 		o = msgp.AppendArrayHeader(o, uint32(len(za0006)))
 		for za0007 := range za0006 {
-			o = msgp.AppendInt(o, za0006[za0007])
+			o = msgp.AppendUint32(o, za0006[za0007])
 		}
 	}
 	// string "ByteOffsets"
@@ -377,7 +377,7 @@ func (z *IndexedPost) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, za0008)
 		o = msgp.AppendArrayHeader(o, uint32(len(za0009)))
 		for za0010 := range za0009 {
-			o = msgp.AppendInt(o, za0009[za0010])
+			o = msgp.AppendUint32(o, za0009[za0010])
 		}
 	}
 	return
@@ -483,12 +483,12 @@ func (z *IndexedPost) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 			if z.PositionalIndex == nil {
-				z.PositionalIndex = make(map[string][]int, zb0004)
+				z.PositionalIndex = make(map[string][]uint32, zb0004)
 			} else if len(z.PositionalIndex) > 0 {
 				clear(z.PositionalIndex)
 			}
 			for zb0004 > 0 {
-				var za0006 []int
+				var za0006 []uint32
 				zb0004--
 				var za0005 string
 				za0005, bts, err = msgp.ReadStringBytes(bts)
@@ -505,10 +505,10 @@ func (z *IndexedPost) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				if cap(za0006) >= int(zb0005) {
 					za0006 = (za0006)[:zb0005]
 				} else {
-					za0006 = make([]int, zb0005)
+					za0006 = make([]uint32, zb0005)
 				}
 				for za0007 := range za0006 {
-					za0006[za0007], bts, err = msgp.ReadIntBytes(bts)
+					za0006[za0007], bts, err = msgp.ReadUint32Bytes(bts)
 					if err != nil {
 						err = msgp.WrapError(err, "PositionalIndex", za0005, za0007)
 						return
@@ -524,12 +524,12 @@ func (z *IndexedPost) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 			if z.ByteOffsets == nil {
-				z.ByteOffsets = make(map[string][]int, zb0006)
+				z.ByteOffsets = make(map[string][]uint32, zb0006)
 			} else if len(z.ByteOffsets) > 0 {
 				clear(z.ByteOffsets)
 			}
 			for zb0006 > 0 {
-				var za0009 []int
+				var za0009 []uint32
 				zb0006--
 				var za0008 string
 				za0008, bts, err = msgp.ReadStringBytes(bts)
@@ -546,10 +546,10 @@ func (z *IndexedPost) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				if cap(za0009) >= int(zb0007) {
 					za0009 = (za0009)[:zb0007]
 				} else {
-					za0009 = make([]int, zb0007)
+					za0009 = make([]uint32, zb0007)
 				}
 				for za0010 := range za0009 {
-					za0009[za0010], bts, err = msgp.ReadIntBytes(bts)
+					za0009[za0010], bts, err = msgp.ReadUint32Bytes(bts)
 					if err != nil {
 						err = msgp.WrapError(err, "ByteOffsets", za0008, za0010)
 						return
@@ -589,14 +589,14 @@ func (z *IndexedPost) Msgsize() (s int) {
 	if z.PositionalIndex != nil {
 		for za0005, za0006 := range z.PositionalIndex {
 			_ = za0006
-			s += msgp.StringPrefixSize + len(za0005) + msgp.ArrayHeaderSize + (len(za0006) * (msgp.IntSize))
+			s += msgp.StringPrefixSize + len(za0005) + msgp.ArrayHeaderSize + (len(za0006) * (msgp.Uint32Size))
 		}
 	}
 	s += 12 + msgp.MapHeaderSize
 	if z.ByteOffsets != nil {
 		for za0008, za0009 := range z.ByteOffsets {
 			_ = za0009
-			s += msgp.StringPrefixSize + len(za0008) + msgp.ArrayHeaderSize + (len(za0009) * (msgp.IntSize))
+			s += msgp.StringPrefixSize + len(za0008) + msgp.ArrayHeaderSize + (len(za0009) * (msgp.Uint32Size))
 		}
 	}
 	return
@@ -1954,7 +1954,7 @@ func (z *SearchIndex) Msgsize() (s int) {
 			if za0012 != nil {
 				for za0013, za0014 := range za0012 {
 					_ = za0014
-					s += msgp.StringPrefixSize + len(za0013) + msgp.ArrayHeaderSize + (len(za0014) * (msgp.IntSize))
+					s += msgp.StringPrefixSize + len(za0013) + msgp.ArrayHeaderSize + (len(za0014) * (msgp.Uint32Size))
 				}
 			}
 		}
@@ -1967,7 +1967,7 @@ func (z *SearchIndex) Msgsize() (s int) {
 			if za0017 != nil {
 				for za0018, za0019 := range za0017 {
 					_ = za0019
-					s += msgp.StringPrefixSize + len(za0018) + msgp.ArrayHeaderSize + (len(za0019) * (msgp.IntSize))
+					s += msgp.StringPrefixSize + len(za0018) + msgp.ArrayHeaderSize + (len(za0019) * (msgp.Uint32Size))
 				}
 			}
 		}

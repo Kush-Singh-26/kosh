@@ -42,8 +42,8 @@ const (
 const (
 	// SchemaVersion is the current cache schema version.
 	// This should be kept in sync with models.CurrentSchemaVersion (search index schema).
-	// Both are currently at version 10 (as of 2026-03-19).
-	SchemaVersion = 10
+	// Both are currently at version 11.
+	SchemaVersion = 11
 )
 
 func HashContent(data []byte) string {

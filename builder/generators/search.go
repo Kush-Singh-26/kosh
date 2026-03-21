@@ -126,14 +126,14 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 					if _, ok := localInverted[word]; !ok {
 						localInverted[word] = make(map[string][]uint32, 4)
 					}
-					localInverted[word][idStr] = models.EncodePositions(positions)
+					localInverted[word][idStr] = positions
 				}
 
 				for word, off := range ip.ByteOffsets {
 					if _, ok := localOffsets[word]; !ok {
 						localOffsets[word] = make(map[string][]uint32, 4)
 					}
-					localOffsets[word][idStr] = models.EncodeOffsets(off)
+					localOffsets[word][idStr] = off
 				}
 
 				for orig, stem := range ip.StemMap {
