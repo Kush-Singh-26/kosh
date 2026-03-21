@@ -267,7 +267,15 @@ func (m *Manager) ClearAll() error {
 // clearFilesystemStore removes all content from the filesystem store
 func (m *Manager) clearFilesystemStore() error {
 	// List all categories and delete their contents
-	categories := []string{"html", "ssr-d2", "ssr-math", "search"}
+	categories := []string{
+		"html",
+		"search",
+		"ssr/d2",
+		"ssr/math",
+		"ssr/math-inline",
+		"ssr/math-block",
+		"ssr/katex",
+	}
 	for _, category := range categories {
 		hashes, err := m.store.ListHashes(category)
 		if err != nil {
@@ -291,6 +299,37 @@ func (m *Manager) DB() *bbolt.DB {
 // RunGC performs garbage collection
 func (m *Manager) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
 	return gc.RunGC(m.db, m.store, m.refCount, cfg)
+}
+
+// IncrementBuildCount increments the counter used to trigger GC
+func (m *Manager) IncrementBuildCount() (uint32, error) {
+	var count uint32
+	err := m.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(core.BucketStats))
+
+		// Increment global build count
+		var buildCount uint32
+		if data := bucket.Get([]byte(core.KeyBuildCount)); data != nil {
+			buildCount = binary.BigEndian.Uint32(data)
+		}
+		buildCount++
+		buildCountData := make([]byte, 4)
+		binary.BigEndian.PutUint32(buildCountData, buildCount)
+		if err := bucket.Put([]byte(core.KeyBuildCount), buildCountData); err != nil {
+			return err
+		}
+
+		// Increment builds since last GC
+		data := bucket.Get([]byte("builds_since_gc"))
+		if data != nil {
+			count = binary.BigEndian.Uint32(data)
+		}
+		count++
+		newData := make([]byte, 4)
+		binary.BigEndian.PutUint32(newData, count)
+		return bucket.Put([]byte("builds_since_gc"), newData)
+	})
+	return count, err
 }
 
 // QuickVerify performs a fast integrity check by sampling entries

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
@@ -141,8 +142,12 @@ func (s *cacheService) Stats() (*cache.CacheStats, error) {
 	return s.manager.Stats()
 }
 
-func (s *cacheService) IncrementBuildCount() error {
+func (s *cacheService) IncrementBuildCount() (uint32, error) {
 	return s.manager.IncrementBuildCount()
+}
+
+func (s *cacheService) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
+	return s.manager.RunGC(cfg)
 }
 
 func (s *cacheService) Close() error {

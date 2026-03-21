@@ -69,7 +69,7 @@ func (d *dirSink) WriteStream(path string, fn func(io.Writer) error) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return fn(f)
 }
 

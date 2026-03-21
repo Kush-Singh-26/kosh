@@ -82,8 +82,54 @@ features:
 |---------|-------------|
 | Memory Pools | Reusable buffers reduce GC pressure |
 | Worker Pools | Concurrent task processing |
-| BLAKE3 Hashing | Fast cryptographic hashing |
+| BLA3 Hashing | Fast cryptographic hashing |
 | Content-addressed Storage | Deduplication of content |
+| Pipelined Processing | Parse and render overlap for faster builds |
+| Decoupled Search Analysis | BM25 tokenization runs off the critical path |
+
+## SEO Features
+
+### JSON-LD Structured Data
+
+Blog posts automatically include JSON-LD structured data for rich search results. The `{{.JSONLD}}` template field exposes the JSON-LD script content:
+
+```html
+<script type="application/ld+json">{{.JSONLD}}</script>
+```
+
+This is rendered into every blog post page automatically.
+
+### Robots.txt
+
+A `robots.txt` file is automatically generated at the root of your site, pointing to your sitemap:
+
+```
+User-agent: *
+Sitemap: https://yoursite.com/sitemap/sitemap.xml
+```
+
+## Asset Optimization
+
+### SVG Minification
+
+SVG files in `static/` directories are automatically minified during the build process, reducing file size without quality loss. This is enabled by default and can be controlled via configuration:
+
+```yaml
+build:
+  minifySVGs: true  # default: true
+```
+
+## Accessibility
+
+### Image Alt-Text Linting
+
+During builds, Kosh warns about images missing alt text:
+
+```
+WARN  image missing alt text path=content/posts/my-post.md src=images/photo.jpg
+```
+
+This helps catch accessibility issues at build time rather than in production.
 
 ## PWA Support
 

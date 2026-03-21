@@ -2,6 +2,7 @@ package retry
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -76,7 +77,7 @@ func TestRenameWithRetry_ContextCancellation(t *testing.T) {
 	cancel()
 
 	err := RenameWithRetry(ctx, oldPath, newPath, 10, 10*time.Millisecond)
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("RenameWithRetry() expected context.Canceled, got %v", err)
 	}
 }
@@ -160,7 +161,7 @@ func TestRemoveAllWithRetry_ContextCancellation(t *testing.T) {
 
 	err := RemoveAllWithRetry(ctx, testDir, 10, 100*time.Millisecond)
 	// Should succeed or be canceled - both acceptable
-	if err != nil && err != context.Canceled {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		t.Errorf("RemoveAllWithRetry() unexpected error = %v", err)
 	}
 }
@@ -227,10 +228,10 @@ func TestRemoveAllWithRetry_NestedDirectories(t *testing.T) {
 	}
 
 	// Add files at various levels
-	os.WriteFile(filepath.Join(testDir, "root.txt"), []byte("root"), 0644)
-	os.WriteFile(filepath.Join(testDir, "a", "level1.txt"), []byte("level1"), 0644)
-	os.WriteFile(filepath.Join(testDir, "a", "b", "level2.txt"), []byte("level2"), 0644)
-	os.WriteFile(filepath.Join(nestedPath, "deep.txt"), []byte("deep"), 0644)
+	_ = os.WriteFile(filepath.Join(testDir, "root.txt"), []byte("root"), 0644)
+	_ = os.WriteFile(filepath.Join(testDir, "a", "level1.txt"), []byte("level1"), 0644)
+	_ = os.WriteFile(filepath.Join(testDir, "a", "b", "level2.txt"), []byte("level2"), 0644)
+	_ = os.WriteFile(filepath.Join(nestedPath, "deep.txt"), []byte("deep"), 0644)
 
 	err := RemoveAllWithRetry(ctx, testDir, 3, 10*time.Millisecond)
 	if err != nil {

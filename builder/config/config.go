@@ -46,6 +46,7 @@ type SiteConfig struct {
 type BuildOptions struct {
 	PostsPerPage   int  `yaml:"postsPerPage"`
 	CompressImages bool `yaml:"compressImages"`
+	MinifySVGs     bool `yaml:"minifySVGs"`
 	ImageWorkers   int  `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
 	WebPQuality    int  `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
 	ParserWorkers  int  `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
@@ -98,9 +99,10 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 		BuildOptions: BuildOptions{
 			PostsPerPage:   10,
 			CompressImages: true, // Always compress for performance
-			ImageWorkers:   8,    // Default 8 parallel workers for image processing (benchmarked optimum)
-			WebPQuality:    80,   // Default WebP quality is 80
-			ParserWorkers:  0,    // 0 = auto (use models.GetDefaultWorkerCount)
+			MinifySVGs:     true,
+			ImageWorkers:   8,  // Default 8 parallel workers for image processing (benchmarked optimum)
+			WebPQuality:    80, // Default WebP quality is 80
+			ParserWorkers:  0,  // 0 = auto (use models.GetDefaultWorkerCount)
 		},
 		PathConfig: PathConfig{
 			Theme:      "blog",

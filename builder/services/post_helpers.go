@@ -7,15 +7,3 @@ type socialCardTask struct {
 	metadata                    map[string]any
 	frontmatterHash             string
 }
-
-func (s *postService) isOutdatedVersion(version string) bool {
-	if version == "" {
-		return false
-	}
-	for _, v := range s.cfg.Versions {
-		if v.IsLatest {
-			return version != v.Path && version != v.Name
-		}
-	}
-	return true
-}

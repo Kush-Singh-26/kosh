@@ -5,6 +5,7 @@ import (
 
 	"github.com/tdewolff/minify/v2"
 	"github.com/tdewolff/minify/v2/html"
+	"github.com/tdewolff/minify/v2/svg"
 )
 
 var (
@@ -23,6 +24,7 @@ func GetMinifier() *minify.M {
 			KeepEndTags: true,
 		}
 		globalMinifier.Add("text/html", htmlMinifier)
+		globalMinifier.AddFunc("image/svg+xml", svg.Minify)
 	})
 	return globalMinifier
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
+	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -74,7 +75,8 @@ type CacheService interface {
 	SetWasmHash(hash string) error
 
 	Stats() (*cache.CacheStats, error)
-	IncrementBuildCount() error
+	IncrementBuildCount() (uint32, error)
+	RunGC(cfg gc.GCConfig) (*gc.GCResult, error)
 	Close() error
 }
 
@@ -131,7 +133,7 @@ type PostService interface {
 	// Process handles streaming post processing.
 	// Returns error only for critical failures (context cancelled, pool exhausted).
 	// Individual post errors are logged and skipped.
-	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error)
+	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*PostResult, error)
 
 	// ProcessSingle processes a single post file.
 	// Returns error if file cannot be read or parsed.

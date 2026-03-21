@@ -7,8 +7,7 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/spf13/afero"
-
+	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -21,6 +20,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/spf13/afero"
 )
 
 func init() {
@@ -43,6 +43,7 @@ type buildSetup struct {
 	postSvc        services.PostService
 	wasmSvc        services.WasmService
 	metaScanner    services.MetadataScanner
+	diagramAdapter *cache.DiagramCacheAdapter
 }
 
 func (s *buildSetup) initLoggerAndContext(cfg *config.Config) {
@@ -76,7 +77,7 @@ func (s *buildSetup) initCache() {
 			Logger:  s.logger,
 		})
 	}
-	_ = diagramAdapter
+	s.diagramAdapter = diagramAdapter
 }
 
 func (s *buildSetup) initNativeRenderer() {
@@ -89,11 +90,18 @@ func (s *buildSetup) initNativeRenderer() {
 	s.nativeRenderer = native.New(native.WithWorkers(workers), native.WithScheduler(sched))
 	go s.nativeRenderer.EnsureInitialized(context.Background())
 
-	diagramCache := &sync.Map{}
+	var ssrMap parser.SSRMap
+	if s.diagramAdapter != nil {
+		s.diagramAdapter.Start()
+		ssrMap = s.diagramAdapter
+	} else {
+		ssrMap = parser.NewMemorySSRMap()
+	}
+
 	d2Group := s.nativeRenderer.GetD2Singleflight()
 	s.mdPool = &sync.Pool{
 		New: func() any {
-			return parser.New(s.cfg, s.nativeRenderer, diagramCache, d2Group)
+			return parser.New(s.cfg, s.nativeRenderer, ssrMap, d2Group)
 		},
 	}
 }
@@ -134,7 +142,7 @@ func (s *buildSetup) initServices() {
 		MdPool:         s.mdPool,
 		NativeRenderer: s.nativeRenderer,
 		SourceFs:       s.vfs,
-		DiagramAdapter: nil,
+		DiagramAdapter: s.diagramAdapter,
 	})
 	s.metaScanner = services.NewMetadataScanner()
 
@@ -159,12 +167,13 @@ func newEngineWithConfigFs(vfs afero.Fs, cfg *config.Config) *Engine {
 		Cfg: cfg,
 		Ctx: setup.ctx,
 		Deps: EngineDependencies{
-			Cache:   setup.cacheSvc,
-			Post:    setup.postSvc,
-			Asset:   setup.assetSvc,
-			Render:  setup.renderSvc,
-			Wasm:    setup.wasmSvc,
-			Scanner: setup.metaScanner,
+			Cache:    setup.cacheSvc,
+			Post:     setup.postSvc,
+			Asset:    setup.assetSvc,
+			Render:   setup.renderSvc,
+			Wasm:     setup.wasmSvc,
+			Scanner:  setup.metaScanner,
+			Diagrams: setup.diagramAdapter,
 		},
 		Logger:         setup.logger,
 		Metrics:        setup.buildMetrics,

@@ -193,7 +193,7 @@ func TestRenderService_RenderPage(t *testing.T) {
 		}
 	}()
 
-	service.RenderPage("test.html", data)
+	_ = service.RenderPage("test.html", data)
 }
 
 func TestRenderService_RenderIndex(t *testing.T) {
@@ -210,7 +210,7 @@ func TestRenderService_RenderIndex(t *testing.T) {
 		}
 	}()
 
-	service.RenderIndex("index.html", data)
+	_ = service.RenderIndex("index.html", data)
 }
 
 func TestRenderService_Render404(t *testing.T) {
@@ -227,7 +227,7 @@ func TestRenderService_Render404(t *testing.T) {
 		}
 	}()
 
-	service.Render404("404.html", data)
+	_ = service.Render404("404.html", data)
 }
 
 func TestRenderService_RenderGraph(t *testing.T) {
@@ -244,5 +244,5 @@ func TestRenderService_RenderGraph(t *testing.T) {
 		}
 	}()
 
-	service.RenderGraph("graph.html", data)
+	_ = service.RenderGraph("graph.html", data)
 }

@@ -236,7 +236,7 @@ Initial body.
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
@@ -342,7 +342,7 @@ Initial body.
 	buildMetrics := metrics.NewBuildMetrics()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := &sync.Map{}
+	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 

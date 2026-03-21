@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -31,7 +30,7 @@ func TestFullPipeline(t *testing.T) {
 	r := native.New()
 	defer func() { _ = r.Close() }()
 
-	diagramCache := &sync.Map{}
+	diagramCache := NewMemorySSRMap()
 	d2Group := &singleflight.Group{}
 
 	tests := []pipelineTestCase{

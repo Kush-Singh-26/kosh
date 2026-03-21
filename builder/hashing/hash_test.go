@@ -201,7 +201,7 @@ func TestParseFrontmatter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := ParseFrontmatter(tt.data)
 			if tt.wantErr != nil {
-				if err == nil || (err.Error() != tt.wantErr.Error() && err != tt.wantErr) {
+				if err == nil || err.Error() != tt.wantErr.Error() {
 					t.Errorf("ParseFrontmatter() error = %v, want %v", err, tt.wantErr)
 				}
 			} else if err != nil {

@@ -78,7 +78,7 @@ func TestRenderer_RenderPage_Success(t *testing.T) {
 		RelativePrefix: "",
 	}
 
-	r.RenderPage("test/page/index.html", data)
+	_ = r.RenderPage("test/page/index.html", data)
 
 	// Check if file was registered
 	r.RenderedMu.RLock()
@@ -107,7 +107,7 @@ func TestRenderer_RenderPage_WithBaseURL(t *testing.T) {
 		Content:        template.HTML("<p>Content</p>"),
 	}
 
-	r.RenderPage("test/baseurl.html", data)
+	_ = r.RenderPage("test/baseurl.html", data)
 
 	// Verify no errors
 	if errs := r.ConsumeErrors(); errs != nil {
@@ -126,7 +126,7 @@ func TestRenderer_RenderPage_WithRelativePrefix(t *testing.T) {
 		Content:        template.HTML("<p>Content</p>"),
 	}
 
-	r.RenderPage("test/relative.html", data)
+	_ = r.RenderPage("test/relative.html", data)
 
 	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("RenderPage with RelativePrefix should not produce errors, got %v", errs)
@@ -142,7 +142,7 @@ func TestRenderer_RenderPage_Compress(t *testing.T) {
 		Content: template.HTML("<p>Content</p>"),
 	}
 
-	r.RenderPage("test/compress.html", data)
+	_ = r.RenderPage("test/compress.html", data)
 
 	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("RenderPage with Compress should not produce errors, got %v", errs)
@@ -159,7 +159,7 @@ func TestRenderer_RenderPage_NilLayout(t *testing.T) {
 	}
 
 	// Should not panic, should log error
-	r.RenderPage("test/nil-layout.html", data)
+	_ = r.RenderPage("test/nil-layout.html", data)
 
 	// File should not be registered
 	r.RenderedMu.RLock()
@@ -183,7 +183,7 @@ func TestRenderer_RenderIndex_Success(t *testing.T) {
 		Content: template.HTML("<p>Index Content</p>"),
 	}
 
-	r.RenderIndex("index.html", data)
+	_ = r.RenderIndex("index.html", data)
 
 	r.RenderedMu.RLock()
 	_, exists := r.RenderedSet["index.html"]
@@ -203,7 +203,7 @@ func TestRenderer_RenderIndex_WithLayout(t *testing.T) {
 		Content: template.HTML("<p>Fallback</p>"),
 	}
 
-	r.RenderIndex("fallback.html", data)
+	_ = r.RenderIndex("fallback.html", data)
 
 	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("RenderIndex with layout fallback should not produce errors, got %v", errs)
@@ -220,7 +220,7 @@ func TestRenderer_RenderIndex_NilTemplates(t *testing.T) {
 		Content: template.HTML("<p>Content</p>"),
 	}
 
-	r.RenderIndex("no-template.html", data)
+	_ = r.RenderIndex("no-template.html", data)
 
 	r.RenderedMu.RLock()
 	_, exists := r.RenderedSet["no-template.html"]
@@ -239,7 +239,7 @@ func TestRenderer_RenderGraph_Success(t *testing.T) {
 		Content: template.HTML("<div id='graph'></div>"),
 	}
 
-	r.RenderGraph("graph/index.html", data)
+	_ = r.RenderGraph("graph/index.html", data)
 
 	r.RenderedMu.RLock()
 	_, exists := r.RenderedSet["graph/index.html"]
@@ -259,7 +259,7 @@ func TestRenderer_RenderGraph_NilGraph(t *testing.T) {
 		Content: template.HTML("<p>Content</p>"),
 	}
 
-	r.RenderGraph("no-graph.html", data)
+	_ = r.RenderGraph("no-graph.html", data)
 
 	r.RenderedMu.RLock()
 	_, exists := r.RenderedSet["no-graph.html"]
@@ -278,7 +278,7 @@ func TestRenderer_Render404_Success(t *testing.T) {
 		Content: template.HTML("<h1>Not Found</h1>"),
 	}
 
-	r.Render404("404.html", data)
+	_ = r.Render404("404.html", data)
 
 	r.RenderedMu.RLock()
 	_, exists := r.RenderedSet["404.html"]
@@ -298,7 +298,7 @@ func TestRenderer_Render404_WithLayout(t *testing.T) {
 		Content: template.HTML("<h1>404</h1>"),
 	}
 
-	r.Render404("404-fallback.html", data)
+	_ = r.Render404("404-fallback.html", data)
 
 	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Render404 with layout fallback should not produce errors, got %v", errs)
@@ -315,7 +315,7 @@ func TestRenderer_Render404_NilTemplates(t *testing.T) {
 		Content: template.HTML("<p>Content</p>"),
 	}
 
-	r.Render404("no-404.html", data)
+	_ = r.Render404("no-404.html", data)
 
 	r.RenderedMu.RLock()
 	_, exists := r.RenderedSet["no-404.html"]
@@ -735,7 +735,7 @@ func TestRenderer_ConcurrentRenderPage(t *testing.T) {
 				Content: template.HTML("<p>Content</p>"),
 			}
 			path := "concurrent/" + string(rune('a'+id)) + ".html"
-			r.RenderPage(path, data)
+			_ = r.RenderPage(path, data)
 			done <- true
 		}(i)
 	}
@@ -765,7 +765,7 @@ func TestRenderer_ConcurrentRenderIndex(t *testing.T) {
 				Title: "Index " + string(rune('a'+id)),
 				Posts: []models.PostMetadata{{Title: "Post"}},
 			}
-			r.RenderIndex("index_"+string(rune('a'+id))+".html", data)
+			_ = r.RenderIndex("index_"+string(rune('a'+id))+".html", data)
 			done <- true
 		}(i)
 	}
@@ -792,7 +792,7 @@ func TestRenderer_BufferPoolReuse(t *testing.T) {
 			Title:   "Buffer Test",
 			Content: template.HTML("<p>Content " + string(rune('0'+i)) + "</p>"),
 		}
-		r.RenderPage("buffer"+string(rune('0'+i))+".html", data)
+		_ = r.RenderPage("buffer"+string(rune('0'+i))+".html", data)
 	}
 
 	// Should not produce errors
@@ -818,7 +818,7 @@ func TestRenderer_RenderPage_RenderError(t *testing.T) {
 	// Should not panic, should log error
 	// Note: Template execution errors are logged but not recorded via recordError
 	// because the function returns early after logging
-	r.RenderPage("error.html", data)
+	_ = r.RenderPage("error.html", data)
 
 	// Error is logged but not recorded (implementation detail)
 	// This test verifies no panic occurs
@@ -836,7 +836,7 @@ func TestRenderer_RenderPage_WriteError(t *testing.T) {
 		Content: template.HTML("<p>Content</p>"),
 	}
 
-	r.RenderPage("fail.html", data)
+	_ = r.RenderPage("fail.html", data)
 
 	// Should record error
 	errs := r.ConsumeErrors()
@@ -922,7 +922,7 @@ func TestRenderer_TimezoneHandling(t *testing.T) {
 		Content: template.HTML("<p>Content</p>"),
 	}
 
-	r.RenderPage("timezone.html", data)
+	_ = r.RenderPage("timezone.html", data)
 
 	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Timezone handling should not produce errors, got %v", errs)
@@ -941,7 +941,7 @@ func TestRenderer_SpecialCharacters(t *testing.T) {
 		},
 	}
 
-	r.RenderPage("special.html", data)
+	_ = r.RenderPage("special.html", data)
 
 	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Special characters should not produce errors, got %v", errs)
@@ -956,7 +956,7 @@ func TestRenderer_EmptyContent(t *testing.T) {
 		Content: template.HTML(""),
 	}
 
-	r.RenderPage("empty.html", data)
+	_ = r.RenderPage("empty.html", data)
 
 	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Empty content should not produce errors, got %v", errs)
@@ -974,7 +974,7 @@ func TestRenderer_VeryLongContent(t *testing.T) {
 		Content: template.HTML(longContent),
 	}
 
-	r.RenderPage("long.html", data)
+	_ = r.RenderPage("long.html", data)
 
 	if errs := r.ConsumeErrors(); errs != nil {
 		t.Errorf("Long content should not produce errors, got %v", errs)

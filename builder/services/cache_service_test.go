@@ -480,8 +480,12 @@ func TestCacheService_IncrementBuildCount(t *testing.T) {
 	initialCount := stats.BuildCount
 
 	// Increment build count
-	if err := service.IncrementBuildCount(); err != nil {
+	count, err := service.IncrementBuildCount()
+	if err != nil {
 		t.Fatalf("IncrementBuildCount failed: %v", err)
+	}
+	if count == 0 {
+		t.Errorf("Expected count > 0, got %d", count)
 	}
 
 	// Check stats again

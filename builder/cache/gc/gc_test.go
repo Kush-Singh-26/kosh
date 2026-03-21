@@ -18,14 +18,14 @@ func TestRunGC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open BoltDB: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	storePath := filepath.Join(tmpDir, "store")
 	s, err := store.New(storePath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	// Init buckets
 	err = db.Update(func(tx *bbolt.Tx) error {

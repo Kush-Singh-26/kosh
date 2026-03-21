@@ -13,13 +13,14 @@ import (
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
 func TestThemePair_AtomicLoadStore(t *testing.T) {
-	cache := &sync.Map{}
+	cache := NewMemorySSRMap()
 
-	pair := themePair{light: "light-svg", dark: "dark-svg"}
+	pair := models.SSRThemePair{Light: "light-svg", Dark: "dark-svg"}
 	hash := "test-hash"
 
 	cache.Store(hash, pair)
@@ -29,8 +30,8 @@ func TestThemePair_AtomicLoadStore(t *testing.T) {
 		t.Error("Cache should contain the pair")
 	}
 
-	storedPair := loaded.(themePair)
-	if storedPair.light != "light-svg" || storedPair.dark != "dark-svg" {
+	storedPair := loaded.(models.SSRThemePair)
+	if storedPair.Light != "light-svg" || storedPair.Dark != "dark-svg" {
 		t.Errorf("Loaded pair mismatch: got %+v", storedPair)
 	}
 
@@ -38,7 +39,7 @@ func TestThemePair_AtomicLoadStore(t *testing.T) {
 }
 
 func TestThemePair_ConcurrentAccess(t *testing.T) {
-	cache := &sync.Map{}
+	cache := NewMemorySSRMap()
 	var wg sync.WaitGroup
 	numGoroutines := 20
 	iterations := 100
@@ -49,12 +50,12 @@ func TestThemePair_ConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			for range iterations {
 				hash := "hash-" + string(rune('0'+id%10))
-				pair := themePair{light: "light-" + string(rune('0'+id)), dark: "dark-" + string(rune('0'+id))}
+				pair := models.SSRThemePair{Light: "light-" + string(rune('0'+id)), Dark: "dark-" + string(rune('0'+id))}
 				cache.Store(hash, pair)
 
 				loaded, exists := cache.Load(hash)
 				if exists {
-					_ = loaded.(themePair)
+					_ = loaded.(models.SSRThemePair)
 				}
 			}
 		}(i)
@@ -66,8 +67,8 @@ func TestThemePair_ConcurrentAccess(t *testing.T) {
 }
 
 func TestD2ASTReplacement(t *testing.T) {
-	mockCache := &sync.Map{}
-	mockCache.Store(native.HashContent("d2", "x -> y"), themePair{light: "svg-light", dark: "svg-dark"})
+	mockCache := NewMemorySSRMap()
+	mockCache.Store("d2:"+native.HashContent("d2", "x -> y"), models.SSRThemePair{Light: "svg-light", Dark: "svg-dark"})
 
 	md := goldmark.New(
 		goldmark.WithParserOptions(
