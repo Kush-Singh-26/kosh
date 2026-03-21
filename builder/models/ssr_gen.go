@@ -210,3 +210,131 @@ func (z SSRArtifactType) Msgsize() (s int) {
 	s = msgp.IntSize
 	return
 }
+
+// DecodeMsg implements msgp.Decodable
+func (z *SSRThemePair) DecodeMsg(dc *msgp.Reader) (err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, err = dc.ReadMapHeader()
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, err = dc.ReadMapKeyPtr()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "light":
+			z.Light, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Light")
+				return
+			}
+		case "dark":
+			z.Dark, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Dark")
+				return
+			}
+		default:
+			err = dc.Skip()
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z SSRThemePair) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 2
+	// write "light"
+	err = en.Append(0x82, 0xa5, 0x6c, 0x69, 0x67, 0x68, 0x74)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.Light)
+	if err != nil {
+		err = msgp.WrapError(err, "Light")
+		return
+	}
+	// write "dark"
+	err = en.Append(0xa4, 0x64, 0x61, 0x72, 0x6b)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.Dark)
+	if err != nil {
+		err = msgp.WrapError(err, "Dark")
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z SSRThemePair) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 2
+	// string "light"
+	o = append(o, 0x82, 0xa5, 0x6c, 0x69, 0x67, 0x68, 0x74)
+	o = msgp.AppendString(o, z.Light)
+	// string "dark"
+	o = append(o, 0xa4, 0x64, 0x61, 0x72, 0x6b)
+	o = msgp.AppendString(o, z.Dark)
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *SSRThemePair) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "light":
+			z.Light, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Light")
+				return
+			}
+		case "dark":
+			z.Dark, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Dark")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z SSRThemePair) Msgsize() (s int) {
+	s = 1 + 6 + msgp.StringPrefixSize + len(z.Light) + 5 + msgp.StringPrefixSize + len(z.Dark)
+	return
+}
