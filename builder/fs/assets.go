@@ -19,25 +19,34 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool) (map[string]string, error) {
-	// slog.Info("Building assets", "srcDir", srcDir, "destDir", destDir)
-	srcDir = NormalizePath(srcDir)
-	destDir = NormalizePath(destDir)
-	assets := make(map[string]string)
+type assetEntryPoints struct {
+	js  []string
+	css []string
+}
 
-	var jsEntryPoints []string
-	var cssEntryPoints []string
+type assetScanResult struct {
+	points   assetEntryPoints
+	hash     string
+	metas    []fileMeta
+	cacheHit bool
+}
+
+type fileMeta struct {
+	path  string
+	size  int64
+	mtime int64
+}
+
+func (a *assetScanResult) hasJS() bool  { return len(a.points.js) > 0 }
+func (a *assetScanResult) hasCSS() bool { return len(a.points.css) > 0 }
+
+func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
+	srcDir = NormalizePath(srcDir)
+
+	var js, css []string
+	var metas []fileMeta
 	var walkMu sync.Mutex
 
-	// Calculate input hash
-	type fileMeta struct {
-		path  string
-		size  int64
-		mtime int64
-	}
-	var metas []fileMeta
-
-	// Find entry points
 	err := ParallelWalk(context.Background(), srcFs, filepath.FromSlash(srcDir), 0, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -48,7 +57,6 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 		ext := strings.ToLower(filepath.Ext(path))
 		baseName := filepath.Base(path)
 
-		// Skip files that must be copied directly without esbuild processing
 		if baseName == "wasm_engine.js" || baseName == "engine.js" || baseName == "force-graph.js" {
 			return nil
 		}
@@ -58,12 +66,11 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 
 		switch ext {
 		case ".js":
-			jsEntryPoints = append(jsEntryPoints, path)
+			js = append(js, path)
 		case ".css":
-			cssEntryPoints = append(cssEntryPoints, path)
+			css = append(css, path)
 		}
 
-		// Add to metadata slice instead of hash directly
 		metas = append(metas, fileMeta{
 			path:  path,
 			size:  info.Size(),
@@ -75,7 +82,6 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 		return nil, fmt.Errorf("failed to scan for assets: %w", err)
 	}
 
-	// Sort metadata for deterministic hashing
 	slices.SortFunc(metas, func(a, b fileMeta) int {
 		return strings.Compare(a.path, b.path)
 	})
@@ -86,63 +92,78 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			return nil, fmt.Errorf("failed to write to input hash: %w", err)
 		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan for assets: %w", err)
-	}
 
 	sum := inputHash.Sum128()
 	b := sum.Bytes()
-	currentHash := hex.EncodeToString(b[:])
+	hash := hex.EncodeToString(b[:])
+
+	return &assetScanResult{
+		points: assetEntryPoints{js: js, css: css},
+		hash:   hash,
+		metas:  metas,
+	}, nil
+}
+
+func restoreAssetsFromCache(cachePath string, sink ArtifactSink, destDir string, onWrite func(string)) (map[string]string, bool, error) {
+	if info, err := os.Stat(cachePath); err != nil || !info.IsDir() {
+		return nil, false, nil
+	}
+
+	mapFile := filepath.Join(cachePath, "map.json")
+	mapData, err := os.ReadFile(mapFile)
+	if err != nil || json.Unmarshal(mapData, new(map[string]string)) != nil {
+		return nil, false, nil
+	}
+
+	var assets map[string]string
+	if err := json.Unmarshal(mapData, &assets); err != nil {
+		return nil, false, nil
+	}
+
+	err = filepath.WalkDir(cachePath, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() || filepath.Base(path) == "map.json" {
+			return walkErr
+		}
+		path = NormalizePath(path)
+		relPath, _ := SafeRel(cachePath, path)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		destPath := filepath.Join(destDir, relPath)
+		if err := sink.MkdirAll(filepath.Dir(destPath)); err != nil {
+			return err
+		}
+		if err := sink.WriteFile(destPath, data); err != nil {
+			return err
+		}
+		if onWrite != nil {
+			onWrite(destPath)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, false, nil
+	}
+
+	return assets, true, nil
+}
+
+func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool) (map[string]string, error) {
+	srcDir = NormalizePath(srcDir)
+	destDir = NormalizePath(destDir)
+
+	scan, err := scanAssets(srcFs, srcDir)
+	if err != nil {
+		return nil, err
+	}
+
+	assets := make(map[string]string)
 	cachePath := ""
-	if cacheDir != "" {
-		cachePath = filepath.Join(cacheDir, currentHash)
-		// Check cache (skip if force is true)
-		if !force {
-			if info, err := os.Stat(cachePath); err == nil && info.IsDir() {
-				// Restore from cache
-				mapFile := filepath.Join(cachePath, "map.json")
-				if mapData, err := os.ReadFile(mapFile); err == nil {
-					if err := json.Unmarshal(mapData, &assets); err == nil {
-						// Restore files
-						err = filepath.WalkDir(cachePath, func(path string, d fs.DirEntry, walkErr error) error {
-							if d.IsDir() || filepath.Base(path) == "map.json" {
-								return nil
-							}
-							path = NormalizePath(path)
-							relPath, _ := SafeRel(cachePath, path)
-							// destDir/relPath
-							// But relPath in cache is flattened?
-							// Wait, esbuild output preserves structure if Outbase is used.
-							// We need to mirror structure.
-
-							// Let's assume cache structure matches public/static structure
-							// Read file
-							data, err := os.ReadFile(path)
-							if err != nil {
-								return err
-							}
-
-							// Write to sink
-							// destDir is public/static
-							// relPath is css/main.css
-							destPath := filepath.Join(destDir, relPath)
-							if err := sink.MkdirAll(filepath.Dir(destPath)); err != nil {
-								return err
-							}
-							if err := sink.WriteFile(destPath, data); err != nil {
-								return err
-							}
-							if onWrite != nil {
-								onWrite(destPath)
-							}
-							return nil
-						})
-						if err == nil {
-							return assets, nil // Cache Hit!
-						}
-					}
-				}
-			}
+	if cacheDir != "" && !force {
+		cachePath = filepath.Join(cacheDir, scan.hash)
+		if restored, ok, _ := restoreAssetsFromCache(cachePath, sink, destDir, onWrite); ok {
+			return restored, nil
 		}
 	}
 
@@ -191,7 +212,6 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 				return fmt.Errorf("esbuild produced empty output for %s", outFile.Path)
 			}
 			fullPath := NormalizePath(outFile.Path)
-			// Compute relative path from destDir for VFS
 			relPath, err := filepath.Rel(destDir, fullPath)
 			if err != nil {
 				return fmt.Errorf("failed to compute relative path for %s: %w", fullPath, err)
@@ -199,8 +219,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			vfsPath := filepath.Join(destDir, relPath)
 			vfsPath = normalizeEsbuildHashCase(vfsPath)
 
-			dir := filepath.Dir(vfsPath)
-			if err := sink.MkdirAll(dir); err != nil {
+			if err := sink.MkdirAll(filepath.Dir(vfsPath)); err != nil {
 				return err
 			}
 			if err := sink.WriteFile(vfsPath, outFile.Contents); err != nil {
@@ -210,11 +229,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 				onWrite(vfsPath)
 			}
 
-			// Cache the output file
 			if cachePath != "" {
-				// Relativize path from destDir (public/static)
-				// vfsPath is public/static/css/main.css
-				// rel is css/main.css
 				rel, err := filepath.Rel(destDir, vfsPath)
 				if err == nil {
 					rel = normalizeEsbuildHashCase(rel)
@@ -225,14 +240,14 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			}
 		}
 
-		// Use Metafile to map inputs to outputs correctly
-		type Metafile struct {
-			Outputs map[string]struct {
-				EntryPoint string `json:"entryPoint"`
-			} `json:"outputs"`
+		type metafileEntry struct {
+			EntryPoint string `json:"entryPoint"`
+		}
+		type metafile struct {
+			Outputs map[string]metafileEntry `json:"outputs"`
 		}
 
-		var meta Metafile
+		var meta metafile
 		if err := json.Unmarshal([]byte(result.Metafile), &meta); err != nil {
 			return fmt.Errorf("failed to parse metafile: %w", err)
 		}
@@ -242,10 +257,6 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 				continue
 			}
 
-			// Normalize paths for the assets map
-			// EntryPoint might be "themes/<theme>/static/js/main.js"
-			// We want the key to be "/static/js/main.js" for compatibility
-
 			entryPointAbs, _ := filepath.Abs(outInfo.EntryPoint)
 			relEntryPoint, _ := SafeRel(srcDir, NormalizePath(entryPointAbs))
 			relEntryPoint = strings.TrimPrefix(filepath.ToSlash(relEntryPoint), "/")
@@ -253,14 +264,12 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			key := "/static/" + relEntryPoint
 
 			val := filepath.ToSlash(outPath)
-			// Find /static/ in the path to handle any output directory
 			if idx := strings.Index(val, "/static/"); idx != -1 {
 				val = val[idx:]
 			} else if !strings.HasPrefix(val, "/") {
 				val = "/" + val
 			}
 
-			// Normalize hash portion to lowercase for case-insensitive filesystems (Windows)
 			val = normalizeEsbuildHashCase(val)
 
 			assetsMu.Lock()
@@ -270,18 +279,16 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 		return nil
 	}
 
-	// Process CSS and JS concurrently — esbuild is internally thread-safe
-	// and the two builds operate on different file types with no overlap.
 	buildGroup, _ := errgroup.WithContext(context.Background())
 
-	if len(cssEntryPoints) > 0 {
+	if scan.hasCSS() {
 		buildGroup.Go(func() error {
-			return process(cssEntryPoints, true)
+			return process(scan.points.css, true)
 		})
 	}
-	if len(jsEntryPoints) > 0 {
+	if scan.hasJS() {
 		buildGroup.Go(func() error {
-			return process(jsEntryPoints, true)
+			return process(scan.points.js, true)
 		})
 	}
 
@@ -289,7 +296,6 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 		return nil, err
 	}
 
-	// Save map to cache
 	if cachePath != "" {
 		mapData, _ := json.Marshal(assets)
 		_ = os.WriteFile(filepath.Join(cachePath, "map.json"), mapData, 0644)
@@ -298,9 +304,6 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 	return assets, nil
 }
 
-// normalizeEsbuildHashCase lowercases hash segments in esbuild output paths.
-// Windows filesystems are case-insensitive, so we normalize hashes like
-// "main.AbCdEf12.css" to "main.abcdef12.css" to ensure consistent path lookups.
 func normalizeEsbuildHashCase(path string) string {
 	if path == "" {
 		return path
@@ -316,7 +319,6 @@ func normalizeEsbuildHashCase(path string) string {
 
 	changed := false
 	for i, seg := range segments {
-		// esbuild hashes are typically 8 characters (default) or more
 		if isAlphanumericHash(seg) {
 			lowered := strings.ToLower(seg)
 			if lowered != seg {
