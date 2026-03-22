@@ -6,7 +6,6 @@ import (
 	_ "embed"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"log/slog"
 	"runtime"
 	"sync"
@@ -74,40 +73,6 @@ func WithMathBatchSize(n int) RendererOption {
 			r.mathBatchSize = n
 		}
 	}
-}
-
-// withSchedulerAndClosedCheck wraps a render operation with scheduler acquisition
-// and closed-state checking. Returns error if renderer is closed or context cancelled.
-// The caller must defer r.wg.Done() after this function returns nil.
-func (r *Renderer) withSchedulerAndClosedCheck(ctx context.Context, task scheduler.TaskType) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if r.scheduler != nil {
-		if err := r.scheduler.Acquire(ctx, task); err != nil {
-			return err
-		}
-	}
-
-	if r.scheduler != nil {
-		if err := r.scheduler.Acquire(ctx, task); err != nil {
-			return err
-		}
-		defer r.scheduler.Release(task)
-	}
-
-	r.ensureInitialized()
-
-	r.mu.Lock()
-	if r.closed {
-		r.mu.Unlock()
-		return fmt.Errorf("renderer is closed")
-	}
-	r.wg.Add(1)
-	r.mu.Unlock()
-
-	return nil
 }
 
 // New creates a new Renderer - workers are lazy-initialized
@@ -289,7 +254,10 @@ func (r *Renderer) Close() error {
 	// Stop math batchers
 	close(r.mathQueue)
 
-	// Wait for all workers to be initialized AND all active tasks to complete
+	// Wait for all workers to be initialized AND all active tasks to complete.
+	// Note: this relies on sync.Once to ensure wg.Add() has been called before
+	// any goroutines call wg.Done(). In practice, ensureInitialized() is always
+	// called before Close().
 	r.wg.Wait()
 
 	// Drain any workers that were back in the pool

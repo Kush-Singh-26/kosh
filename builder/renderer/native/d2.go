@@ -16,9 +16,27 @@ import (
 
 // RenderD2 renders a D2 diagram to SVG with the specified theme ID.
 func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (string, error) {
-	if err := r.withSchedulerAndClosedCheck(ctx, scheduler.TaskD2); err != nil {
-		return "", err
+	if ctx == nil {
+		ctx = context.Background()
 	}
+
+	if r.scheduler != nil {
+		if err := r.scheduler.Acquire(ctx, scheduler.TaskD2); err != nil {
+			return "", err
+		}
+		defer r.scheduler.Release(scheduler.TaskD2)
+	}
+
+	r.ensureInitialized()
+
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return "", fmt.Errorf("renderer is closed")
+	}
+	r.wg.Add(1)
+	r.mu.Unlock()
+
 	defer r.wg.Done()
 
 	ruler := r.rulerPool.Get().(*textmeasure.Ruler)

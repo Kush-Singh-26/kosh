@@ -1,4 +1,4 @@
-package services
+package render
 
 // Error Handling Strategy:
 // - Recoverable errors: Return error to caller (triggers fallback to full build)
@@ -26,9 +26,9 @@ type renderService struct {
 	assetsReady <-chan struct{}
 }
 
-// NewRenderService creates a new RenderService with the given dependencies.
+// NewService creates a new RenderService with the given dependencies.
 // Using dependency struct pattern for API coherence.
-func NewRenderService(deps RenderServiceDependencies) RenderService {
+func NewService(deps Dependencies) Service {
 	return &renderService{
 		ctx:    deps.Ctx,
 		rnd:    deps.Renderer,

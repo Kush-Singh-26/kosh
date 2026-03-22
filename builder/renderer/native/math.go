@@ -89,9 +89,27 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []models.M
 
 // RenderMath renders a single LaTeX expression to HTML using KaTeX via QuickJS
 func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode bool) (string, error) {
-	if err := r.withSchedulerAndClosedCheck(ctx, scheduler.TaskMath); err != nil {
-		return "", err
+	if ctx == nil {
+		ctx = context.Background()
 	}
+
+	if r.scheduler != nil {
+		if err := r.scheduler.Acquire(ctx, scheduler.TaskMath); err != nil {
+			return "", err
+		}
+		defer r.scheduler.Release(scheduler.TaskMath)
+	}
+
+	r.ensureInitialized()
+
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return "", fmt.Errorf("renderer is closed")
+	}
+	r.wg.Add(1)
+	r.mu.Unlock()
+
 	defer r.wg.Done()
 
 	// Acquire worker

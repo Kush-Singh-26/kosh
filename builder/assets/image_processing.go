@@ -1,4 +1,4 @@
-package fs
+package assets
 
 import (
 	"bytes"
@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/image/draw"
 
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
@@ -33,12 +35,14 @@ func isNil(i any) bool {
 type ImageMetrics interface {
 	RecordImageOptimization(original, optimized int64)
 	RecordImageResizeSkipped()
+	IncrementAssetsProcessed()
+	IncrementSVGsMinified()
 }
 
 type ProcessImageOptions struct {
 	Ctx       context.Context
 	SrcFs     afero.Fs
-	Sink      ArtifactSink
+	Sink      fspkg.ArtifactSink
 	SrcPath   string
 	DstPath   string
 	RelPath   string
@@ -74,11 +78,26 @@ func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 	}
 
 	if opts.Opts.MinifySVGs && ext == ".svg" {
+		sched := opts.Scheduler
+		if sched == nil {
+			sched = opts.Opts.Scheduler
+		}
+		if sched != nil {
+			if err := sched.Acquire(opts.Ctx, scheduler.TaskDefault); err != nil {
+				return err
+			}
+			defer sched.Release(scheduler.TaskDefault)
+		}
+
 		data, err := afero.ReadFile(opts.SrcFs, opts.SrcPath)
 		if err == nil {
-			m := GetMinifier()
+			m := koshMinify.GetHTMLMinifier()
 			minified, err := m.Bytes("image/svg+xml", data)
 			if err == nil {
+				if !isNil(opts.Opts.Metrics) {
+					opts.Opts.Metrics.IncrementSVGsMinified()
+					opts.Opts.Metrics.IncrementAssetsProcessed()
+				}
 				if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
 					return err
 				}
@@ -96,7 +115,7 @@ func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 	if opts.SrcInfo != nil {
 		modTime = opts.SrcInfo.ModTime().UnixNano()
 	}
-	return CopyFileVFS(CopyFileOptions{
+	err := fspkg.CopyFileVFS(fspkg.CopyFileOptions{
 		SrcFs:   opts.SrcFs,
 		Sink:    opts.Sink,
 		SrcPath: opts.SrcPath,
@@ -104,6 +123,10 @@ func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 		ModTime: modTime,
 		OnWrite: opts.Opts.OnWrite,
 	})
+	if err == nil && !isNil(opts.Opts.Metrics) {
+		opts.Opts.Metrics.IncrementAssetsProcessed()
+	}
+	return err
 }
 
 func convertToWebPVFS(opts ProcessImageOptions) error {
@@ -129,6 +152,7 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 		}
 		if !isNil(opts.Opts.Metrics) {
 			opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cached)))
+			opts.Opts.Metrics.IncrementAssetsProcessed()
 		}
 		return opts.Sink.WriteFile(opts.DstPath, cached)
 	}
@@ -155,6 +179,7 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 				GetImageCache().set(memCacheKey, cachedData)
 				if !isNil(opts.Opts.Metrics) {
 					opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cachedData)))
+					opts.Opts.Metrics.IncrementAssetsProcessed()
 				}
 				if err := opts.Sink.WriteFile(opts.DstPath, cachedData); err != nil {
 					return fmt.Errorf("failed to write cached image %s: %w", opts.DstPath, err)
@@ -275,6 +300,9 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 	err = opts.Sink.WriteFile(opts.DstPath, cacheData)
 	if err == nil {
 		_ = opts.Sink.SetMtime(opts.DstPath, opts.SrcInfo.ModTime())
+		if !isNil(opts.Opts.Metrics) {
+			opts.Opts.Metrics.IncrementAssetsProcessed()
+		}
 	}
 
 	return err

@@ -13,17 +13,19 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
 )
 
 type Manager struct {
 	cfg    *config.Config
-	cache  services.CacheService
+	cache  svcCache.Service
 	logger *slog.Logger
 	health HealthRegistry
 
 	sink   fspkg.ArtifactSink
-	render services.RenderService
+	render render.Service
 
 	mu           sync.RWMutex
 	indexedPosts []models.IndexedPost
@@ -35,7 +37,7 @@ type HealthRegistry interface {
 
 type ManagerDependencies struct {
 	Cfg    *config.Config
-	Cache  services.CacheService
+	Cache  svcCache.Service
 	Logger *slog.Logger
 	Health HealthRegistry
 }
@@ -49,7 +51,7 @@ func NewManager(deps ManagerDependencies) *Manager {
 	}
 }
 
-func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, render services.RenderService) {
+func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, render render.Service) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sink = sink
@@ -68,7 +70,7 @@ func (m *Manager) GetIndexedPosts() []models.IndexedPost {
 	return m.indexedPosts
 }
 
-func (m *Manager) UpdateIndexedPostCache(relPath string, parseRes *services.ParsedMarkdownResult) {
+func (m *Manager) UpdateIndexedPostCache(relPath string, parseRes *post.ParsedMarkdownResult) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

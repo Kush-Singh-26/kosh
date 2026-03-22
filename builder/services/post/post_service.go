@@ -125,6 +125,7 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 		tagMap:           make(map[string][]models.PostMetadata),
 		newSearchRecords: make(map[string]*models.SearchRecord),
 		newDeps:          make(map[string]*models.Dependencies),
+		indexedPosts:     make([]models.IndexedPost, 0, len(files)),
 	}
 
 	// Start render phase concurrently with parse phase (pipelining)

@@ -3,9 +3,11 @@ package renderer
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/assets"
+	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 )
@@ -26,14 +28,14 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 
 	// Rewrite PNG/JPG/JPEG image references to WebP if compression is enabled
 	if r.Compress {
-		finalBytes = rewriteImageRefs(finalBytes)
+		finalBytes = rewriteImageRefs(finalBytes, path)
 	}
 
 	// Optional Minification
 	if r.Compress {
 		minifier := r.Minifier
 		if minifier == nil {
-			minifier = fspkg.GetMinifier()
+			minifier = koshMinify.GetHTMLMinifier()
 		}
 		minified, err := minifier.Bytes("text/html", finalBytes)
 		if err == nil {
@@ -66,9 +68,10 @@ func (r *Renderer) RenderPage(path string, data models.PageData) error {
 	return r.executeTemplateAndWrite(path, layout, data, "layout")
 }
 
-func rewriteImageRefs(html []byte) []byte {
-	converted := fspkg.GetConvertedImages()
-	if len(converted) == 0 {
+func rewriteImageRefs(html []byte, path string) []byte {
+	converted := assets.GetConvertedImages()
+	// Short-circuit if no images to rewrite AND no img tags to check for A11y
+	if len(converted) == 0 && !strings.Contains(strings.ToLower(string(html)), "<img") {
 		return html
 	}
 
@@ -92,6 +95,12 @@ func rewriteImageRefs(html []byte) []byte {
 
 		if isImgTag(html, i) {
 			tagContent := html[tagStart : end+1]
+			// A11y Check: Look for alt attribute
+			if !hasAltAttribute(tagContent) {
+				slog.Warn("A11y Lint: Image missing alt text",
+					"file", path,
+					"tag", string(tagContent))
+			}
 			rewritten := rewriteImgTag(tagContent, converted)
 			result = append(result, rewritten...)
 		} else {
@@ -101,6 +110,13 @@ func rewriteImageRefs(html []byte) []byte {
 	}
 
 	return result
+}
+
+func hasAltAttribute(tag []byte) bool {
+	// Simple check for 'alt=' in the tag
+	lowerTag := strings.ToLower(string(tag))
+	return strings.Contains(lowerTag, " alt=") || strings.Contains(lowerTag, " alt\t") ||
+		strings.Contains(lowerTag, " alt\n") || strings.Contains(lowerTag, " alt\r")
 }
 
 func findTagStart(html []byte, i int) int {
@@ -247,14 +263,7 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 
 func rewriteImgSrc(src string, converted map[string]string) string {
 	lower := strings.ToLower(src)
-	var suffix string
-	if strings.HasSuffix(lower, ".png") {
-		suffix = ".png"
-	} else if strings.HasSuffix(lower, ".jpg") {
-		suffix = ".jpg"
-	} else if strings.HasSuffix(lower, ".jpeg") {
-		suffix = ".jpeg"
-	} else {
+	if !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") {
 		return src
 	}
 
@@ -263,7 +272,5 @@ func rewriteImgSrc(src string, converted map[string]string) string {
 		return webpDst
 	}
 
-	// Fallback to simple extension swap
-	prefix := src[:len(src)-len(suffix)]
-	return prefix + ".webp"
+	return src
 }

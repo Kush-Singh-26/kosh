@@ -83,6 +83,7 @@ func (s *assetService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 
 func (s *assetService) SetMetrics(m *metrics.BuildMetrics)    { s.metrics = m }
 func (s *assetService) SetAssetsReadySignal(ch chan struct{}) { s.assetsReady = ch }
+func (s *assetService) SetDiscoveryReady(ch chan struct{})    { s.discoveryReady = ch }
 func (s *assetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
 	s.contentAssetsChan = ch
 }
@@ -102,7 +103,11 @@ func (s *assetService) Build(ctx context.Context) error {
 
 	// discoveryReady signals that the image/WebP rewrite map is populated.
 	// This allows post-processing to begin before all images are fully compressed.
-	s.discoveryReady = make(chan struct{})
+	// Use pre-set channel if available (set by SetupBuilding before goroutine launch),
+	// otherwise create here for backward compatibility.
+	if s.discoveryReady == nil {
+		s.discoveryReady = make(chan struct{})
+	}
 
 	// 1. Unified Asset Discovery and Copy Phase (Pipelined)
 	g.Go(func() error {

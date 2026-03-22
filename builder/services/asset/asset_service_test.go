@@ -1,4 +1,4 @@
-package services
+package asset
 
 import (
 	"bytes"
@@ -56,7 +56,7 @@ body {
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := NewAssetService(AssetServiceDependencies{
+	svc := NewService(Dependencies{
 		SourceFs: sourceFs,
 		Sink:     sink,
 		Cfg:      cfg,
@@ -152,7 +152,7 @@ func TestAssetService_Build_DoesNotHardlinkSourceStaticFiles(t *testing.T) {
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := NewAssetService(AssetServiceDependencies{
+	svc := NewService(Dependencies{
 		SourceFs: sourceFs,
 		Sink:     sink,
 		Cfg:      cfg,
@@ -217,7 +217,7 @@ func TestAssetService_Build_DoesNotCopySourceSearchWasm(t *testing.T) {
 	mockRend := mocks.NewMockRenderService()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := NewAssetService(AssetServiceDependencies{
+	svc := NewService(Dependencies{
 		SourceFs: sourceFs,
 		Sink:     sink,
 		Cfg:      cfg,

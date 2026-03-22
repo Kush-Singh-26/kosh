@@ -89,7 +89,11 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 		return false
 	}
 
-	return result.(bool)
+	changed, ok := result.(bool)
+	if !ok {
+		return false
+	}
+	return changed
 }
 
 func (tc *templateCache) checkTemplatesOnDisk() (bool, error) {

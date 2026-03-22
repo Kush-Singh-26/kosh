@@ -1,4 +1,4 @@
-package services
+package scanner
 
 import (
 	"context"
@@ -48,7 +48,7 @@ Body of draft`,
 		_ = afero.WriteFile(sourceFs, path, []byte(content), 0644)
 	}
 
-	scanner := NewMetadataScanner()
+	scanner := NewScanner()
 	fileChan := make(chan models.ScannedFile, 10)
 
 	ctx := context.Background()
@@ -109,7 +109,7 @@ Body of draft`,
 }
 
 func TestMetadataScanner_ScanFile(t *testing.T) {
-	scanner := NewMetadataScanner()
+	scanner := NewScanner()
 	cfg := testutil.CreateSampleConfig()
 	sourceFs := afero.NewMemMapFs()
 	path := filepath.Join(cfg.ContentDir, "test.md")

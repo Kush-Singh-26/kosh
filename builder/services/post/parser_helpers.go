@@ -1,4 +1,4 @@
-package services
+package post
 
 import (
 	"bytes"
@@ -57,7 +57,11 @@ func parseMarkdownWithRecovery(
 		mdParser.WithContext(mdCtx, ctx)
 		mdCtx.Set(mdParser.ContextKeyFilePath, path)
 
-		mdEngine := mdPool.Get().(goldmark.Markdown)
+		mdEngine, ok := mdPool.Get().(goldmark.Markdown)
+		if !ok {
+			parseErr = fmt.Errorf("mdPool returned unexpected type %T", mdEngine)
+			return
+		}
 		defer mdPool.Put(mdEngine)
 
 		docNode = mdEngine.Parser().Parse(text.NewReader(bodyOnly), parser.WithContext(mdCtx))

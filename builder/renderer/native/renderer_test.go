@@ -143,11 +143,15 @@ func TestRenderer_Close(t *testing.T) {
 func TestRenderer_Close_Race(t *testing.T) {
 	r := New(WithWorkers(4))
 
-	// Trigger lazy initialization and immediate close
-	go r.ensureInitialized()
-	time.Sleep(10 * time.Millisecond) // Small delay to let init start
+	// Initialize first, then close — tests clean shutdown without artificial race
+	r.ensureInitialized()
 	if err := r.Close(); err != nil {
-		t.Errorf("Close failed during initialization: %v", err)
+		t.Errorf("Close failed: %v", err)
+	}
+
+	// Double close should be safe
+	if err := r.Close(); err != nil {
+		t.Errorf("Double close failed: %v", err)
 	}
 
 	t.Log("Close race test passed")

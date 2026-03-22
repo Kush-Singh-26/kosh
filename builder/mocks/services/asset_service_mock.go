@@ -14,6 +14,7 @@ type MockAssetService struct {
 	Sink              fspkg.ArtifactSink
 	Metrics           *metrics.BuildMetrics
 	assetsReady       chan struct{}
+	discoveryReady    chan struct{}
 	contentAssetsChan <-chan []models.ScannedAsset
 	FailBuild         bool // When true, Build() returns an error
 }
@@ -32,6 +33,10 @@ func (m *MockAssetService) SetAssetsReadySignal(ch chan struct{}) {
 	m.assetsReady = ch
 }
 
+func (m *MockAssetService) SetDiscoveryReady(ch chan struct{}) {
+	m.discoveryReady = ch
+}
+
 func (m *MockAssetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
 	m.contentAssetsChan = ch
 }
@@ -47,6 +52,10 @@ func (m *MockAssetService) Build(ctx context.Context) error {
 		close(m.assetsReady)
 		m.assetsReady = nil
 	}
+	if m.discoveryReady != nil {
+		close(m.discoveryReady)
+		m.discoveryReady = nil
+	}
 	return nil
 }
 
@@ -55,7 +64,10 @@ func (m *MockAssetService) BuildForAssetChange(ctx context.Context) (map[string]
 }
 
 func (m *MockAssetService) DiscoveryReady() <-chan struct{} {
-	return m.assetsReady // For mock, discoveryReady == assetsReady (instant)
+	if m.discoveryReady != nil {
+		return m.discoveryReady
+	}
+	return m.assetsReady // Fallback: discoveryReady == assetsReady (instant)
 }
 
 func (m *MockAssetService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {

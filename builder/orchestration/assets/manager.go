@@ -8,11 +8,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/asset"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
@@ -21,8 +23,8 @@ import (
 // ManagerDependencies groups service dependencies for explicit injection.
 type ManagerDependencies struct {
 	Cfg      *config.Config
-	Asset    services.AssetService
-	Render   services.RenderService
+	Asset    asset.Service
+	Render   render.Service
 	Logger   *slog.Logger
 	Metrics  *metrics.BuildMetrics
 	SourceFs afero.Fs
@@ -57,7 +59,7 @@ func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []mo
 	assetTimer := timeutil.StartPhase("Asset building")
 
 	// Reset converted image tracking so rewrite is fresh for this build
-	fspkg.ResetConvertedImages()
+	assets.ResetConvertedImages()
 
 	// Reset rendered assets in memory before starting fresh build pass
 	m.deps.Render.SetAssets(map[string]string{})
@@ -75,6 +77,11 @@ func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []mo
 
 	// Ensure RenderService waits for these assets before entering render phase
 	m.deps.Render.SetAssetsGate(assetsReady)
+
+	// Initialize discoveryReady before launching Build goroutine to avoid
+	// race between Build() writing and DiscoveryReady() reading.
+	discoveryCh := make(chan struct{})
+	m.deps.Asset.SetDiscoveryReady(discoveryCh)
 
 	assetErrChan := make(chan error, 1)
 	var assetWg sync.WaitGroup
@@ -154,7 +161,7 @@ func (m *Manager) BuildAssetOnly(ctx context.Context, buildPass func(ctx context
 	if m.deps.Metrics != nil {
 		m.deps.Metrics.Reset()
 	}
-	fspkg.ResetConvertedImages()
+	assets.ResetConvertedImages()
 	m.deps.Render.SetAssets(map[string]string{})
 
 	m.deps.Logger.Info("Building assets...")

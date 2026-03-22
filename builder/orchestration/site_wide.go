@@ -8,7 +8,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 
 	"golang.org/x/sync/errgroup"
@@ -19,13 +19,13 @@ func (b *Engine) setupSiteWideRendering(
 	assetsReady <-chan struct{},
 	wasmWg *sync.WaitGroup,
 	forceSocialRebuild bool,
-) (func(*services.MetadataContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
+) (func(*post.MetadataContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
 	var siteWideGroup *errgroup.Group
 	var siteWideCtx context.Context
 	var siteTimer *timeutil.PhaseTimer
 	var siteWideOnce sync.Once
 
-	runSiteWide := func(cb *services.MetadataContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
+	runSiteWide := func(cb *post.MetadataContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
 		if b.Search != nil && cb.IndexedPosts != nil {
 			b.Search.SetIndexedPosts(cb.IndexedPosts)
 		}
@@ -72,7 +72,7 @@ func (b *Engine) setupSiteWideRendering(
 	return runSiteWide, nil
 }
 
-func (b *Engine) shouldSkipSiteWideRendering(cb *services.MetadataContext, assetsChanged bool) bool {
+func (b *Engine) shouldSkipSiteWideRendering(cb *post.MetadataContext, assetsChanged bool) bool {
 	useStaging := !b.Cfg.IsDev || b.State.IsCleanBuild
 	if cb.AnyPostChanged || b.State.IsCleanBuild || useStaging || b.State.ForceGenerators.Load() || assetsChanged {
 		b.State.ForceGenerators.Store(false)

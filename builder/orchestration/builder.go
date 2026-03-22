@@ -12,6 +12,7 @@ import (
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/minify"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/assets"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/search"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
@@ -19,12 +20,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/asset"
+	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
+	"github.com/Kush-Singh-26/kosh/builder/services/wasm"
 	"github.com/spf13/afero"
 )
 
 func init() {
-	fspkg.InitMinifier()
+	minify.InitHTMLMinifier()
 	debug.SetGCPercent(200)
 }
 
@@ -35,14 +41,14 @@ type buildSetup struct {
 	ctx            *buildCtx.BuildContext
 	isCleanBuild   bool
 	buildMetrics   *metrics.BuildMetrics
-	cacheSvc       services.CacheService
+	cacheSvc       svcCache.Service
 	nativeRenderer *native.Renderer
 	mdPool         *sync.Pool
-	renderSvc      services.RenderService
-	assetSvc       services.AssetService
-	postSvc        services.PostService
-	wasmSvc        services.WasmService
-	metaScanner    services.MetadataScanner
+	renderSvc      render.Service
+	assetSvc       asset.Service
+	postSvc        post.Service
+	wasmSvc        wasm.Service
+	metaScanner    scanner.Scanner
 	diagramAdapter *cache.DiagramCacheAdapter
 }
 
@@ -52,7 +58,7 @@ func (s *buildSetup) initLoggerAndContext(cfg *config.Config) {
 	isTesting := buildCtx.DetectTestingMode()
 	outputExists, _ := afero.Exists(s.vfs, cfg.OutputDir)
 	s.isCleanBuild = !outputExists
-	sched := scheduler.GetGlobalScheduler()
+	sched := scheduler.NewBuildScheduler()
 	s.ctx = buildCtx.NewBuildContext(isTesting, cfg.IsDev, s.isCleanBuild, sched, s.logger)
 	VerifyThemeFs(s.vfs, cfg, s.logger, isTesting)
 
@@ -71,7 +77,7 @@ func (s *buildSetup) initCache() {
 		s.logger.Warn("Failed to open cache database, using in-memory cache", "error", err)
 	}
 	if cacheManager != nil {
-		s.cacheSvc = services.NewCacheService(services.CacheServiceDependencies{
+		s.cacheSvc = svcCache.NewService(svcCache.Dependencies{
 			Ctx:     s.ctx,
 			Manager: cacheManager,
 			Logger:  s.logger,
@@ -86,7 +92,7 @@ func (s *buildSetup) initNativeRenderer() {
 	if s.cfg.ParserWorkers > 0 {
 		workers = s.cfg.ParserWorkers
 	}
-	sched := scheduler.GetGlobalScheduler()
+	sched := s.ctx.Scheduler
 	s.nativeRenderer = native.New(native.WithWorkers(workers), native.WithScheduler(sched))
 	go s.nativeRenderer.EnsureInitialized(context.Background())
 
@@ -115,14 +121,14 @@ func (s *buildSetup) initServices() {
 
 	assetsReady := make(chan struct{})
 
-	s.renderSvc = services.NewRenderService(services.RenderServiceDependencies{
+	s.renderSvc = render.NewService(render.Dependencies{
 		Ctx:      s.ctx,
 		Renderer: rnd,
 		Logger:   s.logger,
 	})
 	s.renderSvc.SetAssetsGate(assetsReady)
 
-	s.assetSvc = services.NewAssetService(services.AssetServiceDependencies{
+	s.assetSvc = asset.NewService(asset.Dependencies{
 		Ctx:      s.ctx,
 		SourceFs: s.vfs,
 		Sink:     nil,
@@ -130,9 +136,9 @@ func (s *buildSetup) initServices() {
 		Renderer: s.renderSvc,
 		Logger:   s.logger,
 		Metrics:  s.buildMetrics,
-	}, services.WithAssetsReadySignal(assetsReady))
+	}, asset.WithAssetsReadySignal(assetsReady))
 
-	s.postSvc = services.NewPostService(services.PostServiceDependencies{
+	s.postSvc = post.NewService(post.Dependencies{
 		Ctx:            s.ctx,
 		Cfg:            s.cfg,
 		Cache:          s.cacheSvc,
@@ -144,9 +150,9 @@ func (s *buildSetup) initServices() {
 		SourceFs:       s.vfs,
 		DiagramAdapter: s.diagramAdapter,
 	})
-	s.metaScanner = services.NewMetadataScanner()
+	s.metaScanner = scanner.NewScanner()
 
-	s.wasmSvc = services.NewWasmService(services.WasmServiceDependencies{
+	s.wasmSvc = wasm.NewService(wasm.Dependencies{
 		Ctx:    s.ctx,
 		Cfg:    s.cfg,
 		Logger: s.logger,

@@ -1,6 +1,7 @@
-package fs_test
+package assets_test
 
 import (
+	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/fs"
 
 	"context"
@@ -44,7 +45,7 @@ func TestImageOptimizationStress(t *testing.T) {
 	ctx := context.Background()
 
 	// Process images in parallel
-	opts := fs.CopyOptions{
+	opts := assets.CopyOptions{
 		Compress:     true,
 		ExcludeExts:  []string{},
 		OnWrite:      func(s string) {},
@@ -53,9 +54,9 @@ func TestImageOptimizationStress(t *testing.T) {
 		WebPQuality:  80,
 		Metrics:      nil,
 	}
-	err := fs.CopyDirVFS(ctx, srcFs, sink, srcDir, destDir, opts)
+	err := assets.CopyDirVFS(ctx, srcFs, sink, srcDir, destDir, opts)
 	if err != nil {
-		t.Fatalf("fspkg.CopyDirVFS failed: %v", err)
+		t.Fatalf("assets.CopyDirVFS failed: %v", err)
 	}
 
 	// Verify all images were converted to webp

@@ -289,8 +289,11 @@ Current schema version: 10
 Files:
 
 - `builder/services/asset_service.go`
-- `builder/utils/assets.go`
-- `builder/utils/fs_copy.go`
+- `builder/assets/pipeline.go`
+- `builder/assets/image_processing.go`
+- `builder/assets/image_cache.go`
+- `builder/minify/html.go`
+- `builder/fs/fs_copy.go` (low-level only)
 
 Current behavior:
 

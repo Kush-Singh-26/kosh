@@ -1,4 +1,4 @@
-package services
+package post
 
 const wordsPerMinute = 120.0
 
