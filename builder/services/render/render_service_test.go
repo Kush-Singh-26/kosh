@@ -1,4 +1,4 @@
-package services
+package render
 
 import (
 	"log/slog"
@@ -23,33 +23,33 @@ func setupRenderServiceTest(t *testing.T) *renderService {
 		Compress:    false,
 	}
 
-	service := NewRenderService(RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	service := NewService(Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	}).(*renderService)
 	return service
 }
 
-func TestNewRenderService(t *testing.T) {
+func TestNewService(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	rnd := &renderer.Renderer{
 		Assets:      make(map[string]string),
 		RenderedSet: make(map[string]bool),
 	}
 
-	service := NewRenderService(RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	service := NewService(Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 
 	if service == nil {
-		t.Fatal("NewRenderService should not return nil")
+		t.Fatal("NewService should not return nil")
 	}
 
 	if _, ok := service.(*renderService); !ok {
-		t.Error("NewRenderService should return *renderService")
+		t.Error("NewService should return *renderService")
 	}
 }
 

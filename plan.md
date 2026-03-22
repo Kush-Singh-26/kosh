@@ -390,7 +390,7 @@ These can be completed in under 30 minutes each:
 ---
 ## Plan Status
 **Created:** 2026-03-19  
-**Last Updated:** 2026-03-20 (Phase 1-10 COMPLETE, Phase 4.3.1 cleanup COMPLETE)
+**Last Updated:** 2026-03-22 (Phase 8B/9B cleanup, Engine decomposition, test singleton removal)
 **Estimated Timeline:** 6 weeks  
 **Estimated Effort:** 40-60 hours  
 
@@ -409,12 +409,19 @@ These can be completed in under 30 minutes each:
 - [x] Issue 2.4.1: Fixed stale path comment in `builder/models/interfaces.go`
 - [x] Issue 2.5.1: Implemented proper `CopyFile` in `MemSink` mock in `builder/testutil/sink_mock.go`
 
-#### ✅ Phase 3: Cross-Module Architecture — COMPLETE (2026-03-19) except Issue 3.1.1 (deferred)
+#### ✅ Phase 3: Cross-Module Architecture — COMPLETE (2026-03-22)
+- [x] Issue 3.1.1: Split `builder/fs/` into `builder/fs`, `builder/assets`, `builder/minify`.
+  - Created `builder/minify` for HTML/SVG minification logic.
+  - Created `builder/assets` for image processing, conversion, and asset pipeline coordination.
+  - Simplified `builder/fs` to core I/O and file copying.
+  - Updated all call sites in `asset_service.go`, `render_page.go`, `renderer.go`, and `manager.go`.
 - [x] Issue 3.4.1: Deleted duplicate `builder/metrics/timing.go`, consolidated to `builder/utils/timeutil/timing.go`
-- [x] Issue 3.1.1: Split `builder/fs/` into `builder/fs`, `builder/assets`, `builder/minify` — DEFERRED (HIGH RISK)
 - [x] Issue 3.2.1: Decouple `GetGlobalScheduler()` singleton via DI
 - [x] Issue 3.3.1: Move `globalImageCache` and `Minifier` from global mutable state
 - [x] Issue 3.5.1: Consolidate WASM logic — deleted `internal/build/` (dead code), `builder/assets/wasm.go` is sole canonical implementation
+- [x] Added `TaskAsset` to scheduler and integrated with `BuildMetrics`.
+- [x] Search optimization: Implemented query prefix caching in WASM search engine.
+- [x] A11y Cleanup: Removed redundant `<img>` alt text check from `builder/parser/unified.go` (now handled in `render_page.go`).
 
 #### ✅ Phase 4: High-Level Elegance — PARTIAL (2026-03-19)
 - [x] **Issue 4.1.1**: Extracted `WatchCoordinator` subsystem from `Engine` into `builder/orchestration/watch/watch.go`. The coordinator owns:
@@ -444,6 +451,14 @@ These can be completed in under 30 minutes each:
 - [x] **Issue 4.1.1**: Removed `copyStaticAndBuildAssets`, `setupAssetBuilding`, `checkAssetsChanged`, and `waitForAssetsAvailability` from `Engine`. Added `Assets *assets.Manager` field to `Engine`.
 - [x] **Issue 4.1.1**: Updated `build.go` and `build_phases.go` to use `b.Assets`.
 - [x] **Issue 4.1.1**: Refactored ~20 test files to use `NewEngineFromManual` instead of manual struct initialization, fixing numerous nil pointer dereferences caused by missing subsystem initialization.
+- [x] **Issue 4.1.1**: Extracted incremental build logic into `builder/orchestration/incremental/manager.go`. The manager owns:
+  - Post change type detection (`PostChangeType`, `DeterminePostChange`)
+  - Path resolution for incremental builds (`ResolveContentPaths`)
+  - Hash computation for change detection (`ComputePostHashes`)
+  - Single post rebuild logic (`BuildSinglePost`)
+  - Change handlers (`HandleMarkdownChange`, `HandleAssetChange`, `HandleOtherChange`)
+  - Post cache management (`DeletePostFromCache`)
+- [x] **Issue 4.1.1**: Engine methods in `incremental.go` now delegate to `incremental.Manager`, maintaining backward compatibility while centralizing the incremental build logic.
 - **Deferred**: Engine still has remaining methods to extract. Full Engine decomposition remains as future work.
 
 #### ✅ Phase 5: Initialization Coupling — COMPLETE (2026-03-20)
@@ -465,14 +480,14 @@ These can be completed in under 30 minutes each:
 - [x] **Issue 6.1.1**: Empty directories already removed in Phase 1 (`builder/core/`, `builder/incremental/`, `builder/run/`, `builder/utils/sink/`, `builder/utils/tx/`)
 - [x] **Issue 6.2.1**: Added `builder/services/social-cards/*.webp` to `.gitignore` and removed tracked `.webp` files from git (`git rm --cached`)
 - [x] **Issue 6.3.1**: Updated `AGENTS.md` stale path references (`builder/run/incremental.go` → `builder/orchestration/incremental.go`, `builder/run/build.go` → `builder/orchestration/build.go`)
-- **Deferred**: Issue 6.4.1: Split `builder/services/` package into sub-packages — medium risk, high effort, can be revisited later
+- [x] **Issue 6.4.1**: Split `builder/services/` into 6 sub-packages (`asset/`, `cache/`, `post/`, `render/`, `scanner/`, `wasm/`). Each has its own `interfaces.go` with `Service` interface and `Dependencies` struct. Updated all imports across the codebase using `svcCache` alias for the services/cache ↔ builder/cache namespace collision. All tests pass, `go vet` clean.
 
 #### ✅ Phase 7: Design Coherence — COMPLETE (2026-03-20)
 - [x] **Issue 7.1.1**: Deleted `builder/hashing/extraction.go` — 3 duplicated `Extract*` functions were byte-identical to `builder/utils/timeutil/formatting.go`. Updated `builder/hashing/hash.go` to import and use `timeutil.Extract*` functions.
 - [x] **Issue 7.1.2**: Deleted `builder/pathutil/pathutil.go` and its empty directory — `Slugify` was byte-identical to `builder/utils/timeutil/formatting.go`. Updated `builder/generators/tags.go` to use `timeutil.Slugify`.
 - [x] **Issue 7.1.3**: Deleted `builder/models/text.go` — orphaned `CountWords` function with zero call sites (the used copy is in `timeutil`).
 - [x] **Issue 7.1.4**: Created `builder/services/post_paths.go` with `ComputePathVars(relPath, version, outputDir)` and `CardPaths(baseURL, outputDir, htmlRelPath)` helpers. Consolidated 6 instances of identical path/social-card calculation across `post_service.go` and `post_single.go`.
-- **Skipped 7.2.1**: `search-analysis` restructuring is high risk and intentionally deferred per AGENTS.md.
+- [x] **Issue 7.2.1**: Extracted search-analysis into a structured scorer pipeline. Created `Scorer` interface with 5 implementations (`TagScorer`, `BM25Scorer`, `PhraseScorer`, `FallbackScorer`, `BoostScorer`) and a `Pipeline` orchestrator with shared `SearchContext`. Extracted parallel index builder into `builder/search/index/builder.go`. Moved snippet extraction (`ExtractSnippet`, `escapeToBuilder`) to `builder/search/snippet_helpers.go`. `PerformSearch` simplified to pipeline + finalize pattern. WASM builds clean, all tests pass.
 
 #### ✅ Phase 8: Type Safety — COMPLETE (2026-03-20)
 - [x] **Issue 8.1.1**: Fixed user-controlled type assertion in `builder/parser/unified.go:72` — `string(id.([]byte))` → safe check with `if idBytes, ok := id.([]byte); ok`.
@@ -503,4 +518,48 @@ These can be completed in under 30 minutes each:
   - All WASM service call sites use `s.cfg.KoshSourceRoot`
   - Updated `wasm_test.go` to pass `fs.RepoRoot()` to `CompileWASMFromSource`
 - [x] **Phase 4.3.1 Cleanup**: Deleted orphaned `builder/services/post_metadata.go` (orphaned `GroupMetadata` function and `GroupMetadataResult` struct, zero call sites)
+- All 33 packages pass (`go test ./...`)
+
+#### ✅ Session 2026-03-22: Deep Cleanup — COMPLETE
+
+##### Phase 1-5: Quick Wins + Type Safety + Dead Code + Scheduler (from conversation)
+- Deleted `builder/orchestration/helpers.go` — 7 dead functions, zero callers
+- Fixed stale `// Package run` → `// Package orchestration` in `build.go:1`
+- Removed dead `BuildRequest` struct from `engine.go`
+- Removed unused `fsnotify` import from `engine.go`
+- Fixed 8 unchecked type assertions: `post_parser.go:167`, `parser_helpers.go:60`, `renderer.go:309`, `template_cache.go:92`, `toc.go` (4x)
+- Deleted 5 dead Engine methods: `handleMarkdownChange`, `handleAssetChange`, `handleOtherChange`, `regenerateSearchIndex`, `deletePostFromCache`, `triggerFullBuild`, `buildSingleFileChange`
+- Simplified `handleWatchChange` — removed dead else branch
+- Added `Has404Template()` and `SetAssetsGate()` to `models.RenderService`
+- Decoupled `GetGlobalScheduler()` from production: 6 → 0 callers
+
+##### Phase 8B: Type Assertion Safety (2026-03-22)
+- Audited all 44 remaining type assertions across codebase
+- **All safe by construction**: pool-based (~20), parser AST (~7, guarded by `Kind()` checks), mock code (~4), sync.Map (~8, consistent Store types)
+- No unsafe assertions remain in production or user-controllable data paths
+
+##### Phase 9B: Duplicate Code Cleanup (2026-03-22)
+- Deleted duplicate `PostChangeType` type + constants from `orchestration/incremental.go` (canonical in `incremental/manager.go`)
+- Deleted duplicate `indexedPostStableKey` + `dedupeIndexedPosts` from `orchestration/incremental.go` (canonical in `search/manager.go`)
+- Updated `incremental_helpers_test.go` to use `engine.Incremental.*` and `incremental.PostChangeNew`
+- Moved `indexedPostStableKey`/`dedupeIndexedPosts` as test helpers in `incremental_integration_test.go` (used by dedup test)
+- **Skipped**: `fileExists` duplication — 2-line function, inlining would increase code size
+
+##### Engine Decomposition (2026-03-22)
+- Deleted 8 dead Engine delegation methods from `orchestration/incremental.go`:
+  - `normalizeWatchPath`, `isContentPath`, `isAssetPath`, `invalidateForTemplate` (→ Watch subsystem)
+  - `resolveContentPaths`, `computePostHashes`, `determinePostChange`, `buildSinglePost` (→ Incremental subsystem)
+- Restored `BuildChanged` — used in production by `cmd/kosh/build.go` watch mode
+- Updated all test callers to use subsystems directly: `b.Watch.IsAssetPath()`, `b.Watch.InvalidateForTemplate()`, `b.Incremental.BuildSinglePost()`, etc.
+- `orchestration/incremental.go` reduced from 132 lines to 27 lines (only `BuildChanged` remains)
+- Engine method count reduced from 48 → 39
+
+##### Test Singleton Cleanup (2026-03-22)
+- Replaced `scheduler.GetGlobalScheduler()` → `scheduler.NewBuildScheduler()` in all 9 test files (57 calls)
+- Removed `GetGlobalScheduler()` function, `globalScheduler` and `schedulerOnce` variables from `builder/scheduler/scheduler.go`
+- Removed unused `sync` import from `builder/scheduler/scheduler.go`
+- All tests now create independent scheduler instances (matches production pattern)
+
+##### Verification
+- `go vet ./...` — clean, zero issues
 - All 33 packages pass (`go test ./...`)

@@ -17,7 +17,9 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/spf13/afero"
 )
@@ -87,16 +89,16 @@ This is post number %d.
 	for i := 0; i < b.N; i++ {
 		// We need fresh services for each run or at least reset them
 		rnd := renderer.NewWithFs(fs, false, sink, cfg.TemplateDir, true, logger)
-		renderSvc := services.NewRenderService(services.RenderServiceDependencies{
-			Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		renderSvc := render.NewService(render.Dependencies{
+			Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 			Renderer: rnd,
 			Logger:   logger,
 		})
 		assetSvc := &mocks.MockAssetService{}
 		assetSvc.SetMetrics(buildMetrics)
 		wasmSvc := &mocks.MockWasmService{}
-		postSvc := services.NewPostService(services.PostServiceDependencies{
-			Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		postSvc := post.NewService(post.Dependencies{
+			Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 			Cfg:            cfg,
 			Renderer:       renderSvc,
 			Logger:         logger,
@@ -105,7 +107,7 @@ This is post number %d.
 			NativeRenderer: nativeRenderer,
 			SourceFs:       fs,
 		})
-		metadataScanner := services.NewMetadataScanner()
+		metadataScanner := scanner.NewScanner()
 
 		engine := orchestration.NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
 

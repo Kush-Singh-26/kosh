@@ -14,7 +14,9 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/spf13/afero"
 )
@@ -41,16 +43,16 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 
 	// Initial successful build
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := services.NewPostService(services.PostServiceDependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	postSvc := post.NewService(post.Dependencies{
+		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Cfg:            cfg,
 		Renderer:       renderSvc,
 		Logger:         logger,
@@ -59,7 +61,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		SourceFs:       fs,
 	})
-	metadataScanner := services.NewMetadataScanner()
+	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 

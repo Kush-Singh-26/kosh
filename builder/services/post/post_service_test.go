@@ -1,4 +1,4 @@
-package services
+package post
 
 import (
 	"context"
@@ -26,6 +26,7 @@ import (
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 )
 
 // noopHandler is a slog.Handler that does nothing, used in tests to avoid race conditions in standard handlers.
@@ -220,7 +221,7 @@ func setupPostServiceTest(t *testing.T) *postService {
 	}
 
 	return &postService{
-		ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+		ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		cfg:            cfg,
 		cache:          &mockCacheService{},
 		renderer:       &mockRenderService{},
@@ -267,7 +268,7 @@ func TestPostService_PanicRecovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	scanner := NewMetadataScanner()
+	scanner := scanner.NewScanner()
 	metadataResult, _ := scanner.Scan(ctx, "content", s.sourceFs, s.cfg, nil)
 
 	_, err := s.Process(ctx, false, false, false, metadataResult.Files)
@@ -410,7 +411,7 @@ func TestPostService_NeighborLookup(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	scanner := NewMetadataScanner()
+	scanner := scanner.NewScanner()
 	metadataResult, _ := scanner.Scan(ctx, "content", s.sourceFs, s.cfg, nil)
 
 	_, err := s.Process(ctx, true, false, true, metadataResult.Files)
