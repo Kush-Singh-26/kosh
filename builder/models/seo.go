@@ -22,13 +22,14 @@ type Author struct {
 	URL  string `json:"url,omitempty"`
 }
 
-func GeneratePostJSONLD(post PostMetadata, author AuthorConfig) template.HTML {
+func GeneratePostJSONLD(post PostMetadata, author AuthorConfig, imageURL string) template.HTML {
 	article := JSONLDArticle{
 		Context:       "https://schema.org",
 		Type:          "BlogPosting",
 		Headline:      post.Title,
 		DatePublished: post.DateObj.Format("2006-01-02"),
 		Description:   post.Description,
+		Image:         imageURL,
 	}
 
 	if author.Name != "" {
