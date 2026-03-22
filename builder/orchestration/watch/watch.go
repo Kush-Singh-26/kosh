@@ -12,7 +12,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
 )
 
 type ChangeType string
@@ -37,7 +37,7 @@ type SearchRegenerationCallback func(ctx context.Context)
 type CoordinatorDependencies struct {
 	Cfg           *config.Config
 	BuildMu       *sync.Mutex
-	Cache         services.PostServiceCache
+	Cache         post.Cache
 	OnChange      func(ChangeEvent)
 	OnSearchRegen SearchRegenerationCallback
 }
@@ -45,7 +45,7 @@ type CoordinatorDependencies struct {
 type Coordinator struct {
 	cfg        *config.Config
 	buildMu    *sync.Mutex
-	cache      services.PostServiceCache
+	cache      post.Cache
 	onChange   func(ChangeEvent)
 	onSearch   SearchRegenerationCallback
 	buildQueue chan BuildRequest

@@ -16,14 +16,18 @@ var (
 
 func GetTOC(pc parser.Context) []models.TOCEntry {
 	if v := pc.Get(tocKey); v != nil {
-		return v.([]models.TOCEntry)
+		if entries, ok := v.([]models.TOCEntry); ok {
+			return entries
+		}
 	}
 	return nil
 }
 
 func GetPlainText(pc parser.Context) string {
 	if v := pc.Get(plainTextKey); v != nil {
-		return v.(string)
+		if s, ok := v.(string); ok {
+			return s
+		}
 	}
 	return ""
 }
@@ -31,7 +35,9 @@ func GetPlainText(pc parser.Context) string {
 // GetSSRHashes returns all SSR input hashes (D2 diagrams, LaTeX math) for cache tracking
 func GetSSRHashes(pc parser.Context) []string {
 	if v := pc.Get(ssrHashesKey); v != nil {
-		return v.([]string)
+		if hashes, ok := v.([]string); ok {
+			return hashes
+		}
 	}
 	return nil
 }
@@ -40,7 +46,9 @@ func GetSSRHashes(pc parser.Context) []string {
 func AddSSRHash(pc parser.Context, hash string) {
 	var hashes []string
 	if v := pc.Get(ssrHashesKey); v != nil {
-		hashes = v.([]string)
+		if existing, ok := v.([]string); ok {
+			hashes = existing
+		}
 	}
 	hashes = append(hashes, hash)
 	pc.Set(ssrHashesKey, hashes)

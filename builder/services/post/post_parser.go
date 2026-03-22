@@ -1,4 +1,4 @@
-package services
+package post
 
 import (
 	"bytes"
@@ -164,7 +164,10 @@ func RenderParsedMarkdown(
 		body = source
 	}
 
-	mdEngine := mdPool.Get().(goldmark.Markdown)
+	mdEngine, ok := mdPool.Get().(goldmark.Markdown)
+	if !ok {
+		return fmt.Errorf("mdPool returned unexpected type %T", mdEngine)
+	}
 	defer mdPool.Put(mdEngine)
 
 	buf := pools.SharedBufferPool.Get()

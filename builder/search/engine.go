@@ -2,7 +2,6 @@ package search
 
 import (
 	"container/heap"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,7 +36,7 @@ type Result struct {
 	Score       float64
 }
 
-// PerformSearch executes a search query against the index with fuzzy, prefix and phrase support
+// PerformSearch executes a search query against the index using a structured pipeline
 func PerformSearch(index *models.SearchIndex, query string, versionFilter string) []Result {
 	query = core.NormalizeNFC(query)
 	query = core.ToLower(strings.TrimSpace(query))
@@ -49,7 +48,16 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 	tagFilter, query := extractTagFilter(query)
 	parsed := core.ParseQuery(query)
 
-	opts := SearchScoringOptions{
+	ctx := &SearchContext{
+		Index:         index,
+		QueryTerms:    parsed.Terms,
+		Phrases:       parsed.Phrases,
+		TagFilter:     tagFilter,
+		VersionFilter: versionFilter,
+		OriginalQuery: originalQuery,
+	}
+
+	opts := &SearchScoringOptions{
 		TagFilter:      tagFilter,
 		VersionFilter:  versionFilter,
 		QueryTerms:     parsed.Terms,
@@ -63,14 +71,16 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		opts.HighlightTerms[t] = true
 	}
 
-	scoreTagOnly(index, &opts)
-	scoreBM25(index, &opts)
-	applyPhraseBoosts(index, parsed.Phrases, &opts)
-	applyFallbackScoring(index, originalQuery, &opts)
-	applyTitleAndTagBoost(index, originalQuery, &opts)
+	pipeline := NewPipeline(
+		&TagScorer{},
+		&BM25Scorer{},
+		&PhraseScorer{},
+		&FallbackScorer{},
+		&BoostScorer{},
+	)
+	pipeline.Execute(ctx, opts)
 
-	results := finalizeResults(index, &opts)
-	return results
+	return finalizeResults(index, opts)
 }
 
 func extractTagFilter(query string) (string, string) {
@@ -83,140 +93,6 @@ func extractTagFilter(query string) (string, string) {
 		return tag, ""
 	}
 	return "", query
-}
-
-func scoreTagOnly(index *models.SearchIndex, opts *SearchScoringOptions) {
-	if opts.TagFilter != "" && len(opts.QueryTerms) == 0 {
-		opts.HighlightTerms[opts.TagFilter] = true
-		for id, post := range index.Posts {
-			if opts.VersionFilter != "all" && post.Version != opts.VersionFilter {
-				continue
-			}
-			if slices.Contains(post.NormalizedTags, opts.TagFilter) {
-				opts.Scores[id] += ScoreTagMatch
-			}
-		}
-	}
-}
-
-func scoreBM25(index *models.SearchIndex, opts *SearchScoringOptions) {
-	for _, term := range opts.QueryTerms {
-		if posts, ok := index.Inverted[term]; ok {
-			opts.Modifier = 1.0
-			applyBM25Score(index, posts, term, opts)
-		} else {
-			scoreFuzzy(index, term, opts)
-		}
-	}
-}
-
-func applyBM25Score(index *models.SearchIndex, posts map[string][]uint32, term string, opts *SearchScoringOptions) {
-	df := len(posts)
-	idf := math.Log(1 + (float64(index.TotalDocs)-float64(df)+0.5)/(float64(df)+0.5))
-	avgDocLen := index.AvgDocLen
-
-	for postID, positions := range posts {
-		post, ok := index.Posts[postID]
-		if !ok || (opts.VersionFilter != "all" && post.Version != opts.VersionFilter) || (opts.TagFilter != "" && !slices.Contains(post.NormalizedTags, opts.TagFilter)) {
-			continue
-		}
-
-		freq := len(positions)
-		docLen := float64(index.DocLens[postID])
-		score := idf * (float64(freq) * (opts.K1 + 1)) / (float64(freq) + opts.K1*(1-opts.B+opts.B*(docLen/avgDocLen)))
-		opts.Scores[postID] += score * opts.Modifier
-	}
-}
-
-func scoreFuzzy(index *models.SearchIndex, term string, opts *SearchScoringOptions) {
-	var candidates []string
-	if index.NgramIndex != nil {
-		candidates = core.FuzzyExpandWithNgrams(term, index.NgramIndex, core.MaxEditDistance)
-	} else {
-		candidates = core.FuzzyExpand(term, index.Inverted, core.MaxEditDistance)
-	}
-
-	for _, candTerm := range candidates {
-		opts.HighlightTerms[candTerm] = true
-		if posts, ok := index.Inverted[candTerm]; ok {
-			opts.Modifier = ScoreFuzzyModifier
-			if strings.HasPrefix(candTerm, term) {
-				opts.Modifier = 0.9
-			}
-			applyBM25Score(index, posts, candTerm, opts)
-		}
-	}
-}
-
-func applyPhraseBoosts(index *models.SearchIndex, phrases [][]string, opts *SearchScoringOptions) {
-	if len(opts.QueryTerms) > 1 {
-		for id := range opts.Scores {
-			if checkPhraseUnified(index, id, opts.QueryTerms) {
-				opts.Scores[id] += ScorePhraseMatch * 1.2
-			}
-		}
-	}
-
-	for _, phraseTerms := range phrases {
-		for id, post := range index.Posts {
-			if (opts.VersionFilter != "all" && post.Version != opts.VersionFilter) || !checkPhraseUnified(index, id, phraseTerms) {
-				continue
-			}
-			opts.Scores[id] += ScorePhraseMatch
-			for _, pt := range phraseTerms {
-				opts.HighlightTerms[pt] = true
-			}
-		}
-	}
-}
-
-func applyFallbackScoring(index *models.SearchIndex, originalQuery string, opts *SearchScoringOptions) {
-	if len(opts.Scores) > 0 || originalQuery == "" {
-		return
-	}
-
-	for id, post := range index.Posts {
-		if opts.VersionFilter != "all" && post.Version != opts.VersionFilter {
-			continue
-		}
-
-		match := false
-		if strings.Contains(post.NormalizedTitle, originalQuery) {
-			opts.Scores[id] += ScoreTitleMatch
-			match = true
-		}
-		if strings.Contains(core.ToLower(post.Description), originalQuery) {
-			opts.Scores[id] += 1.0
-			match = true
-		}
-
-		if match {
-			for word := range strings.FieldsSeq(originalQuery) {
-				if len(word) > 2 {
-					opts.HighlightTerms[word] = true
-				}
-			}
-		}
-	}
-}
-
-func applyTitleAndTagBoost(index *models.SearchIndex, originalQuery string, opts *SearchScoringOptions) {
-	for id := range opts.Scores {
-		post, ok := index.Posts[id]
-		if !ok {
-			continue
-		}
-
-		if originalQuery != "" && strings.Contains(post.NormalizedTitle, originalQuery) {
-			opts.Scores[id] += ScoreTitleMatch
-		}
-
-		for _, tag := range post.NormalizedTags {
-			if tag == originalQuery || tag == opts.TagFilter {
-				opts.Scores[id] += ScoreTagMatch
-			}
-		}
-	}
 }
 
 func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Result {
@@ -289,128 +165,6 @@ func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Re
 	}
 
 	return results
-}
-
-func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []string) bool {
-	if len(phraseTerms) == 0 {
-		return false
-	}
-
-	if len(phraseTerms) == 1 {
-		if postMap, ok := index.Inverted[phraseTerms[0]]; ok {
-			_, found := postMap[postID]
-			return found
-		}
-		return false
-	}
-
-	postMap, ok := index.Inverted[phraseTerms[0]]
-	if !ok {
-		return false
-	}
-	candidates, ok := postMap[postID]
-	if !ok {
-		return false
-	}
-
-	decoded := models.DecodePositions(candidates)
-	posList := make([]int, len(decoded))
-	copy(posList, decoded)
-
-	for i := 1; i < len(phraseTerms); i++ {
-		nextWord := phraseTerms[i]
-		nextPostMap, ok := index.Inverted[nextWord]
-		if !ok {
-			return false
-		}
-		nextPositions, ok := nextPostMap[postID]
-		if !ok {
-			return false
-		}
-
-		nextDecoded := models.DecodePositions(nextPositions)
-		var newCandidates []int
-		p1, p2 := 0, 0
-		for p1 < len(posList) && p2 < len(nextDecoded) {
-			if nextDecoded[p2] == posList[p1]+1 {
-				newCandidates = append(newCandidates, nextDecoded[p2])
-				p1++
-				p2++
-			} else if nextDecoded[p2] < posList[p1]+1 {
-				p2++
-			} else {
-				p1++
-			}
-		}
-
-		if len(newCandidates) == 0 {
-			return false
-		}
-		posList = newCandidates
-	}
-
-	return true
-}
-
-// ExtractSnippet extracts a search snippet from content, highlighting matching terms.
-// This is a refactored version using helper functions for better maintainability.
-func ExtractSnippet(content string, terms []string, termOffsets map[string][]int) string {
-	if len(content) == 0 {
-		return ""
-	}
-
-	// Truncate content if too long
-	content = truncateContent(content)
-
-	// Handle case with no search terms
-	if len(terms) == 0 {
-		return buildSimpleSnippet(content)
-	}
-
-	// Find all term matches
-	matches := findMatches(content, terms, termOffsets)
-
-	// If no matches found, return simple snippet
-	if len(matches) == 0 {
-		return buildSimpleSnippet(content)
-	}
-
-	// Sort matches by position
-	slices.SortFunc(matches, func(a, b snippetMatch) int {
-		return a.pos - b.pos
-	})
-
-	// Create term to index mapping for scoring
-	termToIndex := make(map[string]int, len(terms))
-	for i, t := range terms {
-		termToIndex[t] = i
-	}
-
-	// Find the best window position for the snippet
-	start, end := findBestSnippetWindow(matches, content, termToIndex)
-
-	// Build the final snippet with highlighted matches
-	return buildSnippetText(content, matches, start, end, true)
-}
-
-func escapeToBuilder(sb *strings.Builder, s string) {
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch c {
-		case '&':
-			sb.WriteString("&amp;")
-		case '\'':
-			sb.WriteString("&#39;")
-		case '"':
-			sb.WriteString("&#34;")
-		case '<':
-			sb.WriteString("&lt;")
-		case '>':
-			sb.WriteString("&gt;")
-		default:
-			sb.WriteByte(c)
-		}
-	}
 }
 
 // resultHeap implements heap.Interface for a min-heap of search results

@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"errors"
+
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 

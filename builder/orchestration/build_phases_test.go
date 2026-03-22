@@ -10,7 +10,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/spf13/afero"
 )
@@ -152,7 +152,7 @@ func TestShouldSkipSiteWideRendering(t *testing.T) {
 	}
 	b := NewEngineFromManual(cfg, nil, nil, nil, nil, nil, logger, nil, nil, nil, nil)
 
-	cb := &services.MetadataContext{
+	cb := &post.MetadataContext{
 		AnyPostChanged: false,
 	}
 

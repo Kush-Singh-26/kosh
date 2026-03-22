@@ -20,6 +20,8 @@ type BuildMetrics struct {
 	OptimizedImageSize atomic.Int64
 	ImagesOptimized    atomic.Int64
 	ImageResizeSkipped atomic.Int64
+	AssetsProcessed    atomic.Int64
+	SVGsMinified       atomic.Int64
 }
 
 func NewBuildMetrics() *BuildMetrics {
@@ -39,6 +41,8 @@ func (m *BuildMetrics) Reset() {
 	m.OptimizedImageSize.Store(0)
 	m.ImagesOptimized.Store(0)
 	m.ImageResizeSkipped.Store(0)
+	m.AssetsProcessed.Store(0)
+	m.SVGsMinified.Store(0)
 }
 
 func (m *BuildMetrics) RecordEnd() {
@@ -78,6 +82,14 @@ func (m *BuildMetrics) RecordImageResizeSkipped() {
 	m.ImageResizeSkipped.Add(1)
 }
 
+func (m *BuildMetrics) IncrementAssetsProcessed() {
+	m.AssetsProcessed.Add(1)
+}
+
+func (m *BuildMetrics) IncrementSVGsMinified() {
+	m.SVGsMinified.Add(1)
+}
+
 func (m *BuildMetrics) String() string {
 	duration := m.TotalDuration()
 	hits := m.CacheHits.Load()
@@ -95,6 +107,15 @@ func (m *BuildMetrics) String() string {
 		total,
 		hitRate,
 	)
+
+	if assets := m.AssetsProcessed.Load(); assets > 0 {
+		minified := m.SVGsMinified.Load()
+		if minified > 0 {
+			result += fmt.Sprintf("Processed %d assets (%d SVGs minified)\n", assets, minified)
+		} else {
+			result += fmt.Sprintf("Processed %d assets\n", assets)
+		}
+	}
 
 	images := m.ImagesOptimized.Load()
 	if images > 0 {

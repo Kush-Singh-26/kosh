@@ -2,6 +2,7 @@ package search
 
 import (
 	"math/bits"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -221,4 +222,65 @@ func buildSimpleSnippet(content string) string {
 	defer pools.SharedStringBuilderPool.Put(b)
 	escapeToBuilder(b, content)
 	return b.String()
+}
+
+// ExtractSnippet extracts a search snippet from content, highlighting matching terms.
+// This is a refactored version using helper functions for better maintainability.
+func ExtractSnippet(content string, terms []string, termOffsets map[string][]int) string {
+	if len(content) == 0 {
+		return ""
+	}
+
+	// Truncate content if too long
+	content = truncateContent(content)
+
+	// Handle case with no search terms
+	if len(terms) == 0 {
+		return buildSimpleSnippet(content)
+	}
+
+	// Find all term matches
+	matches := findMatches(content, terms, termOffsets)
+
+	// If no matches found, return simple snippet
+	if len(matches) == 0 {
+		return buildSimpleSnippet(content)
+	}
+
+	// Sort matches by position
+	slices.SortFunc(matches, func(a, b snippetMatch) int {
+		return a.pos - b.pos
+	})
+
+	// Create term to index mapping for scoring
+	termToIndex := make(map[string]int, len(terms))
+	for i, t := range terms {
+		termToIndex[t] = i
+	}
+
+	// Find the best window position for the snippet
+	start, end := findBestSnippetWindow(matches, content, termToIndex)
+
+	// Build the final snippet with highlighted matches
+	return buildSnippetText(content, matches, start, end, true)
+}
+
+func escapeToBuilder(sb *strings.Builder, s string) {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch c {
+		case '&':
+			sb.WriteString("&amp;")
+		case '\'':
+			sb.WriteString("&#39;")
+		case '"':
+			sb.WriteString("&#34;")
+		case '<':
+			sb.WriteString("&lt;")
+		case '>':
+			sb.WriteString("&gt;")
+		default:
+			sb.WriteByte(c)
+		}
+	}
 }

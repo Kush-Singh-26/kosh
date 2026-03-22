@@ -5,7 +5,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"strconv"
 	"syscall/js"
@@ -16,7 +15,12 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search"
 )
 
-var index models.SearchIndex
+var (
+	index       models.SearchIndex
+	lastQuery   string
+	lastVersion string
+	lastResults []interface{}
+)
 
 func main() {
 	c := make(chan struct{}, 0)
@@ -57,6 +61,10 @@ func initSearch(this js.Value, args []js.Value) interface{} {
 				return
 			}
 
+			// Clear cache on new index load
+			lastQuery = ""
+			lastResults = nil
+
 			resolve.Invoke(len(index.Posts))
 		}()
 
@@ -89,7 +97,6 @@ func fetchAndDecompress(url string) ([]byte, error) {
 
 		bufPromise := resp.Call("arrayBuffer")
 
-		// Create handlers for arrayBuffer promise
 		var bufSuccess js.Func
 		var bufFailure js.Func
 
@@ -98,31 +105,23 @@ func fetchAndDecompress(url string) ([]byte, error) {
 			defer bufFailure.Release()
 
 			if len(args) < 1 {
-				ch <- "arrayBuffer error: no data received"
+				ch <- "no buffer data"
 				return nil
 			}
 
-			buf := args[0]
-			uint8Array := window.Get("Uint8Array").New(buf)
-			compressed := make([]byte, uint8Array.Length())
-			js.CopyBytesToGo(compressed, uint8Array)
+			arrayBuffer := args[0]
+			uint8Array := window.Get("Uint8Array").New(arrayBuffer)
+			length := uint8Array.Get("length").Int()
+			data := make([]byte, length)
+			js.CopyBytesToGo(data, uint8Array)
 
-			// Log some bytes for debugging
-			hexStr := ""
-			for k := 0; k < len(compressed) && k < 16; k++ {
-				hexStr += fmt.Sprintf("%02X ", compressed[k])
-			}
-			println("WASM: Data fetched size:", len(compressed), "bytes. First 16 bytes:", hexStr)
-
-			// Decompress in Go with Brotli
-			br := brotli.NewReader(bytes.NewReader(compressed))
+			br := brotli.NewReader(bytes.NewReader(data))
 			decompressed, err := io.ReadAll(br)
 			if err != nil {
-				ch <- "brotli: " + err.Error()
+				ch <- "decompression failed: " + err.Error()
 				return nil
 			}
 
-			println("WASM: Successfully decompressed", len(decompressed), "bytes")
 			ch <- decompressed
 			return nil
 		})
@@ -130,7 +129,7 @@ func fetchAndDecompress(url string) ([]byte, error) {
 		bufFailure = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			defer bufSuccess.Release()
 			defer bufFailure.Release()
-			ch <- "failed to read array buffer"
+			ch <- "arrayBuffer failed"
 			return nil
 		})
 
@@ -141,7 +140,6 @@ func fetchAndDecompress(url string) ([]byte, error) {
 	failure = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		defer success.Release()
 		defer failure.Release()
-
 		ch <- "fetch failed"
 		return nil
 	})
@@ -173,6 +171,11 @@ func searchPosts(this js.Value, args []js.Value) interface{} {
 		versionFilter = args[1].String()
 	}
 
+	// Simple exact/prefix cache
+	if query == lastQuery && versionFilter == lastVersion && lastResults != nil {
+		return js.ValueOf(lastResults)
+	}
+
 	results := search.PerformSearch(&index, query, versionFilter)
 
 	finalResults := make([]interface{}, 0, len(results))
@@ -186,6 +189,10 @@ func searchPosts(this js.Value, args []js.Value) interface{} {
 		jsRes["score"] = res.Score
 		finalResults = append(finalResults, jsRes)
 	}
+
+	lastQuery = query
+	lastVersion = versionFilter
+	lastResults = finalResults
 
 	return js.ValueOf(finalResults)
 }

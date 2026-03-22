@@ -1,4 +1,4 @@
-package services
+package wasm
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	"github.com/spf13/afero"
 )
 
-// WasmServiceDependencies holds all dependencies for WasmService.
-type WasmServiceDependencies struct {
+// Dependencies holds all dependencies for WasmService.
+type Dependencies struct {
 	Ctx    *buildCtx.BuildContext
 	Cfg    *config.Config
 	Logger *slog.Logger
@@ -32,8 +32,8 @@ type wasmService struct {
 	searchSourceDirty atomic.Bool
 }
 
-// NewWasmService creates a new WasmService with the given dependencies.
-func NewWasmService(deps WasmServiceDependencies) WasmService {
+// NewService creates a new WasmService with the given dependencies.
+func NewService(deps Dependencies) Service {
 	return &wasmService{
 		ctx:    deps.Ctx,
 		cfg:    deps.Cfg,

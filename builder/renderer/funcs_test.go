@@ -1,8 +1,6 @@
 package renderer
 
 import (
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-
 	"html/template"
 	"io"
 	"log/slog"
@@ -11,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
-
+	"github.com/Kush-Singh-26/kosh/builder/minify"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
 // setupTestRenderer creates a renderer with minimal templates for testing
@@ -21,7 +19,7 @@ func setupTestRenderer(t *testing.T) *Renderer {
 	t.Helper()
 
 	// Ensure minifier is initialized
-	fspkg.InitMinifier()
+	minify.InitHTMLMinifier()
 
 	sink := testutil.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))

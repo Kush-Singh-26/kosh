@@ -68,7 +68,7 @@ func TestThemePair_ConcurrentAccess(t *testing.T) {
 
 func TestD2ASTReplacement(t *testing.T) {
 	mockCache := NewMemorySSRMap()
-	mockCache.Store("d2:"+native.HashContent("d2", "x -> y"), models.SSRThemePair{Light: "svg-light", Dark: "svg-dark"})
+	mockCache.Store("d2:"+native.HashContent("d2", "x -> y\n"), models.SSRThemePair{Light: "svg-light", Dark: "svg-dark"})
 
 	md := goldmark.New(
 		goldmark.WithParserOptions(

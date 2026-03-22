@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func GenerateRSS(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, title, description string, outputPath string) (string, error) {

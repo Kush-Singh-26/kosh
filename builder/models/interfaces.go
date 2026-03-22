@@ -23,7 +23,7 @@ type ArtifactSink interface {
 type HTML = template.HTML
 
 // RenderService handles template rendering and HTML generation.
-// Mirrors services.RenderService for use by models-layer consumers.
+// Mirrors render.Service for use by models-layer consumers.
 type RenderService interface {
 	RenderPage(path string, data PageData) error
 	RenderIndex(path string, data PageData) error
@@ -36,6 +36,8 @@ type RenderService interface {
 	GetRenderedFiles() map[string]bool
 	ClearRenderedFiles()
 	ReloadTemplates()
+	Has404Template() bool
+	SetAssetsGate(ch <-chan struct{})
 }
 
 // PostCache provides post metadata access.

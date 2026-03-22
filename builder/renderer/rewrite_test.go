@@ -3,7 +3,7 @@ package renderer
 import (
 	"testing"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/assets"
 )
 
 func TestRewriteImageRefs(t *testing.T) {
@@ -77,11 +77,11 @@ func TestRewriteImageRefs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fspkg.ResetConvertedImages()
+			assets.ResetConvertedImages()
 			for k, v := range tt.converted {
-				fspkg.RecordConvertedImage(k, v)
+				assets.RecordConvertedImage(k, v)
 			}
-			result := rewriteImageRefs([]byte(tt.html))
+			result := rewriteImageRefs([]byte(tt.html), "test.html")
 			if string(result) != tt.expected {
 				t.Errorf("\ninput:    %q\ngot:      %q\nwant:     %q", tt.html, string(result), tt.expected)
 			}
@@ -91,12 +91,13 @@ func TestRewriteImageRefs(t *testing.T) {
 
 func TestRewriteImageRefs_Specific(t *testing.T) {
 	// Minimal case: check if src attribute is found and rewritten
-	html := `<img src="/test.png">`
-	converted := map[string]string{"/test.png": "/test.webp"}
-	result := rewriteImageRefs([]byte(html))
-	t.Logf("html=%q converted=%v result=%q", html, converted, string(result))
-	if string(result) != `<img src="/test.webp">` {
-		t.Errorf("got %q want %q", string(result), `<img src="/test.webp">`)
+	html := `<img src="/test.png" alt="test">`
+	assets.ResetConvertedImages()
+	assets.RecordConvertedImage("/test.png", "/test.webp")
+	result := rewriteImageRefs([]byte(html), "test.html")
+	t.Logf("html=%q result=%q", html, string(result))
+	if string(result) != `<img src="/test.webp" alt="test">` {
+		t.Errorf("got %q want %q", string(result), `<img src="/test.webp" alt="test">`)
 	}
 }
 
