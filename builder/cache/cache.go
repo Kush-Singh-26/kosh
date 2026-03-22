@@ -75,11 +75,12 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		InitialMmapSize: initialSize,
 	}
 
-	if isDev {
-		opts.NoGrowSync = true
-	} else {
-		opts.NoGrowSync = false
-	}
+	// Kosh cache is derivative and reproducible from source.
+	// Skipping fsync (NoSync) and mmap grow sync (NoGrowSync) significantly
+	// improves build performance, especially on Windows, with minimal durability risk
+	// for a build tool.
+	opts.NoGrowSync = true
+	opts.NoSync = true
 
 	db, err := bbolt.Open(dbPath, 0644, opts)
 	if err != nil {
