@@ -7,7 +7,9 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -139,10 +141,16 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			vfsPath := filepath.Join(destDir, relPath)
 			vfsPath = normalizeEsbuildHashCase(vfsPath)
 
+			contents := outFile.Contents
+			ext := strings.ToLower(filepath.Ext(vfsPath))
+			if ext == ".css" || ext == ".js" {
+				contents = normalizeAssetURLHashes(contents)
+			}
+
 			if err := sink.MkdirAll(filepath.Dir(vfsPath)); err != nil {
 				return err
 			}
-			if err := sink.WriteFile(vfsPath, outFile.Contents); err != nil {
+			if err := sink.WriteFile(vfsPath, contents); err != nil {
 				return err
 			}
 			if onWrite != nil {
@@ -155,7 +163,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 					rel = normalizeEsbuildHashCase(rel)
 					cacheFile := filepath.Join(cachePath, rel)
 					_ = os.MkdirAll(filepath.Dir(cacheFile), 0755)
-					_ = os.WriteFile(cacheFile, outFile.Contents, 0644)
+					_ = os.WriteFile(cacheFile, contents, 0644)
 				}
 			}
 		}
@@ -265,4 +273,47 @@ func isAlphanumericHash(s string) bool {
 		}
 	}
 	return true
+}
+
+func normalizeAssetURLHashes(content []byte) []byte {
+	// Find url(...) references with hash segments and lowercase them
+	re := regexp.MustCompile(`url\(["']?([^"')]+)["']?\)`)
+	return re.ReplaceAllFunc(content, func(match []byte) []byte {
+		urlRe := regexp.MustCompile(`url\(["']?([^"')]+)["']?\)`)
+		submatches := urlRe.FindSubmatch(match)
+		if len(submatches) < 2 {
+			return match
+		}
+		urlPath := string(submatches[1])
+		dir := path.Dir(urlPath) // use forward-slash path for URLs
+		base := path.Base(urlPath)
+		segments := strings.Split(base, ".")
+		changed := false
+		for i, seg := range segments {
+			if isAlphanumericHash(seg) {
+				lowered := strings.ToLower(seg)
+				if lowered != seg {
+					segments[i] = lowered
+					changed = true
+				}
+			}
+		}
+		if !changed {
+			return match
+		}
+		newBase := strings.Join(segments, ".")
+		var newPath string
+		if dir == "." {
+			newPath = newBase
+		} else {
+			newPath = dir + "/" + newBase
+		}
+		// Try to preserve original quoting style
+		if strings.Contains(string(match), "\"") {
+			return []byte(fmt.Sprintf("url(\"%s\")", newPath))
+		} else if strings.Contains(string(match), "'") {
+			return []byte(fmt.Sprintf("url('%s')", newPath))
+		}
+		return []byte(fmt.Sprintf("url(%s)", newPath))
+	})
 }

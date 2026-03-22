@@ -4,6 +4,7 @@ import (
 	"context"
 	"html/template"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -74,6 +75,7 @@ type renderTask struct {
 	version     string
 	relPath     string
 	htmlRelPath string
+	source      []byte
 }
 
 type searchTask struct {
@@ -208,6 +210,17 @@ func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers in
 		}); err != nil {
 			return err
 		}
+
+		if s.cfg.Features.RawMarkdown {
+			mdDestPath := rt.destPath[:len(rt.destPath)-len(filepath.Ext(rt.destPath))] + ".md"
+			if err := s.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
+				s.logger.Warn("Failed to create directory for raw markdown", "dir", filepath.Dir(mdDestPath), "error", err)
+			}
+			if err := s.sink.WriteFile(mdDestPath, rt.source); err == nil {
+				s.renderer.RegisterFile(mdDestPath)
+			}
+		}
+
 		return nil
 	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
 
@@ -366,8 +379,14 @@ func (s *postService) aggregateAndStream(pc *postProcessContext, f models.Scanne
 
 	// Stream to renderer
 	renderChan <- renderTask{
-		parseRes: res, f: f, htmlContent: htmlContent,
-		destPath: destPath, version: version, relPath: relPath, htmlRelPath: htmlRelPath,
+		parseRes:    res,
+		f:           f,
+		htmlContent: htmlContent,
+		destPath:    destPath,
+		version:     version,
+		relPath:     relPath,
+		htmlRelPath: htmlRelPath,
+		source:      f.Source,
 	}
 
 	if !useCache && s.cache != nil {
