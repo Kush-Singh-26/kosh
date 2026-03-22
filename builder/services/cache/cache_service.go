@@ -1,4 +1,4 @@
-package services
+package cache
 
 import (
 	"log/slog"
@@ -20,22 +20,13 @@ type cacheService struct {
 	dirty sync.Map
 }
 
-// NewCacheService creates a new CacheService with the given dependencies.
+// NewService creates a new CacheService with the given dependencies.
 // Using dependency struct pattern for API coherence.
-func NewCacheService(deps CacheServiceDependencies) CacheService {
+func NewService(deps Dependencies) Service {
 	return &cacheService{
 		ctx:     deps.Ctx,
 		manager: deps.Manager,
 		logger:  deps.Logger,
-	}
-}
-
-// NewCacheServiceWith creates a new CacheService with explicit parameters.
-// Deprecated: use NewCacheService(CacheServiceDependencies{...}) instead.
-func NewCacheServiceWith(manager *cache.Manager, logger *slog.Logger) CacheService {
-	return &cacheService{
-		manager: manager,
-		logger:  logger,
 	}
 }
 

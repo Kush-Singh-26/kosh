@@ -563,3 +563,36 @@ These can be completed in under 30 minutes each:
 ##### Verification
 - `go vet ./...` — clean, zero issues
 - All 33 packages pass (`go test ./...`)
+
+#### ✅ Session 2026-03-22B: Deep Cleanup — Phase A-D+E1 — COMPLETE
+
+##### Phase A: Error Handling (2026-03-22B)
+- Added error logging for 15 swallowed `_ =` calls across `orchestration/engine.go`, `orchestration/build.go`, `cache/cache.go`, `services/post/post_service.go`, `services/post/post_single.go`, `services/asset/asset_service.go`
+- All errors now logged at appropriate levels (Error for build-critical, Warn for non-fatal)
+
+##### Phase B: Dead Code Removal (2026-03-22B)
+- Deleted `Engine.SetTx()` — zero callers, `tx` import retained for `Engine.Tx` field
+- Deleted `isDevMode` global + `isDevMode.Store(isDev)` from `SetDevMode()` — never read, removed unused `sync/atomic` import from `config.go`
+- Deleted `NewServiceWith()` from `services/cache/cache_service.go` — deprecated, zero callers
+- Cleaned 3 outdated comments: `cache_writes_test.go:206,244` and `cache_queries.go:65`
+
+##### Phase C: Engine Config() → b.Cfg (2026-03-22B)
+- Replaced 5 `b.Config()` callers in `cmd/kosh/build.go` and `cmd/kosh/serve.go` with `b.Cfg` direct field access
+- Deleted `Engine.Config()` delegation method — `b.Cfg` is public, wrapper unnecessary
+
+##### Phase D1: Shared yamlDelim Constant (2026-03-22B)
+- Exported `YAMLDelim = []byte("---")` from `builder/hashing/hash.go`
+- Replaced local `yamlDelim` in `builder/services/scanner/scanner.go` with `hashing.YAMLDelim`
+
+##### Phase D2: PostResult.ToMetadataContext() (2026-03-22B)
+- Added `ToMetadataContext()` method on `PostResult` in `services/post/interfaces.go`
+- Replaced manual 5-field struct literal in `orchestration/build_phases.go:176` with `postResult.ToMetadataContext()`
+
+##### Phase E1: async.ClearSyncCache() at Build Start (2026-03-22B)
+- Added `async.ClearSyncCache()` call at start of `refreshBuildSession()` in `orchestration/build.go`
+- Ensures global file-content and created-dirs LRU caches don't serve stale data across dev rebuilds
+
+##### Verification
+- `go vet ./...` — clean, zero issues
+- `go test ./builder/orchestration ./builder/config ./builder/cache ./builder/services/post ./builder/services/cache ./builder/services/asset ./builder/services/render ./builder/services/scanner ./builder/hashing ./builder/parser ./builder/async` — all pass
+- `go build ./...` — clean

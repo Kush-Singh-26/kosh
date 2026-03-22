@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
@@ -18,9 +17,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 )
-
-// Global flag to track if we're in development mode
-var isDevMode = atomic.Bool{}
 
 type Version struct {
 	Name     string `yaml:"name"`
@@ -263,7 +259,6 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 
 func SetDevMode(cfg *Config, isDev bool) {
 	cfg.IsDev = isDev
-	isDevMode.Store(isDev)
 }
 
 // currentPath is the current page path (e.g., "getting-started.html") to preserve across version switches

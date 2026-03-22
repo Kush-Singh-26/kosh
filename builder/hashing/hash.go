@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-	"github.com/zeebo/xxh3"
-	"gopkg.in/yaml.v3"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+	"github.com/zeebo/xxh3"
+	"gopkg.in/yaml.v3"
 )
 
 var ErrEmptyData = errors.New("empty data")
@@ -100,8 +101,8 @@ func writeStringXXH3(h *xxh3.Hasher, s string) {
 	_, _ = h.Write([]byte(s))
 }
 
-// yamlDelim is the YAML frontmatter delimiter
-var yamlDelim = []byte("---")
+// YAMLDelim is the YAML frontmatter delimiter
+var YAMLDelim = []byte("---")
 
 func HashBytes(data []byte) string {
 	hash := xxh3.Hash128(data)
@@ -113,7 +114,7 @@ func HashBytes(data []byte) string {
 // This is CRITICAL for cache validity - body changes without frontmatter changes
 // would otherwise be silently ignored
 func GetBodyHash(source []byte) string {
-	parts := bytes.SplitN(source, yamlDelim, 3)
+	parts := bytes.SplitN(source, YAMLDelim, 3)
 	if len(parts) >= 3 {
 		return HashBytes(bytes.TrimSpace(parts[2]))
 	}
@@ -123,7 +124,7 @@ func GetBodyHash(source []byte) string {
 // GetFrontmatterHashFromSource extracts frontmatter from raw source and computes its hash
 // This enables cache invalidation without full markdown parsing
 func GetFrontmatterHashFromSource(source []byte) (string, error) {
-	parts := bytes.SplitN(source, yamlDelim, 3)
+	parts := bytes.SplitN(source, YAMLDelim, 3)
 	if len(parts) < 3 {
 		return "", nil
 	}

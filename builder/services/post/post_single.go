@@ -1,4 +1,4 @@
-package services
+package post
 
 import (
 	"context"
@@ -159,7 +159,9 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 
 	if s.cfg.Features.RawMarkdown {
 		mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
-		_ = s.sink.MkdirAll(filepath.Dir(mdDestPath))
+		if err := s.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
+			s.logger.Warn("Failed to create directory for raw markdown", "dir", filepath.Dir(mdDestPath), "error", err)
+		}
 		if err := s.sink.WriteFile(mdDestPath, source); err == nil {
 			s.renderer.RegisterFile(mdDestPath)
 		}
@@ -219,13 +221,13 @@ func (s *postService) commitPostCache(parseRes *ParsedMarkdownResult, post model
 		PositionalIndex: parseRes.PositionalIndex,
 		ByteOffsets:     parseRes.ByteOffsets,
 	}
-	newDep := &cache.Dependencies{Tags: post.Tags}
+	newDep := &models.Dependencies{Tags: post.Tags}
 
 	s.cacheWg.Add(1)
 	go func() {
 		defer s.cacheWg.Done()
 		timer := timeutil.StartPhase("Cache commit (incremental)")
-		if err := s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*cache.Dependencies{postID: newDep}); err != nil {
+		if err := s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*models.Dependencies{postID: newDep}); err != nil {
 			s.logger.Error("Failed to commit post to cache", "path", relPath, "error", err)
 		}
 		timer.Stop()

@@ -1,4 +1,4 @@
-// Package run orchestrates full and incremental site builds.
+// Package orchestration orchestrates full and incremental site builds.
 //
 // Build orchestration call chain:
 //
@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -21,6 +22,8 @@ import (
 
 // refreshBuildSession creates a fresh Transaction and Sink for a new build pass.
 func (b *Engine) refreshBuildSession() {
+	// Clear per-file content cache so dev rebuilds don't serve stale data
+	async.ClearSyncCache()
 	// If we already have a sink/tx (e.g. injected in tests), don't overwrite it
 	if b.Sink == nil || !b.Ctx.IsTesting {
 		useStaging := !b.Cfg.IsDev || b.State.IsCleanBuild
@@ -116,7 +119,9 @@ func (b *Engine) Build(ctx context.Context) error {
 		} else {
 			defer func() {
 				if buildLock != nil {
-					_ = buildLock.Release()
+					if err := buildLock.Release(); err != nil {
+						b.Logger.Error("Failed to release build lock", "error", err)
+					}
 				}
 			}()
 		}

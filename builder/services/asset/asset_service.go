@@ -1,4 +1,4 @@
-package services
+package asset
 
 // Error Handling Strategy:
 // - Recoverable errors: Return error to caller (triggers fallback to full build)
@@ -13,33 +13,34 @@ import (
 	"runtime"
 	"sync"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	"github.com/spf13/afero"
-	"golang.org/x/sync/errgroup"
-
+	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+	"github.com/spf13/afero"
+	"golang.org/x/sync/errgroup"
 )
 
-// AssetServiceOption configures optional parameters for AssetService
-type AssetServiceOption func(*assetService)
+// Option configures optional parameters for AssetService
+type Option func(*assetService)
 
 // WithMetrics sets the build metrics collector
-func WithMetrics(m *metrics.BuildMetrics) AssetServiceOption {
+func WithMetrics(m *metrics.BuildMetrics) Option {
 	return func(s *assetService) { s.metrics = m }
 }
 
 // WithAssetsReadySignal sets the channel signaled when assets are ready
-func WithAssetsReadySignal(ch chan struct{}) AssetServiceOption {
+func WithAssetsReadySignal(ch chan struct{}) Option {
 	return func(s *assetService) { s.assetsReady = ch }
 }
 
 // WithContentAssetsChannel sets the channel for content asset notifications
-func WithContentAssetsChannel(ch <-chan []models.ScannedAsset) AssetServiceOption {
+func WithContentAssetsChannel(ch <-chan []models.ScannedAsset) Option {
 	return func(s *assetService) { s.contentAssetsChan = ch }
 }
 
@@ -49,7 +50,7 @@ type assetService struct {
 	sourceFs          afero.Fs
 	sink              fspkg.ArtifactSink
 	cfg               *config.Config
-	renderer          RenderService
+	renderer          render.Service
 	logger            *slog.Logger
 	metrics           *metrics.BuildMetrics
 	contentAssetsChan <-chan []models.ScannedAsset
@@ -57,7 +58,7 @@ type assetService struct {
 	discoveryReady    chan struct{}
 }
 
-func NewAssetService(deps AssetServiceDependencies, opts ...AssetServiceOption) AssetService {
+func NewService(deps Dependencies, opts ...Option) Service {
 	s := &assetService{
 		ctx:      deps.Ctx,
 		sourceFs: deps.SourceFs,
@@ -136,7 +137,7 @@ func (s *assetService) Build(ctx context.Context) error {
 				t := task
 				copyGroup.Go(func() error {
 					dst := filepath.Join(s.cfg.OutputDir, t.relPath)
-					opts := fspkg.CopyOptions{
+					opts := assets.CopyOptions{
 						Compress:     s.cfg.CompressImages,
 						MinifySVGs:   s.cfg.MinifySVGs,
 						CacheDir:     s.cfg.CacheDir + "/images",
@@ -145,7 +146,7 @@ func (s *assetService) Build(ctx context.Context) error {
 						OnWrite:      s.renderer.RegisterFile,
 						ImageWorkers: s.cfg.ImageWorkers,
 					}
-					return fspkg.CopyFileWithOptionalImageProcessing(fspkg.ProcessImageOptions{
+					return assets.CopyFileWithOptionalImageProcessing(assets.ProcessImageOptions{
 						Ctx:     copyCtx,
 						SrcFs:   s.sourceFs,
 						Sink:    s.sink,
@@ -158,7 +159,7 @@ func (s *assetService) Build(ctx context.Context) error {
 							if s.ctx != nil {
 								return s.ctx.Scheduler
 							}
-							return scheduler.GetGlobalScheduler()
+							return nil
 						}(),
 					})
 				})
@@ -266,11 +267,15 @@ func (s *assetService) walkDirStreaming(ctx context.Context, dir, prefix string,
 
 func (s *assetService) copyCriticalAssets() {
 	if s.cfg.Logo != "" {
-		_ = s.copyFileOrLink(s.cfg.Logo, s.cfg.Logo)
+		if err := s.copyFileOrLink(s.cfg.Logo, s.cfg.Logo); err != nil {
+			s.logger.Warn("Failed to copy logo", "src", s.cfg.Logo, "error", err)
+		}
 	}
 	faviconPath := filepath.Join(s.cfg.StaticDir, "images/favicon.png")
 	if exists, _ := afero.Exists(s.sourceFs, faviconPath); exists {
-		_ = s.copyFileOrLink(faviconPath, "static/images/favicon.png")
+		if err := s.copyFileOrLink(faviconPath, "static/images/favicon.png"); err != nil {
+			s.logger.Warn("Failed to copy favicon", "src", faviconPath, "error", err)
+		}
 	}
 }
 
@@ -297,7 +302,12 @@ func (s *assetService) buildEsbuildAssets(force bool) (map[string]string, error)
 		srcDir = "themes/blog/static"
 	}
 
-	assets, assetErr := fspkg.BuildAssetsEsbuild(s.sourceFs, s.sink, srcDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force)
+	var sched scheduler.BuildScheduler
+	if s.ctx != nil {
+		sched = s.ctx.Scheduler
+	}
+
+	assets, assetErr := fspkg.BuildAssetsEsbuild(s.sourceFs, s.sink, srcDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force, sched)
 	if assetErr == nil {
 		s.renderer.SetAssets(assets)
 	}

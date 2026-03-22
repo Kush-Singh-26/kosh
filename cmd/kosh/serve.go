@@ -75,7 +75,7 @@ func runServe(cmd *cobra.Command, args []string) {
 		}
 
 		go func() {
-			w, err := watch.New([]string{b.Config().ContentDir, b.Config().TemplateDir, b.Config().StaticDir, "kosh.yaml"}, func(event watch.Event) {
+			w, err := watch.New([]string{b.Cfg.ContentDir, b.Cfg.TemplateDir, b.Cfg.StaticDir, "kosh.yaml"}, func(event watch.Event) {
 				orchestration.DevLogChange(event.Name, "watch")
 				server.SetBuildActive(true)
 				b.BuildChanged(ctx, event.Name, event.Op)
@@ -88,7 +88,7 @@ func runServe(cmd *cobra.Command, args []string) {
 			w.Start()
 		}()
 
-		server.Run(ctx, filteredArgs, b.Config().OutputDir, b.Config().BaseURL, b.Config().Build)
+		server.Run(ctx, filteredArgs, b.Cfg.OutputDir, b.Cfg.BaseURL, b.Cfg.Build)
 	} else {
 		cfg := config.Load(filteredArgs)
 		printStartupBanner("Static Preview", cfg)

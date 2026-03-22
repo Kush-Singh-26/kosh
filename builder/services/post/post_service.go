@@ -1,4 +1,4 @@
-package services
+package post
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
@@ -30,8 +31,8 @@ import (
 type postService struct {
 	ctx            *buildCtx.BuildContext
 	cfg            *config.Config
-	cache          PostServiceCache
-	renderer       RenderService
+	cache          Cache
+	renderer       render.Service
 	logger         *slog.Logger
 	metrics        *metrics.BuildMetrics
 	mdPool         *sync.Pool
@@ -43,7 +44,7 @@ type postService struct {
 	cacheWg        sync.WaitGroup
 }
 
-func NewPostService(deps PostServiceDependencies) PostService {
+func NewService(deps Dependencies) Service {
 	return &postService{
 		ctx:            deps.Ctx,
 		cfg:            deps.Cfg,
@@ -145,7 +146,9 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 	}
 
 	// Wait for search indexing to complete before returning results
-	_ = searchPool.Stop()
+	if err := searchPool.Stop(); err != nil {
+		s.logger.Error("Failed to stop search pool", "error", err)
+	}
 
 	s.finalizeBuild(pc)
 
@@ -250,7 +253,9 @@ func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers in
 	for rt := range renderChan {
 		renderPool.Submit(rt)
 	}
-	_ = renderPool.Stop()
+	if err := renderPool.Stop(); err != nil {
+		s.logger.Error("Failed to stop render pool", "error", err)
+	}
 }
 
 type postProcessContext struct {

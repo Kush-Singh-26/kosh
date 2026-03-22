@@ -203,8 +203,7 @@ func TestBatchCommit_Complete(t *testing.T) {
 		t.Error("Search record should be stored")
 	}
 
-	// core.Dependencies verification removed as GetDependencies was deleted
-	// But we can verify side effects like tag indexing if needed
+	// Verify side effects like tag indexing
 	tagPosts, _ := m.GetPostsByTag("test")
 	if len(tagPosts) == 0 {
 		t.Error("Post should be indexed by tag 'test'")
@@ -241,8 +240,6 @@ func TestBatchCommit_UpdatesWriteStats(t *testing.T) {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
-	// Stats verification removed as runtime stats tracking was removed
-	// Only persistence stats (BuildCount) are now verified in other tests
 }
 
 func TestStoreHTML(t *testing.T) {
