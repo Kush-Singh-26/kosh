@@ -1,4 +1,4 @@
-package services
+package cache
 
 import (
 	"log/slog"
@@ -19,31 +19,31 @@ func setupCacheServiceTest(t *testing.T) (*cacheService, *cache.Manager, func())
 	mgr, cleanup := testutil.CreateTestCache(t)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	service := NewCacheService(CacheServiceDependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	service := NewService(Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Manager: mgr,
 		Logger:  logger,
 	}).(*cacheService)
 	return service, mgr, cleanup
 }
 
-func TestNewCacheService(t *testing.T) {
+func TestNewService(t *testing.T) {
 	mgr, cleanup := testutil.CreateTestCache(t)
 	defer cleanup()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	service := NewCacheService(CacheServiceDependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	service := NewService(Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Manager: mgr,
 		Logger:  logger,
 	})
 
 	if service == nil {
-		t.Fatal("NewCacheService should not return nil")
+		t.Fatal("NewService should not return nil")
 	}
 
 	if _, ok := service.(*cacheService); !ok {
-		t.Error("NewCacheService should return *cacheService")
+		t.Error("NewService should return *cacheService")
 	}
 }
 

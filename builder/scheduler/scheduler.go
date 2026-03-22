@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"runtime"
-	"sync"
 
 	"golang.org/x/sync/semaphore"
 )
@@ -19,6 +18,7 @@ const (
 	TaskD2
 	TaskSearch
 	TaskSocialCard
+	TaskAsset
 )
 
 // Scheduler weight constants for task resource allocation.
@@ -26,7 +26,7 @@ const (
 const (
 	WeightLight    = 50  // Minimal resource usage (markdown parsing)
 	WeightModerate = 200 // Moderate resource usage (math rendering, search indexing)
-	WeightHeavy    = 400 // Heavy resource usage (image processing, D2 diagrams)
+	WeightHeavy    = 400 // Heavy resource usage (image processing, D2 diagrams, esbuild)
 	WeightDefault  = 100 // Default weight for unclassified tasks
 )
 
@@ -64,6 +64,7 @@ func NewBuildScheduler() BuildScheduler {
 			TaskD2:         WeightHeavy,    // Heavy - SVG diagram rendering
 			TaskSearch:     WeightModerate, // Moderate - indexing operations
 			TaskSocialCard: WeightModerate, // Moderate - image drawing
+			TaskAsset:      WeightHeavy,    // Heavy - esbuild bundling
 		},
 	}
 }
@@ -82,17 +83,4 @@ func (s *weightedScheduler) Release(task TaskType) {
 		weight = s.weights[TaskDefault]
 	}
 	s.sem.Release(weight)
-}
-
-var (
-	globalScheduler BuildScheduler
-	schedulerOnce   sync.Once
-)
-
-// GetGlobalScheduler returns the singleton used across the build process.
-func GetGlobalScheduler() BuildScheduler {
-	schedulerOnce.Do(func() {
-		globalScheduler = NewBuildScheduler()
-	})
-	return globalScheduler
 }

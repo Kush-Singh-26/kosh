@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration/incremental"
 )
 
 // TestResolveContentPaths_VariousPaths tests path resolution with versions
@@ -38,7 +39,7 @@ func TestResolveContentPaths_VariousPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			relPath, version, htmlRelPath, cleanHtmlRelPath, err := engine.resolveContentPaths(tt.path)
+			relPath, version, htmlRelPath, cleanHtmlRelPath, err := engine.Incremental.ResolveContentPaths(tt.path)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -62,8 +63,8 @@ func TestComputePostHashes_Consistency(t *testing.T) {
 
 	// Test with frontmatter
 	sourceWithFrontmatter := []byte("---\ntitle: Test\n---\n\n# Test Post\n\nThis is a test.")
-	frontmatterHash1, bodyHash1 := engine.computePostHashes(sourceWithFrontmatter)
-	frontmatterHash2, bodyHash2 := engine.computePostHashes(sourceWithFrontmatter)
+	frontmatterHash1, bodyHash1 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter)
+	frontmatterHash2, bodyHash2 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter)
 
 	// Hashes should be deterministic
 	assert.Equal(t, frontmatterHash1, frontmatterHash2)
@@ -73,7 +74,7 @@ func TestComputePostHashes_Consistency(t *testing.T) {
 
 	// Different content should produce different hashes
 	source2 := []byte("---\ntitle: Different\n---\n\n# Different Post\n\nThis is different.")
-	frontmatterHash3, bodyHash3 := engine.computePostHashes(source2)
+	frontmatterHash3, bodyHash3 := engine.Incremental.ComputePostHashes(source2)
 
 	assert.NotEqual(t, frontmatterHash1, frontmatterHash3)
 	assert.NotEqual(t, bodyHash1, bodyHash3)
@@ -84,8 +85,8 @@ func TestDeterminePostChange_AllCases(t *testing.T) {
 	engine := NewEngineFromManual(nil, nil, nil, nil, nil, nil, InitLogger(), nil, nil, nil, nil)
 
 	// Test with no cache (should return PostChangeNew)
-	changeType := engine.determinePostChange("test.md", "hash1", "hash2")
-	assert.Equal(t, PostChangeNew, changeType)
+	changeType := engine.Incremental.DeterminePostChange("test.md", "hash1", "hash2")
+	assert.Equal(t, incremental.PostChangeNew, changeType)
 
 	// Note: Testing with actual cache would require more setup
 	// This test documents the basic behavior

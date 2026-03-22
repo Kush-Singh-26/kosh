@@ -16,6 +16,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -24,7 +25,10 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
@@ -78,22 +82,22 @@ This is the initial body.
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Manager: cm,
 		Logger:  logger,
 	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := services.NewPostService(services.PostServiceDependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	postSvc := post.NewService(post.Dependencies{
+		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -103,7 +107,7 @@ This is the initial body.
 		NativeRenderer: nativeRenderer,
 		SourceFs:       fs,
 	})
-	metadataScanner := services.NewMetadataScanner()
+	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
@@ -144,7 +148,7 @@ This is the updated body.
 	sink.Files = make(map[string][]byte)
 
 	// Trigger incremental rebuild for single post
-	b.buildSinglePost(ctx, absPath)
+	b.Incremental.BuildSinglePost(ctx, absPath)
 
 	// Verify single-post output was written
 	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
@@ -212,22 +216,22 @@ Body content.
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Manager: cm,
 		Logger:  logger,
 	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := services.NewPostService(services.PostServiceDependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	postSvc := post.NewService(post.Dependencies{
+		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -237,7 +241,7 @@ Body content.
 		NativeRenderer: nativeRenderer,
 		SourceFs:       fs,
 	})
-	metadataScanner := services.NewMetadataScanner()
+	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
@@ -267,7 +271,7 @@ Body content.
 	sink.Files = make(map[string][]byte)
 
 	// Trigger incremental rebuild
-	b.buildSinglePost(ctx, absPath)
+	b.Incremental.BuildSinglePost(ctx, absPath)
 
 	// Verify output was regenerated
 	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
@@ -325,22 +329,22 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Manager: cm,
 		Logger:  logger,
 	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := services.NewPostService(services.PostServiceDependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	postSvc := post.NewService(post.Dependencies{
+		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -350,7 +354,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		SourceFs:       fs,
 	})
-	metadataScanner := services.NewMetadataScanner()
+	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
@@ -369,7 +373,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 	_ = afero.WriteFile(fs, filepath.Join(staticDir, "style.css"), []byte(updatedCSS), 0644)
 
 	// Verify isAssetPath correctly identifies CSS changes
-	if !b.isAssetPath(filepath.Join("themes", "test-theme", "static", "css", "style.css")) {
+	if !b.Watch.IsAssetPath(filepath.Join("themes", "test-theme", "static", "css", "style.css")) {
 		t.Error("CSS file not recognized as asset path")
 	}
 }
@@ -420,22 +424,22 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Manager: cm,
 		Logger:  logger,
 	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := services.NewPostService(services.PostServiceDependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	postSvc := post.NewService(post.Dependencies{
+		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -445,7 +449,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		SourceFs:       fs,
 	})
-	metadataScanner := services.NewMetadataScanner()
+	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
@@ -461,7 +465,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 
 	// Verify template change detection
 	templatePath := filepath.Join("themes", "test-theme", "templates", "layout.html")
-	invalidated := b.invalidateForTemplate(templatePath)
+	invalidated := b.Watch.InvalidateForTemplate(templatePath)
 	// nil means invalidate all (global change)
 	if invalidated != nil {
 		t.Error("layout.html change should invalidate all posts")
@@ -469,7 +473,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 
 	// Verify static file change detection
 	staticPath := filepath.Join("themes", "test-theme", "static", "css", "style.css")
-	invalidated = b.invalidateForTemplate(staticPath)
+	invalidated = b.Watch.InvalidateForTemplate(staticPath)
 	if invalidated != nil {
 		t.Error("static file change should invalidate all posts")
 	}
@@ -550,6 +554,31 @@ func TestIncrementalBuild_DedupeIndexedPosts(t *testing.T) {
 	if len(deduped) != 2 {
 		t.Errorf("expected 2 deduped posts, got %d", len(deduped))
 	}
+}
+
+func indexedPostStableKey(ip models.IndexedPost) string {
+	if ip.SourcePath != "" {
+		return fspkg.NormalizePath(ip.SourcePath)
+	}
+	return fspkg.NormalizePath(ip.Record.Link)
+}
+
+func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
+	if len(posts) < 2 {
+		return posts
+	}
+	seen := make(map[string]int, len(posts))
+	result := make([]models.IndexedPost, 0, len(posts))
+	for _, ip := range posts {
+		key := indexedPostStableKey(ip)
+		if idx, ok := seen[key]; ok {
+			result[idx] = ip
+			continue
+		}
+		seen[key] = len(result)
+		result = append(result, ip)
+	}
+	return result
 }
 
 // TestIncrementalBuild_AssetCopyTimestampPreservation verifies that
@@ -633,22 +662,22 @@ date: "2026-03-15"
 
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Manager: cm,
 		Logger:  logger,
 	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := services.NewPostService(services.PostServiceDependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	postSvc := post.NewService(post.Dependencies{
+		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -658,7 +687,7 @@ date: "2026-03-15"
 		NativeRenderer: nativeRenderer,
 		SourceFs:       fs,
 	})
-	metadataScanner := services.NewMetadataScanner()
+	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
@@ -681,7 +710,7 @@ date: "2026-03-15"
 	}()
 
 	// Rebuild should handle concurrent modification safely
-	b.buildSinglePost(ctx, absPath)
+	b.Incremental.BuildSinglePost(ctx, absPath)
 
 	<-done
 	// If we reach here without panic, the test passes

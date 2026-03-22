@@ -21,7 +21,10 @@ import (
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 )
 
 func TestIsAssetPath(t *testing.T) {
@@ -73,7 +76,7 @@ func TestIsAssetPath(t *testing.T) {
 				},
 			}
 			b := NewEngineFromManual(cfg, nil, nil, nil, nil, &mocks.MockWasmService{}, logger, nil, nil, nil, nil)
-			got := b.isAssetPath(tt.path)
+			got := b.Watch.IsAssetPath(tt.path)
 			if got != tt.want {
 				t.Errorf("isAssetPath(%q) = %v, want %v", tt.path, got, tt.want)
 			}
@@ -90,7 +93,7 @@ func TestNormalizeWatchPath_ProjectRelativeAbsolutePath(t *testing.T) {
 	cfg := &config.Config{}
 	b := NewEngineFromManual(cfg, nil, nil, nil, nil, &mocks.MockWasmService{}, logger, nil, nil, nil, nil)
 	abs := filepath.Join(wd, "themes", "test-theme", "static", "css", "style.css")
-	got := b.normalizeWatchPath(abs)
+	got := b.Watch.NormalizeWatchPath(abs)
 	expected := fspkg.NormalizePath("themes/test-theme/static/css/style.css")
 	if got != expected {
 		t.Fatalf("got %q, want %q", got, expected)
@@ -107,7 +110,7 @@ func TestIsContentPathWithAbsoluteConfiguredContentDir(t *testing.T) {
 	cfg := &config.Config{PathConfig: config.PathConfig{ContentDir: contentDir}}
 	b := NewEngineFromManual(cfg, nil, nil, nil, nil, nil, logger, nil, nil, nil, nil)
 	path := filepath.Join(contentDir, "posts", "hello.md")
-	if !b.isContentPath(path) {
+	if !b.Watch.IsContentPath(path) {
 		t.Fatalf("expected absolute markdown path to match absolute content dir")
 	}
 }
@@ -162,7 +165,7 @@ func TestInvalidateForTemplate(t *testing.T) {
 				},
 			}
 			b := NewEngineFromManual(cfg, nil, nil, nil, nil, &mocks.MockWasmService{}, logger, nil, nil, nil, nil)
-			got := b.invalidateForTemplate(tt.templatePath)
+			got := b.Watch.InvalidateForTemplate(tt.templatePath)
 			if (got == nil) != tt.wantNil {
 				t.Errorf("invalidateForTemplate(%q) returned nil=%v, want nil=%v", tt.templatePath, got == nil, tt.wantNil)
 			}
@@ -242,22 +245,22 @@ Initial body.
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Manager: cm,
 		Logger:  logger,
 	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := services.NewPostService(services.PostServiceDependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	postSvc := post.NewService(post.Dependencies{
+		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -267,7 +270,7 @@ Initial body.
 		NativeRenderer: nativeRenderer,
 		SourceFs:       fs,
 	})
-	metadataScanner := services.NewMetadataScanner()
+	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
@@ -292,7 +295,7 @@ Updated body.
 	_ = afero.WriteFile(fs, absPath, []byte(updatedContent), 0644)
 
 	sink.Files = make(map[string][]byte)
-	b.buildSinglePost(ctx, absPath)
+	b.Incremental.BuildSinglePost(ctx, absPath)
 
 	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
 		t.Fatalf("expected single-post rebuild output for absolute path")
@@ -348,22 +351,22 @@ Initial body.
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
-	cacheSvc := services.NewCacheService(services.CacheServiceDependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Manager: cm,
 		Logger:  logger,
 	})
 	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := services.NewRenderService(services.RenderServiceDependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := services.NewPostService(services.PostServiceDependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.GetGlobalScheduler(), logger),
+	postSvc := post.NewService(post.Dependencies{
+		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -373,7 +376,7 @@ Initial body.
 		NativeRenderer: nativeRenderer,
 		SourceFs:       fs,
 	})
-	metadataScanner := services.NewMetadataScanner()
+	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
@@ -398,7 +401,7 @@ Updated body.
 	_ = afero.WriteFile(fs, absPath, []byte(updatedContent), 0644)
 
 	sink.Files = make(map[string][]byte)
-	b.buildSinglePost(ctx, absPath)
+	b.Incremental.BuildSinglePost(ctx, absPath)
 
 	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
 		t.Fatalf("expected single-post output to be written")
