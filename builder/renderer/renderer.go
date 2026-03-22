@@ -125,7 +125,7 @@ func (r *Renderer) ReloadTemplates() {
 			}
 
 			if baseURL != "" {
-				return strings.TrimSuffix(baseURL, "/") + link
+				return filepath.ToSlash(strings.TrimSuffix(baseURL, "/") + link)
 			}
 
 			// If baseURL is empty, use RelativePrefix
@@ -133,13 +133,13 @@ func (r *Renderer) ReloadTemplates() {
 				if isHome {
 					return "index.html"
 				}
-				return link[1:] // Just remove leading slash
+				return filepath.ToSlash(link[1:]) // Just remove leading slash
 			}
 
 			if isHome {
-				return prefix + "index.html"
+				return filepath.ToSlash(prefix + "index.html")
 			}
-			return prefix + link[1:]
+			return filepath.ToSlash(prefix + link[1:])
 		},
 		"now":       time.Now,
 		"urlEscape": url.PathEscape,

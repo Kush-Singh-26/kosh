@@ -206,7 +206,7 @@ func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers in
 			TOC: rt.parseRes.TOC, Config: s.cfg, CurrentVersion: rt.version, ReadingTime: post.ReadingTime,
 			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(rt.htmlRelPath),
 			HasImages: rt.parseRes.HasImages,
-			JSONLD:    models.GeneratePostJSONLD(post, s.cfg.Author),
+			JSONLD:    models.GeneratePostJSONLD(post, s.cfg.Author, cardImageURL),
 		}); err != nil {
 			return err
 		}

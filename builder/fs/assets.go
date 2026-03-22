@@ -260,7 +260,7 @@ func normalizeEsbuildHashCase(path string) string {
 		return path
 	}
 
-	return filepath.Join(dir, strings.Join(segments, "."))
+	return filepath.ToSlash(filepath.Join(dir, strings.Join(segments, ".")))
 }
 
 func isAlphanumericHash(s string) bool {

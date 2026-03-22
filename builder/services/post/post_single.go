@@ -179,7 +179,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		TOC: parseRes.TOC, Config: s.cfg, CurrentVersion: version, ReadingTime: post.ReadingTime,
 		PrevPage: nav.prev, NextPage: nav.next, RelativePrefix: fspkg.GetRelativePrefix(htmlRelPath),
 		HasImages: parseRes.HasImages, SiteTree: nav.siteTree,
-		JSONLD: models.GeneratePostJSONLD(post, s.cfg.Author),
+		JSONLD: models.GeneratePostJSONLD(post, s.cfg.Author, cardImageURL),
 	})
 }
 

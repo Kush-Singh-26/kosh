@@ -2,6 +2,7 @@ package renderer
 
 import (
 	"maps"
+	"path/filepath"
 	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -45,11 +46,11 @@ func (r *Renderer) PreparePageData(data *models.PageData) {
 					link = "/" + link
 				}
 				if baseURL != "" {
-					relativizedAssets[k] = strings.TrimSuffix(baseURL, "/") + link
+					relativizedAssets[k] = filepath.ToSlash(strings.TrimSuffix(baseURL, "/") + link)
 				} else if prefix == "" || prefix == "." || prefix == "./" {
-					relativizedAssets[k] = link[1:]
+					relativizedAssets[k] = filepath.ToSlash(link[1:])
 				} else {
-					relativizedAssets[k] = prefix + link[1:]
+					relativizedAssets[k] = filepath.ToSlash(prefix + link[1:])
 				}
 			}
 			r.assetCache.Store(cacheKey, relativizedAssets)
