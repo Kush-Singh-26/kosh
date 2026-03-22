@@ -596,3 +596,52 @@ These can be completed in under 30 minutes each:
 - `go vet ./...` — clean, zero issues
 - `go test ./builder/orchestration ./builder/config ./builder/cache ./builder/services/post ./builder/services/cache ./builder/services/asset ./builder/services/render ./builder/services/scanner ./builder/hashing ./builder/parser ./builder/async` — all pass
 - `go build ./...` — clean
+
+#### ✅ Session 2026-03-22C: File Split Refactor — COMPLETE
+
+##### Motivation
+User ran `cloc` to identify overly long files. Analysis produced 7 split targets to improve readability and maintainability.
+
+##### 1. `cache/cache.go` → `cache/cache_batch_helpers.go`
+- Extracted `EncodedPost`, `batchOp`, `bucketOps` structs, `writeOps()`, `sortOps()` (48 lines)
+- Removed `bytes`, `sort` imports from `cache.go`
+
+##### 2. `generators/social.go` → `generators/social_font.go` + `generators/social_draw.go`
+- `social_font.go` (122 lines): font cache globals, `getFontCache()`, `getFaviconImage()`, `loadFont()`, `setFontFace()`, `hexToRGBA()`
+- `social_draw.go` (47 lines): `drawGradient()`, `drawDotPattern()`
+- Removed `image/color`, `strconv`, `sync`, `assets`, `truetype`, `lru` imports from `social.go`
+
+##### 3. `fs/assets.go` → `fs/assets_scan.go`
+- Extracted `assetEntryPoints`, `assetScanResult`, `fileMeta` types, `hasJS()`, `hasCSS()`, `scanAssets()` (65 lines)
+- Removed `encoding/hex`, `slices`, `xxh3` imports from `assets.go`
+
+##### 4. `native/renderer.go` → `native/renderer_instance.go`
+- Extracted `instance` struct and its `ensureInitialized()` method (105 lines) — QuickJS engine init logic
+- Kept `qjs` import in `renderer.go` since `r.instances[0].ensureInitialized()` calls are on Renderer
+
+##### 5. `renderer/renderer.go` → `renderer/renderer_assets.go` + `renderer/renderer_errors.go` + `renderer/renderer_tracking.go`
+- `renderer_assets.go` (17 lines): `SetAssets()`, `PreparePageData()`, `GetAssets()`
+- `renderer_errors.go` (15 lines): `renderError` type, `recordError()`, `ConsumeErrors()`
+- `renderer_tracking.go` (35 lines): `RegisterFile()`, `GetRenderedFiles()`, `ClearRenderedFiles()`
+- Removed `maps` import from `renderer.go`, moved `renderError` type definition to `renderer_errors.go`
+
+##### 6. `services/post/post_service.go` → `services/post/post_cache.go` + `services/post/post_math.go` + `services/post/post_navigation.go`
+- `post_cache.go` (33 lines): `checkCache()`, `loadFromCache()`
+- `post_math.go` (75 lines): `processCachedMath()`, `renderMath()`
+- `post_navigation.go` (66 lines): `navInfo` struct, `prepareNavigationInfo()`
+- Removed `time`, `mdParser` imports from `post_service.go`
+
+##### 7. `parser/unified.go` → `parser/unified_d2.go` + merged into `parser/trans_url.go`
+- `unified_d2.go` (119 lines): `d2BlockInfo` struct, `renderD2Blocks()` method
+- `trans_url.go`: merged `processImageDestination()`, `processDestination()`, `hasTextChild()`, `getAttrValue()` (81→177 lines)
+- Removed from `unified.go`: `d2BlockInfo`, `renderD2Blocks`, URL helpers, a11y helpers
+- Cleaned imports: removed `context`, `errors`, `pools`, `filepath`
+
+##### Bug Fixes
+- Removed unused `native` and `singleflight` imports from `unified_d2.go`
+- Removed unused `cache` import from `post_math.go`
+
+##### Verification
+- `go vet ./...` — clean, zero issues
+- `go build ./...` — clean
+- `go test ./builder/... ./internal/...` — all 47 packages pass
