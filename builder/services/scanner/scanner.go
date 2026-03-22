@@ -1,4 +1,4 @@
-package services
+package scanner
 
 import (
 	"bytes"
@@ -19,11 +19,9 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
-var yamlDelim = []byte("---")
-
 type metadataScanner struct{}
 
-func NewMetadataScanner() MetadataScanner {
+func NewScanner() Scanner {
 	return &metadataScanner{}
 }
 
@@ -109,7 +107,7 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 	var frontmatter []byte
 	var body []byte
 	var bodyOffset int
-	parts := bytes.SplitN(data, yamlDelim, 3)
+	parts := bytes.SplitN(data, hashing.YAMLDelim, 3)
 	if len(parts) >= 3 {
 		frontmatter = bytes.TrimSpace(parts[1])
 		body = bytes.TrimSpace(parts[2])

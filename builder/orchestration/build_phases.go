@@ -10,7 +10,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"golang.org/x/sync/errgroup"
 )
@@ -173,13 +173,7 @@ func (b *Engine) processPhase(
 	assetsChanged := b.Assets.CheckChanged(ctx, assets.assetsReady)
 
 	// Site-wide generators
-	metadataCtx := &services.MetadataContext{
-		AllPosts:       postResult.AllPosts,
-		PinnedPosts:    postResult.PinnedPosts,
-		TagMap:         postResult.TagMap,
-		IndexedPosts:   postResult.IndexedPosts,
-		AnyPostChanged: postResult.AnyPostChanged,
-	}
+	metadataCtx := postResult.ToMetadataContext()
 	siteWideGroup, siteTimer := runSiteWide(metadataCtx, assetsChanged)
 
 	// Wait for site-wide rendering
@@ -318,7 +312,7 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup) erro
 }
 
 // processPosts executes post processing and returns the result
-func (b *Engine) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*services.PostResult, error) {
+func (b *Engine) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*post.PostResult, error) {
 	return b.Deps.Post.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, files)
 }
 

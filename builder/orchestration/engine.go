@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -19,11 +18,17 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/assets"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration/incremental"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/search"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/Kush-Singh-26/kosh/builder/services"
+	"github.com/Kush-Singh-26/kosh/builder/services/asset"
+	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
+	"github.com/Kush-Singh-26/kosh/builder/services/wasm"
 
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
 )
@@ -31,12 +36,12 @@ import (
 // EngineDependencies bundles service dependencies for explicit injection.
 // This reduces direct coupling by grouping related services.
 type EngineDependencies struct {
-	Cache    services.CacheService
-	Post     services.PostService
-	Asset    services.AssetService
-	Render   services.RenderService
-	Wasm     services.WasmService
-	Scanner  services.MetadataScanner
+	Cache    svcCache.Service
+	Post     post.Service
+	Asset    asset.Service
+	Render   render.Service
+	Wasm     wasm.Service
+	Scanner  scanner.Scanner
 	Diagrams *cache.DiagramCacheAdapter
 }
 
@@ -85,6 +90,9 @@ type Engine struct {
 	// Asset pipeline manager
 	Assets *assets.Manager
 
+	// Incremental build manager
+	Incremental *incremental.Manager
+
 	// Search manager for search index regeneration
 	Search *search.Manager
 
@@ -95,12 +103,6 @@ type Engine struct {
 	Health *BuildHealthRegistry
 }
 
-// BuildRequest represents a queued build request from watch mode
-type BuildRequest struct {
-	Paths []string
-	Op    fsnotify.Op
-}
-
 // NewEngine initializes a new site builder
 func NewEngine(args []string) *Engine {
 	cfg := config.Load(args)
@@ -108,7 +110,7 @@ func NewEngine(args []string) *Engine {
 }
 
 // NewEngineFromManual creates a builder with manual service injection (for testing/benchmarks)
-func NewEngineFromManual(cfg *config.Config, render services.RenderService, asset services.AssetService, post services.PostService, meta services.MetadataScanner, wasm services.WasmService, logger *slog.Logger, m *metrics.BuildMetrics, sourceFs afero.Fs, mdPool *sync.Pool, nativeRenderer *native.Renderer) *Engine {
+func NewEngineFromManual(cfg *config.Config, render render.Service, asset asset.Service, post post.Service, meta scanner.Scanner, wasm wasm.Service, logger *slog.Logger, m *metrics.BuildMetrics, sourceFs afero.Fs, mdPool *sync.Pool, nativeRenderer *native.Renderer) *Engine {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
@@ -118,7 +120,7 @@ func NewEngineFromManual(cfg *config.Config, render services.RenderService, asse
 
 	b := &Engine{
 		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(true, cfg.IsDev, false, scheduler.GetGlobalScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(true, cfg.IsDev, false, scheduler.NewBuildScheduler(), logger),
 		Deps: EngineDependencies{
 			Post:    post,
 			Asset:   asset,
@@ -154,6 +156,23 @@ func NewEngineFromManual(cfg *config.Config, render services.RenderService, asse
 		b.Search.Reconfigure(nil, render)
 	}
 
+	// Initialize incremental build manager
+	b.Incremental = incremental.NewManager(incremental.ManagerDependencies{
+		Cfg:      cfg,
+		Logger:   logger,
+		SourceFs: sourceFs,
+		Deps: incremental.IncrementalDependencies{
+			Cache:  b.Deps.Cache,
+			Post:   post,
+			Render: render,
+			Wasm:   wasm,
+		},
+		Builder:        b,
+		Search:         b.Search,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	})
+
 	// Initialize watch coordinator for incremental builds
 	b.Watch = watch.New(watch.CoordinatorDependencies{
 		Cfg:           cfg,
@@ -181,10 +200,6 @@ func newEngineWithConfig(cfg *config.Config) *Engine {
 	return newEngineWithConfigFs(afero.NewOsFs(), cfg)
 }
 
-func (b *Engine) Config() *config.Config {
-	return b.Cfg
-}
-
 func (b *Engine) SetDevMode(isDev bool) {
 	config.SetDevMode(b.Cfg, isDev)
 }
@@ -197,10 +212,6 @@ func (b *Engine) SetSink(sink fspkg.ArtifactSink) {
 	if b.Search != nil {
 		b.Search.Reconfigure(sink, b.Deps.Render)
 	}
-}
-
-func (b *Engine) SetTx(tx tx.BuildTransaction) {
-	b.Tx = tx
 }
 
 func (b *Engine) SetSourceFs(fs afero.Fs) {
@@ -236,12 +247,16 @@ func (b *Engine) SaveCaches() {
 		b.Deps.Post.WaitForCacheCommit()
 	}
 	if b.Deps.Diagrams != nil {
-		_ = b.Deps.Diagrams.Flush()
+		if err := b.Deps.Diagrams.Flush(); err != nil {
+			b.Logger.Error("Failed to flush diagram cache", "error", err)
+		}
 	}
 	if b.Deps.Cache != nil {
 		// Manager implementation handles the actual DB commit
 		if manager, ok := b.Deps.Cache.(interface{ Save() error }); ok {
-			_ = manager.Save()
+			if err := manager.Save(); err != nil {
+				b.Logger.Error("Failed to save cache", "error", err)
+			}
 		}
 
 		// Trigger garbage collection every 20 builds
@@ -283,10 +298,45 @@ func (b *Engine) Close() {
 	})
 }
 
+// BuildAssetOnly runs asset-only incremental build (exposed for SiteBuilder interface)
+func (b *Engine) BuildAssetOnly(ctx context.Context) error {
+	return b.buildAssetOnly(ctx)
+}
+
+// RefreshBuildSession refreshes build session state
+func (b *Engine) RefreshBuildSession() {
+	b.refreshBuildSession()
+}
+
+// Commit commits the current transaction
+func (b *Engine) Commit(ctx context.Context) error {
+	return b.Tx.Commit(ctx)
+}
+
+// GetWatch returns the watch coordinator
+func (b *Engine) GetWatch() incremental.WatchCoordinator {
+	if b.Watch == nil {
+		return nil
+	}
+	return b.Watch
+}
+
+// GetRender returns the render service
+func (b *Engine) GetRender() render.Service {
+	return b.Deps.Render
+}
+
+// GetPost returns the post service
+func (b *Engine) GetPost() post.Service {
+	return b.Deps.Post
+}
+
 // handleWatchChange is the callback invoked by WatchCoordinator when a debounced
 // file change batch is ready to process.
 func (b *Engine) handleWatchChange(evt watch.ChangeEvent) {
-	b.buildSingleFileChange(context.Background(), evt.Path, evt.Op)
+	if b.Incremental != nil {
+		b.Incremental.BuildSingleFileChange(context.Background(), evt.Path, evt.Op)
+	}
 }
 
 // Run executes the main build logic

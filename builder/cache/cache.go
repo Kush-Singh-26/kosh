@@ -18,6 +18,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache/store"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.etcd.io/bbolt"
+	bbolterrors "go.etcd.io/bbolt/errors"
 )
 
 // memoryCacheEntry holds a cached core.PostMeta with expiration
@@ -90,14 +91,20 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 	storePath := filepath.Join(basePath, "store")
 	store, err := store.New(storePath)
 	if err != nil {
-		_ = db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Error("Failed to close DB during cleanup", "error", closeErr)
+		}
 		return nil, fmt.Errorf("failed to create store: %w", err)
 	}
 
 	lruCache, err := lru.New[string, *memoryCacheEntry](1024) // 1024 items max
 	if err != nil {
-		_ = store.Close()
-		_ = db.Close()
+		if closeErr := store.Close(); closeErr != nil {
+			slog.Error("Failed to close store during cleanup", "error", closeErr)
+		}
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Error("Failed to close DB during cleanup", "error", closeErr)
+		}
 		return nil, fmt.Errorf("failed to create LRU cache: %w", err)
 	}
 
@@ -112,7 +119,9 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 	}
 
 	if err := m.initSchema(); err != nil {
-		_ = m.cleanupOnError()
+		if cleanupErr := m.cleanupOnError(); cleanupErr != nil {
+			slog.Error("Failed to cleanup after schema init failure", "error", cleanupErr)
+		}
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
@@ -129,14 +138,18 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		return nil
 	})
 	if err != nil {
-		_ = m.cleanupOnError()
+		if cleanupErr := m.cleanupOnError(); cleanupErr != nil {
+			slog.Error("Failed to cleanup after schema version read failure", "error", cleanupErr)
+		}
 		return nil, fmt.Errorf("failed to read schema version: %w", err)
 	}
 
 	if currentVersion > 0 && currentVersion != uint32(core.SchemaVersion) {
 		newVer, err := migrate.RunMigrations(m.db, currentVersion, nil)
 		if err != nil || newVer != uint32(core.SchemaVersion) {
-			_ = m.cleanupOnError()
+			if cleanupErr := m.cleanupOnError(); cleanupErr != nil {
+				slog.Error("Failed to cleanup after migration failure", "error", cleanupErr)
+			}
 			return nil, fmt.Errorf("incompatible schema version: got %d, want %d (migration failed: %w)", currentVersion, core.SchemaVersion, err)
 		}
 	}
@@ -242,7 +255,7 @@ func (m *Manager) ClearAll() error {
 				continue // Keep metadata
 			}
 			// Drop and recreate the bucket — O(1) vs O(N) key-by-key delete
-			if err := tx.DeleteBucket([]byte(name)); err != nil && !errors.Is(err, bbolt.ErrBucketNotFound) { //nolint:staticcheck // bbolt.ErrBucketNotFound is deprecated in 1.4+
+			if err := tx.DeleteBucket([]byte(name)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 				return err
 			}
 			if _, err := tx.CreateBucket([]byte(name)); err != nil {

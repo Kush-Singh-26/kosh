@@ -62,8 +62,6 @@ func (m *Manager) Stats() (*core.CacheStats, error) {
 	katexSize, _ := m.store.Size(filepath.Join("ssr", "katex"))
 	stats.StoreBytes = htmlSize + d2Size + katexSize
 
-	// Runtime metrics are no longer tracked in Manager struct
-	// but kept in API for compatibility
 	return stats, nil
 }
 
