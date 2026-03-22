@@ -1,15 +1,11 @@
 package parser
 
 import (
-	"context"
-	"errors"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	"github.com/yuin/goldmark/ast"
@@ -55,12 +51,6 @@ type unifiedTransformer struct {
 type replacement struct {
 	old ast.Node
 	new ast.Node
-}
-
-type d2BlockInfo struct {
-	node *ast.FencedCodeBlock
-	code string
-	hash string
 }
 
 // transformContext holds state during the AST walk to avoid nested walks
@@ -172,46 +162,29 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 				t.processDestination(img, img.Destination, pc)
 				t.processImageDestination(img, img.Destination)
 				img.SetAttribute([]byte("loading"), []byte("lazy"))
-
-				// A11y Lint: check for alt text
-				var altText string
-				if n := img.FirstChild(); n != nil {
-					if textNode, ok := n.(*ast.Text); ok {
-						altText = string(textNode.Value(source))
-					}
-				}
-				if strings.TrimSpace(altText) == "" {
-					filePath, _ := pc.Get(ContextKeyFilePath).(string)
-					slog.Warn("A11y Lint: Image missing alt text",
-						"file", filePath,
-						"src", string(img.Destination))
-				}
 			}
 		}
 
-		// 3. SSR logic (D2 diagrams)
+		// 3. D2 logic
 		if kind == ast.KindFencedCodeBlock {
-			fcb := n.(*ast.FencedCodeBlock)
-			lang := strings.ToLower(strings.TrimSpace(string(fcb.Language(source))))
+			cb := n.(*ast.FencedCodeBlock)
+			lang := string(cb.Language(source))
 			if lang == "d2" {
-				buf := pools.SharedBufferPool.Get()
-				lines := fcb.Lines()
-				for i := 0; i < lines.Len(); i++ {
-					line := lines.At(i)
-					buf.Write(line.Value(source))
+				var lines strings.Builder
+				l := cb.Lines().Len()
+				for i := 0; i < l; i++ {
+					line := cb.Lines().At(i)
+					lines.Write(line.Value(source))
 				}
-				code := strings.TrimSpace(buf.String())
-				pools.SharedBufferPool.Put(buf)
+				code := lines.String()
+				hash := native.HashContent("d2", code)
 
-				if code != "" {
-					hash := native.HashContent("d2", code)
-					d2Blocks = append(d2Blocks, d2BlockInfo{
-						node: fcb,
-						code: code,
-						hash: hash,
-					})
-					AddSSRHash(pc, hash)
-				}
+				d2Blocks = append(d2Blocks, d2BlockInfo{
+					node: cb,
+					code: code,
+					hash: hash,
+				})
+				AddSSRHash(pc, hash)
 			}
 		}
 
@@ -298,194 +271,4 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 	if len(mathExpressions) > 0 {
 		pc.Set(mathExpressionsKey, mathExpressions)
 	}
-}
-
-func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Context, toReplace *[]replacement) {
-	results := make([]models.SSRThemePair, len(d2Blocks))
-	var wg sync.WaitGroup
-	ctx := GetContext(pc)
-
-	// Optimized: Deduplicate hashes locally before launching goroutines
-	// This avoids launching goroutines that immediately block on singleflight
-	// Map from hash to first index where it appears
-	hashToFirstIndex := make(map[string]int)
-	for i, block := range d2Blocks {
-		if _, exists := hashToFirstIndex[block.hash]; !exists {
-			hashToFirstIndex[block.hash] = i
-		}
-	}
-
-	// Only launch goroutines for unique hashes
-	for _, firstIdx := range hashToFirstIndex {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			b := d2Blocks[idx]
-			key := "d2:" + b.hash
-			pairVal, exists := t.Cache.Load(key)
-			if exists {
-				if pair, ok := pairVal.(models.SSRThemePair); ok {
-					results[idx] = pair
-					return
-				}
-			}
-			if t.Renderer == nil {
-				return
-			}
-
-			if t.D2Group != nil {
-				v, err, _ := t.D2Group.Do(b.hash, func() (any, error) {
-					if pairVal, exists := t.Cache.Load(key); exists {
-						if pair, ok := pairVal.(models.SSRThemePair); ok {
-							return pair, nil
-						}
-					}
-					lightSVG, err := t.Renderer.RenderD2(ctx, b.code, 0)
-					if err != nil {
-						if !errors.Is(err, context.Canceled) {
-							slog.Warn("D2 light render failed", "error", err)
-						}
-						return models.SSRThemePair{}, err
-					}
-					darkSVG, err := t.Renderer.RenderD2(ctx, b.code, 200)
-					if err != nil {
-						if !errors.Is(err, context.Canceled) {
-							slog.Warn("D2 dark render failed", "error", err)
-						}
-						return models.SSRThemePair{}, err
-					}
-					pair := models.SSRThemePair{Light: lightSVG, Dark: darkSVG}
-					t.Cache.Store(key, pair)
-					return pair, nil
-				})
-				if err == nil {
-					if pair, ok := v.(models.SSRThemePair); ok {
-						results[idx] = pair
-					}
-				}
-			}
-		}(firstIdx)
-	}
-	wg.Wait()
-
-	// Copy results from first occurrence to all duplicates
-	for hash, firstIdx := range hashToFirstIndex {
-		result := results[firstIdx]
-		for i, block := range d2Blocks {
-			if block.hash == hash && i != firstIdx {
-				results[i] = result
-			}
-		}
-	}
-
-	for i, block := range d2Blocks {
-		pair := results[i]
-		if pair.Light == "" && pair.Dark == "" {
-			continue
-		}
-		buf := pools.SharedBufferPool.Get()
-		buf.WriteString(`<div class="d2-container" data-diagram="true"><div class="d2-light">`)
-		buf.WriteString(pair.Light)
-		buf.WriteString(`</div><div class="d2-dark">`)
-		buf.WriteString(pair.Dark)
-		buf.WriteString(`</div><span class="zoom-hint">🔍 Click to zoom</span></div>`)
-
-		content := make([]byte, buf.Len())
-		copy(content, buf.Bytes())
-		rawNode := &RawHTMLBlock{Content: content}
-		pools.SharedBufferPool.Put(buf)
-		*toReplace = append(*toReplace, replacement{old: block.node, new: rawNode})
-	}
-}
-
-// Helpers from trans_url.go
-func (t *unifiedTransformer) processImageDestination(img *ast.Image, dest []byte) {
-	src := string(dest)
-	if src == "" || strings.HasPrefix(src, "http") || strings.HasPrefix(src, "//") || strings.HasPrefix(src, "data:") {
-		return
-	}
-	img.Destination = []byte(strings.ToLower(src))
-}
-
-func (t *unifiedTransformer) processDestination(n ast.Node, dest []byte, pc parser.Context) {
-	href := string(dest)
-	idx := strings.IndexAny(href, "?#")
-	query := ""
-	if idx != -1 {
-		query = href[idx:]
-		href = href[:idx]
-	}
-
-	if strings.HasPrefix(href, "http") {
-		if _, isLink := n.(*ast.Link); isLink {
-			n.SetAttribute([]byte("target"), []byte("_blank"))
-			n.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
-		}
-	} else if t.Compress {
-		ext := strings.ToLower(filepath.Ext(href))
-		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
-			href = href[:len(href)-len(ext)] + ".webp"
-		}
-	}
-
-	if strings.HasSuffix(href, ".md") && !strings.HasPrefix(href, "http") {
-		href = strings.Replace(href, ".md", ".html", 1)
-		href = strings.ToLower(href)
-	}
-	href = strings.TrimPrefix(href, "./")
-
-	if !strings.HasPrefix(href, "/") && !strings.HasPrefix(href, "http") {
-		if filePath, ok := pc.Get(ContextKeyFilePath).(string); ok && filePath != "" {
-			version := extractVersionFromPath(filePath)
-			if version != "" {
-				if !isCrossVersionLink(href) && !isRootLevelLink(href) {
-					href = strings.TrimPrefix(href, "../")
-					href = strings.ReplaceAll(href, "\\", "/")
-				}
-			}
-		}
-	}
-
-	fullHref := href + query
-	if !strings.HasPrefix(string(dest), "http") {
-		switch node := n.(type) {
-		case *ast.Link:
-			node.Destination = []byte(fullHref)
-		case *ast.Image:
-			node.Destination = []byte(fullHref)
-		}
-	}
-
-	if strings.HasPrefix(href, "/") && t.BaseURL != "" {
-		newDest := []byte(t.BaseURL + fullHref)
-		switch node := n.(type) {
-		case *ast.Link:
-			node.Destination = newDest
-		case *ast.Image:
-			node.Destination = newDest
-		}
-	}
-}
-
-func hasTextChild(link *ast.Link, source []byte) bool {
-	for child := link.FirstChild(); child != nil; child = child.NextSibling() {
-		if _, ok := child.(*ast.Text); ok {
-			return true
-		}
-	}
-	return false
-}
-
-func getAttrValue(n ast.Node, key string) string {
-	attr, _ := n.AttributeString(key)
-	if attr == nil {
-		return ""
-	}
-	switch v := attr.(type) {
-	case []byte:
-		return string(v)
-	case string:
-		return v
-	}
-	return ""
 }

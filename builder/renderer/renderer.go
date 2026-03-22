@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
-	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 
@@ -49,12 +49,6 @@ type Renderer struct {
 	Minifier         *minify.M
 }
 
-type renderError struct {
-	msg  string
-	path string
-	err  error
-}
-
 func New(compress bool, sink fspkg.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
 	return NewWithFs(afero.NewOsFs(), compress, sink, templateDir, devMode, logger)
 }
@@ -68,7 +62,7 @@ func NewWithFs(sourceFs afero.Fs, compress bool, sink fspkg.ArtifactSink, templa
 		logger:      logger,
 		templateDir: templateDir,
 		devMode:     devMode,
-		Minifier:    fspkg.GetMinifier(),
+		Minifier:    koshMinify.GetHTMLMinifier(),
 	}
 	r.ReloadTemplates()
 	return r
@@ -251,100 +245,6 @@ func (r *Renderer) ReloadTemplates() {
 	r.mu.Unlock()
 }
 
-func (r *Renderer) RegisterFile(path string) {
-	r.RenderedMu.Lock()
-	r.RenderedSet[path] = true
-	// Invalidate snapshot so GetRenderedFiles rebuilds it lazily
-	r.renderedSnapshot.Store(nil)
-	r.RenderedMu.Unlock()
-}
-
-func (r *Renderer) GetRenderedFiles() map[string]bool {
-	// Fast path: valid snapshot already exists
-	if s := r.renderedSnapshot.Load(); s != nil {
-		return *s
-	}
-	// Slow path: build snapshot under lock, then cache it
-	r.RenderedMu.Lock()
-	snapshot := make(map[string]bool, len(r.RenderedSet))
-	maps.Copy(snapshot, r.RenderedSet)
-	r.renderedSnapshot.Store(&snapshot)
-	r.RenderedMu.Unlock()
-	return snapshot
-}
-
-func (r *Renderer) ClearRenderedFiles() {
-	r.RenderedMu.Lock()
-	r.RenderedSet = make(map[string]bool)
-	r.renderedSnapshot.Store(nil)
-	r.RenderedMu.Unlock()
-}
-
-func (r *Renderer) SetAssets(assets map[string]string) {
-	r.AssetsMu.Lock()
-	r.Assets = assets
-	// Create snapshot
-	snapshot := make(map[string]string, len(assets))
-	maps.Copy(snapshot, assets)
-	r.assetsSnapshot.Store(&snapshot)
-	// Invalidate relativization cache because assets have changed
-	r.assetCache.Range(func(key, value any) bool {
-		r.assetCache.Delete(key)
-		return true
-	})
-	r.AssetsMu.Unlock()
-}
-
-// PreparePageData performs common optimizations like asset map relativization
-func (r *Renderer) PreparePageData(data *models.PageData) {
-	if data.Assets == nil {
-		data.Assets = r.GetAssets()
-	}
-
-	// Optimization: Use cached relativized asset maps to save massive allocation churn
-	if len(data.Assets) > 0 {
-		cacheKey := data.BaseURL + "|" + data.RelativePrefix
-		if cached, ok := r.assetCache.Load(cacheKey); ok {
-			data.Assets = cached.(map[string]string)
-		} else {
-			relativizedAssets := make(map[string]string, len(data.Assets))
-			prefix := data.RelativePrefix
-			baseURL := data.BaseURL
-			for k, v := range data.Assets {
-				link := v
-				if link[0] != '/' {
-					link = "/" + link
-				}
-				if baseURL != "" {
-					relativizedAssets[k] = strings.TrimSuffix(baseURL, "/") + link
-				} else if prefix == "" || prefix == "." || prefix == "./" {
-					relativizedAssets[k] = link[1:]
-				} else {
-					relativizedAssets[k] = prefix + link[1:]
-				}
-			}
-			r.assetCache.Store(cacheKey, relativizedAssets)
-			data.Assets = relativizedAssets
-		}
-	}
-}
-
-// GetAssets returns a copy of the asset map to prevent accidental mutation
-// of the shared global cache state. Maps are reference types in Go, so
-// returning the underlying map directly would allow callers to mutate it.
-func (r *Renderer) GetAssets() map[string]string {
-	s := r.assetsSnapshot.Load()
-	if s == nil {
-		return make(map[string]string)
-	}
-	// Return a copy to prevent mutation of shared state
-	result := make(map[string]string, len(*s))
-	for k, v := range *s {
-		result[k] = v
-	}
-	return result
-}
-
 func (r *Renderer) RenderSidebar(tree []*models.TreeNode) template.HTML {
 	r.mu.RLock()
 	sidebar := r.Sidebar
@@ -368,27 +268,4 @@ func (r *Renderer) RenderSidebar(tree []*models.TreeNode) template.HTML {
 	}
 
 	return template.HTML(buf.String())
-}
-
-// recordError logs a render error and stores it for later retrieval
-func (r *Renderer) recordError(msg string, path string, err error) {
-	r.errMu.Lock()
-	defer r.errMu.Unlock()
-	r.renderErrors = append(r.renderErrors, renderError{msg: msg, path: path, err: err})
-	r.logger.Error(msg, "path", path, "error", err)
-}
-
-// ConsumeErrors returns all accumulated render errors and clears the error list
-func (r *Renderer) ConsumeErrors() []error {
-	r.errMu.Lock()
-	defer r.errMu.Unlock()
-	if len(r.renderErrors) == 0 {
-		return nil
-	}
-	result := make([]error, len(r.renderErrors))
-	for i, e := range r.renderErrors {
-		result[i] = fmt.Errorf("%s (path: %s): %w", e.msg, e.path, e.err)
-	}
-	r.renderErrors = nil // Clear after retrieval
-	return result
 }

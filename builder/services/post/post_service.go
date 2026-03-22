@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
@@ -20,7 +19,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
-	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
@@ -164,43 +162,6 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 		AllPosts: pc.allPosts, PinnedPosts: pc.pinnedPosts, TagMap: pc.tagMap,
 		IndexedPosts: pc.indexedPosts, AnyPostChanged: pc.anyPostChanged.Load(), Has404: false,
 	}, nil
-}
-
-type navInfo struct {
-	postsByVersion   map[string][]models.PostMetadata
-	postPosByVersion map[string]map[string]int
-}
-
-func (s *postService) prepareNavigationInfo(files []models.ScannedFile) navInfo {
-	postsByVersion := make(map[string][]models.PostMetadata)
-	postPosByVersion := make(map[string]map[string]int)
-
-	for _, f := range files {
-		if f.Draft && !s.cfg.IncludeDrafts {
-			continue
-		}
-		d, _ := time.Parse("2006-01-02", f.Date)
-		if d.IsZero() {
-			d = f.Info.ModTime()
-		}
-		post := models.PostMetadata{
-			Title: f.Title, Link: f.Link, Weight: f.Weight,
-			Pinned: f.Pinned, Draft: f.Draft, Version: f.Version,
-			DateObj: d, Description: f.Description, Tags: f.Tags,
-			ReadingTime: f.ReadingTime,
-		}
-		postsByVersion[f.Version] = append(postsByVersion[f.Version], post)
-	}
-
-	for ver, posts := range postsByVersion {
-		timeutil.SortPosts(posts)
-		postPosByVersion[ver] = make(map[string]int)
-		for i, p := range posts {
-			postPosByVersion[ver][p.Link] = i
-		}
-	}
-
-	return navInfo{postsByVersion: postsByVersion, postPosByVersion: postPosByVersion}
 }
 
 func (s *postService) runStreamingParsePhase(ctx context.Context, numWorkers int, shouldForce, forceSocialRebuild bool, files []models.ScannedFile, cardPool *async.WorkerPool[socialCardTask], searchPool *async.WorkerPool[searchTask], pc *postProcessContext, renderChan chan<- renderTask) error {
@@ -424,117 +385,6 @@ func (s *postService) aggregateAndStream(pc *postProcessContext, f models.Scanne
 		pc.newPostsMeta = append(pc.newPostsMeta, newMeta)
 		pc.newDeps[postID] = &models.Dependencies{Tags: post.Tags}
 	}
-}
-
-func (s *postService) checkCache(relPath string, f models.ScannedFile, shouldForce bool) (*models.PostMeta, bool) {
-	if s.cache == nil || shouldForce {
-		return nil, false
-	}
-	cachedMeta, err := s.cache.GetPostByPath(relPath)
-	if err != nil || cachedMeta == nil {
-		return nil, false
-	}
-	fastBail := cachedMeta.BodyHash == f.BodyHash && cachedMeta.ContentHash == f.FrontmatterHash
-	return cachedMeta, fastBail
-}
-
-func (s *postService) loadFromCache(cachedMeta *models.PostMeta, htmlRelPath string) (*ParsedMarkdownResult, string, bool) {
-	cachedHTML, err := s.cache.GetHTMLContent(cachedMeta)
-	if err != nil || cachedHTML == nil {
-		return nil, "", false
-	}
-	cachedSearch, err := s.cache.GetSearchRecord(cachedMeta.PostID)
-	if err != nil || cachedSearch == nil {
-		return nil, "", false
-	}
-
-	res := &ParsedMarkdownResult{
-		Metadata: cachedMeta.Meta, TOC: cachedMeta.TOC,
-		FrontmatterHash: cachedMeta.ContentHash, SSRHashes: cachedMeta.SSRInputHashes,
-		HasImages: cachedMeta.HasImages, MathExpressions: cachedMeta.MathExpressions,
-		SearchRecord: models.PostRecord{
-			ID:    xxh3.HashString(cachedMeta.Link),
-			Title: cachedSearch.Title, NormalizedTitle: cachedSearch.NormalizedTitle,
-			Link: htmlRelPath, Content: cachedSearch.Content,
-			NormalizedTags: cachedSearch.NormalizedTags, Version: cachedMeta.Version,
-		},
-		WordFreqs: cachedSearch.BM25Data, DocLen: cachedSearch.DocLen,
-		StemMap: cachedSearch.StemMap, PositionalIndex: cachedSearch.PositionalIndex,
-		ByteOffsets: cachedSearch.ByteOffsets,
-		Post: models.PostMetadata{
-			Title: cachedMeta.Title, Link: cachedMeta.Link, Description: cachedMeta.Description,
-			Tags: cachedMeta.Tags, Pinned: cachedMeta.Pinned, Weight: cachedMeta.Weight,
-			ReadingTime: cachedMeta.ReadingTime, DateObj: cachedMeta.Date,
-			Draft: cachedMeta.Draft, Version: cachedMeta.Version,
-		},
-	}
-	return res, string(cachedHTML), true
-}
-
-func (s *postService) processCachedMath(html string, exprs []models.MathExpression) (string, bool) {
-	if s.diagramAdapter == nil || len(exprs) == 0 {
-		return html, true
-	}
-
-	renderedMath := make(map[string]string)
-	missingCount := 0
-	for _, expr := range exprs {
-		key := "math:" + expr.Hash
-		if v, ok := s.diagramAdapter.Get(key); ok {
-			if s, ok := v.(string); ok {
-				renderedMath[expr.Hash] = s
-			}
-		} else {
-			missingCount++
-		}
-	}
-
-	if missingCount > 0 {
-		return html, false
-	}
-
-	if len(renderedMath) > 0 {
-		return mdParser.ReplaceMathExpressions(html, exprs, renderedMath), true
-	}
-	return html, true
-}
-
-func (s *postService) renderMath(ctx context.Context, path string, res *ParsedMarkdownResult) string {
-	if len(res.MathExpressions) == 0 {
-		return res.HTMLContent
-	}
-
-	cachedSubset := make(map[string]string)
-	if s.diagramAdapter != nil {
-		for _, e := range res.MathExpressions {
-			key := "math:" + e.Hash
-			if v, ok := s.diagramAdapter.GetLocal(key); ok {
-				if s, ok := v.(string); ok {
-					cachedSubset[e.Hash] = s
-				}
-			}
-		}
-	}
-
-	rendered, err := s.nativeRenderer.RenderAllMath(ctx, res.MathExpressions, cachedSubset)
-	if err != nil {
-		s.logger.Warn("Math render failed for post", "path", path, "error", err)
-	}
-
-	if s.diagramAdapter != nil && len(rendered) > 0 {
-		newMath := make(map[string]any)
-		for h, v := range rendered {
-			if _, ok := cachedSubset[h]; !ok {
-				key := "math:" + h
-				newMath[key] = v
-			}
-		}
-		if len(newMath) > 0 {
-			s.diagramAdapter.Merge(newMath)
-		}
-	}
-
-	return mdParser.ReplaceMathExpressions(res.HTMLContent, res.MathExpressions, rendered)
 }
 
 func (s *postService) queueSocialCard(relPath string, res *ParsedMarkdownResult, htmlRelPath string, force bool, pool *async.WorkerPool[socialCardTask]) {
