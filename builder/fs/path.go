@@ -24,6 +24,7 @@ func NormalizePath(path string) string {
 	}
 
 	// Fast path for already clean paths with forward slashes
+	// Note: We must check for backslashes even in fast path
 	if !strings.Contains(path, "\\") && !strings.Contains(path, "//") && !strings.Contains(path, "./") {
 		if hasNonASCII(path) {
 			path = norm.NFC.String(path)
