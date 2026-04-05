@@ -42,9 +42,11 @@ jobs:
       
       - name: Build binary
         env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
         run: |
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o ${{ matrix.out }} ./cmd/kosh
+          go build -ldflags="-s -w" -o ${{ matrix.out }} ./cmd/kosh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
