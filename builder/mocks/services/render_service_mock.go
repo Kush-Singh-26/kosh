@@ -1,7 +1,6 @@
 package mocks
 
 import (
-	"html/template"
 	"sync"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -71,11 +70,6 @@ func (m *MockRenderService) RenderGraph(path string, data models.PageData) error
 	m.recordCall("RenderGraph")
 	m.RenderedGraph.Store(path, data)
 	return nil
-}
-
-func (m *MockRenderService) RenderSidebar(tree []*models.TreeNode) template.HTML {
-	m.recordCall("RenderSidebar")
-	return ""
 }
 
 func (m *MockRenderService) RegisterFile(path string) {

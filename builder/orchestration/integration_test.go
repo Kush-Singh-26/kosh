@@ -113,7 +113,21 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	})
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		Cache:          nil,
+		Diagrams:       nil,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -226,7 +240,21 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	})
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		Cache:          nil,
+		Diagrams:       nil,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -334,7 +362,21 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		})
 		tx := testutil.NewMockTransaction("public")
 
-		b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+		b := NewEngineFromManual(EngineDependencies{
+			Config:         cfg,
+			Render:         renderSvc,
+			Asset:          assetSvc,
+			Post:           postSvc,
+			Scanner:        metadataScanner,
+			Wasm:           wasmSvc,
+			Logger:         logger,
+			Metrics:        buildMetrics,
+			SourceFs:       fs,
+			MdPool:         mdPool,
+			NativeRenderer: nativeRenderer,
+			Cache:          nil,
+			Diagrams:       nil,
+		})
 		b.Sink = sink
 		b.Tx = tx
 
@@ -454,7 +496,21 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	})
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, failingAssetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          failingAssetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		Cache:          nil,
+		Diagrams:       nil,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -699,7 +755,21 @@ func TestBuild_WithRealCache(t *testing.T) {
 	})
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		Cache:          nil,
+		Diagrams:       nil,
+	})
 	b.Sink = sink
 	b.Tx = tx
 

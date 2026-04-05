@@ -35,7 +35,7 @@ func (b *Engine) setupSiteWideRendering(
 		}
 
 		siteWideOnce.Do(func() {
-			b.Logger.Info("Rendering pagination, tags, metadata and PWA...")
+			b.Deps.Logger.Info("Rendering pagination, tags, metadata and PWA...")
 			siteTimer = timeutil.StartPhase("Site-wide rendering")
 			siteWideGroup, siteWideCtx = errgroup.WithContext(ctx)
 
@@ -55,7 +55,7 @@ func (b *Engine) setupSiteWideRendering(
 				defer wasmWg.Done()
 				b.Assets.WaitForAvailability(ctx, assetsReady)
 				if err := b.generatePWA(ctx, b.Cfg.ForceRebuild); err != nil {
-					b.Logger.Warn("PWA generation failed", "error", err)
+					b.Deps.Logger.Warn("PWA generation failed", "error", err)
 				}
 			}()
 		})
@@ -90,7 +90,7 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 			if err == nil {
 				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"))
 			} else {
-				b.Logger.Error("Failed to generate sitemap", "error", err)
+				b.Deps.Logger.Error("Failed to generate sitemap", "error", err)
 				return err
 			}
 			return nil
@@ -101,7 +101,7 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 			if err == nil {
 				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "robots.txt"))
 			} else {
-				b.Logger.Error("Failed to generate robots.txt", "error", err)
+				b.Deps.Logger.Error("Failed to generate robots.txt", "error", err)
 				return err
 			}
 			return nil
@@ -114,7 +114,7 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 			if err == nil {
 				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "rss.xml"))
 			} else {
-				b.Logger.Error("Failed to generate RSS feed", "error", err)
+				b.Deps.Logger.Error("Failed to generate RSS feed", "error", err)
 				return err
 			}
 			return nil
@@ -130,7 +130,7 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 					b.Health.RecordSearchStats(int64(len(indexedPosts)), size)
 				}
 			} else {
-				b.Logger.Error("Failed to generate search index", "error", err)
+				b.Deps.Logger.Error("Failed to generate search index", "error", err)
 				return err
 			}
 			return nil
@@ -141,7 +141,7 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 		g.Go(func() error {
 			_, err := generators.GenerateGraph(b.Sink, b.Cfg.BaseURL, allPosts, filepath.Join(b.Cfg.OutputDir, "graph.json"))
 			if err != nil {
-				b.Logger.Error("Failed to generate knowledge graph data", "error", err)
+				b.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
 			}
 
 			if assetsReady != nil {

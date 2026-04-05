@@ -1,15 +1,15 @@
 package fs
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -19,52 +19,56 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func restoreAssetsFromCache(cachePath string, sink ArtifactSink, destDir string, onWrite func(string)) (map[string]string, bool, error) {
+func restoreAssetsFromCache(cachePath string, sink ArtifactSink, destDir string, onWrite func(string), onAssetProcessed func()) (map[string]string, bool, error) {
 	if info, err := os.Stat(cachePath); err != nil || !info.IsDir() {
 		return nil, false, nil
 	}
 
 	mapFile := filepath.Join(cachePath, "map.json")
 	mapData, err := os.ReadFile(mapFile)
-	if err != nil || json.Unmarshal(mapData, new(map[string]string)) != nil {
+	if err != nil {
 		return nil, false, nil
 	}
-
 	var assets map[string]string
 	if err := json.Unmarshal(mapData, &assets); err != nil {
 		return nil, false, nil
 	}
 
-	err = filepath.WalkDir(cachePath, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil || d.IsDir() || filepath.Base(path) == "map.json" {
-			return walkErr
-		}
-		path = NormalizePath(path)
-		relPath, _ := SafeRel(cachePath, path)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		destPath := filepath.Join(destDir, relPath)
-		if err := sink.MkdirAll(filepath.Dir(destPath)); err != nil {
-			return err
-		}
-		if err := sink.WriteFile(destPath, data); err != nil {
-			return err
-		}
-		if onWrite != nil {
-			onWrite(destPath)
-		}
-		return nil
-	})
-	if err != nil {
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(runtime.NumCPU())
+
+	for _, v := range assets {
+		rel := v
+		g.Go(func() error {
+			cacheFile := filepath.Join(cachePath, rel)
+			destPath := filepath.Join(destDir, rel)
+			data, err := os.ReadFile(cacheFile)
+			if err != nil {
+				return err
+			}
+			if err := sink.MkdirAll(filepath.Dir(destPath)); err != nil {
+				return err
+			}
+			if err := sink.WriteFile(destPath, data); err != nil {
+				return err
+			}
+			if onWrite != nil {
+				onWrite(destPath)
+			}
+			if onAssetProcessed != nil {
+				onAssetProcessed()
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
 		return nil, false, nil
 	}
 
 	return assets, true, nil
 }
 
-func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool, sched scheduler.BuildScheduler) (map[string]string, error) {
+func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool, sched scheduler.BuildScheduler, onAssetProcessed func()) (map[string]string, error) {
 	srcDir = NormalizePath(srcDir)
 	destDir = NormalizePath(destDir)
 
@@ -77,7 +81,7 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 	cachePath := ""
 	if cacheDir != "" && !force {
 		cachePath = filepath.Join(cacheDir, scan.hash)
-		if restored, ok, _ := restoreAssetsFromCache(cachePath, sink, destDir, onWrite); ok {
+		if restored, ok, _ := restoreAssetsFromCache(cachePath, sink, destDir, onWrite, onAssetProcessed); ok {
 			return restored, nil
 		}
 	}
@@ -129,43 +133,57 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 			return fmt.Errorf("esbuild failed with %d errors", len(result.Errors))
 		}
 
+		g, _ := errgroup.WithContext(context.Background())
+		g.SetLimit(runtime.NumCPU())
+
 		for _, outFile := range result.OutputFiles {
-			if len(outFile.Contents) == 0 && !strings.HasSuffix(strings.ToLower(outFile.Path), ".map") {
-				return fmt.Errorf("esbuild produced empty output for %s", outFile.Path)
-			}
-			fullPath := NormalizePath(outFile.Path)
-			relPath, err := filepath.Rel(destDir, fullPath)
-			if err != nil {
-				return fmt.Errorf("failed to compute relative path for %s: %w", fullPath, err)
-			}
-			vfsPath := filepath.Join(destDir, relPath)
-			vfsPath = normalizeEsbuildHashCase(vfsPath)
-
-			contents := outFile.Contents
-			ext := strings.ToLower(filepath.Ext(vfsPath))
-			if ext == ".css" || ext == ".js" {
-				contents = normalizeAssetURLHashes(contents)
-			}
-
-			if err := sink.MkdirAll(filepath.Dir(vfsPath)); err != nil {
-				return err
-			}
-			if err := sink.WriteFile(vfsPath, contents); err != nil {
-				return err
-			}
-			if onWrite != nil {
-				onWrite(vfsPath)
-			}
-
-			if cachePath != "" {
-				rel, err := filepath.Rel(destDir, vfsPath)
-				if err == nil {
-					rel = normalizeEsbuildHashCase(rel)
-					cacheFile := filepath.Join(cachePath, rel)
-					_ = os.MkdirAll(filepath.Dir(cacheFile), 0755)
-					_ = os.WriteFile(cacheFile, contents, 0644)
+			file := outFile
+			g.Go(func() error {
+				if len(file.Contents) == 0 && !strings.HasSuffix(strings.ToLower(file.Path), ".map") {
+					return fmt.Errorf("esbuild produced empty output for %s", file.Path)
 				}
-			}
+				fullPath := NormalizePath(file.Path)
+				relPath, err := filepath.Rel(destDir, fullPath)
+				if err != nil {
+					return fmt.Errorf("failed to compute relative path for %s: %w", fullPath, err)
+				}
+				vfsPath := filepath.Join(destDir, relPath)
+				vfsPath = normalizeEsbuildHashCase(vfsPath)
+
+				contents := file.Contents
+				ext := strings.ToLower(filepath.Ext(vfsPath))
+				if ext == ".css" || ext == ".js" {
+					contents = normalizeAssetURLHashes(contents)
+				}
+
+				if err := sink.MkdirAll(filepath.Dir(vfsPath)); err != nil {
+					return err
+				}
+				if err := sink.WriteFile(vfsPath, contents); err != nil {
+					return err
+				}
+				if onWrite != nil {
+					onWrite(vfsPath)
+				}
+				if onAssetProcessed != nil {
+					onAssetProcessed()
+				}
+
+				if cachePath != "" {
+					rel, err := filepath.Rel(destDir, vfsPath)
+					if err == nil {
+						rel = normalizeEsbuildHashCase(rel)
+						cacheFile := filepath.Join(cachePath, rel)
+						_ = os.MkdirAll(filepath.Dir(cacheFile), 0755)
+						_ = os.WriteFile(cacheFile, contents, 0644)
+					}
+				}
+				return nil
+			})
+		}
+
+		if err := g.Wait(); err != nil {
+			return err
 		}
 
 		type metafileEntry struct {
@@ -275,45 +293,103 @@ func isAlphanumericHash(s string) bool {
 	return true
 }
 
+// normalizeAssetURLHashes lowercases hash segments inside url(...) references in CSS/JS.
+// Uses byte scanning instead of regex for O(n) performance.
 func normalizeAssetURLHashes(content []byte) []byte {
-	// Find url(...) references with hash segments and lowercase them
-	re := regexp.MustCompile(`url\(["']?([^"')]+)["']?\)`)
-	return re.ReplaceAllFunc(content, func(match []byte) []byte {
-		urlRe := regexp.MustCompile(`url\(["']?([^"')]+)["']?\)`)
-		submatches := urlRe.FindSubmatch(match)
-		if len(submatches) < 2 {
-			return match
+	if !bytes.Contains(content, []byte("url(")) {
+		return content
+	}
+
+	result := make([]byte, 0, len(content))
+	i := 0
+	for i < len(content) {
+		idx := bytes.Index(content[i:], []byte("url("))
+		if idx < 0 {
+			result = append(result, content[i:]...)
+			break
 		}
-		urlPath := string(submatches[1])
-		dir := path.Dir(urlPath) // use forward-slash path for URLs
-		base := path.Base(urlPath)
-		segments := strings.Split(base, ".")
-		changed := false
-		for i, seg := range segments {
-			if isAlphanumericHash(seg) {
-				lowered := strings.ToLower(seg)
-				if lowered != seg {
-					segments[i] = lowered
-					changed = true
-				}
+		// Copy everything before url(
+		result = append(result, content[i:i+idx]...)
+		urlStart := i + idx // position of 'u' in url(
+
+		// Skip "url("
+		innerStart := urlStart + 4
+		// Skip optional whitespace
+		for innerStart < len(content) && (content[innerStart] == ' ' || content[innerStart] == '\t' || content[innerStart] == '\n' || content[innerStart] == '\r') {
+			innerStart++
+		}
+
+		var quote byte
+		var urlEnd int
+		if innerStart < len(content) && (content[innerStart] == '"' || content[innerStart] == '\'') {
+			quote = content[innerStart]
+			urlEnd = bytes.IndexByte(content[innerStart+1:], quote)
+			if urlEnd < 0 {
+				// No closing quote, copy rest as-is
+				result = append(result, content[urlStart:]...)
+				i = len(content)
+				continue
+			}
+			urlEnd += innerStart + 1
+			urlInner := content[innerStart+1 : urlEnd]
+			normalized := normalizeURLHash(urlInner)
+
+			// Reconstruct url("...") or url('...')
+			result = append(result, []byte("url(")...)
+			result = append(result, quote)
+			result = append(result, normalized...)
+			result = append(result, quote)
+			result = append(result, ')')
+			i = urlEnd + 1
+		} else {
+			// Unquoted: find closing ')'
+			urlEnd = bytes.IndexByte(content[innerStart:], ')')
+			if urlEnd < 0 {
+				result = append(result, content[urlStart:]...)
+				i = len(content)
+				continue
+			}
+			urlEnd += innerStart
+			// Trim trailing whitespace
+			inner := bytes.TrimSpace(content[innerStart:urlEnd])
+			normalized := normalizeURLHash(inner)
+
+			result = append(result, []byte("url(")...)
+			result = append(result, normalized...)
+			result = append(result, ')')
+			i = urlEnd + 1
+		}
+	}
+	return result
+}
+
+// normalizeURLHash lowercases hash segments in a URL path like "/static/css/layout.ABC123.css"
+func normalizeURLHash(url []byte) []byte {
+	urlStr := string(url)
+	dotIdx := strings.LastIndex(urlStr, ".")
+	if dotIdx < 0 {
+		return url
+	}
+	base := path.Base(urlStr)
+	dir := path.Dir(urlStr)
+
+	segments := strings.Split(base, ".")
+	changed := false
+	for j, seg := range segments {
+		if isAlphanumericHash(seg) {
+			lowered := strings.ToLower(seg)
+			if lowered != seg {
+				segments[j] = lowered
+				changed = true
 			}
 		}
-		if !changed {
-			return match
-		}
-		newBase := strings.Join(segments, ".")
-		var newPath string
-		if dir == "." {
-			newPath = newBase
-		} else {
-			newPath = dir + "/" + newBase
-		}
-		// Try to preserve original quoting style
-		if strings.Contains(string(match), "\"") {
-			return []byte(fmt.Sprintf("url(\"%s\")", newPath))
-		} else if strings.Contains(string(match), "'") {
-			return []byte(fmt.Sprintf("url('%s')", newPath))
-		}
-		return []byte(fmt.Sprintf("url(%s)", newPath))
-	})
+	}
+	if !changed {
+		return url
+	}
+	newBase := strings.Join(segments, ".")
+	if dir == "." {
+		return []byte(newBase)
+	}
+	return []byte(dir + "/" + newBase)
 }

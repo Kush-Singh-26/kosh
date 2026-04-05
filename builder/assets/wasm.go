@@ -48,10 +48,15 @@ func CheckWASM(sink fspkg.ArtifactSink, cacheDir string) bool {
 }
 
 func CheckWASMFs(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string) bool {
-	return CheckWASMFsWithSource(fs, sink, cacheDir, nil)
+	return CheckWASMFsWithSource(fs, sink, cacheDir, nil, 0)
 }
 
-func CheckWASMFsWithSource(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string, sourceWasm []byte) bool {
+func CheckWASMFsWithSource(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string, sourceWasm []byte, compressionLevel int) bool {
+	// Default compression level is 4 (balanced)
+	if compressionLevel == 0 {
+		compressionLevel = 4
+	}
+
 	wasmRelPath := "static/wasm/search.wasm"
 	brRelPath := wasmRelPath + ".br"
 
@@ -115,7 +120,7 @@ func CheckWASMFsWithSource(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string
 		// For source, we have .wasm, need to compress for .br
 		slog.Info("Compressing WASM...")
 		var buf bytes.Buffer
-		bw := brotli.NewWriterLevel(&buf, 4)
+		bw := brotli.NewWriterLevel(&buf, compressionLevel)
 		_, _ = bw.Write(wasmBytes)
 		if err := bw.Close(); err != nil {
 			slog.Warn("Failed to close Brotli writer", "error", err)
@@ -147,6 +152,10 @@ func CheckWASMFsWithSource(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string
 }
 
 func DeployWASMFromFile(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePath string) bool {
+	return DeployWASMFromFileWithLevel(fs, sink, cacheDir, sourcePath, 4)
+}
+
+func DeployWASMFromFileWithLevel(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePath string, level int) bool {
 	data, err := afero.ReadFile(fs, sourcePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -155,7 +164,7 @@ func DeployWASMFromFile(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePa
 		slog.Warn("Failed to read source WASM", "path", sourcePath, "error", err)
 		return CheckWASMFs(fs, sink, cacheDir)
 	}
-	return CheckWASMFsWithSource(fs, sink, cacheDir, data)
+	return CheckWASMFsWithSource(fs, sink, cacheDir, data, level)
 }
 
 // CompileWASMFromSource builds the search engine WASM from Go source.

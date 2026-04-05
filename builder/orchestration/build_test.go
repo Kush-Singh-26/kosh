@@ -2,7 +2,6 @@ package orchestration
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"testing"
 
@@ -118,7 +117,19 @@ func TestFullBuild(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -148,75 +159,6 @@ func TestFullBuild(t *testing.T) {
 				t.Logf("  - %s", k)
 			}
 		}
-	}
-}
-
-func TestMultiVersionBuild(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	testutil.ScaffoldTestSiteWithVersions(fs, true)
-
-	// Load config from our VFS
-	cfg := config.LoadFs(fs, []string{})
-
-	logger := InitLogger()
-	buildMetrics := metrics.NewBuildMetrics()
-	nativeRenderer := native.New()
-	t.Cleanup(func() { _ = nativeRenderer.Close() })
-	diagramCache := mdParser.NewMemorySSRMap()
-	d2Group := nativeRenderer.GetD2Singleflight()
-	mdPool := &sync.Pool{
-		New: func() any {
-			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
-		},
-	}
-
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
-	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, true, false, scheduler.NewBuildScheduler(), logger),
-		Renderer: rnd,
-		Logger:   logger,
-	})
-	assetSvc := &mocks.MockAssetService{}
-	assetSvc.SetMetrics(buildMetrics)
-	wasmSvc := &mocks.MockWasmService{}
-	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, true, false, scheduler.NewBuildScheduler(), logger),
-		Cfg:            cfg,
-		Renderer:       renderSvc,
-		Logger:         logger,
-		Metrics:        buildMetrics,
-		MdPool:         mdPool,
-		NativeRenderer: nativeRenderer,
-		SourceFs:       fs,
-	})
-	metadataScanner := scanner.NewScanner()
-	sink := testutil.NewMemSink()
-	tx := testutil.NewMockTransaction("public")
-
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
-	b.Sink = sink
-	b.Tx = tx
-
-	ctx := context.Background()
-	err := b.Build(ctx)
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
-
-	// Verify outputs
-	// Latest version (root)
-	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
-		t.Error("Latest post not found in sink")
-	}
-	// v1.0 version
-	if _, ok := sink.Files["public/v1.0/posts/old.html"]; !ok {
-		t.Error("Old version post not found in sink")
-	}
-
-	// Verify version metadata in a rendered page
-	postData := sink.Files["public/v1.0/posts/old.html"]
-	if !strings.Contains(string(postData), "v1.0") {
-		t.Log("Post does not contain version String, this is expected with the default scaffold layout")
 	}
 }
 

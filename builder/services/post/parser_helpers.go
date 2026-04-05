@@ -95,7 +95,6 @@ func buildPostMetadata(
 	fm parsedFrontmatter,
 	postLink string,
 	readingTime int,
-	version string,
 ) models.PostMetadata {
 	return models.PostMetadata{
 		Title:       fm.Title,
@@ -107,7 +106,6 @@ func buildPostMetadata(
 		Weight:      fm.Weight,
 		DateObj:     fm.DateObj,
 		Draft:       fm.Draft,
-		Version:     version,
 	}
 }
 
@@ -131,7 +129,7 @@ func buildSearchRecord(
 		Tags:            post.Tags,
 		NormalizedTags:  normalizedTags,
 		Content:         plainText,
-		Version:         post.Version,
+		Date:            post.DateObj.Unix(),
 	}
 }
 
@@ -161,6 +159,14 @@ func tokenizeSearchData(
 	for _, w := range words {
 		wordFreqs[w]++
 	}
+
+	// Apply title boost to frequencies
+	titleTokens := core.DefaultAnalyzer.Analyze(searchRecord.Title)
+	const titleBoost = 5
+	for _, t := range titleTokens {
+		wordFreqs[t] += titleBoost
+	}
+
 	docLen = len(words)
 	stemMap = freshStemMap
 

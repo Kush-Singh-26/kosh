@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -54,7 +53,7 @@ func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, sourceFs afero.Fs) {
 
 // SetupBuilding starts the asset building process in a separate goroutine.
 // Returns a signal channel for full readiness, discovery signal, wait group, and error channel.
-func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) (<-chan struct{}, <-chan struct{}, *sync.WaitGroup, <-chan error) {
+func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset, force bool) (<-chan struct{}, <-chan struct{}, *sync.WaitGroup, <-chan error) {
 	m.deps.Logger.Info("Building assets...")
 	assetTimer := timeutil.StartPhase("Asset building")
 
@@ -63,6 +62,25 @@ func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []mo
 
 	// Reset rendered assets in memory before starting fresh build pass
 	m.deps.Render.SetAssets(map[string]string{})
+
+	// Check static fingerprint to potentially skip image processing
+	skipImages := false
+	if !force && m.deps.Cfg.CacheDir != "" {
+		m.deps.Logger.Debug("Checking static fingerprint", "force", force)
+		currentFingerprint, err := asset.ComputeStaticFingerprint(m.deps.SourceFs, asset.GetStaticDirs(m.deps.Cfg))
+		if err != nil {
+			m.deps.Logger.Debug("Failed to compute static fingerprint", "error", err)
+		} else {
+			cachedFingerprint, loadErr := asset.LoadStaticFingerprint(m.deps.Cfg.CacheDir)
+			if loadErr != nil || currentFingerprint != cachedFingerprint {
+				m.deps.Logger.Debug("Static fingerprint mismatch or not cached", "current", currentFingerprint, "cached", cachedFingerprint, "loadErr", loadErr)
+				_ = asset.SaveStaticFingerprint(m.deps.Cfg.CacheDir, currentFingerprint)
+			} else {
+				m.deps.Logger.Debug("Static fingerprint matches, will skip image processing")
+				skipImages = true
+			}
+		}
+	}
 
 	// Link content assets from scanner to asset service
 	if setter, ok := m.deps.Asset.(interface {
@@ -89,23 +107,14 @@ func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []mo
 
 	go func() {
 		defer assetWg.Done()
-		if err := m.deps.Asset.Build(ctx); err != nil {
+		if err := m.deps.Asset.BuildWithOptions(ctx, skipImages); err != nil {
 			assetErrChan <- err
 		}
-		close(assetErrChan)
 		assetTimer.Stop()
 	}()
 
 	// discoveryReady is populated by Build() when the image rewrite map is ready.
-	// Poll briefly so we can return it immediately to the caller.
-	var discoveryReady <-chan struct{}
-	for i := 0; i < 50; i++ {
-		if ch := m.deps.Asset.DiscoveryReady(); ch != nil {
-			discoveryReady = ch
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	discoveryReady := m.deps.Asset.DiscoveryReady()
 
 	return assetsReady, discoveryReady, &assetWg, assetErrChan
 }
@@ -158,22 +167,35 @@ func (m *Manager) WaitForAvailability(ctx context.Context, assetsReady <-chan st
 
 // BuildAssetOnly handles incremental CSS/JS changes by rebuilding assets and re-triggering post processing.
 func (m *Manager) BuildAssetOnly(ctx context.Context, buildPass func(ctx context.Context) error) error {
+	return m.BuildAssetOnlyWithOptions(ctx, buildPass, true)
+}
+
+// BuildAssetOnlyWithOptions handles incremental CSS/JS changes with options.
+// forceImages: if true, always process images; if false, skip image processing (for CSS/JS-only changes)
+func (m *Manager) BuildAssetOnlyWithOptions(ctx context.Context, buildPass func(ctx context.Context) error, forceImages bool) error {
 	if m.deps.Metrics != nil {
 		m.deps.Metrics.Reset()
 	}
-	assets.ResetConvertedImages()
-	m.deps.Render.SetAssets(map[string]string{})
 
 	m.deps.Logger.Info("Building assets...")
 	assetTimer := timeutil.StartPhase("Asset building")
 
-	assets, err := m.deps.Asset.BuildForAssetChange(ctx)
+	newAssets, err := m.deps.Asset.BuildForAssetChangeWithOptions(ctx, forceImages)
 	assetTimer.Stop()
 	if err != nil {
 		return fmt.Errorf("failed to build assets: %w", err)
 	}
 
-	m.deps.Render.SetAssets(assets)
+	// Merge with existing assets to preserve image mappings
+	currentAssets := m.deps.Render.GetAssets()
+	if currentAssets == nil {
+		currentAssets = make(map[string]string)
+	}
+	for k, v := range newAssets {
+		currentAssets[k] = v
+	}
+
+	m.deps.Render.SetAssets(currentAssets)
 	m.deps.Render.ClearRenderedFiles()
 	m.deps.Render.SetAssetsGate(nil)
 

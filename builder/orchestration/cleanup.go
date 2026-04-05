@@ -27,7 +27,8 @@ func (b *Engine) cleanupOrphans() {
 	// Only clean orphans in development mode when writing directly to output.
 	// Clean builds use staging directories which start empty, so orphans
 	// are naturally removed during the atomic swap.
-	if !b.Cfg.IsDev || b.State.IsCleanBuild {
+	// Skip cleanup during asset-only incremental builds to prevent deleting images/fonts.
+	if !b.Cfg.IsDev || b.State.IsCleanBuild || b.State.IsAssetOnlyBuild {
 		return
 	}
 
@@ -73,7 +74,7 @@ func (b *Engine) cleanupOrphans() {
 	})
 
 	if err != nil {
-		b.Logger.Warn("Orphan cleanup encountered errors", "error", err)
+		b.Deps.Logger.Warn("Orphan cleanup encountered errors", "error", err)
 	}
 
 	// Remove empty directories

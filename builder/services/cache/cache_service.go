@@ -145,8 +145,8 @@ func (s *cacheService) Close() error {
 	return s.manager.Close()
 }
 
-func (s *cacheService) GetPostsMetadataByVersion(version string) ([]models.PostListMeta, error) {
-	return s.manager.GetPostsMetadataByVersion(version)
+func (s *cacheService) GetAllPostsMetadata() ([]models.PostListMeta, error) {
+	return s.manager.GetAllPostsMetadata()
 }
 
 // Additional helper to expose the underlying manager if absolutely necessary (try to avoid)

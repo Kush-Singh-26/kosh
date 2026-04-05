@@ -1,11 +1,14 @@
 package cache
 
 import (
+	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -57,10 +60,9 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 			}
 
 			ep := EncodedPost{
-				PostID:  []byte(p.PostID),
-				Data:    postData,
-				Path:    []byte(fspkg.NormalizePath(p.Path)),
-				Version: p.Version,
+				PostID: []byte(p.PostID),
+				Data:   postData,
+				Path:   []byte(fspkg.NormalizePath(p.Path)),
 			}
 
 			if sr, ok := searchRecords[p.PostID]; ok {
@@ -123,16 +125,10 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 	ops.tags = make([]batchOp, 0, totalTags)
 	ops.templates = make([]batchOp, 0, totalTemplates)
 	ops.includes = make([]batchOp, 0, totalIncludes)
-	ops.versions = make([]batchOp, 0, len(encoded))
 
 	for _, ep := range encoded {
 		ops.posts = append(ops.posts, batchOp{key: ep.PostID, value: ep.Data})
 		ops.paths = append(ops.paths, batchOp{key: ep.Path, value: ep.PostID})
-
-		if ep.Version != "" {
-			verKey := []byte(ep.Version + "/" + string(ep.PostID))
-			ops.versions = append(ops.versions, batchOp{key: verKey, value: nil})
-		}
 
 		if ep.SearchData != nil {
 			ops.search = append(ops.search, batchOp{key: ep.PostID, value: ep.SearchData})
@@ -187,7 +183,6 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 		sortOps(ops.tags)
 		sortOps(ops.templates)
 		sortOps(ops.includes)
-		sortOps(ops.versions)
 
 		if err := writeOps(postsBucket, ops.posts); err != nil {
 			return err
@@ -208,9 +203,6 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 			return err
 		}
 		if err := writeOps(tx.Bucket([]byte(core.BucketDepsIncludes)), ops.includes); err != nil {
-			return err
-		}
-		if err := writeOps(tx.Bucket([]byte(core.BucketVersions)), ops.versions); err != nil {
 			return err
 		}
 
@@ -319,6 +311,103 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*core.SSR
 	return artifact, err
 }
 
+// BatchStoreSSR stores multiple SSR artifacts and their contents in parallel.
+// It uses a single BoltDB transaction for all metadata updates and parallel file writes.
+func (m *Manager) BatchStoreSSR(entries map[string]any) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	type ssrResult struct {
+		key  string
+		data []byte
+	}
+
+	results := make([]ssrResult, 0, len(entries))
+	var resMu sync.Mutex
+
+	g, _ := errgroup.WithContext(context.Background())
+	// Higher concurrency on Windows helps overlap slow file I/O for large diagrams
+	if runtime.GOOS == "windows" {
+		g.SetLimit(64)
+	} else {
+		g.SetLimit(runtime.NumCPU() * 2)
+	}
+
+	for k, v := range entries {
+		key, val := k, v
+		g.Go(func() error {
+			ssrType := "d2"
+			inputHash := key
+			if parts := strings.SplitN(key, ":", 2); len(parts) == 2 {
+				ssrType = parts[0]
+				inputHash = parts[1]
+			}
+
+			var content []byte
+			var err error
+			switch valType := val.(type) {
+			case string:
+				content = []byte(valType)
+			case []byte:
+				content = valType
+			default:
+				content, err = json.Marshal(valType)
+				if err != nil {
+					return fmt.Errorf("failed to marshal SSR value for %s: %w", key, err)
+				}
+			}
+
+			artifact := &core.SSRArtifact{
+				Type:      ssrType,
+				InputHash: inputHash,
+				Size:      int64(len(content)),
+				CreatedAt: time.Now().Unix(),
+			}
+
+			// Inline content under 16KB directly in BoltDB to avoid slow Windows file I/O
+			if len(content) < 16*1024 {
+				artifact.InlineContent = content
+				artifact.Compressed = false
+				artifact.OutputHash = core.HashContent(content)
+			} else {
+				category := filepath.Join("ssr", ssrType)
+				outputHash, ct, err := m.store.Put(category, content)
+				if err != nil {
+					return fmt.Errorf("failed to store SSR content for %s: %w", key, err)
+				}
+				artifact.OutputHash = outputHash
+				artifact.Compressed = ct != core.CompressionNone
+			}
+
+			data, err := core.Encode(artifact)
+			if err != nil {
+				return fmt.Errorf("failed to encode SSR artifact for %s: %w", key, err)
+			}
+
+			resMu.Lock()
+			results = append(results, ssrResult{key: ssrType + ":" + inputHash, data: data})
+			resMu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	// Single transaction for all metadata
+	return m.db.Batch(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(core.BucketSSR))
+		for _, res := range results {
+			if err := bucket.Put([]byte(res.key), res.data); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // DeletePost removes a post and its associated data
 func (m *Manager) DeletePost(postID string) error {
 	var postPath string
@@ -331,7 +420,6 @@ func (m *Manager) DeletePost(postID string) error {
 		searchBucket := tx.Bucket([]byte(core.BucketSearch))
 		depsBucket := tx.Bucket([]byte(core.BucketPostDeps))
 		tagsBucket := tx.Bucket([]byte(core.BucketTags))
-		versionsBucket := tx.Bucket([]byte(core.BucketVersions))
 
 		postIDBytes := []byte(postID)
 
@@ -349,12 +437,6 @@ func (m *Manager) DeletePost(postID string) error {
 					tagKey := []byte(tag + "/" + postID)
 					if err := tagsBucket.Delete(tagKey); err != nil {
 						deleteErrors = append(deleteErrors, fmt.Errorf("delete tag %s: %w", tag, err))
-					}
-				}
-				if post.Version != "" && versionsBucket != nil {
-					verKey := []byte(post.Version + "/" + postID)
-					if err := versionsBucket.Delete(verKey); err != nil {
-						deleteErrors = append(deleteErrors, fmt.Errorf("delete version: %w", err))
 					}
 				}
 			}

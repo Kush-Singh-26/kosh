@@ -6,10 +6,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 
 	"github.com/spf13/afero"
@@ -230,5 +232,73 @@ func TestAssetService_Build_DoesNotCopySourceSearchWasm(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(outputDir, "static", "wasm", "search.wasm")); err == nil {
 		t.Fatalf("source static/wasm/search.wasm should not be copied into output")
+	}
+}
+
+func TestAssetService_Build_ContextCancellationRace(t *testing.T) {
+	tmpDir := t.TempDir()
+	sourceDir := filepath.Join(tmpDir, "source")
+	outputDir := filepath.Join(tmpDir, "output")
+	cacheDir := filepath.Join(tmpDir, "cache")
+
+	staticDir := filepath.Join(sourceDir, "static")
+	if err := os.MkdirAll(filepath.Join(staticDir, "images"), 0755); err != nil {
+		t.Fatalf("failed to create static dir: %v", err)
+	}
+
+	// Create enough files to ensure ParallelWalk takes some time and uses multiple workers
+	const numFiles = 100
+	for i := 0; i < numFiles; i++ {
+		path := filepath.Join(staticDir, "images", "img"+strconv.Itoa(i)+".png")
+		if err := os.WriteFile(path, []byte("IMAGE_DATA"), 0644); err != nil {
+			t.Fatalf("failed to write test image: %v", err)
+		}
+	}
+
+	cfg := &config.Config{
+		PathConfig: config.PathConfig{
+			StaticDir: sourceDir,
+			OutputDir: outputDir,
+			CacheDir:  cacheDir,
+		},
+		SiteRoot: sourceDir,
+		BuildOptions: config.BuildOptions{
+			CompressImages: false,
+		},
+	}
+	sourceFs := afero.NewOsFs()
+	sink := fspkg.NewDiskSink(outputDir, outputDir)
+	mockRend := mocks.NewMockRenderService()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	svc := NewService(Dependencies{
+		SourceFs: sourceFs,
+		Sink:     sink,
+		Cfg:      cfg,
+		Renderer: mockRend,
+		Logger:   logger,
+	})
+
+	// Simulate fast scanner return by passing a closed channel
+	closedChan := make(chan []models.ScannedAsset)
+	close(closedChan)
+	svc.SetContentAssetsChannel(closedChan)
+
+	ctx := context.Background()
+	if err := svc.Build(ctx); err != nil {
+		t.Fatalf("Asset Build failed: %v", err)
+	}
+
+	// Verify all files were discovered and enqueued
+	count := 0
+	_ = filepath.Walk(filepath.Join(outputDir, "static", "images"), func(p string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() && strings.HasSuffix(p, ".png") {
+			count++
+		}
+		return nil
+	})
+
+	if count != numFiles {
+		t.Errorf("Race condition detected: expected %d images to be processed, got %d", numFiles, count)
 	}
 }

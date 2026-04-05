@@ -1,7 +1,6 @@
 package render
 
 import (
-	"html/template"
 	"log/slog"
 
 	"github.com/spf13/afero"
@@ -27,7 +26,6 @@ type Service interface {
 	RenderIndex(path string, data models.PageData) error
 	Render404(path string, data models.PageData) error
 	RenderGraph(path string, data models.PageData) error
-	RenderSidebar(tree []*models.TreeNode) template.HTML
 	RegisterFile(path string)
 	SetAssets(assets map[string]string)
 	GetAssets() map[string]string

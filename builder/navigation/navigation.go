@@ -11,9 +11,9 @@ var (
 	ErrPostNotFound = errors.New("post not found in list")
 )
 
-// FindPrevNext finds previous and next pages in version context.
+// FindPrevNext finds previous and next pages.
 // currentPost: the current post metadata
-// allPosts: all posts in the current version, must be pre-sorted via timeutil.SortPosts.
+// allPosts: all posts, must be pre-sorted via timeutil.SortPosts.
 func FindPrevNext(currentPost models.PostMetadata, allPosts []models.PostMetadata) (*models.NavPage, *models.NavPage, error) {
 	if len(allPosts) == 0 {
 		return nil, nil, ErrEmptyList
@@ -31,7 +31,7 @@ func FindPrevNext(currentPost models.PostMetadata, allPosts []models.PostMetadat
 	// Find current post index
 	currentIdx := -1
 	for i, post := range sortedPosts {
-		// Match by Link since it's unique and version-prefixed
+		// Match by Link since it's unique
 		if post.Link == currentPost.Link {
 			currentIdx = i
 			break

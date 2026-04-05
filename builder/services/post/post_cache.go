@@ -36,7 +36,7 @@ func (s *postService) loadFromCache(cachedMeta *models.PostMeta, htmlRelPath str
 			ID:    xxh3.HashString(cachedMeta.Link),
 			Title: cachedSearch.Title, NormalizedTitle: cachedSearch.NormalizedTitle,
 			Link: htmlRelPath, Content: cachedSearch.Content,
-			NormalizedTags: cachedSearch.NormalizedTags, Version: cachedMeta.Version,
+			NormalizedTags: cachedSearch.NormalizedTags,
 		},
 		WordFreqs: cachedSearch.BM25Data, DocLen: cachedSearch.DocLen,
 		StemMap: cachedSearch.StemMap, PositionalIndex: cachedSearch.PositionalIndex,
@@ -45,7 +45,7 @@ func (s *postService) loadFromCache(cachedMeta *models.PostMeta, htmlRelPath str
 			Title: cachedMeta.Title, Link: cachedMeta.Link, Description: cachedMeta.Description,
 			Tags: cachedMeta.Tags, Pinned: cachedMeta.Pinned, Weight: cachedMeta.Weight,
 			ReadingTime: cachedMeta.ReadingTime, DateObj: cachedMeta.Date,
-			Draft: cachedMeta.Draft, Version: cachedMeta.Version,
+			Draft: cachedMeta.Draft,
 		},
 	}
 	return res, string(cachedHTML), true

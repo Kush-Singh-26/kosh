@@ -39,7 +39,6 @@ func TestPostRecord_Msgp(t *testing.T) {
 		Tags:            []string{"a", "b"},
 		NormalizedTags:  []string{"a", "b"},
 		Content:         "Content",
-		Version:         "v1",
 	}
 
 	var buf bytes.Buffer

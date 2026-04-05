@@ -26,20 +26,18 @@ func (s *postService) ProcessSingle(ctx context.Context, path string, source []b
 
 type navResult struct {
 	prev, next *models.NavPage
-	siteTree   []*models.TreeNode
 }
 
-func (s *postService) resolveNavigation(post models.PostMetadata, version string) *navResult {
+func (s *postService) resolveNavigation(post models.PostMetadata) *navResult {
 	var posts []models.PostMetadata
 	if s.cache != nil {
-		if metas, err := s.cache.GetPostsMetadataByVersion(version); err == nil {
+		if metas, err := s.cache.GetAllPostsMetadata(); err == nil {
 			posts = make([]models.PostMetadata, len(metas))
 			for i, m := range metas {
 				posts[i] = models.PostMetadata{
 					Title:   m.Title,
 					Link:    m.Link,
 					Weight:  m.Weight,
-					Version: m.Version,
 					DateObj: m.Date,
 				}
 			}
@@ -60,9 +58,8 @@ func (s *postService) resolveNavigation(post models.PostMetadata, version string
 
 	timeutil.SortPosts(posts)
 	prev, next, _ := navigation.FindPrevNext(post, posts)
-	siteTree := fspkg.BuildSiteTree(posts, post.Link)
 
-	return &navResult{prev: prev, next: next, siteTree: siteTree}
+	return &navResult{prev: prev, next: next}
 }
 
 func (s *postService) renderMathSSR(ctx context.Context, html string, exprs []models.MathExpression) string {
@@ -124,8 +121,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 	}
 
 	relPath, _ := fspkg.SafeRel(s.cfg.ContentDir, path)
-	version, _ := navigation.GetVersionFromPath(path)
-	htmlRelPath, cleanHtmlRelPath, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath, version)
+	htmlRelPath, _, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath)
 
 	var parseRes *ParsedMarkdownResult
 	if preParsed != nil {
@@ -135,8 +131,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 			ParseConfig{
 				Source:           source,
 				Path:             path,
-				Version:          version,
-				CleanHtmlRelPath: cleanHtmlRelPath,
+				CleanHtmlRelPath: htmlRelPath,
 				HtmlRelPath:      htmlRelPath,
 			},
 			ParseContext{
@@ -154,7 +149,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 
 	htmlContent := s.renderMathSSR(ctx, parseRes.HTMLContent, parseRes.MathExpressions)
 	post := parseRes.Post
-	nav := s.resolveNavigation(post, version)
+	nav := s.resolveNavigation(post)
 	cardRelPath, cardDestPath, cardImageURL := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
 
 	if s.cfg.Features.RawMarkdown {
@@ -168,7 +163,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 	}
 
 	if s.cache != nil {
-		s.commitPostCache(parseRes, post, relPath, version, info, htmlContent)
+		s.commitPostCache(parseRes, post, relPath, info, htmlContent)
 		s.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
 	}
 
@@ -176,14 +171,14 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
 		Meta: parseRes.Metadata, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
 		TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: cardImageURL,
-		TOC: parseRes.TOC, Config: s.cfg, CurrentVersion: version, ReadingTime: post.ReadingTime,
+		TOC: parseRes.TOC, Config: s.cfg, ReadingTime: post.ReadingTime,
 		PrevPage: nav.prev, NextPage: nav.next, RelativePrefix: fspkg.GetRelativePrefix(htmlRelPath),
-		HasImages: parseRes.HasImages, SiteTree: nav.siteTree,
-		JSONLD: models.GeneratePostJSONLD(post, s.cfg.Author, cardImageURL),
+		HasImages: parseRes.HasImages,
+		JSONLD:    models.GeneratePostJSONLD(post, s.cfg.Author, cardImageURL),
 	})
 }
 
-func (s *postService) commitPostCache(parseRes *ParsedMarkdownResult, post models.PostMetadata, relPath, version string, info os.FileInfo, htmlContent string) {
+func (s *postService) commitPostCache(parseRes *ParsedMarkdownResult, post models.PostMetadata, relPath string, info os.FileInfo, htmlContent string) {
 	postID := cache.GeneratePostID("", relPath)
 	cacheTOC := make([]models.TOCEntry, len(parseRes.TOC))
 	for i, t := range parseRes.TOC {
@@ -196,7 +191,7 @@ func (s *postService) commitPostCache(parseRes *ParsedMarkdownResult, post model
 		Title: post.Title, Date: post.DateObj, Tags: post.Tags,
 		ReadingTime: post.ReadingTime, Description: post.Description,
 		Link: post.Link, Pinned: post.Pinned, Weight: post.Weight,
-		Draft: post.Draft, Meta: parseRes.Metadata, TOC: cacheTOC, Version: version,
+		Draft: post.Draft, Meta: parseRes.Metadata, TOC: cacheTOC,
 		SSRInputHashes: parseRes.SSRHashes,
 		CardHash:       parseRes.FrontmatterHash,
 		HasImages:      parseRes.HasImages,

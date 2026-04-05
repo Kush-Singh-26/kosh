@@ -29,7 +29,6 @@ type RenderService interface {
 	RenderIndex(path string, data PageData) error
 	Render404(path string, data PageData) error
 	RenderGraph(path string, data PageData) error
-	RenderSidebar(tree []*TreeNode) HTML
 	RegisterFile(path string)
 	SetAssets(assets map[string]string)
 	GetAssets() map[string]string
@@ -47,7 +46,7 @@ type PostCache interface {
 	GetPostByPath(path string) (*PostMeta, error)
 	GetPostsByIDs(ids []string) (map[string]*PostMeta, error)
 	GetPostsByTemplate(templatePath string) ([]string, error)
-	GetPostsMetadataByVersion(version string) ([]PostListMeta, error)
+	GetAllPostsMetadata() ([]PostListMeta, error)
 }
 
 // SearchCache provides access to search indices.

@@ -46,11 +46,11 @@ func (b *Engine) generatePWA(ctx context.Context, shouldForce bool) error {
 		faviconPath := b.getFaviconPath()
 
 		// Ensure info is available
-		exists, _ := afero.Exists(b.SourceFs, faviconPath)
+		exists, _ := afero.Exists(b.Deps.SourceFs, faviconPath)
 		if !exists {
 			return nil
 		}
-		srcInfo, _ := b.SourceFs.Stat(faviconPath)
+		srcInfo, _ := b.Deps.SourceFs.Stat(faviconPath)
 
 		// Calculate hash based on favicon mtime and size
 		hashContent := fmt.Sprintf("%s-%d-%d", faviconPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())
@@ -71,7 +71,7 @@ func (b *Engine) generatePWA(ctx context.Context, shouldForce bool) error {
 
 		if needsGeneration {
 			// Generate icons to memory once, then write to both sink and cache.
-			icons, err := generators.GeneratePWAIconBytes(b.SourceFs, faviconPath, b.Logger)
+			icons, err := generators.GeneratePWAIconBytes(b.Deps.SourceFs, faviconPath, b.Deps.Logger)
 			if err == nil {
 				if wErr := generators.WritePWAIcons(b.Sink, filepath.Join(b.Cfg.OutputDir, "static/images"), icons); wErr == nil {
 					b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "static/images/icon-192.png"))

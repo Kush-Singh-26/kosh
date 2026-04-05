@@ -107,10 +107,10 @@ func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode boo
 		r.mu.Unlock()
 		return "", fmt.Errorf("renderer is closed")
 	}
-	r.wg.Add(1)
+	r.taskWg.Add(1)
 	r.mu.Unlock()
 
-	defer r.wg.Done()
+	defer r.taskWg.Done()
 
 	// Acquire worker
 	instance := <-r.pool
@@ -168,10 +168,10 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 		r.mu.Unlock()
 		return nil, fmt.Errorf("renderer is closed")
 	}
-	r.wg.Add(1)
+	r.taskWg.Add(1)
 	r.mu.Unlock()
 
-	defer r.wg.Done()
+	defer r.taskWg.Done()
 
 	// Acquire worker
 	instance := <-r.pool
@@ -231,7 +231,7 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 }
 
 // RenderAllMath renders multiple LaTeX expressions in parallel using the worker pool.
-// It now uses a single response channel per call to reduce primitive churn.
+// Refactored to use batch processing instead of spawning a goroutine per expression.
 func (r *Renderer) RenderAllMath(ctx context.Context, expressions []models.MathExpression, cache map[string]string) (map[string]string, error) {
 	if len(expressions) == 0 {
 		return make(map[string]string), nil
@@ -265,69 +265,53 @@ func (r *Renderer) RenderAllMath(ctx context.Context, expressions []models.MathE
 		return finalResults, nil
 	}
 
-	// 2. Use singleflight to deduplicate globally, and a single result channel
-	type mathRes struct {
-		hash string
-		html string
-		err  error
-	}
-	resChan := make(chan mathRes, len(toRender))
-	var wg sync.WaitGroup
+	// 2. Batch process expressions using worker pool (similar to RenderGlobalBatch)
+	numWorkers := min(r.numWorkers, len(toRender))
+	chunkSize := (len(toRender) + numWorkers - 1) / numWorkers
 
-	for _, expr := range toRender {
+	results := make(map[string]string)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	var globalErr error
+
+	for i := 0; i < numWorkers; i++ {
+		start := i * chunkSize
+		if start >= len(toRender) {
+			break
+		}
+		end := min(start+chunkSize, len(toRender))
+
 		wg.Add(1)
-		go func(e models.MathExpression) {
+		go func(chunk []models.MathExpression) {
 			defer wg.Done()
 
-			val, err, _ := r.mathGroup.Do(e.Hash, func() (any, error) {
-				singleResChan := make(chan string, 1)
-				singleErrChan := make(chan error, 1)
+			rendered, err := r.RenderMathBatch(ctx, chunk)
 
-				r.mathQueue <- mathRequest{
-					expr: e,
-					res:  singleResChan,
-					err:  singleErrChan,
-				}
-
-				select {
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				case html := <-singleResChan:
-					return html, nil
-				case err := <-singleErrChan:
-					return nil, err
-				}
-			})
-
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
-				resChan <- mathRes{hash: e.Hash, err: err}
-			} else {
-				html, ok := val.(string)
-				if !ok {
-					resChan <- mathRes{hash: e.Hash, err: fmt.Errorf("math render returned non-string result")}
-				} else {
-					resChan <- mathRes{hash: e.Hash, html: html}
+				if globalErr == nil {
+					globalErr = err
 				}
+				return
 			}
-		}(expr)
+
+			for j, html := range rendered {
+				results[chunk[j].Hash] = html
+			}
+		}(toRender[start:end])
 	}
 
-	// Close channel when all renders are done
-	go func() {
-		wg.Wait()
-		close(resChan)
-	}()
+	wg.Wait()
 
-	var firstErr error
-	for res := range resChan {
-		if res.err != nil {
-			if firstErr == nil {
-				firstErr = res.err
-			}
-			continue
-		}
-		finalResults[res.hash] = res.html
+	if globalErr != nil {
+		return finalResults, globalErr
 	}
 
-	return finalResults, firstErr
+	// Add all results to final output
+	for hash, html := range results {
+		finalResults[hash] = html
+	}
+
+	return finalResults, nil
 }

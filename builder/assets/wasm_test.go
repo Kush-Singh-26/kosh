@@ -255,7 +255,7 @@ func TestCheckWASMFsWithEmbedded(t *testing.T) {
 	sink := newFsSink(outputDir, fs)
 
 	// Test with embedded WASM (sourceWasm = nil)
-	result := CheckWASMFsWithSource(fs, sink, cacheDir, nil)
+	result := CheckWASMFsWithSource(fs, sink, cacheDir, nil, 0)
 
 	// Should deploy embedded WASM successfully
 	if !result {
@@ -287,7 +287,7 @@ func TestCheckWASMFsWithSourceWasm(t *testing.T) {
 	// Create test WASM data
 	sourceWasm := []byte("test wasm content")
 
-	result := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
+	result := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm, 0)
 
 	if !result {
 		t.Error("CheckWASMFsWithSource() with source WASM should return true")
@@ -310,13 +310,13 @@ func TestCheckWASMFsNoChange(t *testing.T) {
 
 	// First call - should deploy
 	sourceWasm := []byte("test wasm content")
-	result1 := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
+	result1 := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm, 0)
 	if !result1 {
 		t.Error("First CheckWASMFsWithSource() should deploy WASM")
 	}
 
 	// Second call with same content - should return false (no change)
-	result2 := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
+	result2 := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm, 0)
 	if result2 {
 		t.Error("Second CheckWASMFsWithSource() with same content should return false")
 	}
@@ -333,13 +333,13 @@ func TestCheckWASMFsCacheHit(t *testing.T) {
 	sourceWasm := []byte("test wasm content")
 
 	// First call to populate cache
-	CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
+	CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm, 0)
 
 	// Clear output directory
 	_ = fs.RemoveAll(outputDir)
 
 	// Second call should use cache
-	result := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
+	result := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm, 0)
 	if !result {
 		t.Error("CheckWASMFsWithSource() with cache hit should return true")
 	}
@@ -352,7 +352,7 @@ func TestCheckWASMFsDirectoryCreation(t *testing.T) {
 	sink := newFsSink(outputDir, fs)
 
 	sourceWasm := []byte("test wasm content")
-	result := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm)
+	result := CheckWASMFsWithSource(fs, sink, cacheDir, sourceWasm, 0)
 
 	if !result {
 		t.Error("CheckWASMFsWithSource() should succeed with nested output path")

@@ -32,12 +32,11 @@ type Result struct {
 	Link        string
 	Description string
 	Snippet     string
-	Version     string
 	Score       float64
 }
 
 // PerformSearch executes a search query against the index using a structured pipeline
-func PerformSearch(index *models.SearchIndex, query string, versionFilter string) []Result {
+func PerformSearch(index *models.SearchIndex, query string) []Result {
 	query = core.NormalizeNFC(query)
 	query = core.ToLower(strings.TrimSpace(query))
 	if query == "" {
@@ -53,16 +52,16 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		QueryTerms:    parsed.Terms,
 		Phrases:       parsed.Phrases,
 		TagFilter:     tagFilter,
-		VersionFilter: versionFilter,
 		OriginalQuery: originalQuery,
+		TermInfos:     parsed.TermInfos,
 	}
 
 	opts := &SearchScoringOptions{
 		TagFilter:      tagFilter,
-		VersionFilter:  versionFilter,
 		QueryTerms:     parsed.Terms,
 		Scores:         make(map[string]float64, 100),
 		HighlightTerms: make(map[string]bool),
+		TermInfos:      parsed.TermInfos,
 		K1:             1.2,
 		B:              0.75,
 	}
@@ -75,8 +74,11 @@ func PerformSearch(index *models.SearchIndex, query string, versionFilter string
 		&TagScorer{},
 		&BM25Scorer{},
 		&PhraseScorer{},
+		&ProximityScorer{},
+		&RecencyScorer{},
 		&FallbackScorer{},
 		&BoostScorer{},
+		&FilterScorer{},
 	)
 	pipeline.Execute(ctx, opts)
 
@@ -105,14 +107,11 @@ func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Re
 	for id, score := range opts.Scores {
 		post := index.Posts[id]
 		title := post.Title
-		if opts.VersionFilter == "all" && post.Version != "" {
-			title = "[" + post.Version + "] " + title
-		}
 
 		idNum, _ := strconv.ParseUint(id, 10, 64)
 		results = append(results, Result{
 			ID: idNum, Title: title, Link: post.Link,
-			Description: post.Description, Version: post.Version, Score: score,
+			Description: post.Description, Score: score,
 		})
 	}
 

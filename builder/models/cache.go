@@ -33,7 +33,6 @@ type PostMeta struct {
 	Draft           bool
 	Meta            map[string]any
 	TOC             []TOCEntry
-	Version         string
 	CardHash        string
 	HasImages       bool
 	MathExpressions []MathExpression
@@ -60,14 +59,13 @@ type Dependencies struct {
 }
 
 // PostListMeta contains minimal metadata needed for navigation/sorting only.
-// It is used to quickly build version-aware navigation trees and post lists
+// It is used to quickly build navigation and post lists
 // without loading full PostMeta records from the cache.
 type PostListMeta struct {
-	Title   string
-	Link    string
-	Weight  int
-	Version string
-	Date    time.Time
+	Title  string
+	Link   string
+	Weight int
+	Date   time.Time
 }
 
 // CacheStats holds runtime statistics
@@ -84,13 +82,14 @@ type CacheStats struct {
 
 // SSRArtifact stores server-side rendered content
 type SSRArtifact struct {
-	Type       string
-	InputHash  string
-	OutputHash string
-	RefCount   int
-	Size       int64
-	CreatedAt  int64
-	Compressed bool
+	Type          string
+	InputHash     string
+	OutputHash    string
+	RefCount      int
+	Size          int64
+	CreatedAt     int64
+	Compressed    bool
+	InlineContent []byte // Content < 16KB stored directly in BoltDB
 }
 
 type CompressionType int

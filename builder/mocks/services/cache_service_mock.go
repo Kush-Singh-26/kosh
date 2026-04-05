@@ -276,22 +276,19 @@ func (m *MockCacheService) Close() error {
 	return m.Err
 }
 
-func (m *MockCacheService) GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error) {
-	m.recordCall("GetPostsMetadataByVersion")
+func (m *MockCacheService) GetAllPostsMetadata() ([]cache.PostListMeta, error) {
+	m.recordCall("GetAllPostsMetadata")
 	if m.Err != nil {
 		return nil, m.Err
 	}
 	var result []cache.PostListMeta
 	for _, post := range m.Posts {
-		if post.Version == version {
-			result = append(result, cache.PostListMeta{
-				Title:   post.Title,
-				Link:    post.Link,
-				Weight:  post.Weight,
-				Version: post.Version,
-				Date:    post.Date,
-			})
-		}
+		result = append(result, cache.PostListMeta{
+			Title:  post.Title,
+			Link:   post.Link,
+			Weight: post.Weight,
+			Date:   post.Date,
+		})
 	}
 	return result, nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/minify"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/assets"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration/incremental"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/search"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 	"github.com/Kush-Singh-26/kosh/builder/parser"
@@ -98,7 +99,6 @@ func (s *buildSetup) initNativeRenderer() {
 
 	var ssrMap parser.SSRMap
 	if s.diagramAdapter != nil {
-		s.diagramAdapter.Start()
 		ssrMap = s.diagramAdapter
 	} else {
 		ssrMap = parser.NewMemorySSRMap()
@@ -173,22 +173,23 @@ func newEngineWithConfigFs(vfs afero.Fs, cfg *config.Config) *Engine {
 		Cfg: cfg,
 		Ctx: setup.ctx,
 		Deps: EngineDependencies{
-			Cache:    setup.cacheSvc,
-			Post:     setup.postSvc,
-			Asset:    setup.assetSvc,
-			Render:   setup.renderSvc,
-			Wasm:     setup.wasmSvc,
-			Scanner:  setup.metaScanner,
-			Diagrams: setup.diagramAdapter,
+			Cache:          setup.cacheSvc,
+			Post:           setup.postSvc,
+			Asset:          setup.assetSvc,
+			Render:         setup.renderSvc,
+			Wasm:           setup.wasmSvc,
+			Scanner:        setup.metaScanner,
+			Diagrams:       setup.diagramAdapter,
+			SourceFs:       vfs,
+			Logger:         setup.logger,
+			Metrics:        setup.buildMetrics,
+			MdPool:         setup.mdPool,
+			NativeRenderer: setup.nativeRenderer,
 		},
-		Logger:         setup.logger,
-		Metrics:        setup.buildMetrics,
-		SourceFs:       vfs,
-		MdPool:         setup.mdPool,
-		NativeRenderer: setup.nativeRenderer,
 		State: EngineState{
 			IsCleanBuild: setup.isCleanBuild,
 		},
+		Health: NewBuildHealthRegistry(),
 	}
 
 	b.Assets = assets.NewManager(assets.ManagerDependencies{
@@ -204,9 +205,25 @@ func newEngineWithConfigFs(vfs afero.Fs, cfg *config.Config) *Engine {
 		Cfg:    cfg,
 		Cache:  setup.cacheSvc,
 		Logger: setup.logger,
+		Health: b.Health,
 	})
 
 	b.State.ForceGenerators.Store(true)
+	b.Incremental = incremental.NewManager(incremental.ManagerDependencies{
+		Cfg:      cfg,
+		Logger:   setup.logger,
+		SourceFs: vfs,
+		Deps: incremental.IncrementalDependencies{
+			Cache:    setup.cacheSvc,
+			Post:     setup.postSvc,
+			Render:   setup.renderSvc,
+			Diagrams: setup.diagramAdapter,
+		},
+		Builder:        b,
+		Search:         b.Search,
+		MdPool:         setup.mdPool,
+		NativeRenderer: setup.nativeRenderer,
+	})
 
 	b.Watch = watch.New(watch.CoordinatorDependencies{
 		Cfg:           cfg,

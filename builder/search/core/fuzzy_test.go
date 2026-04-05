@@ -308,16 +308,20 @@ func TestMin3(t *testing.T) {
 
 func TestParsedQueryExtended(t *testing.T) {
 	tests := []struct {
-		query       string
-		wantTerms   int
-		wantPhrases int
+		query        string
+		wantTerms    int
+		wantPhrases  int
+		wantRequired int
+		wantExcluded int
 	}{
-		{"hello world", 2, 0},
-		{"\"machine learning\"", 0, 1},
-		{"hello \"machine learning\" world", 2, 1},
-		{"", 0, 0},
-		{"test", 1, 0},
-		{"\"test phrase\" another", 1, 1},
+		{"hello world", 2, 0, 0, 0},
+		{"\"machine learning\"", 0, 1, 0, 0},
+		{"hello \"machine learning\" world", 2, 1, 0, 0},
+		{"", 0, 0, 0, 0},
+		{"test", 1, 0, 0, 0},
+		{"\"test phrase\" another", 1, 1, 0, 0},
+		{"+hello -world", 2, 0, 1, 1},
+		{"normal +required -excluded", 3, 0, 1, 1},
 	}
 
 	for _, tt := range tests {
@@ -329,6 +333,25 @@ func TestParsedQueryExtended(t *testing.T) {
 			if len(result.Phrases) != tt.wantPhrases {
 				t.Errorf("ParseQuery(%q) Phrases = %d, want %d", tt.query, len(result.Phrases), tt.wantPhrases)
 			}
+
+			reqCount := 0
+			exCount := 0
+			for _, info := range result.TermInfos {
+				if info.Required {
+					reqCount++
+				}
+				if info.Excluded {
+					exCount++
+				}
+			}
+
+			if reqCount != tt.wantRequired {
+				t.Errorf("ParseQuery(%q) Required = %d, want %d", tt.query, reqCount, tt.wantRequired)
+			}
+			if exCount != tt.wantExcluded {
+				t.Errorf("ParseQuery(%q) Excluded = %d, want %d", tt.query, exCount, tt.wantExcluded)
+			}
+
 			if result.Raw != tt.query {
 				t.Errorf("ParseQuery(%q) Raw = %q, want %q", tt.query, result.Raw, tt.query)
 			}

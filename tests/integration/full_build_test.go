@@ -90,7 +90,7 @@ func TestFullBuildIntegration(t *testing.T) {
 	if !strings.Contains(postContent, "Latest Post") {
 		t.Error("post page missing title")
 	}
-	if !strings.Contains(postContent, "This is the latest version.") {
+	if !strings.Contains(postContent, "This is a test post.") {
 		t.Error("post page missing body content")
 	}
 }

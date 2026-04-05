@@ -21,7 +21,6 @@ func TestSearchIndex_RoundTrip(t *testing.T) {
 				Tags:            []string{"test", "demo"},
 				NormalizedTags:  []string{"test", "demo"},
 				Content:         "This is the full content of the test post for snippet extraction.",
-				Version:         "v1.0",
 			},
 		},
 		DocLens:   map[string]int64{"0": 12},

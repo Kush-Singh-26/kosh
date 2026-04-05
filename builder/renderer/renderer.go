@@ -18,8 +18,6 @@ import (
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
-	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/pools"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
@@ -29,7 +27,6 @@ type Renderer struct {
 	Index            *template.Template
 	Graph            *template.Template
 	NotFound         *template.Template
-	Sidebar          *template.Template
 	Assets           map[string]string
 	AssetsMu         sync.RWMutex
 	assetsSnapshot   atomic.Pointer[map[string]string]
@@ -96,7 +93,6 @@ func (r *Renderer) ReloadTemplates() {
 		r.Index = tc.templates["index"]
 		r.Graph = tc.templates["graph"]
 		r.NotFound = tc.templates["404"]
-		r.Sidebar = tc.templates["sidebar"]
 		r.mu.Unlock()
 		return
 	}
@@ -148,7 +144,6 @@ func (r *Renderer) ReloadTemplates() {
 
 	var (
 		layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl *template.Template
-		sidebarTmpl                                    *template.Template
 		mu                                             sync.Mutex
 	)
 
@@ -220,17 +215,6 @@ func (r *Renderer) ReloadTemplates() {
 		return nil
 	})
 
-	g.Go(func() error {
-		t, err := loadTmpl("sidebar", "sidebar.html")
-		if err != nil {
-			return nil
-		}
-		mu.Lock()
-		sidebarTmpl = t
-		mu.Unlock()
-		return nil
-	})
-
 	if err := g.Wait(); err != nil {
 		r.logger.Error("Template parsing failed", "error", err)
 		os.Exit(1)
@@ -241,31 +225,5 @@ func (r *Renderer) ReloadTemplates() {
 	r.Index = indexTmpl
 	r.Graph = graphTmpl
 	r.NotFound = notFoundTmpl
-	r.Sidebar = sidebarTmpl
 	r.mu.Unlock()
-}
-
-func (r *Renderer) RenderSidebar(tree []*models.TreeNode) template.HTML {
-	r.mu.RLock()
-	sidebar := r.Sidebar
-	r.mu.RUnlock()
-
-	if sidebar == nil {
-		return ""
-	}
-
-	buf := pools.SharedBufferPool.Get()
-	defer pools.SharedBufferPool.Put(buf)
-
-	// Wrap in a map so we can add other global context if needed
-	data := map[string]any{
-		"SiteTree": tree,
-	}
-
-	if err := sidebar.Execute(buf, data); err != nil {
-		r.logger.Error("Failed to render sidebar component", "error", err)
-		return ""
-	}
-
-	return template.HTML(buf.String())
 }

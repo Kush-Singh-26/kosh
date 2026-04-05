@@ -694,10 +694,10 @@ func (z *PostRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Content")
 				return
 			}
-		case "Version":
-			z.Version, err = dc.ReadString()
+		case "Date":
+			z.Date, err = dc.ReadInt64()
 			if err != nil {
-				err = msgp.WrapError(err, "Version")
+				err = msgp.WrapError(err, "Date")
 				return
 			}
 		default:
@@ -808,14 +808,14 @@ func (z *PostRecord) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Content")
 		return
 	}
-	// write "Version"
-	err = en.Append(0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	// write "Date"
+	err = en.Append(0xa4, 0x44, 0x61, 0x74, 0x65)
 	if err != nil {
 		return
 	}
-	err = en.WriteString(z.Version)
+	err = en.WriteInt64(z.Date)
 	if err != nil {
-		err = msgp.WrapError(err, "Version")
+		err = msgp.WrapError(err, "Date")
 		return
 	}
 	return
@@ -855,9 +855,9 @@ func (z *PostRecord) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Content"
 	o = append(o, 0xa7, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74)
 	o = msgp.AppendString(o, z.Content)
-	// string "Version"
-	o = append(o, 0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.Version)
+	// string "Date"
+	o = append(o, 0xa4, 0x44, 0x61, 0x74, 0x65)
+	o = msgp.AppendInt64(o, z.Date)
 	return
 }
 
@@ -953,10 +953,10 @@ func (z *PostRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Content")
 				return
 			}
-		case "Version":
-			z.Version, bts, err = msgp.ReadStringBytes(bts)
+		case "Date":
+			z.Date, bts, err = msgp.ReadInt64Bytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Version")
+				err = msgp.WrapError(err, "Date")
 				return
 			}
 		default:
@@ -981,7 +981,7 @@ func (z *PostRecord) Msgsize() (s int) {
 	for za0002 := range z.NormalizedTags {
 		s += msgp.StringPrefixSize + len(z.NormalizedTags[za0002])
 	}
-	s += 8 + msgp.StringPrefixSize + len(z.Content) + 8 + msgp.StringPrefixSize + len(z.Version)
+	s += 8 + msgp.StringPrefixSize + len(z.Content) + 5 + msgp.Int64Size
 	return
 }
 

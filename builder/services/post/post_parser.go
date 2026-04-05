@@ -25,7 +25,6 @@ import (
 type ParseConfig struct {
 	Source               []byte
 	Path                 string
-	Version              string
 	CleanHtmlRelPath     string
 	HtmlRelPath          string
 	KnownFrontmatterHash string
@@ -98,7 +97,6 @@ func ParseMarkdownMetadata(
 	ctx context.Context,
 	source []byte,
 	path string,
-	version string,
 	cleanHtmlRelPath string,
 	htmlRelPath string,
 	mdPool *sync.Pool,
@@ -130,10 +128,10 @@ func ParseMarkdownMetadata(
 	fm := extractFrontmatter(res.Metadata)
 	res.TOC = mdParser.GetTOC(mdCtx)
 
-	postLink := navigation.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
+	postLink := navigation.BuildAbsoluteURL(cfg.BaseURL, cleanHtmlRelPath)
 	readingTime := computeReadingTime(source, knownReadingTime)
 
-	res.Post = buildPostMetadata(fm, postLink, readingTime, version)
+	res.Post = buildPostMetadata(fm, postLink, readingTime)
 
 	// Step 5: Get plain text and build search record
 	res.PlainText = mdParser.GetPlainText(mdCtx)
@@ -196,7 +194,6 @@ func ParseMarkdown(cfg ParseConfig, ctx ParseContext) (*ParsedMarkdownResult, er
 		context.Background(),
 		cfg.Source,
 		cfg.Path,
-		cfg.Version,
 		cfg.CleanHtmlRelPath,
 		cfg.HtmlRelPath,
 		ctx.MdPool,

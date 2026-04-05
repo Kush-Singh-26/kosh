@@ -16,13 +16,11 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
-	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
-	"github.com/Kush-Singh-26/kosh/builder/services/wasm"
 )
 
 type PostChangeType int
@@ -36,13 +34,17 @@ const (
 
 type SiteBuilder interface {
 	Build(ctx context.Context) error
+	BuildLocked(ctx context.Context) error
 	BuildAssetOnly(ctx context.Context) error
+	BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool) error
 	SaveCaches()
 	RefreshBuildSession()
 	Commit(ctx context.Context) error
 	GetWatch() WatchCoordinator
 	GetRender() render.Service
 	GetPost() post.Service
+	LockBuild()
+	UnlockBuild()
 }
 
 type SearchManager interface {
@@ -59,7 +61,6 @@ type IncrementalDependencies struct {
 	Cache    svcCache.Service
 	Post     post.Service
 	Render   render.Service
-	Wasm     wasm.Service
 	Diagrams *cache.DiagramCacheAdapter
 }
 
@@ -132,20 +133,27 @@ func (m *Manager) BuildSingleFileChange(ctx context.Context, path string, op fsn
 }
 
 func (m *Manager) HandleMarkdownChange(ctx context.Context, path string) {
-	m.builder.RefreshBuildSession()
+	m.builder.LockBuild()
+	defer m.builder.UnlockBuild()
+
 	m.BuildSinglePost(ctx, path)
-	if err := m.builder.Commit(ctx); err != nil {
-		m.logger.Error("Sync/Commit failed", "error", err)
-		m.deletePostFromCache(path)
-		return
-	}
-	m.deps.Render.ClearRenderedFiles()
 }
 
 // HandleAssetChange handles CSS/JS changes
 func (m *Manager) HandleAssetChange(ctx context.Context, path string) {
-	m.logger.Info("CSS/JS changed, running full rebuild...")
-	if err := m.builder.BuildAssetOnly(ctx); err != nil {
+	m.builder.LockBuild()
+	defer m.builder.UnlockBuild()
+
+	ext := strings.ToLower(filepath.Ext(path))
+	forceImages := ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp" || ext == ".gif" || ext == ".svg"
+
+	if forceImages {
+		m.logger.Info("Image in static/ changed, running asset-only rebuild with image processing...")
+	} else {
+		m.logger.Info("CSS/JS changed, running asset-only rebuild (skipping image processing)...")
+	}
+
+	if err := m.builder.BuildAssetOnlyWithOptions(ctx, forceImages); err != nil {
 		m.logger.Error("Build failed", "error", err)
 		return
 	}
@@ -154,7 +162,10 @@ func (m *Manager) HandleAssetChange(ctx context.Context, path string) {
 
 // HandleOtherChange handles other file changes
 func (m *Manager) HandleOtherChange(ctx context.Context, path string) {
-	if err := m.builder.Build(ctx); err != nil {
+	m.builder.LockBuild()
+	defer m.builder.UnlockBuild()
+
+	if err := m.builder.BuildLocked(ctx); err != nil {
 		m.logger.Error("Build failed", "error", err)
 		return
 	}
@@ -166,27 +177,29 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 	source, err := afero.ReadFile(m.sourceFs, path)
 	if err != nil {
 		m.logger.Error("Error reading file", "path", path, "error", err)
-		if buildErr := m.triggerFullBuild(ctx); buildErr != nil {
+		if buildErr := m.builder.BuildLocked(ctx); buildErr != nil {
 			m.logger.Error("Full build failed", "error", buildErr)
 		}
 		return
 	}
 
-	relPath, version, htmlRelPath, cleanHtmlRelPath, err := m.ResolveContentPaths(path)
+	relPath, htmlRelPath, cleanHtmlRelPath, err := m.ResolveContentPaths(path)
 	if err != nil {
 		m.logger.Error("Path resolution failed", "error", err)
 		return
 	}
 
-	m.logger.Debug("incremental content path resolved", "path", path, "relative", relPath, "version", version)
+	m.logger.Debug("Incremental content path resolved", "path", path, "relative", relPath)
 
-	newFrontmatterHash, newBodyHash := m.ComputePostHashes(source)
+	// Ensure hashing matches scanner fallback behavior
+	fallbackTitle := strings.TrimSuffix(filepath.Base(path), ".md")
+	newFrontmatterHash, newBodyHash := m.ComputePostHashes(source, fallbackTitle)
 	changeType := m.DeterminePostChange(relPath, newFrontmatterHash, newBodyHash)
 
 	switch changeType {
 	case PostChangeNew, PostChangeFrontmatter:
 		m.logger.Info("New or frontmatter change detected, running full build...")
-		if err := m.triggerFullBuild(ctx); err != nil {
+		if err := m.builder.BuildLocked(ctx); err != nil {
 			m.logger.Error("Build failed", "error", err)
 		}
 		return
@@ -194,11 +207,14 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 	case PostChangeBody:
 		m.logger.Info("Content change detected, rebuilding single post...")
 
+		// Only refresh session and commit for body-only changes.
+		// Full builds (via BuildLocked) manage their own session.
+		m.builder.RefreshBuildSession()
+
 		parseRes, err := post.ParseMarkdown(
 			post.ParseConfig{
 				Source:           source,
 				Path:             path,
-				Version:          version,
 				CleanHtmlRelPath: cleanHtmlRelPath,
 				HtmlRelPath:      htmlRelPath,
 			},
@@ -218,7 +234,7 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 
 		if err := m.deps.Post.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
 			m.logger.Error("Failed to process single post", "error", err)
-			if err := m.triggerFullBuild(ctx); err != nil {
+			if err := m.builder.BuildLocked(ctx); err != nil {
 				m.logger.Error("Build failed", "error", err)
 				return
 			}
@@ -227,7 +243,15 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 				m.search.UpdateIndexedPostCache(relPath, parseRes)
 			}
 		}
+
+		if err := m.builder.Commit(ctx); err != nil {
+			m.logger.Error("Sync/Commit failed", "error", err)
+			m.deletePostFromCache(path)
+			return
+		}
+
 		m.builder.SaveCaches()
+		m.deps.Render.ClearRenderedFiles()
 
 		if watch := m.builder.GetWatch(); watch != nil {
 			watch.TriggerSearchRegeneration()
@@ -263,7 +287,7 @@ func (m *Manager) deletePostFromCache(path string) {
 }
 
 func (m *Manager) triggerFullBuild(ctx context.Context) error {
-	if err := m.builder.Build(ctx); err != nil {
+	if err := m.builder.BuildLocked(ctx); err != nil {
 		return err
 	}
 	m.builder.SaveCaches()
@@ -271,33 +295,29 @@ func (m *Manager) triggerFullBuild(ctx context.Context) error {
 }
 
 // ResolveContentPaths resolves various path formats for incremental builds.
-func (m *Manager) ResolveContentPaths(path string) (relPath, version, htmlRelPath, cleanHtmlRelPath string, err error) {
+func (m *Manager) ResolveContentPaths(path string) (relPath, htmlRelPath, cleanHtmlRelPath string, err error) {
 	contentRoot, err := filepath.Abs(m.cfg.ContentDir)
 	if err != nil {
-		return "", "", "", "", fmt.Errorf("failed to resolve content directory: %w", err)
+		return "", "", "", fmt.Errorf("failed to resolve content directory: %w", err)
 	}
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return "", "", "", "", fmt.Errorf("failed to resolve changed path: %w", err)
+		return "", "", "", fmt.Errorf("failed to resolve changed path: %w", err)
 	}
 	relPath, err = filepath.Rel(contentRoot, absPath)
 	if err != nil {
-		return "", "", "", "", fmt.Errorf("failed to compute content-relative path: %w", err)
+		return "", "", "", fmt.Errorf("failed to compute content-relative path: %w", err)
 	}
 	relPath = fspkg.NormalizePath(relPath)
-	version, relPath = navigation.GetVersionFromPath(fspkg.NormalizePath(filepath.Join("content", relPath)))
 
 	htmlRelPath = strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 	cleanHtmlRelPath = htmlRelPath
-	if version != "" {
-		cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, strings.ToLower(version)+"/")
-	}
-	return relPath, version, htmlRelPath, cleanHtmlRelPath, nil
+	return relPath, htmlRelPath, cleanHtmlRelPath, nil
 }
 
 // ComputePostHashes calculates frontmatter and body hashes for change detection.
-func (m *Manager) ComputePostHashes(source []byte) (frontmatterHash, bodyHash string) {
-	frontmatterHash, _ = hashing.GetFrontmatterHashFromSource(source)
+func (m *Manager) ComputePostHashes(source []byte, fallbackTitle string) (frontmatterHash, bodyHash string) {
+	frontmatterHash, _ = hashing.GetFrontmatterHashFromSource(source, fallbackTitle)
 	bodyHash = hashing.GetBodyHash(source)
 	return frontmatterHash, bodyHash
 }

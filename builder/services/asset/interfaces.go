@@ -33,6 +33,8 @@ type Service interface {
 	SetContentAssetsChannel(ch <-chan []models.ScannedAsset)
 	SetDiscoveryReady(ch chan struct{})
 	Build(ctx context.Context) error
+	BuildWithOptions(ctx context.Context, skipImages bool) error
 	DiscoveryReady() <-chan struct{}
 	BuildForAssetChange(ctx context.Context) (map[string]string, error)
+	BuildForAssetChangeWithOptions(ctx context.Context, forceImages bool) (map[string]string, error)
 }

@@ -8,13 +8,13 @@ import (
 )
 
 type navInfo struct {
-	postsByVersion   map[string][]models.PostMetadata
-	postPosByVersion map[string]map[string]int
+	allPosts []models.PostMetadata
+	postPos  map[string]int
 }
 
 func (s *postService) prepareNavigationInfo(files []models.ScannedFile) navInfo {
-	postsByVersion := make(map[string][]models.PostMetadata)
-	postPosByVersion := make(map[string]map[string]int)
+	var allPosts []models.PostMetadata
+	postPos := make(map[string]int)
 
 	for _, f := range files {
 		if f.Draft && !s.cfg.IncludeDrafts {
@@ -26,20 +26,17 @@ func (s *postService) prepareNavigationInfo(files []models.ScannedFile) navInfo 
 		}
 		post := models.PostMetadata{
 			Title: f.Title, Link: f.Link, Weight: f.Weight,
-			Pinned: f.Pinned, Draft: f.Draft, Version: f.Version,
+			Pinned: f.Pinned, Draft: f.Draft,
 			DateObj: d, Description: f.Description, Tags: f.Tags,
 			ReadingTime: f.ReadingTime,
 		}
-		postsByVersion[f.Version] = append(postsByVersion[f.Version], post)
+		allPosts = append(allPosts, post)
 	}
 
-	for ver, posts := range postsByVersion {
-		timeutil.SortPosts(posts)
-		postPosByVersion[ver] = make(map[string]int)
-		for i, p := range posts {
-			postPosByVersion[ver][p.Link] = i
-		}
+	timeutil.SortPosts(allPosts)
+	for i, p := range allPosts {
+		postPos[p.Link] = i
 	}
 
-	return navInfo{postsByVersion: postsByVersion, postPosByVersion: postPosByVersion}
+	return navInfo{allPosts: allPosts, postPos: postPos}
 }

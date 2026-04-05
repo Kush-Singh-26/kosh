@@ -4,7 +4,7 @@ This file is the detailed working guide for coding agents operating in the Kosh 
 
 ## What Kosh Is
 
-Kosh is a Go-based static site generator for blogs and documentation sites. It supports:
+Kosh is a Go-based static site generator for blogs. It supports:
 
 - full static builds
 - incremental watch-mode rebuilds
@@ -92,7 +92,7 @@ Important behavior:
 - `kosh clean`
 - `kosh clean --cache`
 - `kosh new "Title"`
-- `kosh version --info`
+- `kosh version`
 
 ### Important command semantics
 
@@ -299,9 +299,10 @@ Current behavior:
 
 - esbuild handles CSS/JS and hashed assets
 - root/static and theme/static files are copied via `CopyDirVFS`
-- eligible local `.png/.jpg/.jpeg` are converted to `.webp`
+- eligible local `.png/.jpg/.jpeg` are converted to `.webp` and originals removed from output
+- `CleanupOriginalImages` removes source raster files when `.webp` equivalents exist
 - `search.wasm` from source static trees must not overwrite deployed runtime WASM
-- logo/favicon may be exact-copied intentionally
+- `favicon.png`, `icon-192.png`, `icon-512.png` are always kept as `.png` (critical for browser/PWA)
 
 Current bottleneck for cold builds:
 
@@ -421,6 +422,7 @@ imageWorkers: 8
 - no loss of incremental single-post rebuild for body-only content edits
 - no clean-build publish partial-output state
 - no broken `.webp` link rewriting for eligible local raster images
+- no original raster images (.png/.jpg/.jpeg) left in output when .webp exists (except favicon.png, icon-192.png, icon-512.png)
 
 ## Testing Guidance
 

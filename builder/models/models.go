@@ -10,14 +10,13 @@ import (
 	"time"
 )
 
-//msgp:ignore TreeNode Breadcrumb NavPage VersionInfo PostMetadata TagData Paginator PageData URLSet URL Rss Channel Item GraphNode GraphLink GraphData LightPostMetadata MetadataScannerResult ScannedFile ScannedAsset MenuEntry AuthorConfig GeneratorsConfig FeaturesConfig SocialCardsConfig
+//msgp:ignore Breadcrumb NavPage PostMetadata TagData Paginator PageData URLSet URL Rss Channel Item GraphNode GraphLink GraphData LightPostMetadata MetadataScannerResult ScannedFile ScannedAsset MenuEntry AuthorConfig GeneratorsConfig FeaturesConfig SocialCardsConfig
 
 // LightPostMetadata is a minimal post metadata structure for site-wide discovery
 // and scanning. It contains the basic fields needed to identify a post and
 // determine if it needs a full rebuild.
 type LightPostMetadata struct {
 	Path        string
-	Version     string
 	Title       string
 	DateObj     time.Time
 	Tags        []string
@@ -31,19 +30,17 @@ type LightPostMetadata struct {
 }
 
 type MetadataScannerResult struct {
-	Metadata       []LightPostMetadata
-	TagMap         map[string][]LightPostMetadata
-	PostsByVersion map[string][]LightPostMetadata
-	Files          []ScannedFile
-	ContentAssets  []ScannedAsset
-	Has404         bool
+	Metadata      []LightPostMetadata
+	TagMap        map[string][]LightPostMetadata
+	Files         []ScannedFile
+	ContentAssets []ScannedAsset
+	Has404        bool
 }
 
 // ScannedFile carries minimal file info to avoid a second filesystem walk in post processing.
 type ScannedFile struct {
 	Path            string
 	RelPath         string
-	Version         string
 	Title           string
 	Description     string
 	Date            string
@@ -73,15 +70,6 @@ type TOCEntry struct {
 	Level int    `json:"level"`
 }
 
-type TreeNode struct {
-	Title     string      `json:"title"`
-	Link      string      `json:"link"`
-	Weight    int         `json:"weight"`
-	Children  []*TreeNode `json:"children"`
-	Active    bool        `json:"active"`     // For template helper
-	IsSection bool        `json:"is_section"` // True if node has children
-}
-
 type Breadcrumb struct {
 	Title     string
 	Link      string
@@ -91,14 +79,6 @@ type Breadcrumb struct {
 type NavPage struct {
 	Title string
 	Link  string
-}
-
-type VersionInfo struct {
-	Name      string
-	Path      string // Raw version path (e.g., "v7.0")
-	URL       string
-	IsLatest  bool
-	IsCurrent bool
 }
 
 // PostMetadata represents the frontmatter and derived data of a markdown post
@@ -114,7 +94,6 @@ type PostMetadata struct {
 	Pinned      bool
 	Draft       bool
 	DateObj     time.Time
-	Version     string // "v2.0", "v1.0", "" for latest
 }
 
 type TagData struct {
@@ -151,8 +130,6 @@ type PageData struct {
 	Permalink    string
 	Image        string
 	TOC          []TOCEntry
-	SiteTree     []*TreeNode
-	SidebarHTML  template.HTML
 	Paginator    Paginator
 	Assets       map[string]string
 	Weight       int
@@ -166,11 +143,6 @@ type PageData struct {
 
 	// Depth-aware pathing
 	RelativePrefix string // e.g., "../" for depth 1
-
-	// Versioning
-	CurrentVersion string
-	Versions       []VersionInfo
-	IsOutdated     bool
 
 	// Config-driven fields
 	Config TemplateConfig // To access Config fields in templates (Menu, Author, etc.)
@@ -301,7 +273,7 @@ type PostRecord struct {
 	Tags            []string
 	NormalizedTags  []string // Lowercase tags for search
 	Content         string   // Raw plain text for snippet extraction
-	Version         string   // Version scoping
+	Date            int64    // Unix timestamp for recency scoring
 }
 
 // IndexedPost bundles a search record with pre-computed word frequencies for BM25
@@ -315,7 +287,7 @@ type IndexedPost struct {
 	ByteOffsets     map[string][]uint32
 }
 
-const CurrentSchemaVersion = 11
+const CurrentSchemaVersion = 13
 
 type SearchIndex struct {
 	SchemaVersion int64

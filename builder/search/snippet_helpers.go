@@ -17,24 +17,29 @@ type snippetMatch struct {
 	term string
 }
 
-// truncateContent truncates content to MaxSnippetContentLength and aligns to rune boundaries
-func truncateContent(content string) string {
-	if len(content) <= MaxSnippetContentLength {
-		return content
+// truncateToLength truncates string s to maxLen and aligns to rune boundaries
+func truncateToLength(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
 	}
 
-	content = content[:MaxSnippetContentLength]
+	s = s[:maxLen]
 	// Align to rune boundary to avoid invalid UTF-8
-	for len(content) > 0 && !utf8.RuneStart(content[len(content)-1]) {
-		content = content[:len(content)-1]
+	for len(s) > 0 && !utf8.RuneStart(s[len(s)-1]) {
+		s = s[:len(s)-1]
 	}
 	// If the last byte is the start of a multi-byte rune but we don't have the rest,
 	// we should also trim it.
-	r, sz := utf8.DecodeLastRuneInString(content)
+	r, sz := utf8.DecodeLastRuneInString(s)
 	if r == utf8.RuneError && sz == 1 {
-		content = content[:len(content)-1]
+		s = s[:len(s)-1]
 	}
-	return content
+	return s
+}
+
+// truncateContent truncates content to MaxSnippetContentLength and aligns to rune boundaries
+func truncateContent(content string) string {
+	return truncateToLength(content, MaxSnippetContentLength)
 }
 
 // findMatches finds all term matches in the content
@@ -94,34 +99,74 @@ func scoreMatchWindow(matches []snippetMatch, termToIndex map[string]int, window
 	return count, mask
 }
 
-// findBestSnippetWindow finds the best window position for the snippet
-func findBestSnippetWindow(matches []snippetMatch, content string, termToIndex map[string]int) (start, end int) {
+// island represents a single snippet fragment
+type snippetIsland struct {
+	start int
+	end   int
+}
+
+// findBestSnippetIslands finds up to two best window positions for the snippet
+func findBestSnippetIslands(matches []snippetMatch, content string, termToIndex map[string]int) []snippetIsland {
 	if len(matches) == 0 {
-		return 0, min(DefaultSnippetLength, len(content))
+		return []snippetIsland{{start: 0, end: min(DefaultSnippetLength, len(content))}}
 	}
 
-	bestStart := matches[0].pos
-	maxScore := 0
 	windowSize := DefaultSnippetLength
+	if len(matches) > 1 {
+		windowSize = 100 // Smaller windows for multiple islands
+	}
 
-	// Find the window with the best score
+	type window struct {
+		start int
+		score int
+		idx   int // Index of the match that starts this window
+	}
+
+	var windows []window
 	for i := 0; i < len(matches); i++ {
 		count, mask := scoreMatchWindow(matches, termToIndex, windowSize, i)
-		score := uint64(bits.OnesCount64(mask))*100 + uint64(count)
-		if score > uint64(maxScore) {
-			maxScore = int(score)
-			bestStart = matches[i].pos
+		score := bits.OnesCount64(mask)*100 + count
+		windows = append(windows, window{start: matches[i].pos, score: score, idx: i})
+	}
+
+	// Sort windows by score descending
+	slices.SortFunc(windows, func(a, b window) int {
+		return b.score - a.score
+	})
+
+	best := windows[0]
+	islands := []snippetIsland{calculateIsland(best.start, windowSize, content)}
+
+	// Try to find a second island that doesn't overlap
+	for i := 1; i < len(windows); i++ {
+		curr := windows[i]
+		// Check for overlap with some margin
+		margin := 50
+		if curr.start > islands[0].end+margin || curr.start+windowSize < islands[0].start-margin {
+			// Good second island found
+			if curr.score > best.score/2 { // Only include if it's reasonably relevant
+				secondIsland := calculateIsland(curr.start, windowSize, content)
+				islands = append(islands, secondIsland)
+				break
+			}
 		}
 	}
 
-	// Calculate window boundaries with context
-	start = max(bestStart-SnippetContextBefore, 0)
-	// Align to rune boundary to avoid panic
+	// Sort islands by position
+	slices.SortFunc(islands, func(a, b snippetIsland) int {
+		return a.start - b.start
+	})
+
+	return islands
+}
+
+func calculateIsland(bestStart, windowSize int, content string) snippetIsland {
+	start := max(bestStart-SnippetContextBefore, 0)
 	for start > 0 && !utf8.RuneStart(content[start]) {
 		start--
 	}
 
-	end = start + windowSize + SnippetContextBefore
+	end := start + windowSize + SnippetContextBefore
 	if end > len(content) {
 		end = len(content)
 		start = max(end-(windowSize+SnippetContextBefore), 0)
@@ -129,13 +174,11 @@ func findBestSnippetWindow(matches []snippetMatch, content string, termToIndex m
 			start--
 		}
 	} else {
-		// Align end to rune boundary
 		for end < len(content) && !utf8.RuneStart(content[end]) {
 			end++
 		}
 	}
 
-	// Adjust start to word boundary if needed
 	if start > 0 {
 		idx := strings.Index(content[start:], " ")
 		if idx != -1 && idx < 15 {
@@ -143,22 +186,26 @@ func findBestSnippetWindow(matches []snippetMatch, content string, termToIndex m
 		}
 	}
 
-	return start, end
+	return snippetIsland{start: start, end: end}
 }
 
-// buildSnippetText builds the final snippet text with highlighted matches
-func buildSnippetText(content string, matches []snippetMatch, start, end int, hasMatches bool) string {
+// buildSnippetText builds the final snippet text with highlighted matches across islands
+func buildSnippetText(content string, matches []snippetMatch, islands []snippetIsland, hasMatches bool) string {
 	b := pools.SharedStringBuilderPool.Get()
-	b.Grow(int(float64(end-start) * 1.2))
 
-	if start > 0 {
-		b.WriteString("...")
+	totalLen := 0
+	for _, island := range islands {
+		totalLen += island.end - island.start
 	}
+	b.Grow(int(float64(totalLen) * 1.3))
 
 	if !hasMatches || len(matches) == 0 {
-		// No matches, just return truncated content
-		escapeToBuilder(b, content[start:end])
-		if end < len(content) {
+		island := islands[0]
+		if island.start > 0 {
+			b.WriteString("...")
+		}
+		escapeToBuilder(b, content[island.start:island.end])
+		if island.end < len(content) {
 			b.WriteString("...")
 		}
 		res := b.String()
@@ -166,42 +213,51 @@ func buildSnippetText(content string, matches []snippetMatch, start, end int, ha
 		return res
 	}
 
-	// Build snippet with highlighted matches
-	lastPos := start
-	for _, m := range matches {
-		if m.pos < start {
-			continue
-		}
-		if m.pos >= end {
-			break
-		}
-		if m.pos < lastPos {
-			continue
+	for i, island := range islands {
+		if i > 0 || island.start > 0 {
+			b.WriteString("...")
 		}
 
-		escapeToBuilder(b, content[lastPos:m.pos])
-
-		// Find word end (including trailing \w*)
-		actualEnd := m.pos + len(m.term)
-		// Match \w* behavior (unicode letter or number)
-		for actualEnd < end {
-			r, sz := utf8.DecodeRuneInString(content[actualEnd:])
-			if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' {
+		lastPos := island.start
+		for _, m := range matches {
+			if m.pos < island.start {
+				continue
+			}
+			if m.pos >= island.end {
 				break
 			}
-			actualEnd += sz
+			if m.pos < lastPos {
+				continue
+			}
+
+			escapeToBuilder(b, content[lastPos:m.pos])
+
+			actualEnd := m.pos + len(m.term)
+			if actualEnd > island.end {
+				actualEnd = island.end
+			}
+
+			for actualEnd < island.end {
+				r, sz := utf8.DecodeRuneInString(content[actualEnd:])
+				if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' {
+					break
+				}
+				actualEnd += sz
+			}
+
+			b.WriteString("<b>")
+			escapeToBuilder(b, content[m.pos:actualEnd])
+			b.WriteString("</b>")
+			lastPos = actualEnd
 		}
 
-		b.WriteString("<b>")
-		escapeToBuilder(b, content[m.pos:actualEnd])
-		b.WriteString("</b>")
-		lastPos = actualEnd
-	}
+		if lastPos < island.end {
+			escapeToBuilder(b, content[lastPos:island.end])
+		}
 
-	escapeToBuilder(b, content[lastPos:end])
-
-	if end < len(content) {
-		b.WriteString("...")
+		if i == len(islands)-1 && island.end < len(content) {
+			b.WriteString("...")
+		}
 	}
 
 	res := b.String()
@@ -214,7 +270,8 @@ func buildSimpleSnippet(content string) string {
 	if len(content) > DefaultSnippetLength {
 		b := pools.SharedStringBuilderPool.Get()
 		defer pools.SharedStringBuilderPool.Put(b)
-		escapeToBuilder(b, content[:DefaultSnippetLength])
+		truncated := truncateToLength(content, DefaultSnippetLength)
+		escapeToBuilder(b, truncated)
 		b.WriteString("...")
 		return b.String()
 	}
@@ -225,44 +282,35 @@ func buildSimpleSnippet(content string) string {
 }
 
 // ExtractSnippet extracts a search snippet from content, highlighting matching terms.
-// This is a refactored version using helper functions for better maintainability.
 func ExtractSnippet(content string, terms []string, termOffsets map[string][]int) string {
 	if len(content) == 0 {
 		return ""
 	}
 
-	// Truncate content if too long
 	content = truncateContent(content)
 
-	// Handle case with no search terms
 	if len(terms) == 0 {
 		return buildSimpleSnippet(content)
 	}
 
-	// Find all term matches
 	matches := findMatches(content, terms, termOffsets)
 
-	// If no matches found, return simple snippet
 	if len(matches) == 0 {
 		return buildSimpleSnippet(content)
 	}
 
-	// Sort matches by position
 	slices.SortFunc(matches, func(a, b snippetMatch) int {
 		return a.pos - b.pos
 	})
 
-	// Create term to index mapping for scoring
 	termToIndex := make(map[string]int, len(terms))
 	for i, t := range terms {
 		termToIndex[t] = i
 	}
 
-	// Find the best window position for the snippet
-	start, end := findBestSnippetWindow(matches, content, termToIndex)
+	islands := findBestSnippetIslands(matches, content, termToIndex)
 
-	// Build the final snippet with highlighted matches
-	return buildSnippetText(content, matches, start, end, true)
+	return buildSnippetText(content, matches, islands, true)
 }
 
 func escapeToBuilder(sb *strings.Builder, s string) {

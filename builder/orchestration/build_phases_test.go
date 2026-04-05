@@ -32,7 +32,16 @@ func TestSetupPhase(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, nil, wasmSvc, logger, buildMetrics, fs, nil, nil)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:   cfg,
+		Render:   renderSvc,
+		Asset:    assetSvc,
+		Post:     postSvc,
+		Wasm:     wasmSvc,
+		Logger:   logger,
+		Metrics:  buildMetrics,
+		SourceFs: fs,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -53,7 +62,12 @@ func TestAssetPhase(t *testing.T) {
 	assetSvc := &mocks.MockAssetService{}
 	cfg := &config.Config{}
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, nil, nil, nil, logger, nil, nil, nil, nil)
+	b := NewEngineFromManual(EngineDependencies{
+		Config: cfg,
+		Render: renderSvc,
+		Asset:  assetSvc,
+		Logger: logger,
+	})
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
 	ctx := context.Background()
@@ -84,7 +98,12 @@ func TestScanPhase(t *testing.T) {
 
 	logger := InitLogger()
 
-	b := NewEngineFromManual(cfg, nil, nil, nil, scanner, nil, logger, nil, fs, nil, nil)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:   cfg,
+		Scanner:  scanner,
+		Logger:   logger,
+		SourceFs: fs,
+	})
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
 	ctx := context.Background()
@@ -117,7 +136,11 @@ func TestCheckAssetsChanged(t *testing.T) {
 	})
 	cfg := &config.Config{}
 
-	b := NewEngineFromManual(cfg, renderSvc, nil, nil, nil, nil, logger, nil, nil, nil, nil)
+	b := NewEngineFromManual(EngineDependencies{
+		Config: cfg,
+		Render: renderSvc,
+		Logger: logger,
+	})
 
 	assetsReady := make(chan struct{})
 	close(assetsReady)
@@ -150,7 +173,10 @@ func TestShouldSkipSiteWideRendering(t *testing.T) {
 	cfg := &config.Config{
 		IsDev: true,
 	}
-	b := NewEngineFromManual(cfg, nil, nil, nil, nil, nil, logger, nil, nil, nil, nil)
+	b := NewEngineFromManual(EngineDependencies{
+		Config: cfg,
+		Logger: logger,
+	})
 
 	cb := &post.MetadataContext{
 		AnyPostChanged: false,
@@ -195,14 +221,20 @@ func TestFinalizePhase(t *testing.T) {
 	m := metrics.NewBuildMetrics()
 	logger := InitLogger()
 
-	b := NewEngineFromManual(cfg, renderSvc, nil, nil, nil, wasmSvc, logger, m, nil, nil, nil)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:  cfg,
+		Render:  renderSvc,
+		Wasm:    wasmSvc,
+		Logger:  logger,
+		Metrics: m,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
 	var wasmWg sync.WaitGroup
 	ctx := context.Background()
 
-	err := b.finalizePhase(ctx, &wasmWg)
+	err := b.finalizePhase(ctx, &wasmWg, nil)
 	if err != nil {
 		t.Fatalf("finalizePhase failed: %v", err)
 	}
