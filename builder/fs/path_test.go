@@ -160,7 +160,7 @@ func TestNormalizeWatchPath(t *testing.T) {
 		expected string
 	}{
 		{"no wd", "foo/bar", "", "foo/bar"},
-		{"absolute path with wd - escapes", "/home/user/project/foo", "/home/user/project", "/home/user/project/foo"}, // doesn't make relative if it escapes
+		{"absolute path with wd - escapes", "/home/user/other/foo", "/home/user/project", "/home/user/other/foo"}, // doesn't make relative if it escapes
 		{"relative path", "foo/bar", "/home/user", "foo/bar"},
 		{"empty path", "", "", "."},
 	}

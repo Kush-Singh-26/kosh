@@ -15,19 +15,21 @@ func TestAcquireBuildLock_MkdirError(t *testing.T) {
 		t.Skip("Skipping permission test on Windows - requires different approach")
 	}
 
-	// Create a temp directory, then make its parent read-only
+	// Create a temp directory, then make it read-only so creating a child fails
 	tmpBase := t.TempDir()
-	parentDir := filepath.Join(tmpBase, "parent")
-	if err := os.Mkdir(parentDir, 0755); err != nil {
-		t.Fatalf("Failed to create parent dir: %v", err)
-	}
-	// Make parent directory read-only
-	if err := os.Chmod(parentDir, 0555); err != nil {
+	if err := os.Chmod(tmpBase, 0555); err != nil {
 		t.Skipf("Cannot set directory permissions: %v", err)
 	}
-	defer func() { _ = os.Chmod(parentDir, 0755) }() // Cleanup
+	defer func() { _ = os.Chmod(tmpBase, 0755) }() // Cleanup
 
-	outputDir := filepath.Join(parentDir, "output")
+	// If permissions are not enforced (e.g., running as root), skip to avoid false failures.
+	probeDir := filepath.Join(tmpBase, "probe")
+	if err := os.Mkdir(probeDir, 0755); err == nil {
+		_ = os.Remove(probeDir)
+		t.Skip("Filesystem permissions not enforced; cannot simulate mkdir failure")
+	}
+
+	outputDir := filepath.Join(tmpBase, "parent", "output")
 	_, err := AcquireBuildLock(outputDir)
 	if err == nil {
 		t.Error("AcquireBuildLock should fail when cannot create output directory")
