@@ -88,11 +88,12 @@ func (h *consoleHandler) Handle(ctx context.Context, r slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	// Use fmt.Sprintf to avoid races in fmt package's internal state
 	color := getLevelColor(r.Level)
-
 	timeStr := r.Time.Format(h.timeFormat)
 
-	_, _ = fmt.Fprintf(h.output, "\033[90m%s\033[0m %s ", timeStr, color)
+	line := fmt.Sprintf("\033[90m%s\033[0m %s ", timeStr, color)
+	_, _ = fmt.Fprintf(h.output, "%s", line)
 	h.writeMessage(r.Message)
 
 	// Write handler attributes

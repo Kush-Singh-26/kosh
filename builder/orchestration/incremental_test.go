@@ -458,6 +458,9 @@ date: "2026-03-06"
 	logger := InitLogger()
 	nativeRenderer := native.New()
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
+	diagramCache := mdParser.NewMemorySSRMap()
+	d2Group := nativeRenderer.GetD2Singleflight()
+	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
@@ -480,6 +483,7 @@ date: "2026-03-06"
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
 		Logger:         logger,
+		MdPool:         mdPool,
 		SourceFs:       fs,
 		NativeRenderer: nativeRenderer,
 	})
@@ -495,6 +499,7 @@ date: "2026-03-06"
 		Logger:         logger,
 		Metrics:        metrics.NewBuildMetrics(),
 		SourceFs:       fs,
+		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
 	})
 	b.SetSink(testutil.NewMemSink())

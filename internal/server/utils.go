@@ -19,12 +19,19 @@ func validatePath(baseDir, userPath string) (string, error) {
 		return "", fmt.Errorf("invalid path encoding: %w", err)
 	}
 
+	// Reject UNC paths (\\server\share)
 	if strings.HasPrefix(decodedPath, "\\\\") {
 		return "", fmt.Errorf("absolute path attempt detected")
 	}
 
-	// Reject volume-based absolute paths (e.g. C:\Windows)
+	// Reject volume-based absolute paths (e.g. C:\Windows on Windows)
 	if vol := filepath.VolumeName(decodedPath); vol != "" {
+		return "", fmt.Errorf("absolute path attempt detected")
+	}
+
+	// Cross-platform check: reject paths that look like Windows absolute paths even on Linux
+	// Pattern: letter:/path (e.g., C:/Windows/System32)
+	if len(decodedPath) >= 2 && decodedPath[1] == ':' && ((decodedPath[0] >= 'a' && decodedPath[0] <= 'z') || (decodedPath[0] >= 'A' && decodedPath[0] <= 'Z')) {
 		return "", fmt.Errorf("absolute path attempt detected")
 	}
 
