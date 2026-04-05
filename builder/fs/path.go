@@ -3,7 +3,7 @@ package fs
 import (
 	"fmt"
 	"os"
-	"path"
+	pathpkg "path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -39,6 +39,11 @@ func NormalizePath(path string) string {
 	// Apply NFC normalization for consistent Unicode handling across platforms
 	path = norm.NFC.String(path)
 
+	// Normalize separators before cleaning so backslashes are handled on all OSes.
+	if strings.Contains(path, "\\") {
+		path = strings.ReplaceAll(path, "\\", "/")
+	}
+
 	// Clean the path and convert to forward slashes for internal consistency
 	path = filepath.ToSlash(filepath.Clean(path))
 
@@ -69,7 +74,7 @@ func NormalizeURLPath(p string) string {
 		return "."
 	}
 	p = strings.ReplaceAll(p, "\\", "/")
-	return path.Clean(p)
+	return pathpkg.Clean(p)
 }
 
 // NormalizeWatchPath normalizes a path from a file watcher, making it relative to the working directory if needed.
