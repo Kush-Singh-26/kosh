@@ -9,9 +9,23 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
   build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            out: kosh-linux-amd64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            out: kosh-windows-amd64.exe
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            out: kosh-darwin-arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,26 +35,45 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+
+      - name: Install MinGW (Windows)
+        if: runner.os == 'Windows'
+        run: choco install mingw -y
       
-      - name: Build binaries
+      - name: Build binary
+        env:
+          CGO_ENABLED: 1
         run: |
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o kosh-linux-amd64 ./cmd/kosh
-          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o kosh-linux-arm64 ./cmd/kosh
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o kosh-darwin-amd64 ./cmd/kosh
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o kosh-darwin-arm64 ./cmd/kosh
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o kosh-windows-amd64.exe ./cmd/kosh
-      
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o ${{ matrix.out }} ./cmd/kosh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: ${{ matrix.out }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: kosh-*
+          files: dist/**
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   notify:
-    needs: build
+    needs: release
     runs-on: ubuntu-latest
     steps:
       - name: Trigger portfolio rebuild
@@ -49,4 +82,4 @@ jobs:
           token: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
           repository: Kush-Singh-26/Kush-Singh-26.github.io
           event-type: kosh-updated
-          client-payload: '{"version": "${{ github.event.release.tag_name }}"}'
+          client-payload: '{"version": "${{ github.ref_name }}"}'
