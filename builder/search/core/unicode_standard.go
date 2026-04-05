@@ -4,6 +4,7 @@ package core
 
 import (
 	"html"
+	"time"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -29,4 +30,8 @@ func ToTitle(s string) string {
 
 func HTMLEscape(s string) string {
 	return html.EscapeString(s)
+}
+
+func NowUnix() int64 {
+	return time.Now().Unix()
 }

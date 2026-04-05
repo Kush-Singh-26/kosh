@@ -10,7 +10,6 @@ import (
 
 var (
 	cleanCache bool
-	cleanAll   bool
 )
 
 var cleanCmd = &cobra.Command{
@@ -18,8 +17,7 @@ var cleanCmd = &cobra.Command{
 	Short: "Clean output and rebuild",
 	Long: `Clean the output directory and immediately rebuild the site.
 
-Use --cache to also remove .kosh-cache and force a true cold rebuild.
-Use --all to clean all versioned output folders instead of preserving configured versions.`,
+Use --cache to also remove .kosh-cache and force a true cold rebuild.`,
 	Run: runClean,
 }
 
@@ -27,7 +25,6 @@ func init() {
 	rootCmd.AddCommand(cleanCmd)
 
 	cleanCmd.Flags().BoolVar(&cleanCache, "cache", false, "Also clean .kosh-cache directory")
-	cleanCmd.Flags().BoolVar(&cleanAll, "all", false, "Clean all versions including versioned folders")
 }
 
 func runClean(cmd *cobra.Command, args []string) {
@@ -36,7 +33,7 @@ func runClean(cmd *cobra.Command, args []string) {
 		mode = "Cold Rebuild"
 	}
 	printStartupBanner(mode, config.Load([]string{}))
-	clean.Run(cleanCache, cleanAll)
+	clean.Run(cleanCache)
 
 	orchestration.DevLogInfo("Rebuilding site...")
 	if err := orchestration.Run([]string{}); err != nil {

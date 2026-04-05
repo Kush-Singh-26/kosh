@@ -12,22 +12,13 @@ import (
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/spf13/afero"
 
 	"gopkg.in/yaml.v3"
 )
 
-type Version struct {
-	Name     string `yaml:"name"`
-	Path     string `yaml:"path"` // "" for latest, "v2.0", "v1.0", etc.
-	IsLatest bool   `yaml:"isLatest"`
-	Strategy string `yaml:"strategy"` // "snapshot" or "delta"
-}
-
 type ThemeConfig struct {
-	Name               string `yaml:"name"`
-	SupportsVersioning bool   `yaml:"supportsVersioning"`
+	Name string `yaml:"name"`
 }
 
 type SiteConfig struct {
@@ -64,7 +55,6 @@ type Config struct {
 	BuildOptions `yaml:",inline"`
 	PathConfig   `yaml:",inline"`
 
-	Versions      []Version                `yaml:"versions"` // Documentation versions
 	Features      models.FeaturesConfig    `yaml:"features"` // Enable/Disable features
 	ThemeMetadata ThemeConfig              `yaml:"-"`        // Loaded from theme.yaml
 	SocialCards   models.SocialCardsConfig `yaml:"socialCards"`
@@ -76,6 +66,7 @@ type Config struct {
 	BuildVersion   int64  `yaml:"-"`
 	IsDev          bool   `yaml:"-"`
 	KoshSourceRoot string `yaml:"-"` // Repository root for WASM compilation
+	SiteRoot       string `yaml:"-"` // Working directory where kosh.yaml was loaded
 
 	// Build configuration (loaded from kosh.build.yaml)
 	Build *BuildConfig `yaml:"-"`
@@ -254,56 +245,18 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 		cfg.KoshSourceRoot = fspkg.RepoRoot()
 	}
 
+	// Capture working directory (site root) for resolving site-level paths like ./static
+	if wd, err := os.Getwd(); err == nil {
+		cfg.SiteRoot = fspkg.NormalizePath(wd)
+	} else {
+		cfg.SiteRoot = "."
+	}
+
 	return cfg
 }
 
 func SetDevMode(cfg *Config, isDev bool) {
 	cfg.IsDev = isDev
-}
-
-// currentPath is the current page path (e.g., "getting-started.html") to preserve across version switches
-func (cfg *Config) GetVersionsMetadata(currentVersion, currentPath string) []models.VersionInfo {
-	if len(cfg.Versions) == 0 {
-		return nil
-	}
-
-	// Clean the current path - remove version prefix if present
-	cleanPath := currentPath
-	if currentVersion != "" && cleanPath != "" {
-		// Remove version prefix from path (e.g., "v2.0/getting-started.html" -> "getting-started.html")
-		prefix := currentVersion + "/"
-		cleanPath = strings.TrimPrefix(cleanPath, prefix)
-		// Also handle lowercase version prefix
-		prefixLower := strings.ToLower(currentVersion) + "/"
-		cleanPath = strings.TrimPrefix(cleanPath, prefixLower)
-	}
-
-	var results []models.VersionInfo
-	for _, v := range cfg.Versions {
-		// Build URL preserving the current page path
-		var url string
-		if v.Path == "" {
-			// Latest version - use root path with cleanPath
-			url = navigation.BuildURL(cfg.BaseURL, "", cleanPath)
-		} else {
-			// Versioned path - prepend version to cleanPath
-			url = navigation.BuildURL(cfg.BaseURL, v.Path, cleanPath)
-		}
-
-		name := v.Name
-		if v.IsLatest {
-			name = v.Name + " (Latest)"
-		}
-
-		results = append(results, models.VersionInfo{
-			Name:      name,
-			Path:      v.Path,
-			URL:       url,
-			IsLatest:  v.IsLatest,
-			IsCurrent: v.Path == currentVersion,
-		})
-	}
-	return results
 }
 
 // TemplateConfig interface implementation

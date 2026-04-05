@@ -208,7 +208,7 @@
 
 # Kosh
 
-Kosh is a high-performance static site generator written in Go for blogs and documentation sites. It focuses on fast incremental rebuilds, safe atomic publishing, modern frontend bundling, server-side rendering for math/diagrams, and a Go+WASM search engine.
+Kosh is a high-performance static site generator written in Go for blogs. It focuses on fast incremental rebuilds, safe atomic publishing, modern frontend bundling, server-side rendering for math/diagrams, and a Go+WASM search engine.
 
 ## Current State
 

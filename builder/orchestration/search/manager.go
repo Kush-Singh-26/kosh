@@ -211,7 +211,6 @@ func (m *Manager) ensureIndexedPosts() ([]models.IndexedPost, error) {
 				Description:     postMeta.Description,
 				Tags:            postMeta.Tags,
 				NormalizedTags:  searchRec.NormalizedTags,
-				Version:         postMeta.Version,
 			},
 			SourcePath:      postMeta.Path,
 			WordFreqs:       searchRec.BM25Data,

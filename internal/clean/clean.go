@@ -16,11 +16,11 @@ import (
 // cleanupWg tracks background deletion goroutines for proper shutdown
 var cleanupWg sync.WaitGroup
 
-func Run(cleanCache, cleanAllVersions bool) {
-	RunFs(afero.NewOsFs(), cleanCache, cleanAllVersions, buildCtx.DetectTestingMode())
+func Run(cleanCache bool) {
+	RunFs(afero.NewOsFs(), cleanCache, buildCtx.DetectTestingMode())
 }
 
-func RunFs(fs afero.Fs, cleanCache, cleanAllVersions bool, isTesting bool) {
+func RunFs(fs afero.Fs, cleanCache bool, isTesting bool) {
 	start := time.Now()
 
 	// Get outputDir from config (fallback to "public")
@@ -30,11 +30,7 @@ func RunFs(fs afero.Fs, cleanCache, cleanAllVersions bool, isTesting bool) {
 		outputDir = cfg.OutputDir
 	}
 
-	if cleanAllVersions {
-		cleanDirAsync(fs, outputDir, isTesting)
-	} else {
-		cleanRootFilesOnly(fs, outputDir, cfg, isTesting)
-	}
+	cleanDirAsync(fs, outputDir, isTesting)
 
 	if cleanCache {
 		cacheDir := ".kosh-cache"
@@ -87,57 +83,4 @@ func removePathAsync(fs afero.Fs, path string) {
 		defer cleanupWg.Done()
 		_ = fs.RemoveAll(tempPath)
 	}()
-}
-
-func cleanRootFilesOnly(fs afero.Fs, outputDir string, cfg *config.Config, isTesting bool) {
-	exists, _ := afero.Exists(fs, outputDir)
-	if !exists {
-		return
-	}
-
-	if cfg == nil {
-		slog.Info("Failed to load config, cleaning entire directory", "dir", outputDir)
-		cleanDirAsync(fs, outputDir, isTesting)
-		return
-	}
-
-	preservePaths := make(map[string]bool)
-	for _, v := range cfg.Versions {
-		if v.Path != "" {
-			preservePaths[v.Path] = true
-		}
-	}
-
-	if len(preservePaths) == 0 {
-		slog.Info("No versions configured, cleaning entire directory", "dir", outputDir)
-		cleanDirAsync(fs, outputDir, isTesting)
-		return
-	}
-
-	files, err := afero.ReadDir(fs, outputDir)
-	if err != nil {
-		slog.Error("Failed to read output directory", "error", err)
-		return
-	}
-
-	var toDelete []string
-	for _, f := range files {
-		name := f.Name()
-		if !preservePaths[name] {
-			toDelete = append(toDelete, name)
-		}
-	}
-
-	if len(toDelete) == 0 {
-		slog.Info("No files to clean (only version folders present)")
-		return
-	}
-
-	slog.Info("Cleaning root files, preserving version folders",
-		"items", len(toDelete), "versions", len(preservePaths))
-
-	for _, name := range toDelete {
-		itemPath := filepath.Join(outputDir, name)
-		removePathAsync(fs, itemPath)
-	}
 }

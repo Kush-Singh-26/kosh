@@ -75,10 +75,10 @@ func TestFullPipeline(t *testing.T) {
 			contains: []string{"href=\"https://example.com/root-path.html\""},
 		},
 		{
-			name:     "Versioned Link Transformation",
+			name:     "Relative Link Transformation",
 			markdown: "[Link](../other-post.md)",
-			contains: []string{"href=\"other-post.html\""},
-			filePath: "content/v1.0/posts/test.md",
+			contains: []string{"href=\"../other-post.html\""},
+			filePath: "content/posts/subdir/test.md",
 		},
 	}
 

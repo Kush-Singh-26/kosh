@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
@@ -32,17 +33,16 @@ func (b *Engine) refreshBuildSession() {
 			tx.CleanupStaleBuildDirs(b.Cfg.OutputDir)
 		}
 		b.Tx = tx.NewBuildTransaction(b.Cfg.OutputDir, useStaging)
-		b.Sink = fspkg.NewDiskSink(b.Tx.StagingDir(), b.Cfg.OutputDir)
+		b.SetSink(fspkg.NewDiskSink(b.Tx.StagingDir(), b.Cfg.OutputDir))
+	} else {
+		// Even if sink is already set (e.g. in tests), reconfigure services with current Fs
+		b.SetSink(b.Sink)
 	}
-
-	// Consolidated service reconfiguration - single explicit call per service
-	b.Deps.Post.ReconfigureForBuild(b.Sink, b.SourceFs)
-	b.Deps.Asset.ReconfigureForBuild(b.Sink, b.SourceFs)
-	b.Deps.Render.ReconfigureForBuild(b.Sink, b.SourceFs)
 }
 
-// build executes the build logic without locking (internal use)
-func (b *Engine) build(ctx context.Context) error {
+// BuildLocked executes the build logic without locking.
+// This is used internally and by the incremental manager when it already holds the build lock.
+func (b *Engine) BuildLocked(ctx context.Context) error {
 	setup, err := b.setupPhase(ctx)
 	if err != nil {
 		return err
@@ -58,10 +58,13 @@ func (b *Engine) build(ctx context.Context) error {
 	}
 
 	close(contentAssetsChan)
-	return b.finalizePhase(ctx, setup.wasmWg)
+	return b.finalizePhase(ctx, setup.wasmWg, assets.assetsReady)
 }
 
 func (b *Engine) buildAssetOnly(ctx context.Context) error {
+	b.State.IsAssetOnlyBuild = true
+	defer func() { b.State.IsAssetOnlyBuild = false }()
+
 	// Start fresh session/tracking state
 	b.refreshBuildSession()
 
@@ -69,7 +72,7 @@ func (b *Engine) buildAssetOnly(ctx context.Context) error {
 		b.Deps.Post.SetAssetsGate(nil)
 		b.State.ForceGenerators.Store(true)
 
-		metadataResult, err := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.SourceFs, b.Cfg, nil)
+		metadataResult, err := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.Deps.SourceFs, b.Cfg, nil)
 		if err != nil {
 			return fmt.Errorf("metadata scan failed: %w", err)
 		}
@@ -82,15 +85,23 @@ func (b *Engine) buildAssetOnly(ctx context.Context) error {
 			return fmt.Errorf("post processing failed: %w", err)
 		}
 
+		// Batch rewrite image paths in output HTML for converted images.
+		// Without this, asset-only rebuilds (CSS/JS changes) would publish HTML
+		// with stale .png/.jpg references while the actual files are .webp.
+		assets.RewriteImagePaths(b.Tx.StagingDir())
+
+		// Remove original raster images when .webp equivalents exist
+		assets.CleanupOriginalImages(b.Tx.StagingDir())
+
 		if err := b.Tx.Commit(ctx); err != nil {
 			return fmt.Errorf("failed to publish build transaction: %w", err)
 		}
 
 		b.cleanupOrphans()
 
-		b.Metrics.RecordEnd()
-		b.Logger.Info("Build complete")
-		b.Metrics.Print()
+		b.Deps.Metrics.RecordEnd()
+		b.Deps.Logger.Info("Build complete")
+		b.Deps.Metrics.Print()
 
 		return nil
 	})
@@ -102,8 +113,8 @@ func (b *Engine) Build(ctx context.Context) error {
 	defer b.State.BuildMu.Unlock()
 
 	// Reset per-build metrics so watch-mode rebuilds don't accumulate counters.
-	if b.Metrics != nil {
-		b.Metrics.Reset()
+	if b.Deps.Metrics != nil {
+		b.Deps.Metrics.Reset()
 	}
 
 	// Acquire build lock to prevent concurrent builds (skip in tests)
@@ -115,17 +126,17 @@ func (b *Engine) Build(ctx context.Context) error {
 			if !b.Cfg.ForceLock {
 				return fmt.Errorf("could not acquire build lock: %w (use --force-lock to override)", lockErr)
 			}
-			b.Logger.Warn("Acquiring build lock failed, but continuing due to --force-lock", "error", lockErr)
+			b.Deps.Logger.Warn("Acquiring build lock failed, but continuing due to --force-lock", "error", lockErr)
 		} else {
 			defer func() {
 				if buildLock != nil {
 					if err := buildLock.Release(); err != nil {
-						b.Logger.Error("Failed to release build lock", "error", err)
+						b.Deps.Logger.Error("Failed to release build lock", "error", err)
 					}
 				}
 			}()
 		}
 	}
 
-	return b.build(ctx)
+	return b.BuildLocked(ctx)
 }

@@ -2,7 +2,6 @@ package post
 
 import (
 	"context"
-	"html/template"
 	"io"
 	"log/slog"
 	"os"
@@ -57,7 +56,6 @@ func (m *mockRenderService) RenderPage(path string, data models.PageData) error 
 func (m *mockRenderService) RenderIndex(path string, data models.PageData) error      { return nil }
 func (m *mockRenderService) Render404(path string, data models.PageData) error        { return nil }
 func (m *mockRenderService) RenderGraph(path string, data models.PageData) error      { return nil }
-func (m *mockRenderService) RenderSidebar(tree []*models.TreeNode) template.HTML      { return "" }
 func (m *mockRenderService) RegisterFile(path string)                                 {}
 func (m *mockRenderService) SetAssets(assets map[string]string)                       {}
 func (m *mockRenderService) GetAssets() map[string]string                             { return nil }
@@ -167,7 +165,7 @@ func (m *mockCacheService) GetGraphHash() (string, error)                       
 func (m *mockCacheService) SetGraphHash(hash string) error                          { return nil }
 func (m *mockCacheService) GetWasmHash() (string, error)                            { return "", nil }
 func (m *mockCacheService) SetWasmHash(hash string) error                           { return nil }
-func (m *mockCacheService) GetPostsMetadataByVersion(version string) ([]cache.PostListMeta, error) {
+func (m *mockCacheService) GetAllPostsMetadata() ([]cache.PostListMeta, error) {
 	return nil, nil
 }
 func (m *mockCacheService) StoreHTML(content []byte) (string, error)                    { return "", nil }
@@ -360,7 +358,7 @@ func TestDecoupledPipeline(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Semantic Parse
-	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "", "test.html", "test.html", mdPool, cfg, "", 0, 0, nil)
+	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "test.html", "test.html", mdPool, cfg, "", 0, 0, nil)
 	if err != nil {
 		t.Fatalf("ParseMarkdownMetadata failed: %v", err)
 	}

@@ -46,8 +46,6 @@ func setupTestRenderer(t *testing.T) *Renderer {
 <body><h1>404 - Page Not Found</h1></body>
 </html>`))
 
-	sidebarTmpl := template.Must(template.New("sidebar").Parse(`<nav>{{range .SiteTree}}<a href="{{.Link}}">{{.Title}}</a>{{end}}</nav>`))
-
 	r := &Renderer{
 		Sink:        sink,
 		Assets:      make(map[string]string),
@@ -58,7 +56,6 @@ func setupTestRenderer(t *testing.T) *Renderer {
 		Index:       indexTmpl,
 		Graph:       graphTmpl,
 		NotFound:    notFoundTmpl,
-		Sidebar:     sidebarTmpl,
 	}
 
 	return r
@@ -321,55 +318,6 @@ func TestRenderer_Render404_NilTemplates(t *testing.T) {
 
 	if exists {
 		t.Error("Render404 with nil templates should not register file")
-	}
-}
-
-func TestRenderer_RenderSidebar_Success(t *testing.T) {
-	r := setupTestRenderer(t)
-
-	tree := []*models.TreeNode{
-		{Title: "Home", Link: "/", Weight: 1},
-		{Title: "About", Link: "/about", Weight: 2},
-		{Title: "Blog", Link: "/blog", Weight: 3},
-	}
-
-	html := r.RenderSidebar(tree)
-
-	if html == "" {
-		t.Error("RenderSidebar should return HTML")
-	}
-
-	if !strings.Contains(string(html), "Home") {
-		t.Error("RenderSidebar should contain 'Home'")
-	}
-
-	if !strings.Contains(string(html), "About") {
-		t.Error("RenderSidebar should contain 'About'")
-	}
-}
-
-func TestRenderer_RenderSidebar_NilSidebar(t *testing.T) {
-	r := setupTestRenderer(t)
-	r.Sidebar = nil
-
-	tree := []*models.TreeNode{
-		{Title: "Home", Link: "/"},
-	}
-
-	html := r.RenderSidebar(tree)
-
-	if html != "" {
-		t.Error("RenderSidebar with nil sidebar should return empty string")
-	}
-}
-
-func TestRenderer_RenderSidebar_EmptyTree(t *testing.T) {
-	r := setupTestRenderer(t)
-
-	html := r.RenderSidebar([]*models.TreeNode{})
-
-	if html == "" {
-		t.Error("RenderSidebar with empty tree should still render sidebar template")
 	}
 }
 

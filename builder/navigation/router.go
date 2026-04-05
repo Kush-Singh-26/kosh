@@ -15,22 +15,19 @@ type PostPaths struct {
 	CardImageURL     string
 }
 
-func ComputePathVars(outputDir, relPath, version string) (htmlRelPath, cleanHtmlRelPath, destPath string) {
+func ComputePathVars(outputDir, relPath string) (htmlRelPath, cleanHtmlRelPath, destPath string) {
 	relPath = filepath.ToSlash(relPath)
 	htmlRelPath = strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
 
 	cleanHtmlRelPath = htmlRelPath
-	if version != "" {
-		versionPrefix := strings.ToLower(version) + "/"
-		cleanHtmlRelPath = strings.TrimPrefix(htmlRelPath, versionPrefix)
-	}
-
-	if version != "" {
-		destPath = filepath.Join(outputDir, version, cleanHtmlRelPath)
-	} else {
-		destPath = filepath.Join(outputDir, htmlRelPath)
-	}
+	destPath = filepath.Join(outputDir, htmlRelPath)
 	return
+}
+
+func BuildAbsoluteURL(baseURL, relPath string) string {
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	relPath = strings.TrimPrefix(relPath, "/")
+	return baseURL + "/" + relPath
 }
 
 func CardPaths(baseURL, outputDir, htmlRelPath string) (cardRelPath, cardDestPath, cardImageURL string) {

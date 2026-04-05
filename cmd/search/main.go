@@ -18,7 +18,6 @@ import (
 var (
 	index       models.SearchIndex
 	lastQuery   string
-	lastVersion string
 	lastResults []interface{}
 )
 
@@ -28,9 +27,25 @@ func main() {
 
 	js.Global().Set("initSearch", js.FuncOf(initSearch))
 	js.Global().Set("searchPosts", js.FuncOf(searchPosts))
+	js.Global().Set("getSuggestions", js.FuncOf(getSuggestions))
 
 	println("WASM Search Engine Ready")
 	<-c
+}
+
+func getSuggestions(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return nil
+	}
+	prefix := args[0].String()
+	suggestions := search.GetSuggestions(&index, prefix)
+
+	jsSug := make([]interface{}, 0, len(suggestions))
+	for _, s := range suggestions {
+		jsSug = append(jsSug, s)
+	}
+
+	return js.ValueOf(jsSug)
 }
 
 func initSearch(this js.Value, args []js.Value) interface{} {
@@ -166,17 +181,13 @@ func searchPosts(this js.Value, args []js.Value) interface{} {
 		return nil
 	}
 	query := args[0].String()
-	versionFilter := ""
-	if len(args) >= 2 {
-		versionFilter = args[1].String()
-	}
 
 	// Simple exact/prefix cache
-	if query == lastQuery && versionFilter == lastVersion && lastResults != nil {
+	if query == lastQuery && lastResults != nil {
 		return js.ValueOf(lastResults)
 	}
 
-	results := search.PerformSearch(&index, query, versionFilter)
+	results := search.PerformSearch(&index, query)
 
 	finalResults := make([]interface{}, 0, len(results))
 	for _, res := range results {
@@ -185,13 +196,11 @@ func searchPosts(this js.Value, args []js.Value) interface{} {
 		jsRes["link"] = res.Link
 		jsRes["description"] = res.Description
 		jsRes["snippet"] = res.Snippet
-		jsRes["version"] = res.Version
 		jsRes["score"] = res.Score
 		finalResults = append(finalResults, jsRes)
 	}
 
 	lastQuery = query
-	lastVersion = versionFilter
 	lastResults = finalResults
 
 	return js.ValueOf(finalResults)

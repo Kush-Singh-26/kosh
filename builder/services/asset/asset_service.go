@@ -7,11 +7,19 @@ package asset
 
 import (
 	"context"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
+	"sync/atomic"
+
+	"github.com/zeebo/xxh3"
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -98,133 +106,361 @@ type assetTask struct {
 	info    fs.FileInfo
 }
 
+type imageCopyTask struct {
+	task assetTask
+	opts assets.ProcessImageOptions
+}
+
+func isWebPCandidate(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	return ext == ".jpg" || ext == ".jpeg" || ext == ".png"
+}
+
+// syncStaticAssets discovers and copies all static assets to the sink synchronously.
+// For images, it performs cache-lookup and copies cache-hit images immediately.
+// For cache-miss images, it returns them in imageQueue for caller to process.
+// This method is used by both Build() (in background) and BuildForAssetChange() (inline).
+func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Context, skipImages bool) (imageQueue []imageCopyTask, err error) {
+	themeDir := s.cfg.StaticDir
+	if themeDir == "" {
+		themeDir = "themes/blog/static"
+	}
+	siteStaticDir := "static"
+	if s.cfg.SiteRoot != "" {
+		siteStaticDir = filepath.Join(s.cfg.SiteRoot, "static")
+	}
+	debugAssets := os.Getenv("KOSH_DEBUG_ASSETS") == "1"
+	var siteFiles, themeFiles, siteEnqueued, themeEnqueued int64
+	var relErrs int64
+	var siteSamples, themeSamples []string
+	var sampleMu sync.Mutex
+
+	numWorkers := s.cfg.ImageWorkers
+	if numWorkers <= 0 {
+		numWorkers = runtime.NumCPU()
+	}
+
+	assetChan := make(chan assetTask, 512)
+	var seen sync.Map
+
+	copyGroup, copyCtx := errgroup.WithContext(ctx)
+	copyGroup.SetLimit(256)
+
+	workerWg := sync.WaitGroup{}
+	workerWg.Add(1)
+	go func() {
+		defer workerWg.Done()
+		for task := range assetChan {
+			t := task
+			copyGroup.Go(func() error {
+				dst := filepath.Join(s.cfg.OutputDir, t.relPath)
+				opts := assets.CopyOptions{
+					Compress:     s.cfg.CompressImages,
+					MinifySVGs:   s.cfg.MinifySVGs,
+					KeepOriginal: false,
+					CacheDir:     s.cfg.CacheDir + "/images",
+					WebPQuality:  s.cfg.WebPQuality,
+					Metrics:      s.metrics,
+					OnWrite:      s.renderer.RegisterFile,
+					ImageWorkers: s.cfg.ImageWorkers,
+				}
+				return assets.CopyFileWithOptionalImageProcessing(assets.ProcessImageOptions{
+					Ctx:     copyCtx,
+					SrcFs:   s.sourceFs,
+					Sink:    s.sink,
+					SrcPath: t.srcPath,
+					DstPath: dst,
+					RelPath: t.relPath,
+					SrcInfo: t.info,
+					Opts:    opts,
+					Scheduler: func() scheduler.BuildScheduler {
+						if s.ctx != nil {
+							return s.ctx.Scheduler
+						}
+						return nil
+					}(),
+				})
+			})
+		}
+	}()
+
+	walkerWg := sync.WaitGroup{}
+	discoveryGroup, dCtx := errgroup.WithContext(ctx)
+	walkConcurrency := max(numWorkers/2, 4)
+
+	var imageQueueMu sync.Mutex
+
+	enqueue := func(t assetTask) {
+		if s.cfg.CompressImages && isWebPCandidate(t.srcPath) {
+			dst := filepath.Join(s.cfg.OutputDir, t.relPath)
+			dstWebp := dst[:len(dst)-len(filepath.Ext(dst))] + ".webp"
+
+			// Optimization: If skipImages is true and we are in dev mode (direct-to-output),
+			// check if the destination already exists. If it does, we just register it
+			// so that it doesn't get cleaned up as an orphan.
+			if skipImages && s.cfg.IsDev {
+				if _, err := s.sink.Stat(dstWebp); err == nil {
+					// Register it in the converted-images map so HTML rewrites work
+					relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(t.relPath), "/")
+					relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
+					assets.RecordConvertedImage(relSrc, relDst)
+					assets.RecordConvertedImage(strings.TrimPrefix(relSrc, "/"), relDst)
+
+					// Register it with the sink so it isn't cleaned up by cleanupOrphans
+					s.sink.Register(dstWebp)
+					if s.renderer != nil {
+						s.renderer.RegisterFile(dstWebp)
+					}
+					return
+				}
+			}
+
+			err := assets.CopyFromDiskCache(s.sourceFs, s.sink, t.relPath, t.srcPath, dstWebp,
+				s.cfg.CacheDir+"/images", t.info, s.metrics, s.renderer.RegisterFile, s.cfg.IsDev || s.cfg.Features.RawMarkdown, skipImages)
+			if err == nil {
+				return
+			}
+			if !errors.Is(err, assets.ErrCacheMiss) {
+				s.logger.Warn("Disk cache lookup failed", "path", t.srcPath, "error", err)
+			}
+			imgOpts := assets.ProcessImageOptions{
+				Ctx:     bgCtx,
+				SrcFs:   s.sourceFs,
+				Sink:    s.sink,
+				SrcPath: t.srcPath,
+				DstPath: dstWebp,
+				RelPath: t.relPath,
+				SrcInfo: t.info,
+				Opts: assets.CopyOptions{
+					Compress:     s.cfg.CompressImages,
+					MinifySVGs:   s.cfg.MinifySVGs,
+					KeepOriginal: false,
+					CacheDir:     s.cfg.CacheDir + "/images",
+					WebPQuality:  s.cfg.WebPQuality,
+					Metrics:      s.metrics,
+					OnWrite:      s.renderer.RegisterFile,
+					ImageWorkers: s.cfg.ImageWorkers,
+					Scheduler: func() scheduler.BuildScheduler {
+						if s.ctx != nil {
+							return s.ctx.Scheduler
+						}
+						return nil
+					}(),
+				},
+			}
+			imageQueueMu.Lock()
+			imageQueue = append(imageQueue, imageCopyTask{task: t, opts: imgOpts})
+			imageQueueMu.Unlock()
+			return
+		}
+		assetChan <- t
+	}
+
+	walkFunc := func(ctx context.Context, dir, label string, isSite bool) error {
+		exists, _ := afero.Exists(s.sourceFs, dir)
+		if !exists {
+			return nil
+		}
+		walkerWg.Add(1)
+		go func() {
+			defer walkerWg.Done()
+			_ = fspkg.ParallelWalk(ctx, s.sourceFs, dir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
+				if err != nil || info.IsDir() {
+					return nil
+				}
+				if debugAssets {
+					if isSite {
+						atomic.AddInt64(&siteFiles, 1)
+					} else {
+						atomic.AddInt64(&themeFiles, 1)
+					}
+				}
+				if filepath.Base(path) == "search.wasm" {
+					return nil
+				}
+				rel, relErr := fspkg.SafeRel(dir, path)
+				if relErr != nil || rel == "" {
+					baseNorm := fspkg.NormalizePath(dir)
+					pathNorm := fspkg.NormalizePath(path)
+					if !fspkg.IsPathInOrSame(pathNorm, baseNorm) {
+						if debugAssets {
+							atomic.AddInt64(&relErrs, 1)
+						}
+						return nil
+					}
+					rel = strings.TrimPrefix(pathNorm, baseNorm)
+					rel = strings.TrimPrefix(rel, "/")
+					if rel == "" {
+						if debugAssets {
+							atomic.AddInt64(&relErrs, 1)
+						}
+						return nil
+					}
+				}
+				fullRel := "static/" + rel
+				if _, loaded := seen.LoadOrStore(fullRel, true); !loaded {
+					if debugAssets {
+						if isSite {
+							atomic.AddInt64(&siteEnqueued, 1)
+						} else {
+							atomic.AddInt64(&themeEnqueued, 1)
+						}
+						sampleMu.Lock()
+						if isSite && len(siteSamples) < 5 {
+							siteSamples = append(siteSamples, fullRel)
+						} else if !isSite && len(themeSamples) < 5 {
+							themeSamples = append(themeSamples, fullRel)
+						}
+						sampleMu.Unlock()
+					}
+					enqueue(assetTask{srcPath: path, relPath: fullRel, info: info})
+				}
+				return nil
+			})
+		}()
+		return nil
+	}
+
+	themeDirNorm := fspkg.NormalizePath(themeDir)
+	siteStaticNorm := fspkg.NormalizePath(siteStaticDir)
+	sameStatic := themeDirNorm == siteStaticNorm
+	if runtime.GOOS == "windows" {
+		sameStatic = strings.EqualFold(themeDirNorm, siteStaticNorm)
+	}
+
+	if !sameStatic {
+		// Use parent ctx, not dCtx: walkFunc spawns async goroutines that outlive
+		// the discoveryGroup. dCtx is cancelled when Wait() returns, which would
+		// abort the still-running ParallelWalk.
+		discoveryGroup.Go(func() error { return walkFunc(ctx, siteStaticDir, "site", true) })
+	}
+
+	discoveryGroup.Go(func() error { return walkFunc(ctx, themeDir, "theme", false) })
+
+	if s.contentAssetsChan != nil {
+		discoveryGroup.Go(func() error {
+			select {
+			case contentAssets, ok := <-s.contentAssetsChan:
+				if ok && contentAssets != nil {
+					for _, a := range contentAssets {
+						rel, _ := fspkg.SafeRel(s.cfg.ContentDir, a.Path)
+						if _, loaded := seen.LoadOrStore(rel, true); !loaded {
+							enqueue(assetTask{srcPath: a.Path, relPath: rel, info: a.Info})
+						}
+					}
+				}
+			case <-dCtx.Done():
+				return dCtx.Err()
+			}
+			return nil
+		})
+	}
+
+	err = discoveryGroup.Wait()
+	walkerWg.Wait()
+	close(assetChan)
+	workerWg.Wait()
+
+	if debugAssets {
+		s.logger.Info("Static discovery stats",
+			"site_dir", siteStaticDir,
+			"theme_dir", themeDir,
+			"site_files", atomic.LoadInt64(&siteFiles),
+			"theme_files", atomic.LoadInt64(&themeFiles),
+			"site_enqueued", atomic.LoadInt64(&siteEnqueued),
+			"theme_enqueued", atomic.LoadInt64(&themeEnqueued),
+			"rel_errors", atomic.LoadInt64(&relErrs),
+			"site_samples", siteSamples,
+			"theme_samples", themeSamples,
+		)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	s.copyCriticalAssets()
+
+	if err := copyGroup.Wait(); err != nil {
+		return nil, err
+	}
+
+	return imageQueue, nil
+}
+
+// Build executes the asset processing pipeline with two-phase image processing:
+//
+// Phase 1 (discovery): Copy non-image assets and cached images immediately.
+// Closes discoveryReady so post-processing can start while images are still processing.
+//
+// Phase 2 (background): Process cache-miss images (decode + resize + WebP encode).
+// Runs concurrently with post rendering. Closes assetsReady when complete.
 func (s *assetService) Build(ctx context.Context) error {
+	return s.BuildWithOptions(ctx, false)
+}
+
+// BuildWithOptions executes the asset processing pipeline with optional image processing.
+// When skipImages is true, image processing is skipped but esbuild still runs to produce
+// hashed assets for CSS/JS.
+func (s *assetService) BuildWithOptions(ctx context.Context, skipImages bool) error {
 	g, gCtx := errgroup.WithContext(ctx)
 
-	// discoveryReady signals that the image/WebP rewrite map is populated.
-	// This allows post-processing to begin before all images are fully compressed.
-	// Use pre-set channel if available (set by SetupBuilding before goroutine launch),
-	// otherwise create here for backward compatibility.
 	if s.discoveryReady == nil {
 		s.discoveryReady = make(chan struct{})
 	}
 
-	// 1. Unified Asset Discovery and Copy Phase (Pipelined)
 	g.Go(func() error {
 		copyTimer := timeutil.StartPhase("Asset discovery and copy")
 		defer copyTimer.Stop()
 
-		themeDir := s.cfg.StaticDir
-		if themeDir == "" {
-			themeDir = "themes/blog/static"
-		}
-
-		numWorkers := s.cfg.ImageWorkers
-		if numWorkers <= 0 {
-			numWorkers = runtime.NumCPU()
-		}
-
-		// Channel for streaming discovery to copy workers
-		assetChan := make(chan assetTask, 128)
-		// Track seen files to handle overrides (project static > theme static)
-		var seen sync.Map
-
-		copyGroup, copyCtx := errgroup.WithContext(gCtx)
-		// Dispatch with STRICT limit (128 for Windows to avoid I/O contention)
-		copyGroup.SetLimit(128)
-
-		// Start copy workers before discovery begins
-		discoveryWg := sync.WaitGroup{}
-		discoveryWg.Add(1)
-		go func() {
-			defer discoveryWg.Done()
-			for task := range assetChan {
-				t := task
-				copyGroup.Go(func() error {
-					dst := filepath.Join(s.cfg.OutputDir, t.relPath)
-					opts := assets.CopyOptions{
-						Compress:     s.cfg.CompressImages,
-						MinifySVGs:   s.cfg.MinifySVGs,
-						CacheDir:     s.cfg.CacheDir + "/images",
-						WebPQuality:  s.cfg.WebPQuality,
-						Metrics:      s.metrics,
-						OnWrite:      s.renderer.RegisterFile,
-						ImageWorkers: s.cfg.ImageWorkers,
-					}
-					return assets.CopyFileWithOptionalImageProcessing(assets.ProcessImageOptions{
-						Ctx:     copyCtx,
-						SrcFs:   s.sourceFs,
-						Sink:    s.sink,
-						SrcPath: t.srcPath,
-						DstPath: dst,
-						RelPath: t.relPath,
-						SrcInfo: t.info,
-						Opts:    opts,
-						Scheduler: func() scheduler.BuildScheduler {
-							if s.ctx != nil {
-								return s.ctx.Scheduler
-							}
-							return nil
-						}(),
-					})
-				})
+		defer func() {
+			if s.discoveryReady != nil {
+				close(s.discoveryReady)
+				s.discoveryReady = nil
 			}
 		}()
 
-		// Discovery phase: walk project static FIRST (overrides), then theme static
-		discoveryGroup, dCtx := errgroup.WithContext(gCtx)
-		walkConcurrency := max(numWorkers/2, 4)
-
-		// Project static discovery (High Priority)
-		if themeDir != "static" {
-			discoveryGroup.Go(func() error {
-				return s.walkDirStreaming(dCtx, "static", "static", walkConcurrency, assetChan, &seen)
-			})
-		}
-
-		// Theme static discovery
-		discoveryGroup.Go(func() error {
-			return s.walkDirStreaming(dCtx, themeDir, themeDir, walkConcurrency, assetChan, &seen)
-		})
-
-		// Wait for content assets (passed from Scanner)
-		if s.contentAssetsChan != nil {
-			discoveryGroup.Go(func() error {
-				select {
-				case assets, ok := <-s.contentAssetsChan:
-					if ok && assets != nil {
-						for _, a := range assets {
-							rel, _ := fspkg.SafeRel(s.cfg.ContentDir, a.Path)
-							if _, loaded := seen.LoadOrStore(rel, true); !loaded {
-								assetChan <- assetTask{srcPath: a.Path, relPath: rel, info: a.Info}
-							}
-						}
-					}
-				case <-dCtx.Done():
-					return dCtx.Err()
-				}
-				return nil
-			})
-		}
-
-		err := discoveryGroup.Wait()
-		close(assetChan)
-		discoveryWg.Wait()
-
-		// Signal discovery complete so post-processing can start
-		// while image compression continues in the background
-		close(s.discoveryReady)
-		s.discoveryReady = nil // consumed, prevent reuse
-
+		imageQueue, err := s.syncStaticAssets(ctx, gCtx, skipImages)
 		if err != nil {
 			return err
 		}
 
-		s.copyCriticalAssets()
-		return copyGroup.Wait()
+		// Close discoveryReady so post-processing can start while images are still processing
+		if s.discoveryReady != nil {
+			close(s.discoveryReady)
+			s.discoveryReady = nil
+		}
+
+		if !skipImages && len(imageQueue) > 0 {
+			numWorkers := s.cfg.ImageWorkers
+			if numWorkers <= 0 {
+				numWorkers = runtime.NumCPU()
+			}
+			imgGroup, imgCtx := errgroup.WithContext(gCtx)
+			imgGroup.SetLimit(max(numWorkers, 1))
+			imgChan := make(chan imageCopyTask, len(imageQueue))
+			for _, t := range imageQueue {
+				imgChan <- t
+			}
+			close(imgChan)
+			for range max(numWorkers, 1) {
+				imgGroup.Go(func() error {
+					for task := range imgChan {
+						if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgCtx.Err() == nil {
+							return err
+						}
+					}
+					return nil
+				})
+			}
+			if err := imgGroup.Wait(); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	})
 
-	// 2. Esbuild Bundling (CSS/JS)
 	g.Go(func() error {
 		esbuildTimer := timeutil.StartPhase("Asset esbuild")
 		defer esbuildTimer.Stop()
@@ -234,40 +470,12 @@ func (s *assetService) Build(ctx context.Context) error {
 
 	err := g.Wait()
 
-	// Close assetsReady signal only after ALL processing (including esbuild) is complete.
-	// This ensures RenderService waits for CSS/JS hashes before committing.
 	if s.assetsReady != nil {
 		close(s.assetsReady)
 		s.assetsReady = nil
 	}
 
 	return err
-}
-
-func (s *assetService) walkDirStreaming(ctx context.Context, dir, prefix string, concurrency int, assetChan chan<- assetTask, seen *sync.Map) error {
-	exists, _ := afero.Exists(s.sourceFs, dir)
-	if !exists {
-		return nil
-	}
-
-	return fspkg.ParallelWalk(ctx, s.sourceFs, dir, concurrency, func(path string, info fs.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		if filepath.Base(path) == "search.wasm" {
-			return nil
-		}
-		rel, _ := fspkg.SafeRel(dir, path)
-		fullRel := "static/" + rel
-		if _, loaded := seen.LoadOrStore(fullRel, true); !loaded {
-			select {
-			case assetChan <- assetTask{srcPath: path, relPath: fullRel, info: info}:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-		return nil
-	})
 }
 
 func (s *assetService) copyCriticalAssets() {
@@ -289,7 +497,7 @@ func (s *assetService) copyFileOrLink(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	return fspkg.CopyFileVFS(fspkg.CopyFileOptions{
+	err = fspkg.CopyFileVFS(fspkg.CopyFileOptions{
 		SrcFs:   s.sourceFs,
 		Sink:    s.sink,
 		SrcPath: src,
@@ -297,6 +505,10 @@ func (s *assetService) copyFileOrLink(src, dst string) error {
 		ModTime: info.ModTime().UnixNano(),
 		OnWrite: s.renderer.RegisterFile,
 	})
+	if err == nil && s.metrics != nil {
+		s.metrics.IncrementAssetsProcessed()
+	}
+	return err
 }
 
 func (s *assetService) buildEsbuildAssets(force bool) (map[string]string, error) {
@@ -312,7 +524,12 @@ func (s *assetService) buildEsbuildAssets(force bool) (map[string]string, error)
 		sched = s.ctx.Scheduler
 	}
 
-	assets, assetErr := fspkg.BuildAssetsEsbuild(s.sourceFs, s.sink, srcDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force, sched)
+	var onAssetProcessed func()
+	if s.metrics != nil {
+		onAssetProcessed = s.metrics.IncrementAssetsProcessed
+	}
+
+	assets, assetErr := fspkg.BuildAssetsEsbuild(s.sourceFs, s.sink, srcDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force, sched, onAssetProcessed)
 	if assetErr == nil {
 		s.renderer.SetAssets(assets)
 	}
@@ -320,7 +537,119 @@ func (s *assetService) buildEsbuildAssets(force bool) (map[string]string, error)
 }
 
 func (s *assetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
+	syncTimer := timeutil.StartPhase("Asset sync")
+	defer syncTimer.Stop()
+
+	imageQueue, err := s.syncStaticAssets(ctx, ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sync static assets: %w", err)
+	}
+
+	for _, task := range imageQueue {
+		if err := assets.ProcessCacheMissImage(task.opts); err != nil {
+			return nil, fmt.Errorf("failed to process cache-miss image: %w", err)
+		}
+	}
+
 	esbuildTimer := timeutil.StartPhase("Asset esbuild")
 	defer esbuildTimer.Stop()
 	return s.buildEsbuildAssets(true)
+}
+
+func (s *assetService) BuildForAssetChangeWithOptions(ctx context.Context, forceImages bool) (map[string]string, error) {
+	syncTimer := timeutil.StartPhase("Asset sync")
+	defer syncTimer.Stop()
+
+	imageQueue, err := s.syncStaticAssets(ctx, ctx, !forceImages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sync static assets: %w", err)
+	}
+
+	if forceImages || len(imageQueue) > 0 {
+		for _, task := range imageQueue {
+			if err := assets.ProcessCacheMissImage(task.opts); err != nil {
+				return nil, fmt.Errorf("failed to process cache-miss image: %w", err)
+			}
+		}
+	}
+
+	esbuildTimer := timeutil.StartPhase("Asset esbuild")
+	defer esbuildTimer.Stop()
+	return s.buildEsbuildAssets(true)
+}
+
+func ComputeStaticFingerprint(sourceFs afero.Fs, dirs []string) (string, error) {
+	hasher := xxh3.New()
+	var fileCount int
+
+	for _, dir := range dirs {
+		dir = fspkg.NormalizePath(dir)
+		err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			relPath, err := filepath.Rel(dir, path)
+			if err != nil {
+				return nil
+			}
+			relPath = filepath.ToSlash(relPath)
+			if _, err := fmt.Fprintf(hasher, "%s:%d:%d;", relPath, info.Size(), info.ModTime().UnixNano()); err != nil {
+				return err
+			}
+			fileCount++
+			return nil
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to walk directory %s: %w", dir, err)
+		}
+	}
+
+	hash := hasher.Sum128()
+	b := hash.Bytes()
+	return hex.EncodeToString(b[:]), nil
+}
+
+func GetStaticDirs(cfg *config.Config) []string {
+	var dirs []string
+
+	themeStatic := filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
+	if cfg.StaticDir != "" {
+		themeStatic = cfg.StaticDir
+	}
+	if _, err := os.Stat(themeStatic); err == nil {
+		dirs = append(dirs, themeStatic)
+	}
+
+	siteStatic := "static"
+	if cfg.SiteRoot != "" {
+		siteStatic = filepath.Join(cfg.SiteRoot, "static")
+	}
+	if _, err := os.Stat(siteStatic); err == nil {
+		dirs = append(dirs, siteStatic)
+	}
+
+	return dirs
+}
+
+func LoadStaticFingerprint(cacheDir string) (string, error) {
+	if cacheDir == "" {
+		return "", fmt.Errorf("cache directory not set")
+	}
+	fingerprintPath := filepath.Join(cacheDir, "static-fingerprint")
+	data, err := os.ReadFile(fingerprintPath)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func SaveStaticFingerprint(cacheDir, fingerprint string) error {
+	if cacheDir == "" {
+		return fmt.Errorf("cache directory not set")
+	}
+	fingerprintPath := filepath.Join(cacheDir, "static-fingerprint")
+	return os.WriteFile(fingerprintPath, []byte(fingerprint), 0644)
 }

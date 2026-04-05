@@ -36,7 +36,8 @@ type Renderer struct {
 	mathBatchSize  int
 	initOnce       sync.Once
 	katexBytecode  []byte
-	wg             sync.WaitGroup
+	initReady      chan struct{}
+	taskWg         sync.WaitGroup
 	mu             sync.Mutex
 	closed         bool
 	mathGroup      singleflight.Group
@@ -89,6 +90,7 @@ func New(opts ...RendererOption) *Renderer {
 		},
 		numWorkers:    numWorkers,
 		mathBatchSize: 16,
+		initReady:     make(chan struct{}),
 		scheduler:     nil, // Must be set via WithScheduler option
 		mathQueue:     make(chan mathRequest, 2048),
 	}
@@ -205,10 +207,11 @@ func (r *Renderer) ensureInitialized() {
 		}
 
 		// Start workers in background without blocking
-		r.wg.Add(r.numWorkers)
+		var initWg sync.WaitGroup
+		initWg.Add(r.numWorkers)
 		for i := 0; i < r.numWorkers; i++ {
 			go func(id int) {
-				defer r.wg.Done()
+				defer initWg.Done()
 				instance := &instance{}
 				instance.ensureInitialized(r.katexBytecode)
 
@@ -221,6 +224,12 @@ func (r *Renderer) ensureInitialized() {
 				}
 			}(i)
 		}
+
+		// Close initReady in background when all workers are started
+		go func() {
+			initWg.Wait()
+			close(r.initReady)
+		}()
 	})
 }
 
@@ -228,15 +237,8 @@ func (r *Renderer) ensureInitialized() {
 func (r *Renderer) EnsureInitialized(ctx context.Context) {
 	r.ensureInitialized()
 
-	// Wait for all workers to finish initialization
-	done := make(chan struct{})
-	go func() {
-		r.wg.Wait()
-		close(done)
-	}()
-
 	select {
-	case <-done:
+	case <-r.initReady:
 	case <-ctx.Done():
 	}
 }
@@ -254,11 +256,14 @@ func (r *Renderer) Close() error {
 	// Stop math batchers
 	close(r.mathQueue)
 
-	// Wait for all workers to be initialized AND all active tasks to complete.
-	// Note: this relies on sync.Once to ensure wg.Add() has been called before
-	// any goroutines call wg.Done(). In practice, ensureInitialized() is always
-	// called before Close().
-	r.wg.Wait()
+	// Wait for all active tasks to complete.
+	r.taskWg.Wait()
+
+	// Ensure initialization is complete before draining pool.
+	// If it was never started, ensureInitialized will start it and we wait.
+	// This ensures we don't leave goroutines or runtimes dangling.
+	r.ensureInitialized()
+	<-r.initReady
 
 	// Drain any workers that were back in the pool
 	for i := 0; i < len(r.pool); i++ {

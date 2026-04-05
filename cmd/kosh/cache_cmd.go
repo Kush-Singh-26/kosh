@@ -224,7 +224,6 @@ func runCacheInspect(cmd *cobra.Command, args []string) {
 	fmt.Printf("ReadingTime:  %d min\n", post.ReadingTime)
 	fmt.Printf("Draft:        %v\n", post.Draft)
 	fmt.Printf("Pinned:       %v\n", post.Pinned)
-	fmt.Printf("Version:      %s\n", post.Version)
 
 	if len(post.SSRInputHashes) > 0 {
 		fmt.Printf("SSR Hashes:   %d artifacts\n", len(post.SSRInputHashes))

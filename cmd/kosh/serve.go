@@ -2,6 +2,9 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -75,7 +78,26 @@ func runServe(cmd *cobra.Command, args []string) {
 		}
 
 		go func() {
-			w, err := watch.New([]string{b.Cfg.ContentDir, b.Cfg.TemplateDir, b.Cfg.StaticDir, "kosh.yaml"}, func(event watch.Event) {
+			watchDirs := []string{b.Cfg.ContentDir, b.Cfg.TemplateDir, b.Cfg.StaticDir, "kosh.yaml"}
+			siteStaticDir := "static"
+			if b.Cfg.SiteRoot != "" {
+				siteStaticDir = filepath.Join(b.Cfg.SiteRoot, "static")
+			}
+			siteAbs, _ := filepath.Abs(siteStaticDir)
+			staticAbs, _ := filepath.Abs(b.Cfg.StaticDir)
+			sameStatic := false
+			if siteAbs != "" && staticAbs != "" {
+				if runtime.GOOS == "windows" {
+					sameStatic = strings.EqualFold(siteAbs, staticAbs)
+				} else {
+					sameStatic = siteAbs == staticAbs
+				}
+			}
+			if !sameStatic {
+				watchDirs = append(watchDirs, siteStaticDir)
+			}
+
+			w, err := watch.New(watchDirs, func(event watch.Event) {
 				orchestration.DevLogChange(event.Name, "watch")
 				server.SetBuildActive(true)
 				b.BuildChanged(ctx, event.Name, event.Op)

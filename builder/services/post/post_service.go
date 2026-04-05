@@ -3,7 +3,9 @@ package post
 import (
 	"context"
 	"html/template"
+	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -72,7 +74,6 @@ type renderTask struct {
 	f           models.ScannedFile
 	htmlContent string
 	destPath    string
-	version     string
 	relPath     string
 	htmlRelPath string
 	source      []byte
@@ -189,8 +190,8 @@ func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers in
 		post := rt.parseRes.Post
 		_, _, cardImageURL := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, rt.htmlRelPath)
 		var prev, next *models.NavPage
-		if pos, ok := nav.postPosByVersion[rt.version][rt.f.Link]; ok {
-			vp := nav.postsByVersion[rt.version]
+		if pos, ok := nav.postPos[rt.f.Link]; ok {
+			vp := nav.allPosts
 			if pos > 0 {
 				prev = &models.NavPage{Title: vp[pos-1].Title, Link: vp[pos-1].Link}
 			}
@@ -203,7 +204,7 @@ func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers in
 			Title: post.Title, Description: post.Description, Content: template.HTML(rt.htmlContent),
 			Meta: rt.parseRes.Metadata, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
 			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: rt.f.Link, Image: cardImageURL,
-			TOC: rt.parseRes.TOC, Config: s.cfg, CurrentVersion: rt.version, ReadingTime: post.ReadingTime,
+			TOC: rt.parseRes.TOC, Config: s.cfg, ReadingTime: post.ReadingTime,
 			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(rt.htmlRelPath),
 			HasImages: rt.parseRes.HasImages,
 			JSONLD:    models.GeneratePostJSONLD(post, s.cfg.Author, cardImageURL),
@@ -247,10 +248,10 @@ type postProcessContext struct {
 }
 
 func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.ScannedFile, shouldForce, forceSocialRebuild bool, pc *postProcessContext, cardPool *async.WorkerPool[socialCardTask], searchPool *async.WorkerPool[searchTask], renderChan chan<- renderTask) {
-	path, version := f.Path, f.Version
+	path := f.Path
 	relPath := f.RelPath
 
-	htmlRelPath, cleanHtmlRelPath, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath, version)
+	htmlRelPath, _, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath)
 
 	// 1. Check Cache
 	cachedMeta, useCache := s.checkCache(relPath, f, shouldForce)
@@ -263,7 +264,9 @@ func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.Sca
 		parseRes, htmlContent, useCache = s.loadFromCache(cachedMeta, htmlRelPath)
 		if useCache {
 			finalSSRHashes = cachedMeta.SSRInputHashes
-			s.metrics.IncrementCacheHit()
+			if s.metrics != nil {
+				s.metrics.IncrementCacheHit()
+			}
 		}
 	}
 
@@ -277,7 +280,9 @@ func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.Sca
 	// 3. Full Parse if needed
 	if !useCache {
 		var err error
-		s.metrics.IncrementCacheMiss()
+		if s.metrics != nil {
+			s.metrics.IncrementCacheMiss()
+		}
 
 		readingTime := f.ReadingTime
 		if cachedMeta != nil && cachedMeta.BodyHash == f.BodyHash && cachedMeta.ReadingTime > 0 {
@@ -288,8 +293,7 @@ func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.Sca
 			ParseConfig{
 				Source:               f.Source,
 				Path:                 path,
-				Version:              version,
-				CleanHtmlRelPath:     cleanHtmlRelPath,
+				CleanHtmlRelPath:     htmlRelPath,
 				HtmlRelPath:          htmlRelPath,
 				KnownFrontmatterHash: f.FrontmatterHash,
 				KnownReadingTime:     readingTime,
@@ -330,11 +334,13 @@ func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.Sca
 	s.queueSocialCard(relPath, parseRes, htmlRelPath, forceSocialRebuild, cardPool)
 
 	// 5. Aggregate and stream
-	s.aggregateAndStream(pc, f, parseRes, post, htmlContent, destPath, version, relPath, htmlRelPath, finalSSRHashes, useCache, renderChan, searchPool)
-	s.metrics.IncrementPostsProcessed()
+	s.aggregateAndStream(pc, f, parseRes, post, htmlContent, destPath, relPath, htmlRelPath, finalSSRHashes, useCache, renderChan, searchPool)
+	if s.metrics != nil {
+		s.metrics.IncrementPostsProcessed()
+	}
 }
 
-func (s *postService) aggregateAndStream(pc *postProcessContext, f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, version, relPath, htmlRelPath string, ssrHashes []string, useCache bool, renderChan chan<- renderTask, searchPool *async.WorkerPool[searchTask]) {
+func (s *postService) aggregateAndStream(pc *postProcessContext, f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, relPath, htmlRelPath string, ssrHashes []string, useCache bool, renderChan chan<- renderTask, searchPool *async.WorkerPool[searchTask]) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
@@ -383,7 +389,6 @@ func (s *postService) aggregateAndStream(pc *postProcessContext, f models.Scanne
 		f:           f,
 		htmlContent: htmlContent,
 		destPath:    destPath,
-		version:     version,
 		relPath:     relPath,
 		htmlRelPath: htmlRelPath,
 		source:      f.Source,
@@ -396,7 +401,7 @@ func (s *postService) aggregateAndStream(pc *postProcessContext, f models.Scanne
 			ContentHash: res.FrontmatterHash, BodyHash: f.BodyHash, Title: post.Title, Date: post.DateObj,
 			Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
-			Meta: res.Metadata, TOC: res.TOC, Version: version, SSRInputHashes: ssrHashes,
+			Meta: res.Metadata, TOC: res.TOC, SSRInputHashes: ssrHashes,
 			CardHash: res.FrontmatterHash, HasImages: res.HasImages, MathExpressions: res.MathExpressions,
 		}
 		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
@@ -409,18 +414,53 @@ func (s *postService) aggregateAndStream(pc *postProcessContext, f models.Scanne
 
 func (s *postService) queueSocialCard(relPath string, res *ParsedMarkdownResult, htmlRelPath string, force bool, pool *async.WorkerPool[socialCardTask]) {
 	cardRelPath, cardDestPath, _ := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
-	var cardHash string
-	if s.cache != nil {
-		cardHash, _ = s.cache.GetSocialCardHash(relPath)
+
+	cacheDir := s.cfg.CacheDir
+	if !filepath.IsAbs(cacheDir) {
+		abs, err := filepath.Abs(cacheDir)
+		if err == nil {
+			cacheDir = abs
+		}
 	}
-	if force || cardHash != res.FrontmatterHash {
+	cachedCardPath := filepath.Join(cacheDir, "social-cards", res.FrontmatterHash+".webp")
+
+	if _, err := os.Stat(cachedCardPath); err == nil && !force && res.FrontmatterHash != "" {
+		s.copyCachedSocialCard(res.FrontmatterHash, cardDestPath)
+	} else {
 		pool.Submit(socialCardTask{
 			path: relPath, relPath: cardRelPath,
 			cardDestPath: cardDestPath, metadata: res.Metadata, frontmatterHash: res.FrontmatterHash,
 		})
-	} else {
-		s.sink.Register(cardDestPath)
 	}
+}
+
+func (s *postService) copyCachedSocialCard(cardHash, cardDestPath string) {
+	if cardHash == "" {
+		s.sink.Register(cardDestPath)
+		return
+	}
+	cachedCardPath := filepath.Join(s.cfg.CacheDir, "social-cards", cardHash+".webp")
+	cachedFile, err := os.Open(cachedCardPath)
+	if err != nil {
+		s.logger.Warn("Failed to open cached social card", "path", cachedCardPath, "error", err)
+		s.sink.Register(cardDestPath)
+		return
+	}
+	defer cachedFile.Close()
+
+	if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err != nil {
+		s.logger.Warn("Failed to create social card directory", "path", filepath.Dir(cardDestPath), "error", err)
+	}
+
+	err = s.sink.WriteStream(cardDestPath, func(w io.Writer) error {
+		_, err := io.Copy(w, cachedFile)
+		return err
+	})
+	if err != nil {
+		s.logger.Warn("Failed to copy cached social card", "path", cardDestPath, "error", err)
+		return
+	}
+	s.renderer.RegisterFile(cardDestPath)
 }
 
 func (s *postService) finalizeBuild(pc *postProcessContext) {

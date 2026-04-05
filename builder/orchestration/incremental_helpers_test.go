@@ -10,7 +10,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/incremental"
 )
 
-// TestResolveContentPaths_VariousPaths tests path resolution with versions
+// TestResolveContentPaths_VariousPaths tests path resolution for incremental builds
 func TestResolveContentPaths_VariousPaths(t *testing.T) {
 	// Create a minimal engine for testing
 	cfg := &config.Config{
@@ -18,7 +18,7 @@ func TestResolveContentPaths_VariousPaths(t *testing.T) {
 			ContentDir: "content",
 		},
 	}
-	engine := NewEngineFromManual(cfg, nil, nil, nil, nil, nil, InitLogger(), nil, nil, nil, nil)
+	engine := NewEngineFromManual(EngineDependencies{Config: cfg, Logger: InitLogger()})
 
 	tests := []struct {
 		name        string
@@ -39,7 +39,7 @@ func TestResolveContentPaths_VariousPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			relPath, version, htmlRelPath, cleanHtmlRelPath, err := engine.Incremental.ResolveContentPaths(tt.path)
+			relPath, htmlRelPath, cleanHtmlRelPath, err := engine.Incremental.ResolveContentPaths(tt.path)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -50,21 +50,18 @@ func TestResolveContentPaths_VariousPaths(t *testing.T) {
 			assert.NotEmpty(t, relPath)
 			assert.NotEmpty(t, htmlRelPath)
 			assert.NotEmpty(t, cleanHtmlRelPath)
-
-			// Version may be empty for simple paths
-			_ = version
 		})
 	}
 }
 
 // TestComputePostHashes_Consistency tests that hash computation is consistent
 func TestComputePostHashes_Consistency(t *testing.T) {
-	engine := NewEngineFromManual(nil, nil, nil, nil, nil, nil, InitLogger(), nil, nil, nil, nil)
+	engine := NewEngineFromManual(EngineDependencies{Logger: InitLogger()})
 
 	// Test with frontmatter
 	sourceWithFrontmatter := []byte("---\ntitle: Test\n---\n\n# Test Post\n\nThis is a test.")
-	frontmatterHash1, bodyHash1 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter)
-	frontmatterHash2, bodyHash2 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter)
+	frontmatterHash1, bodyHash1 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter, "post")
+	frontmatterHash2, bodyHash2 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter, "post")
 
 	// Hashes should be deterministic
 	assert.Equal(t, frontmatterHash1, frontmatterHash2)
@@ -74,7 +71,7 @@ func TestComputePostHashes_Consistency(t *testing.T) {
 
 	// Different content should produce different hashes
 	source2 := []byte("---\ntitle: Different\n---\n\n# Different Post\n\nThis is different.")
-	frontmatterHash3, bodyHash3 := engine.Incremental.ComputePostHashes(source2)
+	frontmatterHash3, bodyHash3 := engine.Incremental.ComputePostHashes(source2, "post")
 
 	assert.NotEqual(t, frontmatterHash1, frontmatterHash3)
 	assert.NotEqual(t, bodyHash1, bodyHash3)
@@ -82,7 +79,7 @@ func TestComputePostHashes_Consistency(t *testing.T) {
 
 // TestDeterminePostChange_AllCases tests all change detection scenarios
 func TestDeterminePostChange_AllCases(t *testing.T) {
-	engine := NewEngineFromManual(nil, nil, nil, nil, nil, nil, InitLogger(), nil, nil, nil, nil)
+	engine := NewEngineFromManual(EngineDependencies{Logger: InitLogger()})
 
 	// Test with no cache (should return PostChangeNew)
 	changeType := engine.Incremental.DeterminePostChange("test.md", "hash1", "hash2")

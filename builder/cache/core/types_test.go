@@ -311,7 +311,6 @@ func TestEncodeDecodeComplex(t *testing.T) {
 			{ID: "intro", Text: "Introduction", Level: 1},
 			{ID: "body", Text: "Body", Level: 2},
 		},
-		Version: "v1.0",
 	}
 
 	encoded, err := Encode(original)

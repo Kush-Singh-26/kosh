@@ -112,7 +112,6 @@ func SetupCacheManager(cfg *config.Config, logger *slog.Logger) (*cache.Manager,
 	}
 
 	diagramAdapter := cache.NewDiagramCacheAdapter(cm)
-	diagramAdapter.Start() // Explicit lifecycle start
 	return cm, diagramAdapter, nil
 }
 
@@ -137,8 +136,7 @@ func generateCacheID() string {
 // LoadThemeMetadata reads the metadata out of the theme yaml
 func LoadThemeMetadata(cfg *config.Config, sourceFs afero.Fs, logger *slog.Logger) {
 	themeMetadata := config.ThemeConfig{
-		Name:               cfg.Theme,
-		SupportsVersioning: false,
+		Name: cfg.Theme,
 	}
 	themePath := filepath.Join(cfg.ThemeDir, cfg.Theme)
 	themeYamlPath := filepath.Join(themePath, "theme.yaml")

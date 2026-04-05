@@ -1,6 +1,7 @@
 package orchestration
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -152,7 +153,7 @@ func (r *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Durati
 	}
 	r.slowPhases.Add(1)
 	r.recordEvent(event)
-	if slog.Default().Enabled(nil, slog.LevelWarn) {
+	if slog.Default().Enabled(context.TODO(), slog.LevelWarn) {
 		slog.Warn("Slow phase detected",
 			"phase", phase,
 			"duration", duration.String(),
@@ -282,7 +283,7 @@ func (r *BuildHealthRegistry) Report() BuildHealthReport {
 func (r *BuildHealthRegistry) LogSummary() {
 	report := r.Report()
 
-	if slog.Default().Enabled(nil, slog.LevelInfo) {
+	if slog.Default().Enabled(context.TODO(), slog.LevelInfo) {
 		slog.Info("Build health report",
 			"duration", report.TotalDuration.String(),
 			"warnings", report.Warnings,

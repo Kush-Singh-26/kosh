@@ -17,7 +17,6 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Go Programming Guide",
 			NormalizedTitle: "go programming guide",
 			Description:     "Learn Go programming language basics",
-			Version:         "v1",
 			NormalizedTags:  []string{"go", "programming"},
 			Content:         "Go is a programming language created at Google. This guide covers Go basics.",
 		},
@@ -26,7 +25,6 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Rust Programming Tutorial",
 			NormalizedTitle: "rust programming tutorial",
 			Description:     "Learn Rust programming from scratch",
-			Version:         "v1",
 			NormalizedTags:  []string{"rust", "programming"},
 			Content:         "Rust is a systems programming language. This tutorial covers Rust fundamentals.",
 		},
@@ -35,7 +33,6 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Machine Learning With Go",
 			NormalizedTitle: "machine learning with go",
 			Description:     "Using machine learning in Go applications",
-			Version:         "v2",
 			NormalizedTags:  []string{"ml", "go"},
 			Content:         "Machine learning can be implemented in Go. This article explores ML with Go.",
 		},
@@ -44,7 +41,6 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Neural Network Fundamentals",
 			NormalizedTitle: "neural network fundamentals",
 			Description:     "Understanding neural networks and deep learning",
-			Version:         "v2",
 			NormalizedTags:  []string{"ml", "ai"},
 			Content:         "Neural networks are the foundation of deep learning. This guide explains neural networks.",
 		},
@@ -53,7 +49,6 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Go Concurrency Patterns",
 			NormalizedTitle: "go concurrency patterns",
 			Description:     "Advanced Go concurrency and parallelism",
-			Version:         "v1",
 			NormalizedTags:  []string{"go", "concurrency"},
 			Content:         "Go has excellent concurrency support with goroutines and channels. Learn patterns here.",
 		},
@@ -62,7 +57,6 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Web Development with Rust",
 			NormalizedTitle: "web development with rust",
 			Description:     "Building web applications in Rust",
-			Version:         "v2",
 			NormalizedTags:  []string{"rust", "web"},
 			Content:         "Rust can be used for web development using frameworks like Actix and Axum.",
 		},
@@ -120,7 +114,7 @@ func buildRankingIndex() *models.SearchIndex {
 func TestRanking_TitleBoost(t *testing.T) {
 	index := buildRankingIndex()
 
-	results := PerformSearch(index, "go", "all")
+	results := PerformSearch(index, "go")
 
 	if len(results) < 1 {
 		t.Fatalf("Expected at least 1 result for 'go', got %d", len(results))
@@ -141,7 +135,7 @@ func TestRanking_TitleBoost(t *testing.T) {
 func TestRanking_TagBoost(t *testing.T) {
 	index := buildRankingIndex()
 
-	results := PerformSearch(index, "programming", "all")
+	results := PerformSearch(index, "programming")
 
 	if len(results) < 2 {
 		t.Fatalf("Expected at least 2 results for 'programming', got %d", len(results))
@@ -190,7 +184,7 @@ func TestRanking_PhraseMatch(t *testing.T) {
 	index.Inverted["neural"] = map[string][]uint32{"0": {0}}
 	index.Inverted["network"] = map[string][]uint32{"0": {1}, "1": {0}}
 
-	results := PerformSearch(index, "neural network", "all")
+	results := PerformSearch(index, "neural network")
 
 	if len(results) < 1 {
 		t.Fatalf("Expected at least 1 result, got %d", len(results))
@@ -204,7 +198,7 @@ func TestRanking_PhraseMatch(t *testing.T) {
 func TestRanking_MultiTermQuery(t *testing.T) {
 	index := buildRankingIndex()
 
-	results := PerformSearch(index, "go programming", "all")
+	results := PerformSearch(index, "go programming")
 
 	if len(results) < 2 {
 		t.Fatalf("Expected multiple results for 'go programming', got %d", len(results))
@@ -221,7 +215,7 @@ func TestRanking_MultiTermQuery(t *testing.T) {
 func TestRanking_TagPrefixQuery(t *testing.T) {
 	index := buildRankingIndex()
 
-	results := PerformSearch(index, "tag:rust", "all")
+	results := PerformSearch(index, "tag:rust")
 
 	if len(results) < 2 {
 		t.Errorf("Expected at least 2 results for tag:rust, got %d", len(results))
@@ -237,34 +231,17 @@ func TestRanking_TagPrefixQuery(t *testing.T) {
 func TestRanking_TagPrefixNoMatch(t *testing.T) {
 	index := buildRankingIndex()
 
-	results := PerformSearch(index, "tag:python", "all")
+	results := PerformSearch(index, "tag:python")
 
 	if len(results) != 0 {
 		t.Errorf("Expected 0 results for tag:python, got %d", len(results))
 	}
 }
 
-func TestRanking_VersionFilter(t *testing.T) {
-	index := buildRankingIndex()
-
-	results := PerformSearch(index, "machine learning", "v1")
-
-	v2Matches := 0
-	for _, r := range results {
-		if r.Version == "v2" {
-			v2Matches++
-		}
-	}
-
-	if v2Matches > 0 {
-		t.Errorf("v1 filter should not return v2 results, got %d v2 matches", v2Matches)
-	}
-}
-
 func TestRanking_EmptyQuery(t *testing.T) {
 	index := buildRankingIndex()
 
-	results := PerformSearch(index, "", "all")
+	results := PerformSearch(index, "")
 
 	if len(results) != 0 {
 		t.Errorf("Expected 0 results for empty query, got %d", len(results))
@@ -302,7 +279,7 @@ func TestRanking_FuzzyMatch(t *testing.T) {
 
 	index.Inverted["program"] = map[string][]uint32{"0": {0}}
 
-	results := PerformSearch(index, "programming", "all")
+	results := PerformSearch(index, "programming")
 
 	if len(results) < 1 {
 		t.Errorf("Expected at least 1 result for 'programming' (stems to 'program'), got %d", len(results))
@@ -346,7 +323,7 @@ func TestRanking_ScoreOrdering(t *testing.T) {
 
 	index.Inverted["word"] = map[string][]uint32{"0": {2}, "1": {3}}
 
-	results := PerformSearch(index, "word", "all")
+	results := PerformSearch(index, "word")
 
 	if len(results) < 2 {
 		t.Fatalf("Expected 2 results, got %d", len(results))
@@ -389,7 +366,7 @@ func TestRanking_TopKLimit(t *testing.T) {
 		index.DocLens[string(rune(i))] = 5
 	}
 
-	results := PerformSearch(index, "test", "all")
+	results := PerformSearch(index, "test")
 
 	if len(results) > 40 {
 		t.Errorf("Expected at most 40 results (topK), got %d", len(results))
@@ -399,7 +376,7 @@ func TestRanking_TopKLimit(t *testing.T) {
 func TestRanking_TagOnlyQuery(t *testing.T) {
 	index := buildRankingIndex()
 
-	results := PerformSearch(index, "tag:ml", "all")
+	results := PerformSearch(index, "tag:ml")
 
 	if len(results) < 2 {
 		t.Errorf("Expected at least 2 results for tag:ml, got %d", len(results))
@@ -443,7 +420,7 @@ func TestRanking_PhraseWithQuotes(t *testing.T) {
 	index.Inverted["neural"] = map[string][]uint32{"0": {0}, "1": {0}}
 	index.Inverted["network"] = map[string][]uint32{"0": {1}, "1": {1}}
 
-	results := PerformSearch(index, `"neural networks"`, "all")
+	results := PerformSearch(index, `"neural networks"`)
 
 	if len(results) < 1 {
 		t.Errorf("Expected at least 1 result for phrase query, got %d", len(results))
@@ -457,7 +434,7 @@ func TestRanking_PhraseWithQuotes(t *testing.T) {
 func TestRanking_SnippetPopulated(t *testing.T) {
 	index := buildRankingIndex()
 
-	results := PerformSearch(index, "go", "all")
+	results := PerformSearch(index, "go")
 
 	for _, r := range results {
 		if r.Snippet == "" && strings.TrimSpace(index.Posts[string(rune(r.ID))].Content) != "" {
@@ -473,7 +450,7 @@ func TestRanking_ConcurrentSafety(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func() {
 			for j := 0; j < 20; j++ {
-				_ = PerformSearch(index, "go programming", "all")
+				_ = PerformSearch(index, "go programming")
 			}
 			done <- true
 		}()

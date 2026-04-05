@@ -35,6 +35,7 @@ var (
 type CopyOptions struct {
 	Compress     bool
 	MinifySVGs   bool
+	KeepOriginal bool
 	ExcludeExts  []string
 	OnWrite      func(string)
 	CacheDir     string
@@ -107,12 +108,10 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink fspkg.ArtifactSink, sr
 								opts.OnWrite(target)
 							}
 							if task.originalRelPath != "" {
-								// File system path mapping
-								RecordConvertedImage(filepath.Join(dstDir, task.originalRelPath), target)
-								// URL format mapping (ensure leading slash)
+								// URL format mapping - register all variants
 								relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(task.originalRelPath), "/")
 								relDst := "/" + strings.TrimPrefix(filepath.ToSlash(task.relPath), "/")
-								RecordConvertedImage(relSrc, relDst)
+								registerImageVariants(relSrc, relDst)
 							}
 						}
 					}()

@@ -42,10 +42,10 @@ func NewService(deps Dependencies) Service {
 	}
 }
 
-func (s *wasmService) CheckAndUpdate(ctx context.Context) error {
+func (s *wasmService) CheckAndUpdate(ctx context.Context) (bool, error) {
 	// Skip WASM operations in test mode
 	if s.ctx != nil && s.ctx.IsTesting {
-		return nil
+		return false, nil
 	}
 
 	wasmBinary := filepath.Join(s.cfg.KoshSourceRoot, "static", "wasm", "search.wasm")
@@ -53,21 +53,23 @@ func (s *wasmService) CheckAndUpdate(ctx context.Context) error {
 		if s.searchSourceDirty.Load() {
 			if err := assets.CompileWASMFromSource(ctx, fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "cmd", "search", "main.go")), wasmBinary, s.cfg.KoshSourceRoot); err != nil {
 				s.logger.Warn("Failed to compile Search WASM", "error", err)
-				return err
+				return false, err
 			}
 			s.searchSourceDirty.Store(false)
+			return true, nil
 		} else {
 			wasmInfo, statErr := os.Stat(wasmBinary)
 			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
 				if err := assets.CompileWASMFromSource(ctx, fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "cmd", "search", "main.go")), wasmBinary, s.cfg.KoshSourceRoot); err != nil {
 					s.logger.Warn("Failed to compile Search WASM", "error", err)
-					return err
+					return false, err
 				}
+				return true, nil
 			}
 		}
 	}
 
-	return nil
+	return false, nil
 }
 
 func (s *wasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) error {

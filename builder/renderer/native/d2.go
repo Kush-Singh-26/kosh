@@ -34,10 +34,10 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 		r.mu.Unlock()
 		return "", fmt.Errorf("renderer is closed")
 	}
-	r.wg.Add(1)
+	r.taskWg.Add(1)
 	r.mu.Unlock()
 
-	defer r.wg.Done()
+	defer r.taskWg.Done()
 
 	ruler := r.rulerPool.Get().(*textmeasure.Ruler)
 	if ruler == nil {

@@ -111,7 +111,19 @@ This is the initial body.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -245,7 +257,19 @@ Body content.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -358,7 +382,19 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -453,7 +489,19 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -691,7 +739,19 @@ date: "2026-03-15"
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	})
 	b.Sink = sink
 	b.Tx = tx
 

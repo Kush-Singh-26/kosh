@@ -5,6 +5,7 @@ package core
 import (
 	"html"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -29,4 +30,8 @@ func ToTitle(s string) string {
 
 func HTMLEscape(s string) string {
 	return html.EscapeString(s)
+}
+
+func NowUnix() int64 {
+	return time.Now().Unix()
 }

@@ -14,7 +14,6 @@ const (
 	BucketTags          = "tags"           // {tag}/{PostID} -> empty
 	BucketDepsTemplates = "deps_templates" // {template}/{PostID} -> empty
 	BucketDepsIncludes  = "deps_includes"  // {include}/{PostID} -> empty
-	BucketVersions      = "versions"       // {version}/{PostID} -> empty
 
 	// Global metadata
 	BucketMeta  = "meta"  // schema_version, cache_id
@@ -43,7 +42,6 @@ func AllBuckets() []string {
 		BucketTags,
 		BucketDepsTemplates,
 		BucketDepsIncludes,
-		BucketVersions,
 		BucketMeta,
 		BucketStats,
 		BucketRefCount,

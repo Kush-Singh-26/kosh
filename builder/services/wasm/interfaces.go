@@ -7,7 +7,7 @@ import (
 
 // Service handles WASM compilation and deployment for Search.
 type Service interface {
-	CheckAndUpdate(ctx context.Context) error
+	CheckAndUpdate(ctx context.Context) (bool, error)
 	Deploy(ctx context.Context, sink fspkg.ArtifactSink) error
 	SetSearchSourceDirty(dirty bool)
 }

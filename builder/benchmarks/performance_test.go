@@ -109,7 +109,19 @@ This is post number %d.
 		})
 		metadataScanner := scanner.NewScanner()
 
-		engine := orchestration.NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+		engine := orchestration.NewEngineFromManual(orchestration.EngineDependencies{
+			Config:         cfg,
+			Render:         renderSvc,
+			Asset:          assetSvc,
+			Post:           postSvc,
+			Scanner:        metadataScanner,
+			Wasm:           wasmSvc,
+			Logger:         logger,
+			Metrics:        buildMetrics,
+			SourceFs:       fs,
+			MdPool:         mdPool,
+			NativeRenderer: nativeRenderer,
+		})
 
 		engine.Sink = sink
 		engine.Tx = tx

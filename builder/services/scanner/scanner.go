@@ -102,7 +102,6 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 	}
 
 	relPath, _ := filepath.Rel(cfg.ContentDir, path)
-	version, _ := navigation.GetVersionFromPath(path)
 
 	var frontmatter []byte
 	var body []byte
@@ -138,16 +137,15 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 	tags := timeutil.ExtractSliceFromMap(preParsedMeta, "tags")
 	bodyHash := hashing.HashBytes(body)
 	cleanHtmlRelPath := strings.TrimSuffix(relPath, filepath.Ext(relPath)) + ".html"
-	postLink := navigation.BuildURL(cfg.BaseURL, version, cleanHtmlRelPath)
+	postLink := navigation.BuildAbsoluteURL(cfg.BaseURL, cleanHtmlRelPath)
 
 	frontmatterHash := hashing.GetFrontmatterHashFromValues(
-		title, description, date, tags, pinned,
+		title, description, date, tags, pinned, draft, weight, preParsedMeta,
 	)
 
 	return models.ScannedFile{
 		Path:            path,
 		RelPath:         relPath,
-		Version:         version,
 		Title:           title,
 		Description:     description,
 		Date:            date,

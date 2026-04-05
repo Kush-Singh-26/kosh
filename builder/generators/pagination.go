@@ -76,25 +76,7 @@ func RenderPagination(opts PaginationOptions) error {
 		}
 	}
 
-	// For docs theme with versions, filter to only latest version posts for hub page
 	latestPosts := opts.AllPosts
-	if len(cfg.Versions) > 0 {
-		var latestVersion string
-		for _, v := range cfg.Versions {
-			if v.IsLatest {
-				latestVersion = v.Name
-				break
-			}
-		}
-		if latestVersion != "" {
-			latestPosts = make([]models.PostMetadata, 0, len(opts.AllPosts)/len(cfg.Versions))
-			for _, p := range opts.AllPosts {
-				if p.Version == latestVersion {
-					latestPosts = append(latestPosts, p)
-				}
-			}
-		}
-	}
 
 	postsPerPage := cfg.PostsPerPage
 	if postsPerPage <= 0 {
@@ -104,9 +86,6 @@ func RenderPagination(opts PaginationOptions) error {
 	if totalPages == 0 {
 		totalPages = 1
 	}
-
-	siteTree := fspkg.BuildSiteTree(latestPosts, "")
-	sidebarHTML := render.RenderSidebar(siteTree)
 
 	g, _ := errgroup.WithContext(opts.Ctx)
 	g.SetLimit(runtime.NumCPU())
@@ -155,7 +134,7 @@ func RenderPagination(opts PaginationOptions) error {
 				Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
-				Paginator: paginator, SiteTree: siteTree, SidebarHTML: sidebarHTML, Config: cfg, Versions: cfg.GetVersionsMetadata("", ""),
+				Paginator: paginator, Config: cfg,
 				RelativePrefix: fspkg.GetRelativePrefix(relPath),
 			}); err != nil {
 				return fmt.Errorf("failed to render index page %d: %w", pageIdx, err)

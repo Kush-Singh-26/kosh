@@ -72,6 +72,9 @@ func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
 	}
 
 	cleanP := NormalizePath(p)
+	if strings.Contains(cleanP, "..") {
+		return "", fmt.Errorf("refusing to write path with '..': %s", p)
+	}
 
 	// Resolve to absolute path for robust comparison
 	var absP string

@@ -15,8 +15,8 @@ type SearchContext struct {
 	QueryTerms    []string
 	Phrases       [][]string
 	TagFilter     string
-	VersionFilter string
 	OriginalQuery string
+	TermInfos     []core.QueryTerm
 }
 
 // Scorer defines the interface for different scoring strategies
@@ -31,9 +31,6 @@ func (s *TagScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.TagFilter != "" && len(ctx.QueryTerms) == 0 {
 		opts.HighlightTerms[ctx.TagFilter] = true
 		for id, post := range ctx.Index.Posts {
-			if ctx.VersionFilter != "all" && post.Version != ctx.VersionFilter {
-				continue
-			}
 			if slices.Contains(post.NormalizedTags, ctx.TagFilter) {
 				opts.Scores[id] += ScoreTagMatch
 			}
@@ -62,7 +59,7 @@ func (s *BM25Scorer) applyBM25Score(ctx *SearchContext, posts map[string][]uint3
 
 	for postID, positions := range posts {
 		post, ok := ctx.Index.Posts[postID]
-		if !ok || (ctx.VersionFilter != "all" && post.Version != ctx.VersionFilter) || (ctx.TagFilter != "" && !slices.Contains(post.NormalizedTags, ctx.TagFilter)) {
+		if !ok || (ctx.TagFilter != "" && !slices.Contains(post.NormalizedTags, ctx.TagFilter)) {
 			continue
 		}
 
@@ -106,8 +103,8 @@ func (s *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	}
 
 	for _, phraseTerms := range ctx.Phrases {
-		for id, post := range ctx.Index.Posts {
-			if (ctx.VersionFilter != "all" && post.Version != ctx.VersionFilter) || !checkPhraseUnified(ctx.Index, id, phraseTerms) {
+		for id := range ctx.Index.Posts {
+			if !checkPhraseUnified(ctx.Index, id, phraseTerms) {
 				continue
 			}
 			opts.Scores[id] += ScorePhraseMatch
@@ -127,10 +124,6 @@ func (s *FallbackScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	}
 
 	for id, post := range ctx.Index.Posts {
-		if ctx.VersionFilter != "all" && post.Version != ctx.VersionFilter {
-			continue
-		}
-
 		match := false
 		if strings.Contains(post.NormalizedTitle, ctx.OriginalQuery) {
 			opts.Scores[id] += ScoreTitleMatch
@@ -185,6 +178,131 @@ func NewPipeline(scorers ...Scorer) *Pipeline {
 func (p *Pipeline) Execute(ctx *SearchContext, opts *SearchScoringOptions) {
 	for _, scorer := range p.scorers {
 		scorer.Score(ctx, opts)
+	}
+}
+
+// FilterScorer enforces required and excluded terms
+type FilterScorer struct{}
+
+func (s *FilterScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+	if len(opts.TermInfos) == 0 {
+		return
+	}
+
+	for id := range opts.Scores {
+		for _, info := range opts.TermInfos {
+			if info.Required {
+				if posts, ok := ctx.Index.Inverted[info.Term]; !ok {
+					delete(opts.Scores, id)
+					break
+				} else if _, found := posts[id]; !found {
+					delete(opts.Scores, id)
+					break
+				}
+			}
+			if info.Excluded {
+				if posts, ok := ctx.Index.Inverted[info.Term]; ok {
+					if _, found := posts[id]; found {
+						delete(opts.Scores, id)
+						break
+					}
+				}
+			}
+		}
+	}
+}
+
+// ProximityScorer rewards documents where query terms appear close to each other
+type ProximityScorer struct{}
+
+func (s *ProximityScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+	if len(ctx.QueryTerms) < 2 {
+		return
+	}
+
+	for id := range opts.Scores {
+		score := s.calculateProximityScore(ctx, id)
+		if score > 0 {
+			opts.Scores[id] += score
+		}
+	}
+}
+
+func (s *ProximityScorer) calculateProximityScore(ctx *SearchContext, id string) float64 {
+	// Find all positions for each term in this document
+	termPositions := make([][]int, 0, len(ctx.QueryTerms))
+	for _, term := range ctx.QueryTerms {
+		if posts, ok := ctx.Index.Inverted[term]; ok {
+			if posData, found := posts[id]; found {
+				termPositions = append(termPositions, models.DecodePositions(posData))
+			}
+		}
+	}
+
+	if len(termPositions) < 2 {
+		return 0
+	}
+
+	// Slop window size
+	const maxSlop = 15
+	const proximityBoost = 3.0
+
+	// Simple heuristic: check for any two terms within maxSlop
+	boost := 0.0
+	for i := 0; i < len(termPositions); i++ {
+		for j := i + 1; j < len(termPositions); j++ {
+			p1, p2 := 0, 0
+			list1, list2 := termPositions[i], termPositions[j]
+			for p1 < len(list1) && p2 < len(list2) {
+				diff := list1[p1] - list2[p2]
+				if diff < 0 {
+					diff = -diff
+				}
+				if diff <= maxSlop {
+					boost += proximityBoost / float64(diff+1)
+					p1++
+					p2++
+				} else if list1[p1] < list2[p2] {
+					p1++
+				} else {
+					p2++
+				}
+			}
+		}
+	}
+
+	return boost
+}
+
+// RecencyScorer boosts scores for newer documents using an exponential decay function
+type RecencyScorer struct{}
+
+func (s *RecencyScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+	if ctx.Index.TotalDocs == 0 {
+		return
+	}
+
+	nowUnix := core.NowUnix()
+
+	for id, score := range opts.Scores {
+		post, ok := ctx.Index.Posts[id]
+		if !ok || post.Date == 0 {
+			continue
+		}
+
+		// Calculate age in months
+		const secondsInMonth = 2592000
+		ageMonths := float64(nowUnix-post.Date) / float64(secondsInMonth)
+		if ageMonths < 0 {
+			ageMonths = 0
+		}
+
+		// Apply exponential decay: boost = 1.0 + weight * exp(-lambda * age)
+		const weight = 0.5
+		const lambda = 0.05 // Halves boost roughly every 14 months
+		boost := 1.0 + weight*math.Exp(-lambda*ageMonths)
+
+		opts.Scores[id] = score * boost
 	}
 }
 

@@ -644,12 +644,6 @@ func (z *PostListMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Weight")
 				return
 			}
-		case "Version":
-			z.Version, err = dc.ReadString()
-			if err != nil {
-				err = msgp.WrapError(err, "Version")
-				return
-			}
 		case "Date":
 			z.Date, err = dc.ReadTime()
 			if err != nil {
@@ -669,9 +663,9 @@ func (z *PostListMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *PostListMeta) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 5
+	// map header, size 4
 	// write "Title"
-	err = en.Append(0x85, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	err = en.Append(0x84, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	if err != nil {
 		return
 	}
@@ -700,16 +694,6 @@ func (z *PostListMeta) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Weight")
 		return
 	}
-	// write "Version"
-	err = en.Append(0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.Version)
-	if err != nil {
-		err = msgp.WrapError(err, "Version")
-		return
-	}
 	// write "Date"
 	err = en.Append(0xa4, 0x44, 0x61, 0x74, 0x65)
 	if err != nil {
@@ -726,9 +710,9 @@ func (z *PostListMeta) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *PostListMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 5
+	// map header, size 4
 	// string "Title"
-	o = append(o, 0x85, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	o = append(o, 0x84, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	o = msgp.AppendString(o, z.Title)
 	// string "Link"
 	o = append(o, 0xa4, 0x4c, 0x69, 0x6e, 0x6b)
@@ -736,9 +720,6 @@ func (z *PostListMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Weight"
 	o = append(o, 0xa6, 0x57, 0x65, 0x69, 0x67, 0x68, 0x74)
 	o = msgp.AppendInt(o, z.Weight)
-	// string "Version"
-	o = append(o, 0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.Version)
 	// string "Date"
 	o = append(o, 0xa4, 0x44, 0x61, 0x74, 0x65)
 	o = msgp.AppendTime(o, z.Date)
@@ -781,12 +762,6 @@ func (z *PostListMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Weight")
 				return
 			}
-		case "Version":
-			z.Version, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "Version")
-				return
-			}
 		case "Date":
 			z.Date, bts, err = msgp.ReadTimeBytes(bts)
 			if err != nil {
@@ -807,7 +782,7 @@ func (z *PostListMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PostListMeta) Msgsize() (s int) {
-	s = 1 + 6 + msgp.StringPrefixSize + len(z.Title) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 8 + msgp.StringPrefixSize + len(z.Version) + 5 + msgp.TimeSize
+	s = 1 + 6 + msgp.StringPrefixSize + len(z.Title) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 5 + msgp.TimeSize
 	return
 }
 
@@ -1010,12 +985,6 @@ func (z *PostMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
-		case "Version":
-			z.Version, err = dc.ReadString()
-			if err != nil {
-				err = msgp.WrapError(err, "Version")
-				return
-			}
 		case "CardHash":
 			z.CardHash, err = dc.ReadString()
 			if err != nil {
@@ -1060,9 +1029,9 @@ func (z *PostMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *PostMeta) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 24
+	// map header, size 23
 	// write "PostID"
-	err = en.Append(0xde, 0x0, 0x18, 0xa6, 0x50, 0x6f, 0x73, 0x74, 0x49, 0x44)
+	err = en.Append(0xde, 0x0, 0x17, 0xa6, 0x50, 0x6f, 0x73, 0x74, 0x49, 0x44)
 	if err != nil {
 		return
 	}
@@ -1294,16 +1263,6 @@ func (z *PostMeta) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
-	// write "Version"
-	err = en.Append(0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.Version)
-	if err != nil {
-		err = msgp.WrapError(err, "Version")
-		return
-	}
 	// write "CardHash"
 	err = en.Append(0xa8, 0x43, 0x61, 0x72, 0x64, 0x48, 0x61, 0x73, 0x68)
 	if err != nil {
@@ -1347,9 +1306,9 @@ func (z *PostMeta) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *PostMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 24
+	// map header, size 23
 	// string "PostID"
-	o = append(o, 0xde, 0x0, 0x18, 0xa6, 0x50, 0x6f, 0x73, 0x74, 0x49, 0x44)
+	o = append(o, 0xde, 0x0, 0x17, 0xa6, 0x50, 0x6f, 0x73, 0x74, 0x49, 0x44)
 	o = msgp.AppendString(o, z.PostID)
 	// string "Path"
 	o = append(o, 0xa4, 0x50, 0x61, 0x74, 0x68)
@@ -1429,9 +1388,6 @@ func (z *PostMeta) MarshalMsg(b []byte) (o []byte, err error) {
 			return
 		}
 	}
-	// string "Version"
-	o = append(o, 0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.Version)
 	// string "CardHash"
 	o = append(o, 0xa8, 0x43, 0x61, 0x72, 0x64, 0x48, 0x61, 0x73, 0x68)
 	o = msgp.AppendString(o, z.CardHash)
@@ -1650,12 +1606,6 @@ func (z *PostMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
-		case "Version":
-			z.Version, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "Version")
-				return
-			}
 		case "CardHash":
 			z.CardHash, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
@@ -1720,7 +1670,7 @@ func (z *PostMeta) Msgsize() (s int) {
 	for za0005 := range z.TOC {
 		s += z.TOC[za0005].Msgsize()
 	}
-	s += 8 + msgp.StringPrefixSize + len(z.Version) + 9 + msgp.StringPrefixSize + len(z.CardHash) + 10 + msgp.BoolSize + 16 + msgp.ArrayHeaderSize
+	s += 9 + msgp.StringPrefixSize + len(z.CardHash) + 10 + msgp.BoolSize + 16 + msgp.ArrayHeaderSize
 	for za0006 := range z.MathExpressions {
 		s += z.MathExpressions[za0006].Msgsize()
 	}
@@ -1787,6 +1737,12 @@ func (z *SSRArtifact) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Compressed")
 				return
 			}
+		case "InlineContent":
+			z.InlineContent, err = dc.ReadBytes(z.InlineContent)
+			if err != nil {
+				err = msgp.WrapError(err, "InlineContent")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1800,9 +1756,9 @@ func (z *SSRArtifact) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *SSRArtifact) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 7
+	// map header, size 8
 	// write "Type"
-	err = en.Append(0x87, 0xa4, 0x54, 0x79, 0x70, 0x65)
+	err = en.Append(0x88, 0xa4, 0x54, 0x79, 0x70, 0x65)
 	if err != nil {
 		return
 	}
@@ -1871,15 +1827,25 @@ func (z *SSRArtifact) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Compressed")
 		return
 	}
+	// write "InlineContent"
+	err = en.Append(0xad, 0x49, 0x6e, 0x6c, 0x69, 0x6e, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74)
+	if err != nil {
+		return
+	}
+	err = en.WriteBytes(z.InlineContent)
+	if err != nil {
+		err = msgp.WrapError(err, "InlineContent")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *SSRArtifact) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 7
+	// map header, size 8
 	// string "Type"
-	o = append(o, 0x87, 0xa4, 0x54, 0x79, 0x70, 0x65)
+	o = append(o, 0x88, 0xa4, 0x54, 0x79, 0x70, 0x65)
 	o = msgp.AppendString(o, z.Type)
 	// string "InputHash"
 	o = append(o, 0xa9, 0x49, 0x6e, 0x70, 0x75, 0x74, 0x48, 0x61, 0x73, 0x68)
@@ -1899,6 +1865,9 @@ func (z *SSRArtifact) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Compressed"
 	o = append(o, 0xaa, 0x43, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64)
 	o = msgp.AppendBool(o, z.Compressed)
+	// string "InlineContent"
+	o = append(o, 0xad, 0x49, 0x6e, 0x6c, 0x69, 0x6e, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74)
+	o = msgp.AppendBytes(o, z.InlineContent)
 	return
 }
 
@@ -1962,6 +1931,12 @@ func (z *SSRArtifact) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Compressed")
 				return
 			}
+		case "InlineContent":
+			z.InlineContent, bts, err = msgp.ReadBytesBytes(bts, z.InlineContent)
+			if err != nil {
+				err = msgp.WrapError(err, "InlineContent")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1976,7 +1951,7 @@ func (z *SSRArtifact) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *SSRArtifact) Msgsize() (s int) {
-	s = 1 + 5 + msgp.StringPrefixSize + len(z.Type) + 10 + msgp.StringPrefixSize + len(z.InputHash) + 11 + msgp.StringPrefixSize + len(z.OutputHash) + 9 + msgp.IntSize + 5 + msgp.Int64Size + 10 + msgp.Int64Size + 11 + msgp.BoolSize
+	s = 1 + 5 + msgp.StringPrefixSize + len(z.Type) + 10 + msgp.StringPrefixSize + len(z.InputHash) + 11 + msgp.StringPrefixSize + len(z.OutputHash) + 9 + msgp.IntSize + 5 + msgp.Int64Size + 10 + msgp.Int64Size + 11 + msgp.BoolSize + 14 + msgp.BytesPrefixSize + len(z.InlineContent)
 	return
 }
 

@@ -14,9 +14,9 @@ import (
 // CreateSamplePostMeta creates a valid PostMeta for testing
 func CreateSamplePostMeta() *cache.PostMeta {
 	return &cache.PostMeta{
-		PostID:      "test-post",
-		Title:       "Test Post",
+		PostID:      "posts/test-post.md",
 		Path:        "content/posts/test-post.md",
+		Title:       "Test Post",
 		Date:        time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
 		Tags:        []string{"test", "go", "tutorial"},
 		Description: "A test post for testing purposes",
@@ -26,14 +26,6 @@ func CreateSamplePostMeta() *cache.PostMeta {
 		ReadingTime: 1,
 		Meta:        make(map[string]any),
 	}
-}
-
-// CreateSamplePostMetaWithVersion creates a PostMeta with version info
-func CreateSamplePostMetaWithVersion(version string) *cache.PostMeta {
-	post := CreateSamplePostMeta()
-	post.Version = version
-	post.Path = "content/" + version + "/posts/test-post.md"
-	return post
 }
 
 // CreateSamplePageData creates valid PageData for testing

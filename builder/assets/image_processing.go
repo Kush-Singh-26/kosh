@@ -51,6 +51,32 @@ type ProcessImageOptions struct {
 	Scheduler scheduler.BuildScheduler
 }
 
+func maybeCopyOriginal(srcFs afero.Fs, sink fspkg.ArtifactSink, srcPath, dstWebp string, srcInfo fs.FileInfo, onWrite func(string), keepOriginal bool) error {
+	if !keepOriginal {
+		return nil
+	}
+	ext := strings.ToLower(filepath.Ext(srcPath))
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+		return nil
+	}
+	if strings.ToLower(filepath.Ext(dstWebp)) != ".webp" {
+		return nil
+	}
+	origDst := strings.TrimSuffix(dstWebp, filepath.Ext(dstWebp)) + ext
+	modTime := int64(0)
+	if srcInfo != nil {
+		modTime = srcInfo.ModTime().UnixNano()
+	}
+	return fspkg.CopyFileVFS(fspkg.CopyFileOptions{
+		SrcFs:   srcFs,
+		Sink:    sink,
+		SrcPath: srcPath,
+		DstPath: origDst,
+		ModTime: modTime,
+		OnWrite: onWrite,
+	})
+}
+
 func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 	ext := strings.ToLower(filepath.Ext(opts.SrcPath))
 	isImage := ext == ".jpg" || ext == ".jpeg" || ext == ".png"
@@ -71,9 +97,8 @@ func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 		if opts.RelPath != "" {
 			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
 			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
-			RecordConvertedImage(relSrc, relDst)
+			registerImageVariants(relSrc, relDst)
 		}
-		RecordConvertedImage(opts.DstPath, dstPath)
 		return nil
 	}
 
@@ -129,6 +154,13 @@ func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 	return err
 }
 
+// ProcessCacheMissImage processes an image that is known to not be in any cache.
+// Called from the asset service background image workers.
+// Skips cache lookups (memory + disk) and goes directly to decode/encode.
+func ProcessCacheMissImage(opts ProcessImageOptions) error {
+	return convertToWebPVFS(opts)
+}
+
 func convertToWebPVFS(opts ProcessImageOptions) error {
 	if opts.SrcInfo == nil {
 		var err error
@@ -154,7 +186,16 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 			opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cached)))
 			opts.Opts.Metrics.IncrementAssetsProcessed()
 		}
-		return opts.Sink.WriteFile(opts.DstPath, cached)
+		err := opts.Sink.WriteFile(opts.DstPath, cached)
+		if err == nil && opts.RelPath != "" {
+			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
+			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
+			registerImageVariants(relSrc, relDst)
+		}
+		if err == nil {
+			_ = maybeCopyOriginal(opts.SrcFs, opts.Sink, opts.SrcPath, opts.DstPath, opts.SrcInfo, opts.Opts.OnWrite, opts.Opts.KeepOriginal)
+		}
+		return err
 	}
 
 	var cacheFile string
@@ -174,8 +215,7 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 				return fmt.Errorf("failed to create image directory: %w", err)
 			}
 
-			cachedData, readErr := afero.ReadAll(f)
-			if readErr == nil {
+			if cachedData, readErr := afero.ReadAll(f); readErr == nil {
 				GetImageCache().set(memCacheKey, cachedData)
 				if !isNil(opts.Opts.Metrics) {
 					opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cachedData)))
@@ -184,6 +224,12 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 				if err := opts.Sink.WriteFile(opts.DstPath, cachedData); err != nil {
 					return fmt.Errorf("failed to write cached image %s: %w", opts.DstPath, err)
 				}
+				if opts.RelPath != "" {
+					relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
+					relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
+					registerImageVariants(relSrc, relDst)
+				}
+				_ = maybeCopyOriginal(opts.SrcFs, opts.Sink, opts.SrcPath, opts.DstPath, opts.SrcInfo, opts.Opts.OnWrite, opts.Opts.KeepOriginal)
 			} else {
 				return fmt.Errorf("failed to read cached image %s: %w", cacheFile, readErr)
 			}
@@ -303,6 +349,12 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 		if !isNil(opts.Opts.Metrics) {
 			opts.Opts.Metrics.IncrementAssetsProcessed()
 		}
+		if opts.RelPath != "" {
+			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
+			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
+			registerImageVariants(relSrc, relDst)
+		}
+		_ = maybeCopyOriginal(opts.SrcFs, opts.Sink, opts.SrcPath, opts.DstPath, opts.SrcInfo, opts.Opts.OnWrite, opts.Opts.KeepOriginal)
 	}
 
 	return err

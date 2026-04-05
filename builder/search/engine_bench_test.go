@@ -54,6 +54,6 @@ func BenchmarkPerformSearch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = PerformSearch(index, "kosh", "all")
+		_ = PerformSearch(index, "kosh")
 	}
 }

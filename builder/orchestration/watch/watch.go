@@ -122,7 +122,11 @@ func (c *Coordinator) IsContentPath(path string) bool {
 func (c *Coordinator) IsAssetPath(path string) bool {
 	path = c.NormalizeAbsoluteWatchPath(path)
 	staticDir := c.NormalizeAbsoluteWatchPath(c.cfg.StaticDir)
-	siteStaticDir := c.NormalizeAbsoluteWatchPath("static")
+	siteStaticDir := "static"
+	if c.cfg.SiteRoot != "" {
+		siteStaticDir = filepath.Join(c.cfg.SiteRoot, "static")
+	}
+	siteStaticDir = c.NormalizeAbsoluteWatchPath(siteStaticDir)
 	return fspkg.IsPathInOrSame(path, staticDir) || fspkg.IsPathInOrSame(path, siteStaticDir)
 }
 
@@ -241,11 +245,9 @@ func (c *Coordinator) processBuildQueue() {
 
 		case <-debounce.C:
 			if len(mergedPaths) > 0 {
-				c.buildMu.Lock()
 				for path, op := range mergedPaths {
 					c.dispatchChange(path, op)
 				}
-				c.buildMu.Unlock()
 				mergedPaths = nil
 			}
 		}

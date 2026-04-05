@@ -3,11 +3,8 @@ package main
 import (
 	"log/slog"
 	"runtime"
-	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/Kush-Singh-26/kosh/internal/version"
 )
 
 var (
@@ -17,15 +14,10 @@ var (
 const cliVersion = "v1.4.0"
 
 var versionCmd = &cobra.Command{
-	Use:   "version [vX.X]",
-	Short: "Version management commands",
-	Long: `Show current documentation version info or create a new version.
-
-Examples:
-  kosh version           Show current version info
-  kosh version v4.0      Freeze current latest and start new version v4.0
-  kosh version --info    Show Kosh build information`,
-	Run: runVersion,
+	Use:   "version",
+	Short: "Show Kosh version information",
+	Long:  `Show current Kosh version and build information.`,
+	Run:   runVersion,
 }
 
 func init() {
@@ -35,16 +27,7 @@ func init() {
 }
 
 func runVersion(cmd *cobra.Command, args []string) {
-	if versionInfo {
-		printVersionInfo()
-		return
-	}
-
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		version.Run(args)
-	} else {
-		version.Run([]string{})
-	}
+	printVersionInfo()
 }
 
 func printVersionInfo() {

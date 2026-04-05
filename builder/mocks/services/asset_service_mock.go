@@ -42,6 +42,10 @@ func (m *MockAssetService) SetContentAssetsChannel(ch <-chan []models.ScannedAss
 }
 
 func (m *MockAssetService) Build(ctx context.Context) error {
+	return m.BuildWithOptions(ctx, false)
+}
+
+func (m *MockAssetService) BuildWithOptions(ctx context.Context, skipImages bool) error {
 	if m.FailBuild {
 		return context.Canceled // Simulate build failure
 	}
@@ -60,6 +64,10 @@ func (m *MockAssetService) Build(ctx context.Context) error {
 }
 
 func (m *MockAssetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (m *MockAssetService) BuildForAssetChangeWithOptions(ctx context.Context, forceImages bool) (map[string]string, error) {
 	return map[string]string{}, nil
 }
 

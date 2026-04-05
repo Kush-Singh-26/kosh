@@ -39,6 +39,10 @@ func TestDiagramCacheAdapter_ConcurrentSameKeyFlush(t *testing.T) {
 	if err != nil || artifact == nil {
 		t.Fatalf("expected SSR artifact after flush, err=%v", err)
 	}
+
+	if len(artifact.InlineContent) == 0 {
+		t.Fatal("expected inlined content for small diagram")
+	}
 }
 
 func TestDiagramCacheAdapter_SSRThemePair(t *testing.T) {

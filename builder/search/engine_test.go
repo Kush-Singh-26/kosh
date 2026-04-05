@@ -39,7 +39,7 @@ func TestPerformSearch_PhraseBoost(t *testing.T) {
 	index.Inverted["go"] = map[string][]uint32{"0": {1}, "1": {0}}
 	index.Inverted["programming"] = map[string][]uint32{"0": {2}, "1": {4}}
 
-	results := PerformSearch(index, "go programming", "all")
+	results := PerformSearch(index, "go programming")
 
 	if len(results) < 2 {
 		t.Fatalf("Expected 2 results, got %d", len(results))
@@ -132,7 +132,6 @@ func TestPerformSearch(t *testing.T) {
 			Title:           "Go Guide",
 			NormalizedTitle: "go guide",
 			Description:     "A guide to Go programming language",
-			Version:         "v1",
 			NormalizedTags:  []string{"go", "programming"},
 		},
 		"1": {
@@ -140,7 +139,6 @@ func TestPerformSearch(t *testing.T) {
 			Title:           "Rust Guide",
 			NormalizedTitle: "rust guide",
 			Description:     "A guide to Rust programming",
-			Version:         "v1",
 			NormalizedTags:  []string{"rust", "programming"},
 		},
 		"2": {
@@ -148,7 +146,6 @@ func TestPerformSearch(t *testing.T) {
 			Title:           "Python Intro",
 			NormalizedTitle: "python intro",
 			Description:     "Introduction to Python",
-			Version:         "v2",
 			NormalizedTags:  []string{"python"},
 		},
 	}
@@ -185,52 +182,35 @@ func TestPerformSearch(t *testing.T) {
 	index.DocLens["2"] = 3
 
 	tests := []struct {
-		name          string
-		query         string
-		versionFilter string
-		wantIDs       []uint64
+		name    string
+		query   string
+		wantIDs []uint64
 	}{
 		{
-			name:          "search go",
-			query:         "go",
-			versionFilter: "all",
-			wantIDs:       []uint64{0},
+			name:    "search go",
+			query:   "go",
+			wantIDs: []uint64{0},
 		},
 		{
-			name:          "search guide",
-			query:         "guide",
-			versionFilter: "all",
-			wantIDs:       []uint64{0, 1}, // Both match
+			name:    "search guide",
+			query:   "guide",
+			wantIDs: []uint64{0, 1}, // Both match
 		},
 		{
-			name:          "version filter",
-			query:         "guide",
-			versionFilter: "v1",
-			wantIDs:       []uint64{0, 1},
+			name:    "tag search",
+			query:   "tag:rust",
+			wantIDs: []uint64{1},
 		},
 		{
-			name:          "version filter mismatch",
-			query:         "python",
-			versionFilter: "v1",
-			wantIDs:       nil, // Python is v2
-		},
-		{
-			name:          "tag search",
-			query:         "tag:rust",
-			versionFilter: "all",
-			wantIDs:       []uint64{1},
-		},
-		{
-			name:          "tag search mismatch",
-			query:         "tag:java",
-			versionFilter: "all",
-			wantIDs:       nil,
+			name:    "tag search mismatch",
+			query:   "tag:java",
+			wantIDs: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results := PerformSearch(index, tt.query, tt.versionFilter)
+			results := PerformSearch(index, tt.query)
 
 			// Extract IDs
 			var gotIDs []uint64
@@ -381,7 +361,7 @@ func TestSearch_UnicodeHandling(t *testing.T) {
 	index.Inverted["testing"] = map[string][]uint32{"0": {0}}
 
 	// Should not panic on Unicode content
-	results := PerformSearch(index, "café", "all")
+	results := PerformSearch(index, "café")
 	if len(results) < 1 {
 		t.Errorf("Expected at least 1 result for Unicode query, got %d", len(results))
 	}
@@ -415,7 +395,7 @@ func TestSearch_FuzzyMatchingThresholds(t *testing.T) {
 	index.Inverted["exact"] = map[string][]uint32{"0": {0}}
 	index.Inverted["exacr"] = map[string][]uint32{"1": {4}}
 
-	results := PerformSearch(index, "exact", "all")
+	results := PerformSearch(index, "exact")
 	if len(results) < 1 {
 		t.Errorf("Expected at least 1 result, got %d", len(results))
 	}
@@ -474,40 +454,4 @@ func TestSearch_SnippetExtractionBoundaries(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestSearch_VersionFilterBehavior verifies version filtering works correctly
-func TestSearch_VersionFilterBehavior(t *testing.T) {
-	index := &models.SearchIndex{
-		Posts: map[string]models.PostRecord{
-			"0": {
-				ID:      0,
-				Title:   "v1 Post",
-				Content: "Content for version 1",
-			},
-			"1": {
-				ID:      1,
-				Title:   "v2 Post",
-				Content: "Content for version 2",
-			},
-		},
-		Inverted:  make(map[string]map[string][]uint32),
-		DocLens:   map[string]int64{"0": 5, "1": 5},
-		TotalDocs: 2,
-		AvgDocLen: 5.0,
-	}
-
-	index.Inverted["content"] = map[string][]uint32{"0": {0}, "1": {0}}
-
-	// All versions should return both
-	resultsAll := PerformSearch(index, "content", "all")
-	if len(resultsAll) != 2 {
-		t.Errorf("Expected 2 results for all versions, got %d", len(resultsAll))
-	}
-
-	// Filter to v1 only - note: version filtering checks PostMeta.Version
-	resultsV1 := PerformSearch(index, "content", "v1")
-	// Version filter may not match because search uses normalized comparison
-	// Just verify search doesn't crash
-	t.Logf("v1 filter returned %d results", len(resultsV1))
 }

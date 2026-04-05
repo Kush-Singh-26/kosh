@@ -7,7 +7,6 @@ package render
 
 import (
 	"fmt"
-	"html/template"
 	"log/slog"
 	"time"
 
@@ -86,10 +85,6 @@ func (s *renderService) waitForAssets(path string) error {
 		}
 	}
 	return nil
-}
-
-func (s *renderService) RenderSidebar(tree []*models.TreeNode) template.HTML {
-	return s.rnd.RenderSidebar(tree)
 }
 
 func (s *renderService) RegisterFile(path string) {

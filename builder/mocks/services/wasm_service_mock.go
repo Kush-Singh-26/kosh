@@ -7,16 +7,16 @@ import (
 )
 
 type MockWasmService struct {
-	CheckAndUpdateFunc func(ctx context.Context) error
+	CheckAndUpdateFunc func(ctx context.Context) (bool, error)
 	DeployFunc         func(ctx context.Context, sink fspkg.ArtifactSink) error
 	SetDirtyFunc       func(dirty bool)
 }
 
-func (m *MockWasmService) CheckAndUpdate(ctx context.Context) error {
+func (m *MockWasmService) CheckAndUpdate(ctx context.Context) (bool, error) {
 	if m.CheckAndUpdateFunc != nil {
 		return m.CheckAndUpdateFunc(ctx)
 	}
-	return nil
+	return false, nil
 }
 
 func (m *MockWasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) error {

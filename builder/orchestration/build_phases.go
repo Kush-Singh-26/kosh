@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
@@ -39,8 +40,8 @@ type buildScanResult struct {
 
 // setupPhase handles early build configuration and project-wide setup
 func (b *Engine) setupPhase(ctx context.Context) (*buildSetupResult, error) {
-	if b.Metrics != nil {
-		b.Metrics.Reset()
+	if b.Deps.Metrics != nil {
+		b.Deps.Metrics.Reset()
 	}
 
 	if b.Health != nil {
@@ -84,7 +85,8 @@ func (b *Engine) setupPhase(ctx context.Context) (*buildSetupResult, error) {
 
 // assetPhase starts the asset building pipeline
 func (b *Engine) assetPhase(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) *buildAssetResult {
-	assetsReady, discoveryReady, assetWg, assetErrChan := b.Assets.SetupBuilding(ctx, contentAssetsChan)
+	forceAssetBuild := b.Cfg.ForceRebuild
+	assetsReady, discoveryReady, assetWg, assetErrChan := b.Assets.SetupBuilding(ctx, contentAssetsChan, forceAssetBuild)
 
 	return &buildAssetResult{
 		assetsReady:    assetsReady,
@@ -107,7 +109,7 @@ func (b *Engine) scanPhase(ctx context.Context, contentAssetsChan chan []models.
 		defer close(metadataResultChan)
 		defer close(scannerErrChan)
 
-		metadataResult, scannerErr := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.SourceFs, b.Cfg, fileChan)
+		metadataResult, scannerErr := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.Deps.SourceFs, b.Cfg, fileChan)
 		if scannerErr == nil {
 			contentAssetsChan <- metadataResult.ContentAssets
 		}
@@ -137,6 +139,7 @@ func (b *Engine) processPhase(
 	// This ensures the image/WebP rewrite map is populated so HTML can reference
 	// the correct paths. Image compression continues in the background while posts render.
 	metadataResult, discoveryReady, scannerErr, assetErr, _ := b.waitForScannerAndAssets(
+		ctx,
 		scan.scannerReady, scan.metadataResultChan, scan.scannerErrChan,
 		assets.assetWg, assets.assetErrChan, assets.discoveryReady,
 	)
@@ -157,7 +160,11 @@ func (b *Engine) processPhase(
 
 	// Wait for discovery signal so image rewrite map is ready before post-processing
 	if discoveryReady != nil {
-		<-discoveryReady
+		select {
+		case <-discoveryReady:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	// Process Posts (render HTML with WebP image rewrites)
@@ -184,9 +191,13 @@ func (b *Engine) processPhase(
 func (b *Engine) setupWasmDeployment(ctx context.Context) *sync.WaitGroup {
 	var wasmWg sync.WaitGroup
 	wasmWg.Add(1)
-	async.FireAndForgetWithCleanup(ctx, b.Logger, "WASM compilation",
+	async.FireAndForgetWithCleanup(ctx, b.Deps.Logger, "WASM compilation",
 		func() error {
-			return b.Deps.Wasm.CheckAndUpdate(ctx)
+			updated, err := b.Deps.Wasm.CheckAndUpdate(ctx)
+			if err == nil && updated {
+				b.State.ForceGenerators.Store(true)
+			}
+			return err
 		},
 		func() {
 			wasmWg.Done()
@@ -207,10 +218,12 @@ func (b *Engine) checkSocialCardRebuild() bool {
 	return err == nil && info.ModTime().After(lastBuildTime)
 }
 
-// initializeNativeRenderer warms up the JS renderer pool
+// initializeNativeRenderer warms up the JS renderer pool asynchronously
 func (b *Engine) initializeNativeRenderer(ctx context.Context) {
-	if b.NativeRenderer != nil {
-		b.NativeRenderer.EnsureInitialized(ctx)
+	if b.Deps.NativeRenderer != nil {
+		go func() {
+			b.Deps.NativeRenderer.EnsureInitialized(ctx)
+		}()
 	}
 }
 
@@ -218,7 +231,7 @@ func (b *Engine) initializeNativeRenderer(ctx context.Context) {
 func (b *Engine) createOutputDirectories() error {
 	for _, dir := range []string{"tags", "static/images/cards", "sitemap"} {
 		if err := b.Sink.MkdirAll(filepath.Join(b.Cfg.OutputDir, dir)); err != nil {
-			b.Logger.Error("Failed to create directory", "dir", dir, "error", err)
+			b.Deps.Logger.Error("Failed to create directory", "dir", dir, "error", err)
 			return err
 		}
 	}
@@ -228,6 +241,7 @@ func (b *Engine) createOutputDirectories() error {
 // waitForScannerAndAssets waits for scanner and asset building to complete.
 // The discoveryReady signal unblocks post-processing while image compression continues.
 func (b *Engine) waitForScannerAndAssets(
+	ctx context.Context,
 	scannerReady <-chan struct{},
 	metadataResultChan <-chan *models.MetadataScannerResult,
 	scannerErrChan <-chan error,
@@ -235,11 +249,21 @@ func (b *Engine) waitForScannerAndAssets(
 	assetErrChan <-chan error,
 	discoveryReady <-chan struct{},
 ) (*models.MetadataScannerResult, <-chan struct{}, error, error, error) {
-	<-scannerReady
+	select {
+	case <-scannerReady:
+	case <-ctx.Done():
+		return nil, nil, nil, nil, ctx.Err()
+	}
 
 	// Receive scanner result and error
-	metadataResult := <-metadataResultChan
-	scannerErr := <-scannerErrChan
+	var metadataResult *models.MetadataScannerResult
+	var scannerErr error
+	select {
+	case metadataResult = <-metadataResultChan:
+		scannerErr = <-scannerErrChan
+	case <-ctx.Done():
+		return nil, nil, nil, nil, ctx.Err()
+	}
 
 	// Return discoveryReady separately so post-processing can unblock on it.
 	// The caller will wait for assetWg separately if needed.
@@ -249,6 +273,8 @@ func (b *Engine) waitForScannerAndAssets(
 	select {
 	case err := <-assetErrChan:
 		assetErr = err
+	case <-ctx.Done():
+		return nil, nil, nil, nil, ctx.Err()
 	default:
 	}
 
@@ -283,7 +309,7 @@ func (b *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTim
 }
 
 // finalizeBuild writes post-build files and commits the transaction
-func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup) error {
+func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup, assetsReady <-chan struct{}) error {
 	// Write .nojekyll file
 	if err := b.Sink.WriteFile(filepath.Join(b.Cfg.OutputDir, ".nojekyll"), []byte{}); err != nil {
 		return fmt.Errorf("failed to write .nojekyll: %w", err)
@@ -291,7 +317,7 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup) erro
 	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, ".nojekyll"))
 
 	// Sync/Commit transaction
-	b.Logger.Info("Publishing output...")
+	b.Deps.Logger.Info("Publishing output...")
 	syncTimer := timeutil.StartPhase("Publish")
 	// Ensure WASM compilation and PWA generation finished before deploying and publishing
 	wasmWg.Wait()
@@ -300,8 +326,28 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup) erro
 	b.Cfg.ForceRebuild = false
 
 	if err := b.Deps.Wasm.Deploy(ctx, b.Sink); err != nil {
-		b.Logger.Warn("Failed to deploy Search WASM", "error", err)
+		b.Deps.Logger.Warn("Failed to deploy Search WASM", "error", err)
 	}
+
+	// Ensure asset pipeline finished so converted-image map is complete.
+	if assetsReady != nil {
+		select {
+		case <-assetsReady:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	// Batch rewrite image paths in output HTML for background-processed images.
+	// Images processed after discoveryReady closed are rewritten from .png/.jpg/.jpeg
+	// to .webp on disk. This only affects files that were rendered while images were
+	// still processing (their HTML still has original extensions).
+	assets.RewriteImagePaths(b.Tx.StagingDir())
+
+	// Remove original raster images (.png/.jpg/.jpeg) when .webp equivalents exist.
+	// This ensures the published output contains only WebP images (except critical assets).
+	assets.CleanupOriginalImages(b.Tx.StagingDir())
+
 	if err := b.Tx.Commit(ctx); err != nil {
 		syncTimer.Stop()
 		return fmt.Errorf("failed to publish build transaction: %w", err)
@@ -317,9 +363,9 @@ func (b *Engine) processPosts(ctx context.Context, shouldForce, forceSocialRebui
 }
 
 // finalizePhase handles post-build cleanup and commit
-func (b *Engine) finalizePhase(ctx context.Context, wasmWg *sync.WaitGroup) error {
+func (b *Engine) finalizePhase(ctx context.Context, wasmWg *sync.WaitGroup, assetsReady <-chan struct{}) error {
 	// Post-build files and commit
-	if err := b.finalizeBuild(ctx, wasmWg); err != nil {
+	if err := b.finalizeBuild(ctx, wasmWg, assetsReady); err != nil {
 		return err
 	}
 
@@ -330,9 +376,9 @@ func (b *Engine) finalizePhase(ctx context.Context, wasmWg *sync.WaitGroup) erro
 	b.Deps.Render.ClearRenderedFiles()
 
 	// Build complete
-	b.Metrics.RecordEnd()
-	b.Logger.Info("Build complete")
-	b.Metrics.Print()
+	b.Deps.Metrics.RecordEnd()
+	b.Deps.Logger.Info("Build complete")
+	b.Deps.Metrics.Print()
 
 	if b.Health != nil {
 		b.Health.LogSummary()

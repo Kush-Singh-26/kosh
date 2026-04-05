@@ -253,6 +253,9 @@ func (m *Manager) GetSSRArtifact(ssrType, inputHash string) (*core.SSRArtifact, 
 
 // GetSSRContent retrieves the actual content for an SSR artifact
 func (m *Manager) GetSSRContent(ssrType string, artifact *core.SSRArtifact) ([]byte, error) {
+	if len(artifact.InlineContent) > 0 {
+		return artifact.InlineContent, nil
+	}
 	category := filepath.Join("ssr", ssrType)
 	return m.store.Get(category, artifact.OutputHash, artifact.Compressed)
 }
@@ -288,42 +291,28 @@ func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
 	return ids, err
 }
 
-// GetPostsMetadataByVersion retrieves minimal metadata for posts in a specific version
-// This is optimized for ProcessSingle to avoid loading all posts
-func (m *Manager) GetPostsMetadataByVersion(version string) ([]PostListMeta, error) {
+// GetAllPostsMetadata retrieves minimal metadata for all posts
+func (m *Manager) GetAllPostsMetadata() ([]PostListMeta, error) {
 	var result []PostListMeta
 
 	err := m.db.View(func(tx *bbolt.Tx) error {
-		versionsBucket := tx.Bucket([]byte(core.BucketVersions))
-		if versionsBucket == nil {
-			return nil
-		}
-
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		if postsBucket == nil {
 			return nil
 		}
 
-		prefix := []byte(version + "/")
-		c := versionsBucket.Cursor()
-		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
-			postID := k[len(prefix):]
-
-			v := postsBucket.Get(postID)
-			if v != nil {
-				var meta core.PostMeta
-				if err := core.Decode(v, &meta); err == nil {
-					result = append(result, PostListMeta{
-						Title:   meta.Title,
-						Link:    meta.Link,
-						Weight:  meta.Weight,
-						Version: meta.Version,
-						Date:    meta.Date,
-					})
-				}
+		return postsBucket.ForEach(func(k, v []byte) error {
+			var meta core.PostMeta
+			if err := core.Decode(v, &meta); err == nil {
+				result = append(result, PostListMeta{
+					Title:  meta.Title,
+					Link:   meta.Link,
+					Weight: meta.Weight,
+					Date:   meta.Date,
+				})
 			}
-		}
-		return nil
+			return nil
+		})
 	})
 
 	return result, err

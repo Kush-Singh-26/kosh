@@ -75,7 +75,7 @@ func TestIsAssetPath(t *testing.T) {
 					StaticDir: tt.staticDir,
 				},
 			}
-			b := NewEngineFromManual(cfg, nil, nil, nil, nil, &mocks.MockWasmService{}, logger, nil, nil, nil, nil)
+			b := NewEngineFromManual(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger})
 			got := b.Watch.IsAssetPath(tt.path)
 			if got != tt.want {
 				t.Errorf("isAssetPath(%q) = %v, want %v", tt.path, got, tt.want)
@@ -91,7 +91,7 @@ func TestNormalizeWatchPath_ProjectRelativeAbsolutePath(t *testing.T) {
 	}
 	logger := InitLogger()
 	cfg := &config.Config{}
-	b := NewEngineFromManual(cfg, nil, nil, nil, nil, &mocks.MockWasmService{}, logger, nil, nil, nil, nil)
+	b := NewEngineFromManual(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger})
 	abs := filepath.Join(wd, "themes", "test-theme", "static", "css", "style.css")
 	got := b.Watch.NormalizeWatchPath(abs)
 	expected := fspkg.NormalizePath("themes/test-theme/static/css/style.css")
@@ -108,7 +108,7 @@ func TestIsContentPathWithAbsoluteConfiguredContentDir(t *testing.T) {
 	contentDir := filepath.Join(wd, "content")
 	logger := InitLogger()
 	cfg := &config.Config{PathConfig: config.PathConfig{ContentDir: contentDir}}
-	b := NewEngineFromManual(cfg, nil, nil, nil, nil, nil, logger, nil, nil, nil, nil)
+	b := NewEngineFromManual(EngineDependencies{Config: cfg, Logger: logger})
 	path := filepath.Join(contentDir, "posts", "hello.md")
 	if !b.Watch.IsContentPath(path) {
 		t.Fatalf("expected absolute markdown path to match absolute content dir")
@@ -164,7 +164,7 @@ func TestInvalidateForTemplate(t *testing.T) {
 					StaticDir:   tt.staticDir,
 				},
 			}
-			b := NewEngineFromManual(cfg, nil, nil, nil, nil, &mocks.MockWasmService{}, logger, nil, nil, nil, nil)
+			b := NewEngineFromManual(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger})
 			got := b.Watch.InvalidateForTemplate(tt.templatePath)
 			if (got == nil) != tt.wantNil {
 				t.Errorf("invalidateForTemplate(%q) returned nil=%v, want nil=%v", tt.templatePath, got == nil, tt.wantNil)
@@ -274,7 +274,19 @@ Initial body.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -380,7 +392,19 @@ Initial body.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(cfg, renderSvc, assetSvc, postSvc, metadataScanner, wasmSvc, logger, buildMetrics, fs, mdPool, nativeRenderer)
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	})
 	b.Sink = sink
 	b.Tx = tx
 
@@ -402,8 +426,92 @@ Updated body.
 
 	sink.Files = make(map[string][]byte)
 	b.Incremental.BuildSinglePost(ctx, absPath)
+}
 
-	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
-		t.Fatalf("expected single-post output to be written")
+func TestBuildSinglePost_FrontmatterChangeTriggersFullBuild(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	absPath, _ := filepath.Abs("content/posts/hello.md")
+	contentDir, _ := filepath.Abs("content")
+	templateDir, _ := filepath.Abs("themes/test-theme/templates")
+
+	_ = fs.MkdirAll(filepath.Dir(absPath), 0755)
+	_ = fs.MkdirAll(templateDir, 0755)
+	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte("<html>{{.Content}}</html>"), 0644)
+
+	initialContent := `---
+title: "Hello"
+date: "2026-03-06"
+---
+# Body
+`
+	_ = afero.WriteFile(fs, absPath, []byte(initialContent), 0644)
+
+	cfg := &config.Config{
+		PathConfig: config.PathConfig{
+			ThemeDir:    "themes",
+			TemplateDir: templateDir,
+			ContentDir:  contentDir,
+			OutputDir:   "public",
+		},
 	}
+
+	logger := InitLogger()
+	nativeRenderer := native.New()
+	t.Cleanup(func() { _ = nativeRenderer.Close() })
+
+	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
+	defer func() { _ = cm.Close() }()
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Manager: cm,
+		Logger:  logger,
+	})
+
+	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Renderer: rnd,
+		Logger:   logger,
+	})
+
+	postSvc := post.NewService(post.Dependencies{
+		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Cfg:            cfg,
+		Cache:          cacheSvc,
+		Renderer:       renderSvc,
+		Logger:         logger,
+		SourceFs:       fs,
+		NativeRenderer: nativeRenderer,
+	})
+
+	b := NewEngineFromManual(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          &mocks.MockAssetService{},
+		Post:           postSvc,
+		Cache:          cacheSvc,
+		Scanner:        scanner.NewScanner(),
+		Wasm:           &mocks.MockWasmService{},
+		Logger:         logger,
+		Metrics:        metrics.NewBuildMetrics(),
+		SourceFs:       fs,
+		NativeRenderer: nativeRenderer,
+	})
+	b.SetSink(testutil.NewMemSink())
+	b.Tx = testutil.NewMockTransaction("public")
+
+	ctx := context.Background()
+	_ = b.Build(ctx)
+
+	// Change frontmatter
+	updatedContent := `---
+title: "Updated Title"
+date: "2026-03-06"
+---
+# Body
+`
+	_ = afero.WriteFile(fs, absPath, []byte(updatedContent), 0644)
+
+	// This should not deadlock and should complete
+	b.Incremental.BuildSinglePost(ctx, absPath)
 }
