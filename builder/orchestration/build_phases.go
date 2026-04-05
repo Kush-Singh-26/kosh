@@ -299,8 +299,8 @@ func (b *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTim
 
 	if siteWideHas404 {
 		if err := b.Deps.Render.Render404(filepath.Join(b.Cfg.OutputDir, "404.html"), models.PageData{
-			Title: "404 Not Found", BaseURL: "", TabTitle: "404 Not Found",
-			Config: b.Cfg, RelativePrefix: "/",
+			Title: "404 Not Found", BaseURL: b.Cfg.BaseURL, TabTitle: "404 Not Found",
+			Config: b.Cfg, RelativePrefix: "",
 		}); err != nil {
 			return fmt.Errorf("failed to render 404 page: %w", err)
 		}

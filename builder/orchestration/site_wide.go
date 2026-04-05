@@ -150,10 +150,10 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 			if err := b.Deps.Render.RenderGraph(filepath.Join(b.Cfg.OutputDir, "graph.html"), models.PageData{
 				Title:          "Graph View",
 				TabTitle:       "Knowledge Graph | " + b.Cfg.Title,
-				BaseURL:        "",
+				BaseURL:        b.Cfg.BaseURL,
 				BuildVersion:   b.Cfg.BuildVersion,
 				Config:         b.Cfg,
-				RelativePrefix: "/",
+				RelativePrefix: "",
 			}); err != nil {
 				return fmt.Errorf("failed to render graph page: %w", err)
 			}
