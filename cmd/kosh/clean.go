@@ -36,7 +36,7 @@ func runClean(cmd *cobra.Command, args []string) {
 	clean.Run(cleanCache)
 
 	orchestration.DevLogInfo("Rebuilding site...")
-	if err := orchestration.Run([]string{}); err != nil {
+	if err := orchestration.Run([]string{}, reporter); err != nil {
 		orchestration.DevLogError("Rebuild failed: " + err.Error())
 	}
 }

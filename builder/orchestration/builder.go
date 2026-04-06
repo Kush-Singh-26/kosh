@@ -27,6 +27,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/services/wasm"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/spf13/afero"
 )
 
@@ -51,12 +52,15 @@ type buildSetup struct {
 	wasmSvc        wasm.Service
 	metaScanner    scanner.Scanner
 	diagramAdapter *cache.DiagramCacheAdapter
+	reporter       ui.Reporter
 }
 
-func (s *buildSetup) initLoggerAndContext(cfg *config.Config) {
+func (s *buildSetup) initLoggerAndContext(cfg *config.Config, r ui.Reporter) {
 	s.cfg = cfg
-	s.logger = InitLogger()
+	s.reporter = r
+	s.logger = InitLogger(r)
 	isTesting := buildCtx.DetectTestingMode()
+
 	outputExists, _ := afero.Exists(s.vfs, cfg.OutputDir)
 	s.isCleanBuild = !outputExists
 	sched := scheduler.NewBuildScheduler()
@@ -136,6 +140,7 @@ func (s *buildSetup) initServices() {
 		Renderer: s.renderSvc,
 		Logger:   s.logger,
 		Metrics:  s.buildMetrics,
+		Reporter: s.reporter,
 	}, asset.WithAssetsReadySignal(assetsReady))
 
 	s.postSvc = post.NewService(post.Dependencies{
@@ -149,6 +154,7 @@ func (s *buildSetup) initServices() {
 		NativeRenderer: s.nativeRenderer,
 		SourceFs:       s.vfs,
 		DiagramAdapter: s.diagramAdapter,
+		Reporter:       s.reporter,
 	})
 	s.metaScanner = scanner.NewScanner()
 
@@ -160,10 +166,10 @@ func (s *buildSetup) initServices() {
 	})
 }
 
-func newEngineWithConfigFs(vfs afero.Fs, cfg *config.Config) *Engine {
-	setup := &buildSetup{vfs: vfs}
+func newEngineWithConfigFs(vfs afero.Fs, cfg *config.Config, r ui.Reporter) *Engine {
+	setup := &buildSetup{vfs: vfs, reporter: r}
 
-	setup.initLoggerAndContext(cfg)
+	setup.initLoggerAndContext(cfg, r)
 	setup.initDiagnostics()
 	setup.initCache()
 	setup.initNativeRenderer()
@@ -185,6 +191,7 @@ func newEngineWithConfigFs(vfs afero.Fs, cfg *config.Config) *Engine {
 			Metrics:        setup.buildMetrics,
 			MdPool:         setup.mdPool,
 			NativeRenderer: setup.nativeRenderer,
+			Reporter:       r,
 		},
 		State: EngineState{
 			IsCleanBuild: setup.isCleanBuild,

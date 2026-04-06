@@ -15,6 +15,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	renderSvc "github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
 // PostResult contains the aggregated results of post processing
@@ -68,12 +69,14 @@ type Dependencies struct {
 	SourceFs       afero.Fs
 	Sink           fspkg.ArtifactSink
 	DiagramAdapter *cache.DiagramCacheAdapter
+	Reporter       ui.Reporter
 }
 
 // Service handles markdown parsing and post processing.
 type Service interface {
 	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 	SetAssetsGate(ch <-chan struct{})
+	ReconfigureWithReporter(r ui.Reporter, l *slog.Logger)
 	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error

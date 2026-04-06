@@ -25,6 +25,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
@@ -40,6 +41,7 @@ type postService struct {
 	nativeRenderer *native.Renderer
 	sourceFs       afero.Fs
 	sink           fspkg.ArtifactSink
+	reporter       ui.Reporter
 	assetsReady    <-chan struct{}
 	diagramAdapter *cache.DiagramCacheAdapter
 	cacheWg        sync.WaitGroup
@@ -57,6 +59,7 @@ func NewService(deps Dependencies) Service {
 		nativeRenderer: deps.NativeRenderer,
 		sourceFs:       deps.SourceFs,
 		sink:           deps.Sink,
+		reporter:       deps.Reporter,
 		diagramAdapter: deps.DiagramAdapter,
 	}
 }
@@ -67,7 +70,11 @@ func (s *postService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) 
 }
 
 func (s *postService) SetAssetsGate(ch <-chan struct{}) { s.assetsReady = ch }
-func (s *postService) WaitForCacheCommit()              { s.cacheWg.Wait() }
+func (s *postService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {
+	s.reporter = r
+	s.logger = l
+}
+func (s *postService) WaitForCacheCommit() { s.cacheWg.Wait() }
 
 type renderTask struct {
 	parseRes    *ParsedMarkdownResult
@@ -136,7 +143,7 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 	renderWg.Add(1)
 	go func() {
 		defer renderWg.Done()
-		s.runStreamingRenderPhase(ctx, numWorkers, navInfo, renderChan)
+		s.runStreamingRenderPhase(ctx, numWorkers, navInfo, renderChan, len(files))
 	}()
 
 	err := s.runStreamingParsePhase(ctx, numWorkers, shouldForce, forceSocialRebuild, files, cardPool, searchPool, pc, renderChan)
@@ -185,7 +192,8 @@ func (s *postService) runStreamingParsePhase(ctx context.Context, numWorkers int
 	return parsePool.Stop()
 }
 
-func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, renderChan <-chan renderTask) {
+func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, renderChan <-chan renderTask, totalFiles int) {
+	processed := atomic.Int32{}
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(rt renderTask) error {
 		post := rt.parseRes.Post
 		_, _, cardImageURL := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, rt.htmlRelPath)
@@ -220,6 +228,11 @@ func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers in
 			if err := s.sink.WriteFile(mdDestPath, rt.source); err == nil {
 				s.renderer.RegisterFile(mdDestPath)
 			}
+		}
+
+		if s.reporter != nil {
+			curr := int(processed.Add(1))
+			s.reporter.UpdateProgress(ui.PhasePosts, curr, totalFiles, rt.relPath)
 		}
 
 		return nil
@@ -446,7 +459,11 @@ func (s *postService) copyCachedSocialCard(cardHash, cardDestPath string) {
 		s.sink.Register(cardDestPath)
 		return
 	}
-	defer cachedFile.Close()
+	defer func() {
+		if err := cachedFile.Close(); err != nil {
+			s.logger.Warn("Failed to close cached social card", "path", cachedCardPath, "error", err)
+		}
+	}()
 
 	if err := s.sink.MkdirAll(filepath.Dir(cardDestPath)); err != nil {
 		s.logger.Warn("Failed to create social card directory", "path", filepath.Dir(cardDestPath), "error", err)

@@ -258,6 +258,16 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 			}
 		}
 	}
+
+	// Add loading="lazy" and decoding="async" if not present
+	lowerResult := strings.ToLower(string(result))
+	if !strings.Contains(lowerResult, " loading=") && !strings.Contains(lowerResult, " loading\t") && !strings.Contains(lowerResult, " loading\n") {
+		result = append(result, []byte(" loading=\"lazy\"")...)
+	}
+	if !strings.Contains(lowerResult, " decoding=") && !strings.Contains(lowerResult, " decoding\t") && !strings.Contains(lowerResult, " decoding\n") {
+		result = append(result, []byte(" decoding=\"async\"")...)
+	}
+
 	return result
 }
 

@@ -104,7 +104,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 			Generators: models.GeneratorsConfig{
 				Sitemap: true,
 				RSS:     true,
-				Graph:   true,
+				Graph:   models.GraphConfig{Enabled: true, ShowTags: true},
 				PWA:     true,
 				Search:  true,
 			},

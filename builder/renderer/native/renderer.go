@@ -40,7 +40,6 @@ type Renderer struct {
 	taskWg         sync.WaitGroup
 	mu             sync.Mutex
 	closed         bool
-	mathGroup      singleflight.Group
 	D2Singleflight singleflight.Group // Shared group to deduplicate D2 diagram rendering across posts
 	scheduler      scheduler.BuildScheduler
 	mathQueue      chan mathRequest

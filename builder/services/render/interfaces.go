@@ -22,6 +22,7 @@ type Dependencies struct {
 type Service interface {
 	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 	SetAssetsGate(ch <-chan struct{})
+	ReconfigureWithLogger(l *slog.Logger)
 	RenderPage(path string, data models.PageData) error
 	RenderIndex(path string, data models.PageData) error
 	Render404(path string, data models.PageData) error

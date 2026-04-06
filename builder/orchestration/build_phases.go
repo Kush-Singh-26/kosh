@@ -12,6 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"golang.org/x/sync/errgroup"
 )
@@ -85,6 +86,9 @@ func (b *Engine) setupPhase(ctx context.Context) (*buildSetupResult, error) {
 
 // assetPhase starts the asset building pipeline
 func (b *Engine) assetPhase(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) *buildAssetResult {
+	if b.Deps.Reporter != nil {
+		b.Deps.Reporter.StartPhase(ui.PhaseAssets)
+	}
 	forceAssetBuild := b.Cfg.ForceRebuild
 	assetsReady, discoveryReady, assetWg, assetErrChan := b.Assets.SetupBuilding(ctx, contentAssetsChan, forceAssetBuild)
 
@@ -98,6 +102,9 @@ func (b *Engine) assetPhase(ctx context.Context, contentAssetsChan chan []models
 
 // scanPhase launches the parallel metadata scanner
 func (b *Engine) scanPhase(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) *buildScanResult {
+	if b.Deps.Reporter != nil {
+		b.Deps.Reporter.StartPhase(ui.PhaseScan)
+	}
 	fileChan := make(chan models.ScannedFile, 1024)
 	scannerReady := make(chan struct{})
 	metadataResultChan := make(chan *models.MetadataScannerResult, 1)
@@ -143,6 +150,10 @@ func (b *Engine) processPhase(
 		scan.scannerReady, scan.metadataResultChan, scan.scannerErrChan,
 		assets.assetWg, assets.assetErrChan, assets.discoveryReady,
 	)
+	if b.Deps.Reporter != nil {
+		b.Deps.Reporter.EndPhase(ui.PhaseScan, 0) // Duration is handled by reporter
+		b.Deps.Reporter.StartPhase(ui.PhasePosts)
+	}
 	if scannerErr != nil {
 		return fmt.Errorf("metadata scan failed: %w", scannerErr)
 	}
@@ -171,6 +182,10 @@ func (b *Engine) processPhase(
 	postResult, processErr := b.processPosts(ctx, b.Cfg.ForceRebuild, setup.forceSocialRebuild, b.State.IsCleanBuild, metadataResult.Files)
 	if processErr != nil {
 		return fmt.Errorf("post processing failed: %w", processErr)
+	}
+	if b.Deps.Reporter != nil {
+		b.Deps.Reporter.EndPhase(ui.PhasePosts, 0)
+		b.Deps.Reporter.StartPhase(ui.PhaseSiteWide)
 	}
 	if postResult.Has404 {
 		siteWideHas404 = true
@@ -296,6 +311,10 @@ func (b *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTim
 	if siteTimer != nil {
 		siteTimer.Stop()
 	}
+	if b.Deps.Reporter != nil {
+		b.Deps.Reporter.EndPhase(ui.PhaseSiteWide, 0)
+		b.Deps.Reporter.StartPhase(ui.PhasePublish)
+	}
 
 	if siteWideHas404 {
 		if err := b.Deps.Render.Render404(filepath.Join(b.Cfg.OutputDir, "404.html"), models.PageData{
@@ -338,6 +357,10 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup, asse
 		}
 	}
 
+	if b.Deps.Reporter != nil {
+		b.Deps.Reporter.EndPhase(ui.PhaseAssets, 0)
+	}
+
 	// Batch rewrite image paths in output HTML for background-processed images.
 	// Images processed after discoveryReady closed are rewritten from .png/.jpg/.jpeg
 	// to .webp on disk. This only affects files that were rendered while images were
@@ -369,6 +392,10 @@ func (b *Engine) finalizePhase(ctx context.Context, wasmWg *sync.WaitGroup, asse
 		return err
 	}
 
+	if b.Deps.Reporter != nil {
+		b.Deps.Reporter.EndPhase(ui.PhasePublish, 0)
+	}
+
 	// Cleanup orphans (Dev mode only)
 	b.cleanupOrphans()
 
@@ -378,7 +405,31 @@ func (b *Engine) finalizePhase(ctx context.Context, wasmWg *sync.WaitGroup, asse
 	// Build complete
 	b.Deps.Metrics.RecordEnd()
 	b.Deps.Logger.Info("Build complete")
-	b.Deps.Metrics.Print()
+	if b.Deps.Reporter != nil {
+		m := b.Deps.Metrics
+		hits := m.CacheHits.Load()
+		misses := m.CacheMisses.Load()
+		total := hits + misses
+		hitRate := float64(0)
+		if total > 0 {
+			hitRate = float64(hits) / float64(total)
+		}
+
+		orig := m.OriginalImageSize.Load()
+		opt := m.OptimizedImageSize.Load()
+		savedBytes := orig - opt
+
+		b.Deps.Reporter.Finish(
+			m.TotalDuration(),
+			hitRate,
+			int(m.PostsProcessed.Load()),
+			int(m.AssetsProcessed.Load()),
+			int(m.ImagesOptimized.Load()),
+			savedBytes,
+		)
+	} else {
+		b.Deps.Metrics.Print()
+	}
 
 	if b.Health != nil {
 		b.Health.LogSummary()

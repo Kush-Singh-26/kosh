@@ -99,6 +99,10 @@ func NewManager(deps ManagerDependencies) *Manager {
 	}
 }
 
+func (m *Manager) ReconfigureWithLogger(l *slog.Logger) {
+	m.logger = l
+}
+
 func (m *Manager) BuildSingleFileChange(ctx context.Context, path string, op fsnotify.Op) {
 	select {
 	case <-ctx.Done():
@@ -284,14 +288,6 @@ func (m *Manager) deletePostFromCache(path string) {
 	}
 
 	m.logger.Info("Removed deleted post from cache", "path", relPath)
-}
-
-func (m *Manager) triggerFullBuild(ctx context.Context) error {
-	if err := m.builder.BuildLocked(ctx); err != nil {
-		return err
-	}
-	m.builder.SaveCaches()
-	return nil
 }
 
 // ResolveContentPaths resolves various path formats for incremental builds.

@@ -393,21 +393,22 @@ func parseOperators(text string) ([]string, []QueryTerm) {
 		if unicode.IsSpace(r) {
 			if current.Len() > 0 {
 				term, op := extractOperator(current.String())
-				if op == 1 {
+				switch op {
+				case 1:
 					result := processTerm(term)
 					if result != "" {
 						result = StemCached(result)
 						terms = append(terms, result)
 						termInfos = append(termInfos, QueryTerm{Term: result, Required: true})
 					}
-				} else if op == 2 {
+				case 2:
 					result := processTerm(term)
 					if result != "" {
 						result = StemCached(result)
 						terms = append(terms, result)
 						termInfos = append(termInfos, QueryTerm{Term: result, Excluded: true})
 					}
-				} else {
+				default:
 					result := processTerm(term)
 					if result != "" {
 						result = StemCached(result)
@@ -445,21 +446,22 @@ func parseOperators(text string) ([]string, []QueryTerm) {
 
 	if current.Len() > 0 {
 		term, op := extractOperator(current.String())
-		if op == 1 {
+		switch op {
+		case 1:
 			result := processTerm(term)
 			if result != "" {
 				result = StemCached(result)
 				terms = append(terms, result)
 				termInfos = append(termInfos, QueryTerm{Term: result, Required: true})
 			}
-		} else if op == 2 {
+		case 2:
 			result := processTerm(term)
 			if result != "" {
 				result = StemCached(result)
 				terms = append(terms, result)
 				termInfos = append(termInfos, QueryTerm{Term: result, Excluded: true})
 			}
-		} else {
+		default:
 			result := processTerm(term)
 			if result != "" {
 				result = StemCached(result)

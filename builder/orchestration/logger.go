@@ -6,8 +6,11 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
 const (
@@ -49,20 +52,13 @@ func DevLogError(message string) {
 }
 
 func HTTPLog(method, path string, status int, duration time.Duration) {
-	now := time.Now().Format(devTimeFormat)
-	var statusColor string
-	switch {
-	case status >= 500:
-		statusColor = red
-	case status >= 400:
-		statusColor = yellow
-	case status >= 300:
-		statusColor = cyan
-	default:
-		statusColor = green
-	}
-	_, _ = fmt.Fprintf(os.Stdout, "%s%s %s%s %s %s%d%s %s%dms%s\n",
-		dim, now, bold, method, path, statusColor, status, reset, dim, duration.Milliseconds(), reset)
+	slog.Info("http request",
+		"method", method,
+		"path", path,
+		"status", status,
+		"duration", duration,
+		"http", true,
+	)
 }
 
 type consoleHandler struct {
@@ -71,12 +67,14 @@ type consoleHandler struct {
 	timeFormat string
 	attrs      []slog.Attr
 	group      string
+	reporter   ui.Reporter
 }
 
-func NewConsoleHandler(output io.Writer) *consoleHandler {
+func NewConsoleHandler(output io.Writer, reporter ui.Reporter) *consoleHandler {
 	return &consoleHandler{
 		output:     output,
 		timeFormat: "15:04:05",
+		reporter:   reporter,
 	}
 }
 
@@ -85,6 +83,76 @@ func (h *consoleHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (h *consoleHandler) Handle(ctx context.Context, r slog.Record) error {
+	if h.reporter != nil {
+		isHTTP := false
+		// Only handle Warn, Error, and important Info (like HTTP requests)
+		if r.Level < slog.LevelWarn {
+			// Special handling for HTTP logs
+			r.Attrs(func(a slog.Attr) bool {
+				if a.Key == "http" {
+					if a.Value.Kind() == slog.KindBool && a.Value.Bool() {
+						isHTTP = true
+					}
+					return false
+				}
+				return true
+			})
+		}
+
+		var b strings.Builder
+		if isHTTP {
+			// Format HTTP log line manually for a clean look in the UI
+			var method, path string
+			var status int
+			var durationStr string
+			r.Attrs(func(a slog.Attr) bool {
+				switch a.Key {
+				case "method":
+					if a.Value.Kind() == slog.KindString {
+						method = a.Value.String()
+					}
+				case "path":
+					if a.Value.Kind() == slog.KindString {
+						path = a.Value.String()
+					}
+				case "status":
+					if a.Value.Kind() == slog.KindInt64 {
+						status = int(a.Value.Int64())
+					}
+				case "duration":
+					if a.Value.Kind() == slog.KindDuration {
+						durationStr = fmt.Sprintf("%dms", a.Value.Duration().Milliseconds())
+					} else {
+						durationStr = a.Value.String()
+					}
+				}
+				return true
+			})
+
+			fmt.Fprintf(&b, "%s %s %d %s", method, path, status, durationStr)
+		} else {
+			// Not an HTTP log - use standard message formatting
+			b.WriteString(r.Message)
+			if r.NumAttrs() > 0 {
+				r.Attrs(func(a slog.Attr) bool {
+					fmt.Fprintf(&b, " %s=%v", a.Key, a.Value.Any())
+					return true
+				})
+			}
+		}
+		msg := b.String()
+
+		switch {
+		case r.Level >= slog.LevelError:
+			h.reporter.Error("%s", nil, msg)
+		case r.Level >= slog.LevelWarn:
+			h.reporter.Warn("%s", msg)
+		default:
+			h.reporter.Info("%s", msg)
+		}
+		return nil
+	}
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -157,6 +225,7 @@ func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		timeFormat: h.timeFormat,
 		attrs:      newAttrs,
 		group:      h.group,
+		reporter:   h.reporter,
 	}
 }
 
@@ -166,6 +235,7 @@ func (h *consoleHandler) WithGroup(name string) slog.Handler {
 		timeFormat: h.timeFormat,
 		attrs:      h.attrs,
 		group:      name,
+		reporter:   h.reporter,
 	}
 }
 
@@ -187,6 +257,10 @@ func getLevelColor(level slog.Level) string {
 	}
 }
 
-func InitLogger() *slog.Logger {
-	return slog.New(NewConsoleHandler(os.Stdout))
+func InitLogger(reporters ...ui.Reporter) *slog.Logger {
+	var r ui.Reporter
+	if len(reporters) > 0 {
+		r = reporters[0]
+	}
+	return slog.New(NewConsoleHandler(os.Stdout, r))
 }

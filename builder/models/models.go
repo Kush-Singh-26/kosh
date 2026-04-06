@@ -123,6 +123,7 @@ type PageData struct {
 	Meta         map[string]any
 	IsIndex      bool
 	IsTagsIndex  bool
+	IsGraphPage  bool
 	Posts        []PostMetadata
 	PinnedPosts  []PostMetadata
 	AllTags      []TagData
@@ -168,11 +169,11 @@ type AuthorConfig struct {
 
 // GeneratorsConfig enables/disables site-wide generators.
 type GeneratorsConfig struct {
-	Sitemap bool `yaml:"sitemap"`
-	RSS     bool `yaml:"rss"`
-	Graph   bool `yaml:"graph"`
-	PWA     bool `yaml:"pwa"`
-	Search  bool `yaml:"search"`
+	Sitemap bool        `yaml:"sitemap"`
+	RSS     bool        `yaml:"rss"`
+	Graph   GraphConfig `yaml:"graph"`
+	PWA     bool        `yaml:"pwa"`
+	Search  bool        `yaml:"search"`
 }
 
 // FeaturesConfig enables/disables site features.
@@ -241,21 +242,52 @@ type Item struct {
 // --- Graph Data Structures ---
 
 type GraphNode struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	Group int    `json:"group"` // 1 for Posts, 2 for Tags
-	Value int    `json:"val"`   // Size of the node
-	URL   string `json:"url,omitempty"`
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Group       int    `json:"group"` // 0=Root/Hub, 1=Posts, 2=Tags, 3=Categories
+	Value       int    `json:"val"`   // Node size
+	URL         string `json:"url,omitempty"`
+	Date        string `json:"date,omitempty"`
+	ReadingTime int    `json:"readingTime,omitempty"`
+	Excerpt     string `json:"excerpt,omitempty"`
 }
 
 type GraphLink struct {
-	Source string `json:"source"`
-	Target string `json:"target"`
+	Source string  `json:"source"`
+	Target string  `json:"target"`
+	Type   string  `json:"type,omitempty"`   // "tag", "wiki", "similarity", "backlink"
+	Weight float64 `json:"weight,omitempty"` // for similarity edges
 }
 
 type GraphData struct {
 	Nodes []GraphNode `json:"nodes"`
 	Links []GraphLink `json:"links"`
+}
+
+// GraphConfig defines knowledge graph generation options.
+type GraphConfig struct {
+	Enabled         bool `yaml:"enabled"`
+	ShowTags        bool `yaml:"showTags"`
+	MaxNodes        int  `yaml:"maxNodes"`
+	MinTagFrequency int  `yaml:"minTagFrequency"`
+}
+
+func (gc *GraphConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var b bool
+	if err := unmarshal(&b); err == nil {
+		gc.Enabled = b
+		gc.ShowTags = true
+		return nil
+	}
+	type graphConfigAlias GraphConfig
+	alias := (*graphConfigAlias)(gc)
+	if err := unmarshal(alias); err != nil {
+		return err
+	}
+	if !gc.ShowTags {
+		gc.ShowTags = true
+	}
+	return nil
 }
 
 // PostRecord represents a search-optimized record for BM25 indexing and

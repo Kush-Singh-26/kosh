@@ -68,8 +68,8 @@ func (t *unifiedTransformer) processDestination(n ast.Node, dest []byte, pc pars
 	}
 }
 
-func hasTextChild(link *ast.Link, source []byte) bool {
-	for child := link.FirstChild(); child != nil; child = child.NextSibling() {
+func hasTextChild(n ast.Node, source []byte) bool {
+	for child := n.FirstChild(); child != nil; child = child.NextSibling() {
 		if _, ok := child.(*ast.Text); ok {
 			return true
 		}
@@ -78,15 +78,15 @@ func hasTextChild(link *ast.Link, source []byte) bool {
 }
 
 func getAttrValue(n ast.Node, key string) string {
-	attr, _ := n.AttributeString(key)
-	if attr == nil {
-		return ""
-	}
-	switch v := attr.(type) {
-	case []byte:
-		return string(v)
-	case string:
-		return v
+	for _, attr := range n.Attributes() {
+		if string(attr.Name) == key {
+			switch v := attr.Value.(type) {
+			case []byte:
+				return string(v)
+			case string:
+				return v
+			}
+		}
 	}
 	return ""
 }

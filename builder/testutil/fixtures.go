@@ -86,7 +86,7 @@ func CreateSampleConfig() *config.Config {
 			Generators: models.GeneratorsConfig{
 				Sitemap: true,
 				RSS:     true,
-				Graph:   true,
+				Graph:   models.GraphConfig{Enabled: true, ShowTags: true},
 				PWA:     false,
 				Search:  true,
 			},

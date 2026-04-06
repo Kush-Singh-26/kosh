@@ -33,6 +33,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/wasm"
 
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
 // EngineDependencies bundles all engine construction dependencies for explicit injection.
@@ -46,6 +47,7 @@ type EngineDependencies struct {
 	Wasm     wasm.Service
 	Scanner  scanner.Scanner
 	Diagrams *cache.DiagramCacheAdapter
+	Reporter ui.Reporter
 
 	// Config & runtime
 	Config         *config.Config
@@ -178,22 +180,42 @@ func NewEngineFromManual(deps EngineDependencies) *Engine {
 // NewEngine initializes a new site builder
 func NewEngine(args []string) *Engine {
 	cfg := config.Load(args)
-	return newEngineWithConfig(cfg)
+	return newEngineWithConfigFs(afero.NewOsFs(), cfg, nil)
 }
 
 // NewEngineWithConfig initializes a new site builder with a pre-loaded config
 func NewEngineWithConfig(cfg *config.Config) *Engine {
-	return newEngineWithConfig(cfg)
+	return newEngineWithConfigFs(afero.NewOsFs(), cfg, nil)
 }
 
 // NewEngineWithFs initializes a new site builder with a pre-loaded config and custom filesystem
 func NewEngineWithFs(vfs afero.Fs, cfg *config.Config) *Engine {
-	return newEngineWithConfigFs(vfs, cfg)
+	return newEngineWithConfigFs(vfs, cfg, nil)
+}
+
+// NewEngineWithReporter initializes a new site builder with a reporter
+func NewEngineWithReporter(args []string, r ui.Reporter) *Engine {
+	cfg := config.Load(args)
+	return newEngineWithConfigFs(afero.NewOsFs(), cfg, r)
 }
 
 // newEngineWithConfig is the internal implementation
 func newEngineWithConfig(cfg *config.Config) *Engine {
-	return newEngineWithConfigFs(afero.NewOsFs(), cfg)
+	return newEngineWithConfigFs(afero.NewOsFs(), cfg, nil)
+}
+
+func (b *Engine) SetReporter(r ui.Reporter) {
+	b.Deps.Reporter = r
+	b.Deps.Logger = InitLogger(r)
+	b.Ctx.Logger = b.Deps.Logger
+
+	// Update all services that hold onto the logger or reporter
+	b.Deps.Asset.ReconfigureWithReporter(r, b.Deps.Logger)
+	b.Deps.Post.ReconfigureWithReporter(r, b.Deps.Logger)
+	b.Deps.Render.ReconfigureWithLogger(b.Deps.Logger)
+	b.Assets.ReconfigureWithLogger(b.Deps.Logger)
+	b.Incremental.ReconfigureWithLogger(b.Deps.Logger)
+	b.Search.ReconfigureWithLogger(b.Deps.Logger)
 }
 
 func (b *Engine) SetDevMode(isDev bool) {
@@ -404,8 +426,11 @@ func (b *Engine) handleWatchChange(evt watch.ChangeEvent) {
 }
 
 // Run executes the main build logic
-func Run(args []string) error {
-	b := NewEngine(args)
+func Run(args []string, r ui.Reporter) error {
+	b := NewEngineWithReporter(args, r)
+	if r != nil {
+		r.Start("Build")
+	}
 	defer b.Close()
 	defer b.SaveCaches()
 	if err := b.Build(context.Background()); err != nil {

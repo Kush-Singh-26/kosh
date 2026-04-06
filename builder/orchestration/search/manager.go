@@ -58,6 +58,12 @@ func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, render render.Service) {
 	m.render = render
 }
 
+func (m *Manager) ReconfigureWithLogger(l *slog.Logger) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.logger = l
+}
+
 func (m *Manager) SetIndexedPosts(posts []models.IndexedPost) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -73,8 +73,11 @@ func TestLoad_Defaults(t *testing.T) {
 		t.Error("RSS generator should be enabled by default")
 	}
 
-	if !cfg.Features.Generators.Graph {
+	if !cfg.Features.Generators.Graph.Enabled {
 		t.Error("Graph generator should be enabled by default")
+	}
+	if !cfg.Features.Generators.Graph.ShowTags {
+		t.Error("Graph showTags should be enabled by default")
 	}
 
 	if !cfg.Features.Generators.Search {

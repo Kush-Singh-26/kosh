@@ -45,6 +45,11 @@ func (s *renderService) SetAssetsGate(ch <-chan struct{}) {
 	s.assetsReady = ch
 }
 
+func (s *renderService) ReconfigureWithLogger(l *slog.Logger) {
+	s.logger = l
+	s.rnd.SetLogger(l)
+}
+
 func (s *renderService) RenderPage(path string, data models.PageData) error {
 	if err := s.waitForAssets(path); err != nil {
 		return err

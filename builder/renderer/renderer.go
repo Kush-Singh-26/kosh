@@ -69,6 +69,12 @@ func (r *Renderer) SetSink(sink fspkg.ArtifactSink) {
 	r.Sink = sink
 }
 
+func (r *Renderer) SetLogger(l *slog.Logger) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.logger = l
+}
+
 // Has404Template returns true if the 404.html template was successfully loaded from the theme.
 // This allows the build pipeline to render a 404 page even without a content/404.md file.
 func (r *Renderer) Has404Template() bool {

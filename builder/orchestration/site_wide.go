@@ -137,11 +137,43 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 		})
 	}
 
-	if b.Cfg.Features.Generators.Graph && len(allPosts) > 0 {
+	if b.Cfg.Features.Generators.Graph.Enabled && len(allPosts) > 0 {
 		g.Go(func() error {
-			_, err := generators.GenerateGraph(b.Sink, b.Cfg.BaseURL, allPosts, filepath.Join(b.Cfg.OutputDir, "graph.json"))
+			currentHash, err := generators.ComputeGraphHash(allPosts)
 			if err != nil {
-				b.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
+				b.Deps.Logger.Error("Failed to compute graph hash", "error", err)
+				return err
+			}
+
+			// In dev mode, always regenerate to avoid orphan cleanup deleting the file.
+			// In production/clean builds, skip if unchanged to save I/O during staging.
+			graphDataChanged := b.Cfg.IsDev
+			if !graphDataChanged && b.Deps.Cache != nil {
+				cachedHash, cacheErr := b.Deps.Cache.GetGraphHash()
+				if cacheErr == nil && cachedHash == currentHash {
+					b.Deps.Logger.Info("Graph data unchanged, skipping JSON regeneration")
+					graphDataChanged = false
+				} else {
+					graphDataChanged = true
+				}
+			}
+			// If cache is nil (cold build), always regenerate
+			if !graphDataChanged && b.Deps.Cache == nil {
+				graphDataChanged = true
+			}
+
+			if graphDataChanged {
+				_, _, err = generators.GenerateGraph(b.Sink, b.Cfg.BaseURL, allPosts, filepath.Join(b.Cfg.OutputDir, "graph.json"), b.Cfg.Features.Generators.Graph, b.Cfg.Title)
+				if err != nil {
+					b.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
+					return err
+				}
+
+				if b.Deps.Cache != nil {
+					if err := b.Deps.Cache.SetGraphHash(currentHash); err != nil {
+						b.Deps.Logger.Warn("Failed to cache graph hash", "error", err)
+					}
+				}
 			}
 
 			if assetsReady != nil {
@@ -154,6 +186,7 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 				BuildVersion:   b.Cfg.BuildVersion,
 				Config:         b.Cfg,
 				RelativePrefix: "",
+				IsGraphPage:    true,
 			}); err != nil {
 				return fmt.Errorf("failed to render graph page: %w", err)
 			}

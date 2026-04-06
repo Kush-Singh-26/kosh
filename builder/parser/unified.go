@@ -46,6 +46,7 @@ type unifiedTransformer struct {
 	Renderer *native.Renderer
 	Cache    SSRMap
 	D2Group  *singleflight.Group
+	A11yMap  sync.Map
 }
 
 type replacement struct {
@@ -154,14 +155,34 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 				hasText := hasTextChild(ln, source)
 				if strings.TrimSpace(ariaLabel) == "" && !hasText {
 					filePath, _ := pc.Get(ContextKeyFilePath).(string)
-					slog.Warn("A11y Lint: Link has no text or aria-label",
-						"file", filePath,
-						"href", string(ln.Destination))
+					href := string(ln.Destination)
+					key := filePath + ":" + href
+					if _, seen := t.A11yMap.LoadOrStore(key, true); !seen {
+						slog.Warn("A11y Lint: Link has no text or aria-label",
+							"file", filePath,
+							"href", href)
+					}
 				}
 			} else {
 				t.processDestination(img, img.Destination, pc)
 				t.processImageDestination(img, img.Destination)
 				img.SetAttribute([]byte("loading"), []byte("lazy"))
+
+				// A11y Lint: check for image alt text
+				alt := string(img.Title) // In Goldmark, alt is often the title or handled separately
+				// Goldmark stores alt in the 'Title' or children.
+				// For markdown like ![Alt](src), 'Alt' is a text child of the Image node.
+				hasAlt := hasTextChild(img, source)
+				if !hasAlt && strings.TrimSpace(alt) == "" {
+					filePath, _ := pc.Get(ContextKeyFilePath).(string)
+					src := string(img.Destination)
+					key := filePath + ":img:" + src
+					if _, seen := t.A11yMap.LoadOrStore(key, true); !seen {
+						slog.Warn("A11y Lint: Image missing alt text",
+							"file", filePath,
+							"src", src)
+					}
+				}
 			}
 		}
 
@@ -265,7 +286,7 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 		}
 	}
 
-	// Set results in context
+	// Extract results
 	pc.Set(tocKey, toc)
 	pc.Set(plainTextKey, plainText.String())
 	if len(mathExpressions) > 0 {

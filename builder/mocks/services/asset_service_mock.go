@@ -3,9 +3,12 @@ package mocks
 import (
 	"context"
 
+	"log/slog"
+
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 
 	"github.com/spf13/afero"
 )
@@ -81,3 +84,5 @@ func (m *MockAssetService) DiscoveryReady() <-chan struct{} {
 func (m *MockAssetService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
 	m.Sink = sink
 }
+
+func (m *MockAssetService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {}

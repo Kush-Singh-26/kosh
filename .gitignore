@@ -82,3 +82,5 @@ __pycache__/
 
 # Generated social card images (created at build time, not committed)
 builder/services/social-cards/*.webp
+
+.qwen

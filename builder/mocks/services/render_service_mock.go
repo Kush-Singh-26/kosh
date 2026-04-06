@@ -1,6 +1,7 @@
 package mocks
 
 import (
+	"log/slog"
 	"sync"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -46,6 +47,10 @@ func (m *MockRenderService) SetAssetsGate(ch <-chan struct{}) {
 
 func (m *MockRenderService) ReloadTemplates() {
 	m.recordCall("ReloadTemplates")
+}
+
+func (m *MockRenderService) ReconfigureWithLogger(l *slog.Logger) {
+	m.recordCall("ReconfigureWithLogger")
 }
 
 func (m *MockRenderService) RenderPage(path string, data models.PageData) error {

@@ -2,10 +2,12 @@ package orchestration
 
 import (
 	"context"
+	"log/slog"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/spf13/afero"
 )
 
@@ -23,6 +25,8 @@ func (m *mockPostService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.
 }
 
 func (m *mockPostService) SetAssetsGate(ch <-chan struct{}) {}
+
+func (m *mockPostService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {}
 
 func (m *mockPostService) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*post.PostResult, error) {
 	if m.ProcessResult != nil {

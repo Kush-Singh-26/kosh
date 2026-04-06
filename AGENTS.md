@@ -23,6 +23,23 @@ Typical consumer site repo example used during development:
 
 - `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src`
 
+## Theme Development Layout (Junctions)
+
+Theme work is centralized in the Kosh submodule path:
+
+- Canonical theme path: `C:\Users\KIIT0001\blogs\themes\blog`
+
+Two convenience junctions point to the same files for local testing:
+
+- `C:\Users\KIIT0001\kosh-theme-blog` (junction)
+- `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src\themes\blog` (junction)
+
+Rules for agents:
+
+1. Treat `C:\Users\KIIT0001\blogs\themes\blog` as the source of truth.
+2. Commit and push theme changes from the canonical path only.
+3. Avoid editing any `*.bak` backup folders.
+
 ## Current Stable State
 
 - Version string in CLI: `v1.4.0`

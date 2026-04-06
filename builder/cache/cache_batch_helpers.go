@@ -35,7 +35,6 @@ type bucketOps struct {
 	tags      []batchOp
 	templates []batchOp
 	includes  []batchOp
-	versions  []batchOp
 }
 
 // writeOps performs sequential writes to a bucket

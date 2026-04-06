@@ -28,13 +28,25 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) error {
 func (r *Renderer) RenderGraph(path string, data models.PageData) error {
 	r.mu.RLock()
 	graph := r.Graph
+	layout := r.Layout
 	r.mu.RUnlock()
 
 	if graph == nil {
-		return fmt.Errorf("graph template not loaded for %s", path)
+		r.logger.Warn("Graph template not found, skipping graph page")
+		return nil
 	}
 
-	return r.executeTemplateAndWrite(path, graph, data, "graph")
+	if layout == nil {
+		r.logger.Warn("Layout template not loaded, skipping graph page")
+		return fmt.Errorf("layout template not loaded for %s", path)
+	}
+
+	r.logger.Info("Rendering graph page", "path", path)
+	if err := r.executeTemplateAndWrite(path, layout, data, "graph"); err != nil {
+		return err
+	}
+	r.logger.Info("Graph page rendered successfully", "path", path)
+	return nil
 }
 
 func (r *Renderer) Render404(path string, data models.PageData) error {

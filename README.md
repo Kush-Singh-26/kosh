@@ -394,4 +394,57 @@ Full builds perform these major phases:
 
 This is expected for `kosh clean --cache`, because caches are intentionally removed and image transforms must run again.
 
+## GitHub Actions Release Flow
+
+Kosh releases are built by GitHub Actions when a version tag is pushed. The workflow is defined in `.github/workflows/release.yml` and is triggered by tags that match `v*`.
+
+### How to publish a new release
+
+1. Update the version string and build date in `cmd/kosh/version.go`.
+2. Update the version in this README if you list it under **Current State**.
+3. Commit and push your changes.
+4. Create a new tag and push it.
+
+```bash
+git status
+git add -A
+git commit -m "Release v1.4.2"
+git push origin main
+git tag v1.4.2
+git push origin v1.4.2
+```
+
+After the tag is pushed, the workflow uploads the binaries to the GitHub Release for that tag. The release artifacts should appear under `Releases` on GitHub.
+
+### If you need to re-tag
+
+Only do this if the tag is wrong and you have not published widely:
+
+```bash
+git tag -d v1.4.2
+git push origin --delete v1.4.2
+git tag v1.4.2
+git push origin v1.4.2
+```
+
+## Local Theme Development (Windows)
+
+The canonical theme path is the Kosh submodule:
+
+- `C:\Users\KIIT0001\blogs\themes\blog`
+
+Two local junctions point to the same files so edits are shared instantly:
+
+- `C:\Users\KIIT0001\kosh-theme-blog`
+- `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src\themes\blog`
+
+If you ever need to recreate the junctions:
+
+```powershell
+New-Item -ItemType Junction -Path "C:\Users\KIIT0001\kosh-theme-blog" -Target "C:\Users\KIIT0001\blogs\themes\blog"
+New-Item -ItemType Junction -Path "C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src\themes\blog" -Target "C:\Users\KIIT0001\blogs\themes\blog"
+```
+
+Commit and push theme changes from the canonical path only.
+
 

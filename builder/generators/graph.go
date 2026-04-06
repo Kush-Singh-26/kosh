@@ -4,19 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"encoding/hex"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/zeebo/xxh3"
 )
 
 type postGraphInfo struct {
-	Title string   `json:"title"`
-	Link  string   `json:"link"`
-	Tags  []string `json:"tags"`
+	Title       string   `json:"title"`
+	Link        string   `json:"link"`
+	Tags        []string `json:"tags"`
+	Description string   `json:"description"`
 }
 
 // ComputeGraphHash computes a stable hash for the knowledge graph data
@@ -24,9 +25,10 @@ func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
 	graphInfo := make([]postGraphInfo, 0, len(posts))
 	for _, p := range posts {
 		graphInfo = append(graphInfo, postGraphInfo{
-			Title: p.Title,
-			Link:  p.Link,
-			Tags:  p.Tags,
+			Title:       p.Title,
+			Link:        p.Link,
+			Tags:        p.Tags,
+			Description: p.Description,
 		})
 	}
 
@@ -40,38 +42,81 @@ func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
-func GenerateGraph(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, outputPath string) (string, error) {
-	slog.Info("Generating knowledge graph data")
+func GenerateGraph(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, outputPath string, cfg models.GraphConfig, siteTitle string) (string, string, error) {
+	slog.Info("Generating knowledge graph data", "output", outputPath)
 
 	nodes := []models.GraphNode{}
 	links := []models.GraphLink{}
 	nodeExists := make(map[string]bool)
 
+	// Add root node for hub-and-spoke layout
+	rootID := "root"
+	nodes = append(nodes, models.GraphNode{
+		ID: rootID, Label: siteTitle, Group: 0, Value: 22, URL: baseURL,
+	})
+	nodeExists[rootID] = true
+
+	// Collect all unique tags first
+	tagNodes := make(map[string]models.GraphNode)
 	for _, p := range posts {
+		if cfg.ShowTags {
+			for _, t := range p.Tags {
+				slug := timeutil.Slugify(t)
+				tagID := "tag-" + slug
+				if !nodeExists[tagID] {
+					tagNodes[tagID] = models.GraphNode{
+						ID: tagID, Label: "#" + t, Group: 2, Value: 10,
+						URL: fmt.Sprintf("%s/tags/%s.html", baseURL, slug),
+					}
+					nodeExists[tagID] = true
+				}
+			}
+		}
+	}
+
+	// Add root -> tag links and add tags to nodes
+	for _, tag := range tagNodes {
+		nodes = append(nodes, tag)
+		links = append(links, models.GraphLink{Source: rootID, Target: tag.ID, Weight: 1})
+	}
+
+	// Add post nodes and tag -> post links
+	for _, p := range posts {
+		postURL := p.Link
+		if baseURL != "" && postURL != "" && postURL[0] == '/' {
+			postURL = baseURL + postURL
+		}
 		if !nodeExists[p.Link] {
 			nodes = append(nodes, models.GraphNode{
-				ID: p.Link, Label: p.Title, Group: 1, Value: 10, URL: p.Link,
+				ID:      p.Link,
+				Label:   p.Title,
+				Group:   1,
+				Value:   7,
+				URL:     postURL,
+				Excerpt: p.Description,
+				Date:    p.DateObj.Format("Jan 02, 2006"),
 			})
 			nodeExists[p.Link] = true
 		}
-		for _, t := range p.Tags {
-			tagID := "tag-" + strings.ToLower(strings.TrimSpace(t))
-			if !nodeExists[tagID] {
-				nodes = append(nodes, models.GraphNode{
-					ID: tagID, Label: "#" + strings.TrimSpace(t), Group: 2, Value: 5,
-					URL: fmt.Sprintf("%s/tags/%s.html", baseURL, strings.ToLower(strings.TrimSpace(t))),
-				})
-				nodeExists[tagID] = true
+		if cfg.ShowTags {
+			for _, t := range p.Tags {
+				tagID := "tag-" + timeutil.Slugify(t)
+				links = append(links, models.GraphLink{Source: p.Link, Target: tagID, Type: "tag"})
 			}
-			links = append(links, models.GraphLink{Source: p.Link, Target: tagID})
 		}
 	}
+
 	output, err := json.Marshal(models.GraphData{Nodes: nodes, Links: links})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if err := sink.WriteFile(outputPath, output); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return outputPath, nil
+
+	hash, err := ComputeGraphHash(posts)
+	if err != nil {
+		return "", "", err
+	}
+	return outputPath, hash, nil
 }

@@ -51,6 +51,10 @@ func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, sourceFs afero.Fs) {
 	m.deps.SourceFs = sourceFs
 }
 
+func (m *Manager) ReconfigureWithLogger(l *slog.Logger) {
+	m.deps.Logger = l
+}
+
 // SetupBuilding starts the asset building process in a separate goroutine.
 // Returns a signal channel for full readiness, discovery signal, wait group, and error channel.
 func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset, force bool) (<-chan struct{}, <-chan struct{}, *sync.WaitGroup, <-chan error) {

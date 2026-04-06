@@ -14,6 +14,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
 func recoveryMiddleware(next http.Handler) http.Handler {
@@ -58,7 +59,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func Run(ctx context.Context, args []string, outputDir string, baseURL string, buildCfg *config.BuildConfig) {
+func Run(ctx context.Context, args []string, outputDir string, baseURL string, buildCfg *config.BuildConfig, reporter ui.Reporter) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	host := fs.String("host", "localhost", "The host/IP to bind to")
 	port := fs.String("port", "2604", "The port to listen on")
@@ -235,7 +236,12 @@ func Run(ctx context.Context, args []string, outputDir string, baseURL string, b
 		}
 	}()
 
-	orchestration.DevLogInfo("Serving on http://" + addr)
+	if reporter != nil {
+		reporter.Status("Live Preview: http://" + addr)
+	} else {
+		orchestration.DevLogInfo("Serving on http://" + addr)
+	}
+
 	if *host == "0.0.0.0" {
 		orchestration.DevLogInfo("Accessible on your local network")
 	}

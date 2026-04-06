@@ -92,7 +92,10 @@ func runBuild(cmd *cobra.Command, args []string) {
 	printStartupBanner(mode, cfg)
 
 	if buildWatch {
-		b := orchestration.NewEngine(filteredArgs)
+		b := orchestration.NewEngineWithReporter(filteredArgs, reporter)
+		if reporter != nil {
+			reporter.Start("Watch Build")
+		}
 		if err := b.Build(ctx); err != nil {
 			orchestration.DevLogError("Initial build failed: " + err.Error())
 			os.Exit(1)
@@ -113,7 +116,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 		}
 		w.Start()
 	} else {
-		if err := orchestration.Run(filteredArgs); err != nil {
+		if err := orchestration.Run(filteredArgs, reporter); err != nil {
 			os.Exit(1)
 		}
 		maybePrintPhaseTimings()

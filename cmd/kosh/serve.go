@@ -71,6 +71,10 @@ func runServe(cmd *cobra.Command, args []string) {
 		}
 		printStartupBanner("Live Preview", cfg)
 		b := orchestration.NewEngineWithConfig(cfg)
+		if reporter != nil {
+			b.SetReporter(reporter)
+			reporter.Start("Live Preview")
+		}
 		b.SetDevMode(true)
 		if err := b.Build(ctx); err != nil {
 			orchestration.DevLogError("Build failed: " + err.Error())
@@ -110,10 +114,10 @@ func runServe(cmd *cobra.Command, args []string) {
 			w.Start()
 		}()
 
-		server.Run(ctx, filteredArgs, b.Cfg.OutputDir, b.Cfg.BaseURL, b.Cfg.Build)
+		server.Run(ctx, filteredArgs, b.Cfg.OutputDir, b.Cfg.BaseURL, b.Cfg.Build, reporter)
 	} else {
 		cfg := config.Load(filteredArgs)
 		printStartupBanner("Static Preview", cfg)
-		server.Run(ctx, filteredArgs, cfg.OutputDir, cfg.BaseURL, cfg.Build)
+		server.Run(ctx, filteredArgs, cfg.OutputDir, cfg.BaseURL, cfg.Build, reporter)
 	}
 }

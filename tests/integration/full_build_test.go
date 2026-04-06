@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/spf13/afero"
@@ -42,7 +43,7 @@ func TestFullBuildIntegration(t *testing.T) {
 	cfg.Features.Generators.Search = true
 	cfg.Features.Generators.RSS = true
 	cfg.Features.Generators.Sitemap = true
-	cfg.Features.Generators.Graph = true
+	cfg.Features.Generators.Graph = models.GraphConfig{Enabled: true, ShowTags: true}
 
 	// Create Builder
 	b := orchestration.NewEngineWithFs(fs, cfg)

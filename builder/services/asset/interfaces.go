@@ -12,6 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
 // Dependencies holds all dependencies for AssetService.
@@ -23,6 +24,7 @@ type Dependencies struct {
 	Renderer render.Service
 	Logger   *slog.Logger
 	Metrics  *metrics.BuildMetrics
+	Reporter ui.Reporter
 }
 
 // Service handles static asset processing (CSS/JS bundling, image optimization).
@@ -32,6 +34,7 @@ type Service interface {
 	SetAssetsReadySignal(ch chan struct{})
 	SetContentAssetsChannel(ch <-chan []models.ScannedAsset)
 	SetDiscoveryReady(ch chan struct{})
+	ReconfigureWithReporter(r ui.Reporter, l *slog.Logger)
 	Build(ctx context.Context) error
 	BuildWithOptions(ctx context.Context, skipImages bool) error
 	DiscoveryReady() <-chan struct{}

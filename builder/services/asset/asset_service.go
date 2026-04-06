@@ -29,6 +29,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
@@ -61,9 +62,11 @@ type assetService struct {
 	renderer          render.Service
 	logger            *slog.Logger
 	metrics           *metrics.BuildMetrics
+	reporter          ui.Reporter
 	contentAssetsChan <-chan []models.ScannedAsset
 	assetsReady       chan struct{}
 	discoveryReady    chan struct{}
+	warnOnce          sync.Map
 }
 
 func NewService(deps Dependencies, opts ...Option) Service {
@@ -75,6 +78,7 @@ func NewService(deps Dependencies, opts ...Option) Service {
 		renderer: deps.Renderer,
 		logger:   deps.Logger,
 		metrics:  deps.Metrics,
+		reporter: deps.Reporter,
 	}
 
 	for _, opt := range opts {
@@ -94,6 +98,11 @@ func (s *assetService) SetAssetsReadySignal(ch chan struct{}) { s.assetsReady = 
 func (s *assetService) SetDiscoveryReady(ch chan struct{})    { s.discoveryReady = ch }
 func (s *assetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
 	s.contentAssetsChan = ch
+}
+
+func (s *assetService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {
+	s.reporter = r
+	s.logger = l
 }
 
 func (s *assetService) DiscoveryReady() <-chan struct{} {
@@ -221,7 +230,9 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 				return
 			}
 			if !errors.Is(err, assets.ErrCacheMiss) {
-				s.logger.Warn("Disk cache lookup failed", "path", t.srcPath, "error", err)
+				if _, loaded := s.warnOnce.LoadOrStore("cache-fail:"+t.srcPath, true); !loaded {
+					s.logger.Warn("Disk cache lookup failed", "path", t.srcPath, "error", err)
+				}
 			}
 			imgOpts := assets.ProcessImageOptions{
 				Ctx:     bgCtx,
@@ -443,11 +454,19 @@ func (s *assetService) BuildWithOptions(ctx context.Context, skipImages bool) er
 				imgChan <- t
 			}
 			close(imgChan)
+
+			processed := atomic.Int32{}
+			total := len(imageQueue)
+
 			for range max(numWorkers, 1) {
 				imgGroup.Go(func() error {
 					for task := range imgChan {
 						if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgCtx.Err() == nil {
 							return err
+						}
+						if s.reporter != nil {
+							curr := int(processed.Add(1))
+							s.reporter.UpdateProgress(ui.PhaseAssets, curr, total, task.opts.SrcPath)
 						}
 					}
 					return nil
@@ -481,13 +500,17 @@ func (s *assetService) BuildWithOptions(ctx context.Context, skipImages bool) er
 func (s *assetService) copyCriticalAssets() {
 	if s.cfg.Logo != "" {
 		if err := s.copyFileOrLink(s.cfg.Logo, s.cfg.Logo); err != nil {
-			s.logger.Warn("Failed to copy logo", "src", s.cfg.Logo, "error", err)
+			if _, loaded := s.warnOnce.LoadOrStore("logo:"+s.cfg.Logo, true); !loaded {
+				s.logger.Warn("Failed to copy logo", "src", s.cfg.Logo, "error", err)
+			}
 		}
 	}
 	faviconPath := filepath.Join(s.cfg.StaticDir, "images/favicon.png")
 	if exists, _ := afero.Exists(s.sourceFs, faviconPath); exists {
 		if err := s.copyFileOrLink(faviconPath, "static/images/favicon.png"); err != nil {
-			s.logger.Warn("Failed to copy favicon", "src", faviconPath, "error", err)
+			if _, loaded := s.warnOnce.LoadOrStore("favicon:"+faviconPath, true); !loaded {
+				s.logger.Warn("Failed to copy favicon", "src", faviconPath, "error", err)
+			}
 		}
 	}
 }

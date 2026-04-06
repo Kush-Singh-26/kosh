@@ -77,7 +77,7 @@ func TestFullBuild(t *testing.T) {
 				Sitemap: true,
 				RSS:     true,
 				Search:  true,
-				Graph:   true,
+				Graph:   models.GraphConfig{Enabled: true, ShowTags: true},
 			},
 		},
 	}
