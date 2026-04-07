@@ -419,14 +419,14 @@ func (b *Engine) finalizePhase(ctx context.Context, wasmWg *sync.WaitGroup, asse
 		opt := m.OptimizedImageSize.Load()
 		savedBytes := orig - opt
 
-		b.Deps.Reporter.Finish(
-			m.TotalDuration(),
-			hitRate,
-			int(m.PostsProcessed.Load()),
-			int(m.AssetsProcessed.Load()),
-			int(m.ImagesOptimized.Load()),
-			savedBytes,
-		)
+		b.Deps.Reporter.Finish(ui.BuildStats{
+			Duration:   m.TotalDuration(),
+			HitRate:    hitRate,
+			Posts:      int(m.PostsProcessed.Load()),
+			Assets:     int(m.AssetsProcessed.Load()),
+			Optimized:  int(m.ImagesOptimized.Load()),
+			SavedBytes: savedBytes,
+		})
 	} else {
 		b.Deps.Metrics.Print()
 	}

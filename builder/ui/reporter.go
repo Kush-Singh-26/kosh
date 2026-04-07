@@ -27,5 +27,15 @@ type Reporter interface {
 	Error(msg string, err error, args ...any)
 	Success(msg string)
 	Status(msg string)
-	Finish(duration time.Duration, hitRate float64, posts, assets, optimized int, savedBytes int64)
+	Finish(stats BuildStats)
+}
+
+// BuildStats holds final build metrics for the reporter.
+type BuildStats struct {
+	Duration   time.Duration
+	HitRate    float64
+	Posts      int
+	Assets     int
+	Optimized  int
+	SavedBytes int64
 }

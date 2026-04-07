@@ -27,7 +27,7 @@ It supports full builds, incremental development rebuilds, CSS/JS asset fingerpr
 WebP image conversion for eligible local raster images, SSR for math and D2, and Go+WASM search.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Initialize standardized themed logger for all commands
-		reporter = ui.NewPtermReporter(verbose)
+		reporter = ui.NewReporter(verbose)
 		slog.SetDefault(orchestration.InitLogger(reporter))
 	},
 	Run: func(cmd *cobra.Command, args []string) {
