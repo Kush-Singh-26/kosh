@@ -14,7 +14,8 @@ func (s *postService) checkCache(relPath string, f models.ScannedFile, shouldFor
 	if err != nil || cachedMeta == nil {
 		return nil, false
 	}
-	fastBail := cachedMeta.BodyHash == f.BodyHash && cachedMeta.ContentHash == f.FrontmatterHash
+	// Check both mod time and size for fast bail. ModTime now uses UnixNano for precision.
+	fastBail := cachedMeta.ModTime == f.Info.ModTime().UnixNano() && cachedMeta.WordCount == int(f.Info.Size())
 	return cachedMeta, fastBail
 }
 

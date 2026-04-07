@@ -78,6 +78,7 @@ type Service interface {
 	SetAssetsGate(ch <-chan struct{})
 	ReconfigureWithReporter(r ui.Reporter, l *slog.Logger)
 	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*PostResult, error)
+	ProcessStreaming(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
 	WaitForCacheCommit()

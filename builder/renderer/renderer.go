@@ -27,15 +27,11 @@ type Renderer struct {
 	Index            *template.Template
 	Graph            *template.Template
 	NotFound         *template.Template
-	Assets           map[string]string
-	AssetsMu         sync.RWMutex
 	assetsSnapshot   atomic.Pointer[map[string]string]
 	Compress         bool
 	Sink             fspkg.ArtifactSink
 	SourceFs         afero.Fs
-	RenderedMu       sync.RWMutex
-	RenderedSet      map[string]bool
-	renderedSnapshot atomic.Pointer[map[string]bool]
+	renderedFiles    sync.Map
 	logger           *slog.Logger
 	templateDir      string
 	mu               sync.RWMutex
@@ -55,7 +51,6 @@ func NewWithFs(sourceFs afero.Fs, compress bool, sink fspkg.ArtifactSink, templa
 		Compress:    compress,
 		Sink:        sink,
 		SourceFs:    sourceFs,
-		RenderedSet: make(map[string]bool),
 		logger:      logger,
 		templateDir: templateDir,
 		devMode:     devMode,

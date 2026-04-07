@@ -139,42 +139,18 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 
 	if b.Cfg.Features.Generators.Graph.Enabled && len(allPosts) > 0 {
 		g.Go(func() error {
-			currentHash, err := generators.ComputeGraphHash(allPosts)
+
+			// We must always generate the graph during clean builds because the staging directory is empty
+			// and the graph JSON itself is not stored in the cache (only its hash was).
+			// During incremental dev builds, the file persists so we could skip it, but generation
+			// is extremely fast (< 5ms) so we just run it unconditionally to ensure file registration
+			// and prevent orphan cleanup accidents.
+			_, _, err := generators.GenerateGraph(b.Sink, b.Cfg.BaseURL, allPosts, filepath.Join(b.Cfg.OutputDir, "graph.json"), b.Cfg.Features.Generators.Graph, b.Cfg.Title)
 			if err != nil {
-				b.Deps.Logger.Error("Failed to compute graph hash", "error", err)
+				b.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
 				return err
 			}
-
-			// In dev mode, always regenerate to avoid orphan cleanup deleting the file.
-			// In production/clean builds, skip if unchanged to save I/O during staging.
-			graphDataChanged := b.Cfg.IsDev
-			if !graphDataChanged && b.Deps.Cache != nil {
-				cachedHash, cacheErr := b.Deps.Cache.GetGraphHash()
-				if cacheErr == nil && cachedHash == currentHash {
-					b.Deps.Logger.Info("Graph data unchanged, skipping JSON regeneration")
-					graphDataChanged = false
-				} else {
-					graphDataChanged = true
-				}
-			}
-			// If cache is nil (cold build), always regenerate
-			if !graphDataChanged && b.Deps.Cache == nil {
-				graphDataChanged = true
-			}
-
-			if graphDataChanged {
-				_, _, err = generators.GenerateGraph(b.Sink, b.Cfg.BaseURL, allPosts, filepath.Join(b.Cfg.OutputDir, "graph.json"), b.Cfg.Features.Generators.Graph, b.Cfg.Title)
-				if err != nil {
-					b.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
-					return err
-				}
-
-				if b.Deps.Cache != nil {
-					if err := b.Deps.Cache.SetGraphHash(currentHash); err != nil {
-						b.Deps.Logger.Warn("Failed to cache graph hash", "error", err)
-					}
-				}
-			}
+			b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "graph.json"))
 
 			if assetsReady != nil {
 				<-assetsReady

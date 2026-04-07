@@ -25,7 +25,7 @@ func TestGenerateSocialCard(t *testing.T) {
 	description := "This is a test description for the social card."
 	dateStr := "March 6, 2026"
 	destPath := "static/images/cards/test.webp"
-	faviconPath := ""
+	logoPath := ""
 
 	err := GenerateSocialCard(SocialCardOptions{
 		Sink:        sink,
@@ -36,7 +36,7 @@ func TestGenerateSocialCard(t *testing.T) {
 		Description: description,
 		DateStr:     dateStr,
 		DestPath:    destPath,
-		FaviconPath: faviconPath,
+		LogoPath:    logoPath,
 	})
 	if err != nil {
 		t.Fatalf("GenerateSocialCard failed: %v", err)

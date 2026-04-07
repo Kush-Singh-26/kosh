@@ -35,6 +35,16 @@ func (m *mockPostService) Process(ctx context.Context, shouldForce, forceSocialR
 	return &post.PostResult{}, m.ProcessErr
 }
 
+func (m *mockPostService) ProcessStreaming(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*post.PostResult, error) {
+	// Drain the channel to simulate consumption
+	for range fileChan {
+	}
+	if m.ProcessResult != nil {
+		return m.ProcessResult, m.ProcessErr
+	}
+	return &post.PostResult{}, m.ProcessErr
+}
+
 func (m *mockPostService) ProcessSingle(ctx context.Context, path string, source []byte) error {
 	return m.ProcessSingleErr
 }

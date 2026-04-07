@@ -43,7 +43,7 @@ type PathConfig struct {
 	ThemeDir    string `yaml:"themeDir"`
 	TemplateDir string `yaml:"templateDir"`
 	StaticDir   string `yaml:"staticDir"`
-	Logo        string `yaml:"logo"`       // Path to site logo/favicon
+	Logo        string `yaml:"logo"`       // Path to site logo (used for favicon and PWA icons)
 	ContentDir  string `yaml:"contentDir"` // Content source directory (default: "content")
 	OutputDir   string `yaml:"outputDir"`  // Build output directory (default: "public")
 	CacheDir    string `yaml:"cacheDir"`   // Cache directory (default: ".kosh-cache")

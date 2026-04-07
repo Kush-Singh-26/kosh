@@ -149,8 +149,11 @@ Body content`
 	if sf.FrontmatterHash == "" {
 		t.Error("Expected non-empty frontmatter hash")
 	}
-	if sf.BodyHash == "" {
-		t.Error("Expected non-empty body hash")
+	if sf.BodyHash != "" {
+		t.Error("Expected empty body hash due to lazy loading")
+	}
+	if sf.SourceLoader == nil {
+		t.Error("Expected non-nil SourceLoader due to lazy loading")
 	}
 	if sf.BodyOffset == 0 {
 		t.Error("Expected non-zero body offset")

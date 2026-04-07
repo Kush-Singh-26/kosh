@@ -101,40 +101,46 @@ func determineCompression(size int) core.CompressionType {
 }
 
 func (s *Store) ensureDir(dir string) error {
+	// Fast path: check if directory already exists in cache
 	if _, ok := s.dirCache.Load(dir); ok {
 		return nil
 	}
-
+	
+	// Slow path: create directory with proper locking
+	mu := s.getDirMutex(dir)
+	mu.Lock()
+	defer mu.Unlock()
+	
+	// Check again after acquiring lock
+	if _, ok := s.dirCache.Load(dir); ok {
+		return nil
+	}
+	
+	// Walk up to find missing parents
 	var missing []string
 	curr := filepath.Clean(dir)
 	for {
 		if _, ok := s.dirCache.Load(curr); ok {
 			break
 		}
-
 		parent := filepath.Dir(curr)
 		if curr == parent || curr == "." || curr == string(filepath.Separator) || curr == filepath.VolumeName(curr) {
 			break
 		}
-
 		missing = append(missing, curr)
 		curr = parent
 	}
-
+	
+	// Create from top to bottom
 	for i := len(missing) - 1; i >= 0; i-- {
 		p := missing[i]
-
-		mu := s.getDirMutex(p)
-		mu.Lock()
-		if _, ok := s.dirCache.Load(p); !ok {
-			if err := os.Mkdir(p, 0755); err != nil && !os.IsExist(err) {
-				mu.Unlock()
-				return err
-			}
-			s.dirCache.Store(p, struct{}{})
+		if err := os.Mkdir(p, 0755); err != nil && !os.IsExist(err) {
+			mu.Unlock()
+			return err
 		}
-		mu.Unlock()
+		s.dirCache.Store(p, struct{}{})
 	}
+	
 	return nil
 }
 

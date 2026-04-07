@@ -69,7 +69,7 @@ type ProvideSocialCardOptions struct {
 	Force       bool
 	SocialCfg   *models.SocialCardsConfig
 	Render      models.RenderService
-	FaviconPath string
+	LogoPath    string
 }
 
 // ProvideSocialCard ensures a social card exists in the VFS, using cache if possible
@@ -92,7 +92,7 @@ func ProvideSocialCard(opts ProvideSocialCardOptions) {
 			Description: opts.Description,
 			DateStr:     opts.Badge,
 			DestPath:    cachedCardPath,
-			FaviconPath: opts.FaviconPath,
+			LogoPath:    opts.LogoPath,
 		})
 		if err != nil {
 			return
@@ -119,7 +119,7 @@ type SocialCardOptions struct {
 	Description string
 	DateStr     string
 	DestPath    string
-	FaviconPath string
+	LogoPath    string
 }
 
 // GenerateSocialCardToDisk writes directly to a file path on disk
@@ -150,7 +150,7 @@ func GenerateSocialCard(opts SocialCardOptions) error {
 }
 
 func getBaseSocialCardImage(opts SocialCardOptions) *image.RGBA {
-	cacheKey := fmt.Sprintf("%s|%s|%s|%d|%s", opts.SiteTitle, opts.FaviconPath, opts.Cfg.Background, opts.Cfg.Angle, strings.Join(opts.Cfg.Gradient, ","))
+	cacheKey := fmt.Sprintf("%s|%s|%s|%d|%s", opts.SiteTitle, opts.LogoPath, opts.Cfg.Background, opts.Cfg.Angle, strings.Join(opts.Cfg.Gradient, ","))
 	if cached, ok := baseImageCache.Load(cacheKey); ok {
 		return cached.(*image.RGBA)
 	}
@@ -170,9 +170,9 @@ func getBaseSocialCardImage(opts SocialCardOptions) *image.RGBA {
 	// --- 3. Header: Logo + Brand (Top Left) ---
 	currentX := marginX
 
-	if opts.FaviconPath != "" {
-		// Use cached favicon if available
-		im := getFaviconImage(opts.SrcFs, opts.FaviconPath)
+	if opts.LogoPath != "" {
+		// Use cached logo if available
+		im := getLogoImage(opts.SrcFs, opts.LogoPath)
 		if im != nil {
 			w := im.Bounds().Dx()
 			scale := iconSize / float64(w)

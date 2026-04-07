@@ -1,34 +1,21 @@
 package renderer
 
-import (
-	"maps"
-)
-
 func (r *Renderer) RegisterFile(path string) {
-	r.RenderedMu.Lock()
-	r.RenderedSet[path] = true
-	// Invalidate snapshot so GetRenderedFiles rebuilds it lazily
-	r.renderedSnapshot.Store(nil)
-	r.RenderedMu.Unlock()
+	r.renderedFiles.Store(path, struct{}{})
 }
 
 func (r *Renderer) GetRenderedFiles() map[string]bool {
-	// Fast path: valid snapshot already exists
-	if s := r.renderedSnapshot.Load(); s != nil {
-		return *s
-	}
-	// Slow path: build snapshot under lock, then cache it
-	r.RenderedMu.Lock()
-	snapshot := make(map[string]bool, len(r.RenderedSet))
-	maps.Copy(snapshot, r.RenderedSet)
-	r.renderedSnapshot.Store(&snapshot)
-	r.RenderedMu.Unlock()
-	return snapshot
+	result := make(map[string]bool)
+	r.renderedFiles.Range(func(key, _ any) bool {
+		result[key.(string)] = true
+		return true
+	})
+	return result
 }
 
 func (r *Renderer) ClearRenderedFiles() {
-	r.RenderedMu.Lock()
-	r.RenderedSet = make(map[string]bool)
-	r.renderedSnapshot.Store(nil)
-	r.RenderedMu.Unlock()
+	r.renderedFiles.Range(func(key, _ any) bool {
+		r.renderedFiles.Delete(key)
+		return true
+	})
 }

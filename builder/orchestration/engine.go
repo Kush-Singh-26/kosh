@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -279,13 +278,9 @@ func (b *Engine) SetSourceFs(fs afero.Fs) {
 	}
 }
 
-// getFaviconPath returns the favicon path - uses custom logo if set, otherwise defaults to theme favicon
-func (b *Engine) getFaviconPath() string {
-	if b.Cfg.Logo != "" {
-		return b.Cfg.Logo
-	}
-	// Fallback to static/favicon.ico or similar in theme
-	return filepath.Join(b.Cfg.StaticDir, "favicon.ico")
+// getLogoPath returns the site logo path from config.
+func (b *Engine) getLogoPath() string {
+	return b.Cfg.Logo
 }
 
 // SaveCaches waits for any background cache writes and persists BoltDB changes.
@@ -398,7 +393,7 @@ func (b *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 		}
 
 		// Batch rewrite image paths in output HTML for converted images.
-		assetpkg.RewriteImagePaths(b.Tx.StagingDir())
+		assetpkg.RewriteImagePaths(b.Tx.StagingDir(), b.Deps.Render.GetRenderedFiles())
 
 		// Remove original raster images when .webp equivalents exist
 		assetpkg.CleanupOriginalImages(b.Tx.StagingDir())

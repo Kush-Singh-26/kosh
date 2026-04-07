@@ -31,7 +31,7 @@ type PaginationOptions struct {
 	PinnedPosts []models.PostMetadata
 	Force       bool
 	Logger      *slog.Logger
-	FaviconPath string
+	LogoPath    string
 }
 
 // RenderPagination orchestrates the generation of paginated index pages.
@@ -65,7 +65,7 @@ func RenderPagination(opts PaginationOptions) error {
 			Force:       opts.Force,
 			SocialCfg:   &cfg.SocialCards,
 			Render:      render,
-			FaviconPath: opts.FaviconPath,
+			LogoPath:    opts.LogoPath,
 		})
 		homeCardTimer.Stop()
 	} else {

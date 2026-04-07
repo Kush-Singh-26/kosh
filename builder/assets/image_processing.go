@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/chai2010/webp"
 	"github.com/spf13/afero"
@@ -161,6 +162,24 @@ func ProcessCacheMissImage(opts ProcessImageOptions) error {
 	return convertToWebPVFS(opts)
 }
 
+func retryWriteFile(sink fspkg.ArtifactSink, path string, data []byte) error {
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		if err := sink.WriteFile(path, data); err == nil {
+			return nil
+		} else {
+			lastErr = err
+			if i < 2 {
+				select {
+				case <-time.After(10 * time.Millisecond):
+				default:
+				}
+			}
+		}
+	}
+	return fmt.Errorf("failed to write file after retries: %w", lastErr)
+}
+
 func convertToWebPVFS(opts ProcessImageOptions) error {
 	if opts.SrcInfo == nil {
 		var err error
@@ -186,7 +205,7 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 			opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cached)))
 			opts.Opts.Metrics.IncrementAssetsProcessed()
 		}
-		err := opts.Sink.WriteFile(opts.DstPath, cached)
+		err := retryWriteFile(opts.Sink, opts.DstPath, cached)
 		if err == nil && opts.RelPath != "" {
 			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
 			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"

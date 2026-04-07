@@ -319,7 +319,7 @@ Current behavior:
 - eligible local `.png/.jpg/.jpeg` are converted to `.webp` and originals removed from output
 - `CleanupOriginalImages` removes source raster files when `.webp` equivalents exist
 - `search.wasm` from source static trees must not overwrite deployed runtime WASM
-- `favicon.png`, `icon-192.png`, `icon-512.png` are always kept as `.png` (critical for browser/PWA)
+- `icon-192.png`, `icon-512.png` are always kept as `.png` (generated from Logo)
 
 Current bottleneck for cold builds:
 
@@ -439,7 +439,7 @@ imageWorkers: 8
 - no loss of incremental single-post rebuild for body-only content edits
 - no clean-build publish partial-output state
 - no broken `.webp` link rewriting for eligible local raster images
-- no original raster images (.png/.jpg/.jpeg) left in output when .webp exists (except favicon.png, icon-192.png, icon-512.png)
+- no original raster images (.png/.jpg/.jpeg) left in output when .webp exists (except icon-192.png, icon-512.png)
 
 ## Testing Guidance
 

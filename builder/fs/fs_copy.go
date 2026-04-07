@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"log/slog"
@@ -23,6 +24,20 @@ var (
 	}
 )
 
+// ValidatePath ensures that the given path is within the expected base directory.
+// This prevents path traversal attacks by checking that the resolved path
+// is a subdirectory of the base.
+func ValidatePath(baseDir, path string) error {
+	cleanBase := filepath.Clean(baseDir)
+	cleanPath := filepath.Clean(path)
+
+	if !strings.HasPrefix(cleanPath, cleanBase) {
+		return fmt.Errorf("path %s is outside base directory %s", path, baseDir)
+	}
+
+	return nil
+}
+
 type CopyFileOptions struct {
 	SrcFs   afero.Fs
 	Sink    ArtifactSink
@@ -33,6 +48,11 @@ type CopyFileOptions struct {
 }
 
 func CopyFileVFS(opts CopyFileOptions) error {
+	// Validate destination path to prevent directory traversal
+	if err := ValidatePath(filepath.Dir(opts.DstPath), opts.DstPath); err != nil {
+		return fmt.Errorf("invalid destination path: %w", err)
+	}
+
 	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", filepath.Dir(opts.DstPath), err)
 	}

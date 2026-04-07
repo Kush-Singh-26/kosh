@@ -17,11 +17,9 @@ func setupRendererTest(t *testing.T) *Renderer {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return &Renderer{
-		Sink:        sink,
-		Assets:      make(map[string]string),
-		RenderedSet: make(map[string]bool),
-		Compress:    false,
-		logger:      logger,
+		Sink:     sink,
+		Compress: false,
+		logger:   logger,
 	}
 }
 

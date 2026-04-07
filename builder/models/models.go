@@ -54,7 +54,7 @@ type ScannedFile struct {
 	ReadingTime     int
 	BodyOffset      int
 	Link            string
-	Source          []byte         // Pre-read source bytes to avoid double-read
+	SourceLoader    func() ([]byte, error) // Lazy file loader to avoid I/O waste
 	PreParsedMeta   map[string]any // Pre-parsed frontmatter to avoid double-parse
 }
 

@@ -505,14 +505,6 @@ func (s *assetService) copyCriticalAssets() {
 			}
 		}
 	}
-	faviconPath := filepath.Join(s.cfg.StaticDir, "images/favicon.png")
-	if exists, _ := afero.Exists(s.sourceFs, faviconPath); exists {
-		if err := s.copyFileOrLink(faviconPath, "static/images/favicon.png"); err != nil {
-			if _, loaded := s.warnOnce.LoadOrStore("favicon:"+faviconPath, true); !loaded {
-				s.logger.Warn("Failed to copy favicon", "src", faviconPath, "error", err)
-			}
-		}
-	}
 }
 
 func (s *assetService) copyFileOrLink(src, dst string) error {

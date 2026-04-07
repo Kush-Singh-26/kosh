@@ -48,8 +48,8 @@ func setupTestRenderer(t *testing.T) *Renderer {
 
 	r := &Renderer{
 		Sink:        sink,
-		Assets:      make(map[string]string),
-		RenderedSet: make(map[string]bool),
+
+
 		Compress:    false,
 		logger:      logger,
 		Layout:      layoutTmpl,
@@ -69,16 +69,16 @@ func TestRenderer_RenderPage_Success(t *testing.T) {
 		Description:    "Test Description",
 		Content:        template.HTML("<p>Hello World</p>"),
 		BaseURL:        "",
-		Assets:         map[string]string{"main.css": "/static/main.css"},
+
 		RelativePrefix: "",
 	}
 
 	_ = r.RenderPage("test/page/index.html", data)
 
 	// Check if file was registered
-	r.RenderedMu.RLock()
-	_, exists := r.RenderedSet["test/page/index.html"]
-	r.RenderedMu.RUnlock()
+	
+	exists := r.GetRenderedFiles()["test/page/index.html"]
+	
 
 	if !exists {
 		t.Error("RenderPage should register the rendered file")
@@ -98,7 +98,7 @@ func TestRenderer_RenderPage_WithBaseURL(t *testing.T) {
 		Title:          "Test Page",
 		BaseURL:        "https://example.com",
 		RelativePrefix: "",
-		Assets:         map[string]string{"main.css": "/static/main.css"},
+
 		Content:        template.HTML("<p>Content</p>"),
 	}
 
@@ -117,7 +117,7 @@ func TestRenderer_RenderPage_WithRelativePrefix(t *testing.T) {
 		Title:          "Test Page",
 		BaseURL:        "",
 		RelativePrefix: "../",
-		Assets:         map[string]string{"main.css": "/static/main.css"},
+
 		Content:        template.HTML("<p>Content</p>"),
 	}
 
@@ -157,9 +157,9 @@ func TestRenderer_RenderPage_NilLayout(t *testing.T) {
 	_ = r.RenderPage("test/nil-layout.html", data)
 
 	// File should not be registered
-	r.RenderedMu.RLock()
-	_, exists := r.RenderedSet["test/nil-layout.html"]
-	r.RenderedMu.RUnlock()
+	
+	exists := r.GetRenderedFiles()["test/nil-layout.html"]
+	
 
 	if exists {
 		t.Error("RenderPage with nil layout should not register file")
@@ -180,9 +180,9 @@ func TestRenderer_RenderIndex_Success(t *testing.T) {
 
 	_ = r.RenderIndex("index.html", data)
 
-	r.RenderedMu.RLock()
-	_, exists := r.RenderedSet["index.html"]
-	r.RenderedMu.RUnlock()
+	
+	exists := r.GetRenderedFiles()["index.html"]
+	
 
 	if !exists {
 		t.Error("RenderIndex should register the rendered file")
@@ -217,9 +217,9 @@ func TestRenderer_RenderIndex_NilTemplates(t *testing.T) {
 
 	_ = r.RenderIndex("no-template.html", data)
 
-	r.RenderedMu.RLock()
-	_, exists := r.RenderedSet["no-template.html"]
-	r.RenderedMu.RUnlock()
+	
+	exists := r.GetRenderedFiles()["no-template.html"]
+	
 
 	if exists {
 		t.Error("RenderIndex with nil templates should not register file")
@@ -236,9 +236,9 @@ func TestRenderer_RenderGraph_Success(t *testing.T) {
 
 	_ = r.RenderGraph("graph/index.html", data)
 
-	r.RenderedMu.RLock()
-	_, exists := r.RenderedSet["graph/index.html"]
-	r.RenderedMu.RUnlock()
+	
+	exists := r.GetRenderedFiles()["graph/index.html"]
+	
 
 	if !exists {
 		t.Error("RenderGraph should register the rendered file")
@@ -256,9 +256,9 @@ func TestRenderer_RenderGraph_NilGraph(t *testing.T) {
 
 	_ = r.RenderGraph("no-graph.html", data)
 
-	r.RenderedMu.RLock()
-	_, exists := r.RenderedSet["no-graph.html"]
-	r.RenderedMu.RUnlock()
+	
+	exists := r.GetRenderedFiles()["no-graph.html"]
+	
 
 	if exists {
 		t.Error("RenderGraph with nil graph should not register file")
@@ -275,9 +275,9 @@ func TestRenderer_Render404_Success(t *testing.T) {
 
 	_ = r.Render404("404.html", data)
 
-	r.RenderedMu.RLock()
-	_, exists := r.RenderedSet["404.html"]
-	r.RenderedMu.RUnlock()
+	
+	exists := r.GetRenderedFiles()["404.html"]
+	
 
 	if !exists {
 		t.Error("Render404 should register the rendered file")
@@ -312,9 +312,9 @@ func TestRenderer_Render404_NilTemplates(t *testing.T) {
 
 	_ = r.Render404("no-404.html", data)
 
-	r.RenderedMu.RLock()
-	_, exists := r.RenderedSet["no-404.html"]
-	r.RenderedMu.RUnlock()
+	
+	exists := r.GetRenderedFiles()["no-404.html"]
+	
 
 	if exists {
 		t.Error("Render404 with nil templates should not register file")
@@ -326,9 +326,9 @@ func TestRenderer_RegisterFile(t *testing.T) {
 
 	r.RegisterFile("test/file.html")
 
-	r.RenderedMu.RLock()
-	_, exists := r.RenderedSet["test/file.html"]
-	r.RenderedMu.RUnlock()
+	
+	exists := r.GetRenderedFiles()["test/file.html"]
+	
 
 	if !exists {
 		t.Error("RegisterFile should add file to RenderedSet")
@@ -349,9 +349,9 @@ func TestRenderer_RegisterFile_MultipleFiles(t *testing.T) {
 		r.RegisterFile(f)
 	}
 
-	r.RenderedMu.RLock()
-	count := len(r.RenderedSet)
-	r.RenderedMu.RUnlock()
+	
+	count := len(r.GetRenderedFiles())
+	
 
 	if count != len(files) {
 		t.Errorf("RegisterFile should register %d files, got %d", len(files), count)
@@ -379,32 +379,7 @@ func TestRenderer_GetRenderedFiles(t *testing.T) {
 	}
 }
 
-func TestRenderer_GetRenderedFiles_SnapshotCached(t *testing.T) {
-	r := setupTestRenderer(t)
 
-	r.RegisterFile("file1.html")
-	r.RegisterFile("file2.html")
-
-	// First call builds snapshot
-	rendered1 := r.GetRenderedFiles()
-
-	// Modify internal set (should not affect cached snapshot)
-	r.RenderedMu.Lock()
-	r.RenderedSet["file3.html"] = true
-	r.renderedSnapshot.Store(nil) // Invalidate snapshot
-	r.RenderedMu.Unlock()
-
-	// Second call should rebuild snapshot with new file
-	rendered2 := r.GetRenderedFiles()
-
-	if len(rendered1) != 2 {
-		t.Errorf("First snapshot should have 2 files, got %d", len(rendered1))
-	}
-
-	if len(rendered2) != 3 {
-		t.Errorf("Second snapshot should have 3 files, got %d", len(rendered2))
-	}
-}
 
 func TestRenderer_ClearRenderedFiles(t *testing.T) {
 	r := setupTestRenderer(t)
@@ -414,18 +389,10 @@ func TestRenderer_ClearRenderedFiles(t *testing.T) {
 
 	r.ClearRenderedFiles()
 
-	r.RenderedMu.RLock()
-	count := len(r.RenderedSet)
-	r.RenderedMu.RUnlock()
+	count := len(r.GetRenderedFiles())
 
 	if count != 0 {
 		t.Errorf("ClearRenderedFiles should clear all files, got %d", count)
-	}
-
-	// Snapshot should be invalidated
-	s := r.renderedSnapshot.Load()
-	if s != nil {
-		t.Error("ClearRenderedFiles should invalidate snapshot")
 	}
 }
 
@@ -526,11 +493,11 @@ func TestRenderer_PreparePageData_NilAssets(t *testing.T) {
 
 func TestRenderer_PreparePageData_WithBaseURL(t *testing.T) {
 	r := setupTestRenderer(t)
+	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
 
 	data := &models.PageData{
 		Title:   "Test",
 		BaseURL: "https://example.com",
-		Assets:  map[string]string{"main.css": "/static/main.css"},
 	}
 
 	r.PreparePageData(data)
@@ -542,12 +509,12 @@ func TestRenderer_PreparePageData_WithBaseURL(t *testing.T) {
 
 func TestRenderer_PreparePageData_WithRelativePrefix(t *testing.T) {
 	r := setupTestRenderer(t)
+	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
 
 	data := &models.PageData{
 		Title:          "Test",
 		BaseURL:        "",
 		RelativePrefix: "../",
-		Assets:         map[string]string{"main.css": "/static/main.css"},
 	}
 
 	r.PreparePageData(data)
@@ -559,12 +526,12 @@ func TestRenderer_PreparePageData_WithRelativePrefix(t *testing.T) {
 
 func TestRenderer_PreparePageData_WithEmptyPrefix(t *testing.T) {
 	r := setupTestRenderer(t)
+	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
 
 	data := &models.PageData{
 		Title:          "Test",
 		BaseURL:        "",
 		RelativePrefix: "",
-		Assets:         map[string]string{"main.css": "/static/main.css"},
 	}
 
 	r.PreparePageData(data)
@@ -576,12 +543,12 @@ func TestRenderer_PreparePageData_WithEmptyPrefix(t *testing.T) {
 
 func TestRenderer_PreparePageData_CacheHit(t *testing.T) {
 	r := setupTestRenderer(t)
+	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
 
 	data := &models.PageData{
 		Title:          "Test",
 		BaseURL:        "https://example.com",
 		RelativePrefix: "",
-		Assets:         map[string]string{"main.css": "/static/main.css"},
 	}
 
 	// First call - should compute
@@ -655,10 +622,10 @@ func TestRenderer_RelativizeFunc(t *testing.T) {
 				Title:          "Test",
 				BaseURL:        tt.baseURL,
 				RelativePrefix: tt.prefix,
-				Assets:         map[string]string{"test": tt.link},
 			}
 
 			r := setupTestRenderer(t)
+			r.SetAssets(map[string]string{"test": tt.link})
 			r.PreparePageData(data)
 
 			if data.Assets["test"] != tt.expected {
@@ -690,9 +657,9 @@ func TestRenderer_ConcurrentRenderPage(t *testing.T) {
 		<-done
 	}
 
-	r.RenderedMu.RLock()
-	count := len(r.RenderedSet)
-	r.RenderedMu.RUnlock()
+	
+	count := len(r.GetRenderedFiles())
+	
 
 	if count != numGoroutines {
 		t.Errorf("Concurrent RenderPage should render %d files, got %d", numGoroutines, count)
@@ -720,9 +687,9 @@ func TestRenderer_ConcurrentRenderIndex(t *testing.T) {
 		<-done
 	}
 
-	r.RenderedMu.RLock()
-	count := len(r.RenderedSet)
-	r.RenderedMu.RUnlock()
+	
+	count := len(r.GetRenderedFiles())
+	
 
 	if count != numGoroutines {
 		t.Errorf("Concurrent RenderIndex should render %d files, got %d", numGoroutines, count)
@@ -831,7 +798,7 @@ func TestRenderer_AssetCacheInvalidation(t *testing.T) {
 		Title:          "Test",
 		BaseURL:        "",
 		RelativePrefix: "",
-		Assets:         map[string]string{"main.css": "/static/main.css"},
+
 	}
 	r.PreparePageData(data)
 

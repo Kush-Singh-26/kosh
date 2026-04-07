@@ -43,17 +43,20 @@ func (b *Engine) generatePWA(ctx context.Context, shouldForce bool) error {
 		iconTimer := timeutil.StartPhase("PWA icons")
 		defer iconTimer.Stop()
 
-		faviconPath := b.getFaviconPath()
+		logoPath := b.getLogoPath()
+		if logoPath == "" {
+			return nil
+		}
 
 		// Ensure info is available
-		exists, _ := afero.Exists(b.Deps.SourceFs, faviconPath)
+		exists, _ := afero.Exists(b.Deps.SourceFs, logoPath)
 		if !exists {
 			return nil
 		}
-		srcInfo, _ := b.Deps.SourceFs.Stat(faviconPath)
+		srcInfo, _ := b.Deps.SourceFs.Stat(logoPath)
 
 		// Calculate hash based on favicon mtime and size
-		hashContent := fmt.Sprintf("%s-%d-%d", faviconPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())
+		hashContent := fmt.Sprintf("%s-%d-%d", logoPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())
 		currentHash := cache.HashString(hashContent)
 
 		// Check cache
@@ -71,7 +74,7 @@ func (b *Engine) generatePWA(ctx context.Context, shouldForce bool) error {
 
 		if needsGeneration {
 			// Generate icons to memory once, then write to both sink and cache.
-			icons, err := generators.GeneratePWAIconBytes(b.Deps.SourceFs, faviconPath, b.Deps.Logger)
+			icons, err := generators.GeneratePWAIconBytes(b.Deps.SourceFs, logoPath, b.Deps.Logger)
 			if err == nil {
 				if wErr := generators.WritePWAIcons(b.Sink, filepath.Join(b.Cfg.OutputDir, "static/images"), icons); wErr == nil {
 					b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "static/images/icon-192.png"))

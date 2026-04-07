@@ -31,20 +31,20 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 		finalBytes = rewriteImageRefs(finalBytes, path)
 	}
 
-	// Optional Minification
-	if r.Compress {
-		minifier := r.Minifier
-		if minifier == nil {
-			minifier = koshMinify.GetHTMLMinifier()
-		}
-		minified, err := minifier.Bytes("text/html", finalBytes)
-		if err == nil {
-			finalBytes = minified
-		}
-	}
-
-	// Final Write
+	// Final Write with Streaming Minification
 	if err := r.Sink.WriteStream(path, func(w io.Writer) error {
+		if r.Compress {
+			minifier := r.Minifier
+			if minifier == nil {
+				minifier = koshMinify.GetHTMLMinifier()
+			}
+			mw := minifier.Writer("text/html", w)
+			_, err := mw.Write(finalBytes)
+			if closeErr := mw.Close(); err == nil {
+				err = closeErr
+			}
+			return err
+		}
 		_, err := w.Write(finalBytes)
 		return err
 	}); err != nil {

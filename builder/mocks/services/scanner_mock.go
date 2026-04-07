@@ -13,13 +13,24 @@ type MockScanner struct {
 	Err    error
 }
 
-func (m *MockScanner) Scan(ctx context.Context, contentDir string, sourceFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error) {
-	if m.Result != nil && fileChan != nil {
-		for _, f := range m.Result.Files {
-			fileChan <- f
+func (m *MockScanner) Scan(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error) {
+	resChan, errChan := m.ScanStreaming(ctx, contentDir, srcFs, cfg, fileChan)
+	return <-resChan, <-errChan
+}
+
+func (m *MockScanner) ScanStreaming(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (<-chan *models.MetadataScannerResult, <-chan error) {
+	resChan := make(chan *models.MetadataScannerResult, 1)
+	errChan := make(chan error, 1)
+	go func() {
+		if m.Result != nil && fileChan != nil {
+			for _, f := range m.Result.Files {
+				fileChan <- f
+			}
 		}
-	}
-	return m.Result, m.Err
+		resChan <- m.Result
+		errChan <- m.Err
+	}()
+	return resChan, errChan
 }
 
 func (m *MockScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error) {

@@ -19,7 +19,7 @@ func (b *Engine) renderPagination(ctx context.Context, allPosts, pinnedPosts []m
 		PinnedPosts: pinnedPosts,
 		Force:       force,
 		Logger:      b.Deps.Logger,
-		FaviconPath: b.getFaviconPath(),
+		LogoPath:    b.getLogoPath(),
 	})
 }
 
@@ -33,6 +33,6 @@ func (b *Engine) renderTags(ctx context.Context, tagMap map[string][]models.Post
 		SourceFs:           b.Deps.SourceFs,
 		TagMap:             tagMap,
 		ForceSocialRebuild: forceSocialRebuild,
-		FaviconPath:        b.getFaviconPath(),
+		LogoPath:           b.getLogoPath(),
 	})
 }

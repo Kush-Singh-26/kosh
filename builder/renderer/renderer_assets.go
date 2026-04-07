@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"maps"
 	"path/filepath"
 	"strings"
 
@@ -9,18 +8,18 @@ import (
 )
 
 func (r *Renderer) SetAssets(assets map[string]string) {
-	r.AssetsMu.Lock()
-	r.Assets = assets
 	// Create snapshot
 	snapshot := make(map[string]string, len(assets))
-	maps.Copy(snapshot, assets)
+	for k, v := range assets {
+		snapshot[k] = v
+	}
 	r.assetsSnapshot.Store(&snapshot)
+	
 	// Invalidate relativization cache because assets have changed
 	r.assetCache.Range(func(key, value any) bool {
 		r.assetCache.Delete(key)
 		return true
 	})
-	r.AssetsMu.Unlock()
 }
 
 // PreparePageData performs common optimizations like asset map relativization

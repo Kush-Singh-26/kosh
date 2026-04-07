@@ -46,7 +46,7 @@ type TagOptions struct {
 	SourceFs           afero.Fs
 	TagMap             map[string][]models.PostMetadata
 	ForceSocialRebuild bool
-	FaviconPath        string
+	LogoPath           string
 }
 
 // RenderTags orchestrates the generation of tag index and individual tag pages.
@@ -82,7 +82,7 @@ func RenderTags(opts TagOptions) error {
 			Force:       opts.ForceSocialRebuild,
 			SocialCfg:   &cfg.SocialCards,
 			Render:      render,
-			FaviconPath: opts.FaviconPath,
+			LogoPath:    opts.LogoPath,
 		})
 		return nil
 	})
@@ -109,7 +109,7 @@ func RenderTags(opts TagOptions) error {
 			Force:       opts.ForceSocialRebuild,
 			SocialCfg:   &cfg.SocialCards,
 			Render:      render,
-			FaviconPath: opts.FaviconPath,
+			LogoPath:    opts.LogoPath,
 		})
 	} else {
 		// Use file reading helper if needed, or just standard os.ReadFile

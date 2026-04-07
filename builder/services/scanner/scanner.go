@@ -3,6 +3,7 @@ package scanner
 import (
 	"bytes"
 	"context"
+	"io"
 	"io/fs"
 	"path/filepath"
 	"runtime"
@@ -26,75 +27,99 @@ func NewScanner() Scanner {
 }
 
 func (s *metadataScanner) Scan(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error) {
-	result := &models.MetadataScannerResult{
-		Files:         make([]models.ScannedFile, 0, 50),
-		ContentAssets: make([]models.ScannedAsset, 0, 10),
-	}
+	resChan, errChan := s.ScanStreaming(ctx, contentDir, srcFs, cfg, fileChan)
+	return <-resChan, <-errChan
+}
 
-	var mu sync.Mutex
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(runtime.NumCPU() * 2)
+func (s *metadataScanner) ScanStreaming(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (<-chan *models.MetadataScannerResult, <-chan error) {
+	resultChan := make(chan *models.MetadataScannerResult, 1)
+	errChan := make(chan error, 1)
 
-	err := afero.Walk(srcFs, contentDir, func(path string, info fs.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
+	go func() {
+		result := &models.MetadataScannerResult{
+			Files:         make([]models.ScannedFile, 0, 50),
+			ContentAssets: make([]models.ScannedAsset, 0, 10),
 		}
 
-		if filepath.Ext(path) != ".md" {
-			mu.Lock()
-			result.ContentAssets = append(result.ContentAssets, models.ScannedAsset{
-				Path: path,
-				Info: info,
-			})
-			mu.Unlock()
-			return nil
-		}
+		var mu sync.Mutex
+		g, gCtx := errgroup.WithContext(ctx)
+		g.SetLimit(runtime.NumCPU() * 2)
 
-		if filepath.Base(path) == "404.md" {
-			mu.Lock()
-			result.Has404 = true
-			mu.Unlock()
-		}
-
-		g.Go(func() error {
-			f, err := s.ScanFile(srcFs, cfg, path)
-			if err != nil {
+		err := afero.Walk(srcFs, contentDir, func(path string, info fs.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
 				return nil
 			}
 
-			if fileChan != nil {
-				select {
-				case fileChan <- f:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
+			if filepath.Ext(path) != ".md" {
+				mu.Lock()
+				result.ContentAssets = append(result.ContentAssets, models.ScannedAsset{
+					Path: path,
+					Info: info,
+				})
+				mu.Unlock()
+				return nil
 			}
 
-			mu.Lock()
-			result.Files = append(result.Files, f)
-			mu.Unlock()
+			if filepath.Base(path) == "404.md" {
+				mu.Lock()
+				result.Has404 = true
+				mu.Unlock()
+			}
+
+			g.Go(func() error {
+				f, err := s.ScanFile(srcFs, cfg, path)
+				if err != nil {
+					return nil
+				}
+
+				if fileChan != nil {
+					select {
+					case fileChan <- f:
+					case <-gCtx.Done():
+						return gCtx.Err()
+					}
+				}
+
+				mu.Lock()
+				result.Files = append(result.Files, f)
+				mu.Unlock()
+				return nil
+			})
+
 			return nil
 		})
 
-		return nil
-	})
+		if err != nil {
+			resultChan <- nil
+			errChan <- err
+			return
+		}
 
-	if err != nil {
-		return nil, err
-	}
+		if err := g.Wait(); err != nil {
+			resultChan <- nil
+			errChan <- err
+			return
+		}
 
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
+		resultChan <- result
+		errChan <- nil
+	}()
 
-	return result, nil
+	return resultChan, errChan
 }
 
 func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error) {
-	data, err := afero.ReadFile(srcFs, path)
+	file, err := srcFs.Open(path)
 	if err != nil {
 		return models.ScannedFile{}, err
 	}
+	buf := make([]byte, 16384)
+	n, err := io.ReadFull(file, buf)
+	file.Close()
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return models.ScannedFile{}, err
+	}
+	data := buf[:n]
 
 	info, err := srcFs.Stat(path)
 	if err != nil {
@@ -104,15 +129,19 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 	relPath, _ := filepath.Rel(cfg.ContentDir, path)
 
 	var frontmatter []byte
-	var body []byte
 	var bodyOffset int
 	parts := bytes.SplitN(data, hashing.YAMLDelim, 3)
+	if len(parts) < 3 && n == 16384 {
+		fullData, err := afero.ReadFile(srcFs, path)
+		if err == nil {
+			data = fullData
+			parts = bytes.SplitN(data, hashing.YAMLDelim, 3)
+		}
+	}
 	if len(parts) >= 3 {
 		frontmatter = bytes.TrimSpace(parts[1])
-		body = bytes.TrimSpace(parts[2])
 		bodyOffset = bytes.Index(data, parts[2])
 	} else {
-		body = bytes.TrimSpace(data)
 		bodyOffset = 0
 	}
 
@@ -135,7 +164,7 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 	}
 
 	tags := timeutil.ExtractSliceFromMap(preParsedMeta, "tags")
-	bodyHash := hashing.HashBytes(body)
+	bodyHash := ""
 	cleanHtmlRelPath := strings.TrimSuffix(relPath, filepath.Ext(relPath)) + ".html"
 	postLink := navigation.BuildAbsoluteURL(cfg.BaseURL, cleanHtmlRelPath)
 
@@ -158,7 +187,7 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 		FrontmatterHash: frontmatterHash,
 		BodyOffset:      bodyOffset,
 		Link:            postLink,
-		Source:          data,
+		SourceLoader:    func() ([]byte, error) { return afero.ReadFile(srcFs, path) },
 		PreParsedMeta:   preParsedMeta,
 	}, nil
 }

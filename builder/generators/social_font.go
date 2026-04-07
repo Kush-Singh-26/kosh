@@ -19,7 +19,7 @@ import (
 var (
 	fontCache      *lru.Cache[string, *truetype.Font]
 	fontCacheOnce  sync.Once
-	faviconCache   sync.Map
+	logoCache      sync.Map
 	baseImageCache sync.Map
 )
 
@@ -34,8 +34,8 @@ func getFontCache() *lru.Cache[string, *truetype.Font] {
 	return fontCache
 }
 
-func getFaviconImage(fs afero.Fs, path string) image.Image {
-	if cached, ok := faviconCache.Load(path); ok {
+func getLogoImage(fs afero.Fs, path string) image.Image {
+	if cached, ok := logoCache.Load(path); ok {
 		if img, ok := cached.(image.Image); ok {
 			return img
 		}
@@ -52,7 +52,7 @@ func getFaviconImage(fs afero.Fs, path string) image.Image {
 		return nil
 	}
 
-	faviconCache.Store(path, img)
+	logoCache.Store(path, img)
 	return img
 }
 

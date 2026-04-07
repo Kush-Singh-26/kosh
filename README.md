@@ -226,7 +226,7 @@ Kosh is a high-performance static site generator written in Go for blogs. It foc
 - Persistent SSR cache for D2 diagrams and LaTeX math
 - CSS/JS bundling and fingerprinting via esbuild
 - Image optimization to WebP for eligible local `.png`, `.jpg`, `.jpeg`
-- Exact-copy exceptions for assets like logo/favicon where required
+- Exact-copy exceptions for assets like logo where required
 - Server-side LaTeX and D2 rendering
 - Go+WASM search with schema validation and snippet extraction
 - RSS, sitemap, graph, PWA, social cards

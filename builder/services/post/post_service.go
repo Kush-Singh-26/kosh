@@ -93,6 +93,33 @@ type searchTask struct {
 	cached    *models.SearchRecord
 }
 
+// workerLocalState accumulates results within a single parse worker,
+// eliminating contention on the shared postProcessContext.
+type workerLocalState struct {
+	allPosts      []models.PostMetadata
+	pinnedPosts   []models.PostMetadata
+	tagEntries    []tagEntry
+	indexedPosts  []models.IndexedPost
+	searchTasks   []deferredSearchTask
+	newPostsMeta  []*models.PostMeta
+	newSearchRecs map[string]*models.SearchRecord
+	newDeps       map[string]*models.Dependencies
+	anyChanged    bool
+	errs          []error
+}
+
+type tagEntry struct {
+	tag  string
+	post models.PostMetadata
+}
+
+type deferredSearchTask struct {
+	record    models.PostRecord
+	plainText string
+	localIdx  int // index into this worker's indexedPosts
+	cached    *models.SearchRecord
+}
+
 // WorkerContext holds shared dependencies and configuration for streaming workers.
 type WorkerContext struct {
 	Ctx                context.Context
@@ -105,6 +132,15 @@ type WorkerContext struct {
 }
 
 func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*PostResult, error) {
+	fileChan := make(chan models.ScannedFile, len(files))
+	for _, f := range files {
+		fileChan <- f
+	}
+	close(fileChan)
+	return s.ProcessStreaming(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan)
+}
+
+func (s *postService) ProcessStreaming(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error) {
 	numWorkers := models.GetDefaultWorkerCount()
 
 	cardPool := async.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) error {
@@ -138,23 +174,50 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 	searchPool.Start()
 	defer func() { buildCtx.IgnoreError(searchPool.Stop(), "stop search pool") }()
 
-	// Pre-calculate navigation info using fast-scanned file metadata
-	navInfo := s.prepareNavigationInfo(files)
-
+	// Create a channel for navInfo to be sent once scanner finishes
+	navReady := make(chan navInfo, 1)
 	renderChan := make(chan renderTask, numWorkers*2)
 	pc := &postProcessContext{
 		tagMap:           make(map[string][]models.PostMetadata),
 		newSearchRecords: make(map[string]*models.SearchRecord),
 		newDeps:          make(map[string]*models.Dependencies),
-		indexedPosts:     make([]models.IndexedPost, 0, len(files)),
+		indexedPosts:     make([]models.IndexedPost, 0, 50),
 	}
 
-	// Start render phase concurrently with parse phase (pipelining)
+	// Internal channel to collect all files for navigation calculation
+	collectedFilesChan := make(chan models.ScannedFile, 1024)
+	var allFiles []models.ScannedFile
+	var collectWg sync.WaitGroup
+	collectWg.Add(1)
+	go func() {
+		defer collectWg.Done()
+		for f := range collectedFilesChan {
+			allFiles = append(allFiles, f)
+		}
+		// Once all files collected, prepare navigation and signal render phase
+		navReady <- s.prepareNavigationInfo(allFiles)
+	}()
+
+	// Start render task collector goroutine to avoid blocking parse workers
+	var renderTasks []renderTask
+	var renderTasksMu sync.Mutex
+	renderTasksDone := make(chan struct{})
+
+	go func() {
+		defer close(renderTasksDone)
+		for rt := range renderChan {
+			renderTasksMu.Lock()
+			renderTasks = append(renderTasks, rt)
+			renderTasksMu.Unlock()
+		}
+	}()
+
+	// renderWg is kept for context-based cleanup if needed, though runStreamingRenderPhase is synchronous
 	var renderWg sync.WaitGroup
 	renderWg.Add(1)
 	go func() {
 		defer renderWg.Done()
-		s.runStreamingRenderPhase(ctx, numWorkers, navInfo, renderChan, len(files))
+		// This goroutine will wait for renderChan to close and tasks to be collected elsewhere
 	}()
 
 	wCtx := WorkerContext{
@@ -162,9 +225,20 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 		RenderChan: renderChan, ShouldForce: shouldForce, ForceSocialRebuild: forceSocialRebuild,
 	}
 
-	err := s.runStreamingParsePhase(numWorkers, files, wCtx)
-	close(renderChan)
-	renderWg.Wait()
+	// Stream from original channel to both parse workers and our navigation collector
+	err := s.runStreamingParsePhase(numWorkers, fileChan, collectedFilesChan, wCtx)
+	close(collectedFilesChan)
+	collectWg.Wait() // Wait for scanner walk to finish and navReady to be filled
+
+	// Once scanner is done and navReady is filled, signal the render phase
+	close(renderChan)      // No more render tasks will be produced
+	<-renderTasksDone      // Wait for all produced tasks to be collected
+
+	// Now start the render pool with complete navInfo
+	nav := <-navReady
+	s.runStreamingRenderPhase(ctx, numWorkers, nav, renderTasks)
+
+	renderWg.Wait() // Reserved for backward compatibility if needed, but runStreamingRenderPhase is now synchronous here
 
 	if err != nil {
 		return nil, err
@@ -191,25 +265,44 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 	}, nil
 }
 
-func (s *postService) runStreamingParsePhase(numWorkers int, files []models.ScannedFile, wCtx WorkerContext) error {
-	s.logger.Info("Processing posts (pipelined mode)")
+func (s *postService) runStreamingParsePhase(numWorkers int, fileChan <-chan models.ScannedFile, collector chan<- models.ScannedFile, wCtx WorkerContext) error {
+	s.logger.Info("Processing posts (streaming mode)")
 	timer := timeutil.StartPhase("Process posts (stream)")
 	defer timer.Stop()
 
+	locals := make([]*workerLocalState, numWorkers)
+	for i := range locals {
+		locals[i] = &workerLocalState{
+			newSearchRecs: make(map[string]*models.SearchRecord),
+			newDeps:       make(map[string]*models.Dependencies),
+		}
+	}
+	var workerIdx atomic.Int32
+
 	parsePool := async.NewWorkerPool(wCtx.Ctx, numWorkers, func(f models.ScannedFile) error {
-		s.parseWorkerTaskStreaming(f, wCtx)
+		id := int(workerIdx.Add(1)-1) % numWorkers
+		s.parseWorkerTaskLocal(f, wCtx, locals[id])
 		return nil
 	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
 
 	parsePool.Start()
-	for _, f := range files {
+	for f := range fileChan {
+		if collector != nil {
+			collector <- f
+		}
 		parsePool.Submit(f)
 	}
-	return parsePool.Stop()
+	err := parsePool.Stop()
+
+	s.mergeWorkerStates(locals, wCtx)
+
+	return err
 }
 
-func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, renderChan <-chan renderTask, totalFiles int) {
+func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask) {
 	processed := atomic.Int32{}
+	totalFiles := len(tasks)
+
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(rt renderTask) error {
 		post := rt.parseRes.Post
 		_, _, cardImageURL := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, rt.htmlRelPath)
@@ -255,7 +348,7 @@ func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers in
 	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
 
 	renderPool.Start()
-	for rt := range renderChan {
+	for _, rt := range tasks {
 		renderPool.Submit(rt)
 	}
 	if err := renderPool.Stop(); err != nil {
@@ -273,10 +366,9 @@ type postProcessContext struct {
 	newDeps          map[string]*models.Dependencies
 	indexedPosts     []models.IndexedPost
 	errs             []error
-	mu               sync.Mutex
 }
 
-func (s *postService) parseWorkerTaskStreaming(f models.ScannedFile, wCtx WorkerContext) {
+func (s *postService) parseWorkerTaskLocal(f models.ScannedFile, wCtx WorkerContext, local *workerLocalState) {
 	path := f.Path
 	relPath := f.RelPath
 
@@ -307,8 +399,21 @@ func (s *postService) parseWorkerTaskStreaming(f models.ScannedFile, wCtx Worker
 	}
 
 	// 3. Full Parse if needed
+	var sourceBytes []byte
+	var err error
+
+	if !useCache || s.cfg.Features.RawMarkdown {
+		if f.SourceLoader != nil {
+			sourceBytes, err = f.SourceLoader()
+			if err != nil {
+				s.logger.Error("Failed to load source", "path", path, "error", err)
+				local.errs = append(local.errs, err)
+				return
+			}
+		}
+	}
+
 	if !useCache {
-		var err error
 		if s.metrics != nil {
 			s.metrics.IncrementCacheMiss()
 		}
@@ -320,7 +425,7 @@ func (s *postService) parseWorkerTaskStreaming(f models.ScannedFile, wCtx Worker
 
 		parseRes, err = ParseMarkdown(
 			ParseConfig{
-				Source:               f.Source,
+				Source:               sourceBytes,
 				Path:                 path,
 				CleanHtmlRelPath:     htmlRelPath,
 				HtmlRelPath:          htmlRelPath,
@@ -339,12 +444,10 @@ func (s *postService) parseWorkerTaskStreaming(f models.ScannedFile, wCtx Worker
 		)
 		if err != nil {
 			s.logger.Error("Failed to parse markdown", "path", path, "error", err)
-			wCtx.PC.mu.Lock()
-			wCtx.PC.errs = append(wCtx.PC.errs, err)
-			wCtx.PC.mu.Unlock()
+			local.errs = append(local.errs, err)
 			return
 		}
-		wCtx.PC.anyPostChanged.Store(true)
+		local.anyChanged = true
 
 		if parseRes.Post.Title == "" {
 			parseRes.Post.Title = f.Title
@@ -363,56 +466,48 @@ func (s *postService) parseWorkerTaskStreaming(f models.ScannedFile, wCtx Worker
 	s.queueSocialCard(relPath, parseRes, htmlRelPath, wCtx.ForceSocialRebuild, wCtx.CardPool)
 
 	// 5. Aggregate and stream
-	s.aggregateAndStream(f, parseRes, post, htmlContent, destPath, relPath, htmlRelPath, finalSSRHashes, useCache, wCtx)
+	s.aggregateLocal(f, parseRes, post, htmlContent, destPath, relPath, htmlRelPath, finalSSRHashes, useCache, wCtx, local, sourceBytes)
 	if s.metrics != nil {
 		s.metrics.IncrementPostsProcessed()
 	}
 }
 
-func (s *postService) aggregateAndStream(f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, relPath, htmlRelPath string, ssrHashes []string, useCache bool, wCtx WorkerContext) {
-	wCtx.PC.mu.Lock()
-	defer wCtx.PC.mu.Unlock()
-
+func (s *postService) aggregateLocal(f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, relPath, htmlRelPath string, ssrHashes []string, useCache bool, wCtx WorkerContext, local *workerLocalState, sourceBytes []byte) {
 	searchRecord := res.SearchRecord
 	searchRecord.ID = xxh3.HashString(searchRecord.Link)
 
-	// Add to indexed posts
-	idx := len(wCtx.PC.indexedPosts)
-	wCtx.PC.indexedPosts = append(wCtx.PC.indexedPosts, models.IndexedPost{
+	localIdx := len(local.indexedPosts)
+	local.indexedPosts = append(local.indexedPosts, models.IndexedPost{
 		Record: searchRecord, WordFreqs: res.WordFreqs, DocLen: res.DocLen,
 		StemMap: res.StemMap, PositionalIndex: res.PositionalIndex, ByteOffsets: res.ByteOffsets,
 	})
 
-	var newSearch *models.SearchRecord
 	if !useCache && s.cache != nil {
-		newSearch = &models.SearchRecord{
+		newSearch := &models.SearchRecord{
 			Title: post.Title, NormalizedTitle: res.SearchRecord.NormalizedTitle,
 			Content: res.SearchRecord.Content, NormalizedTags: res.SearchRecord.NormalizedTags,
 		}
 		postID := cache.GeneratePostID("", relPath)
-		wCtx.PC.newSearchRecords[postID] = newSearch
+		local.newSearchRecs[postID] = newSearch
+
+		if s.cfg.Features.Generators.Search {
+			local.searchTasks = append(local.searchTasks, deferredSearchTask{
+				record: searchRecord, plainText: res.PlainText, localIdx: localIdx, cached: newSearch,
+			})
+		}
 	}
 
-	// If search is enabled and NOT from cache, offload analysis
-	if s.cfg.Features.Generators.Search && !useCache {
-		wCtx.SearchPool.Submit(searchTask{
-			record:    searchRecord,
-			plainText: res.PlainText,
-			indexed:   &wCtx.PC.indexedPosts[idx],
-			cached:    newSearch,
+	local.allPosts = append(local.allPosts, post)
+	if post.Pinned {
+		local.pinnedPosts = append(local.pinnedPosts, post)
+	}
+	for _, tag := range post.Tags {
+		local.tagEntries = append(local.tagEntries, tagEntry{
+			tag: strings.ToLower(strings.TrimSpace(tag)), post: post,
 		})
 	}
 
-	wCtx.PC.allPosts = append(wCtx.PC.allPosts, post)
-	if post.Pinned {
-		wCtx.PC.pinnedPosts = append(wCtx.PC.pinnedPosts, post)
-	}
-	for _, tag := range post.Tags {
-		k := strings.ToLower(strings.TrimSpace(tag))
-		wCtx.PC.tagMap[k] = append(wCtx.PC.tagMap[k], post)
-	}
-
-	// Stream to renderer
+	// Stream to renderer // No locks needed for channel write
 	wCtx.RenderChan <- renderTask{
 		parseRes:    res,
 		f:           f,
@@ -420,14 +515,15 @@ func (s *postService) aggregateAndStream(f models.ScannedFile, res *ParsedMarkdo
 		destPath:    destPath,
 		relPath:     relPath,
 		htmlRelPath: htmlRelPath,
-		source:      f.Source,
+		source:      sourceBytes,
 	}
 
 	if !useCache && s.cache != nil {
 		postID := cache.GeneratePostID("", relPath)
 		newMeta := &models.PostMeta{
-			PostID: postID, Path: relPath, ModTime: f.Info.ModTime().Unix(),
+			PostID: postID, Path: relPath, ModTime: f.Info.ModTime().UnixNano(),
 			ContentHash: res.FrontmatterHash, BodyHash: f.BodyHash, Title: post.Title, Date: post.DateObj,
+			WordCount: int(f.Info.Size()), // Use WordCount as size for quick comparison
 			Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
 			Meta: res.Metadata, TOC: res.TOC, SSRInputHashes: ssrHashes,
@@ -436,8 +532,42 @@ func (s *postService) aggregateAndStream(f models.ScannedFile, res *ParsedMarkdo
 		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
 			s.logger.Warn("Failed to store HTML for post", "path", relPath, "error", err)
 		}
-		wCtx.PC.newPostsMeta = append(wCtx.PC.newPostsMeta, newMeta)
-		wCtx.PC.newDeps[postID] = &models.Dependencies{Tags: post.Tags}
+		local.newPostsMeta = append(local.newPostsMeta, newMeta)
+		local.newDeps[postID] = &models.Dependencies{Tags: post.Tags}
+	}
+}
+
+func (s *postService) mergeWorkerStates(locals []*workerLocalState, wCtx WorkerContext) {
+	pc := wCtx.PC
+	for _, local := range locals {
+		if local.anyChanged {
+			pc.anyPostChanged.Store(true)
+		}
+		baseIdx := len(pc.indexedPosts)
+		pc.allPosts = append(pc.allPosts, local.allPosts...)
+		pc.pinnedPosts = append(pc.pinnedPosts, local.pinnedPosts...)
+		pc.indexedPosts = append(pc.indexedPosts, local.indexedPosts...)
+		pc.newPostsMeta = append(pc.newPostsMeta, local.newPostsMeta...)
+		for k, v := range local.newSearchRecs {
+			pc.newSearchRecords[k] = v
+		}
+		for k, v := range local.newDeps {
+			pc.newDeps[k] = v
+		}
+		for _, te := range local.tagEntries {
+			pc.tagMap[te.tag] = append(pc.tagMap[te.tag], te.post)
+		}
+		pc.errs = append(pc.errs, local.errs...)
+
+		for _, st := range local.searchTasks {
+			globalIdx := baseIdx + st.localIdx
+			wCtx.SearchPool.Submit(searchTask{
+				record:    st.record,
+				plainText: st.plainText,
+				indexed:   &pc.indexedPosts[globalIdx],
+				cached:    st.cached,
+			})
+		}
 	}
 }
 

@@ -142,23 +142,45 @@ func (b *Engine) processPhase(
 	assets *buildAssetResult,
 	scan *buildScanResult,
 ) error {
-	// Wait for scanner and discovery BEFORE rendering posts.
+	// Start streaming post processing (ingesting from the scanner's fileChan)
+	type postStreamRes struct {
+		res *post.PostResult
+		err error
+	}
+	postResChan := make(chan postStreamRes, 1)
+	go func() {
+		res, err := b.Deps.Post.ProcessStreaming(ctx, b.Cfg.ForceRebuild, setup.forceSocialRebuild, b.State.IsCleanBuild, scan.fileChan)
+		postResChan <- postStreamRes{res, err}
+	}()
+
+	// Wait for scanner and discovery metadata (needed for ContentAssets and site-wide state).
 	// This ensures the image/WebP rewrite map is populated so HTML can reference
 	// the correct paths. Image compression continues in the background while posts render.
-	metadataResult, discoveryReady, scannerErr, assetErr, _ := b.waitForScannerAndAssets(
+	metadataResult, discoverySignal, scannerErr, assetErr, _ := b.waitForScannerAndAssets(
 		ctx,
 		scan.scannerReady, scan.metadataResultChan, scan.scannerErrChan,
 		assets.assetWg, assets.assetErrChan, assets.discoveryReady,
 	)
+
 	if b.Deps.Reporter != nil {
-		b.Deps.Reporter.EndPhase(ui.PhaseScan, 0) // Duration is handled by reporter
+		b.Deps.Reporter.EndPhase(ui.PhaseScan, 0)
 		b.Deps.Reporter.StartPhase(ui.PhasePosts)
 	}
+
 	if scannerErr != nil {
 		return fmt.Errorf("metadata scan failed: %w", scannerErr)
 	}
 	if assetErr != nil {
 		return fmt.Errorf("failed to build assets: %w", assetErr)
+	}
+
+	// Discovery signal must be ready before templates can be safely executed by the renderer
+	if discoverySignal != nil {
+		select {
+		case <-discoverySignal:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	var siteWideHas404 bool
@@ -169,17 +191,17 @@ func (b *Engine) processPhase(
 	// Set up site-wide generators (need full asset completion)
 	runSiteWide, _ := b.setupSiteWideRendering(ctx, assets.assetsReady, setup.wasmWg, setup.forceSocialRebuild)
 
-	// Wait for discovery signal so image rewrite map is ready before post-processing
-	if discoveryReady != nil {
-		select {
-		case <-discoveryReady:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	// Wait for post processing to finish (it was started as a stream)
+	var postResult *post.PostResult
+	var processErr error
+	select {
+	case pr := <-postResChan:
+		postResult = pr.res
+		processErr = pr.err
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 
-	// Process Posts (render HTML with WebP image rewrites)
-	postResult, processErr := b.processPosts(ctx, b.Cfg.ForceRebuild, setup.forceSocialRebuild, b.State.IsCleanBuild, metadataResult.Files)
 	if processErr != nil {
 		return fmt.Errorf("post processing failed: %w", processErr)
 	}
@@ -365,7 +387,7 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup, asse
 	// Images processed after discoveryReady closed are rewritten from .png/.jpg/.jpeg
 	// to .webp on disk. This only affects files that were rendered while images were
 	// still processing (their HTML still has original extensions).
-	assets.RewriteImagePaths(b.Tx.StagingDir())
+	assets.RewriteImagePaths(b.Tx.StagingDir(), b.Deps.Render.GetRenderedFiles())
 
 	// Remove original raster images (.png/.jpg/.jpeg) when .webp equivalents exist.
 	// This ensures the published output contains only WebP images (except critical assets).

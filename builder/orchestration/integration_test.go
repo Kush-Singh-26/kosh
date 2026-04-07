@@ -933,7 +933,7 @@ Content 3
 	for path := range postContents {
 		info, _ := fs.Stat(path)
 		source, _ := afero.ReadFile(fs, path)
-		files = append(files, models.ScannedFile{Path: path, Info: info, Source: source})
+		files = append(files, models.ScannedFile{Path: path, Info: info, SourceLoader: func() ([]byte, error) { return source, nil }})
 	}
 
 	// Process posts concurrently via the builder's ProcessAll
