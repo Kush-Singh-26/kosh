@@ -46,7 +46,7 @@ func TestFullBuildIntegration(t *testing.T) {
 	cfg.Features.Generators.Graph = models.GraphConfig{Enabled: true, ShowTags: true}
 
 	// Create Builder
-	b := orchestration.NewEngineWithFs(fs, cfg)
+	b := orchestration.NewEngine(orchestration.WithFs(fs), orchestration.WithConfig(cfg))
 	defer b.Close()
 
 	// Execute Build

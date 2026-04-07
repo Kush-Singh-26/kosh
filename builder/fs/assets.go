@@ -340,7 +340,15 @@ func normalizeAssetURLHashes(content []byte) []byte {
 			result = append(result, normalized...)
 			result = append(result, quote)
 			result = append(result, ')')
+			// Advance past the closing ')' if present to avoid duplicating it
 			i = urlEnd + 1
+			parenIdx := i
+			for parenIdx < len(content) && (content[parenIdx] == ' ' || content[parenIdx] == '\t' || content[parenIdx] == '\n' || content[parenIdx] == '\r') {
+				parenIdx++
+			}
+			if parenIdx < len(content) && content[parenIdx] == ')' {
+				i = parenIdx + 1
+			}
 		} else {
 			// Unquoted: find closing ')'
 			urlEnd = bytes.IndexByte(content[innerStart:], ')')

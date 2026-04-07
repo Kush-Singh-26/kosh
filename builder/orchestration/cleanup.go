@@ -3,19 +3,10 @@ package orchestration
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-)
 
-// normalizePathForComparison normalizes a path for case-insensitive comparison.
-// On Windows, paths are converted to lowercase since the filesystem is case-insensitive.
-func normalizePathForComparison(path string) string {
-	normalized := filepath.ToSlash(path)
-	if runtime.GOOS == "windows" {
-		normalized = strings.ToLower(normalized)
-	}
-	return normalized
-}
+	"github.com/Kush-Singh-26/kosh/builder/fs"
+)
 
 // cleanupOrphans removes files from the output directory that were not
 // registered by the Sink during the current build session.
@@ -36,11 +27,10 @@ func (b *Engine) cleanupOrphans() {
 	written := b.Sink.GetWrittenFiles()
 
 	// Convert written map keys to absolute paths for comparison
-	// Normalize paths for case-insensitive comparison on Windows
 	absWritten := make(map[string]bool)
 	for path := range written {
 		abs, _ := filepath.Abs(path)
-		absWritten[normalizePathForComparison(abs)] = true
+		absWritten[strings.ToLower(fs.NormalizePath(abs))] = true
 	}
 
 	err := filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
@@ -65,7 +55,7 @@ func (b *Engine) cleanupOrphans() {
 		}
 
 		absPath, _ := filepath.Abs(path)
-		absPath = normalizePathForComparison(absPath)
+		absPath = strings.ToLower(fs.NormalizePath(absPath))
 
 		if !absWritten[absPath] {
 			_ = os.Remove(path)

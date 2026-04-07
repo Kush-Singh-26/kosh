@@ -65,7 +65,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -77,7 +77,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 

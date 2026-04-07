@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/zeebo/xxh3"
@@ -207,7 +206,7 @@ func (m *Manager) ensureIndexedPosts() ([]models.IndexedPost, error) {
 		if !ok || searchRec == nil {
 			continue
 		}
-		htmlRelPath := strings.ToLower(strings.Replace(postMeta.Path, ".md", ".html", 1))
+		htmlRelPath := fspkg.MarkdownToHTMLPath(postMeta.Path)
 		indexedPosts = append(indexedPosts, models.IndexedPost{
 			Record: models.PostRecord{
 				ID:              xxh3.HashString(htmlRelPath),

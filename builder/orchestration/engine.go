@@ -109,9 +109,9 @@ type Engine struct {
 	State EngineState
 }
 
-// NewEngineFromManual creates a builder with manual dependency injection (for testing/benchmarks).
+// newEngineFromManual creates a builder with manual dependency injection (for testing/benchmarks).
 // Unspecified fields default to nil / zero values.
-func NewEngineFromManual(deps EngineDependencies) *Engine {
+func newEngineFromManual(deps EngineDependencies) *Engine {
 	if deps.Config == nil {
 		deps.Config = &config.Config{}
 	}
@@ -177,31 +177,64 @@ func NewEngineFromManual(deps EngineDependencies) *Engine {
 	return b
 }
 
-// NewEngine initializes a new site builder
-func NewEngine(args []string) *Engine {
-	cfg := config.Load(args)
-	return newEngineWithConfigFs(afero.NewOsFs(), cfg, nil)
+// engineOptions holds configuration for NewEngine.
+type engineOptions struct {
+	args     []string
+	cfg      *config.Config
+	vfs      afero.Fs
+	reporter ui.Reporter
+	deps     *EngineDependencies
 }
 
-// NewEngineWithConfig initializes a new site builder with a pre-loaded config
-func NewEngineWithConfig(cfg *config.Config) *Engine {
-	return newEngineWithConfigFs(afero.NewOsFs(), cfg, nil)
+// EngineOption defines a functional option for Engine construction.
+type EngineOption func(*engineOptions)
+
+// WithArgs provides CLI arguments for configuration loading.
+func WithArgs(args []string) EngineOption {
+	return func(o *engineOptions) { o.args = args }
 }
 
-// NewEngineWithFs initializes a new site builder with a pre-loaded config and custom filesystem
-func NewEngineWithFs(vfs afero.Fs, cfg *config.Config) *Engine {
-	return newEngineWithConfigFs(vfs, cfg, nil)
+// WithConfig provides a pre-loaded configuration.
+func WithConfig(cfg *config.Config) EngineOption {
+	return func(o *engineOptions) { o.cfg = cfg }
 }
 
-// NewEngineWithReporter initializes a new site builder with a reporter
-func NewEngineWithReporter(args []string, r ui.Reporter) *Engine {
-	cfg := config.Load(args)
-	return newEngineWithConfigFs(afero.NewOsFs(), cfg, r)
+// WithFs provides a custom filesystem (e.g., for testing).
+func WithFs(vfs afero.Fs) EngineOption {
+	return func(o *engineOptions) { o.vfs = vfs }
 }
 
-// newEngineWithConfig is the internal implementation
-func newEngineWithConfig(cfg *config.Config) *Engine {
-	return newEngineWithConfigFs(afero.NewOsFs(), cfg, nil)
+// WithReporter provides a custom UI reporter.
+func WithReporter(r ui.Reporter) EngineOption {
+	return func(o *engineOptions) { o.reporter = r }
+}
+
+// WithDeps provides manual dependency injection (primarily for testing/benchmarks).
+func WithDeps(deps EngineDependencies) EngineOption {
+	return func(o *engineOptions) { o.deps = &deps }
+}
+
+// NewEngine initializes a new site builder using functional options.
+func NewEngine(opts ...EngineOption) *Engine {
+	o := &engineOptions{
+		vfs: afero.NewOsFs(),
+	}
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	// If manual dependencies are provided, use the fast-path constructor.
+	if o.deps != nil {
+		return newEngineFromManual(*o.deps)
+	}
+
+	// Otherwise, proceed with full service initialization.
+	cfg := o.cfg
+	if cfg == nil {
+		cfg = config.Load(o.args)
+	}
+
+	return newEngineWithConfigFs(o.vfs, cfg, o.reporter)
 }
 
 func (b *Engine) SetReporter(r ui.Reporter) {
@@ -427,7 +460,7 @@ func (b *Engine) handleWatchChange(evt watch.ChangeEvent) {
 
 // Run executes the main build logic
 func Run(args []string, r ui.Reporter) error {
-	b := NewEngineWithReporter(args, r)
+	b := NewEngine(WithArgs(args), WithReporter(r))
 	if r != nil {
 		r.Start("Build")
 	}

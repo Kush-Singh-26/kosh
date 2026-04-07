@@ -37,7 +37,7 @@ func TestIncrementalBuildIntegration(t *testing.T) {
 	cfg.StaticDir = absStaticDir
 	cfg.IsDev = true // Enable dev mode for incremental rebuilds
 
-	b := orchestration.NewEngineWithFs(fs, cfg)
+	b := orchestration.NewEngine(orchestration.WithFs(fs), orchestration.WithConfig(cfg))
 	defer b.Close()
 
 	ctx := context.Background()
@@ -60,7 +60,7 @@ This content was updated.`
 	_ = afero.WriteFile(fs, postPath, []byte(updatedContent), 0644)
 
 	// Create a NEW builder for the incremental part to ensure isCleanBuild is false
-	b = orchestration.NewEngineWithFs(fs, cfg)
+	b = orchestration.NewEngine(orchestration.WithFs(fs), orchestration.WithConfig(cfg))
 	defer b.Close()
 
 	// Run incremental build

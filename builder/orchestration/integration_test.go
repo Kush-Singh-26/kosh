@@ -113,7 +113,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	})
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -127,7 +127,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		Cache:          nil,
 		Diagrams:       nil,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -240,7 +240,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	})
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -254,7 +254,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		Cache:          nil,
 		Diagrams:       nil,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -362,7 +362,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		})
 		tx := testutil.NewMockTransaction("public")
 
-		b := NewEngineFromManual(EngineDependencies{
+		b := NewEngine(WithDeps(EngineDependencies{
 			Config:         cfg,
 			Render:         renderSvc,
 			Asset:          assetSvc,
@@ -376,7 +376,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 			NativeRenderer: nativeRenderer,
 			Cache:          nil,
 			Diagrams:       nil,
-		})
+		}))
 		b.Sink = sink
 		b.Tx = tx
 
@@ -496,7 +496,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	})
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          failingAssetSvc,
@@ -510,7 +510,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		Cache:          nil,
 		Diagrams:       nil,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -755,7 +755,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 	})
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -769,7 +769,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		Cache:          nil,
 		Diagrams:       nil,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 

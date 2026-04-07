@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/Kush-Singh-26/kosh/builder/retry"
 )
 
 // TxSync provides transactional file-system sync with rollback capability.
@@ -84,7 +86,7 @@ func (tx *TxSync) Rollback(ctx context.Context) {
 	rolled := 0
 
 	for original, backup := range tx.backups {
-		if err := renameWithRetry(ctx, backup, original); err != nil {
+		if err := retry.RenameWithRetry(ctx, backup, original, txSyncMaxRetries, txSyncBaseDelayMs); err != nil {
 			if tx.logger != nil {
 				tx.logger.Warn("TxSync rollback: failed to restore backup",
 					"original", original, "backup", backup, "error", err)
@@ -96,7 +98,7 @@ func (tx *TxSync) Rollback(ctx context.Context) {
 
 	for _, path := range tx.written {
 		if _, hasBackup := tx.backups[path]; !hasBackup {
-			if err := removeAllWithRetry(ctx, path); err != nil && !os.IsNotExist(err) {
+			if err := retry.RemoveAllWithRetry(ctx, path, txSyncMaxRetries, txSyncBaseDelayMs); err != nil && !os.IsNotExist(err) {
 				if tx.logger != nil {
 					tx.logger.Warn("TxSync rollback: failed to remove new file",
 						"path", path, "error", err)
@@ -128,79 +130,7 @@ func (tx *TxSync) IsCommitted() bool {
 	return tx.committed
 }
 
-// renameWithRetry attempts to rename a path with exponential backoff.
-// Uses 12 retries with 20ms base delay - tuned for Windows file locking scenarios.
-func renameWithRetry(ctx context.Context, oldPath, newPath string) error {
-	const maxRetries = 12
-	const baseDelayMs = 20
-
-	var err error
-	for i := 0; i < maxRetries; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		err = os.Rename(oldPath, newPath)
-		if err == nil {
-			return nil
-		}
-		if os.IsNotExist(err) {
-			return err
-		}
-
-		if i == 0 {
-			slog.Debug("TxSync rename failed, retrying with backoff...", "old", oldPath, "new", newPath, "error", err)
-		}
-
-		delay := min(baseDelayMs*1<<uint(i), 2000)
-		jitter := time.Duration(time.Now().UnixNano()%int64(delay/5+1)) * time.Nanosecond
-
-		timer := time.NewTimer(time.Duration(delay)*time.Millisecond + jitter)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-	return err
-}
-
-// removeAllWithRetry attempts to remove a directory tree with exponential backoff.
-// Uses 12 retries with 20ms base delay - tuned for Windows file locking scenarios.
-func removeAllWithRetry(ctx context.Context, path string) error {
-	const maxRetries = 12
-	const baseDelayMs = 20
-
-	var err error
-	for i := 0; i < maxRetries; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		err = os.RemoveAll(path)
-		if err == nil {
-			return nil
-		}
-
-		if i == 0 {
-			slog.Debug("TxSync RemoveAll failed, retrying with backoff...", "path", path, "error", err)
-		}
-
-		delay := min(baseDelayMs*1<<uint(i), 2000)
-		jitter := time.Duration(time.Now().UnixNano()%int64(delay/5+1)) * time.Nanosecond
-
-		timer := time.NewTimer(time.Duration(delay)*time.Millisecond + jitter)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-	return err
-}
+const (
+	txSyncMaxRetries  = 12
+	txSyncBaseDelayMs = 20 * time.Millisecond
+)

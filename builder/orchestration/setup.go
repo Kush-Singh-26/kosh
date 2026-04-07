@@ -11,12 +11,12 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	pathFs "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 // VerifyTheme checks if the theme directories exist
 func VerifyTheme(cfg *config.Config, logger *slog.Logger) {
-	VerifyThemeFs(afero.NewOsFs(), cfg, logger, buildCtx.DetectTestingMode())
+	VerifyThemeFs(afero.NewOsFs(), cfg, logger, pathFs.DetectTestingMode())
 }
 
 // VerifyThemeFs checks if the theme directories exist using the provided filesystem
@@ -57,7 +57,7 @@ func VerifyThemeFs(fs afero.Fs, cfg *config.Config, logger *slog.Logger, isTesti
 
 // SetupCacheDirectories creates required cache folders
 func SetupCacheDirectories(cfg *config.Config, logger *slog.Logger) {
-	SetupCacheDirectoriesFs(afero.NewOsFs(), cfg, logger, buildCtx.DetectTestingMode())
+	SetupCacheDirectoriesFs(afero.NewOsFs(), cfg, logger, pathFs.DetectTestingMode())
 }
 
 // SetupCacheDirectoriesFs creates required cache folders using the provided filesystem

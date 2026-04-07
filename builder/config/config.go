@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/spf13/afero"
@@ -148,7 +147,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	// Load build configuration from kosh.build.yaml
 	cfg.Build = LoadBuildConfigFs(fs)
 
-	isTesting := buildCtx.DetectTestingMode()
+	isTesting := fspkg.DetectTestingMode()
 
 	// 3. Apply Smart Defaults and resolve to absolute paths
 	if cfg.ThemeDir == "" {

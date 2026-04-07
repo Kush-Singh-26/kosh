@@ -93,6 +93,17 @@ type searchTask struct {
 	cached    *models.SearchRecord
 }
 
+// WorkerContext holds shared dependencies and configuration for streaming workers.
+type WorkerContext struct {
+	Ctx                context.Context
+	PC                 *postProcessContext
+	CardPool           *async.WorkerPool[socialCardTask]
+	SearchPool         *async.WorkerPool[searchTask]
+	RenderChan         chan<- renderTask
+	ShouldForce        bool
+	ForceSocialRebuild bool
+}
+
 func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*PostResult, error) {
 	numWorkers := models.GetDefaultWorkerCount()
 
@@ -146,7 +157,12 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 		s.runStreamingRenderPhase(ctx, numWorkers, navInfo, renderChan, len(files))
 	}()
 
-	err := s.runStreamingParsePhase(ctx, numWorkers, shouldForce, forceSocialRebuild, files, cardPool, searchPool, pc, renderChan)
+	wCtx := WorkerContext{
+		Ctx: ctx, PC: pc, CardPool: cardPool, SearchPool: searchPool,
+		RenderChan: renderChan, ShouldForce: shouldForce, ForceSocialRebuild: forceSocialRebuild,
+	}
+
+	err := s.runStreamingParsePhase(numWorkers, files, wCtx)
 	close(renderChan)
 	renderWg.Wait()
 
@@ -175,13 +191,13 @@ func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebui
 	}, nil
 }
 
-func (s *postService) runStreamingParsePhase(ctx context.Context, numWorkers int, shouldForce, forceSocialRebuild bool, files []models.ScannedFile, cardPool *async.WorkerPool[socialCardTask], searchPool *async.WorkerPool[searchTask], pc *postProcessContext, renderChan chan<- renderTask) error {
+func (s *postService) runStreamingParsePhase(numWorkers int, files []models.ScannedFile, wCtx WorkerContext) error {
 	s.logger.Info("Processing posts (pipelined mode)")
 	timer := timeutil.StartPhase("Process posts (stream)")
 	defer timer.Stop()
 
-	parsePool := async.NewWorkerPool(ctx, numWorkers, func(f models.ScannedFile) error {
-		s.parseWorkerTaskStreaming(ctx, f, shouldForce, forceSocialRebuild, pc, cardPool, searchPool, renderChan)
+	parsePool := async.NewWorkerPool(wCtx.Ctx, numWorkers, func(f models.ScannedFile) error {
+		s.parseWorkerTaskStreaming(f, wCtx)
 		return nil
 	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
 
@@ -260,14 +276,14 @@ type postProcessContext struct {
 	mu               sync.Mutex
 }
 
-func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.ScannedFile, shouldForce, forceSocialRebuild bool, pc *postProcessContext, cardPool *async.WorkerPool[socialCardTask], searchPool *async.WorkerPool[searchTask], renderChan chan<- renderTask) {
+func (s *postService) parseWorkerTaskStreaming(f models.ScannedFile, wCtx WorkerContext) {
 	path := f.Path
 	relPath := f.RelPath
 
 	htmlRelPath, _, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath)
 
 	// 1. Check Cache
-	cachedMeta, useCache := s.checkCache(relPath, f, shouldForce)
+	cachedMeta, useCache := s.checkCache(relPath, f, wCtx.ShouldForce)
 
 	var parseRes *ParsedMarkdownResult
 	var htmlContent string
@@ -323,18 +339,18 @@ func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.Sca
 		)
 		if err != nil {
 			s.logger.Error("Failed to parse markdown", "path", path, "error", err)
-			pc.mu.Lock()
-			pc.errs = append(pc.errs, err)
-			pc.mu.Unlock()
+			wCtx.PC.mu.Lock()
+			wCtx.PC.errs = append(wCtx.PC.errs, err)
+			wCtx.PC.mu.Unlock()
 			return
 		}
-		pc.anyPostChanged.Store(true)
+		wCtx.PC.anyPostChanged.Store(true)
 
 		if parseRes.Post.Title == "" {
 			parseRes.Post.Title = f.Title
 		}
 
-		htmlContent = s.renderMath(ctx, path, parseRes)
+		htmlContent = s.renderMath(wCtx.Ctx, path, parseRes)
 		finalSSRHashes = parseRes.SSRHashes
 	}
 
@@ -344,25 +360,25 @@ func (s *postService) parseWorkerTaskStreaming(ctx context.Context, f models.Sca
 	}
 
 	// 4. Social Card
-	s.queueSocialCard(relPath, parseRes, htmlRelPath, forceSocialRebuild, cardPool)
+	s.queueSocialCard(relPath, parseRes, htmlRelPath, wCtx.ForceSocialRebuild, wCtx.CardPool)
 
 	// 5. Aggregate and stream
-	s.aggregateAndStream(pc, f, parseRes, post, htmlContent, destPath, relPath, htmlRelPath, finalSSRHashes, useCache, renderChan, searchPool)
+	s.aggregateAndStream(f, parseRes, post, htmlContent, destPath, relPath, htmlRelPath, finalSSRHashes, useCache, wCtx)
 	if s.metrics != nil {
 		s.metrics.IncrementPostsProcessed()
 	}
 }
 
-func (s *postService) aggregateAndStream(pc *postProcessContext, f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, relPath, htmlRelPath string, ssrHashes []string, useCache bool, renderChan chan<- renderTask, searchPool *async.WorkerPool[searchTask]) {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
+func (s *postService) aggregateAndStream(f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, relPath, htmlRelPath string, ssrHashes []string, useCache bool, wCtx WorkerContext) {
+	wCtx.PC.mu.Lock()
+	defer wCtx.PC.mu.Unlock()
 
 	searchRecord := res.SearchRecord
 	searchRecord.ID = xxh3.HashString(searchRecord.Link)
 
 	// Add to indexed posts
-	idx := len(pc.indexedPosts)
-	pc.indexedPosts = append(pc.indexedPosts, models.IndexedPost{
+	idx := len(wCtx.PC.indexedPosts)
+	wCtx.PC.indexedPosts = append(wCtx.PC.indexedPosts, models.IndexedPost{
 		Record: searchRecord, WordFreqs: res.WordFreqs, DocLen: res.DocLen,
 		StemMap: res.StemMap, PositionalIndex: res.PositionalIndex, ByteOffsets: res.ByteOffsets,
 	})
@@ -374,30 +390,30 @@ func (s *postService) aggregateAndStream(pc *postProcessContext, f models.Scanne
 			Content: res.SearchRecord.Content, NormalizedTags: res.SearchRecord.NormalizedTags,
 		}
 		postID := cache.GeneratePostID("", relPath)
-		pc.newSearchRecords[postID] = newSearch
+		wCtx.PC.newSearchRecords[postID] = newSearch
 	}
 
 	// If search is enabled and NOT from cache, offload analysis
 	if s.cfg.Features.Generators.Search && !useCache {
-		searchPool.Submit(searchTask{
+		wCtx.SearchPool.Submit(searchTask{
 			record:    searchRecord,
 			plainText: res.PlainText,
-			indexed:   &pc.indexedPosts[idx],
+			indexed:   &wCtx.PC.indexedPosts[idx],
 			cached:    newSearch,
 		})
 	}
 
-	pc.allPosts = append(pc.allPosts, post)
+	wCtx.PC.allPosts = append(wCtx.PC.allPosts, post)
 	if post.Pinned {
-		pc.pinnedPosts = append(pc.pinnedPosts, post)
+		wCtx.PC.pinnedPosts = append(wCtx.PC.pinnedPosts, post)
 	}
 	for _, tag := range post.Tags {
 		k := strings.ToLower(strings.TrimSpace(tag))
-		pc.tagMap[k] = append(pc.tagMap[k], post)
+		wCtx.PC.tagMap[k] = append(wCtx.PC.tagMap[k], post)
 	}
 
 	// Stream to renderer
-	renderChan <- renderTask{
+	wCtx.RenderChan <- renderTask{
 		parseRes:    res,
 		f:           f,
 		htmlContent: htmlContent,
@@ -420,8 +436,8 @@ func (s *postService) aggregateAndStream(pc *postProcessContext, f models.Scanne
 		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
 			s.logger.Warn("Failed to store HTML for post", "path", relPath, "error", err)
 		}
-		pc.newPostsMeta = append(pc.newPostsMeta, newMeta)
-		pc.newDeps[postID] = &models.Dependencies{Tags: post.Tags}
+		wCtx.PC.newPostsMeta = append(wCtx.PC.newPostsMeta, newMeta)
+		wCtx.PC.newDeps[postID] = &models.Dependencies{Tags: post.Tags}
 	}
 }
 

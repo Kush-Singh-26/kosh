@@ -59,7 +59,7 @@ func (s *buildSetup) initLoggerAndContext(cfg *config.Config, r ui.Reporter) {
 	s.cfg = cfg
 	s.reporter = r
 	s.logger = InitLogger(r)
-	isTesting := buildCtx.DetectTestingMode()
+	isTesting := fspkg.DetectTestingMode()
 
 	outputExists, _ := afero.Exists(s.vfs, cfg.OutputDir)
 	s.isCleanBuild = !outputExists
@@ -76,7 +76,7 @@ func (s *buildSetup) initDiagnostics() {
 }
 
 func (s *buildSetup) initCache() {
-	SetupCacheDirectoriesFs(s.vfs, s.cfg, s.logger, buildCtx.DetectTestingMode())
+	SetupCacheDirectoriesFs(s.vfs, s.cfg, s.logger, fspkg.DetectTestingMode())
 	cacheManager, diagramAdapter, err := SetupCacheManager(s.cfg, s.logger)
 	if err != nil {
 		s.logger.Warn("Failed to open cache database, using in-memory cache", "error", err)

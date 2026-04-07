@@ -3,6 +3,8 @@ package navigation
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 type PostPaths struct {
@@ -17,7 +19,7 @@ type PostPaths struct {
 
 func ComputePathVars(outputDir, relPath string) (htmlRelPath, cleanHtmlRelPath, destPath string) {
 	relPath = filepath.ToSlash(relPath)
-	htmlRelPath = strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
+	htmlRelPath = fs.MarkdownToHTMLPath(relPath)
 
 	cleanHtmlRelPath = htmlRelPath
 	destPath = filepath.Join(outputDir, htmlRelPath)

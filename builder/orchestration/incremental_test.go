@@ -75,7 +75,7 @@ func TestIsAssetPath(t *testing.T) {
 					StaticDir: tt.staticDir,
 				},
 			}
-			b := NewEngineFromManual(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger})
+			b := NewEngine(WithDeps(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger}))
 			got := b.Watch.IsAssetPath(tt.path)
 			if got != tt.want {
 				t.Errorf("isAssetPath(%q) = %v, want %v", tt.path, got, tt.want)
@@ -91,7 +91,7 @@ func TestNormalizeWatchPath_ProjectRelativeAbsolutePath(t *testing.T) {
 	}
 	logger := InitLogger()
 	cfg := &config.Config{}
-	b := NewEngineFromManual(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger})
+	b := NewEngine(WithDeps(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger}))
 	abs := filepath.Join(wd, "themes", "test-theme", "static", "css", "style.css")
 	got := b.Watch.NormalizeWatchPath(abs)
 	expected := fspkg.NormalizePath("themes/test-theme/static/css/style.css")
@@ -108,7 +108,7 @@ func TestIsContentPathWithAbsoluteConfiguredContentDir(t *testing.T) {
 	contentDir := filepath.Join(wd, "content")
 	logger := InitLogger()
 	cfg := &config.Config{PathConfig: config.PathConfig{ContentDir: contentDir}}
-	b := NewEngineFromManual(EngineDependencies{Config: cfg, Logger: logger})
+	b := NewEngine(WithDeps(EngineDependencies{Config: cfg, Logger: logger}))
 	path := filepath.Join(contentDir, "posts", "hello.md")
 	if !b.Watch.IsContentPath(path) {
 		t.Fatalf("expected absolute markdown path to match absolute content dir")
@@ -164,7 +164,7 @@ func TestInvalidateForTemplate(t *testing.T) {
 					StaticDir:   tt.staticDir,
 				},
 			}
-			b := NewEngineFromManual(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger})
+			b := NewEngine(WithDeps(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger}))
 			got := b.Watch.InvalidateForTemplate(tt.templatePath)
 			if (got == nil) != tt.wantNil {
 				t.Errorf("invalidateForTemplate(%q) returned nil=%v, want nil=%v", tt.templatePath, got == nil, tt.wantNil)
@@ -274,7 +274,7 @@ Initial body.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -286,7 +286,7 @@ Initial body.
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -392,7 +392,7 @@ Initial body.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -404,7 +404,7 @@ Initial body.
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -488,7 +488,7 @@ date: "2026-03-06"
 		NativeRenderer: nativeRenderer,
 	})
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          &mocks.MockAssetService{},
@@ -501,7 +501,7 @@ date: "2026-03-06"
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.SetSink(testutil.NewMemSink())
 	b.Tx = testutil.NewMockTransaction("public")
 

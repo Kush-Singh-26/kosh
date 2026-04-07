@@ -38,7 +38,7 @@ baseURL: "https://kosh.dev"
 	}
 
 	cfg := config.LoadFs(fs, args)
-	b := NewEngineWithFs(fs, cfg)
+	b := NewEngine(WithFs(fs), WithConfig(cfg))
 
 	if b.Cfg.BaseURL != "https://kosh.dev" {
 		t.Errorf("Expected BaseURL https://kosh.dev, got %s", b.Cfg.BaseURL)
@@ -117,7 +117,7 @@ func TestFullBuild(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -129,7 +129,7 @@ func TestFullBuild(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 

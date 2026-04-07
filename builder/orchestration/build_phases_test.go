@@ -32,7 +32,7 @@ func TestSetupPhase(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:   cfg,
 		Render:   renderSvc,
 		Asset:    assetSvc,
@@ -41,7 +41,7 @@ func TestSetupPhase(t *testing.T) {
 		Logger:   logger,
 		Metrics:  buildMetrics,
 		SourceFs: fs,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -62,12 +62,12 @@ func TestAssetPhase(t *testing.T) {
 	assetSvc := &mocks.MockAssetService{}
 	cfg := &config.Config{}
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config: cfg,
 		Render: renderSvc,
 		Asset:  assetSvc,
 		Logger: logger,
-	})
+	}))
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
 	ctx := context.Background()
@@ -98,12 +98,12 @@ func TestScanPhase(t *testing.T) {
 
 	logger := InitLogger()
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:   cfg,
 		Scanner:  scanner,
 		Logger:   logger,
 		SourceFs: fs,
-	})
+	}))
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
 	ctx := context.Background()
@@ -136,11 +136,11 @@ func TestCheckAssetsChanged(t *testing.T) {
 	})
 	cfg := &config.Config{}
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config: cfg,
 		Render: renderSvc,
 		Logger: logger,
-	})
+	}))
 
 	assetsReady := make(chan struct{})
 	close(assetsReady)
@@ -173,10 +173,10 @@ func TestShouldSkipSiteWideRendering(t *testing.T) {
 	cfg := &config.Config{
 		IsDev: true,
 	}
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config: cfg,
 		Logger: logger,
-	})
+	}))
 
 	cb := &post.MetadataContext{
 		AnyPostChanged: false,
@@ -221,13 +221,13 @@ func TestFinalizePhase(t *testing.T) {
 	m := metrics.NewBuildMetrics()
 	logger := InitLogger()
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:  cfg,
 		Render:  renderSvc,
 		Wasm:    wasmSvc,
 		Logger:  logger,
 		Metrics: m,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 

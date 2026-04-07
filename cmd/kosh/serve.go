@@ -70,7 +70,7 @@ func runServe(cmd *cobra.Command, args []string) {
 			cfg.BaseURL = "http://localhost:2604"
 		}
 		printStartupBanner("Live Preview", cfg)
-		b := orchestration.NewEngineWithConfig(cfg)
+		b := orchestration.NewEngine(orchestration.WithConfig(cfg))
 		if reporter != nil {
 			b.SetReporter(reporter)
 			reporter.Start("Live Preview")

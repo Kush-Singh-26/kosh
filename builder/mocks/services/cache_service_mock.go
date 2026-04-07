@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
@@ -22,6 +23,7 @@ type MockCacheService struct {
 	BatchCommitPosts   []*cache.PostMeta
 	BatchCommitRecords map[string]*cache.SearchRecord
 	BatchCommitDeps    map[string]*cache.Dependencies
+	GetPostByPathFn    func(path string) (*cache.PostMeta, error)
 }
 
 func NewMockCacheService() *MockCacheService {
@@ -67,6 +69,9 @@ func (m *MockCacheService) ListAllPosts() ([]string, error) {
 
 func (m *MockCacheService) GetPostByPath(path string) (*cache.PostMeta, error) {
 	m.recordCall("GetPostByPath")
+	if m.GetPostByPathFn != nil {
+		return m.GetPostByPathFn(path)
+	}
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -266,9 +271,20 @@ func (m *MockCacheService) Stats() (*cache.CacheStats, error) {
 	return &cache.CacheStats{}, nil
 }
 
-func (m *MockCacheService) IncrementBuildCount() error {
+func (m *MockCacheService) IncrementBuildCount() (uint32, error) {
 	m.recordCall("IncrementBuildCount")
-	return m.Err
+	if m.Err != nil {
+		return 0, m.Err
+	}
+	return 1, nil
+}
+
+func (m *MockCacheService) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
+	m.recordCall("RunGC")
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	return &gc.GCResult{}, nil
 }
 
 func (m *MockCacheService) Close() error {

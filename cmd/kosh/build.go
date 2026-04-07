@@ -92,7 +92,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 	printStartupBanner(mode, cfg)
 
 	if buildWatch {
-		b := orchestration.NewEngineWithReporter(filteredArgs, reporter)
+		b := orchestration.NewEngine(orchestration.WithArgs(filteredArgs), orchestration.WithReporter(reporter))
 		if reporter != nil {
 			reporter.Start("Watch Build")
 		}

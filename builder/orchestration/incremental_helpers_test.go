@@ -18,7 +18,7 @@ func TestResolveContentPaths_VariousPaths(t *testing.T) {
 			ContentDir: "content",
 		},
 	}
-	engine := NewEngineFromManual(EngineDependencies{Config: cfg, Logger: InitLogger()})
+	engine := NewEngine(WithDeps(EngineDependencies{Config: cfg, Logger: InitLogger()}))
 
 	tests := []struct {
 		name        string
@@ -56,7 +56,7 @@ func TestResolveContentPaths_VariousPaths(t *testing.T) {
 
 // TestComputePostHashes_Consistency tests that hash computation is consistent
 func TestComputePostHashes_Consistency(t *testing.T) {
-	engine := NewEngineFromManual(EngineDependencies{Logger: InitLogger()})
+	engine := NewEngine(WithDeps(EngineDependencies{Logger: InitLogger()}))
 
 	// Test with frontmatter
 	sourceWithFrontmatter := []byte("---\ntitle: Test\n---\n\n# Test Post\n\nThis is a test.")
@@ -79,7 +79,7 @@ func TestComputePostHashes_Consistency(t *testing.T) {
 
 // TestDeterminePostChange_AllCases tests all change detection scenarios
 func TestDeterminePostChange_AllCases(t *testing.T) {
-	engine := NewEngineFromManual(EngineDependencies{Logger: InitLogger()})
+	engine := NewEngine(WithDeps(EngineDependencies{Logger: InitLogger()}))
 
 	// Test with no cache (should return PostChangeNew)
 	changeType := engine.Incremental.DeterminePostChange("test.md", "hash1", "hash2")

@@ -111,7 +111,7 @@ This is the initial body.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -123,7 +123,7 @@ This is the initial body.
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -257,7 +257,7 @@ Body content.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -269,7 +269,7 @@ Body content.
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -382,7 +382,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -394,7 +394,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -489,7 +489,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -501,7 +501,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 
@@ -739,7 +739,7 @@ date: "2026-03-15"
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b := NewEngineFromManual(EngineDependencies{
+	b := NewEngine(WithDeps(EngineDependencies{
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
@@ -751,7 +751,7 @@ date: "2026-03-15"
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
-	})
+	}))
 	b.Sink = sink
 	b.Tx = tx
 

@@ -78,7 +78,9 @@ func TestManager_Reconfigure(t *testing.T) {
 	m := NewManager(ManagerDependencies{})
 	mockRender := &mocks.MockRenderService{}
 	m.Reconfigure(nil, mockRender)
-	if m.GetRenderService() != mockRender {
+	// Verify render service was set by checking no panic occurs
+	// The render service is stored internally; we verify via Reconfigure not panicking
+	if m.render != mockRender {
 		t.Error("Reconfigure failed to update render service")
 	}
 }

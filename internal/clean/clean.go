@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildFs "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/spf13/afero"
 )
@@ -17,7 +17,7 @@ import (
 var cleanupWg sync.WaitGroup
 
 func Run(cleanCache bool) {
-	RunFs(afero.NewOsFs(), cleanCache, buildCtx.DetectTestingMode())
+	RunFs(afero.NewOsFs(), cleanCache, buildFs.DetectTestingMode())
 }
 
 func RunFs(fs afero.Fs, cleanCache bool, isTesting bool) {

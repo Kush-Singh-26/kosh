@@ -45,6 +45,7 @@ type mockRenderService struct {
 func (m *mockRenderService) SetSink(sink fspkg.ArtifactSink)  {}
 func (m *mockRenderService) SetSourceFs(fs afero.Fs)          {}
 func (m *mockRenderService) SetAssetsGate(ch <-chan struct{}) {}
+func (m *mockRenderService) ReconfigureWithLogger(l *slog.Logger) {}
 
 func (m *mockRenderService) RenderPage(path string, data models.PageData) error {
 	if m.shouldPanic {

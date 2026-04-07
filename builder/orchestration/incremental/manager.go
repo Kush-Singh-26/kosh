@@ -306,7 +306,7 @@ func (m *Manager) ResolveContentPaths(path string) (relPath, htmlRelPath, cleanH
 	}
 	relPath = fspkg.NormalizePath(relPath)
 
-	htmlRelPath = strings.ToLower(strings.Replace(relPath, ".md", ".html", 1))
+	htmlRelPath = fspkg.MarkdownToHTMLPath(relPath)
 	cleanHtmlRelPath = htmlRelPath
 	return relPath, htmlRelPath, cleanHtmlRelPath, nil
 }
