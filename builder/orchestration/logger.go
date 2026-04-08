@@ -70,7 +70,7 @@ func HTTPLog(method, path string, status int, duration time.Duration) {
 
 type consoleHandler struct {
 	output     io.Writer
-	mu         sync.Mutex
+	mu         sync.Mutex // serializes writes to output and handler state
 	timeFormat string
 	attrs      []slog.Attr
 	group      string

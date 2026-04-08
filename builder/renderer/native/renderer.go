@@ -38,7 +38,7 @@ type Renderer struct {
 	katexBytecode  []byte
 	initReady      chan struct{}
 	taskWg         sync.WaitGroup
-	mu             sync.Mutex
+	mu             sync.Mutex // protects closed during pool initialization
 	closed         bool
 	D2Singleflight singleflight.Group // Shared group to deduplicate D2 diagram rendering across posts
 	scheduler      scheduler.BuildScheduler

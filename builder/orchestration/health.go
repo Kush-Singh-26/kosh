@@ -50,7 +50,7 @@ type HealthEvent struct {
 
 // BuildHealthRegistry collects and reports build health events and metrics.
 type BuildHealthRegistry struct {
-	mu         sync.Mutex
+	mu         sync.Mutex // protects events and phaseStack
 	events     []HealthEvent
 	phaseStack []string
 

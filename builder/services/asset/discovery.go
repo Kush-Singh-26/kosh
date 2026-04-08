@@ -33,9 +33,8 @@ type imageCopyTask struct {
 type syncContext struct {
 	imageQueue []imageCopyTask
 	seen       sync.Map
-	mu         sync.Mutex
 
-	imageQueueMu sync.Mutex
+	imageQueueMu sync.Mutex // protects imageQueue
 
 	siteFiles     int64
 	themeFiles    int64
@@ -45,7 +44,7 @@ type syncContext struct {
 
 	siteSamples  []string
 	themeSamples []string
-	sampleMu     sync.Mutex
+	sampleMu     sync.Mutex // protects siteSamples and themeSamples
 }
 
 func (s *assetService) isWebPCandidate(path string) bool {

@@ -16,7 +16,7 @@ import (
 
 // MockAssetService is a test double for the asset service.
 type MockAssetService struct {
-	mu                sync.Mutex
+	mu                sync.Mutex // protects fields below during concurrent tests
 	Sink              fspkg.ArtifactSink
 	Metrics           *metrics.BuildMetrics
 	assetsReady       chan struct{}

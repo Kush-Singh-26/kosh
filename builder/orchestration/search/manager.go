@@ -27,7 +27,7 @@ type Manager struct {
 	sink   fspkg.ArtifactSink
 	render render.Service
 
-	mu           sync.RWMutex
+	mu           sync.RWMutex // protects sink, render, logger, indexedPosts
 	indexedPosts []models.IndexedPost
 }
 

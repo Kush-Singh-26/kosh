@@ -60,7 +60,7 @@ type SearchRegenerationCallback func(ctx context.Context)
 // CoordinatorDependencies bundles dependencies for the watch coordinator.
 type CoordinatorDependencies struct {
 	Cfg           *config.Config
-	BuildMu       *sync.Mutex
+	BuildMu       *sync.Mutex // guards build execution in watch mode
 	Cache         post.Cache
 	OnChange      func(ChangeEvent)
 	OnSearchRegen SearchRegenerationCallback
@@ -69,7 +69,7 @@ type CoordinatorDependencies struct {
 // Coordinator manages debounced change handling during watch mode.
 type Coordinator struct {
 	cfg        *config.Config
-	buildMu    *sync.Mutex
+	buildMu    *sync.Mutex // guards build execution in watch mode
 	cache      post.Cache
 	onChange   func(ChangeEvent)
 	onSearch   SearchRegenerationCallback

@@ -7,36 +7,45 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-func makePost(id uint64, title, content string, terms []string, wordFreqs map[string]int, stemMap map[string]string) models.IndexedPost {
+type makePostOptions struct {
+	id        uint64
+	title     string
+	content   string
+	terms     []string
+	wordFreqs map[string]int
+	stemMap   map[string]string
+}
+
+func makePost(opts makePostOptions) models.IndexedPost {
 	posIndex := make(map[string][]uint32)
 	byteOffsets := make(map[string][]uint32)
-	for i, t := range terms {
+	for i, t := range opts.terms {
 		posIndex[t] = []uint32{uint32(i)}
 		byteOffsets[t] = []uint32{uint32(i * 4), 4}
 	}
-	if len(wordFreqs) == 0 {
-		wordFreqs = make(map[string]int)
-		for _, t := range terms {
-			wordFreqs[t]++
+	if len(opts.wordFreqs) == 0 {
+		opts.wordFreqs = make(map[string]int)
+		for _, t := range opts.terms {
+			opts.wordFreqs[t]++
 		}
 	}
-	if stemMap == nil {
-		stemMap = make(map[string]string)
+	if opts.stemMap == nil {
+		opts.stemMap = make(map[string]string)
 	}
 	return models.IndexedPost{
 		Record: models.PostRecord{
-			ID:              id,
-			Title:           title,
-			NormalizedTitle: title,
-			Content:         content,
+			ID:              opts.id,
+			Title:           opts.title,
+			NormalizedTitle: opts.title,
+			Content:         opts.content,
 			Tags:            []string{"go"},
 			NormalizedTags:  []string{"go"},
 		},
-		DocLen:          len(terms),
-		WordFreqs:       wordFreqs,
+		DocLen:          len(opts.terms),
+		WordFreqs:       opts.wordFreqs,
 		PositionalIndex: posIndex,
 		ByteOffsets:     byteOffsets,
-		StemMap:         stemMap,
+		StemMap:         opts.stemMap,
 	}
 }
 
@@ -71,7 +80,12 @@ func TestBuildEmptySlice(t *testing.T) {
 
 func TestBuildSinglePost(t *testing.T) {
 	posts := []models.IndexedPost{
-		makePost(1, "Go Tutorial", "Learn Go programming", []string{"go", "tutorial", "learn"}, nil, nil),
+		makePost(makePostOptions{
+			id:      1,
+			title:   "Go Tutorial",
+			content: "Learn Go programming",
+			terms:   []string{"go", "tutorial", "learn"},
+		}),
 	}
 	idx := Build(posts)
 
@@ -100,9 +114,24 @@ func TestBuildSinglePost(t *testing.T) {
 
 func TestBuildMultiplePosts(t *testing.T) {
 	posts := []models.IndexedPost{
-		makePost(1, "Go Concurrency", "goroutines and channels", []string{"go", "concurrency", "goroutines"}, nil, nil),
-		makePost(2, "Go Testing", "testing in Go", []string{"go", "testing"}, nil, nil),
-		makePost(3, "Rust Basics", "learn Rust", []string{"rust", "basics", "learn"}, nil, nil),
+		makePost(makePostOptions{
+			id:      1,
+			title:   "Go Concurrency",
+			content: "goroutines and channels",
+			terms:   []string{"go", "concurrency", "goroutines"},
+		}),
+		makePost(makePostOptions{
+			id:      2,
+			title:   "Go Testing",
+			content: "testing in Go",
+			terms:   []string{"go", "testing"},
+		}),
+		makePost(makePostOptions{
+			id:      3,
+			title:   "Rust Basics",
+			content: "learn Rust",
+			terms:   []string{"rust", "basics", "learn"},
+		}),
 	}
 	idx := Build(posts)
 
@@ -137,9 +166,24 @@ func TestBuildMultiplePosts(t *testing.T) {
 
 func TestBuildConsistency(t *testing.T) {
 	posts := []models.IndexedPost{
-		makePost(1, "Post One", "alpha beta gamma", []string{"alpha", "beta", "gamma"}, nil, nil),
-		makePost(2, "Post Two", "beta gamma delta", []string{"beta", "gamma", "delta"}, nil, nil),
-		makePost(3, "Post Three", "gamma delta epsilon", []string{"gamma", "delta", "epsilon"}, nil, nil),
+		makePost(makePostOptions{
+			id:      1,
+			title:   "Post One",
+			content: "alpha beta gamma",
+			terms:   []string{"alpha", "beta", "gamma"},
+		}),
+		makePost(makePostOptions{
+			id:      2,
+			title:   "Post Two",
+			content: "beta gamma delta",
+			terms:   []string{"beta", "gamma", "delta"},
+		}),
+		makePost(makePostOptions{
+			id:      3,
+			title:   "Post Three",
+			content: "gamma delta epsilon",
+			terms:   []string{"gamma", "delta", "epsilon"},
+		}),
 	}
 
 	idx1 := Build(posts)
@@ -174,8 +218,18 @@ func TestBuildConsistency(t *testing.T) {
 func TestBuildTermIndexMerging(t *testing.T) {
 	// Two posts with overlapping terms — inverted index should merge, not overwrite
 	posts := []models.IndexedPost{
-		makePost(1, "Alpha", "hello world", []string{"hello", "world"}, nil, nil),
-		makePost(2, "Beta", "hello again", []string{"hello", "again"}, nil, nil),
+		makePost(makePostOptions{
+			id:      1,
+			title:   "Alpha",
+			content: "hello world",
+			terms:   []string{"hello", "world"},
+		}),
+		makePost(makePostOptions{
+			id:      2,
+			title:   "Beta",
+			content: "hello again",
+			terms:   []string{"hello", "again"},
+		}),
 	}
 	idx := Build(posts)
 
@@ -205,13 +259,25 @@ func TestBuildTermIndexMerging(t *testing.T) {
 
 func TestBuildStemMapMerging(t *testing.T) {
 	posts := []models.IndexedPost{
-		makePost(1, "Running", "running runs", []string{"running", "runs"}, nil, map[string]string{
-			"running": "run",
-			"runs":    "run",
+		makePost(makePostOptions{
+			id:      1,
+			title:   "Running",
+			content: "running runs",
+			terms:   []string{"running", "runs"},
+			stemMap: map[string]string{
+				"running": "run",
+				"runs":    "run",
+			},
 		}),
-		makePost(2, "Runner", "runner ran", []string{"runner", "ran"}, nil, map[string]string{
-			"runner": "run",
-			"ran":    "run",
+		makePost(makePostOptions{
+			id:      2,
+			title:   "Runner",
+			content: "runner ran",
+			terms:   []string{"runner", "ran"},
+			stemMap: map[string]string{
+				"runner": "run",
+				"ran":    "run",
+			},
 		}),
 	}
 	idx := Build(posts)
@@ -235,7 +301,12 @@ func TestBuildStemMapMerging(t *testing.T) {
 
 func TestBuildNgramIndex(t *testing.T) {
 	posts := []models.IndexedPost{
-		makePost(1, "Ngrams", "ngram testing", []string{"ngram", "testing"}, nil, nil),
+		makePost(makePostOptions{
+			id:      1,
+			title:   "Ngrams",
+			content: "ngram testing",
+			terms:   []string{"ngram", "testing"},
+		}),
 	}
 	idx := Build(posts)
 

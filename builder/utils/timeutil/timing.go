@@ -52,7 +52,7 @@ func (p *PhaseTimer) StopWithAddendum(addendum string) {
 
 // PhaseTracker accumulates named phase durations.
 type PhaseTracker struct {
-	mu      sync.Mutex
+	mu      sync.Mutex // protects phases and enabled
 	phases  map[string]time.Duration
 	enabled bool
 }

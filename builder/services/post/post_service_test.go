@@ -112,7 +112,7 @@ func (m *mockArtifactSink) GetWrittenFiles() map[string]bool {
 type mockRenderServiceWithCapture struct {
 	mockRenderService
 	Pages map[string]models.PageData
-	mu    sync.RWMutex
+	mu    sync.RWMutex // protects Pages
 }
 
 func (m *mockRenderServiceWithCapture) RenderPage(path string, data models.PageData) error {

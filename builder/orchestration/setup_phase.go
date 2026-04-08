@@ -2,6 +2,7 @@ package orchestration
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -99,9 +100,14 @@ func (b *Engine) checkSocialCardRebuild() bool {
 // initializeNativeRenderer warms up the JS renderer pool asynchronously.
 func (b *Engine) initializeNativeRenderer(ctx context.Context) {
 	if b.Deps.NativeRenderer != nil {
-		go func() {
+		logger := b.Deps.Logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		async.FireAndForget(ctx, logger, "native renderer warmup", func() error {
 			b.Deps.NativeRenderer.EnsureInitialized(ctx)
-		}()
+			return nil
+		})
 	}
 }
 

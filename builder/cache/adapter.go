@@ -20,9 +20,9 @@ type DiagramCacheAdapter struct {
 	local map[string]any
 	// dirty values mirror local and are flushed to BoltDB on Flush().
 	dirty   map[string]any
-	mu      sync.RWMutex
-	closed  atomic.Bool // Prevents new operations after Close() is called
-	persist atomic.Bool // Controls whether writes are persisted to disk
+	mu      sync.RWMutex // protects local and dirty
+	closed  atomic.Bool  // Prevents new operations after Close() is called
+	persist atomic.Bool  // Controls whether writes are persisted to disk
 }
 
 // NewDiagramCacheAdapter creates a new adapter.

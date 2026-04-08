@@ -24,7 +24,7 @@ type WorkerPool[T any] struct {
 	scheduler scheduler.BuildScheduler
 	taskType  scheduler.TaskType
 	errs      []error
-	mu        sync.Mutex
+	mu        sync.Mutex // protects errs
 }
 
 // NewWorkerPool constructs a worker pool with bounded concurrency.

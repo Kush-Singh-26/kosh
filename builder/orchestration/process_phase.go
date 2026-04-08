@@ -3,7 +3,9 @@ package orchestration
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
@@ -24,7 +26,11 @@ func (b *Engine) processPhase(
 		err error
 	}
 	postResChan := make(chan postStreamRes, 1)
-	go func() {
+	logger := b.Deps.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	async.FireAndForget(ctx, logger, "post processing stream", func() error {
 		res, err := b.Deps.Post.ProcessStreaming(post.ProcessOptions{
 			Ctx:                ctx,
 			ShouldForce:        b.Cfg.ForceRebuild,
@@ -33,7 +39,8 @@ func (b *Engine) processPhase(
 			FileChan:           scan.fileChan,
 		})
 		postResChan <- postStreamRes{res, err}
-	}()
+		return nil
+	})
 
 	// Wait for scanner and discovery metadata (needed for ContentAssets and site-wide state).
 	// This ensures the image/WebP rewrite map is populated so HTML can reference

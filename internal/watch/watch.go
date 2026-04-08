@@ -23,7 +23,7 @@ type Watcher struct {
 	watcher  *fsnotify.Watcher
 	Dirs     []string
 	OnEvent  func(Event)
-	timerMu  sync.Mutex
+	timerMu  sync.Mutex // protects timer
 	timer    *time.Timer
 	duration time.Duration
 }

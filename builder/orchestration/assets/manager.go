@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
@@ -35,7 +36,7 @@ type Manager struct {
 
 	// Internal state
 	lastAssetHash uint64
-	mu            sync.RWMutex
+	mu            sync.RWMutex // protects lastAssetHash
 }
 
 // NewManager initializes a new asset orchestration manager.
@@ -110,13 +111,21 @@ func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []mo
 	var assetWg sync.WaitGroup
 	assetWg.Add(1)
 
-	go func() {
-		defer assetWg.Done()
-		if err := m.deps.Asset.BuildWithOptions(ctx, skipImages); err != nil {
-			assetErrChan <- err
-		}
-		assetTimer.Stop()
-	}()
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    m.deps.Logger,
+		Operation: "asset build",
+		Fn: func() error {
+			if err := m.deps.Asset.BuildWithOptions(ctx, skipImages); err != nil {
+				assetErrChan <- err
+			}
+			return nil
+		},
+		Cleanup: func() {
+			assetTimer.Stop()
+			assetWg.Done()
+		},
+	})
 
 	// discoveryReady is populated by Build() when the image rewrite map is ready.
 	discoveryReady := m.deps.Asset.DiscoveryReady()

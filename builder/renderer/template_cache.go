@@ -18,7 +18,7 @@ type templateCache struct {
 	mtimes      map[string]time.Time
 	hashes      map[string]string
 	templateDir string
-	mu          sync.RWMutex
+	mu          sync.RWMutex // protects templates, mtimes, hashes, checkTTL
 	lastCheckNs atomic.Int64 // UnixNano of last TTL check; atomic for lock-free reads
 	checkTTL    time.Duration
 	sf          singleflight.Group

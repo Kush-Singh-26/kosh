@@ -2,7 +2,9 @@ package orchestration
 
 import (
 	"context"
+	"log/slog"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
@@ -26,7 +28,11 @@ func (b *Engine) scanPhase(ctx context.Context, contentAssetsChan chan []models.
 	metadataResultChan := make(chan *models.MetadataScannerResult, 1)
 	scannerErrChan := make(chan error, 1)
 
-	go func() {
+	logger := b.Deps.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	async.FireAndForget(ctx, logger, "metadata scan", func() error {
 		defer close(scannerReady)
 		defer close(fileChan)
 		defer close(metadataResultChan)
@@ -45,7 +51,8 @@ func (b *Engine) scanPhase(ctx context.Context, contentAssetsChan chan []models.
 		// Always send result and error (even if nil).
 		metadataResultChan <- metadataResult
 		scannerErrChan <- scannerErr
-	}()
+		return nil
+	})
 
 	return &buildScanResult{
 		fileChan:           fileChan,

@@ -15,7 +15,7 @@ import (
 // It tracks files written during a sync pass and can undo them if any
 // part of the sync fails, preventing partially-written output directories.
 type TxSync struct {
-	mu         sync.Mutex
+	mu         sync.Mutex        // protects written, writtenSet, backups, committed
 	written    []string          // new files created in this transaction
 	writtenSet map[string]bool   // O(1) duplicate detection
 	backups    map[string]string // original path -> backup path (for overwrites)

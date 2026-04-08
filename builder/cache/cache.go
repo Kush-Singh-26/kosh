@@ -31,7 +31,7 @@ type Manager struct {
 	store    *store.Store
 	basePath string
 	cacheID  string
-	mu       sync.RWMutex
+	mu       sync.RWMutex // protects dirty and cacheID
 	dirty    map[string]bool
 
 	// In-memory LRU cache for hot PostMeta data

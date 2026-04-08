@@ -14,7 +14,7 @@ import (
 type MemSink struct {
 	Files     map[string][]byte
 	OutputDir string
-	mu        sync.RWMutex
+	mu        sync.RWMutex // protects Files
 }
 
 // NewMemSink returns a MemSink with an empty file map.

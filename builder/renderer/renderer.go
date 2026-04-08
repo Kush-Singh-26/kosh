@@ -36,10 +36,10 @@ type Renderer struct {
 	renderedFiles  sync.Map
 	logger         *slog.Logger
 	templateDir    string
-	mu             sync.RWMutex
+	mu             sync.RWMutex // protects template pointers and logger
 	devMode        bool
 	renderErrors   []renderError
-	errMu          sync.Mutex
+	errMu          sync.Mutex // protects renderErrors
 	assetCache     sync.Map
 	Minifier       *minify.M
 }

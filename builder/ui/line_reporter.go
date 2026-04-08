@@ -39,7 +39,7 @@ var spinnerFrames = []string{"-", "\\", "|", "/"}
 
 type lineReporter struct {
 	mode    string
-	mu      sync.Mutex
+	mu      sync.Mutex // protects phases, phaseOrder, status, finished
 	verbose bool
 	isTTY   bool
 
