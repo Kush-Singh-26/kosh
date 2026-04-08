@@ -5,6 +5,7 @@ import (
 	"html/template"
 )
 
+// JSONLDArticle represents a schema.org Article payload.
 type JSONLDArticle struct {
 	Context       string   `json:"@context"`
 	Type          string   `json:"@type"`
@@ -16,12 +17,14 @@ type JSONLDArticle struct {
 	Image         string   `json:"image,omitempty"`
 }
 
+// Author represents a JSON-LD author entry.
 type Author struct {
 	Type string `json:"@type"`
 	Name string `json:"name"`
 	URL  string `json:"url,omitempty"`
 }
 
+// GeneratePostJSONLD builds a JSON-LD payload for a post.
 func GeneratePostJSONLD(post PostMetadata, author AuthorConfig, imageURL string) template.HTML {
 	article := JSONLDArticle{
 		Context:       "https://schema.org",

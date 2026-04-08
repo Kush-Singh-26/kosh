@@ -16,18 +16,34 @@ import (
 )
 
 // ChangeType describes the category of a filesystem change.
-type ChangeType string
+type ChangeType int
 
 const (
 	// ChangeTypeContent indicates a content file change.
-	ChangeTypeContent ChangeType = "content"
+	ChangeTypeContent ChangeType = iota
 	// ChangeTypeAsset indicates an asset file change.
-	ChangeTypeAsset ChangeType = "asset"
+	ChangeTypeAsset
 	// ChangeTypeOther indicates a non-content, non-asset change.
-	ChangeTypeOther ChangeType = "other"
+	ChangeTypeOther
 	// ChangeTypeDelete indicates a deletion event.
-	ChangeTypeDelete ChangeType = "delete"
+	ChangeTypeDelete
 )
+
+// String returns the display label for a ChangeType.
+func (t ChangeType) String() string {
+	switch t {
+	case ChangeTypeContent:
+		return "content"
+	case ChangeTypeAsset:
+		return "asset"
+	case ChangeTypeOther:
+		return "other"
+	case ChangeTypeDelete:
+		return "delete"
+	default:
+		return "unknown"
+	}
+}
 
 // ChangeEvent represents a classified filesystem change.
 type ChangeEvent struct {

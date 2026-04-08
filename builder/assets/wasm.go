@@ -22,8 +22,11 @@ import (
 //go:embed wasm/search.wasm.br
 var searchWasmBr []byte
 
-// embeddedWasmHash is the hash of the raw (decompressed) embedded WASM
-// It is now generated at build-time in search_hash.go
+// embeddedWasmHash is the hash of the raw (decompressed) embedded WASM.
+// It mirrors SearchWasmHash to keep legacy tests stable.
+var embeddedWasmHash = SearchWasmHash
+
+// wasmInitErr captures initialization errors for embedded WASM.
 var wasmInitErr error
 
 // CheckWASM ensures the search engine WASM is present and up-to-date.
@@ -32,6 +35,7 @@ func CheckWASM(sink fspkg.ArtifactSink, cacheDir string) bool {
 	return CheckWASMFs(afero.NewOsFs(), sink, cacheDir)
 }
 
+// CheckWASMFs verifies the deployed WASM using the provided filesystem.
 func CheckWASMFs(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string) bool {
 	return CheckWASMFsWithSource(CheckWASMOptions{
 		Fs:       fs,
@@ -40,6 +44,7 @@ func CheckWASMFs(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string) bool {
 	})
 }
 
+// CheckWASMOptions configures WASM deployment checks.
 type CheckWASMOptions struct {
 	Fs               afero.Fs
 	Sink             fspkg.ArtifactSink
@@ -48,6 +53,7 @@ type CheckWASMOptions struct {
 	CompressionLevel int
 }
 
+// CheckWASMFsWithSource checks and deploys WASM using a provided source payload.
 func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
 	fs := opts.Fs
 	sink := opts.Sink
@@ -154,6 +160,7 @@ func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
 	return true
 }
 
+// DeployWASMFromFile deploys a WASM binary from a file path.
 func DeployWASMFromFile(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePath string) bool {
 	return DeployWASMFromFileWithLevel(DeployWASMOptions{
 		Fs:         fs,
@@ -164,6 +171,7 @@ func DeployWASMFromFile(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePa
 	})
 }
 
+// DeployWASMOptions configures WASM deployment from a source file.
 type DeployWASMOptions struct {
 	Fs         afero.Fs
 	Sink       fspkg.ArtifactSink
@@ -172,6 +180,7 @@ type DeployWASMOptions struct {
 	Level      int
 }
 
+// DeployWASMFromFileWithLevel deploys a WASM file with a specific compression level.
 func DeployWASMFromFileWithLevel(opts DeployWASMOptions) bool {
 	data, err := afero.ReadFile(opts.Fs, opts.SourcePath)
 	if err != nil {

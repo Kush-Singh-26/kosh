@@ -12,6 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
+// GenerateSearchIndex builds and writes the compressed search index.
 func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedPost) (string, int64, error) {
 	outputDir := sink.GetOutputDir()
 

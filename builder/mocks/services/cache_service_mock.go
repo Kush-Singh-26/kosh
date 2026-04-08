@@ -9,6 +9,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+// MockCacheService is a test double for the cache service.
 type MockCacheService struct {
 	Posts              map[string]*cache.PostMeta
 	PostsByPath        map[string]*cache.PostMeta
@@ -26,6 +27,7 @@ type MockCacheService struct {
 	GetPostByPathFn    func(path string) (*cache.PostMeta, error)
 }
 
+// NewMockCacheService returns a new mock cache service with initialized maps.
 func NewMockCacheService() *MockCacheService {
 	return &MockCacheService{
 		Posts:              make(map[string]*cache.PostMeta),
@@ -47,6 +49,7 @@ func (m *MockCacheService) recordCall(method string) {
 	m.CallCount[method]++
 }
 
+// GetPost returns the cached post by ID.
 func (m *MockCacheService) GetPost(id string) (*cache.PostMeta, error) {
 	m.recordCall("GetPost")
 	if m.Err != nil {
@@ -55,6 +58,7 @@ func (m *MockCacheService) GetPost(id string) (*cache.PostMeta, error) {
 	return m.Posts[id], nil
 }
 
+// ListAllPosts lists all post IDs stored in the mock.
 func (m *MockCacheService) ListAllPosts() ([]string, error) {
 	m.recordCall("ListAllPosts")
 	if m.Err != nil {
@@ -67,6 +71,7 @@ func (m *MockCacheService) ListAllPosts() ([]string, error) {
 	return ids, nil
 }
 
+// GetPostByPath returns the cached post by its path.
 func (m *MockCacheService) GetPostByPath(path string) (*cache.PostMeta, error) {
 	m.recordCall("GetPostByPath")
 	if m.GetPostByPathFn != nil {
@@ -78,6 +83,7 @@ func (m *MockCacheService) GetPostByPath(path string) (*cache.PostMeta, error) {
 	return m.PostsByPath[path], nil
 }
 
+// GetPostsByIDs returns cached posts for a set of IDs.
 func (m *MockCacheService) GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error) {
 	m.recordCall("GetPostsByIDs")
 	if m.Err != nil {
@@ -92,6 +98,7 @@ func (m *MockCacheService) GetPostsByIDs(ids []string) (map[string]*cache.PostMe
 	return result, nil
 }
 
+// GetPostsByTemplate returns post IDs that depend on a template.
 func (m *MockCacheService) GetPostsByTemplate(templatePath string) ([]string, error) {
 	m.recordCall("GetPostsByTemplate")
 	if m.Err != nil {
@@ -100,6 +107,7 @@ func (m *MockCacheService) GetPostsByTemplate(templatePath string) ([]string, er
 	return []string{}, nil
 }
 
+// GetSearchRecords returns search records for the given IDs.
 func (m *MockCacheService) GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error) {
 	m.recordCall("GetSearchRecords")
 	if m.Err != nil {
@@ -114,6 +122,7 @@ func (m *MockCacheService) GetSearchRecords(ids []string) (map[string]*cache.Sea
 	return result, nil
 }
 
+// GetSearchRecord returns a search record by ID.
 func (m *MockCacheService) GetSearchRecord(id string) (*cache.SearchRecord, error) {
 	m.recordCall("GetSearchRecord")
 	if m.Err != nil {
@@ -122,6 +131,7 @@ func (m *MockCacheService) GetSearchRecord(id string) (*cache.SearchRecord, erro
 	return m.SearchRecords[id], nil
 }
 
+// GetHTMLContent returns cached HTML for a post.
 func (m *MockCacheService) GetHTMLContent(post *cache.PostMeta) ([]byte, error) {
 	m.recordCall("GetHTMLContent")
 	if m.Err != nil {
@@ -136,6 +146,7 @@ func (m *MockCacheService) GetHTMLContent(post *cache.PostMeta) ([]byte, error) 
 	return nil, nil
 }
 
+// GetSocialCardHash returns the cached social card hash for a path.
 func (m *MockCacheService) GetSocialCardHash(path string) (string, error) {
 	m.recordCall("GetSocialCardHash")
 	if m.Err != nil {
@@ -144,6 +155,7 @@ func (m *MockCacheService) GetSocialCardHash(path string) (string, error) {
 	return m.SocialCardHashes[path], nil
 }
 
+// SetSocialCardHash stores the social card hash for a path.
 func (m *MockCacheService) SetSocialCardHash(path, hash string) error {
 	m.recordCall("SetSocialCardHash")
 	if m.Err != nil {
@@ -153,6 +165,7 @@ func (m *MockCacheService) SetSocialCardHash(path, hash string) error {
 	return nil
 }
 
+// BatchSetSocialCardHashes stores multiple social card hashes.
 func (m *MockCacheService) BatchSetSocialCardHashes(hashes map[string]string) error {
 	m.recordCall("BatchSetSocialCardHashes")
 	if m.Err != nil {
@@ -162,6 +175,7 @@ func (m *MockCacheService) BatchSetSocialCardHashes(hashes map[string]string) er
 	return nil
 }
 
+// GetGraphHash returns the cached graph hash.
 func (m *MockCacheService) GetGraphHash() (string, error) {
 	m.recordCall("GetGraphHash")
 	if m.Err != nil {
@@ -170,6 +184,7 @@ func (m *MockCacheService) GetGraphHash() (string, error) {
 	return m.GraphHash, nil
 }
 
+// SetGraphHash stores the cached graph hash.
 func (m *MockCacheService) SetGraphHash(hash string) error {
 	m.recordCall("SetGraphHash")
 	if m.Err != nil {
@@ -179,6 +194,7 @@ func (m *MockCacheService) SetGraphHash(hash string) error {
 	return nil
 }
 
+// GetWasmHash returns the cached wasm hash.
 func (m *MockCacheService) GetWasmHash() (string, error) {
 	m.recordCall("GetWasmHash")
 	if m.Err != nil {
@@ -187,6 +203,7 @@ func (m *MockCacheService) GetWasmHash() (string, error) {
 	return m.WasmHash, nil
 }
 
+// SetWasmHash stores the cached wasm hash.
 func (m *MockCacheService) SetWasmHash(hash string) error {
 	m.recordCall("SetWasmHash")
 	if m.Err != nil {
@@ -196,6 +213,7 @@ func (m *MockCacheService) SetWasmHash(hash string) error {
 	return nil
 }
 
+// StoreHTML stores HTML content and returns its hash.
 func (m *MockCacheService) StoreHTML(content []byte) (string, error) {
 	m.recordCall("StoreHTML")
 	if m.Err != nil {
@@ -207,6 +225,7 @@ func (m *MockCacheService) StoreHTML(content []byte) (string, error) {
 	return hash, nil
 }
 
+// StoreHTMLForPost stores HTML content for a post and updates its fields.
 func (m *MockCacheService) StoreHTMLForPost(post *cache.PostMeta, content []byte) error {
 	m.recordCall("StoreHTMLForPost")
 	if m.Err != nil {
@@ -224,6 +243,7 @@ func (m *MockCacheService) StoreHTMLForPost(post *cache.PostMeta, content []byte
 	return nil
 }
 
+// BatchCommit records a batch commit in the mock.
 func (m *MockCacheService) BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error {
 	m.recordCall("BatchCommit")
 	if m.Err != nil {
@@ -239,6 +259,7 @@ func (m *MockCacheService) BatchCommit(posts []*cache.PostMeta, records map[stri
 	return nil
 }
 
+// DeletePost removes a post from the mock.
 func (m *MockCacheService) DeletePost(postID string) error {
 	m.recordCall("DeletePost")
 	if m.Err != nil {
@@ -248,21 +269,25 @@ func (m *MockCacheService) DeletePost(postID string) error {
 	return nil
 }
 
+// MarkDirty marks a post as dirty in the mock.
 func (m *MockCacheService) MarkDirty(postID string) {
 	m.recordCall("MarkDirty")
 	m.Dirty[postID] = true
 }
 
+// IsDirty reports whether a post is marked dirty.
 func (m *MockCacheService) IsDirty(postID string) bool {
 	m.recordCall("IsDirty")
 	return m.Dirty[postID]
 }
 
+// ClearDirty clears the dirty state for all posts.
 func (m *MockCacheService) ClearDirty() {
 	m.recordCall("ClearDirty")
 	m.Dirty = make(map[string]bool)
 }
 
+// Stats returns cache stats for the mock.
 func (m *MockCacheService) Stats() (*cache.CacheStats, error) {
 	m.recordCall("Stats")
 	if m.Err != nil {
@@ -271,6 +296,7 @@ func (m *MockCacheService) Stats() (*cache.CacheStats, error) {
 	return &cache.CacheStats{}, nil
 }
 
+// IncrementBuildCount increments and returns the build count.
 func (m *MockCacheService) IncrementBuildCount() (uint32, error) {
 	m.recordCall("IncrementBuildCount")
 	if m.Err != nil {
@@ -279,6 +305,7 @@ func (m *MockCacheService) IncrementBuildCount() (uint32, error) {
 	return 1, nil
 }
 
+// RunGC runs garbage collection using the provided config.
 func (m *MockCacheService) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
 	m.recordCall("RunGC")
 	if m.Err != nil {
@@ -287,11 +314,13 @@ func (m *MockCacheService) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
 	return &gc.GCResult{}, nil
 }
 
+// Close closes the mock cache service.
 func (m *MockCacheService) Close() error {
 	m.recordCall("Close")
 	return m.Err
 }
 
+// GetAllPostsMetadata returns a lightweight list of post metadata.
 func (m *MockCacheService) GetAllPostsMetadata() ([]cache.PostListMeta, error) {
 	m.recordCall("GetAllPostsMetadata")
 	if m.Err != nil {

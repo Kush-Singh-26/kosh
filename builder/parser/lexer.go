@@ -28,6 +28,7 @@ type MathLexer struct {
 	pos   int
 }
 
+// NewMathLexer creates a MathLexer for the provided input.
 func NewMathLexer(input string) *MathLexer {
 	return &MathLexer{
 		input: []byte(input),

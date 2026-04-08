@@ -68,6 +68,7 @@ func (r *rawHTMLBlockRenderer) renderRawHTML(w util.BufWriter, _ []byte, node as
 
 // --- d2 block info ---
 
+// GetContext returns the build context stored in the parser context.
 func GetContext(pc parser.Context) context.Context {
 	if pc == nil {
 		return context.Background()
@@ -80,6 +81,7 @@ func GetContext(pc parser.Context) context.Context {
 	return context.Background()
 }
 
+// WithContext stores a build context in the parser context.
 func WithContext(pc parser.Context, ctx context.Context) {
 	if pc != nil {
 		pc.Set(contextKeyBuild, ctx)

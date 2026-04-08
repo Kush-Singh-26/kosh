@@ -1,7 +1,6 @@
 package post
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/zeebo/xxh3"

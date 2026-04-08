@@ -5,16 +5,36 @@ import (
 )
 
 // Phase represents a distinct part of the build process.
-type Phase string
+type Phase int
 
 const (
-	PhaseScan        Phase = "Metadata Scan"
-	PhaseAssets      Phase = "Building Assets"
-	PhasePosts       Phase = "Processing Posts"
-	PhaseSiteWide    Phase = "Site-wide Rendering"
-	PhasePublish     Phase = "Publishing"
-	PhaseIncremental Phase = "Incremental Rebuild"
+	PhaseScan Phase = iota
+	PhaseAssets
+	PhasePosts
+	PhaseSiteWide
+	PhasePublish
+	PhaseIncremental
 )
+
+// String returns the display label for a Phase.
+func (p Phase) String() string {
+	switch p {
+	case PhaseScan:
+		return "Metadata Scan"
+	case PhaseAssets:
+		return "Building Assets"
+	case PhasePosts:
+		return "Processing Posts"
+	case PhaseSiteWide:
+		return "Site-wide Rendering"
+	case PhasePublish:
+		return "Publishing"
+	case PhaseIncremental:
+		return "Incremental Rebuild"
+	default:
+		return "Unknown Phase"
+	}
+}
 
 // Reporter handles all build-time terminal reporting.
 type Reporter interface {

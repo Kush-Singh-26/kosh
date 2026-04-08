@@ -2,6 +2,7 @@ package models
 
 import "sort"
 
+// SortPosts sorts posts by weight and date, descending.
 func SortPosts(posts []PostMetadata) {
 	sort.Slice(posts, func(i, j int) bool {
 		wi, wj := posts[i].Weight, posts[j].Weight

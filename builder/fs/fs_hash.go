@@ -10,6 +10,7 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
+// HashDirsFast computes a fast hash over directory contents.
 func HashDirsFast(dirs []string) (string, error) {
 	h := xxh3.New()
 	for _, dir := range dirs {

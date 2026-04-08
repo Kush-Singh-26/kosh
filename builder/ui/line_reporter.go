@@ -61,6 +61,7 @@ type linePhaseState struct {
 	finished  bool
 }
 
+// NewReporter returns a Reporter that renders a single-line UI.
 func NewReporter(verbose bool) Reporter {
 	return &lineReporter{
 		phases:  make(map[Phase]*linePhaseState),
@@ -138,7 +139,7 @@ func (r *lineReporter) StartPhase(phase Phase) {
 	}
 
 	if !r.isTTY {
-		fmt.Printf("%s %s %s\n", r.ts(), r.color(cyan, symArrow), phase)
+		fmt.Printf("%s %s %s\n", r.ts(), r.color(cyan, symArrow), phase.String())
 	}
 }
 
@@ -172,7 +173,7 @@ func (r *lineReporter) EndPhase(phase Phase, duration time.Duration) {
 	line := fmt.Sprintf("%s %s %-22s %s\n",
 		r.ts(),
 		r.color(green, symCheck),
-		string(phase),
+		phase.String(),
 		r.color(gray, durationStr))
 
 	r.printLine(line)
@@ -324,7 +325,7 @@ func (r *lineReporter) renderSpinner() {
 		line = fmt.Sprintf("\r%s %s %-22s [%d/%d]",
 			ts,
 			r.color(cyan, frame),
-			string(activePhase),
+			activePhase.String(),
 			activeState.current,
 			activeState.total)
 		if activeState.detail != "" {
@@ -338,7 +339,7 @@ func (r *lineReporter) renderSpinner() {
 		line = fmt.Sprintf("\r%s %s %s",
 			ts,
 			r.color(cyan, frame),
-			string(activePhase))
+			activePhase.String())
 		if activeState.detail != "" {
 			detail := r.shortenPaths(activeState.detail)
 			if len(detail) > 40 {

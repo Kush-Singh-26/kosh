@@ -11,6 +11,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+// ErrNoContent indicates a cache miss when reading content.
 var ErrNoContent = fmt.Errorf("no content found in cache")
 
 // PostMeta stores metadata about a cached post
@@ -31,11 +32,15 @@ type PostListMeta = models.PostListMeta
 // CacheStats holds runtime statistics
 type CacheStats = models.CacheStats
 
+// CompressionType re-exports the compression type enum.
 type CompressionType = models.CompressionType
 
 const (
-	CompressionNone       = models.CompressionNone
-	CompressionZstdFast   = models.CompressionZstdFast
+	// CompressionNone disables compression.
+	CompressionNone = models.CompressionNone
+	// CompressionZstdFast enables fast zstd compression.
+	CompressionZstdFast = models.CompressionZstdFast
+	// CompressionZstdLevel3 enables zstd compression at level 3.
 	CompressionZstdLevel3 = models.CompressionZstdLevel3
 )
 
@@ -46,16 +51,19 @@ const (
 	SchemaVersion = 12
 )
 
+// HashContent returns a hex xxh3 hash of the content.
 func HashContent(data []byte) string {
 	hash := xxh3.Hash128(data)
 	b := hash.Bytes()
 	return hex.EncodeToString(b[:])
 }
 
+// HashString returns a hex xxh3 hash of the string.
 func HashString(s string) string {
 	return HashContent([]byte(s))
 }
 
+// GeneratePostID derives a post ID from UUID or normalized path.
 func GeneratePostID(uuid string, normalizedPath string) string {
 	if uuid != "" {
 		return HashString(uuid)
@@ -63,6 +71,7 @@ func GeneratePostID(uuid string, normalizedPath string) string {
 	return HashString(normalizedPath)
 }
 
+// Encode marshals a msgp.Marshaler value.
 func Encode(v any) ([]byte, error) {
 	if m, ok := v.(msgp.Marshaler); ok {
 		return m.MarshalMsg(nil)
@@ -70,6 +79,7 @@ func Encode(v any) ([]byte, error) {
 	return nil, fmt.Errorf("type %T does not implement msgp.Marshaler", v)
 }
 
+// Decode unmarshals data into a msgp.Unmarshaler value.
 func Decode(data []byte, v any) error {
 	if u, ok := v.(msgp.Unmarshaler); ok {
 		_, err := u.UnmarshalMsg(data)

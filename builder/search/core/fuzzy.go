@@ -324,12 +324,14 @@ func min3(a, b, c int) int {
 	return c
 }
 
+// QueryTerm describes a query token with operators.
 type QueryTerm struct {
 	Term     string
 	Required bool
 	Excluded bool
 }
 
+// ParsedQuery holds normalized query terms and phrases.
 type ParsedQuery struct {
 	Terms     []string
 	Phrases   [][]string
@@ -339,6 +341,7 @@ type ParsedQuery struct {
 	TermInfos []QueryTerm
 }
 
+// ParseQuery parses a search query into terms and phrases.
 func ParseQuery(query string) ParsedQuery {
 	result := ParsedQuery{
 		Raw: query,

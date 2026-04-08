@@ -196,6 +196,7 @@ type Pipeline struct {
 	scorers []Scorer
 }
 
+// NewPipeline constructs a scoring pipeline from scorers.
 func NewPipeline(scorers ...Scorer) *Pipeline {
 	return &Pipeline{scorers: scorers}
 }

@@ -56,9 +56,11 @@ func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
 
 // ParsedMarkdownResult holds the output of the markdown parsing phase.
 type ParsedMarkdownResult struct {
-	AST             ast.Node
-	Context         parser.Context
-	HTMLContent     string
+	AST         ast.Node
+	Context     parser.Context
+	HTMLContent string
+	// Metadata contains YAML frontmatter decoded values.
+	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
 	Metadata        map[string]any
 	Post            models.PostMetadata
 	SearchRecord    models.PostRecord
@@ -94,7 +96,9 @@ type ParseOptions struct {
 	KnownFrontmatterHash string
 	KnownReadingTime     int
 	BodyOffset           int
-	PreParsedMeta        map[string]any
+	// PreParsedMeta holds YAML frontmatter values decoded by the scanner.
+	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
+	PreParsedMeta map[string]any
 }
 
 // ParseMarkdownMetadata handles the semantic parsing and metadata extraction.

@@ -14,6 +14,7 @@ var (
 	contextKeyBuild = parser.NewContextKey()
 )
 
+// GetTOC returns the table of contents from the parser context.
 func GetTOC(pc parser.Context) []models.TOCEntry {
 	if v := pc.Get(tocKey); v != nil {
 		if entries, ok := v.([]models.TOCEntry); ok {
@@ -23,6 +24,7 @@ func GetTOC(pc parser.Context) []models.TOCEntry {
 	return nil
 }
 
+// GetPlainText returns the extracted plain text from the parser context.
 func GetPlainText(pc parser.Context) string {
 	if v := pc.Get(plainTextKey); v != nil {
 		if s, ok := v.(string); ok {

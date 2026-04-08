@@ -20,6 +20,7 @@ var ErrEmptyData = errors.New("empty data")
 
 // GetFrontmatterHash computes the canonical frontmatter hash from the raw metadata map.
 // It includes whitelisted standard fields with normalization and a catch-all for custom fields.
+// Expected types in metadata: string, bool, int/float64, time.Time, []any, map[string]any.
 func GetFrontmatterHash(metadata map[string]any) (string, error) {
 	h := xxh3.New()
 
@@ -95,7 +96,9 @@ type FrontmatterHashOptions struct {
 	Pinned      bool
 	Draft       bool
 	Weight      int
-	Other       map[string]any
+	// Other contains custom frontmatter fields not in the standard whitelist.
+	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
+	Other map[string]any
 }
 
 // GetFrontmatterHashFromValues computes the canonical frontmatter hash from already-parsed values.
@@ -250,6 +253,7 @@ func GetFrontmatterHashFromSource(source []byte, fallbackTitle string) (string, 
 }
 
 // ParseFrontmatter parses YAML frontmatter into a map.
+// Expected value types mirror yaml.v3 decoding: string, bool, int/float64, time.Time, []any, map[string]any.
 func ParseFrontmatter(data []byte) (map[string]any, error) {
 	if len(data) == 0 {
 		return nil, ErrEmptyData

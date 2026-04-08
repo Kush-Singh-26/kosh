@@ -10,6 +10,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+// RSSOptions configures RSS feed generation.
 type RSSOptions struct {
 	Sink        fspkg.ArtifactSink
 	BaseURL     string
@@ -19,6 +20,7 @@ type RSSOptions struct {
 	OutputPath  string
 }
 
+// GenerateRSS builds and writes the RSS feed.
 func GenerateRSS(opts RSSOptions) (string, error) {
 	sink := opts.Sink
 	baseURL := opts.BaseURL

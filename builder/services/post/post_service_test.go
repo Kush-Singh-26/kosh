@@ -273,10 +273,22 @@ func TestPostService_PanicRecovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	scanner := scanner.NewScanner()
-	metadataResult, _ := scanner.Scan(ctx, "content", s.sourceFs, s.cfg, nil)
+	scanSvc := scanner.NewScanner()
+	metadataResult, _ := scanSvc.Scan(scanner.ScanOptions{
+		Ctx:        ctx,
+		ContentDir: "content",
+		SrcFs:      s.sourceFs,
+		Cfg:        s.cfg,
+		FileChan:   nil,
+	})
 
-	_, err := s.Process(ctx, false, false, false, metadataResult.Files)
+	_, err := s.Process(ProcessOptions{
+		Ctx:                ctx,
+		ShouldForce:        false,
+		ForceSocialRebuild: false,
+		OutputMissing:      false,
+		Files:              metadataResult.Files,
+	})
 
 	// We expect successful completion (not a crash)
 	logf("Process completed with error: %v", err)
@@ -428,10 +440,22 @@ func TestPostService_NeighborLookup(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	scanner := scanner.NewScanner()
-	metadataResult, _ := scanner.Scan(ctx, "content", s.sourceFs, s.cfg, nil)
+	scanSvc := scanner.NewScanner()
+	metadataResult, _ := scanSvc.Scan(scanner.ScanOptions{
+		Ctx:        ctx,
+		ContentDir: "content",
+		SrcFs:      s.sourceFs,
+		Cfg:        s.cfg,
+		FileChan:   nil,
+	})
 
-	_, err := s.Process(ctx, true, false, true, metadataResult.Files)
+	_, err := s.Process(ProcessOptions{
+		Ctx:                ctx,
+		ShouldForce:        true,
+		ForceSocialRebuild: false,
+		OutputMissing:      true,
+		Files:              metadataResult.Files,
+	})
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}

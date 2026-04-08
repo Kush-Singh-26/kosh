@@ -80,6 +80,7 @@ func restoreAssetsFromCache(opts restoreAssetsOptions) (map[string]string, bool,
 	return assets, true, nil
 }
 
+// BuildAssetsOptions configures esbuild asset processing.
 type BuildAssetsOptions struct {
 	SrcFs            afero.Fs
 	Sink             ArtifactSink
@@ -93,6 +94,7 @@ type BuildAssetsOptions struct {
 	OnAssetProcessed func()
 }
 
+// BuildAssetsEsbuild builds CSS/JS assets with esbuild and returns the asset map.
 func BuildAssetsEsbuild(opts BuildAssetsOptions) (map[string]string, error) {
 	srcFs := opts.SrcFs
 	sink := opts.Sink

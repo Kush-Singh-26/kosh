@@ -31,6 +31,7 @@ var level3EncoderPool = sync.Pool{
 	},
 }
 
+// Store manages compressed content-addressed blobs on disk.
 type Store struct {
 	basePath string
 	encoder  *zstd.Encoder
@@ -40,6 +41,7 @@ type Store struct {
 
 var storeTempCounter atomic.Uint64
 
+// New creates a Store rooted at the provided base path.
 func New(basePath string) (*Store, error) {
 	encoder, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedFastest))
 	if err != nil {
@@ -59,6 +61,7 @@ func New(basePath string) (*Store, error) {
 	}, nil
 }
 
+// Close releases store resources.
 func (s *Store) Close() error {
 	var errs []error
 	if err := s.encoder.Close(); err != nil {
@@ -105,17 +108,17 @@ func (s *Store) ensureDir(dir string) error {
 	if _, ok := s.dirCache.Load(dir); ok {
 		return nil
 	}
-	
+
 	// Slow path: create directory with proper locking
 	mu := s.getDirMutex(dir)
 	mu.Lock()
 	defer mu.Unlock()
-	
+
 	// Check again after acquiring lock
 	if _, ok := s.dirCache.Load(dir); ok {
 		return nil
 	}
-	
+
 	// Walk up to find missing parents
 	var missing []string
 	curr := filepath.Clean(dir)
@@ -130,7 +133,7 @@ func (s *Store) ensureDir(dir string) error {
 		missing = append(missing, curr)
 		curr = parent
 	}
-	
+
 	// Create from top to bottom
 	for i := len(missing) - 1; i >= 0; i-- {
 		p := missing[i]
@@ -140,7 +143,7 @@ func (s *Store) ensureDir(dir string) error {
 		}
 		s.dirCache.Store(p, struct{}{})
 	}
-	
+
 	return nil
 }
 
@@ -151,6 +154,7 @@ func (s *Store) getDirMutex(path string) *sync.Mutex {
 	return &dirMutexes[h%256]
 }
 
+// Put stores content and returns its hash and compression type.
 func (s *Store) Put(category string, content []byte) (hash string, ct core.CompressionType, err error) {
 	hash = core.HashContent(content)
 	ct = determineCompression(len(content))
@@ -242,6 +246,7 @@ func (s *Store) Put(category string, content []byte) (hash string, ct core.Compr
 	return hash, ct, nil
 }
 
+// Get retrieves content by hash, decompressing when needed.
 func (s *Store) Get(category string, hash string, compressed bool) ([]byte, error) {
 	var path string
 	if compressed {
@@ -270,6 +275,7 @@ func (s *Store) Get(category string, hash string, compressed bool) ([]byte, erro
 	return data, nil
 }
 
+// Exists reports whether the blob exists in the store.
 func (s *Store) Exists(category string, hash string) bool {
 	rawPath := s.shardPath(category, hash) + ".raw"
 	zstPath := s.shardPath(category, hash) + ".zst"
@@ -283,6 +289,7 @@ func (s *Store) Exists(category string, hash string) bool {
 	return false
 }
 
+// Delete removes a stored blob by hash.
 func (s *Store) Delete(category string, hash string) error {
 	rawPath := s.shardPath(category, hash) + ".raw"
 	zstPath := s.shardPath(category, hash) + ".zst"
@@ -292,6 +299,7 @@ func (s *Store) Delete(category string, hash string) error {
 	return nil
 }
 
+// ListHashes lists all hashes stored under a category.
 func (s *Store) ListHashes(category string) ([]string, error) {
 	categoryPath := filepath.Join(s.basePath, category)
 	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
@@ -325,6 +333,7 @@ func (s *Store) ListHashes(category string) ([]string, error) {
 	return hashes, err
 }
 
+// Size returns the total byte size for a category.
 func (s *Store) Size(category string) (int64, error) {
 	categoryPath := filepath.Join(s.basePath, category)
 	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
@@ -350,6 +359,7 @@ func (s *Store) Size(category string) (int64, error) {
 	return total, err
 }
 
+// CleanOrphans removes stale blobs not referenced by live hashes.
 func (s *Store) CleanOrphans(category string, liveHashes map[string]bool, maxAge time.Duration) (int, int64, error) {
 	var deleted int64
 	var freedBytes int64
@@ -369,19 +379,19 @@ func (s *Store) CleanOrphans(category string, liveHashes map[string]bool, maxAge
 				return nil
 			}
 
-		ext := filepath.Ext(info.Name())
-		if ext != ".raw" && ext != ".zst" && ext != ".tmp" && ext != ".kosh-backup" {
-			return nil
-		}
-
-		hash := strings.TrimSuffix(info.Name(), ext)
-		if !liveHashes[hash] && info.ModTime().Before(cutoff) {
-			if err := os.Remove(path); err == nil {
-				atomic.AddInt64(&deleted, 1)
-				atomic.AddInt64(&freedBytes, info.Size())
+			ext := filepath.Ext(info.Name())
+			if ext != ".raw" && ext != ".zst" && ext != ".tmp" && ext != ".kosh-backup" {
+				return nil
 			}
-		}
-		return nil
+
+			hash := strings.TrimSuffix(info.Name(), ext)
+			if !liveHashes[hash] && info.ModTime().Before(cutoff) {
+				if err := os.Remove(path); err == nil {
+					atomic.AddInt64(&deleted, 1)
+					atomic.AddInt64(&freedBytes, info.Size())
+				}
+			}
+			return nil
 		},
 	})
 

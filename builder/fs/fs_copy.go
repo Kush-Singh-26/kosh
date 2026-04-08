@@ -38,6 +38,7 @@ func ValidatePath(baseDir, path string) error {
 	return nil
 }
 
+// CopyFileOptions configures a single file copy into an ArtifactSink.
 type CopyFileOptions struct {
 	SrcFs   afero.Fs
 	Sink    ArtifactSink
@@ -47,6 +48,7 @@ type CopyFileOptions struct {
 	OnWrite func(string)
 }
 
+// CopyFileVFS copies a file from a VFS to an ArtifactSink.
 func CopyFileVFS(opts CopyFileOptions) error {
 	// Validate destination path to prevent directory traversal
 	if err := ValidatePath(filepath.Dir(opts.DstPath), opts.DstPath); err != nil {

@@ -1,4 +1,4 @@
-// defines the data structures used by templates and generators
+// Package models defines the data structures used by templates and generators.
 package models
 
 //go:generate msgp
@@ -29,6 +29,7 @@ type LightPostMetadata struct {
 	HTMLPath    string
 }
 
+// MetadataScannerResult captures the results of a metadata scan.
 type MetadataScannerResult struct {
 	Metadata      []LightPostMetadata
 	TagMap        map[string][]LightPostMetadata
@@ -55,9 +56,12 @@ type ScannedFile struct {
 	BodyOffset      int
 	Link            string
 	SourceLoader    func() ([]byte, error) // Lazy file loader to avoid I/O waste
-	PreParsedMeta   map[string]any // Pre-parsed frontmatter to avoid double-parse
+	// PreParsedMeta holds YAML frontmatter values already decoded by the scanner.
+	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
+	PreParsedMeta map[string]any
 }
 
+// ScannedAsset captures an asset path and its filesystem metadata.
 type ScannedAsset struct {
 	Path string
 	Info fs.FileInfo
@@ -70,12 +74,14 @@ type TOCEntry struct {
 	Level int    `json:"level"`
 }
 
+// Breadcrumb represents a single breadcrumb item for navigation.
 type Breadcrumb struct {
 	Title     string
 	Link      string
 	IsCurrent bool
 }
 
+// NavPage represents a previous or next navigation page.
 type NavPage struct {
 	Title string
 	Link  string
@@ -96,12 +102,14 @@ type PostMetadata struct {
 	DateObj     time.Time
 }
 
+// TagData contains display data for a tag.
 type TagData struct {
 	Name  string
 	Link  string
 	Count int
 }
 
+// Paginator describes pagination state for templates.
 type Paginator struct {
 	CurrentPage int
 	TotalPages  int
@@ -115,11 +123,13 @@ type Paginator struct {
 
 // PageData is the context passed to HTML templates.
 type PageData struct {
-	Title        string
-	TabTitle     string
-	Description  string
-	BaseURL      string
-	Content      template.HTML
+	Title       string
+	TabTitle    string
+	Description string
+	BaseURL     string
+	Content     template.HTML
+	// Meta contains template-accessible frontmatter values.
+	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
 	Meta         map[string]any
 	IsIndex      bool
 	IsTagsIndex  bool
@@ -218,12 +228,14 @@ type URL struct {
 
 // --- RSS Structures ---
 
+// Rss represents the root RSS document.
 type Rss struct {
 	XMLName xml.Name `xml:"rss"`
 	Version string   `xml:"version,attr"`
 	Channel Channel  `xml:"channel"`
 }
 
+// Channel represents the RSS channel metadata and items.
 type Channel struct {
 	Title       string `xml:"title"`
 	Link        string `xml:"link"`
@@ -231,6 +243,7 @@ type Channel struct {
 	Items       []Item `xml:"item"`
 }
 
+// Item represents a single RSS item.
 type Item struct {
 	Title       string `xml:"title"`
 	Link        string `xml:"link"`
@@ -241,6 +254,7 @@ type Item struct {
 
 // --- Graph Data Structures ---
 
+// GraphNode represents a node in the knowledge graph.
 type GraphNode struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
@@ -252,6 +266,7 @@ type GraphNode struct {
 	Excerpt     string `json:"excerpt,omitempty"`
 }
 
+// GraphLink represents a link between nodes in the knowledge graph.
 type GraphLink struct {
 	Source string  `json:"source"`
 	Target string  `json:"target"`
@@ -259,6 +274,7 @@ type GraphLink struct {
 	Weight float64 `json:"weight,omitempty"` // for similarity edges
 }
 
+// GraphData bundles graph nodes and links.
 type GraphData struct {
 	Nodes []GraphNode `json:"nodes"`
 	Links []GraphLink `json:"links"`
@@ -272,6 +288,7 @@ type GraphConfig struct {
 	MinTagFrequency int  `yaml:"minTagFrequency"`
 }
 
+// UnmarshalYAML implements custom unmarshalling for GraphConfig.
 func (gc *GraphConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var b bool
 	if err := unmarshal(&b); err == nil {
@@ -319,8 +336,10 @@ type IndexedPost struct {
 	ByteOffsets     map[string][]uint32
 }
 
+// CurrentSchemaVersion is the active search schema version.
 const CurrentSchemaVersion = 13
 
+// SearchIndex stores the serialized search index.
 type SearchIndex struct {
 	SchemaVersion int64
 	Posts         map[string]PostRecord

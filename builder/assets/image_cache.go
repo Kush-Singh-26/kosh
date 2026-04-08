@@ -89,6 +89,7 @@ var (
 	globalImageCacheOnce sync.Once
 )
 
+// GetImageCache returns the global in-memory image cache.
 func GetImageCache() *imageCache {
 	globalImageCacheOnce.Do(func() {
 		globalImageCache = newImageCache(400, 100*1024*1024)
@@ -98,10 +99,12 @@ func GetImageCache() *imageCache {
 
 var convertedImagePaths sync.Map
 
+// RecordConvertedImage stores a mapping from original to WebP path.
 func RecordConvertedImage(originalDst, webpDst string) {
 	convertedImagePaths.Store(originalDst, webpDst)
 }
 
+// GetConvertedImages returns a snapshot of recorded image conversions.
 func GetConvertedImages() map[string]string {
 	result := make(map[string]string)
 	convertedImagePaths.Range(func(key, value any) bool {
@@ -111,6 +114,7 @@ func GetConvertedImages() map[string]string {
 	return result
 }
 
+// ResetConvertedImages clears the recorded image conversion map.
 func ResetConvertedImages() {
 	convertedImagePaths = sync.Map{}
 }

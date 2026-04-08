@@ -1,0 +1,282 @@
+package orchestration
+
+import (
+	"context"
+	"path/filepath"
+	"sync"
+	"testing"
+
+	"github.com/spf13/afero"
+
+	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/config"
+	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/renderer"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
+	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
+	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
+)
+
+func TestBuildSinglePost_BodyOnlyChangeDoesNotFallBackToFullBuild(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	absPath, _ := filepath.Abs("content/posts/hello.md")
+	contentDir, _ := filepath.Abs("content")
+	templateDir, _ := filepath.Abs("themes/test-theme/templates")
+
+	_ = fs.MkdirAll(filepath.Dir(absPath), 0755)
+	_ = fs.MkdirAll(templateDir, 0755)
+	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte("<html>{{.Content}}</html>"), 0644)
+	_ = afero.WriteFile(fs, filepath.Join(templateDir, "index.html"), []byte("<html>{{range .Posts}}{{.Title}}{{end}}</html>"), 0644)
+
+	initialContent := `---
+title: "Hello"
+date: "2026-03-06"
+tags: ["test"]
+---
+# Hello
+Initial body.
+`
+	_ = afero.WriteFile(fs, absPath, []byte(initialContent), 0644)
+
+	cfg := &config.Config{
+		SiteConfig: config.SiteConfig{
+			Title:   "Test Blog",
+			BaseURL: "https://example.com",
+		},
+		PathConfig: config.PathConfig{
+			Theme:       "test-theme",
+			ThemeDir:    "themes",
+			TemplateDir: templateDir,
+			StaticDir:   "themes/test-theme/static",
+			ContentDir:  contentDir,
+			OutputDir:   "public",
+			CacheDir:    ".kosh-cache",
+		},
+		BuildOptions: config.BuildOptions{
+			PostsPerPage: 10,
+		},
+	}
+
+	logger := InitLogger()
+	buildMetrics := metrics.NewBuildMetrics()
+	nativeRenderer := native.New()
+	t.Cleanup(func() { _ = nativeRenderer.Close() })
+	diagramCache := mdParser.NewMemorySSRMap()
+	d2Group := nativeRenderer.GetD2Singleflight()
+	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
+
+	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
+	defer func() { _ = cm.Close() }()
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
+		Manager: cm,
+		Logger:  logger,
+	})
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
+		Renderer: rnd,
+		Logger:   logger,
+	})
+	assetSvc := &mocks.MockAssetService{}
+	assetSvc.SetMetrics(buildMetrics)
+	wasmSvc := &mocks.MockWasmService{}
+	postSvc := post.NewService(post.Dependencies{
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
+		Cfg:            cfg,
+		Cache:          cacheSvc,
+		Renderer:       renderSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+		SourceFs:       fs,
+	})
+	metadataScanner := scanner.NewScanner()
+	sink := testutil.NewMemSink()
+	tx := testutil.NewMockTransaction("public")
+
+	b := NewEngine(WithDeps(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          assetSvc,
+		Post:           postSvc,
+		Scanner:        metadataScanner,
+		Wasm:           wasmSvc,
+		Logger:         logger,
+		Metrics:        buildMetrics,
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	}))
+	b.Sink = sink
+	b.Tx = tx
+
+	ctx := context.Background()
+	if err := b.Build(ctx); err != nil {
+		t.Fatalf("initial build failed: %v", err)
+	}
+	b.SaveCaches()
+
+	updatedContent := `---
+title: "Hello"
+date: "2026-03-06"
+tags: ["test"]
+---
+# Hello
+Updated body.
+`
+	_ = afero.WriteFile(fs, absPath, []byte(updatedContent), 0644)
+
+	sink.Files = make(map[string][]byte)
+	b.Incremental.BuildSinglePost(ctx, absPath)
+}
+
+func TestBuildSinglePost_FrontmatterChangeTriggersFullBuild(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	absPath, _ := filepath.Abs("content/posts/hello.md")
+	contentDir, _ := filepath.Abs("content")
+	templateDir, _ := filepath.Abs("themes/test-theme/templates")
+
+	_ = fs.MkdirAll(filepath.Dir(absPath), 0755)
+	_ = fs.MkdirAll(templateDir, 0755)
+	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte("<html>{{.Content}}</html>"), 0644)
+	_ = afero.WriteFile(fs, filepath.Join(templateDir, "index.html"), []byte("<html>{{range .Posts}}{{.Title}}{{end}}</html>"), 0644)
+
+	initialContent := `---
+title: "Hello"
+date: "2026-03-06"
+---
+# Body
+`
+	_ = afero.WriteFile(fs, absPath, []byte(initialContent), 0644)
+
+	cfg := &config.Config{
+		PathConfig: config.PathConfig{
+			ThemeDir:    "themes",
+			TemplateDir: templateDir,
+			ContentDir:  contentDir,
+			OutputDir:   "public",
+		},
+	}
+
+	logger := InitLogger()
+	nativeRenderer := native.New()
+	t.Cleanup(func() { _ = nativeRenderer.Close() })
+	diagramCache := mdParser.NewMemorySSRMap()
+	d2Group := nativeRenderer.GetD2Singleflight()
+	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
+
+	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
+	defer func() { _ = cm.Close() }()
+	cacheSvc := svcCache.NewService(svcCache.Dependencies{
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
+		Manager: cm,
+		Logger:  logger,
+	})
+
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
+	renderSvc := render.NewService(render.Dependencies{
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
+		Renderer: rnd,
+		Logger:   logger,
+	})
+
+	postSvc := post.NewService(post.Dependencies{
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
+		Cfg:            cfg,
+		Cache:          cacheSvc,
+		Renderer:       renderSvc,
+		Logger:         logger,
+		MdPool:         mdPool,
+		SourceFs:       fs,
+		NativeRenderer: nativeRenderer,
+	})
+
+	b := NewEngine(WithDeps(EngineDependencies{
+		Config:         cfg,
+		Render:         renderSvc,
+		Asset:          &mocks.MockAssetService{},
+		Post:           postSvc,
+		Cache:          cacheSvc,
+		Scanner:        scanner.NewScanner(),
+		Wasm:           &mocks.MockWasmService{},
+		Logger:         logger,
+		Metrics:        metrics.NewBuildMetrics(),
+		SourceFs:       fs,
+		MdPool:         mdPool,
+		NativeRenderer: nativeRenderer,
+	}))
+	b.SetSink(testutil.NewMemSink())
+	b.Tx = testutil.NewMockTransaction("public")
+
+	ctx := context.Background()
+	_ = b.Build(ctx)
+
+	updatedContent := `---
+title: "Updated Title"
+date: "2026-03-06"
+---
+# Body
+`
+	_ = afero.WriteFile(fs, absPath, []byte(updatedContent), 0644)
+
+	b.Incremental.BuildSinglePost(ctx, absPath)
+}

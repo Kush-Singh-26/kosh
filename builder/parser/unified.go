@@ -45,6 +45,7 @@ type MemorySSRMap struct {
 	m sync.Map
 }
 
+// NewMemorySSRMap creates a new in-memory SSR map.
 func NewMemorySSRMap() *MemorySSRMap {
 	return &MemorySSRMap{}
 }
@@ -89,7 +90,6 @@ type transformState struct {
 	pc              parser.Context
 	transformer     *unifiedTransformer
 }
-
 
 func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	state := &transformState{
@@ -426,4 +426,3 @@ func (s *transformState) handleMath(n ast.Node, kind ast.NodeKind) (ast.WalkStat
 	}
 	return ast.WalkContinue, nil
 }
-

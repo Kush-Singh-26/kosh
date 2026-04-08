@@ -33,6 +33,7 @@ func isNil(i any) bool {
 	return v.Kind() == reflect.Pointer && v.IsNil()
 }
 
+// ImageMetrics records image processing metrics.
 type ImageMetrics interface {
 	RecordImageOptimization(original, optimized int64)
 	RecordImageResizeSkipped()
@@ -40,6 +41,7 @@ type ImageMetrics interface {
 	IncrementSVGsMinified()
 }
 
+// ProcessImageOptions configures image processing or copying.
 type ProcessImageOptions struct {
 	Ctx       context.Context
 	SrcFs     afero.Fs
@@ -52,6 +54,7 @@ type ProcessImageOptions struct {
 	Scheduler scheduler.BuildScheduler
 }
 
+// MaybeCopyOriginalOptions configures optional source image copying.
 type MaybeCopyOriginalOptions struct {
 	SrcFs        afero.Fs
 	Sink         fspkg.ArtifactSink
@@ -88,6 +91,7 @@ func maybeCopyOriginal(opts MaybeCopyOriginalOptions) error {
 	})
 }
 
+// CopyFileWithOptionalImageProcessing copies or converts an image based on options.
 func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 	ext := strings.ToLower(filepath.Ext(opts.SrcPath))
 	isImage := ext == ".jpg" || ext == ".jpeg" || ext == ".png"

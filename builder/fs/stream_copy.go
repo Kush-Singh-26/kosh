@@ -13,6 +13,7 @@ var streamCopyBufferPool = sync.Pool{
 	},
 }
 
+// StreamCopyFile copies a file using a pooled buffer.
 func StreamCopyFile(src, dst string) error {
 	s, err := os.Open(src)
 	if err != nil {

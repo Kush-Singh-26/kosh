@@ -313,6 +313,8 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*core.SSR
 
 // BatchStoreSSR stores multiple SSR artifacts and their contents in parallel.
 // It uses a single BoltDB transaction for all metadata updates and parallel file writes.
+// Entries values are expected to be string, []byte, or JSON-marshalable types
+// (for example models.SSRThemePair).
 func (m *Manager) BatchStoreSSR(entries map[string]any) error {
 	if len(entries) == 0 {
 		return nil

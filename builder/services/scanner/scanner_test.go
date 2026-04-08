@@ -52,7 +52,13 @@ Body of draft`,
 	fileChan := make(chan models.ScannedFile, 10)
 
 	ctx := context.Background()
-	result, err := scanner.Scan(ctx, contentDir, sourceFs, cfg, fileChan)
+	result, err := scanner.Scan(ScanOptions{
+		Ctx:        ctx,
+		ContentDir: contentDir,
+		SrcFs:      sourceFs,
+		Cfg:        cfg,
+		FileChan:   fileChan,
+	})
 	if err != nil {
 		t.Fatalf("Scan failed: %v", err)
 	}

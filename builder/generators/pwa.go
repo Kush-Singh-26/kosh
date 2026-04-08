@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/afero"
 )
 
+// SWOptions configures service worker generation.
 type SWOptions struct {
 	Sink         fspkg.ArtifactSink
 	DestDir      string
@@ -93,6 +94,7 @@ self.addEventListener('fetch', function(event) {
 	})
 }
 
+// ManifestOptions configures manifest generation.
 type ManifestOptions struct {
 	Sink            fspkg.ArtifactSink
 	DestDir         string
@@ -264,6 +266,7 @@ func WritePWAIcons(sink fspkg.ArtifactSink, destDir string, icons PWAIconsData) 
 	return nil
 }
 
+// PWAIconsOptions configures PWA icon generation.
 type PWAIconsOptions struct {
 	SrcFs   afero.Fs
 	Sink    fspkg.ArtifactSink

@@ -8,14 +8,17 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// RefCountManager manages reference counts for cached blobs.
 type RefCountManager struct {
 	db *bbolt.DB
 }
 
+// NewRefCountManager creates a RefCountManager for the provided DB.
 func NewRefCountManager(db *bbolt.DB) *RefCountManager {
 	return &RefCountManager{db: db}
 }
 
+// Decrement decreases the refcount for a hash.
 func (m *RefCountManager) Decrement(hash string) (uint32, error) {
 	if hash == "" {
 		return 0, nil
@@ -27,6 +30,7 @@ func (m *RefCountManager) Decrement(hash string) (uint32, error) {
 	return newCount, err
 }
 
+// DecrementTx decreases the refcount using an existing transaction.
 func (m *RefCountManager) DecrementTx(tx *bbolt.Tx, hash string, newCountOut *uint32) error {
 	bucket := tx.Bucket([]byte(core.BucketRefCount))
 	if bucket == nil {
@@ -47,6 +51,7 @@ func (m *RefCountManager) DecrementTx(tx *bbolt.Tx, hash string, newCountOut *ui
 	return nil
 }
 
+// Increment increases the refcount for a hash.
 func (m *RefCountManager) Increment(hash string) error {
 	if hash == "" {
 		return nil
@@ -56,6 +61,7 @@ func (m *RefCountManager) Increment(hash string) error {
 	})
 }
 
+// IncrementTx increases the refcount using an existing transaction.
 func (m *RefCountManager) IncrementTx(tx *bbolt.Tx, hash string) error {
 	bucket := tx.Bucket([]byte(core.BucketRefCount))
 	if bucket == nil {
@@ -71,6 +77,7 @@ func (m *RefCountManager) IncrementTx(tx *bbolt.Tx, hash string) error {
 	return bucket.Put([]byte(hash), data)
 }
 
+// Get returns the current refcount for a hash.
 func (m *RefCountManager) Get(hash string) uint32 {
 	if hash == "" {
 		return 0
@@ -89,6 +96,7 @@ func (m *RefCountManager) Get(hash string) uint32 {
 	return count
 }
 
+// Reconcile recomputes refcounts without logging.
 func (m *RefCountManager) Reconcile() error {
 	return m.ReconcileWithLog(nil)
 }

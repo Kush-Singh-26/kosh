@@ -10,22 +10,31 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
-// Constants for snippet extraction optimization
+// Constants for snippet extraction optimization.
 const (
+	// MaxSnippetContentLength caps content scanned for snippets.
 	MaxSnippetContentLength = 10000
-	DefaultSnippetLength    = 150
-	SnippetContextBefore    = 60
-	SnippetContextAfter     = 90
+	// DefaultSnippetLength is the default snippet size.
+	DefaultSnippetLength = 150
+	// SnippetContextBefore is the prefix context size for snippets.
+	SnippetContextBefore = 60
+	// SnippetContextAfter is the suffix context size for snippets.
+	SnippetContextAfter = 90
 )
 
-// Scoring weights for different match types
+// Scoring weights for different match types.
 const (
-	ScorePhraseMatch   = 15.0
-	ScoreTitleMatch    = 10.0
-	ScoreTagMatch      = 5.0
+	// ScorePhraseMatch boosts exact phrase matches.
+	ScorePhraseMatch = 15.0
+	// ScoreTitleMatch boosts title matches.
+	ScoreTitleMatch = 10.0
+	// ScoreTagMatch boosts tag matches.
+	ScoreTagMatch = 5.0
+	// ScoreFuzzyModifier scales fuzzy match contributions.
 	ScoreFuzzyModifier = 0.7
 )
 
+// Result represents a search result with scoring metadata.
 type Result struct {
 	ID          uint64
 	Title       string

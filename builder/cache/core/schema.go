@@ -31,6 +31,7 @@ const (
 	KeyWasmHash      = "wasm_hash"
 )
 
+// AllBuckets returns the list of BoltDB bucket names used by the cache.
 func AllBuckets() []string {
 	return []string{
 		BucketPosts,

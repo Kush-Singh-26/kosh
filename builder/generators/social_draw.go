@@ -6,6 +6,7 @@ import (
 	"github.com/fogleman/gg"
 )
 
+// GradientOptions configures gradient drawing.
 type GradientOptions struct {
 	DC     *gg.Context
 	W, H   int

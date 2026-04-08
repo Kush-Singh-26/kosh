@@ -13,6 +13,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+// SitemapOptions configures sitemap generation.
 type SitemapOptions struct {
 	Sink       fspkg.ArtifactSink
 	BaseURL    string
@@ -21,6 +22,7 @@ type SitemapOptions struct {
 	OutputPath string
 }
 
+// GenerateSitemap builds and writes the sitemap XML.
 func GenerateSitemap(opts SitemapOptions) (string, error) {
 	sink := opts.Sink
 	baseURL := opts.BaseURL

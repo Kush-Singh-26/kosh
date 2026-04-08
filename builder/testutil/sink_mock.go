@@ -10,21 +10,24 @@ import (
 	"time"
 )
 
-// MemSink is a simple in-memory implementation of fspkg.ArtifactSink for testing
+// MemSink is a simple in-memory implementation of fspkg.ArtifactSink for testing.
 type MemSink struct {
 	Files     map[string][]byte
 	OutputDir string
 	mu        sync.RWMutex
 }
 
+// NewMemSink returns a MemSink with an empty file map.
 func NewMemSink() *MemSink {
 	return &MemSink{Files: make(map[string][]byte)}
 }
 
+// NewMemSinkWithDir returns a MemSink with a configured output directory.
 func NewMemSinkWithDir(dir string) *MemSink {
 	return &MemSink{Files: make(map[string][]byte), OutputDir: dir}
 }
 
+// WriteFile stores data at the given path.
 func (m *MemSink) WriteFile(path string, data []byte) error {
 	path = filepath.ToSlash(path)
 	m.mu.Lock()
@@ -33,6 +36,7 @@ func (m *MemSink) WriteFile(path string, data []byte) error {
 	return nil
 }
 
+// WriteStream writes data produced by fn into the sink.
 func (m *MemSink) WriteStream(path string, fn func(io.Writer) error) error {
 	path = filepath.ToSlash(path)
 	var buf bytes.Buffer
@@ -42,8 +46,13 @@ func (m *MemSink) WriteStream(path string, fn func(io.Writer) error) error {
 	return m.WriteFile(path, buf.Bytes())
 }
 
+// MkdirAll is a no-op for MemSink.
 func (m *MemSink) MkdirAll(path string) error { return nil }
-func (m *MemSink) Register(path string)       {}
+
+// Register is a no-op for MemSink.
+func (m *MemSink) Register(path string) {}
+
+// GetWrittenFiles returns a set of written file paths.
 func (m *MemSink) GetWrittenFiles() map[string]bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -53,12 +62,19 @@ func (m *MemSink) GetWrittenFiles() map[string]bool {
 	}
 	return res
 }
+
+// GetOutputDir returns the configured output directory.
 func (m *MemSink) GetOutputDir() string { return m.OutputDir }
+
+// WriteHardlink is a no-op for MemSink.
 func (m *MemSink) WriteHardlink(src, dst string) (bool, error) {
 	return false, nil
 }
+
+// SetMtime is a no-op for MemSink.
 func (m *MemSink) SetMtime(path string, mtime time.Time) error { return nil }
 
+// Stat returns a synthetic FileInfo for the stored path.
 func (m *MemSink) Stat(path string) (os.FileInfo, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -70,6 +86,7 @@ func (m *MemSink) Stat(path string) (os.FileInfo, error) {
 	return &memFileInfo{name: filepath.Base(path), size: int64(len(data))}, nil
 }
 
+// CopyFile copies a stored file to a new destination in the sink.
 func (m *MemSink) CopyFile(src, dst string) error {
 	dst = filepath.ToSlash(dst)
 	m.mu.Lock()
@@ -81,22 +98,30 @@ func (m *MemSink) CopyFile(src, dst string) error {
 	return nil
 }
 
-// MockTransaction is a no-op implementation of BuildTransaction for testing
+// MockTransaction is a no-op implementation of BuildTransaction for testing.
 type MockTransaction struct {
 	stagingDir string
 	Committed  bool
 }
 
+// NewMockTransaction returns a mock transaction with the given staging dir.
 func NewMockTransaction(stagingDir string) *MockTransaction {
 	return &MockTransaction{stagingDir: stagingDir}
 }
 
+// StagingDir returns the staging directory.
 func (m *MockTransaction) StagingDir() string { return m.stagingDir }
+
+// Commit marks the transaction as committed.
 func (m *MockTransaction) Commit(ctx context.Context) error {
 	m.Committed = true
 	return nil
 }
-func (m *MockTransaction) Rollback() error             { return nil }
+
+// Rollback is a no-op for MockTransaction.
+func (m *MockTransaction) Rollback() error { return nil }
+
+// GetLastBuildTime returns a zero time for MockTransaction.
 func (m *MockTransaction) GetLastBuildTime() time.Time { return time.Time{} }
 
 type memFileInfo struct {
@@ -111,24 +136,28 @@ func (f *memFileInfo) ModTime() time.Time { return time.Now() }
 func (f *memFileInfo) IsDir() bool        { return false }
 func (f *memFileInfo) Sys() any           { return nil }
 
-// FailingSink is a sink that always returns errors
+// FailingSink is a sink that always returns errors.
 type FailingSink struct {
 	MemSink
 	Err error
 }
 
+// WriteFile returns the configured error.
 func (f *FailingSink) WriteFile(path string, data []byte) error {
 	return f.Err
 }
 
+// WriteStream returns the configured error.
 func (f *FailingSink) WriteStream(path string, fn func(io.Writer) error) error {
 	return f.Err
 }
 
+// MkdirAll returns the configured error.
 func (f *FailingSink) MkdirAll(path string) error {
 	return f.Err
 }
 
+// Stat returns the configured error.
 func (f *FailingSink) Stat(path string) (os.FileInfo, error) {
 	return nil, f.Err
 }

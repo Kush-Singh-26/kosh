@@ -9,6 +9,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+// Slugify converts a string into a lowercase URL slug.
 func Slugify(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	var res strings.Builder
@@ -28,6 +29,7 @@ func Slugify(s string) string {
 	return strings.Trim(res.String(), "-")
 }
 
+// SortPosts sorts posts by weight and date, descending.
 func SortPosts(posts []models.PostMetadata) {
 	sort.Slice(posts, func(i, j int) bool {
 		wi, wj := posts[i].Weight, posts[j].Weight
@@ -48,6 +50,8 @@ func SortPosts(posts []models.PostMetadata) {
 	})
 }
 
+// ExtractStringFromMap returns a string value from a metadata map.
+// Expected value types: string, bool, int/float64, time.Time, []any, map[string]any.
 func ExtractStringFromMap(m map[string]any, k string) string {
 	if v, ok := m[k]; ok {
 		return fmt.Sprintf("%v", v)
@@ -55,6 +59,8 @@ func ExtractStringFromMap(m map[string]any, k string) string {
 	return ""
 }
 
+// ExtractDateStringFromMap returns a YYYY-MM-DD string from a metadata map.
+// Expected value types: string or time.Time (from YAML decoding).
 func ExtractDateStringFromMap(m map[string]any, k string) string {
 	if v, ok := m[k]; ok {
 		if t, ok := v.(time.Time); ok {
@@ -70,6 +76,8 @@ func ExtractDateStringFromMap(m map[string]any, k string) string {
 	return ""
 }
 
+// ExtractSliceFromMap returns a string slice from a metadata map.
+// Expected value type: []any (from YAML decoding).
 func ExtractSliceFromMap(m map[string]any, k string) []string {
 	var res []string
 	if v, ok := m[k]; ok {
@@ -82,6 +90,8 @@ func ExtractSliceFromMap(m map[string]any, k string) []string {
 	return res
 }
 
+// ExtractBoolFromMap returns a boolean value from a metadata map.
+// Expected value type: bool (from YAML decoding).
 func ExtractBoolFromMap(m map[string]any, k string) bool {
 	if v, ok := m[k]; ok {
 		if b, ok := v.(bool); ok {

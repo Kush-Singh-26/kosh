@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// BuildMetrics records build performance metrics.
 type BuildMetrics struct {
 	StartTime       time.Time
 	EndTime         time.Time
@@ -24,12 +25,14 @@ type BuildMetrics struct {
 	SVGsMinified       atomic.Int64
 }
 
+// NewBuildMetrics creates a new BuildMetrics instance.
 func NewBuildMetrics() *BuildMetrics {
 	return &BuildMetrics{
 		StartTime: time.Now(),
 	}
 }
 
+// Reset clears all metrics counters.
 func (m *BuildMetrics) Reset() {
 	m.StartTime = time.Now()
 	m.EndTime = time.Time{}
@@ -45,10 +48,12 @@ func (m *BuildMetrics) Reset() {
 	m.SVGsMinified.Store(0)
 }
 
+// RecordEnd sets the end time for the build.
 func (m *BuildMetrics) RecordEnd() {
 	m.EndTime = time.Now()
 }
 
+// TotalDuration returns the elapsed build duration.
 func (m *BuildMetrics) TotalDuration() time.Duration {
 	if m.EndTime.IsZero() {
 		return time.Since(m.StartTime)
@@ -56,40 +61,49 @@ func (m *BuildMetrics) TotalDuration() time.Duration {
 	return m.EndTime.Sub(m.StartTime)
 }
 
+// IncrementPostsProcessed increments the posts processed counter.
 func (m *BuildMetrics) IncrementPostsProcessed() {
 	m.PostsProcessed.Add(1)
 }
 
+// IncrementCacheHit increments the cache hit counter.
 func (m *BuildMetrics) IncrementCacheHit() {
 	m.CacheHits.Add(1)
 }
 
+// IncrementCacheMiss increments the cache miss counter.
 func (m *BuildMetrics) IncrementCacheMiss() {
 	m.CacheMisses.Add(1)
 }
 
+// IncrementPanicsRecovered increments the recovered panics counter.
 func (m *BuildMetrics) IncrementPanicsRecovered() {
 	atomic.AddInt32(&m.PanicsRecovered, 1)
 }
 
+// RecordImageOptimization records the size delta for optimized images.
 func (m *BuildMetrics) RecordImageOptimization(original, optimized int64) {
 	m.OriginalImageSize.Add(original)
 	m.OptimizedImageSize.Add(optimized)
 	m.ImagesOptimized.Add(1)
 }
 
+// RecordImageResizeSkipped increments the resize skipped counter.
 func (m *BuildMetrics) RecordImageResizeSkipped() {
 	m.ImageResizeSkipped.Add(1)
 }
 
+// IncrementAssetsProcessed increments the assets processed counter.
 func (m *BuildMetrics) IncrementAssetsProcessed() {
 	m.AssetsProcessed.Add(1)
 }
 
+// IncrementSVGsMinified increments the SVG minified counter.
 func (m *BuildMetrics) IncrementSVGsMinified() {
 	m.SVGsMinified.Add(1)
 }
 
+// String renders a human-readable summary of the metrics.
 func (m *BuildMetrics) String() string {
 	duration := m.TotalDuration()
 	hits := m.CacheHits.Load()
@@ -157,6 +171,7 @@ func formatBytes(b int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
+// Print logs the metrics summary.
 func (m *BuildMetrics) Print() {
 	slog.Info(m.String())
 }

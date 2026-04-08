@@ -39,12 +39,13 @@ var stopWords = map[string]bool{
 	"dare": true, "ought": true, "used": true, "nor": true,
 }
 
-// Analyzer provides text analysis for search indexing
+// Analyzer provides text analysis for search indexing.
 type Analyzer struct {
 	useStopWords bool
 	useStemming  bool
 }
 
+// NewAnalyzer creates an Analyzer with configurable stop-word and stemming behavior.
 func NewAnalyzer(useStopWords, useStemming bool) *Analyzer {
 	return &Analyzer{
 		useStopWords: useStopWords,
@@ -52,6 +53,7 @@ func NewAnalyzer(useStopWords, useStemming bool) *Analyzer {
 	}
 }
 
+// DefaultAnalyzer is the default analyzer with stop words and stemming enabled.
 var DefaultAnalyzer = NewAnalyzer(true, true)
 
 // Analyze processes text and returns normalized tokens

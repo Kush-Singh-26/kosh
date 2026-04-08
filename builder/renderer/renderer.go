@@ -23,6 +23,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
+// Renderer loads templates and renders site pages.
 type Renderer struct {
 	Layout         *template.Template
 	Index          *template.Template
@@ -43,6 +44,7 @@ type Renderer struct {
 	Minifier       *minify.M
 }
 
+// RendererOptions configures a Renderer instance.
 type RendererOptions struct {
 	SourceFs    afero.Fs
 	Compress    bool
@@ -52,6 +54,7 @@ type RendererOptions struct {
 	Logger      *slog.Logger
 }
 
+// New creates a Renderer with default filesystem settings.
 func New(opts RendererOptions) *Renderer {
 	if opts.SourceFs == nil {
 		opts.SourceFs = afero.NewOsFs()
@@ -59,6 +62,7 @@ func New(opts RendererOptions) *Renderer {
 	return NewWithFs(opts)
 }
 
+// NewWithFs creates a Renderer using the provided filesystem.
 func NewWithFs(opts RendererOptions) *Renderer {
 	r := &Renderer{
 		Compress:    opts.Compress,

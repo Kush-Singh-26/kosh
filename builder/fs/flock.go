@@ -8,11 +8,13 @@ import (
 	"time"
 )
 
+// FileLock represents a build lock held via a lock file.
 type FileLock struct {
 	file *os.File
 	path string
 }
 
+// AcquireBuildLock acquires a non-blocking lock for the output directory.
 func AcquireBuildLock(outputDir string) (*FileLock, error) {
 	// Place the lock file adjacent to the output directory to prevent file locking
 	// issues when renaming the output directory during atomic publish.
@@ -43,6 +45,7 @@ func AcquireBuildLock(outputDir string) (*FileLock, error) {
 	return &FileLock{file: file, path: lockPath}, nil
 }
 
+// Release releases the lock and removes the lock file.
 func (fl *FileLock) Release() error {
 	if fl == nil || fl.file == nil {
 		return nil

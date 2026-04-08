@@ -16,8 +16,10 @@ import (
 // It caches values in memory during a build and flushes dirty entries to BoltDB in a single batch.
 type DiagramCacheAdapter struct {
 	manager *Manager
-	local   map[string]any // In-memory buffer for current build
-	dirty   map[string]any // Entries not yet durably persisted
+	// local values are SSR payloads: string (HTML/SVG) or models.SSRThemePair.
+	local map[string]any
+	// dirty values mirror local and are flushed to BoltDB on Flush().
+	dirty   map[string]any
 	mu      sync.RWMutex
 	closed  atomic.Bool // Prevents new operations after Close() is called
 	persist atomic.Bool // Controls whether writes are persisted to disk

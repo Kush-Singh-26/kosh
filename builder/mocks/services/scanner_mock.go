@@ -7,16 +7,19 @@ import (
 	"github.com/spf13/afero"
 )
 
+// MockScanner is a test double for the metadata scanner.
 type MockScanner struct {
 	Result *models.MetadataScannerResult
 	Err    error
 }
 
+// Scan runs a scan and returns a single result.
 func (m *MockScanner) Scan(opts scanner.ScanOptions) (*models.MetadataScannerResult, error) {
 	resChan, errChan := m.ScanStreaming(opts)
 	return <-resChan, <-errChan
 }
 
+// ScanStreaming streams scan results and errors.
 func (m *MockScanner) ScanStreaming(opts scanner.ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error) {
 	fileChan := opts.FileChan
 	resChan := make(chan *models.MetadataScannerResult, 1)
@@ -33,6 +36,7 @@ func (m *MockScanner) ScanStreaming(opts scanner.ScanOptions) (<-chan *models.Me
 	return resChan, errChan
 }
 
+// ScanFile scans a single file and returns a scanned file record.
 func (m *MockScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error) {
 	return models.ScannedFile{}, nil
 }

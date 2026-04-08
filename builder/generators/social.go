@@ -38,7 +38,7 @@ func SocialCardHash(title, description string) string {
 	return cache.HashString(cardContent)
 }
 
-// ShouldGenerateSocialCard determines if a social card needs generation
+// CheckSocialCardOptions configures social card cache checks.
 type CheckSocialCardOptions struct {
 	Cache          models.SocialCardCache
 	CacheKey       string
@@ -47,6 +47,7 @@ type CheckSocialCardOptions struct {
 	Force          bool
 }
 
+// ShouldGenerateSocialCard determines whether a social card needs generation.
 func ShouldGenerateSocialCard(opts CheckSocialCardOptions) bool {
 	if opts.Force {
 		return true

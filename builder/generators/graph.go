@@ -42,6 +42,7 @@ func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
+// GraphOptions configures knowledge graph generation.
 type GraphOptions struct {
 	Sink       fspkg.ArtifactSink
 	BaseURL    string
@@ -51,6 +52,7 @@ type GraphOptions struct {
 	SiteTitle  string
 }
 
+// GenerateGraph builds the knowledge graph JSON and writes it to disk.
 func GenerateGraph(opts GraphOptions) (string, string, error) {
 	sink := opts.Sink
 	baseURL := opts.BaseURL

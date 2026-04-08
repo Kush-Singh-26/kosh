@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/afero"
 )
 
+// MockAssetService is a test double for the asset service.
 type MockAssetService struct {
 	Sink              fspkg.ArtifactSink
 	Metrics           *metrics.BuildMetrics
@@ -22,32 +23,40 @@ type MockAssetService struct {
 	FailBuild         bool // When true, Build() returns an error
 }
 
+// SetSink sets the sink used by the mock asset service.
 func (m *MockAssetService) SetSink(sink fspkg.ArtifactSink) {
 	m.Sink = sink
 }
 
+// SetSourceFs sets the source filesystem for the mock asset service.
 func (m *MockAssetService) SetSourceFs(fs afero.Fs) {}
 
+// SetMetrics sets the metrics collector for the mock asset service.
 func (m *MockAssetService) SetMetrics(m2 *metrics.BuildMetrics) {
 	m.Metrics = m2
 }
 
+// SetAssetsReadySignal sets the readiness channel for asset build completion.
 func (m *MockAssetService) SetAssetsReadySignal(ch chan struct{}) {
 	m.assetsReady = ch
 }
 
+// SetDiscoveryReady sets the discovery-ready channel for the mock.
 func (m *MockAssetService) SetDiscoveryReady(ch chan struct{}) {
 	m.discoveryReady = ch
 }
 
+// SetContentAssetsChannel sets the channel used for content asset discovery.
 func (m *MockAssetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
 	m.contentAssetsChan = ch
 }
 
+// Build runs the mock build.
 func (m *MockAssetService) Build(ctx context.Context) error {
 	return m.BuildWithOptions(ctx, false)
 }
 
+// BuildWithOptions runs the mock build with options.
 func (m *MockAssetService) BuildWithOptions(ctx context.Context, skipImages bool) error {
 	if m.FailBuild {
 		return context.Canceled // Simulate build failure
@@ -66,14 +75,17 @@ func (m *MockAssetService) BuildWithOptions(ctx context.Context, skipImages bool
 	return nil
 }
 
+// BuildForAssetChange simulates an incremental asset change build.
 func (m *MockAssetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
 	return map[string]string{}, nil
 }
 
+// BuildForAssetChangeWithOptions simulates an incremental asset change build with options.
 func (m *MockAssetService) BuildForAssetChangeWithOptions(ctx context.Context, forceImages bool) (map[string]string, error) {
 	return map[string]string{}, nil
 }
 
+// DiscoveryReady returns the discovery-ready channel, falling back to assets-ready.
 func (m *MockAssetService) DiscoveryReady() <-chan struct{} {
 	if m.discoveryReady != nil {
 		return m.discoveryReady
@@ -81,8 +93,10 @@ func (m *MockAssetService) DiscoveryReady() <-chan struct{} {
 	return m.assetsReady // Fallback: discoveryReady == assetsReady (instant)
 }
 
+// ReconfigureForBuild updates the sink for the mock build.
 func (m *MockAssetService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
 	m.Sink = sink
 }
 
+// ReconfigureWithReporter sets the reporter and logger for the mock.
 func (m *MockAssetService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {}

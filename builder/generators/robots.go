@@ -8,6 +8,7 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
+// GenerateRobotsTxt writes a robots.txt file and returns its output path.
 func GenerateRobotsTxt(sink fspkg.ArtifactSink, baseURL string, outputPath string) (string, error) {
 	slog.Info("Generating robots.txt")
 

@@ -1,4 +1,4 @@
-// handles command-line flags
+// Package config handles configuration loading and CLI overrides.
 package config
 
 import (
@@ -16,10 +16,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ThemeConfig captures metadata about the active theme.
 type ThemeConfig struct {
 	Name string `yaml:"name"`
 }
 
+// SiteConfig defines site-level configuration.
 type SiteConfig struct {
 	Title       string              `yaml:"title"`
 	Description string              `yaml:"description"`
@@ -29,6 +31,7 @@ type SiteConfig struct {
 	Menu        []models.MenuEntry  `yaml:"menu"`
 }
 
+// BuildOptions defines build-time tuning parameters.
 type BuildOptions struct {
 	PostsPerPage   int  `yaml:"postsPerPage"`
 	CompressImages bool `yaml:"compressImages"`
@@ -38,6 +41,7 @@ type BuildOptions struct {
 	ParserWorkers  int  `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
 }
 
+// PathConfig defines filesystem paths used during builds.
 type PathConfig struct {
 	Theme       string `yaml:"theme"`
 	ThemeDir    string `yaml:"themeDir"`
@@ -49,6 +53,7 @@ type PathConfig struct {
 	CacheDir    string `yaml:"cacheDir"`   // Cache directory (default: ".kosh-cache")
 }
 
+// Config aggregates all site, build, and path configuration.
 type Config struct {
 	SiteConfig   `yaml:",inline"`
 	BuildOptions `yaml:",inline"`
@@ -71,10 +76,12 @@ type Config struct {
 	Build *BuildConfig `yaml:"-"`
 }
 
+// Load loads configuration using the OS filesystem.
 func Load(args []string) *Config {
 	return LoadFs(afero.NewOsFs(), args)
 }
 
+// LoadFs loads configuration using the provided filesystem.
 func LoadFs(fs afero.Fs, args []string) *Config {
 	// 1. Default Configuration
 	cfg := &Config{
@@ -254,15 +261,27 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	return cfg
 }
 
+// SetDevMode toggles dev mode on the config.
 func SetDevMode(cfg *Config, isDev bool) {
 	cfg.IsDev = isDev
 }
 
 // TemplateConfig interface implementation
 
-func (cfg *Config) GetMenu() []models.MenuEntry         { return cfg.Menu }
-func (cfg *Config) GetAuthor() models.AuthorConfig      { return cfg.Author }
+// GetMenu returns the configured menu entries.
+func (cfg *Config) GetMenu() []models.MenuEntry { return cfg.Menu }
+
+// GetAuthor returns the configured author metadata.
+func (cfg *Config) GetAuthor() models.AuthorConfig { return cfg.Author }
+
+// GetSocial returns the social card configuration.
 func (cfg *Config) GetSocial() models.SocialCardsConfig { return cfg.SocialCards }
-func (cfg *Config) GetFeatures() models.FeaturesConfig  { return cfg.Features }
-func (cfg *Config) GetSiteTitle() string                { return cfg.Title }
-func (cfg *Config) GetBaseURL() string                  { return cfg.BaseURL }
+
+// GetFeatures returns the enabled feature configuration.
+func (cfg *Config) GetFeatures() models.FeaturesConfig { return cfg.Features }
+
+// GetSiteTitle returns the site title.
+func (cfg *Config) GetSiteTitle() string { return cfg.Title }
+
+// GetBaseURL returns the configured base URL.
+func (cfg *Config) GetBaseURL() string { return cfg.BaseURL }

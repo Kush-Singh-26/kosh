@@ -130,7 +130,7 @@ func CopyDirVFS(ctx context.Context, opts CopyDirOptions) error {
 							SrcPath:   task.path,
 							DstPath:   target,
 							SrcInfo:   task.info,
-							Opts:      opts,
+							Opts:      opts.CopyOptions,
 							Scheduler: opts.Scheduler,
 						}); err != nil {
 							errMu.Lock()

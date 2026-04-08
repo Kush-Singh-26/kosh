@@ -13,24 +13,26 @@ type PostMeta struct {
 	// PostID is a hex-encoded string (128-bit xxh3 hash) used as a unique
 	// key in the cache. This is different from the decimal/uint64 ID used
 	// in the search index.
-	PostID          string
-	Path            string
-	ModTime         int64
-	ContentHash     string // Frontmatter hash
-	BodyHash        string // Body content hash
-	HTMLHash        string // Only for large posts
-	InlineHTML      []byte // < 32KB posts stored inline
-	SSRInputHashes  []string
-	Title           string
-	Date            time.Time
-	Tags            []string
-	WordCount       int
-	ReadingTime     int
-	Description     string
-	Link            string
-	Weight          int
-	Pinned          bool
-	Draft           bool
+	PostID         string
+	Path           string
+	ModTime        int64
+	ContentHash    string // Frontmatter hash
+	BodyHash       string // Body content hash
+	HTMLHash       string // Only for large posts
+	InlineHTML     []byte // < 32KB posts stored inline
+	SSRInputHashes []string
+	Title          string
+	Date           time.Time
+	Tags           []string
+	WordCount      int
+	ReadingTime    int
+	Description    string
+	Link           string
+	Weight         int
+	Pinned         bool
+	Draft          bool
+	// Meta stores raw frontmatter values for templating and downstream reuse.
+	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
 	Meta            map[string]any
 	TOC             []TOCEntry
 	CardHash        string
@@ -92,10 +94,14 @@ type SSRArtifact struct {
 	InlineContent []byte // Content < 16KB stored directly in BoltDB
 }
 
+// CompressionType describes compression levels for cached artifacts.
 type CompressionType int
 
 const (
+	// CompressionNone disables compression.
 	CompressionNone CompressionType = iota
+	// CompressionZstdFast enables fast zstd compression.
 	CompressionZstdFast
+	// CompressionZstdLevel3 enables zstd compression at level 3.
 	CompressionZstdLevel3
 )
