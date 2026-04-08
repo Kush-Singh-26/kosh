@@ -12,6 +12,8 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
+const searchIndexBrotliLevel = 4
+
 // GenerateSearchIndex builds and writes the compressed search index.
 func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedPost) (string, int64, error) {
 	outputDir := sink.GetOutputDir()
@@ -21,7 +23,7 @@ func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedP
 	outputPath := "search.bin"
 	var size int64
 	err := sink.WriteStream(outputPath, func(w io.Writer) error {
-		bw := brotli.NewWriterLevel(w, 4)
+		bw := brotli.NewWriterLevel(w, searchIndexBrotliLevel)
 
 		mw := msgp.NewWriter(bw)
 		if err := idx.EncodeMsg(mw); err != nil {

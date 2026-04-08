@@ -13,6 +13,11 @@ import (
 	"github.com/yuin/goldmark/parser"
 )
 
+const (
+	d2LightTheme = 0
+	d2DarkTheme  = 200
+)
+
 type d2BlockInfo struct {
 	node *ast.FencedCodeBlock
 	code string
@@ -63,14 +68,14 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 								return pair, nil
 							}
 						}
-						lightSVG, err := t.Renderer.RenderD2(ctx, b.code, 0)
+						lightSVG, err := t.Renderer.RenderD2(ctx, b.code, d2LightTheme)
 						if err != nil {
 							if !errors.Is(err, context.Canceled) {
 								slog.Warn("D2 light render failed", "error", err)
 							}
 							return models.SSRThemePair{}, err
 						}
-						darkSVG, err := t.Renderer.RenderD2(ctx, b.code, 200)
+						darkSVG, err := t.Renderer.RenderD2(ctx, b.code, d2DarkTheme)
 						if err != nil {
 							if !errors.Is(err, context.Canceled) {
 								slog.Warn("D2 dark render failed", "error", err)

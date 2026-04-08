@@ -22,7 +22,7 @@ type instance struct {
 func (i *instance) ensureInitialized(bytecode []byte) {
 	i.initOnce.Do(func() {
 		rt, err := qjs.New(qjs.Option{
-			MaxExecutionTime: 2000, // 2s safety timeout per task
+			MaxExecutionTime: maxExecutionTimeMs, // 2s safety timeout per task
 		})
 		if err != nil {
 			slog.Warn("Failed to create QJS runtime", "error", err)

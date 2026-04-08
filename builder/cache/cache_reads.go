@@ -14,6 +14,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const parallelDecodeThreshold = 10
+
 func getCachedItem[T any](db *bbolt.DB, bucketName string, key []byte) (*T, error) {
 	var result *T
 	err := db.View(func(tx *bbolt.Tx) error {
@@ -160,7 +162,7 @@ func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMeta, er
 	}
 
 	// core.Decode in parallel for large batches
-	if len(rawItems) > 10 {
+	if len(rawItems) > parallelDecodeThreshold {
 		var mu sync.Mutex
 		var g errgroup.Group
 		g.SetLimit(runtime.NumCPU())

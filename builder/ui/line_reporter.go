@@ -40,6 +40,16 @@ const (
 
 var spinnerFrames = []string{"-", "\\", "|", "/"}
 
+const (
+	spinnerInterval        = 100 * time.Millisecond
+	percentScale           = 100
+	spinnerFrameIntervalMs = 100
+	detailMaxLen           = 40
+	detailTailLen          = 37
+	secondsPerMinute       = 60
+	bytesPerKiB            = 1024
+)
+
 type lineReporter struct {
 	mode    string
 	mu      sync.Mutex // protects phases, phaseOrder, status, finished
@@ -118,7 +128,7 @@ func (r *lineReporter) Start(mode string) {
 	}
 
 	// Start a background goroutine to animate the spinner at 100ms intervals
-	r.ticker = time.NewTicker(100 * time.Millisecond)
+	r.ticker = time.NewTicker(spinnerInterval)
 	async.FireAndForget(context.Background(), slog.Default(), "line reporter spinner", func() error {
 		for {
 			select {
@@ -281,7 +291,7 @@ func (r *lineReporter) Finish(stats BuildStats) {
 	fmt.Println()
 
 	// Stats table
-	cacheStr := fmt.Sprintf("%.0f%%", stats.HitRate*100)
+	cacheStr := fmt.Sprintf("%.0f%%", stats.HitRate*percentScale)
 	statLines := []struct {
 		label, value string
 	}{
@@ -329,7 +339,7 @@ func (r *lineReporter) renderSpinner() {
 
 	// Calculate spinner frame
 	elapsed := time.Since(activeState.startTime)
-	frameIdx := (elapsed.Milliseconds() / 100) % int64(len(spinnerFrames))
+	frameIdx := (elapsed.Milliseconds() / spinnerFrameIntervalMs) % int64(len(spinnerFrames))
 	frame := spinnerFrames[frameIdx]
 
 	ts := r.color(gray, time.Now().Format("15:04:05"))
@@ -343,8 +353,8 @@ func (r *lineReporter) renderSpinner() {
 			activeState.total)
 		if activeState.detail != "" {
 			detail := r.shortenPaths(activeState.detail)
-			if len(detail) > 40 {
-				detail = "..." + detail[len(detail)-37:]
+			if len(detail) > detailMaxLen {
+				detail = "..." + detail[len(detail)-detailTailLen:]
 			}
 			line += " " + r.color(gray, detail)
 		}
@@ -355,8 +365,8 @@ func (r *lineReporter) renderSpinner() {
 			activePhase.String())
 		if activeState.detail != "" {
 			detail := r.shortenPaths(activeState.detail)
-			if len(detail) > 40 {
-				detail = "..." + detail[len(detail)-37:]
+			if len(detail) > detailMaxLen {
+				detail = "..." + detail[len(detail)-detailTailLen:]
 			}
 			line += " " + r.color(gray, detail)
 		}
@@ -452,11 +462,11 @@ func formatDuration(d time.Duration) string {
 	if d < time.Minute {
 		return fmt.Sprintf("%.1fs", d.Seconds())
 	}
-	return fmt.Sprintf("%dm%ds", int(d.Minutes()), int(d.Seconds())%60)
+	return fmt.Sprintf("%dm%ds", int(d.Minutes()), int(d.Seconds())%secondsPerMinute)
 }
 
 func formatBytes(b int64) string {
-	const unit = 1024
+	const unit = bytesPerKiB
 	if b < unit {
 		return fmt.Sprintf("%d B", b)
 	}

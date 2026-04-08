@@ -11,6 +11,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
+const (
+	minTermLengthForScan    = 2
+	windowSizeMultiMatch    = 100
+	matchScoreMultiplier    = 100
+	secondIslandMargin      = 50
+	secondIslandMinScoreDiv = 2
+	wordTrimMaxOffset       = 15
+	snippetGrowFactor       = 1.3
+	maxTermMaskBits         = 64
+)
+
 // match represents a term match position
 type snippetMatch struct {
 	pos  int
@@ -64,7 +75,7 @@ func findMatches(content string, terms []string, termOffsets map[string][]int) [
 	if len(matches) == 0 {
 		contentLower := core.ToLower(content)
 		for _, term := range terms {
-			if len(term) < 2 {
+			if len(term) < minTermLengthForScan {
 				continue
 			}
 			curr := 0
@@ -90,7 +101,7 @@ func scoreMatchWindow(matches []snippetMatch, termToIndex map[string]int, window
 	for j := startIndex; j < len(matches) && matches[j].pos < matches[startIndex].pos+windowSize; j++ {
 		count++
 		if idx, ok := termToIndex[matches[j].term]; ok {
-			if idx < 64 {
+			if idx < maxTermMaskBits {
 				mask |= (1 << uint(idx))
 			}
 		}
@@ -113,7 +124,7 @@ func findBestSnippetIslands(matches []snippetMatch, content string, termToIndex 
 
 	windowSize := DefaultSnippetLength
 	if len(matches) > 1 {
-		windowSize = 100 // Smaller windows for multiple islands
+		windowSize = windowSizeMultiMatch // Smaller windows for multiple islands
 	}
 
 	type window struct {
@@ -125,7 +136,7 @@ func findBestSnippetIslands(matches []snippetMatch, content string, termToIndex 
 	var windows []window
 	for i := 0; i < len(matches); i++ {
 		count, mask := scoreMatchWindow(matches, termToIndex, windowSize, i)
-		score := bits.OnesCount64(mask)*100 + count
+		score := bits.OnesCount64(mask)*matchScoreMultiplier + count
 		windows = append(windows, window{start: matches[i].pos, score: score, idx: i})
 	}
 
@@ -141,10 +152,9 @@ func findBestSnippetIslands(matches []snippetMatch, content string, termToIndex 
 	for i := 1; i < len(windows); i++ {
 		curr := windows[i]
 		// Check for overlap with some margin
-		margin := 50
-		if curr.start > islands[0].end+margin || curr.start+windowSize < islands[0].start-margin {
+		if curr.start > islands[0].end+secondIslandMargin || curr.start+windowSize < islands[0].start-secondIslandMargin {
 			// Good second island found
-			if curr.score > best.score/2 { // Only include if it's reasonably relevant
+			if curr.score > best.score/secondIslandMinScoreDiv { // Only include if it's reasonably relevant
 				secondIsland := calculateIsland(curr.start, windowSize, content)
 				islands = append(islands, secondIsland)
 				break
@@ -181,7 +191,7 @@ func calculateIsland(bestStart, windowSize int, content string) snippetIsland {
 
 	if start > 0 {
 		idx := strings.Index(content[start:], " ")
-		if idx != -1 && idx < 15 {
+		if idx != -1 && idx < wordTrimMaxOffset {
 			start += idx + 1
 		}
 	}
@@ -197,7 +207,7 @@ func buildSnippetText(content string, matches []snippetMatch, islands []snippetI
 	for _, island := range islands {
 		totalLen += island.end - island.start
 	}
-	b.Grow(int(float64(totalLen) * 1.3))
+	b.Grow(int(float64(totalLen) * snippetGrowFactor))
 
 	if !hasMatches || len(matches) == 0 {
 		island := islands[0]

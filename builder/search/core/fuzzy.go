@@ -11,13 +11,23 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 )
 
+const (
+	intSlicePoolCap      = 32
+	runeSlicePoolCap     = 32
+	maxPooledSliceCap    = 256
+	minPrefixMatchLength = 3
+	trigramSize          = 3
+	maxNgramWorkers      = 8
+	minCandidateScore    = 1
+)
+
 // MaxEditDistance is the maximum Levenshtein distance for fuzzy matching
 const MaxEditDistance = 2
 
 // intSlicePool stores *[]int buffers for Levenshtein computation.
 var intSlicePool = sync.Pool{
 	New: func() any {
-		s := make([]int, 0, 32)
+		s := make([]int, 0, intSlicePoolCap)
 		return &s
 	},
 }
@@ -33,7 +43,7 @@ func getIntSlice(size int) *[]int {
 }
 
 func putIntSlice(p *[]int) {
-	if cap(*p) > 256 {
+	if cap(*p) > maxPooledSliceCap {
 		return
 	}
 	intSlicePool.Put(p)
@@ -42,7 +52,7 @@ func putIntSlice(p *[]int) {
 // runeSlicePool stores *[]rune buffers for Levenshtein computation.
 var runeSlicePool = sync.Pool{
 	New: func() any {
-		s := make([]rune, 0, 32)
+		s := make([]rune, 0, runeSlicePoolCap)
 		return &s
 	},
 }
@@ -58,7 +68,7 @@ func getRuneSlice(size int) *[]rune {
 }
 
 func putRuneSlice(p *[]rune) {
-	if cap(*p) > 256 {
+	if cap(*p) > maxPooledSliceCap {
 		return
 	}
 	runeSlicePool.Put(p)
@@ -168,7 +178,7 @@ func FuzzyExpand(term string, inverted map[string]map[string][]uint32, maxDist i
 
 		// 1. Live Prefix Matching (crucial for live search bars)
 		// If user typed "prog" and index has "program", match it immediately
-		if termLen >= 3 && strings.HasPrefix(idxTerm, term) {
+		if termLen >= minPrefixMatchLength && strings.HasPrefix(idxTerm, term) {
 			candidates = append(candidates, idxTerm)
 			continue
 		}
@@ -206,7 +216,7 @@ func FuzzyExpandWithNgrams(term string, ngramIndex map[string][]string, maxDist 
 		// Jaccard-like filtering: need at least some overlap
 		// Optimized: Set minimum score to 1 to avoid matching every term on short queries
 		// A 3-character word generates exactly 1 trigram, so len/2 = 0 would match everything
-		minScore := max(1, len(trigrams)/2)
+		minScore := max(minCandidateScore, len(trigrams)/2)
 		if score >= minScore {
 			if FuzzyMatch(term, cand, maxDist) {
 				results = append(results, cand)
@@ -223,14 +233,14 @@ func GenerateTrigrams(word string) []string {
 	n := len(word)
 
 	// Fast path for ASCII strings (common case)
-	if n < 3 {
+	if n < trigramSize {
 		return []string{word}
 	}
 
 	// Check if ASCII
 	isASCII := true
 	for i := 0; i < n; i++ {
-		if word[i] >= 128 {
+		if word[i] >= asciiBoundary {
 			isASCII = false
 			break
 		}
@@ -238,9 +248,9 @@ func GenerateTrigrams(word string) []string {
 
 	if isASCII {
 		// Fast path: use byte slices for ASCII
-		trigrams := make([]string, 0, n-2)
-		for i := 0; i <= n-3; i++ {
-			trigrams = append(trigrams, word[i:i+3])
+		trigrams := make([]string, 0, n-(trigramSize-1))
+		for i := 0; i <= n-trigramSize; i++ {
+			trigrams = append(trigrams, word[i:i+trigramSize])
 		}
 		return trigrams
 	}
@@ -248,13 +258,13 @@ func GenerateTrigrams(word string) []string {
 	// Slow path: use runes for Unicode
 	runes := []rune(word)
 	n = len(runes)
-	if n < 3 {
+	if n < trigramSize {
 		return []string{word}
 	}
 
-	trigrams := make([]string, 0, n-2)
-	for i := 0; i <= n-3; i++ {
-		trigrams = append(trigrams, string(runes[i:i+3]))
+	trigrams := make([]string, 0, n-(trigramSize-1))
+	for i := 0; i <= n-trigramSize; i++ {
+		trigrams = append(trigrams, string(runes[i:i+trigramSize]))
 	}
 	return trigrams
 }
@@ -265,7 +275,7 @@ const MaxNgramPostings = 50
 
 // BuildNgramIndex builds a trigram index for fast fuzzy lookups with pruning
 func BuildNgramIndex(inverted map[string]map[string][]uint32) map[string][]string {
-	numWorkers := min(runtime.NumCPU(), 8)
+	numWorkers := min(runtime.NumCPU(), maxNgramWorkers)
 
 	terms := make([]string, 0, len(inverted))
 	for term := range inverted {

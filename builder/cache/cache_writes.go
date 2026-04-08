@@ -21,6 +21,13 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+const (
+	ssrKeySplitParts          = 2
+	windowsSSRIOConcurrency   = 64
+	ssrParallelismMultiplier  = 2
+	ssrInlineContentLimitSize = 16 * 1024
+)
+
 // BatchCommit atomically commits posts, search records, and dependencies in a single BoltDB transaction.
 // All data is encoded in parallel with bounded concurrency before the transaction begins.
 //
@@ -232,7 +239,7 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 		if data := stats.Get([]byte(core.KeyBuildCount)); data != nil {
 			buildCount = binary.BigEndian.Uint32(data) + 1
 		}
-		countData := make([]byte, 4)
+		countData := make([]byte, uint32Size)
 		binary.BigEndian.PutUint32(countData, buildCount)
 		if err := stats.Put([]byte(core.KeyBuildCount), countData); err != nil {
 			return err
@@ -331,9 +338,9 @@ func (m *Manager) BatchStoreSSR(entries map[string]any) error {
 	g, _ := errgroup.WithContext(context.Background())
 	// Higher concurrency on Windows helps overlap slow file I/O for large diagrams
 	if runtime.GOOS == "windows" {
-		g.SetLimit(64)
+		g.SetLimit(windowsSSRIOConcurrency)
 	} else {
-		g.SetLimit(runtime.NumCPU() * 2)
+		g.SetLimit(runtime.NumCPU() * ssrParallelismMultiplier)
 	}
 
 	for k, v := range entries {
@@ -341,7 +348,7 @@ func (m *Manager) BatchStoreSSR(entries map[string]any) error {
 		g.Go(func() error {
 			ssrType := "d2"
 			inputHash := key
-			if parts := strings.SplitN(key, ":", 2); len(parts) == 2 {
+			if parts := strings.SplitN(key, ":", ssrKeySplitParts); len(parts) == ssrKeySplitParts {
 				ssrType = parts[0]
 				inputHash = parts[1]
 			}
@@ -368,7 +375,7 @@ func (m *Manager) BatchStoreSSR(entries map[string]any) error {
 			}
 
 			// Inline content under 16KB directly in BoltDB to avoid slow Windows file I/O
-			if len(content) < 16*1024 {
+			if len(content) < ssrInlineContentLimitSize {
 				artifact.InlineContent = content
 				artifact.Compressed = false
 				artifact.OutputHash = core.HashContent(content)

@@ -16,6 +16,8 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
+const fingerprintFileMode = 0644
+
 // ComputeStaticFingerprint hashes static asset metadata to detect changes.
 func ComputeStaticFingerprint(sourceFs afero.Fs, dirs []string) (string, error) {
 	hasher := xxh3.New()
@@ -95,5 +97,5 @@ func SaveStaticFingerprint(cacheDir, fingerprint string) error {
 		return errCacheDirNotSet
 	}
 	fingerprintPath := filepath.Join(cacheDir, "static-fingerprint")
-	return os.WriteFile(fingerprintPath, []byte(fingerprint), 0644)
+	return os.WriteFile(fingerprintPath, []byte(fingerprint), fingerprintFileMode)
 }

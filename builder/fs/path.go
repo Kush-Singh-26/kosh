@@ -117,10 +117,10 @@ func SafeRel(base, target string) (string, error) {
 
 // WriteFileVFS writes data to a file in an afero filesystem, creating directories as needed.
 func WriteFileVFS(fs afero.Fs, path string, data []byte) error {
-	if err := fs.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := fs.MkdirAll(filepath.Dir(path), defaultDirMode); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", path, err)
 	}
-	return afero.WriteFile(fs, path, data, 0644)
+	return afero.WriteFile(fs, path, data, defaultFileMode)
 }
 
 // GetRelativePrefix calculates the relative prefix needed to go up from a path.
@@ -158,12 +158,14 @@ func GetRelativePrefix(htmlPath string) string {
 		return "../"
 	case 2:
 		return "../../"
-	case 3:
+	case depthThree:
 		return "../../../"
 	default:
 		return strings.Repeat("../", depth)
 	}
 }
+
+const depthThree = 3
 
 // GetRealPath attempts to find the underlying OS path for a given afero.Fs and virtual path.
 // Returns (realPath, true) if it's a local filesystem, (path, false) otherwise.

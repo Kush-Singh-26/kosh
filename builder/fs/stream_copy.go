@@ -9,7 +9,7 @@ import (
 // streamCopyBufferPool stores *[]byte buffers for streaming file copies.
 var streamCopyBufferPool = sync.Pool{
 	New: func() any {
-		buf := make([]byte, 64*1024)
+		buf := make([]byte, copyBufferSize)
 		return &buf
 	},
 }

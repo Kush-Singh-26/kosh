@@ -16,6 +16,11 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+const (
+	minHeadingLevel = 2
+	maxHeadingLevel = 6
+)
+
 // slugify creates a URL-safe slug from text (same logic as goldmark's auto-heading-ID)
 func slugify(s string) string {
 	s = strings.ToLower(s)
@@ -169,7 +174,7 @@ func (s *transformState) walkFunc(n ast.Node, entering bool) (ast.WalkStatus, er
 
 func (s *transformState) handleHeading(heading *ast.Heading, entering bool) {
 	if entering {
-		if heading.Level >= 2 && heading.Level <= 6 {
+		if heading.Level >= minHeadingLevel && heading.Level <= maxHeadingLevel {
 			s.ctx.inHeading = true
 			s.ctx.headingLevel = heading.Level
 			s.ctx.headingText.Reset()

@@ -18,6 +18,11 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
+const (
+	unifiedTransformerPriority = 100
+	rawHTMLRendererPriority    = 500
+)
+
 func codeBlockWrapper(w util.BufWriter, c highlighting.CodeBlockContext, entering bool) {
 	if entering {
 		langBytes, _ := c.Language()
@@ -78,14 +83,14 @@ func New(cfg *config.Config, renderer *native.Renderer, diagramCache SSRMap, d2G
 					Renderer: renderer,
 					Cache:    diagramCache,
 					D2Group:  d2Group,
-				}, 100),
+				}, unifiedTransformerPriority),
 			),
 			parser.WithAutoHeadingID(),
 		),
 		goldmark.WithRendererOptions(
 			html.WithUnsafe(),
 			goldmarkRenderer.WithNodeRenderers(
-				util.Prioritized(&rawHTMLBlockRenderer{}, 500),
+				util.Prioritized(&rawHTMLBlockRenderer{}, rawHTMLRendererPriority),
 			),
 		),
 	)

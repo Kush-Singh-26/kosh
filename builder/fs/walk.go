@@ -15,6 +15,11 @@ import (
 	"github.com/spf13/afero"
 )
 
+const (
+	defaultWalkConcurrency = 4
+	dirTaskBufferSize      = 4096
+)
+
 // WalkFunc is the signature for the callback used in ParallelWalk.
 type WalkFunc func(path string, info fs.FileInfo, err error) error
 
@@ -57,14 +62,14 @@ func ParallelWalk(opts WalkOptions) error {
 	}
 
 	if concurrency <= 0 {
-		concurrency = 4 // Safe default for overlapping I/O latency
+		concurrency = defaultWalkConcurrency // Safe default for overlapping I/O latency
 	}
 
 	type dirTask struct {
 		path string
 	}
 
-	tasks := make(chan dirTask, 4096)
+	tasks := make(chan dirTask, dirTaskBufferSize)
 	var wg sync.WaitGroup
 	var activeTasks int32
 	var firstErr error

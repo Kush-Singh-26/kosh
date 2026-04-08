@@ -44,26 +44,38 @@ type Manager struct {
 
 const defaultMemCacheTTL = 5 * time.Minute
 
+const (
+	defaultOpenTimeout     = 10 * time.Second
+	cacheDirMode           = 0755
+	dbFileMode             = 0644
+	defaultInitialMmapSize = 10 * 1024 * 1024
+	maxInitialMmapSize     = 100 * 1024 * 1024
+	mmapSizeMultiplier     = 2
+	boltPageSize           = 16384
+	memCacheMaxEntries     = 1024
+	uint32Size             = 4
+)
+
 // Open opens or creates a cache at the given path
 func Open(basePath string, isDev bool) (*Manager, error) {
-	return OpenWithTimeout(basePath, isDev, 10*time.Second)
+	return OpenWithTimeout(basePath, isDev, defaultOpenTimeout)
 }
 
 // OpenWithTimeout opens or creates a cache with a custom timeout
 func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manager, error) {
-	if err := os.MkdirAll(basePath, 0755); err != nil {
+	if err := os.MkdirAll(basePath, cacheDirMode); err != nil {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
 	// Calculate initial mmap size based on existing database
-	initialSize := 10 * 1024 * 1024 // Default 10MB
+	initialSize := defaultInitialMmapSize // Default 10MB
 	dbPath := filepath.Join(basePath, "meta.db")
 	if info, err := os.Stat(dbPath); err == nil {
 		// Use 2x current size, minimum 10MB, maximum 100MB
-		calculatedSize := int(info.Size()) * 2
-		if calculatedSize > 100*1024*1024 {
-			initialSize = 100 * 1024 * 1024
-		} else if calculatedSize > 10*1024*1024 {
+		calculatedSize := int(info.Size()) * mmapSizeMultiplier
+		if calculatedSize > maxInitialMmapSize {
+			initialSize = maxInitialMmapSize
+		} else if calculatedSize > defaultInitialMmapSize {
 			initialSize = calculatedSize
 		}
 	}
@@ -71,7 +83,7 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 	opts := &bbolt.Options{
 		Timeout:         timeout,
 		FreelistType:    bbolt.FreelistArrayType,
-		PageSize:        16384,
+		PageSize:        boltPageSize,
 		InitialMmapSize: initialSize,
 	}
 
@@ -82,7 +94,7 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 	opts.NoGrowSync = true
 	opts.NoSync = true
 
-	db, err := bbolt.Open(dbPath, 0644, opts)
+	db, err := bbolt.Open(dbPath, dbFileMode, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open BoltDB: %w", err)
 	}
@@ -96,7 +108,7 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		return nil, fmt.Errorf("failed to create store: %w", err)
 	}
 
-	lruCache, err := lru.New[string, *memoryCacheEntry](1024) // 1024 items max
+	lruCache, err := lru.New[string, *memoryCacheEntry](memCacheMaxEntries) // 1024 items max
 	if err != nil {
 		if closeErr := store.Close(); closeErr != nil {
 			slog.Error("Failed to close store during cleanup", "error", closeErr)
@@ -205,7 +217,7 @@ func (m *Manager) initSchema() error {
 
 		meta := tx.Bucket([]byte(core.BucketMeta))
 		if meta.Get([]byte(core.KeySchemaVersion)) == nil {
-			v := make([]byte, 4)
+			v := make([]byte, uint32Size)
 			binary.BigEndian.PutUint32(v, uint32(core.SchemaVersion))
 			if err := meta.Put([]byte(core.KeySchemaVersion), v); err != nil {
 				return err
@@ -327,7 +339,7 @@ func (m *Manager) IncrementBuildCount() (uint32, error) {
 			buildCount = binary.BigEndian.Uint32(data)
 		}
 		buildCount++
-		buildCountData := make([]byte, 4)
+		buildCountData := make([]byte, uint32Size)
 		binary.BigEndian.PutUint32(buildCountData, buildCount)
 		if err := bucket.Put([]byte(core.KeyBuildCount), buildCountData); err != nil {
 			return err
@@ -339,7 +351,7 @@ func (m *Manager) IncrementBuildCount() (uint32, error) {
 			count = binary.BigEndian.Uint32(data)
 		}
 		count++
-		newData := make([]byte, 4)
+		newData := make([]byte, uint32Size)
 		binary.BigEndian.PutUint32(newData, count)
 		return bucket.Put([]byte("builds_since_gc"), newData)
 	})

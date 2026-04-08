@@ -57,7 +57,7 @@ func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
 		bufPool: sync.Pool{
 			New: func() any {
 				// 64KB buffer for streaming writes.
-				return bufio.NewWriterSize(nil, 64*1024)
+				return bufio.NewWriterSize(nil, copyBufferSize)
 			},
 		},
 	}
@@ -194,7 +194,7 @@ func (s *DiskSink) MkdirAll(p string) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.FromSlash(target), 0755); err != nil {
+	if err := os.MkdirAll(filepath.FromSlash(target), defaultDirMode); err != nil {
 		return err
 	}
 
@@ -212,7 +212,7 @@ func (s *DiskSink) WriteFile(p string, data []byte) error {
 		return err
 	}
 
-	err = os.WriteFile(filepath.FromSlash(target), data, 0644)
+	err = os.WriteFile(filepath.FromSlash(target), data, defaultFileMode)
 	if err == nil {
 		s.Register(p)
 	}

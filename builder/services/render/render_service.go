@@ -18,6 +18,8 @@ import (
 	"github.com/spf13/afero"
 )
 
+const assetWaitTimeout = 30 * time.Second
+
 type renderService struct {
 	ctx         *buildCtx.BuildContext
 	rnd         *renderer.Renderer
@@ -92,8 +94,8 @@ func (s *renderService) waitForAssets(path string) error {
 	if s.assetsReady != nil {
 		select {
 		case <-s.assetsReady:
-		case <-time.After(30 * time.Second):
-			return fmt.Errorf("asset build timed out after 30s for %s - esbuild may be hung", path)
+		case <-time.After(assetWaitTimeout):
+			return fmt.Errorf("asset build timed out after %s for %s - esbuild may be hung", assetWaitTimeout, path)
 		}
 	}
 	return nil

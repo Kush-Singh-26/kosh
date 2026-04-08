@@ -20,6 +20,17 @@ type postGraphInfo struct {
 	Description string   `json:"description"`
 }
 
+const (
+	graphRootGroup     = 0
+	graphRootValue     = 22
+	graphTagGroup      = 2
+	graphTagValue      = 10
+	graphPostGroup     = 1
+	graphPostValue     = 7
+	graphRootTagWeight = 1
+	graphDateFormat    = "Jan 02, 2006"
+)
+
 // ComputeGraphHash computes a stable hash for the knowledge graph data
 func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
 	graphInfo := make([]postGraphInfo, 0, len(posts))
@@ -70,7 +81,7 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 	// Add root node for hub-and-spoke layout
 	rootID := "root"
 	nodes = append(nodes, models.GraphNode{
-		ID: rootID, Label: siteTitle, Group: 0, Value: 22, URL: baseURL,
+		ID: rootID, Label: siteTitle, Group: graphRootGroup, Value: graphRootValue, URL: baseURL,
 	})
 	nodeExists[rootID] = true
 
@@ -83,7 +94,7 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 				tagID := "tag-" + slug
 				if !nodeExists[tagID] {
 					tagNodes[tagID] = models.GraphNode{
-						ID: tagID, Label: "#" + t, Group: 2, Value: 10,
+						ID: tagID, Label: "#" + t, Group: graphTagGroup, Value: graphTagValue,
 						URL: fmt.Sprintf("%s/tags/%s.html", baseURL, slug),
 					}
 					nodeExists[tagID] = true
@@ -95,7 +106,7 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 	// Add root -> tag links and add tags to nodes
 	for _, tag := range tagNodes {
 		nodes = append(nodes, tag)
-		links = append(links, models.GraphLink{Source: rootID, Target: tag.ID, Weight: 1})
+		links = append(links, models.GraphLink{Source: rootID, Target: tag.ID, Weight: graphRootTagWeight})
 	}
 
 	// Add post nodes and tag -> post links
@@ -108,11 +119,11 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 			nodes = append(nodes, models.GraphNode{
 				ID:      p.Link,
 				Label:   p.Title,
-				Group:   1,
-				Value:   7,
+				Group:   graphPostGroup,
+				Value:   graphPostValue,
 				URL:     postURL,
 				Excerpt: p.Description,
-				Date:    p.DateObj.Format("Jan 02, 2006"),
+				Date:    p.DateObj.Format(graphDateFormat),
 			})
 			nodeExists[p.Link] = true
 		}

@@ -14,6 +14,12 @@ import (
 	pathFs "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
+const (
+	cacheDirMode       = 0755
+	cacheErrorLogLimit = 5
+	cacheIDBufferSize  = 50
+)
+
 // VerifyTheme checks if the theme directories exist
 func VerifyTheme(cfg *config.Config, logger *slog.Logger) {
 	VerifyThemeFs(afero.NewOsFs(), cfg, logger, pathFs.DetectTestingMode())
@@ -51,7 +57,7 @@ func VerifyThemeFs(fs afero.Fs, cfg *config.Config, logger *slog.Logger, isTesti
 		logger.Warn("Theme static directory not found, creating empty",
 			"theme", cfg.Theme,
 			"path", staticPath)
-		_ = fs.MkdirAll(staticPath, 0755)
+		_ = fs.MkdirAll(staticPath, cacheDirMode)
 	}
 }
 
@@ -62,23 +68,23 @@ func SetupCacheDirectories(cfg *config.Config, logger *slog.Logger) {
 
 // SetupCacheDirectoriesFs creates required cache folders using the provided filesystem
 func SetupCacheDirectoriesFs(fs afero.Fs, cfg *config.Config, logger *slog.Logger, isTesting bool) {
-	if err := fs.MkdirAll(cfg.CacheDir, 0755); err != nil {
+	if err := fs.MkdirAll(cfg.CacheDir, cacheDirMode); err != nil {
 		logger.Error("Failed to create cache directory", "path", cfg.CacheDir, "error", err)
 		if !isTesting {
 			os.Exit(1)
 		}
 		return
 	}
-	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "social-cards"), 0755); err != nil {
+	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "social-cards"), cacheDirMode); err != nil {
 		logger.Error("Failed to create social-cards cache directory", "error", err)
 	}
-	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "assets"), 0755); err != nil {
+	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "assets"), cacheDirMode); err != nil {
 		logger.Error("Failed to create assets cache directory", "error", err)
 	}
-	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "images"), 0755); err != nil {
+	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "images"), cacheDirMode); err != nil {
 		logger.Error("Failed to create images cache directory", "error", err)
 	}
-	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), 0755); err != nil {
+	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), cacheDirMode); err != nil {
 		logger.Error("Failed to create pwa-icons cache directory", "error", err)
 	}
 }
@@ -94,7 +100,7 @@ func SetupCacheManager(cfg *config.Config, logger *slog.Logger) (*cache.Manager,
 
 	if errors, verifyErr := cm.QuickVerify(); verifyErr != nil || len(errors) > 0 {
 		logger.Warn("Cache integrity issues detected, forcing rebuild", "errors", len(errors))
-		if len(errors) > 0 && len(errors) <= 5 {
+		if len(errors) > 0 && len(errors) <= cacheErrorLogLimit {
 			for _, e := range errors {
 				logger.Debug("Cache error", "detail", e)
 			}
@@ -124,7 +130,7 @@ func generateCacheID() string {
 	}
 
 	var sb strings.Builder
-	sb.Grow(50)
+	sb.Grow(cacheIDBufferSize)
 	for _, c := range components {
 		sb.WriteString(c)
 		sb.WriteString("|")

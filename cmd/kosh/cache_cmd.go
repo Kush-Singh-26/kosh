@@ -11,6 +11,14 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
+const (
+	bytesPerMiB               = 1024 * 1024
+	percentScale              = 100
+	defaultMinBuildsBetweenGC = 0
+	hashPreviewLen            = 16
+	hashEdgeLen               = 8
+)
+
 var (
 	cacheDryRun bool
 )
@@ -96,7 +104,7 @@ func runCacheStats(cmd *cobra.Command, args []string) {
 	fmt.Printf("Schema Version:  %d\n", stats.SchemaVersion)
 	fmt.Printf("Total Posts:     %d\n", stats.TotalPosts)
 	fmt.Printf("Total SSR:       %d artifacts\n", stats.TotalSSR)
-	fmt.Printf("Store Size:      %.2f MB\n", float64(stats.StoreBytes)/(1024*1024))
+	fmt.Printf("Store Size:      %.2f MB\n", float64(stats.StoreBytes)/bytesPerMiB)
 	fmt.Printf("Build Count:     %d\n", stats.BuildCount)
 
 	if stats.LastGC > 0 {
@@ -107,8 +115,8 @@ func runCacheStats(cmd *cobra.Command, args []string) {
 
 	fmt.Println("\n📦 Storage Metrics")
 	fmt.Println("────────────────────────────────────────")
-	fmt.Printf("Inline Posts:    %d (%.1f%%)\n", stats.InlinePosts, float64(stats.InlinePosts)*100/float64(stats.TotalPosts))
-	fmt.Printf("Hashed Posts:    %d (%.1f%%)\n", stats.HashedPosts, float64(stats.HashedPosts)*100/float64(stats.TotalPosts))
+	fmt.Printf("Inline Posts:    %d (%.1f%%)\n", stats.InlinePosts, float64(stats.InlinePosts)*percentScale/float64(stats.TotalPosts))
+	fmt.Printf("Hashed Posts:    %d (%.1f%%)\n", stats.HashedPosts, float64(stats.HashedPosts)*percentScale/float64(stats.TotalPosts))
 }
 
 func runCacheGC(cmd *cobra.Command, args []string) {
@@ -117,7 +125,7 @@ func runCacheGC(cmd *cobra.Command, args []string) {
 
 	cfg := cache.DefaultGCConfig()
 	cfg.DryRun = cacheDryRun
-	cfg.MinBuildsBetweenGC = 0
+	cfg.MinBuildsBetweenGC = defaultMinBuildsBetweenGC
 
 	if cacheDryRun {
 		fmt.Println("🗑️  Running GC (dry run)...")
@@ -134,7 +142,7 @@ func runCacheGC(cmd *cobra.Command, args []string) {
 	fmt.Println("════════════════════════════════════════")
 	fmt.Printf("Scanned:    %d blobs\n", result.ScannedBlobs)
 	fmt.Printf("Live:       %d blobs\n", result.LiveBlobs)
-	fmt.Printf("Deleted:    %d blobs (%.2f MB)\n", result.DeletedBlobs, float64(result.DeletedBytes)/(1024*1024))
+	fmt.Printf("Deleted:    %d blobs (%.2f MB)\n", result.DeletedBlobs, float64(result.DeletedBytes)/bytesPerMiB)
 	fmt.Printf("Duration:   %v\n", result.Duration)
 
 	if cacheDryRun {
@@ -231,8 +239,8 @@ func runCacheInspect(cmd *cobra.Command, args []string) {
 }
 
 func truncateHash(hash string) string {
-	if len(hash) > 16 {
-		return hash[:8] + "..." + hash[len(hash)-8:]
+	if len(hash) > hashPreviewLen {
+		return hash[:hashEdgeLen] + "..." + hash[len(hash)-hashEdgeLen:]
 	}
 	return hash
 }

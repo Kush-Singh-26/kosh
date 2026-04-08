@@ -11,6 +11,10 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
+const (
+	percentScale = 100
+)
+
 // finalizeBuild writes post-build files and commits the transaction.
 func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup, assetsReady <-chan struct{}) error {
 	// Write .nojekyll file
@@ -118,7 +122,7 @@ func (b *Engine) printBuildInsights() {
 	total := hits + misses
 	hitRate := float64(0)
 	if total > 0 {
-		hitRate = float64(hits) / float64(total) * 100
+		hitRate = float64(hits) / float64(total) * percentScale
 	}
 
 	origSize := m.OriginalImageSize.Load()
@@ -129,7 +133,7 @@ func (b *Engine) printBuildInsights() {
 	}
 	saveRate := float64(0)
 	if origSize > 0 {
-		saveRate = float64(saved) / float64(origSize) * 100
+		saveRate = float64(saved) / float64(origSize) * percentScale
 	}
 
 	b.Deps.Logger.Info("Build Insights",
@@ -141,7 +145,7 @@ func (b *Engine) printBuildInsights() {
 }
 
 func formatBytes(b int64) string {
-	const unit = 1024
+	const unit = bytesPerKiB
 	if b < unit {
 		return fmt.Sprintf("%d B", b)
 	}

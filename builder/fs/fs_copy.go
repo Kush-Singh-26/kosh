@@ -19,7 +19,7 @@ var (
 	// copyBufferPool stores *[]byte buffers for streaming copies.
 	copyBufferPool = sync.Pool{
 		New: func() any {
-			b := make([]byte, 64*1024)
+			b := make([]byte, copyBufferSize)
 			return &b
 		},
 	}

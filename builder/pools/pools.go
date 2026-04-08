@@ -10,6 +10,13 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+const (
+	bytesPerKiB             = 1024
+	bytesPerMiB             = 1024 * bytesPerKiB
+	byteSlicePoolDefaultCap = 10 * bytesPerKiB
+	byteSlicePoolMaxCap     = 5 * bytesPerMiB
+)
+
 // BufferPool manages a pool of reusable bytes.Buffer objects.
 type BufferPool struct {
 	pool sync.Pool // stores *bytes.Buffer
@@ -156,7 +163,7 @@ func NewByteSlicePool() *ByteSlicePool {
 	return &ByteSlicePool{
 		pool: sync.Pool{
 			New: func() any {
-				b := make([]byte, 0, 1024*10) // 10KB
+				b := make([]byte, 0, byteSlicePoolDefaultCap)
 				return &b
 			},
 		},
@@ -170,7 +177,7 @@ func (p *ByteSlicePool) Get() *[]byte {
 
 // Put returns a byte slice to the pool.
 func (p *ByteSlicePool) Put(b *[]byte) {
-	if b == nil || cap(*b) > 5*1024*1024 {
+	if b == nil || cap(*b) > byteSlicePoolMaxCap {
 		return
 	}
 	*b = (*b)[:0]

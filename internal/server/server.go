@@ -18,6 +18,16 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
+const (
+	defaultStatusCode       = http.StatusOK
+	slowRequestThreshold    = 500 * time.Millisecond
+	defaultShutdownTimeout  = 5 * time.Second
+	defaultDebounceDuration = 500 * time.Millisecond
+	buildWaitTimeout        = 5 * time.Second
+	cacheMaxAgeHashed       = 31536000
+	cacheMaxAgeDefault      = 60
+)
+
 func recoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -52,11 +62,11 @@ func (w *statusWriter) Flush() {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		sw := &statusWriter{ResponseWriter: w, status: 200}
+		sw := &statusWriter{ResponseWriter: w, status: defaultStatusCode}
 		next.ServeHTTP(sw, r)
 		duration := time.Since(start)
 		// Skip logging for SSE /events endpoint - not useful to log heartbeats
-		if r.URL.Path != "/events" && (sw.status >= 400 || duration > 500*time.Millisecond) {
+		if r.URL.Path != "/events" && (sw.status >= http.StatusBadRequest || duration > slowRequestThreshold) {
 			orchestration.HTTPLog(r.Method, r.URL.Path, sw.status, duration)
 		}
 	})
@@ -102,12 +112,12 @@ func Run(opts ServerOptions) {
 	}
 
 	// Get shutdown timeout from build config
-	shutdownTimeout := 5 * time.Second
+	shutdownTimeout := defaultShutdownTimeout
 	if buildCfg != nil {
 		shutdownTimeout = buildCfg.ShutdownTimeout
 	}
 
-	debounceDuration := 500 * time.Millisecond
+	debounceDuration := defaultDebounceDuration
 	if buildCfg != nil {
 		debounceDuration = buildCfg.DebounceDuration
 	}
@@ -203,7 +213,7 @@ func waitForBuildCompletion(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	case <-r.Context().Done():
 		return false
-	case <-time.After(5 * time.Second):
+	case <-time.After(buildWaitTimeout):
 		slog.Warn("Wait for build timed out", "path", r.URL.Path)
 		return true
 	}
@@ -300,13 +310,13 @@ func setResponseHeaders(opts responseHeaderOptions) {
 
 	// Set Cache-Control
 	if isHashedAsset(filename) {
-		opts.writer.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		opts.writer.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", cacheMaxAgeHashed))
 	} else if opts.fileInfo.IsDir() || strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".wasm") || strings.HasSuffix(filename, ".bin") {
 		opts.writer.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
 		opts.writer.Header().Set("Pragma", "no-cache")
 		opts.writer.Header().Set("Expires", "0")
 	} else {
-		opts.writer.Header().Set("Cache-Control", "public, max-age=60")
+		opts.writer.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", cacheMaxAgeDefault))
 	}
 
 	if opts.preCompressed {

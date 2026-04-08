@@ -4,6 +4,12 @@ import (
 	"time"
 )
 
+const (
+	defaultDeadBytesThreshold = 0.30
+	defaultMinBuildsBetweenGC = 10
+	defaultMaxAge             = 7 * 24 * time.Hour
+)
+
 // GCConfig controls garbage collection behavior
 type GCConfig struct {
 	DeadBytesThreshold float64       // Trigger GC when dead_bytes / total_bytes > this (default 0.3)
@@ -15,9 +21,9 @@ type GCConfig struct {
 // DefaultGCConfig returns sensible defaults
 func DefaultGCConfig() GCConfig {
 	return GCConfig{
-		DeadBytesThreshold: 0.30,
-		MinBuildsBetweenGC: 10,
-		MaxAge:             7 * 24 * time.Hour, // 7 days TTL for unreferenced artifacts
+		DeadBytesThreshold: defaultDeadBytesThreshold,
+		MinBuildsBetweenGC: defaultMinBuildsBetweenGC,
+		MaxAge:             defaultMaxAge, // 7 days TTL for unreferenced artifacts
 		DryRun:             false,
 	}
 }

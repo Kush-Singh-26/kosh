@@ -8,6 +8,11 @@ import (
 	"github.com/spf13/afero"
 )
 
+const (
+	scaffoldDirMode  = 0755
+	scaffoldFileMode = 0644
+)
+
 const defaultKoshYaml = `# Site Configuration
 title: "My Kosh Site"
 description: "A new site built with Kosh"
@@ -89,7 +94,7 @@ func RunFs(fs afero.Fs, args []string) {
 	}
 
 	for _, dir := range dirs {
-		if err := fs.MkdirAll(dir, 0755); err != nil {
+		if err := fs.MkdirAll(dir, scaffoldDirMode); err != nil {
 			slog.Error("Failed to create directory", "dir", dir, "error", err)
 			return
 		}
@@ -99,7 +104,7 @@ func RunFs(fs afero.Fs, args []string) {
 	// 2. Create kosh.yaml
 	exists, _ := afero.Exists(fs, "kosh.yaml")
 	if !exists {
-		if err := afero.WriteFile(fs, "kosh.yaml", []byte(defaultKoshYaml), 0644); err != nil {
+		if err := afero.WriteFile(fs, "kosh.yaml", []byte(defaultKoshYaml), scaffoldFileMode); err != nil {
 			slog.Error("Failed to create kosh.yaml", "error", err)
 			return
 		}
@@ -112,7 +117,7 @@ func RunFs(fs afero.Fs, args []string) {
 	exists, _ = afero.Exists(fs, "content/hello-world.md")
 	if !exists {
 		content := fmt.Sprintf(firstPost, time.Now().Format("2006-01-02"))
-		if err := afero.WriteFile(fs, "content/hello-world.md", []byte(content), 0644); err != nil {
+		if err := afero.WriteFile(fs, "content/hello-world.md", []byte(content), scaffoldFileMode); err != nil {
 			slog.Error("Failed to create first post", "error", err)
 		} else {
 			slog.Info("Created content/hello-world.md")

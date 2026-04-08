@@ -29,6 +29,12 @@ type restoreAssetsOptions struct {
 	onAssetProcessed func()
 }
 
+const (
+	urlPrefix       = "url("
+	assetHashMinLen = 8
+	assetHashMaxLen = 12
+)
+
 func restoreAssetsFromCache(opts restoreAssetsOptions) (map[string]string, bool, error) {
 	if opts.cachePath == "" || opts.sink == nil || opts.destDir == "" {
 		return nil, false, errors.New("restoreAssetsFromCache: missing required fields")
@@ -225,8 +231,8 @@ func BuildAssetsEsbuild(opts BuildAssetsOptions) (map[string]string, error) {
 					if err == nil {
 						rel = normalizeEsbuildHashCase(rel)
 						cacheFile := filepath.Join(cachePath, rel)
-						_ = os.MkdirAll(filepath.Dir(cacheFile), 0755)
-						_ = os.WriteFile(cacheFile, contents, 0644)
+						_ = os.MkdirAll(filepath.Dir(cacheFile), defaultDirMode)
+						_ = os.WriteFile(cacheFile, contents, defaultFileMode)
 					}
 				}
 				return nil
@@ -295,7 +301,7 @@ func BuildAssetsEsbuild(opts BuildAssetsOptions) (map[string]string, error) {
 
 	if cachePath != "" {
 		mapData, _ := json.Marshal(assets)
-		_ = os.WriteFile(filepath.Join(cachePath, "map.json"), mapData, 0644)
+		_ = os.WriteFile(filepath.Join(cachePath, "map.json"), mapData, defaultFileMode)
 	}
 
 	return assets, nil
@@ -333,7 +339,7 @@ func normalizeEsbuildHashCase(path string) string {
 }
 
 func isAlphanumericHash(s string) bool {
-	if len(s) < 8 || len(s) > 12 {
+	if len(s) < assetHashMinLen || len(s) > assetHashMaxLen {
 		return false
 	}
 	for _, c := range s {
@@ -347,14 +353,14 @@ func isAlphanumericHash(s string) bool {
 // normalizeAssetURLHashes lowercases hash segments inside url(...) references in CSS/JS.
 // Uses byte scanning instead of regex for O(n) performance.
 func normalizeAssetURLHashes(content []byte) []byte {
-	if !bytes.Contains(content, []byte("url(")) {
+	if !bytes.Contains(content, []byte(urlPrefix)) {
 		return content
 	}
 
 	result := make([]byte, 0, len(content))
 	i := 0
 	for i < len(content) {
-		idx := bytes.Index(content[i:], []byte("url("))
+		idx := bytes.Index(content[i:], []byte(urlPrefix))
 		if idx < 0 {
 			result = append(result, content[i:]...)
 			break
@@ -364,7 +370,7 @@ func normalizeAssetURLHashes(content []byte) []byte {
 		urlStart := i + idx // position of 'u' in url(
 
 		// Skip "url("
-		innerStart := urlStart + 4
+		innerStart := urlStart + len(urlPrefix)
 		// Skip optional whitespace
 		for innerStart < len(content) && (content[innerStart] == ' ' || content[innerStart] == '\t' || content[innerStart] == '\n' || content[innerStart] == '\r') {
 			innerStart++
@@ -386,7 +392,7 @@ func normalizeAssetURLHashes(content []byte) []byte {
 			normalized := normalizeURLHash(urlInner)
 
 			// Reconstruct url("...") or url('...')
-			result = append(result, []byte("url(")...)
+			result = append(result, []byte(urlPrefix)...)
 			result = append(result, quote)
 			result = append(result, normalized...)
 			result = append(result, quote)
@@ -413,7 +419,7 @@ func normalizeAssetURLHashes(content []byte) []byte {
 			inner := bytes.TrimSpace(content[innerStart:urlEnd])
 			normalized := normalizeURLHash(inner)
 
-			result = append(result, []byte("url(")...)
+			result = append(result, []byte(urlPrefix)...)
 			result = append(result, normalized...)
 			result = append(result, ')')
 			i = urlEnd + 1

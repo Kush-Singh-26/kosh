@@ -11,9 +11,40 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
+const (
+	gradientColor0  = 130
+	gradientColor1  = 166
+	gradientColor2  = 202
+	gradientColor3  = 208
+	gradientColor4  = 214
+	gradientColor5  = 220
+	gradientColor6  = 226
+	gradientColor7  = 220
+	gradientColor8  = 214
+	gradientColor9  = 208
+	gradientColor10 = 202
+	gradientColor11 = 166
+
+	labelPadWidth          = 10
+	minPadWidth            = 1
+	terminalWidthThreshold = 70
+	blockquoteRuleWidth    = 30
+)
+
 // Plasma gradient: Deep orange -> Bright Orange -> Yellow Core -> Deep orange
 var koshGradient = []int{
-	130, 166, 202, 208, 214, 220, 226, 220, 214, 208, 202, 166,
+	gradientColor0,
+	gradientColor1,
+	gradientColor2,
+	gradientColor3,
+	gradientColor4,
+	gradientColor5,
+	gradientColor6,
+	gradientColor7,
+	gradientColor8,
+	gradientColor9,
+	gradientColor10,
+	gradientColor11,
 }
 
 func supportsANSI() bool {
@@ -93,9 +124,9 @@ func infoRow(label, value string) string {
 		return ""
 	}
 	// Pad the label to 10 characters for perfect vertical alignment
-	padLen := 10 - len(label)
+	padLen := labelPadWidth - len(label)
 	if padLen < 0 {
-		padLen = 1
+		padLen = minPadWidth
 	}
 	padding := strings.Repeat(" ", padLen)
 	return fmt.Sprintf("     %s %s%s %s", dim("│"), accent(label), padding, value)
@@ -117,7 +148,7 @@ func shortenPath(path string) string {
 func printStartupBanner(mode string, cfg *config.Config) {
 	wide := true
 	if width := os.Getenv("COLUMNS"); width != "" {
-		if n, err := strconv.Atoi(strings.TrimSpace(width)); err == nil && n > 0 && n <= 70 {
+		if n, err := strconv.Atoi(strings.TrimSpace(width)); err == nil && n > 0 && n <= terminalWidthThreshold {
 			wide = false
 		}
 	}
@@ -159,7 +190,7 @@ func printStartupBanner(mode string, cfg *config.Config) {
 	// Empty config state
 	if cfg == nil {
 		fmt.Println("     " + dim("│ ") + dim(`Use "kosh [command] --help" for command details.`))
-		fmt.Println("     " + dim("╰"+strings.Repeat("─", 30)))
+		fmt.Println("     " + dim("╰"+strings.Repeat("─", blockquoteRuleWidth)))
 		fmt.Println()
 		return
 	}
@@ -180,6 +211,6 @@ func printStartupBanner(mode string, cfg *config.Config) {
 	}
 
 	// Cap off the blockquote UI beautifully
-	fmt.Println("     " + dim("╰"+strings.Repeat("─", 30)))
+	fmt.Println("     " + dim("╰"+strings.Repeat("─", blockquoteRuleWidth)))
 	fmt.Println()
 }

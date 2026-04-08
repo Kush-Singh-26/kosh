@@ -21,6 +21,26 @@ import (
 	"oss.terrastruct.com/d2/lib/textmeasure"
 )
 
+const (
+	minWorkers           = 1
+	defaultMathBatchSize = 16
+	mathQueueBufferSize  = 2048
+	mathBatchTimeout     = 2 * time.Millisecond
+	mathBatchErrTimeout  = 10 * time.Millisecond
+
+	bytecodeHeaderSize      = 20
+	bytecodeMagic           = "KBC1"
+	bytecodeMagicSize       = 4
+	bytecodeSourceHashStart = 4
+	bytecodeSourceHashEnd   = 12
+	bytecodeSizeStart       = 12
+	bytecodeSizeEnd         = 20
+	bytecodePayloadOffset   = 20
+
+	maxExecutionTimeMs = 2000
+	hashPrefixLength   = 16
+)
+
 //go:generate go run ../../../scripts/compile-katex/main.go
 
 //go:embed katex.min.js
@@ -82,7 +102,7 @@ func WithMathBatchSize(n int) RendererOption {
 
 // New creates a new Renderer - workers are lazy-initialized
 func New(opts ...RendererOption) *Renderer {
-	numWorkers := max(runtime.NumCPU(), 1)
+	numWorkers := max(runtime.NumCPU(), minWorkers)
 
 	r := &Renderer{
 		pool: make(chan *instance, numWorkers),
@@ -93,10 +113,10 @@ func New(opts ...RendererOption) *Renderer {
 			},
 		},
 		numWorkers:    numWorkers,
-		mathBatchSize: 16,
+		mathBatchSize: defaultMathBatchSize,
 		initReady:     make(chan struct{}),
 		scheduler:     nil, // Must be set via WithScheduler option
-		mathQueue:     make(chan mathRequest, 2048),
+		mathQueue:     make(chan mathRequest, mathQueueBufferSize),
 	}
 
 	for _, opt := range opts {
@@ -123,7 +143,7 @@ func (r *Renderer) mathBatchWorker() {
 	for req := range r.mathQueue {
 		// Collect a small batch
 		batch := []mathRequest{req}
-		timeout := time.After(2 * time.Millisecond)
+		timeout := time.After(mathBatchTimeout)
 
 	loop:
 		for len(batch) < r.mathBatchSize {
@@ -148,7 +168,7 @@ func (r *Renderer) mathBatchWorker() {
 			for _, b := range batch {
 				select {
 				case b.err <- err:
-				case <-time.After(10 * time.Millisecond):
+				case <-time.After(mathBatchErrTimeout):
 				}
 			}
 			continue
@@ -161,24 +181,24 @@ func (r *Renderer) mathBatchWorker() {
 }
 
 func (r *Renderer) validateBytecode(bc []byte) ([]byte, bool) {
-	if len(bc) < 20 {
+	if len(bc) < bytecodeHeaderSize {
 		return nil, false
 	}
-	if string(bc[0:4]) != "KBC1" {
+	if string(bc[0:bytecodeMagicSize]) != bytecodeMagic {
 		return nil, false
 	}
 	// Check hash of source JS
-	sourceHash := binary.LittleEndian.Uint64(bc[4:12])
+	sourceHash := binary.LittleEndian.Uint64(bc[bytecodeSourceHashStart:bytecodeSourceHashEnd])
 	actualHash := xxh3.Hash([]byte(katexJS))
 	if sourceHash != actualHash {
 		return nil, false
 	}
 	// Check size integrity
-	expectedSize := binary.LittleEndian.Uint64(bc[12:20])
-	if uint64(len(bc)-20) != expectedSize {
+	expectedSize := binary.LittleEndian.Uint64(bc[bytecodeSizeStart:bytecodeSizeEnd])
+	if uint64(len(bc)-bytecodeHeaderSize) != expectedSize {
 		return nil, false
 	}
-	return bc[20:], true
+	return bc[bytecodePayloadOffset:], true
 }
 
 // ensureInitialized lazily creates worker instances on first use
@@ -198,7 +218,7 @@ func (r *Renderer) ensureInitialized() {
 			}
 
 			rt, err := qjs.New(qjs.Option{
-				MaxExecutionTime: 2000,
+				MaxExecutionTime: maxExecutionTimeMs,
 			})
 			if err == nil {
 				bc, err := rt.Compile("katex.min.js", qjs.Code(katexJS))
@@ -307,7 +327,7 @@ func HashContent(contentType, content string) string {
 	_, _ = h.WriteString(contentType + ":" + content)
 	sum := h.Sum128()
 	b := sum.Bytes()
-	return hex.EncodeToString(b[:])[:16]
+	return hex.EncodeToString(b[:])[:hashPrefixLength]
 }
 
 // GetD2Singleflight returns the shared singleflight group for D2 rendering

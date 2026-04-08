@@ -22,14 +22,24 @@ import (
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 )
 
+const (
+	frontmatterDelimiter    = "---"
+	frontmatterDelimiterLen = len(frontmatterDelimiter)
+	frontmatterParts        = 3
+	metadataBuilderExtra    = 200
+	wordFreqMapDivisor      = 2
+	titleBoost              = 5
+	offsetPairSize          = 2
+)
+
 // stripFrontmatter extracts the body content, removing frontmatter if present
 func stripFrontmatter(source []byte, bodyOffset int) []byte {
 	if bodyOffset > 0 && bodyOffset < len(source) {
 		return source[bodyOffset:]
 	}
-	if bytes.HasPrefix(source, []byte("---")) {
-		if idx := bytes.Index(source[3:], []byte("---")); idx != -1 {
-			return source[idx+6:]
+	if bytes.HasPrefix(source, []byte(frontmatterDelimiter)) {
+		if idx := bytes.Index(source[frontmatterDelimiterLen:], []byte(frontmatterDelimiter)); idx != -1 {
+			return source[idx+frontmatterDelimiterLen*2:]
 		}
 	}
 	return source
@@ -77,9 +87,9 @@ func extractMetadata(mdCtx parser.Context, source []byte, preParsedMeta map[stri
 		return preParsedMeta
 	}
 
-	if bytes.HasPrefix(source, []byte("---")) {
-		parts := bytes.SplitN(source, []byte("---"), 3)
-		if len(parts) >= 3 {
+	if bytes.HasPrefix(source, []byte(frontmatterDelimiter)) {
+		parts := bytes.SplitN(source, []byte(frontmatterDelimiter), frontmatterParts)
+		if len(parts) >= frontmatterParts {
 			metadata, _ := hashing.ParseFrontmatter(parts[1])
 			if metadata != nil {
 				return metadata
@@ -142,7 +152,7 @@ func tokenizeSearchData(
 	sb := pools.SharedStringBuilderPool.Get()
 	defer pools.SharedStringBuilderPool.Put(sb)
 
-	sb.Grow(len(searchRecord.Title) + len(searchRecord.Description) + len(plainText) + 200)
+	sb.Grow(len(searchRecord.Title) + len(searchRecord.Description) + len(plainText) + metadataBuilderExtra)
 	sb.WriteString(searchRecord.Title)
 	sb.WriteByte(' ')
 	sb.WriteString(searchRecord.Description)
@@ -156,14 +166,13 @@ func tokenizeSearchData(
 
 	words, freshStemMap, positions, rawOffsets := core.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
 
-	wordFreqs = make(map[string]int, len(words)/2)
+	wordFreqs = make(map[string]int, len(words)/wordFreqMapDivisor)
 	for _, w := range words {
 		wordFreqs[w]++
 	}
 
 	// Apply title boost to frequencies
 	titleTokens := core.DefaultAnalyzer.Analyze(searchRecord.Title)
-	const titleBoost = 5
 	for _, t := range titleTokens {
 		wordFreqs[t] += titleBoost
 	}
@@ -181,7 +190,7 @@ func tokenizeSearchData(
 	byteOffsets = make(map[string][]uint32, len(rawOffsets))
 	for term, termOffsets := range rawOffsets {
 		bodyOffsets := make([]int, 0, len(termOffsets))
-		for i := 0; i < len(termOffsets); i += 2 {
+		for i := 0; i < len(termOffsets); i += offsetPairSize {
 			start := termOffsets[i]
 			end := termOffsets[i+1]
 			if start >= metaOffset {

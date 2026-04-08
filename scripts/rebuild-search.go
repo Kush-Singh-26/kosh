@@ -13,6 +13,13 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
+const (
+	wasmDirMode   = 0755
+	wasmFileMode  = 0644
+	wasmHashBytes = 8
+	bytesPerKiB   = 1024
+)
+
 func main() {
 	// 1. Setup paths
 	repoRoot, err := getRepoRoot()
@@ -59,12 +66,12 @@ func main() {
 	}
 
 	// 4. Write to builder/assets/wasm/
-	if err := os.MkdirAll(filepath.Dir(brDest), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(brDest), wasmDirMode); err != nil {
 		fmt.Printf("Failed to create destination directory: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(brDest, buf.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(brDest, buf.Bytes(), wasmFileMode); err != nil {
 		fmt.Printf("Failed to write compressed WASM: %v\n", err)
 		os.Exit(1)
 	}
@@ -80,7 +87,7 @@ package assets
 const SearchWasmHash = "%s"
 `, hash)
 
-	if err := os.WriteFile(hashGoDest, []byte(hashGoContent), 0644); err != nil {
+	if err := os.WriteFile(hashGoDest, []byte(hashGoContent), wasmFileMode); err != nil {
 		fmt.Printf("Failed to write search_hash.go: %v\n", err)
 		os.Exit(1)
 	}
@@ -101,7 +108,7 @@ func hashBytes(data []byte) string {
 	_, _ = h.Write(data)
 	sum := h.Sum128()
 	b := sum.Bytes()
-	return fmt.Sprintf("%x", b[:8]) // 16 chars hex
+	return fmt.Sprintf("%x", b[:wasmHashBytes]) // 16 chars hex
 }
 
 func getRepoRoot() (string, error) {
@@ -114,5 +121,5 @@ func getRepoRoot() (string, error) {
 }
 
 func formatSize(size int) string {
-	return fmt.Sprintf("%.2f KB", float64(size)/1024)
+	return fmt.Sprintf("%.2f KB", float64(size)/bytesPerKiB)
 }

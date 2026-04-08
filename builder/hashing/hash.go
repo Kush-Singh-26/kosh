@@ -18,6 +18,15 @@ import (
 // ErrEmptyData indicates empty input for frontmatter parsing.
 var ErrEmptyData = errors.New("empty data")
 
+const (
+	hashBoolTrue         = 1
+	hashBoolFalse        = 0
+	hashFieldSeparator   = ':'
+	hashSectionSeparator = 0
+	weightBytesSize      = 8
+	yamlFrontmatterParts = 3
+)
+
 // GetFrontmatterHash computes the canonical frontmatter hash from the raw metadata map.
 // It includes whitelisted standard fields with normalization and a catch-all for custom fields.
 // Expected types in metadata: string, bool, int/float64, time.Time, []any, map[string]any.
@@ -75,11 +84,11 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 
 	for _, k := range keys {
 		writeStringXXH3(h, k)
-		_, _ = h.Write([]byte{':'})
+		_, _ = h.Write([]byte{hashFieldSeparator})
 		// Convert value to string representation for hashing
 		val := fmt.Sprintf("%v", metadata[k])
 		writeStringXXH3(h, val)
-		_, _ = h.Write([]byte{0})
+		_, _ = h.Write([]byte{hashSectionSeparator})
 	}
 
 	sum := h.Sum128()
@@ -133,10 +142,10 @@ func GetFrontmatterHashFromValues(opts FrontmatterHashOptions) string {
 
 	for _, k := range keys {
 		writeStringXXH3(h, k)
-		_, _ = h.Write([]byte{':'})
+		_, _ = h.Write([]byte{hashFieldSeparator})
 		val := fmt.Sprintf("%v", opts.Other[k])
 		writeStringXXH3(h, val)
-		_, _ = h.Write([]byte{0})
+		_, _ = h.Write([]byte{hashSectionSeparator})
 	}
 
 	sum := h.Sum128()
@@ -158,9 +167,9 @@ type HashStandardFieldsOptions struct {
 
 func hashStandardFields(opts HashStandardFieldsOptions) {
 	writeStringXXH3(opts.Hasher, opts.Title)
-	_, _ = opts.Hasher.Write([]byte{0})
+	_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
 	writeStringXXH3(opts.Hasher, opts.Description)
-	_, _ = opts.Hasher.Write([]byte{0})
+	_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
 
 	// Normalize date to YYYY-MM-DD when parseable
 	if t, err := time.Parse("2006-01-02", opts.Date); err == nil {
@@ -168,7 +177,7 @@ func hashStandardFields(opts HashStandardFieldsOptions) {
 	} else {
 		writeStringXXH3(opts.Hasher, opts.Date)
 	}
-	_, _ = opts.Hasher.Write([]byte{0})
+	_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
 
 	if len(opts.Tags) > 0 {
 		normalized := make([]string, len(opts.Tags))
@@ -179,24 +188,24 @@ func hashStandardFields(opts HashStandardFieldsOptions) {
 		sort.Strings(normalized)
 		for _, tag := range normalized {
 			writeStringXXH3(opts.Hasher, tag)
-			_, _ = opts.Hasher.Write([]byte{0})
+			_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
 		}
 	}
-	_, _ = opts.Hasher.Write([]byte{0})
+	_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
 
 	// Flags and numeric values
 	if opts.Pinned {
-		_, _ = opts.Hasher.Write([]byte{1})
+		_, _ = opts.Hasher.Write([]byte{hashBoolTrue})
 	} else {
-		_, _ = opts.Hasher.Write([]byte{0})
+		_, _ = opts.Hasher.Write([]byte{hashBoolFalse})
 	}
 	if opts.Draft {
-		_, _ = opts.Hasher.Write([]byte{1})
+		_, _ = opts.Hasher.Write([]byte{hashBoolTrue})
 	} else {
-		_, _ = opts.Hasher.Write([]byte{0})
+		_, _ = opts.Hasher.Write([]byte{hashBoolFalse})
 	}
 
-	weightBytes := make([]byte, 8)
+	weightBytes := make([]byte, weightBytesSize)
 	binary.LittleEndian.PutUint64(weightBytes, uint64(opts.Weight))
 	_, _ = opts.Hasher.Write(weightBytes)
 }
@@ -220,8 +229,8 @@ func HashBytes(data []byte) string {
 // This is CRITICAL for cache validity - body changes without frontmatter changes
 // would otherwise be silently ignored
 func GetBodyHash(source []byte) string {
-	parts := bytes.SplitN(source, YAMLDelim, 3)
-	if len(parts) >= 3 {
+	parts := bytes.SplitN(source, YAMLDelim, yamlFrontmatterParts)
+	if len(parts) >= yamlFrontmatterParts {
 		return HashBytes(bytes.TrimSpace(parts[2]))
 	}
 	return HashBytes(source)
@@ -230,8 +239,8 @@ func GetBodyHash(source []byte) string {
 // GetFrontmatterHashFromSource extracts frontmatter from raw source and computes its hash.
 // If title is missing in metadata, it uses fallbackTitle to ensure consistency with the scanner.
 func GetFrontmatterHashFromSource(source []byte, fallbackTitle string) (string, error) {
-	parts := bytes.SplitN(source, YAMLDelim, 3)
-	if len(parts) < 3 {
+	parts := bytes.SplitN(source, YAMLDelim, yamlFrontmatterParts)
+	if len(parts) < yamlFrontmatterParts {
 		return "", nil
 	}
 

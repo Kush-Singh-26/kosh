@@ -20,6 +20,15 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
 
+const (
+	assetChanBuffer         = 512
+	assetCopyGroupLimit     = 256
+	assetWalkConcurrencyDiv = 2
+	assetMinWalkConcurrency = 4
+	defaultWalkConcurrency  = 1
+	discoverySampleLimit    = 5
+)
+
 type assetTask struct {
 	srcPath string
 	relPath string
@@ -83,15 +92,15 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 		numWorkers = runtime.NumCPU()
 	}
 
-	assetChan := make(chan assetTask, 512)
+	assetChan := make(chan assetTask, assetChanBuffer)
 	copyGroup, copyCtx := errgroup.WithContext(ctx)
-	copyGroup.SetLimit(256)
+	copyGroup.SetLimit(assetCopyGroupLimit)
 
 	workerWg := s.setupAssetWorker(assetChan, copyGroup, copyCtx)
 
 	walkerWg := sync.WaitGroup{}
 	discoveryGroup, dCtx := errgroup.WithContext(ctx)
-	walkConcurrency := max(numWorkers/2, 4)
+	walkConcurrency := max(numWorkers/assetWalkConcurrencyDiv, assetMinWalkConcurrency)
 
 	enqueue := s.setupImageEnqueue(bgCtx, skipImages, sc, assetChan)
 	walkFunc := s.setupDiscoveryWalk(discoveryWalkOptions{
@@ -297,7 +306,7 @@ func (s *assetService) setupDiscoveryWalk(opts discoveryWalkOptions) func(contex
 		panic("setupDiscoveryWalk: enqueue is nil")
 	}
 	if opts.walkConcurrency <= 0 {
-		opts.walkConcurrency = 1
+		opts.walkConcurrency = defaultWalkConcurrency
 	}
 
 	return func(ctx context.Context, dir string, isSite bool) error {
@@ -383,9 +392,9 @@ func (s *assetService) recordDiscoverySample(isSite bool, fullRel string, sc *sy
 		atomic.AddInt64(&sc.themeEnqueued, 1)
 	}
 	sc.sampleMu.Lock()
-	if isSite && len(sc.siteSamples) < 5 {
+	if isSite && len(sc.siteSamples) < discoverySampleLimit {
 		sc.siteSamples = append(sc.siteSamples, fullRel)
-	} else if !isSite && len(sc.themeSamples) < 5 {
+	} else if !isSite && len(sc.themeSamples) < discoverySampleLimit {
 		sc.themeSamples = append(sc.themeSamples, fullRel)
 	}
 	sc.sampleMu.Unlock()

@@ -10,6 +10,17 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
+const (
+	katexHeaderSize    = 20
+	katexMagic         = "KBC1"
+	katexMagicSize     = 4
+	katexHashStart     = 4
+	katexHashEnd       = 12
+	katexSizeStart     = 12
+	katexSizeEnd       = 20
+	katexOutputDirMode = 0755
+)
+
 func main() {
 	// Read katex.min.js from the native package directory
 	jsPath := "C:/Users/KIIT0001/blogs/builder/renderer/native/katex.min.js"
@@ -41,10 +52,10 @@ func main() {
 	// 4 bytes: Magic "KBC1"
 	// 8 bytes: Source JS Hash
 	// 8 bytes: Bytecode size (for integrity check)
-	header := make([]byte, 20)
-	copy(header[0:4], "KBC1")
-	binary.LittleEndian.PutUint64(header[4:12], jsHash)
-	binary.LittleEndian.PutUint64(header[12:20], uint64(len(bytecode)))
+	header := make([]byte, katexHeaderSize)
+	copy(header[0:katexMagicSize], katexMagic)
+	binary.LittleEndian.PutUint64(header[katexHashStart:katexHashEnd], jsHash)
+	binary.LittleEndian.PutUint64(header[katexSizeStart:katexSizeEnd], uint64(len(bytecode)))
 
 	// Get the output path from command line or use default
 	outputPath := "C:/Users/KIIT0001/blogs/builder/renderer/native/katex.bytecode"
@@ -55,7 +66,7 @@ func main() {
 	// Ensure the output directory exists
 	outputDir := filepath.Dir(outputPath)
 	if outputDir != "." {
-		if err := os.MkdirAll(outputDir, 0755); err != nil {
+		if err := os.MkdirAll(outputDir, katexOutputDirMode); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to create output directory: %v\n", err)
 			os.Exit(1)
 		}

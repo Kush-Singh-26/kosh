@@ -9,6 +9,20 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 )
 
+const (
+	tokenPoolCap           = 512
+	minTokenLength         = 2
+	estUniqueDivisor       = 2
+	minEstUnique           = 4
+	positionsCap           = 1
+	offsetsCap             = 2
+	localStemCacheDivisor  = 2
+	asciiWordTableSize     = 256
+	estimatedTokensDivisor = 5
+	minEstimatedTokens     = 8
+	asciiBoundary          = 0x80
+)
+
 var stopWords = map[string]bool{
 	"a": true, "an": true, "and": true, "are": true, "as": true, "at": true,
 	"be": true, "but": true, "by": true, "for": true, "if": true, "in": true,
@@ -72,7 +86,7 @@ var (
 	// tokenPool stores *[]Token buffers for tokenization.
 	tokenPool = sync.Pool{
 		New: func() any {
-			s := make([]Token, 0, 512)
+			s := make([]Token, 0, tokenPoolCap)
 			return &s
 		},
 	}
@@ -91,12 +105,12 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 		return nil, nil, nil, nil
 	}
 
-	estUnique := max(len(tokens)/2, 4)
+	estUnique := max(len(tokens)/estUniqueDivisor, minEstUnique)
 	result := make([]string, 0, len(tokens))
 	mapping := make(map[string]string, estUnique)
 	positions := make(map[string][]int, estUnique)
 	offsets := make(map[string][]int, estUnique)
-	localStemCache := make(map[string]string, estUnique/2)
+	localStemCache := make(map[string]string, estUnique/localStemCacheDivisor)
 
 	bufPtr := pools.SharedByteSlicePool.Get()
 	defer pools.SharedByteSlicePool.Put(bufPtr)
@@ -121,7 +135,7 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 			}
 		}
 
-		if len(orig) < 2 {
+		if len(orig) < minTokenLength {
 			idx++
 			continue
 		}
@@ -143,8 +157,8 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 		if stem != "" {
 			result = append(result, stem)
 			if positions[stem] == nil {
-				positions[stem] = make([]int, 0, 1)
-				offsets[stem] = make([]int, 0, 2)
+				positions[stem] = make([]int, 0, positionsCap)
+				offsets[stem] = make([]int, 0, offsetsCap)
 			}
 			positions[stem] = append(positions[stem], idx)
 			offsets[stem] = append(offsets[stem], token.Start, token.End)
@@ -212,7 +226,7 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, original
 			}
 		}
 
-		if len(orig) < 2 {
+		if len(orig) < minTokenLength {
 			continue
 		}
 		if a.useStopWords && stopWords[orig] {
@@ -237,14 +251,14 @@ type Token struct {
 	End   int
 }
 
-var isWordPartASCII [256]bool
+var isWordPartASCII [asciiWordTableSize]bool
 
 // init populates the ASCII word-part lookup table. This is a standard Go pattern
 // for compile-time constant data — the table is read-only and shared across all
 // tokenization calls. No external state is inspected; no side effects beyond
 // populating an internal lookup array.
 func init() {
-	for i := range 256 {
+	for i := range asciiWordTableSize {
 		r := rune(i)
 		isWordPartASCII[i] = (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
 	}
@@ -262,7 +276,7 @@ func TokenizeWithUnicodeInto(text string, dst []Token) []Token {
 	}
 
 	if dst == nil {
-		estimatedTokens := max(len(text)/5, 8)
+		estimatedTokens := max(len(text)/estimatedTokensDivisor, minEstimatedTokens)
 		dst = make([]Token, 0, estimatedTokens)
 	}
 
@@ -271,7 +285,7 @@ func TokenizeWithUnicodeInto(text string, dst []Token) []Token {
 		c := text[i]
 		var isWordPart bool
 		var size int
-		if c < 0x80 {
+		if c < asciiBoundary {
 			isWordPart = isWordPartASCII[c]
 			size = 1
 		} else {

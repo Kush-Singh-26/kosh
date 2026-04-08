@@ -9,6 +9,27 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
+const (
+	scoreModifierBase          = 1.0
+	scoreModifierPrefixMatch   = 0.9
+	phraseFullQueryBoostFactor = 1.2
+	exactTagBoostFactor        = 2.0
+	exactTitleBoost            = 50.0
+	prefixTitleBoost           = 30.0
+	substringTitleBoost        = 15.0
+	exactTitleWordBoost        = 20.0
+	prefixTitleWordBoost       = 10.0
+	descriptionContainsBoost   = 5.0
+	minHighlightTermLength     = 2
+	maxProximitySlop           = 15
+	proximityBoost             = 3.0
+	secondsPerMonth            = 2592000
+	recencyWeight              = 0.5
+	recencyLambda              = 0.05
+	recencyBaseBoost           = 1.0
+	bm25Smoothing              = 0.5
+)
+
 // SearchContext holds the context for a search execution
 type SearchContext struct {
 	Index         *models.SearchIndex
@@ -46,7 +67,7 @@ type BM25Scorer struct{}
 func (s *BM25Scorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	for _, term := range ctx.QueryTerms {
 		if posts, ok := ctx.Index.Inverted[term]; ok {
-			opts.Modifier = 1.0
+			opts.Modifier = scoreModifierBase
 			s.applyBM25Score(ctx, posts, term, opts)
 		} else {
 			s.scoreFuzzy(ctx, term, opts)
@@ -56,7 +77,7 @@ func (s *BM25Scorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 
 func (s *BM25Scorer) applyBM25Score(ctx *SearchContext, posts map[string][]uint32, term string, opts *SearchScoringOptions) {
 	df := len(posts)
-	idf := math.Log(1 + (float64(ctx.Index.TotalDocs)-float64(df)+0.5)/(float64(df)+0.5))
+	idf := math.Log(1 + (float64(ctx.Index.TotalDocs)-float64(df)+bm25Smoothing)/(float64(df)+bm25Smoothing))
 	avgDocLen := ctx.Index.AvgDocLen
 
 	for postID, positions := range posts {
@@ -85,7 +106,7 @@ func (s *BM25Scorer) scoreFuzzy(ctx *SearchContext, term string, opts *SearchSco
 		if posts, ok := ctx.Index.Inverted[candTerm]; ok {
 			opts.Modifier = ScoreFuzzyModifier
 			if strings.HasPrefix(candTerm, term) {
-				opts.Modifier = 0.9
+				opts.Modifier = scoreModifierPrefixMatch
 			}
 			s.applyBM25Score(ctx, posts, candTerm, opts)
 		}
@@ -100,7 +121,7 @@ func (s *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if len(ctx.QueryTerms) > 1 {
 		for id := range opts.Scores {
 			if checkPhraseUnified(ctx.Index, id, ctx.QueryTerms) {
-				opts.Scores[id] += ScorePhraseMatch * 1.2
+				opts.Scores[id] += ScorePhraseMatch * phraseFullQueryBoostFactor
 			}
 		}
 	}
@@ -130,40 +151,40 @@ func (s *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	query := ctx.OriginalQuery
 	for id, post := range ctx.Index.Posts {
 		title := post.NormalizedTitle
-		score := 0.0
+		var score float64
 
 		// 1. Exact Title Match (Highest priority)
 		if title == query {
-			score += 50.0
+			score += exactTitleBoost
 		} else if strings.HasPrefix(title, query) {
 			// 2. Prefix Title Match
-			score += 30.0
+			score += prefixTitleBoost
 		} else if strings.Contains(title, query) {
 			// 3. Substring Title Match
-			score += 15.0
+			score += substringTitleBoost
 		}
 
 		// 4. Word-level matching within title
 		titleWords := strings.Fields(title)
 		for _, word := range titleWords {
 			if word == query {
-				score += 20.0
+				score += exactTitleWordBoost
 			} else if strings.HasPrefix(word, query) {
-				score += 10.0
+				score += prefixTitleWordBoost
 			}
 		}
 
 		// 5. Description matching (Lower priority)
 		desc := core.ToLower(post.Description)
 		if strings.Contains(desc, query) {
-			score += 5.0
+			score += descriptionContainsBoost
 		}
 
 		if score > 0 {
 			opts.Scores[id] += score
 			// Add terms to highlight
 			for _, word := range strings.Fields(query) {
-				if len(word) > 2 {
+				if len(word) > minHighlightTermLength {
 					opts.HighlightTerms[word] = true
 				}
 			}
@@ -189,7 +210,7 @@ func (s *BoostScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 		// Exact tag matches
 		for _, tag := range post.NormalizedTags {
 			if tag == ctx.OriginalQuery || tag == ctx.TagFilter {
-				opts.Scores[id] += ScoreTagMatch * 2.0
+				opts.Scores[id] += ScoreTagMatch * exactTagBoostFactor
 				opts.HighlightTerms[tag] = true
 			}
 		}
@@ -278,11 +299,8 @@ func (s *ProximityScorer) calculateProximityScore(ctx *SearchContext, id string)
 	}
 
 	// Slop window size
-	const maxSlop = 15
-	const proximityBoost = 3.0
-
 	// Simple heuristic: check for any two terms within maxSlop
-	boost := 0.0
+	var boost float64
 	for i := 0; i < len(termPositions); i++ {
 		for j := i + 1; j < len(termPositions); j++ {
 			p1, p2 := 0, 0
@@ -292,7 +310,7 @@ func (s *ProximityScorer) calculateProximityScore(ctx *SearchContext, id string)
 				if diff < 0 {
 					diff = -diff
 				}
-				if diff <= maxSlop {
+				if diff <= maxProximitySlop {
 					boost += proximityBoost / float64(diff+1)
 					p1++
 					p2++
@@ -326,16 +344,13 @@ func (s *RecencyScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 		}
 
 		// Calculate age in months
-		const secondsInMonth = 2592000
-		ageMonths := float64(nowUnix-post.Date) / float64(secondsInMonth)
+		ageMonths := float64(nowUnix-post.Date) / float64(secondsPerMonth)
 		if ageMonths < 0 {
 			ageMonths = 0
 		}
 
 		// Apply exponential decay: boost = 1.0 + weight * exp(-lambda * age)
-		const weight = 0.5
-		const lambda = 0.05 // Halves boost roughly every 14 months
-		boost := 1.0 + weight*math.Exp(-lambda*ageMonths)
+		boost := recencyBaseBoost + recencyWeight*math.Exp(-recencyLambda*ageMonths)
 
 		opts.Scores[id] = score * boost
 	}

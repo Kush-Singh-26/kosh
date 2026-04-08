@@ -11,6 +11,12 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 )
 
+const (
+	testDirMode           = 0755
+	testFileMode          = 0644
+	conditionPollInterval = 5 * time.Millisecond
+)
+
 // CreateTestCache creates a temporary cache for testing
 // Returns the cache manager and a cleanup function
 func CreateTestCache(t *testing.T) (*cache.Manager, func()) {
@@ -45,10 +51,10 @@ func CreateTestFilesystemWithContent(files map[string]string) (afero.Fs, afero.F
 	sourceFs, destFs := CreateTestFilesystem()
 	for path, content := range files {
 		dir := filepath.Dir(path)
-		if err := sourceFs.MkdirAll(dir, 0755); err != nil {
+		if err := sourceFs.MkdirAll(dir, testDirMode); err != nil {
 			panic(err)
 		}
-		if err := afero.WriteFile(sourceFs, path, []byte(content), 0644); err != nil {
+		if err := afero.WriteFile(sourceFs, path, []byte(content), testFileMode); err != nil {
 			panic(err)
 		}
 	}
@@ -126,10 +132,10 @@ contentDir: "content"
 outputDir: "public"
 cacheDir: ".kosh-cache"
 `
-	_ = afero.WriteFile(fs, "kosh.yaml", []byte(koshYaml), 0644)
+	_ = afero.WriteFile(fs, "kosh.yaml", []byte(koshYaml), testFileMode)
 
 	// 2. Create content
-	_ = fs.MkdirAll("content/posts", 0755)
+	_ = fs.MkdirAll("content/posts", testDirMode)
 	postContent := `---
 title: "Latest Post"
 date: 2026-03-06
@@ -138,14 +144,14 @@ tags: ["test"]
 # Latest Post
 This is a test post.
 `
-	_ = afero.WriteFile(fs, "content/posts/hello.md", []byte(postContent), 0644)
+	_ = afero.WriteFile(fs, "content/posts/hello.md", []byte(postContent), testFileMode)
 
 	// Create 404 page
-	_ = afero.WriteFile(fs, "content/404.md", []byte("---\ntitle: \"404\"\n---\nPage not found."), 0644)
+	_ = afero.WriteFile(fs, "content/404.md", []byte("---\ntitle: \"404\"\n---\nPage not found."), testFileMode)
 
 	// 3. Create theme
 	themeDir := "themes/test-theme/templates"
-	_ = fs.MkdirAll(themeDir, 0755)
+	_ = fs.MkdirAll(themeDir, testDirMode)
 
 	layoutTmpl := `
 <!DOCTYPE html>
@@ -168,11 +174,11 @@ This is a test post.
 </body>
 </html>
 `
-	_ = afero.WriteFile(fs, filepath.Join(themeDir, "layout.html"), []byte(layoutTmpl), 0644)
-	_ = afero.WriteFile(fs, filepath.Join(themeDir, "index.html"), []byte(indexTmpl), 0644)
-	_ = afero.WriteFile(fs, filepath.Join(themeDir, "post.html"), []byte(layoutTmpl), 0644)
-	_ = afero.WriteFile(fs, filepath.Join(themeDir, "404.html"), []byte(layoutTmpl), 0644)
-	_ = afero.WriteFile(fs, filepath.Join(themeDir, "graph.html"), []byte(layoutTmpl), 0644)
+	_ = afero.WriteFile(fs, filepath.Join(themeDir, "layout.html"), []byte(layoutTmpl), testFileMode)
+	_ = afero.WriteFile(fs, filepath.Join(themeDir, "index.html"), []byte(indexTmpl), testFileMode)
+	_ = afero.WriteFile(fs, filepath.Join(themeDir, "post.html"), []byte(layoutTmpl), testFileMode)
+	_ = afero.WriteFile(fs, filepath.Join(themeDir, "404.html"), []byte(layoutTmpl), testFileMode)
+	_ = afero.WriteFile(fs, filepath.Join(themeDir, "graph.html"), []byte(layoutTmpl), testFileMode)
 }
 
 // WaitForCondition polls a condition until it's met or a timeout occurs
@@ -183,7 +189,7 @@ func WaitForCondition(t *testing.T, timeout time.Duration, condition func() bool
 		if condition() {
 			return
 		}
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(conditionPollInterval)
 	}
 	t.Fatalf("timed out waiting for condition after %v", timeout)
 }

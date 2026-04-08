@@ -19,6 +19,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	homeDescMaxLen      = 100
+	homeDescEllipsis    = "..."
+	defaultPostsPerPage = 10
+	firstPageIndex      = 1
+	secondPageIndex     = 2
+)
+
 // PaginationOptions holds dependencies for pagination rendering
 type PaginationOptions struct {
 	Ctx         context.Context
@@ -43,8 +51,8 @@ func RenderPagination(opts PaginationOptions) error {
 
 	homeCardPath := filepath.Join(cfg.OutputDir, "static/images/cards/home.webp")
 	desc := cfg.Description
-	if len(desc) > 100 {
-		desc = desc[:97] + "..."
+	if len(desc) > homeDescMaxLen {
+		desc = desc[:homeDescMaxLen-len(homeDescEllipsis)] + homeDescEllipsis
 	}
 	homeHash := SocialCardHash(cfg.Title, desc)
 	homeCached := filepath.Join(cfg.CacheDir, "social-cards", homeHash+".webp")
@@ -87,7 +95,7 @@ func RenderPagination(opts PaginationOptions) error {
 
 	postsPerPage := cfg.PostsPerPage
 	if postsPerPage <= 0 {
-		postsPerPage = 10
+		postsPerPage = defaultPostsPerPage
 	}
 	totalPages := int(math.Ceil(float64(len(latestPosts)) / float64(postsPerPage)))
 	if totalPages == 0 {
@@ -97,7 +105,7 @@ func RenderPagination(opts PaginationOptions) error {
 	g, _ := errgroup.WithContext(opts.Ctx)
 	g.SetLimit(runtime.NumCPU())
 
-	for i := 1; i <= totalPages; i++ {
+	for i := firstPageIndex; i <= totalPages; i++ {
 		pageIdx := i
 		g.Go(func() error {
 			start, end := (pageIdx-1)*postsPerPage, pageIdx*postsPerPage
@@ -106,7 +114,7 @@ func RenderPagination(opts PaginationOptions) error {
 			}
 			pagePosts := latestPosts[start:end]
 			destPath, permalink := filepath.Join(cfg.OutputDir, "index.html"), cfg.BaseURL+"/"
-			if pageIdx > 1 {
+			if pageIdx > firstPageIndex {
 				destPath = filepath.Join(cfg.OutputDir, fmt.Sprintf("page/%d/index.html", pageIdx))
 				permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, pageIdx)
 				_ = sink.MkdirAll(filepath.Dir(destPath))
@@ -114,26 +122,26 @@ func RenderPagination(opts PaginationOptions) error {
 			paginator := models.Paginator{
 				CurrentPage: pageIdx,
 				TotalPages:  totalPages,
-				HasPrev:     pageIdx > 1,
+				HasPrev:     pageIdx > firstPageIndex,
 				HasNext:     pageIdx < totalPages,
 				FirstURL:    cfg.BaseURL + "/#latest",
 				LastURL:     fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, totalPages),
 			}
-			if pageIdx > 2 {
+			if pageIdx > secondPageIndex {
 				paginator.PrevURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, pageIdx-1)
-			} else if pageIdx == 2 {
+			} else if pageIdx == secondPageIndex {
 				paginator.PrevURL = cfg.BaseURL + "/#latest"
 			}
 			if pageIdx < totalPages {
 				paginator.NextURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, pageIdx+1)
 			}
 			var curPinned []models.PostMetadata
-			if pageIdx == 1 {
+			if pageIdx == firstPageIndex {
 				curPinned = opts.PinnedPosts
 			}
 
 			relPath := "index.html"
-			if pageIdx > 1 {
+			if pageIdx > firstPageIndex {
 				relPath = fmt.Sprintf("page/%d/index.html", pageIdx)
 			}
 

@@ -22,6 +22,14 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
+const (
+	scanResultFilesCap        = 50
+	scanResultAssetsCap       = 10
+	scanConcurrencyMultiplier = 2
+	scanBufferSize            = 16 * 1024
+	frontmatterParts          = 3
+)
+
 type metadataScanner struct{}
 
 // NewScanner returns a metadata scanner implementation.
@@ -51,13 +59,13 @@ func (s *metadataScanner) ScanStreaming(opts ScanOptions) (<-chan *models.Metada
 	}
 	async.FireAndForget(ctx, slog.Default(), "metadata scan stream", func() error {
 		result := &models.MetadataScannerResult{
-			Files:         make([]models.ScannedFile, 0, 50),
-			ContentAssets: make([]models.ScannedAsset, 0, 10),
+			Files:         make([]models.ScannedFile, 0, scanResultFilesCap),
+			ContentAssets: make([]models.ScannedAsset, 0, scanResultAssetsCap),
 		}
 
 		var mu sync.Mutex
 		g, gCtx := errgroup.WithContext(ctx)
-		g.SetLimit(runtime.NumCPU() * 2)
+		g.SetLimit(runtime.NumCPU() * scanConcurrencyMultiplier)
 
 		err := afero.Walk(srcFs, contentDir, func(path string, info fs.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
@@ -129,7 +137,7 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 	if err != nil {
 		return models.ScannedFile{}, err
 	}
-	buf := make([]byte, 16384)
+	buf := make([]byte, scanBufferSize)
 	n, err := io.ReadFull(file, buf)
 	file.Close()
 	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
@@ -146,15 +154,15 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 
 	var frontmatter []byte
 	var bodyOffset int
-	parts := bytes.SplitN(data, hashing.YAMLDelim, 3)
-	if len(parts) < 3 && n == 16384 {
+	parts := bytes.SplitN(data, hashing.YAMLDelim, frontmatterParts)
+	if len(parts) < frontmatterParts && n == scanBufferSize {
 		fullData, err := afero.ReadFile(srcFs, path)
 		if err == nil {
 			data = fullData
-			parts = bytes.SplitN(data, hashing.YAMLDelim, 3)
+			parts = bytes.SplitN(data, hashing.YAMLDelim, frontmatterParts)
 		}
 	}
-	if len(parts) >= 3 {
+	if len(parts) >= frontmatterParts {
 		frontmatter = bytes.TrimSpace(parts[1])
 		bodyOffset = bytes.Index(data, parts[2])
 	} else {

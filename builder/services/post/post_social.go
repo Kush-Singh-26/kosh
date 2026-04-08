@@ -9,9 +9,11 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
+const socialCardCacheDirMode = 0755
+
 func (s *postService) generateSocialCard(t socialCardTask) {
 	cachedCardPath := filepath.Join(s.cfg.CacheDir, "social-cards", t.frontmatterHash+".webp")
-	if err := os.MkdirAll(filepath.Dir(cachedCardPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cachedCardPath), socialCardCacheDirMode); err != nil {
 		s.logger.Warn("Failed to create social card cache directory", "path", filepath.Dir(cachedCardPath), "error", err)
 	}
 

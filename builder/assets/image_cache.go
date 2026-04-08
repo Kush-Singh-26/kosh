@@ -33,6 +33,7 @@ const (
 	imageCacheWriterBuffer   = 2048
 	imageCacheDirMode        = 0755
 	imageCacheFileMode       = 0644
+	strconvBase10            = 10
 )
 
 // webpBufferPool stores *bytes.Buffer instances for WebP encoding.
@@ -151,8 +152,8 @@ func getImageHash(key imageCacheKey) string {
 	}()
 
 	buf = append(buf, key.path...)
-	buf = strconv.AppendInt(buf, key.size, 10)
-	buf = strconv.AppendInt(buf, key.modTime, 10)
+	buf = strconv.AppendInt(buf, key.size, strconvBase10)
+	buf = strconv.AppendInt(buf, key.modTime, strconvBase10)
 
 	h := xxh3.Hash128(buf)
 	res := h.Bytes()

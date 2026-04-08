@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const (
+	percentScale = 100
+	bytesPerKiB  = 1024
+)
+
 // BuildMetrics records build performance metrics.
 type BuildMetrics struct {
 	StartTime       time.Time
@@ -111,7 +116,7 @@ func (m *BuildMetrics) String() string {
 	total := hits + misses
 	hitRate := float64(0)
 	if total > 0 {
-		hitRate = float64(hits) / float64(total) * 100
+		hitRate = float64(hits) / float64(total) * percentScale
 	}
 
 	result := fmt.Sprintf("Built %d posts in %v (cache: %d/%d hits, %.0f%%)\n",
@@ -138,7 +143,7 @@ func (m *BuildMetrics) String() string {
 		saved := orig - opt
 		savingsPercent := float64(0)
 		if orig > 0 {
-			savingsPercent = float64(saved) / float64(orig) * 100
+			savingsPercent = float64(saved) / float64(orig) * percentScale
 		}
 		result += fmt.Sprintf("Optimized %d images (saved %s, %.1f%%)\n",
 			images,
@@ -159,7 +164,7 @@ func (m *BuildMetrics) String() string {
 }
 
 func formatBytes(b int64) string {
-	const unit = 1024
+	const unit = bytesPerKiB
 	if b < unit {
 		return fmt.Sprintf("%d B", b)
 	}

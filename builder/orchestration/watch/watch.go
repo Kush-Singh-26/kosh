@@ -17,6 +17,15 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 )
 
+const (
+	buildQueueBuffer     = 10
+	searchQueueBuffer    = 1
+	debounceDelay        = 100 * time.Millisecond
+	searchDelay          = 500 * time.Millisecond
+	searchQuickDelay     = 100 * time.Millisecond
+	searchQuickThreshold = 2 * time.Second
+)
+
 // ChangeType describes the category of a filesystem change.
 type ChangeType int
 
@@ -97,8 +106,8 @@ func New(deps CoordinatorDependencies) *Coordinator {
 		cache:      deps.Cache,
 		onChange:   deps.OnChange,
 		onSearch:   deps.OnSearchRegen,
-		buildQueue: make(chan BuildRequest, 10),
-		searchCh:   make(chan struct{}, 1),
+		buildQueue: make(chan BuildRequest, buildQueueBuffer),
+		searchCh:   make(chan struct{}, searchQueueBuffer),
 		closed:     make(chan struct{}),
 	}
 }
@@ -249,7 +258,7 @@ func (c *Coordinator) ClassifyChange(path string, op fsnotify.Op) ChangeEvent {
 
 func (c *Coordinator) processBuildQueue() {
 	var mergedPaths map[string]fsnotify.Op
-	debounce := time.NewTimer(100 * time.Millisecond)
+	debounce := time.NewTimer(debounceDelay)
 	defer debounce.Stop()
 
 	for {
@@ -287,7 +296,7 @@ func (c *Coordinator) processBuildQueue() {
 				default:
 				}
 			}
-			debounce.Reset(100 * time.Millisecond)
+			debounce.Reset(debounceDelay)
 
 		case <-debounce.C:
 			if len(mergedPaths) > 0 {
@@ -341,9 +350,9 @@ func (c *Coordinator) processSearchQueue() {
 		case <-c.searchCh:
 			pending = true
 			if !timerRunning {
-				delay := 500 * time.Millisecond
-				if time.Since(c.lastSearchReg) > 2*time.Second {
-					delay = 100 * time.Millisecond
+				delay := searchDelay
+				if time.Since(c.lastSearchReg) > searchQuickThreshold {
+					delay = searchQuickDelay
 				}
 				timer = time.AfterFunc(delay, func() {
 					if pending {

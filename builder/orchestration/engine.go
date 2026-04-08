@@ -36,6 +36,11 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
+const (
+	cacheGCPollInterval = 20
+	cacheGCMaxAge       = 7 * 24 * time.Hour
+)
+
 // EngineDependencies bundles all engine construction dependencies for explicit injection.
 // This reduces function signatures and makes test setup more readable.
 type EngineDependencies struct {
@@ -319,11 +324,11 @@ func (b *Engine) SaveCaches() {
 		})
 	}
 	if b.Deps.Cache != nil {
-		// Trigger garbage collection every 20 builds
-		if count, err := b.Deps.Cache.IncrementBuildCount(); err == nil && count >= 20 {
+		// Trigger garbage collection every cacheGCPollInterval builds
+		if count, err := b.Deps.Cache.IncrementBuildCount(); err == nil && count >= cacheGCPollInterval {
 			b.Deps.Logger.Info("Triggering scheduled cache garbage collection", "builds", count)
 			if result, err := b.Deps.Cache.RunGC(gc.GCConfig{
-				MaxAge: 7 * 24 * time.Hour,
+				MaxAge: cacheGCMaxAge,
 			}); err != nil {
 				b.Deps.Logger.Warn("Cache garbage collection failed", "error", err)
 			} else {

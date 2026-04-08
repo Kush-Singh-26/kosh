@@ -6,6 +6,26 @@ import (
 	"github.com/fogleman/gg"
 )
 
+const (
+	gradientMinColors        = 2
+	gradientDefaultBG        = "#faf8f5"
+	gradientFullTurnDegrees  = 360
+	gradientHorizontalStart  = 45
+	gradientHorizontalEnd    = 135
+	gradientHorizontalStart2 = 225
+	gradientHorizontalEnd2   = 315
+	gradientAlpha            = 1.0
+	gradientRectThickness    = 1.0
+	colorMaxFloat            = 255.0
+	dotColorR                = 120
+	dotColorG                = 100
+	dotColorB                = 80
+	dotColorA                = 70
+	dotSpacing               = 32
+	dotRadius                = 2.0
+	dotGridOffset            = dotSpacing / 2
+)
+
 // GradientOptions configures gradient drawing.
 type GradientOptions struct {
 	DC     *gg.Context
@@ -21,9 +41,9 @@ func drawGradient(opts GradientOptions) {
 	colors := opts.Colors
 	angle := opts.Angle
 
-	if len(colors) < 2 {
+	if len(colors) < gradientMinColors {
 		// If only one color or no colors, use solid background
-		bg := "#faf8f5"
+		bg := gradientDefaultBG
 		if len(colors) == 1 {
 			bg = colors[0]
 		}
@@ -39,14 +59,15 @@ func drawGradient(opts GradientOptions) {
 	}
 
 	// Normalize angle to 0-360
-	angle = angle % 360
+	angle = angle % gradientFullTurnDegrees
 	if angle < 0 {
-		angle += 360
+		angle += gradientFullTurnDegrees
 	}
 
 	// Draw gradient as a series of rectangles
 	steps := h
-	isHorizontal := angle >= 45 && angle < 135 || angle >= 225 && angle < 315
+	isHorizontal := angle >= gradientHorizontalStart && angle < gradientHorizontalEnd ||
+		angle >= gradientHorizontalStart2 && angle < gradientHorizontalEnd2
 	if !isHorizontal {
 		steps = w
 	}
@@ -70,14 +91,14 @@ func drawGradient(opts GradientOptions) {
 		g := uint8(float64(c1.G)*(1-localT) + float64(c2.G)*localT)
 		b := uint8(float64(c1.B)*(1-localT) + float64(c2.B)*localT)
 
-		dc.SetRGBA(float64(r)/255, float64(g)/255, float64(b)/255, 1)
+		dc.SetRGBA(float64(r)/colorMaxFloat, float64(g)/colorMaxFloat, float64(b)/colorMaxFloat, gradientAlpha)
 
 		if isHorizontal {
 			// Draw horizontal strip
-			dc.DrawRectangle(0, float64(i), float64(w), 1)
+			dc.DrawRectangle(0, float64(i), float64(w), gradientRectThickness)
 		} else {
 			// Draw vertical strip
-			dc.DrawRectangle(float64(i), 0, 1, float64(h))
+			dc.DrawRectangle(float64(i), 0, gradientRectThickness, float64(h))
 		}
 		dc.Fill()
 	}
@@ -86,15 +107,15 @@ func drawGradient(opts GradientOptions) {
 // drawDotPattern adds a visible dot pattern overlay
 func drawDotPattern(dc *gg.Context, w, h int) {
 	// More visible warm brown dots
-	dc.SetRGBA255(120, 100, 80, 70) // Warm brown with ~27% opacity
+	dc.SetRGBA255(dotColorR, dotColorG, dotColorB, dotColorA) // Warm brown with ~27% opacity
 
 	// Grid spacing
-	spacing := 32
-	dotRadius := 2.0
+	spacing := dotSpacing
+	radius := dotRadius
 
-	for x := spacing / 2; x < w; x += spacing {
-		for y := spacing / 2; y < h; y += spacing {
-			dc.DrawCircle(float64(x), float64(y), dotRadius)
+	for x := dotGridOffset; x < w; x += spacing {
+		for y := dotGridOffset; y < h; y += spacing {
+			dc.DrawCircle(float64(x), float64(y), radius)
 			dc.Fill()
 		}
 	}

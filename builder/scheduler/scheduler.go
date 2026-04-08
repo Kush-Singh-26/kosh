@@ -29,6 +29,11 @@ const (
 	TaskAsset
 )
 
+const (
+	tokensPerCPU = 2000
+	minTokens    = 8000
+)
+
 // Scheduler weight constants for task resource allocation.
 // Higher weights consume more tokens from the semaphore, limiting concurrency for heavy tasks.
 const (
@@ -60,7 +65,7 @@ func NewBuildScheduler() BuildScheduler {
 	// Large pool to allow high concurrency while still capping peak bursts.
 	totalTokens := max(
 		// Ensure a minimum floor to prevent deadlocks
-		int64(cpuCount*2000), 8000)
+		int64(cpuCount*tokensPerCPU), minTokens)
 
 	return &weightedScheduler{
 		sem: semaphore.NewWeighted(totalTokens),

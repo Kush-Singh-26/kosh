@@ -6,10 +6,15 @@ import (
 	"sync"
 )
 
+const (
+	clientSliceCap      = 16
+	clientChannelBuffer = 5
+)
+
 // clientSlicePool stores *[]chan<- struct{} slices for broadcast snapshots.
 var clientSlicePool = sync.Pool{
 	New: func() any {
-		s := make([]chan<- struct{}, 0, 16)
+		s := make([]chan<- struct{}, 0, clientSliceCap)
 		return &s
 	},
 }
@@ -26,7 +31,7 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 
 	// Increased buffer to 5 to handle rapid reload events
-	clientChan := make(chan struct{}, 5)
+	clientChan := make(chan struct{}, clientChannelBuffer)
 	clientMu.Lock()
 	clients[clientChan] = struct{}{}
 	clientMu.Unlock()

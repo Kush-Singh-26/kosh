@@ -30,6 +30,17 @@ const (
 	iconSize      = 48.0
 	brandFontSize = 28.0
 	dateFontSize  = 24.0
+
+	marginMultiplier     = 2
+	logoYOffset          = 35.0
+	logoTextGap          = 20.0
+	socialCardQuality    = 85
+	socialCardFileMode   = 0644
+	socialCardDirMode    = 0755
+	secondaryTextOpacity = 0.75
+	titleLineSpacing     = 1.1
+	descLineSpacing      = 1.4
+	descSpacingY         = 25.0
 )
 
 // SocialCardHash generates a stable hash for social card content
@@ -97,7 +108,7 @@ func ProvideSocialCard(opts ProvideSocialCardOptions) {
 	buildCtx.IgnoreError(opts.Sink.MkdirAll(filepath.Dir(opts.DestPath)), "ensure social card dir in VFS")
 
 	if needsGen {
-		buildCtx.IgnoreError(os.MkdirAll(filepath.Dir(cachedCardPath), 0755), "ensure social card dir in cache")
+		buildCtx.IgnoreError(os.MkdirAll(filepath.Dir(cachedCardPath), socialCardDirMode), "ensure social card dir in cache")
 
 		err := GenerateSocialCardToDisk(SocialCardOptions{
 			SrcFs:       opts.SourceFs,
@@ -145,11 +156,11 @@ func GenerateSocialCardToDisk(opts SocialCardOptions) error {
 	}
 
 	var buf bytes.Buffer
-	if err := webp.Encode(&buf, img, &webp.Options{Lossless: false, Quality: 85}); err != nil {
+	if err := webp.Encode(&buf, img, &webp.Options{Lossless: false, Quality: socialCardQuality}); err != nil {
 		return err
 	}
 
-	return os.WriteFile(opts.DestPath, buf.Bytes(), 0644)
+	return os.WriteFile(opts.DestPath, buf.Bytes(), socialCardFileMode)
 }
 
 // GenerateSocialCard creates a configurable gradient social card.
@@ -160,7 +171,7 @@ func GenerateSocialCard(opts SocialCardOptions) error {
 	}
 
 	return opts.Sink.WriteStream(opts.DestPath, func(w io.Writer) error {
-		return webp.Encode(w, img, &webp.Options{Lossless: false, Quality: 85})
+		return webp.Encode(w, img, &webp.Options{Lossless: false, Quality: socialCardQuality})
 	})
 }
 
@@ -200,10 +211,10 @@ func getBaseSocialCardImage(opts SocialCardOptions) *image.RGBA {
 
 			dc.Push()
 			dc.Scale(scale, scale)
-			dc.DrawImage(im, int(currentX/scale), int((headerY-35)/scale))
+			dc.DrawImage(im, int(currentX/scale), int((headerY-logoYOffset)/scale))
 			dc.Pop()
 
-			currentX += iconSize + 20
+			currentX += iconSize + logoTextGap
 		}
 	}
 
@@ -232,12 +243,12 @@ func generateSocialCardImage(opts SocialCardOptions) (image.Image, error) {
 	mediumFont := "Inter-Medium.ttf"
 	regFont := "Inter-Regular.ttf"
 
-	maxWidth := float64(socialCardWidth) - (marginX * 2)
+	maxWidth := float64(socialCardWidth) - (marginX * marginMultiplier)
 
 	textColor := hexToRGBA(opts.Cfg.TextColor)
 	textColorSecondary := textColor
 	// Make secondary text 75% opacity (slightly darker)
-	textColorSecondary.A = uint8(float64(textColor.A) * 0.75)
+	textColorSecondary.A = uint8(float64(textColor.A) * secondaryTextOpacity)
 
 	// --- Header: Date (Top Right) ---
 	if err := setFontFace(dc, mediumFont, dateFontSize); err == nil {
@@ -247,23 +258,23 @@ func generateSocialCardImage(opts SocialCardOptions) (image.Image, error) {
 	}
 
 	// --- The Title (Center-Left) ---
-	titleLineSpacing := 1.1
+	lineSpacing := titleLineSpacing
 
 	if err := setFontFace(dc, boldFont, titleFontSize); err != nil {
 		return nil, fmt.Errorf("failed to load bold font: %w", err)
 	}
 
 	dc.SetColor(textColor)
-	dc.DrawStringWrapped(opts.Title, marginX, titleStartY, 0, 0, maxWidth, titleLineSpacing, gg.AlignLeft)
+	dc.DrawStringWrapped(opts.Title, marginX, titleStartY, 0, 0, maxWidth, lineSpacing, gg.AlignLeft)
 
 	titleLines := dc.WordWrap(opts.Title, maxWidth)
-	titleHeight := float64(len(titleLines)) * titleFontSize * titleLineSpacing
+	titleHeight := float64(len(titleLines)) * titleFontSize * lineSpacing
 
 	// --- The Description ---
 	if err := setFontFace(dc, regFont, descFontSize); err == nil {
 		dc.SetColor(textColorSecondary)
-		descY := titleStartY + titleHeight + 25
-		dc.DrawStringWrapped(opts.Description, marginX, descY, 0, 0, maxWidth, 1.4, gg.AlignLeft)
+		descY := titleStartY + titleHeight + descSpacingY
+		dc.DrawStringWrapped(opts.Description, marginX, descY, 0, 0, maxWidth, descLineSpacing, gg.AlignLeft)
 	}
 
 	return dc.Image(), nil

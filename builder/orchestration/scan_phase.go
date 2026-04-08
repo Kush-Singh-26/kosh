@@ -10,6 +10,11 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
+const (
+	scanFileChanBuffer = 1024
+	scanResultBuffer   = 1
+)
+
 // buildScanResult holds channels for the parallel metadata scan.
 type buildScanResult struct {
 	fileChan           <-chan models.ScannedFile
@@ -23,10 +28,10 @@ func (b *Engine) scanPhase(ctx context.Context, contentAssetsChan chan []models.
 	if b.Deps.Reporter != nil {
 		b.Deps.Reporter.StartPhase(ui.PhaseScan)
 	}
-	fileChan := make(chan models.ScannedFile, 1024)
+	fileChan := make(chan models.ScannedFile, scanFileChanBuffer)
 	scannerReady := make(chan struct{})
-	metadataResultChan := make(chan *models.MetadataScannerResult, 1)
-	scannerErrChan := make(chan error, 1)
+	metadataResultChan := make(chan *models.MetadataScannerResult, scanResultBuffer)
+	scannerErrChan := make(chan error, scanResultBuffer)
 
 	logger := b.Deps.Logger
 	if logger == nil {

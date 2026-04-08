@@ -13,6 +13,14 @@ import (
 	"time"
 )
 
+const (
+	phaseDirMode   = 0755
+	phaseFileMode  = 0644
+	unitPerMilli   = 1000.0
+	floatPrecision = 2
+	floatBitSize   = 64
+)
+
 // PhaseTimer measures the duration of a named build phase.
 type PhaseTimer struct {
 	name      string
@@ -159,7 +167,7 @@ func FormatPhaseSummary() string {
 
 // WritePhaseDurationsJSON writes phase durations to a JSON file.
 func WritePhaseDurationsJSON(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), phaseDirMode); err != nil {
 		return err
 	}
 
@@ -174,20 +182,20 @@ func WritePhaseDurationsJSON(path string) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, phaseFileMode)
 }
 
 func formatDuration(d time.Duration) string {
 	if d < time.Millisecond {
-		val := float64(d.Nanoseconds()) / 1000.0
-		return strconv.FormatFloat(val, 'f', 2, 64) + "us"
+		val := float64(d.Nanoseconds()) / unitPerMilli
+		return strconv.FormatFloat(val, 'f', floatPrecision, floatBitSize) + "us"
 	}
 	if d < time.Second {
-		val := float64(d.Microseconds()) / 1000.0
-		return strconv.FormatFloat(val, 'f', 2, 64) + "ms"
+		val := float64(d.Microseconds()) / unitPerMilli
+		return strconv.FormatFloat(val, 'f', floatPrecision, floatBitSize) + "ms"
 	}
 	val := d.Seconds()
-	return strconv.FormatFloat(val, 'f', 2, 64) + "s"
+	return strconv.FormatFloat(val, 'f', floatPrecision, floatBitSize) + "s"
 }
 
 // FormatDurationShort returns a compact duration string.

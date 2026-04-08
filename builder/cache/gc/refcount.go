@@ -8,6 +8,11 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+const (
+	refCountBytes = 4
+	truncHashLen  = 16
+)
+
 // RefCountManager manages reference counts for cached blobs.
 type RefCountManager struct {
 	db *bbolt.DB
@@ -44,7 +49,7 @@ func (m *RefCountManager) DecrementTx(tx *bbolt.Tx, hash string, newCountOut *ui
 		if newCountOut != nil {
 			*newCountOut = count
 		}
-		data := make([]byte, 4)
+		data := make([]byte, refCountBytes)
 		binary.BigEndian.PutUint32(data, count)
 		return bucket.Put([]byte(hash), data)
 	}
@@ -72,7 +77,7 @@ func (m *RefCountManager) IncrementTx(tx *bbolt.Tx, hash string) error {
 		count = binary.BigEndian.Uint32(v)
 	}
 	count++
-	data := make([]byte, 4)
+	data := make([]byte, refCountBytes)
 	binary.BigEndian.PutUint32(data, count)
 	return bucket.Put([]byte(hash), data)
 }
@@ -141,15 +146,15 @@ func (m *RefCountManager) ReconcileWithLog(logger *slog.Logger) error {
 
 		// Write new counts and log discrepancies
 		for hash, count := range counts {
-			data := make([]byte, 4)
+			data := make([]byte, refCountBytes)
 			binary.BigEndian.PutUint32(data, count)
 			_ = refBucket.Put([]byte(hash), data)
 
 			if logger != nil {
 				if old, existed := oldCounts[hash]; existed && old != count {
 					truncHash := hash
-					if len(truncHash) > 16 {
-						truncHash = truncHash[:16] + "..."
+					if len(truncHash) > truncHashLen {
+						truncHash = truncHash[:truncHashLen] + "..."
 					}
 					logger.Warn("refcount mismatch",
 						"hash", truncHash,
@@ -165,8 +170,8 @@ func (m *RefCountManager) ReconcileWithLog(logger *slog.Logger) error {
 			for hash, old := range oldCounts {
 				if _, exists := counts[hash]; !exists && old > 0 {
 					truncHash := hash
-					if len(truncHash) > 16 {
-						truncHash = truncHash[:16] + "..."
+					if len(truncHash) > truncHashLen {
+						truncHash = truncHash[:truncHashLen] + "..."
 					}
 					logger.Warn("orphaned refcount (no posts reference this hash)",
 						"hash", truncHash,

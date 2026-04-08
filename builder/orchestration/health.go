@@ -8,6 +8,20 @@ import (
 	"time"
 )
 
+const (
+	slowPhaseThreshold           = 5 * time.Second
+	healthScoreStart             = 100
+	healthScoreMin               = 0
+	rollbackPenalty              = 10
+	criticalPenalty              = 25
+	errorPenalty                 = 5
+	slowPhasePenalty             = 2
+	healthLevelCriticalThreshold = 50
+	healthLevelDegradedThreshold = 75
+	healthLevelHealthyMax        = 100
+	bytesPerKiB                  = 1024
+)
+
 // HealthLevel describes the severity of a build health event.
 type HealthLevel int
 
@@ -162,7 +176,7 @@ func (r *BuildHealthRegistry) RecordSearchStats(docs int64, size int64) {
 
 // RecordSlowPhase records a slow phase event with timing information.
 func (r *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Duration) {
-	threshold := 5 * time.Second
+	threshold := slowPhaseThreshold
 	event := HealthEvent{
 		Level:    HealthLevelWarning,
 		Message:  "Phase exceeded slow threshold",
@@ -256,29 +270,29 @@ func (r *BuildHealthRegistry) Report() BuildHealthReport {
 	searchDocs := r.searchDocs.Load()
 	searchSize := r.searchSize.Load()
 
-	healthScore := 100
+	healthScore := healthScoreStart
 	if rollbacks > 0 {
-		healthScore -= int(rollbacks) * 10
+		healthScore -= int(rollbacks) * rollbackPenalty
 	}
 	if critical > 0 {
-		healthScore -= int(critical) * 25
+		healthScore -= int(critical) * criticalPenalty
 	}
 	if errors > 0 {
-		healthScore -= int(errors) * 5
+		healthScore -= int(errors) * errorPenalty
 	}
 	if slowPhases > 0 {
-		healthScore -= int(slowPhases) * 2
+		healthScore -= int(slowPhases) * slowPhasePenalty
 	}
-	if healthScore < 0 {
-		healthScore = 0
+	if healthScore < healthScoreMin {
+		healthScore = healthScoreMin
 	}
 
 	healthLevel := "healthy"
-	if healthScore < 50 {
+	if healthScore < healthLevelCriticalThreshold {
 		healthLevel = "critical"
-	} else if healthScore < 75 {
+	} else if healthScore < healthLevelDegradedThreshold {
 		healthLevel = "degraded"
-	} else if healthScore < 100 {
+	} else if healthScore < healthLevelHealthyMax {
 		healthLevel = "healthy_with_warnings"
 	}
 
@@ -316,7 +330,7 @@ func (r *BuildHealthRegistry) LogSummary() {
 			"health_score", report.HealthScore,
 			"health_level", report.HealthLevel,
 			"search_docs", report.SearchDocs,
-			"search_size_kb", report.SearchSize/1024)
+			"search_size_kb", report.SearchSize/bytesPerKiB)
 	}
 
 	if report.HealthLevel == "critical" {

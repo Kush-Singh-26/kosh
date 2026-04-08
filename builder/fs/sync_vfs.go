@@ -30,6 +30,7 @@ const (
 	atomicWriteFileMode   = 0644
 	atomicWriteMaxRetries = 5
 	atomicWriteBaseDelay  = 10 * time.Millisecond
+	decimalBase           = 10
 )
 
 var (
@@ -168,7 +169,7 @@ func SyncVFS(opts SyncOptions) error {
 	}
 
 	dirPool := async.NewWorkerPool(ctx, runtime.NumCPU(), func(dir string) error {
-		return os.MkdirAll(dir, 0755)
+		return os.MkdirAll(dir, defaultDirMode)
 	})
 	dirPool.Start()
 	for dir := range dirs {
@@ -295,7 +296,7 @@ func atomicWrite(ctx context.Context, path string, data []byte) error {
 	}
 
 	// Include PID to prevent collisions from concurrent processes
-	tmpPath := path + ".tmp-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	tmpPath := path + ".tmp-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(time.Now().UnixNano(), decimalBase)
 	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, atomicWriteFileMode)
 	if err != nil {
 		return err

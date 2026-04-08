@@ -34,8 +34,13 @@ import (
 
 func init() {
 	minify.InitHTMLMinifier()
-	debug.SetGCPercent(200)
+	debug.SetGCPercent(gcPercent)
 }
+
+const (
+	gcPercent        = 200
+	minNativeWorkers = 4
+)
 
 type buildSetup struct {
 	vfs            afero.Fs
@@ -99,7 +104,7 @@ func (s *buildSetup) initCache() {
 }
 
 func (s *buildSetup) initNativeRenderer() {
-	nativeWorkers := max(runtime.NumCPU(), 4)
+	nativeWorkers := max(runtime.NumCPU(), minNativeWorkers)
 	workers := nativeWorkers
 	if s.cfg.ParserWorkers > 0 {
 		workers = s.cfg.ParserWorkers

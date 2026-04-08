@@ -19,6 +19,14 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
+const (
+	defaultCompressionLevel = 4
+	wasmCacheDirMode        = 0755
+	wasmCacheFileMode       = 0644
+	wasmHashHexLength       = 16
+	kilobyteSize            = 1024
+)
+
 //go:embed wasm/search.wasm.br
 var searchWasmBr []byte
 
@@ -63,7 +71,7 @@ func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
 
 	// Default compression level is 4 (balanced)
 	if compressionLevel == 0 {
-		compressionLevel = 4
+		compressionLevel = defaultCompressionLevel
 	}
 
 	wasmRelPath := "static/wasm/search.wasm"
@@ -139,8 +147,8 @@ func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
 		// Save to persistent cache
 		if cacheDir != "" {
 			cacheDirFull := filepath.Join(cacheDir, "wasm")
-			_ = os.MkdirAll(cacheDirFull, 0755)
-			_ = os.WriteFile(filepath.Join(cacheDirFull, wasmHash+".br"), wasmBrBytes, 0644)
+			_ = os.MkdirAll(cacheDirFull, wasmCacheDirMode)
+			_ = os.WriteFile(filepath.Join(cacheDirFull, wasmHash+".br"), wasmBrBytes, wasmCacheFileMode)
 		}
 	}
 
@@ -167,7 +175,7 @@ func DeployWASMFromFile(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePa
 		Sink:       sink,
 		CacheDir:   cacheDir,
 		SourcePath: sourcePath,
-		Level:      4,
+		Level:      defaultCompressionLevel,
 	})
 }
 
@@ -220,7 +228,7 @@ func CompileWASMFromSource(ctx context.Context, srcPath string, destPath string,
 	slog.Info("Rebuilding Search WASM from source", "path", srcPath)
 
 	// Ensure destination directory exists
-	if err := os.MkdirAll(filepath.Dir(absDest), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(absDest), wasmCacheDirMode); err != nil {
 		return err
 	}
 
@@ -244,7 +252,7 @@ func decompressBrotli(data []byte) ([]byte, error) {
 }
 
 func formatSize(size int) string {
-	return fmt.Sprintf("%.2f KB", float64(size)/1024)
+	return fmt.Sprintf("%.2f KB", float64(size)/kilobyteSize)
 }
 
 // hashBytes computes XXH3 hash of byte slice (first 16 hex chars)
@@ -255,7 +263,7 @@ func hashBytes(data []byte) string {
 	}
 	sum := h.Sum128()
 	b := sum.Bytes()
-	return hex.EncodeToString(b[:])[:16]
+	return hex.EncodeToString(b[:])[:wasmHashHexLength]
 }
 
 func hashFileFs(fs afero.Fs, path string) (string, error) {
@@ -271,5 +279,5 @@ func hashFileFs(fs afero.Fs, path string) (string, error) {
 	}
 	sum := h.Sum128()
 	b := sum.Bytes()
-	return hex.EncodeToString(b[:])[:16], nil
+	return hex.EncodeToString(b[:])[:wasmHashHexLength], nil
 }

@@ -12,6 +12,8 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+const watchDebounceDuration = 50 * time.Millisecond
+
 // Event is a wrapper around fsnotify.Event
 type Event struct {
 	Name string
@@ -39,7 +41,7 @@ func New(dirs []string, onEvent func(Event)) (*Watcher, error) {
 		watcher:  w,
 		Dirs:     dirs,
 		OnEvent:  onEvent,
-		duration: 50 * time.Millisecond, // 50ms debounce for fast dev response
+		duration: watchDebounceDuration, // 50ms debounce for fast dev response
 	}, nil
 }
 

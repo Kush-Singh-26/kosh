@@ -34,6 +34,15 @@ const (
 	ScoreFuzzyModifier = 0.7
 )
 
+const (
+	defaultScoreMapCap = 100
+	defaultBM25K1      = 1.2
+	defaultBM25B       = 0.75
+	defaultTopKResults = 40
+	decimalBase        = 10
+	uint64Bits         = 64
+)
+
 // Result represents a search result with scoring metadata.
 type Result struct {
 	ID          uint64
@@ -68,11 +77,11 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 	opts := &SearchScoringOptions{
 		TagFilter:      tagFilter,
 		QueryTerms:     parsed.Terms,
-		Scores:         make(map[string]float64, 100),
+		Scores:         make(map[string]float64, defaultScoreMapCap),
 		HighlightTerms: make(map[string]bool),
 		TermInfos:      parsed.TermInfos,
-		K1:             1.2,
-		B:              0.75,
+		K1:             defaultBM25K1,
+		B:              defaultBM25B,
 	}
 
 	for _, t := range opts.QueryTerms {
@@ -117,18 +126,17 @@ func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Re
 		post := index.Posts[id]
 		title := post.Title
 
-		idNum, _ := strconv.ParseUint(id, 10, 64)
+		idNum, _ := strconv.ParseUint(id, decimalBase, uint64Bits)
 		results = append(results, Result{
 			ID: idNum, Title: title, Link: post.Link,
 			Description: post.Description, Score: score,
 		})
 	}
 
-	const topK = 40
-	if len(results) > topK {
-		h := &resultHeap{results: results[:topK]}
+	if len(results) > defaultTopKResults {
+		h := &resultHeap{results: results[:defaultTopKResults]}
 		heap.Init(h)
-		for i := topK; i < len(results); i++ {
+		for i := defaultTopKResults; i < len(results); i++ {
 			if results[i].Score > h.results[0].Score {
 				heap.Pop(h)
 				heap.Push(h, results[i])
@@ -156,10 +164,10 @@ func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Re
 		})
 	}
 
-	results = results[:min(len(results), topK)]
+	results = results[:min(len(results), defaultTopKResults)]
 
 	for i := range results {
-		id := strconv.FormatUint(results[i].ID, 10)
+		id := strconv.FormatUint(results[i].ID, decimalBase)
 		post := index.Posts[id]
 		termOffsets := make(map[string][]int)
 		for _, term := range finalHighlightTerms {

@@ -11,6 +11,16 @@ import (
 	bbolterrors "go.etcd.io/bbolt/errors"
 )
 
+const (
+	schemaV5          = 5
+	schemaV6          = 6
+	schemaV7          = 7
+	schemaV8          = 8
+	schemaV9          = 9
+	schemaV10         = 10
+	schemaVersionSize = 4
+)
+
 // Migration represents a schema migration step
 type Migration struct {
 	FromVersion uint32
@@ -21,8 +31,8 @@ type Migration struct {
 
 var registeredMigrations = []Migration{
 	{
-		FromVersion: 5,
-		ToVersion:   6,
+		FromVersion: schemaV5,
+		ToVersion:   schemaV6,
 		Description: "Migration to XXH128 hashing (Clean Break)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to hash algorithm change (BLAKE3 -> XXH3)")
@@ -42,8 +52,8 @@ var registeredMigrations = []Migration{
 		},
 	},
 	{
-		FromVersion: 7,
-		ToVersion:   10,
+		FromVersion: schemaV7,
+		ToVersion:   schemaV10,
 		Description: "Migration to align cache schema with search schema (v10)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to schema version alignment (v7 -> v10)")
@@ -63,8 +73,8 @@ var registeredMigrations = []Migration{
 		},
 	},
 	{
-		FromVersion: 6,
-		ToVersion:   10,
+		FromVersion: schemaV6,
+		ToVersion:   schemaV10,
 		Description: "Migration to align cache schema with search schema (v6 -> v10)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to schema version alignment (v6 -> v10)")
@@ -83,8 +93,8 @@ var registeredMigrations = []Migration{
 		},
 	},
 	{
-		FromVersion: 8,
-		ToVersion:   10,
+		FromVersion: schemaV8,
+		ToVersion:   schemaV10,
 		Description: "Migration to align cache schema with search schema (v8 -> v10)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to schema version alignment (v8 -> v10)")
@@ -103,8 +113,8 @@ var registeredMigrations = []Migration{
 		},
 	},
 	{
-		FromVersion: 9,
-		ToVersion:   10,
+		FromVersion: schemaV9,
+		ToVersion:   schemaV10,
 		Description: "Migration to align cache schema with search schema (v9 -> v10)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to schema version alignment (v9 -> v10)")
@@ -146,7 +156,7 @@ func RunMigrations(db *bbolt.DB, currentVersion uint32, logger *slog.Logger) (ui
 				if meta == nil {
 					return errors.New("metadata bucket missing")
 				}
-				v := make([]byte, 4)
+				v := make([]byte, schemaVersionSize)
 				binary.BigEndian.PutUint32(v, currentVersion)
 				return meta.Put([]byte(core.KeySchemaVersion), v)
 			}); err != nil {

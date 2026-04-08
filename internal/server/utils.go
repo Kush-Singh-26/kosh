@@ -13,6 +13,12 @@ import (
 	"github.com/andybalholm/brotli"
 )
 
+const (
+	brotliLevel          = 4
+	hashedAssetMinLength = 8
+	hashedAssetMaxLength = 12
+)
+
 var (
 	errAbsolutePath  = errors.New("absolute path attempt detected")
 	errPathTraversal = errors.New("path traversal attempt detected")
@@ -140,7 +146,7 @@ func compressionHandler(next http.HandlerFunc) http.HandlerFunc {
 
 		w.Header().Set("Content-Encoding", "br")
 		w.Header().Set("Vary", "Accept-Encoding")
-		bw := brotli.NewWriterLevel(w, 4)
+		bw := brotli.NewWriterLevel(w, brotliLevel)
 		defer func() { _ = bw.Close() }()
 		cw := &compressionResponseWriter{Writer: bw, ResponseWriter: w}
 		next(cw, r)
@@ -161,7 +167,7 @@ func isHashedAsset(filename string) bool {
 	}
 	hashPart := filename[prevDot+1 : hashEnd]
 	// esbuild uses alphanumeric hashes of length 8
-	if len(hashPart) < 8 || len(hashPart) > 12 {
+	if len(hashPart) < hashedAssetMinLength || len(hashPart) > hashedAssetMaxLength {
 		return false
 	}
 	for _, c := range hashPart {

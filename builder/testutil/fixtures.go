@@ -11,18 +11,30 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+const (
+	sampleYear         = 2026
+	sampleMonth        = time.January
+	sampleDay          = 15
+	sampleHour         = 10
+	sampleWeight       = 10
+	sampleWordCount    = 150
+	sampleDocLen       = 10
+	largeHTMLSize      = 35000
+	samplePostsPerPage = 10
+)
+
 // CreateSamplePostMeta creates a valid PostMeta for testing
 func CreateSamplePostMeta() *cache.PostMeta {
 	return &cache.PostMeta{
 		PostID:      "posts/test-post.md",
 		Path:        "content/posts/test-post.md",
 		Title:       "Test Post",
-		Date:        time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+		Date:        time.Date(sampleYear, sampleMonth, sampleDay, sampleHour, 0, 0, 0, time.UTC),
 		Tags:        []string{"test", "go", "tutorial"},
 		Description: "A test post for testing purposes",
 		Draft:       false,
-		Weight:      10,
-		WordCount:   150,
+		Weight:      sampleWeight,
+		WordCount:   sampleWordCount,
 		ReadingTime: 1,
 		// Meta values mirror YAML frontmatter decoding (string, bool, int/float64, time.Time, []any, map[string]any).
 		Meta: make(map[string]any),
@@ -49,7 +61,7 @@ func CreateSampleSearchRecord() *cache.SearchRecord {
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
 		BM25Data:        map[string]int{"test": 1, "post": 1},
-		DocLen:          10,
+		DocLen:          sampleDocLen,
 		NormalizedTags:  []string{"test", "go"},
 	}
 }
@@ -82,7 +94,7 @@ func CreateSampleConfig() *config.Config {
 			CacheDir:    ".kosh-cache",
 		},
 		BuildOptions: config.BuildOptions{
-			PostsPerPage: 10,
+			PostsPerPage: samplePostsPerPage,
 		},
 		Features: models.FeaturesConfig{
 			Generators: models.GeneratorsConfig{
@@ -158,7 +170,7 @@ func CreateSmallHTML() []byte {
 // CreateLargeHTML creates HTML content larger than models.InlineHTMLThreshold
 func CreateLargeHTML() []byte {
 	// Create content larger than 32KB
-	content := make([]byte, 35000)
+	content := make([]byte, largeHTMLSize)
 	for i := range content {
 		content[i] = 'x'
 	}

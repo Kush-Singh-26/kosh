@@ -13,6 +13,11 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+const (
+	templateCacheTTL    = 2 * time.Second
+	templateCacheDevTTL = 100 * time.Millisecond
+)
+
 type templateCache struct {
 	templates   map[string]*template.Template
 	mtimes      map[string]time.Time
@@ -33,9 +38,9 @@ func getGlobalCache(templateDir string, devMode bool) *templateCache {
 	globalCacheMu.Lock()
 	defer globalCacheMu.Unlock()
 
-	ttl := 2 * time.Second
+	ttl := templateCacheTTL
 	if devMode {
-		ttl = 100 * time.Millisecond
+		ttl = templateCacheDevTTL
 	}
 
 	if globalCache == nil || globalCache.templateDir != templateDir {

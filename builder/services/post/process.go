@@ -18,6 +18,13 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
+const (
+	navReadyBuffer       = 1
+	renderChanMultiplier = 2
+	indexedPostsCap      = 50
+	collectedFilesBuffer = 1024
+)
+
 // Process processes a set of files with a buffered channel.
 func (s *postService) Process(opts ProcessOptions) (*PostResult, error) {
 	fileChan := make(chan models.ScannedFile, len(opts.Files))
@@ -70,17 +77,17 @@ func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 	defer func() { buildCtx.IgnoreError(searchPool.Stop(), "stop search pool") }()
 
 	// Create a channel for navInfo to be sent once scanner finishes
-	navReady := make(chan navInfo, 1)
-	renderChan := make(chan renderTask, numWorkers*2)
+	navReady := make(chan navInfo, navReadyBuffer)
+	renderChan := make(chan renderTask, numWorkers*renderChanMultiplier)
 	pc := &postProcessContext{
 		tagMap:           make(map[string][]models.PostMetadata),
 		newSearchRecords: make(map[string]*models.SearchRecord),
 		newDeps:          make(map[string]*models.Dependencies),
-		indexedPosts:     make([]models.IndexedPost, 0, 50),
+		indexedPosts:     make([]models.IndexedPost, 0, indexedPostsCap),
 	}
 
 	// Internal channel to collect all files for navigation calculation
-	collectedFilesChan := make(chan models.ScannedFile, 1024)
+	collectedFilesChan := make(chan models.ScannedFile, collectedFilesBuffer)
 	var allFiles []models.ScannedFile
 	var collectWg sync.WaitGroup
 	logger := s.logger

@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+const (
+	firstAttemptIndex = 0
+	backoffCap        = 2 * time.Second
+	jitterDivisor     = 5
+	jitterOffset      = 1
+)
+
 // RenameOptions configures RenameWithRetry.
 type RenameOptions struct {
 	Ctx        context.Context
@@ -41,14 +48,14 @@ func RenameWithRetry(opts RenameOptions) error {
 			return err
 		}
 
-		if i == 0 {
+		if i == firstAttemptIndex {
 			slog.Debug("Rename failed, retrying with backoff...", "old", oldPath, "new", newPath, "error", err)
 		}
 
 		// Use a capped backoff with jitter
-		delay := min(baseDelay*time.Duration(1<<uint(i)), 2*time.Second)
+		delay := min(baseDelay*time.Duration(1<<uint(i)), backoffCap)
 		// Simple jitter without math/rand: ±10%
-		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
+		jitter := time.Duration(time.Now().UnixNano() % int64(delay/jitterDivisor+jitterOffset))
 
 		timer := time.NewTimer(delay + jitter)
 		select {
@@ -77,13 +84,13 @@ func RemoveAllWithRetry(ctx context.Context, path string, maxRetries int, baseDe
 			return nil
 		}
 
-		if i == 0 {
+		if i == firstAttemptIndex {
 			slog.Debug("RemoveAll failed, retrying with backoff...", "path", path, "error", err)
 		}
 
 		// Use a capped backoff with jitter
-		delay := min(baseDelay*time.Duration(1<<uint(i)), 2*time.Second)
-		jitter := time.Duration(time.Now().UnixNano() % int64(delay/5+1))
+		delay := min(baseDelay*time.Duration(1<<uint(i)), backoffCap)
+		jitter := time.Duration(time.Now().UnixNano() % int64(delay/jitterDivisor+jitterOffset))
 
 		timer := time.NewTimer(delay + jitter)
 		select {

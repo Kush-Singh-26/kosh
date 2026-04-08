@@ -19,6 +19,12 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
 
+const (
+	maxNonImageWorkers = 32
+	fileTaskQueueSize  = 1024
+	minWalkConcurrency = 4
+)
+
 type fileTask struct {
 	path            string
 	relPath         string
@@ -93,15 +99,15 @@ func CopyDirVFS(ctx context.Context, opts CopyDirOptions) error {
 		numWorkers = runtime.NumCPU()
 	}
 	nonImageWorkers := max(numWorkers, 2)
-	if nonImageWorkers > 32 {
-		nonImageWorkers = 32
+	if nonImageWorkers > maxNonImageWorkers {
+		nonImageWorkers = maxNonImageWorkers
 	}
 
 	var errs []error
 	var errMu sync.Mutex
 
-	imageQueue := make(chan fileTask, 1024)
-	nonImageQueue := make(chan fileTask, 1024)
+	imageQueue := make(chan fileTask, fileTaskQueueSize)
+	nonImageQueue := make(chan fileTask, fileTaskQueueSize)
 	var wg sync.WaitGroup
 
 	for i := 0; i < numWorkers; i++ {
@@ -200,7 +206,7 @@ func CopyDirVFS(ctx context.Context, opts CopyDirOptions) error {
 	}
 
 	// Use higher concurrency for discovery walk on modern SSDs
-	walkConcurrency := max(numWorkers/2, 4)
+	walkConcurrency := max(numWorkers/2, minWalkConcurrency)
 	walkErr := fspkg.ParallelWalk(fspkg.WalkOptions{
 		Ctx:         ctx,
 		SourceFs:    srcFs,

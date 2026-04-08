@@ -12,6 +12,11 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 )
 
+const (
+	imgTagPrefixLen   = 4 // len("<img")
+	tagStartLookahead = 2
+)
+
 // executeTemplateAndWrite executes a template, processes HTML, optionally minifies, and writes via sink.
 // This is a unified helper to avoid duplication across RenderPage, RenderIndex, RenderGraph, and Render404.
 func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data models.PageData, templateName string) error {
@@ -121,7 +126,7 @@ func hasAltAttribute(tag []byte) bool {
 }
 
 func findTagStart(html []byte, i int) int {
-	for ; i+2 < len(html); i++ {
+	for ; i+tagStartLookahead < len(html); i++ {
 		if html[i] == '<' {
 			c := html[i+1]
 			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
@@ -133,16 +138,16 @@ func findTagStart(html []byte, i int) int {
 }
 
 func isImgTag(html []byte, i int) bool {
-	if i+4 > len(html) {
+	if i+imgTagPrefixLen > len(html) {
 		return false
 	}
 	// Case insensitive "img" check
 	if (html[i+1] == 'i' || html[i+1] == 'I') &&
 		(html[i+2] == 'm' || html[i+2] == 'M') &&
-		(html[i+3] == 'g' || html[i+3] == 'G') {
+		(html[i+imgTagPrefixLen-1] == 'g' || html[i+imgTagPrefixLen-1] == 'G') {
 		// Ensure it's not just the prefix of another tag like <image>
-		if i+4 < len(html) {
-			c := html[i+4]
+		if i+imgTagPrefixLen < len(html) {
+			c := html[i+imgTagPrefixLen]
 			return c == ' ' || c == '>' || c == '/' || c == '\t' || c == '\n' || c == '\r'
 		}
 		return true
@@ -175,7 +180,7 @@ func findTagEnd(html []byte, i int) int {
 func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 	result := make([]byte, 0, len(tag))
 	// 1. Skip the "<img" part
-	i := 4 // length of "<img"
+	i := imgTagPrefixLen
 	result = append(result, tag[:i]...)
 
 	for i < len(tag) {

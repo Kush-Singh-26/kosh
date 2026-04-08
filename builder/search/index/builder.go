@@ -13,6 +13,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
+const (
+	maxIndexWorkers = 8
+	globalCapScale  = 0.5
+	minGlobalCap    = 500
+	workerCapScale  = 0.7
+	minWorkerCap    = 64
+	perWordMapCap   = 4
+	minStemMapCap   = 100
+	decimalBase     = 10
+)
+
 // Build constructs an in-memory search index from a list of indexed posts.
 func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 	totalDocs := len(indexedPosts)
@@ -30,14 +41,14 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 		}
 	}
 
-	numWorkers := min(runtime.NumCPU(), 8)
+	numWorkers := min(runtime.NumCPU(), maxIndexWorkers)
 
 	totalUniqueWordsEst := 0
 	for _, ip := range indexedPosts {
 		totalUniqueWordsEst += len(ip.PositionalIndex)
 	}
 
-	globalCap := max(int(float64(totalUniqueWordsEst)*0.5), 500)
+	globalCap := max(int(float64(totalUniqueWordsEst)*globalCapScale), minGlobalCap)
 
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
@@ -79,7 +90,7 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 				for j := start; j < end; j++ {
 					chunkUniqueWords += len(indexedPosts[j].PositionalIndex)
 				}
-				workerCap := max(int(float64(chunkUniqueWords)*0.7), 64)
+				workerCap := max(int(float64(chunkUniqueWords)*workerCapScale), minWorkerCap)
 
 				localPosts := make(map[string]models.PostRecord, end-start)
 				localInverted := make(map[string]map[string][]uint32, workerCap)
@@ -91,28 +102,28 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 				for j := start; j < end; j++ {
 					ip := indexedPosts[j]
 					id := ip.Record.ID
-					idStr := strconv.FormatUint(id, 10)
+					idStr := strconv.FormatUint(id, decimalBase)
 					localPosts[idStr] = ip.Record
 					localDocLens[idStr] = int64(ip.DocLen)
 					localTotalLen += int64(ip.DocLen)
 
 					for word, positions := range ip.PositionalIndex {
 						if _, ok := localInverted[word]; !ok {
-							localInverted[word] = make(map[string][]uint32, 4)
+							localInverted[word] = make(map[string][]uint32, perWordMapCap)
 						}
 						localInverted[word][idStr] = positions
 					}
 
 					for word, off := range ip.ByteOffsets {
 						if _, ok := localOffsets[word]; !ok {
-							localOffsets[word] = make(map[string][]uint32, 4)
+							localOffsets[word] = make(map[string][]uint32, perWordMapCap)
 						}
 						localOffsets[word][idStr] = off
 					}
 
 					for orig, stem := range ip.StemMap {
 						if _, ok := localStemMap[stem]; !ok {
-							localStemMap[stem] = make(map[string]bool, 4)
+							localStemMap[stem] = make(map[string]bool, perWordMapCap)
 						}
 						localStemMap[stem][orig] = true
 					}
@@ -156,7 +167,7 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
 	}
 
-	stemMapCap := max(globalCap/2, 100)
+	stemMapCap := max(globalCap/2, minStemMapCap)
 	stemMap := make(map[string]map[string]bool, stemMapCap)
 	for _, r := range results {
 		for stem, origins := range r.stemMap {

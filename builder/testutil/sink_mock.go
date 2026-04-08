@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const memFileMode = 0644
+
 // MemSink is a simple in-memory implementation of fspkg.ArtifactSink for testing.
 type MemSink struct {
 	Files     map[string][]byte
@@ -136,7 +138,7 @@ func (f *memFileInfo) Name() string { return f.name }
 func (f *memFileInfo) Size() int64 { return f.size }
 
 // Mode returns the file mode bits.
-func (f *memFileInfo) Mode() os.FileMode { return 0644 }
+func (f *memFileInfo) Mode() os.FileMode { return memFileMode }
 
 // ModTime returns a synthetic modification time.
 func (f *memFileInfo) ModTime() time.Time { return time.Now() }

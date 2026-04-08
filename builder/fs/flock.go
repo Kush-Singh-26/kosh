@@ -21,11 +21,11 @@ func AcquireBuildLock(outputDir string) (*FileLock, error) {
 	lockPath := filepath.Clean(outputDir) + ".lock"
 
 	// Ensure the parent directory of the lock file exists
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(lockPath), defaultDirMode); err != nil {
 		return nil, fmt.Errorf("failed to create lock directory: %w", err)
 	}
 
-	file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, defaultFileMode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create lock file: %w", err)
 	}

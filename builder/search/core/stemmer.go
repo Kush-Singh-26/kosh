@@ -6,6 +6,14 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
+const (
+	stemCacheSize  = 10000
+	minStemWordLen = 2
+	minCvcLen      = 3
+	suffixLen3     = 3
+	suffixLen4     = 4
+)
+
 // Porter Stemmer implementation for English
 // Based on the Porter Stemming Algorithm: https://tartarus.org/martin/PorterStemmer/
 
@@ -22,14 +30,14 @@ var (
 // to handle initialization errors.
 func InitStemCache() error {
 	stemCacheOnce.Do(func() {
-		stemCache, stemCacheErr = lru.New[string, string](10000)
+		stemCache, stemCacheErr = lru.New[string, string](stemCacheSize)
 	})
 	return stemCacheErr
 }
 
 // StemCached returns the stemmed form of word, using a cache for efficiency
 func StemCached(word string) string {
-	if len(word) <= 2 {
+	if len(word) <= minStemWordLen {
 		return word
 	}
 
@@ -68,7 +76,7 @@ func StemTerms(terms []string) []string {
 
 // stem is the internal stemming implementation
 func stem(word string) string {
-	if len(word) <= 2 {
+	if len(word) <= minStemWordLen {
 		return word
 	}
 
@@ -173,11 +181,11 @@ func endsWithDoubleConsonant(runes []rune) bool {
 // endsWithCVC checks for consonant-vowel-consonant ending
 func endsWithCVC(runes []rune) bool {
 	n := len(runes)
-	if n < 3 {
+	if n < minCvcLen {
 		return false
 	}
 
-	if isVowel(runes, n-1) || !isVowel(runes, n-2) || isVowel(runes, n-3) {
+	if isVowel(runes, n-1) || !isVowel(runes, n-2) || isVowel(runes, n-minCvcLen) {
 		return false
 	}
 
@@ -189,10 +197,10 @@ func endsWithCVC(runes []rune) bool {
 func step1a(runes []rune) []rune {
 	n := len(runes)
 	// Compare runes directly without string conversion
-	if n >= 4 && runes[n-4] == 's' && runes[n-3] == 's' && runes[n-2] == 'e' && runes[n-1] == 's' {
+	if n >= suffixLen4 && runes[n-suffixLen4] == 's' && runes[n-suffixLen3] == 's' && runes[n-2] == 'e' && runes[n-1] == 's' {
 		return append(runes[:n-2], 's')
 	}
-	if n >= 3 && runes[n-3] == 'i' && runes[n-2] == 'e' && runes[n-1] == 's' {
+	if n >= suffixLen3 && runes[n-suffixLen3] == 'i' && runes[n-2] == 'e' && runes[n-1] == 's' {
 		return append(runes[:n-2], 'i')
 	}
 	if n >= 2 && runes[n-2] == 's' && runes[n-1] == 's' {
@@ -208,8 +216,8 @@ func step1b(runes []rune) []rune {
 	n := len(runes)
 
 	// -eed (compare runes directly)
-	if n >= 4 && runes[n-4] == 'e' && runes[n-3] == 'e' && runes[n-2] == 'd' {
-		stem := runes[:n-3]
+	if n >= suffixLen4 && runes[n-suffixLen4] == 'e' && runes[n-suffixLen3] == 'e' && runes[n-2] == 'd' {
+		stem := runes[:n-suffixLen3]
 		if measure(stem) > 0 {
 			return append(stem, 'e', 'e')
 		}
@@ -217,7 +225,7 @@ func step1b(runes []rune) []rune {
 	}
 
 	// -ed (compare runes directly)
-	if n >= 3 && runes[n-3] == 'e' && runes[n-2] == 'd' {
+	if n >= suffixLen3 && runes[n-suffixLen3] == 'e' && runes[n-2] == 'd' {
 		stem := runes[:n-2]
 		if hasVowel(stem) {
 			runes = stem
@@ -227,8 +235,8 @@ func step1b(runes []rune) []rune {
 	}
 
 	// -ing (compare runes directly)
-	if n >= 4 && runes[n-4] == 'i' && runes[n-3] == 'n' && runes[n-2] == 'g' {
-		stem := runes[:n-3]
+	if n >= suffixLen4 && runes[n-suffixLen4] == 'i' && runes[n-suffixLen3] == 'n' && runes[n-2] == 'g' {
+		stem := runes[:n-suffixLen3]
 		if hasVowel(stem) {
 			runes = stem
 			return step1bHelper(runes)

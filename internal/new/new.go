@@ -9,6 +9,11 @@ import (
 	"github.com/spf13/afero"
 )
 
+const (
+	maxSlugLength   = 100
+	newPostFileMode = 0644
+)
+
 // sanitizeSlug converts a title to a safe filename slug
 func sanitizeSlug(title string) string {
 	var b strings.Builder
@@ -28,8 +33,8 @@ func sanitizeSlug(title string) string {
 	// Trim leading/trailing hyphens
 	slug = strings.Trim(slug, "-")
 	// Limit length to prevent excessively long filenames
-	if len(slug) > 100 {
-		slug = slug[:100]
+	if len(slug) > maxSlugLength {
+		slug = slug[:maxSlugLength]
 	}
 	return slug
 }
@@ -78,7 +83,7 @@ Start writing here...
 		return
 	}
 
-	if err := afero.WriteFile(fs, filename, []byte(content), 0644); err != nil {
+	if err := afero.WriteFile(fs, filename, []byte(content), newPostFileMode); err != nil {
 		slog.Error("Error creating file", "error", err)
 		return
 	}

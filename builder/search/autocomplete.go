@@ -8,10 +8,16 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
+const (
+	minSuggestionPrefixLen = 2
+	defaultSuggestionCount = 1
+	defaultSuggestionLimit = 8
+)
+
 // GetSuggestions returns a list of suggested terms based on a prefix
 func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 	prefix = core.ToLower(strings.TrimSpace(prefix))
-	if len(prefix) < 2 {
+	if len(prefix) < minSuggestionPrefixLen {
 		return nil
 	}
 
@@ -50,7 +56,7 @@ func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 					// if we really wanted to. For now, we'll just add it.
 					suggestions = append(suggestions, suggestion{
 						term:  orig,
-						count: 1,
+						count: defaultSuggestionCount,
 					})
 				}
 			}
@@ -68,7 +74,7 @@ func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 					if !found {
 						suggestions = append(suggestions, suggestion{
 							term:  orig,
-							count: 1,
+							count: defaultSuggestionCount,
 						})
 					}
 				}
@@ -84,7 +90,7 @@ func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 		return len(a.term) - len(b.term)
 	})
 
-	limit := 8
+	limit := defaultSuggestionLimit
 	result := make([]string, 0, min(len(suggestions), limit))
 	seen := make(map[string]bool)
 	for _, s := range suggestions {

@@ -12,6 +12,13 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+const (
+	buildsSinceGCSize = 4
+	lastGCTimeSize    = 8
+)
+
+var ssrTypes = []string{"d2", "math", "math-inline", "math-block", "katex"}
+
 // RunGC performs garbage collection logic
 func RunGC(db *bbolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig) (*GCResult, error) {
 	start := time.Now()
@@ -63,7 +70,7 @@ func RunGC(db *bbolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig
 		// Set a default maxAge if not provided (e.g., 7 days)
 		maxAge := cfg.MaxAge
 		if maxAge == 0 {
-			maxAge = 7 * 24 * time.Hour
+			maxAge = defaultMaxAge
 		}
 
 		// Clean HTML artifacts
@@ -74,7 +81,7 @@ func RunGC(db *bbolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig
 		}
 
 		// Clean SSR artifacts
-		for _, ssrType := range []string{"d2", "math", "math-inline", "math-block", "katex"} {
+		for _, ssrType := range ssrTypes {
 			category := filepath.Join("ssr", ssrType)
 			deleted, freedBytes, err := s.CleanOrphans(category, liveSSRHashes, maxAge)
 			if err == nil {
@@ -145,11 +152,11 @@ func RunGC(db *bbolt.DB, s *store.Store, refCount *RefCountManager, cfg GCConfig
 		_ = db.Update(func(tx *bbolt.Tx) error {
 			statsBucket := tx.Bucket([]byte(core.BucketStats))
 
-			countData := make([]byte, 4)
+			countData := make([]byte, buildsSinceGCSize)
 			binary.BigEndian.PutUint32(countData, 0)
 			_ = statsBucket.Put([]byte("builds_since_gc"), countData)
 
-			gcTime := make([]byte, 8)
+			gcTime := make([]byte, lastGCTimeSize)
 			binary.BigEndian.PutUint64(gcTime, uint64(time.Now().Unix()))
 			_ = statsBucket.Put([]byte(core.KeyLastGC), gcTime)
 

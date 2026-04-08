@@ -43,6 +43,15 @@ type Store struct {
 
 var storeTempCounter atomic.Uint64
 
+const (
+	storeDirMode       = 0755
+	hashShardPrefixLen = 2
+	hashPrefixLen      = 8
+	dirMutexBuckets    = 256
+	renameMaxRetries   = 6
+	renameBaseDelay    = 10 * time.Millisecond
+)
+
 // New creates a Store rooted at the provided base path.
 func New(basePath string) (*Store, error) {
 	encoder, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedFastest))
@@ -77,10 +86,10 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) shardPath(category string, hash string) string {
-	if len(hash) < 2 {
+	if len(hash) < hashShardPrefixLen {
 		return filepath.Join(s.basePath, category, hash)
 	}
-	return filepath.Join(s.basePath, category, hash[0:2], hash)
+	return filepath.Join(s.basePath, category, hash[0:hashShardPrefixLen], hash)
 }
 
 func extension(ct core.CompressionType) string {
@@ -139,7 +148,7 @@ func (s *Store) ensureDir(dir string) error {
 	// Create from top to bottom
 	for i := len(missing) - 1; i >= 0; i-- {
 		p := missing[i]
-		if err := os.Mkdir(p, 0755); err != nil && !os.IsExist(err) {
+		if err := os.Mkdir(p, storeDirMode); err != nil && !os.IsExist(err) {
 			mu.Unlock()
 			return err
 		}
@@ -149,11 +158,11 @@ func (s *Store) ensureDir(dir string) error {
 	return nil
 }
 
-var dirMutexes [256]sync.Mutex
+var dirMutexes [dirMutexBuckets]sync.Mutex
 
 func (s *Store) getDirMutex(path string) *sync.Mutex {
 	h := xxh3.HashString(path)
-	return &dirMutexes[h%256]
+	return &dirMutexes[h%dirMutexBuckets]
 }
 
 // Put stores content and returns its hash and compression type.
@@ -204,7 +213,7 @@ func (s *Store) Put(category string, content []byte) (hash string, ct core.Compr
 		data = content
 	}
 
-	tmpPath := fmt.Sprintf("%s.%s.%d.%d.tmp", path, hash[:8], os.Getpid(), storeTempCounter.Add(1))
+	tmpPath := fmt.Sprintf("%s.%s.%d.%d.tmp", path, hash[:hashPrefixLen], os.Getpid(), storeTempCounter.Add(1))
 	f, err := os.Create(tmpPath)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to create temp file: %w", err)
@@ -234,8 +243,8 @@ func (s *Store) Put(category string, content []byte) (hash string, ct core.Compr
 		Ctx:        context.Background(),
 		OldPath:    tmpPath,
 		NewPath:    path,
-		MaxRetries: 6,
-		BaseDelay:  10 * time.Millisecond,
+		MaxRetries: renameMaxRetries,
+		BaseDelay:  renameBaseDelay,
 	}); err != nil {
 		if fileExists(path) {
 			_ = os.Remove(tmpPath)

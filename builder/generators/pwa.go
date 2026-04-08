@@ -18,6 +18,13 @@ import (
 	"github.com/spf13/afero"
 )
 
+const (
+	pwaIconSmall = 192
+	pwaIconLarge = 512
+)
+
+var pwaIconSizes = []int{pwaIconSmall, pwaIconLarge}
+
 // SWOptions configures service worker generation.
 type SWOptions struct {
 	Sink         fspkg.ArtifactSink
@@ -207,17 +214,16 @@ func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string, logger *slog.Logger) (
 		return nil, err
 	}
 
-	sizes := []int{192, 512}
-	out := make(PWAIconsData, len(sizes))
+	out := make(PWAIconsData, len(pwaIconSizes))
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	errs := make([]error, len(sizes))
+	errs := make([]error, len(pwaIconSizes))
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	for i, size := range sizes {
+	for i, size := range pwaIconSizes {
 		idx := i
 		sz := size
 		wg.Add(1)
@@ -263,7 +269,7 @@ func WritePWAIcons(sink fspkg.ArtifactSink, destDir string, icons PWAIconsData) 
 		return err
 	}
 
-	for _, sz := range []int{192, 512} {
+	for _, sz := range pwaIconSizes {
 		data, ok := icons[sz]
 		if !ok || len(data) == 0 {
 			return fmt.Errorf("missing encoded icon data for %d", sz)

@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const conditionPollInterval = 5 * time.Millisecond
+
 // helperLogger creates a test logger.
 func helperLogger(t *testing.T) *slog.Logger {
 	t.Helper()
@@ -20,7 +22,7 @@ func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool
 		if condition() {
 			return
 		}
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(conditionPollInterval)
 	}
 	t.Fatalf("timed out waiting for condition after %v", timeout)
 }
