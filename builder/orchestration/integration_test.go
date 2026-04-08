@@ -1,4 +1,4 @@
-﻿// Package run provides integration tests for the full build pipeline.
+// Package run provides integration tests for the full build pipeline.
 // These tests verify end-to-end build correctness, cache utilization,
 // and transaction rollback behavior.
 package orchestration
@@ -1003,7 +1003,13 @@ Content 3
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := postSvc.Process(ctx, false, false, false, files)
+		_, err := postSvc.Process(post.ProcessOptions{
+			Ctx:                ctx,
+			ShouldForce:        false,
+			ForceSocialRebuild: false,
+			OutputMissing:      false,
+			Files:              files,
+		})
 		if err != nil {
 			errChan <- err
 		}

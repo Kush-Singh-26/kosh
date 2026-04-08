@@ -22,24 +22,9 @@ import (
 //go:embed wasm/search.wasm.br
 var searchWasmBr []byte
 
-// embeddedWasmHash caches the hash of the raw (decompressed) embedded WASM
-var embeddedWasmHash string
+// embeddedWasmHash is the hash of the raw (decompressed) embedded WASM
+// It is now generated at build-time in search_hash.go
 var wasmInitErr error
-
-// init eagerly decompresses and hashes the embedded search WASM at import time.
-// This is intentional: the hash is read on every deploy check, so caching it here
-// avoids repeated decompression overhead. Error is stored for lazy handling rather
-// than panicking during import, preserving library safety.
-func init() {
-	raw, err := decompressBrotli(searchWasmBr)
-	if err != nil {
-		// This should never happen if the build process is correct
-		// Store error for lazy handling instead of panicking
-		wasmInitErr = fmt.Errorf("failed to decompress embedded WASM: %w", err)
-		return
-	}
-	embeddedWasmHash = hashBytes(raw)
-}
 
 // CheckWASM ensures the search engine WASM is present and up-to-date.
 // Uses hash comparison to avoid unnecessary writes when WASM hasn't changed.
@@ -93,7 +78,7 @@ func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
 			slog.Error("WASM initialization failed", "error", wasmInitErr)
 			return false
 		}
-		wasmHash = embeddedWasmHash
+		wasmHash = SearchWasmHash
 		wasmBrBytes = searchWasmBr
 	} else {
 		wasmBytes = sourceWasm

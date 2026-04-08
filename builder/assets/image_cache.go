@@ -291,7 +291,6 @@ func CleanupOriginalImages(outputDir string) {
 		"logo.png":     true,
 		"icon-192.png": true,
 		"icon-512.png": true,
-		"favicon.png":  true,
 	}
 
 	// Determine exactly which source images to delete based on the converted map

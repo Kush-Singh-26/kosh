@@ -173,3 +173,57 @@ func TestUnifiedTransformerStruct(t *testing.T) {
 		t.Error("Expected Compress to be false")
 	}
 }
+
+func TestTransformState_HeadingHandling(t *testing.T) {
+	state := &transformState{
+		ctx: &transformContext{},
+	}
+
+	heading := ast.NewHeading(2)
+	heading.SetAttributeString("id", []byte("existing-id"))
+
+	// Enter heading
+	state.handleHeading(heading, true)
+	if !state.ctx.inHeading {
+		t.Error("Expected inHeading to be true")
+	}
+	if state.ctx.headingID != "existing-id" {
+		t.Errorf("Expected headingID 'existing-id', got %q", state.ctx.headingID)
+	}
+
+	// Exit heading
+	state.handleHeading(heading, false)
+	if state.ctx.inHeading {
+		t.Error("Expected inHeading to be false")
+	}
+	if len(state.toc) != 1 {
+		t.Errorf("Expected 1 TOC entry, got %d", len(state.toc))
+	}
+	if state.toc[0].ID != "existing-id" {
+		t.Errorf("Expected TOC ID 'existing-id', got %q", state.toc[0].ID)
+	}
+}
+
+func TestTransformState_TextCollection(t *testing.T) {
+	source := []byte("hello world")
+	state := &transformState{
+		source: source,
+		ctx:    &transformContext{},
+	}
+
+	tNode := ast.NewText()
+	tNode.Segment = text.Segment{Start: 0, Stop: 5} // "hello"
+
+	state.collectText(tNode)
+	if strings.TrimSpace(state.plainText.String()) != "hello" {
+		t.Errorf("Expected plainText 'hello', got %q", state.plainText.String())
+	}
+
+	// Test heading text collection
+	state.ctx.inHeading = true
+	state.ctx.headingText.Reset()
+	state.collectText(tNode)
+	if state.ctx.headingText.String() != "hello" {
+		t.Errorf("Expected headingText 'hello', got %q", state.ctx.headingText.String())
+	}
+}

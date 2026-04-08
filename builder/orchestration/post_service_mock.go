@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/spf13/afero"
@@ -28,16 +27,16 @@ func (m *mockPostService) SetAssetsGate(ch <-chan struct{}) {}
 
 func (m *mockPostService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {}
 
-func (m *mockPostService) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*post.PostResult, error) {
+func (m *mockPostService) Process(opts post.ProcessOptions) (*post.PostResult, error) {
 	if m.ProcessResult != nil {
 		return m.ProcessResult, m.ProcessErr
 	}
 	return &post.PostResult{}, m.ProcessErr
 }
 
-func (m *mockPostService) ProcessStreaming(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*post.PostResult, error) {
+func (m *mockPostService) ProcessStreaming(opts post.ProcessOptions) (*post.PostResult, error) {
 	// Drain the channel to simulate consumption
-	for range fileChan {
+	for range opts.FileChan {
 	}
 	if m.ProcessResult != nil {
 		return m.ProcessResult, m.ProcessErr

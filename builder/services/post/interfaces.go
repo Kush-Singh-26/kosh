@@ -78,13 +78,22 @@ type Parser interface {
 	ParseMarkdown(opts ParseOptions) (*ParsedMarkdownResult, error)
 }
 
+type ProcessOptions struct {
+	Ctx                context.Context
+	ShouldForce        bool
+	ForceSocialRebuild bool
+	OutputMissing      bool
+	Files              []models.ScannedFile
+	FileChan           <-chan models.ScannedFile
+}
+
 // Service handles markdown parsing and post processing.
 type Service interface {
 	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 	SetAssetsGate(ch <-chan struct{})
 	ReconfigureWithReporter(r ui.Reporter, l *slog.Logger)
-	Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*PostResult, error)
-	ProcessStreaming(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error)
+	Process(opts ProcessOptions) (*PostResult, error)
+	ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
 	WaitForCacheCommit()

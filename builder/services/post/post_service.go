@@ -131,16 +131,22 @@ type WorkerContext struct {
 	ForceSocialRebuild bool
 }
 
-func (s *postService) Process(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*PostResult, error) {
-	fileChan := make(chan models.ScannedFile, len(files))
-	for _, f := range files {
+func (s *postService) Process(opts ProcessOptions) (*PostResult, error) {
+	fileChan := make(chan models.ScannedFile, len(opts.Files))
+	for _, f := range opts.Files {
 		fileChan <- f
 	}
 	close(fileChan)
-	return s.ProcessStreaming(ctx, shouldForce, forceSocialRebuild, outputMissing, fileChan)
+	opts.FileChan = fileChan
+	return s.ProcessStreaming(opts)
 }
 
-func (s *postService) ProcessStreaming(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, fileChan <-chan models.ScannedFile) (*PostResult, error) {
+func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error) {
+	ctx := opts.Ctx
+	shouldForce := opts.ShouldForce
+	forceSocialRebuild := opts.ForceSocialRebuild
+	fileChan := opts.FileChan
+
 	numWorkers := models.GetDefaultWorkerCount()
 
 	cardPool := async.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) error {
@@ -462,7 +468,13 @@ func (s *postService) parseWorkerTaskLocal(f models.ScannedFile, wCtx WorkerCont
 	}
 
 	// 4. Social Card
-	s.queueSocialCard(relPath, parseRes, htmlRelPath, wCtx.ForceSocialRebuild, wCtx.CardPool)
+	s.queueSocialCard(SocialCardOptions{
+		RelPath:            relPath,
+		Result:             parseRes,
+		HtmlRelPath:        htmlRelPath,
+		ForceSocialRebuild: wCtx.ForceSocialRebuild,
+		CardPool:           wCtx.CardPool,
+	})
 
 	// 5. Aggregate and stream
 	s.aggregateLocal(AggregateContext{
@@ -612,7 +624,21 @@ func (s *postService) mergeWorkerStates(locals []*workerLocalState, wCtx WorkerC
 	}
 }
 
-func (s *postService) queueSocialCard(relPath string, res *ParsedMarkdownResult, htmlRelPath string, force bool, pool *async.WorkerPool[socialCardTask]) {
+type SocialCardOptions struct {
+	RelPath            string
+	Result             *ParsedMarkdownResult
+	HtmlRelPath        string
+	ForceSocialRebuild bool
+	CardPool           *async.WorkerPool[socialCardTask]
+}
+
+func (s *postService) queueSocialCard(opts SocialCardOptions) {
+	relPath := opts.RelPath
+	res := opts.Result
+	htmlRelPath := opts.HtmlRelPath
+	force := opts.ForceSocialRebuild
+	pool := opts.CardPool
+
 	cardRelPath, cardDestPath, _ := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath)
 
 	cacheDir := s.cfg.CacheDir

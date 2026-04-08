@@ -14,12 +14,19 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (b *Engine) setupSiteWideRendering(
-	ctx context.Context,
-	assetsReady <-chan struct{},
-	wasmWg *sync.WaitGroup,
-	forceSocialRebuild bool,
-) (func(*post.MetadataContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
+type SiteWideOptions struct {
+	Ctx                context.Context
+	AssetsReady        <-chan struct{}
+	WasmWg             *sync.WaitGroup
+	ForceSocialRebuild bool
+}
+
+func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.MetadataContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
+	ctx := opts.Ctx
+	assetsReady := opts.AssetsReady
+	wasmWg := opts.WasmWg
+	forceSocialRebuild := opts.ForceSocialRebuild
+
 	var siteWideGroup *errgroup.Group
 	var siteWideCtx context.Context
 	var siteTimer *timeutil.PhaseTimer

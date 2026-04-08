@@ -272,7 +272,7 @@ type PWAIconsOptions struct {
 	Logger  *slog.Logger
 }
 
-// GeneratePWAIcons generates 192x192 and 512x512 icons from favicon.png
+// GeneratePWAIcons generates 192x192 and 512x512 icons from the source icon
 func GeneratePWAIcons(opts PWAIconsOptions) error {
 	srcFs := opts.SrcFs
 	sink := opts.Sink

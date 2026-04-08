@@ -19,6 +19,7 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 )
 
 // refreshBuildSession creates a fresh Transaction and Sink for a new build pass.
@@ -72,7 +73,13 @@ func (b *Engine) buildAssetOnly(ctx context.Context) error {
 		b.Deps.Post.SetAssetsGate(nil)
 		b.State.ForceGenerators.Store(true)
 
-		metadataResult, err := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.Deps.SourceFs, b.Cfg, nil)
+		metadataResult, err := b.Deps.Scanner.Scan(scanner.ScanOptions{
+			Ctx:        ctx,
+			ContentDir: b.Cfg.ContentDir,
+			SrcFs:      b.Deps.SourceFs,
+			Cfg:        b.Cfg,
+			FileChan:   nil,
+		})
 		if err != nil {
 			return fmt.Errorf("metadata scan failed: %w", err)
 		}
@@ -80,7 +87,13 @@ func (b *Engine) buildAssetOnly(ctx context.Context) error {
 		shouldForce := false
 		forceSocialRebuild := false
 		outputMissing := false
-		_, err = b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, metadataResult.Files)
+		_, err = b.processPosts(ProcessPostsOptions{
+			Ctx:                ctx,
+			ShouldForce:        shouldForce,
+			ForceSocialRebuild: forceSocialRebuild,
+			OutputMissing:      outputMissing,
+			Files:              metadataResult.Files,
+		})
 		if err != nil {
 			return fmt.Errorf("post processing failed: %w", err)
 		}

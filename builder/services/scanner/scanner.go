@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"io/fs"
 	"path/filepath"
@@ -26,12 +25,18 @@ func NewScanner() Scanner {
 	return &metadataScanner{}
 }
 
-func (s *metadataScanner) Scan(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error) {
-	resChan, errChan := s.ScanStreaming(ctx, contentDir, srcFs, cfg, fileChan)
+func (s *metadataScanner) Scan(opts ScanOptions) (*models.MetadataScannerResult, error) {
+	resChan, errChan := s.ScanStreaming(opts)
 	return <-resChan, <-errChan
 }
 
-func (s *metadataScanner) ScanStreaming(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (<-chan *models.MetadataScannerResult, <-chan error) {
+func (s *metadataScanner) ScanStreaming(opts ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error) {
+	ctx := opts.Ctx
+	contentDir := opts.ContentDir
+	srcFs := opts.SrcFs
+	cfg := opts.Cfg
+	fileChan := opts.FileChan
+
 	resultChan := make(chan *models.MetadataScannerResult, 1)
 	errChan := make(chan error, 1)
 

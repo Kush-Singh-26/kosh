@@ -9,9 +9,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+type ScanOptions struct {
+	Ctx        context.Context
+	ContentDir string
+	SrcFs      afero.Fs
+	Cfg        *config.Config
+	FileChan   chan<- models.ScannedFile
+}
+
 // Scanner scans content directory for markdown files and extracts metadata.
 type Scanner interface {
-	Scan(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (*models.MetadataScannerResult, error)
-	ScanStreaming(ctx context.Context, contentDir string, srcFs afero.Fs, cfg *config.Config, fileChan chan<- models.ScannedFile) (<-chan *models.MetadataScannerResult, <-chan error)
+	Scan(opts ScanOptions) (*models.MetadataScannerResult, error)
+	ScanStreaming(opts ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error)
 	ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error)
 }

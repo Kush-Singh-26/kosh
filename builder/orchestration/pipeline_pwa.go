@@ -71,7 +71,7 @@ func (b *Engine) generatePWA(ctx context.Context, shouldForce bool) error {
 		}
 		srcInfo, _ := b.Deps.SourceFs.Stat(logoPath)
 
-		// Calculate hash based on favicon mtime and size
+		// Calculate hash based on logo mtime and size
 		hashContent := fmt.Sprintf("%s-%d-%d", logoPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())
 		currentHash := cache.HashString(hashContent)
 

@@ -12,6 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"golang.org/x/sync/errgroup"
@@ -116,7 +117,13 @@ func (b *Engine) scanPhase(ctx context.Context, contentAssetsChan chan []models.
 		defer close(metadataResultChan)
 		defer close(scannerErrChan)
 
-		metadataResult, scannerErr := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.Deps.SourceFs, b.Cfg, fileChan)
+		metadataResult, scannerErr := b.Deps.Scanner.Scan(scanner.ScanOptions{
+			Ctx:        ctx,
+			ContentDir: b.Cfg.ContentDir,
+			SrcFs:      b.Deps.SourceFs,
+			Cfg:        b.Cfg,
+			FileChan:   fileChan,
+		})
 		if scannerErr == nil {
 			contentAssetsChan <- metadataResult.ContentAssets
 		}
@@ -149,18 +156,28 @@ func (b *Engine) processPhase(
 	}
 	postResChan := make(chan postStreamRes, 1)
 	go func() {
-		res, err := b.Deps.Post.ProcessStreaming(ctx, b.Cfg.ForceRebuild, setup.forceSocialRebuild, b.State.IsCleanBuild, scan.fileChan)
+		res, err := b.Deps.Post.ProcessStreaming(post.ProcessOptions{
+			Ctx:                ctx,
+			ShouldForce:        b.Cfg.ForceRebuild,
+			ForceSocialRebuild: setup.forceSocialRebuild,
+			OutputMissing:      b.State.IsCleanBuild,
+			FileChan:           scan.fileChan,
+		})
 		postResChan <- postStreamRes{res, err}
 	}()
 
 	// Wait for scanner and discovery metadata (needed for ContentAssets and site-wide state).
 	// This ensures the image/WebP rewrite map is populated so HTML can reference
 	// the correct paths. Image compression continues in the background while posts render.
-	metadataResult, discoverySignal, scannerErr, assetErr, _ := b.waitForScannerAndAssets(
-		ctx,
-		scan.scannerReady, scan.metadataResultChan, scan.scannerErrChan,
-		assets.assetWg, assets.assetErrChan, assets.discoveryReady,
-	)
+	metadataResult, discoverySignal, scannerErr, assetErr, _ := b.waitForScannerAndAssets(WaitScannerAssetsOptions{
+		Ctx:                ctx,
+		ScannerReady:       scan.scannerReady,
+		MetadataResultChan: scan.metadataResultChan,
+		ScannerErrChan:     scan.scannerErrChan,
+		AssetWg:            assets.assetWg,
+		AssetErrChan:       assets.assetErrChan,
+		DiscoveryReady:     assets.discoveryReady,
+	})
 
 	if b.Deps.Reporter != nil {
 		b.Deps.Reporter.EndPhase(ui.PhaseScan, 0)
@@ -189,7 +206,12 @@ func (b *Engine) processPhase(
 	}
 
 	// Set up site-wide generators (need full asset completion)
-	runSiteWide, _ := b.setupSiteWideRendering(ctx, assets.assetsReady, setup.wasmWg, setup.forceSocialRebuild)
+	runSiteWide, _ := b.setupSiteWideRendering(SiteWideOptions{
+		Ctx:                ctx,
+		AssetsReady:        assets.assetsReady,
+		WasmWg:             setup.wasmWg,
+		ForceSocialRebuild: setup.forceSocialRebuild,
+	})
 
 	// Wait for post processing to finish (it was started as a stream)
 	var postResult *post.PostResult
@@ -275,17 +297,26 @@ func (b *Engine) createOutputDirectories() error {
 	return nil
 }
 
+type WaitScannerAssetsOptions struct {
+	Ctx                context.Context
+	ScannerReady       <-chan struct{}
+	MetadataResultChan <-chan *models.MetadataScannerResult
+	ScannerErrChan     <-chan error
+	AssetWg            *sync.WaitGroup
+	AssetErrChan       <-chan error
+	DiscoveryReady     <-chan struct{}
+}
+
 // waitForScannerAndAssets waits for scanner and asset building to complete.
 // The discoveryReady signal unblocks post-processing while image compression continues.
-func (b *Engine) waitForScannerAndAssets(
-	ctx context.Context,
-	scannerReady <-chan struct{},
-	metadataResultChan <-chan *models.MetadataScannerResult,
-	scannerErrChan <-chan error,
-	assetWg *sync.WaitGroup,
-	assetErrChan <-chan error,
-	discoveryReady <-chan struct{},
-) (*models.MetadataScannerResult, <-chan struct{}, error, error, error) {
+func (b *Engine) waitForScannerAndAssets(opts WaitScannerAssetsOptions) (*models.MetadataScannerResult, <-chan struct{}, error, error, error) {
+	ctx := opts.Ctx
+	scannerReady := opts.ScannerReady
+	metadataResultChan := opts.MetadataResultChan
+	scannerErrChan := opts.ScannerErrChan
+	assetErrChan := opts.AssetErrChan
+	discoveryReady := opts.DiscoveryReady
+
 	select {
 	case <-scannerReady:
 	case <-ctx.Done():
@@ -397,9 +428,23 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup, asse
 	return nil
 }
 
+type ProcessPostsOptions struct {
+	Ctx                context.Context
+	ShouldForce        bool
+	ForceSocialRebuild bool
+	OutputMissing      bool
+	Files              []models.ScannedFile
+}
+
 // processPosts executes post processing and returns the result
-func (b *Engine) processPosts(ctx context.Context, shouldForce, forceSocialRebuild, outputMissing bool, files []models.ScannedFile) (*post.PostResult, error) {
-	return b.Deps.Post.Process(ctx, shouldForce, forceSocialRebuild, outputMissing, files)
+func (b *Engine) processPosts(opts ProcessPostsOptions) (*post.PostResult, error) {
+	return b.Deps.Post.Process(post.ProcessOptions{
+		Ctx:                opts.Ctx,
+		ShouldForce:        opts.ShouldForce,
+		ForceSocialRebuild: opts.ForceSocialRebuild,
+		OutputMissing:      opts.OutputMissing,
+		Files:              opts.Files,
+	})
 }
 
 // finalizePhase handles post-build cleanup and commit

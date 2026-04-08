@@ -367,7 +367,13 @@ func (b *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 		b.Deps.Post.SetAssetsGate(nil)
 		b.State.ForceGenerators.Store(true)
 
-		metadataResult, err := b.Deps.Scanner.Scan(ctx, b.Cfg.ContentDir, b.Deps.SourceFs, b.Cfg, nil)
+		metadataResult, err := b.Deps.Scanner.Scan(scanner.ScanOptions{
+			Ctx:        ctx,
+			ContentDir: b.Cfg.ContentDir,
+			SrcFs:      b.Deps.SourceFs,
+			Cfg:        b.Cfg,
+			FileChan:   nil,
+		})
 		if err != nil {
 			return fmt.Errorf("metadata scan failed: %w", err)
 		}
@@ -377,12 +383,23 @@ func (b *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 		assetsReady := make(chan struct{})
 		close(assetsReady)
 		wasmWg := &sync.WaitGroup{}
-		runSiteWide, _ := b.setupSiteWideRendering(ctx, assetsReady, wasmWg, false)
+		runSiteWide, _ := b.setupSiteWideRendering(SiteWideOptions{
+			Ctx:                ctx,
+			AssetsReady:        assetsReady,
+			WasmWg:             wasmWg,
+			ForceSocialRebuild: false,
+		})
 
 		shouldForce := false
 		forceSocialRebuild := false
 		outputMissing := false
-		postResult, err := b.processPosts(ctx, shouldForce, forceSocialRebuild, outputMissing, metadataResult.Files)
+		postResult, err := b.Deps.Post.Process(post.ProcessOptions{
+			Ctx:                ctx,
+			ShouldForce:        shouldForce,
+			ForceSocialRebuild: forceSocialRebuild,
+			OutputMissing:      outputMissing,
+			Files:              metadataResult.Files,
+		})
 		if err != nil {
 			return fmt.Errorf("post processing failed: %w", err)
 		}
