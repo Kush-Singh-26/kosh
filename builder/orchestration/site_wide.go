@@ -61,7 +61,11 @@ func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.Metada
 				return b.renderTags(siteWideCtx, cb.TagMap, forceSocialRebuild)
 			})
 			siteWideGroup.Go(func() error {
-				return b.renderSiteMetadata(cb.AllPosts, cb.TagMap, nil, assetsReady)
+				return b.renderSiteMetadata(MetadataRenderOptions{
+					AllPosts:    cb.AllPosts,
+					TagMap:      cb.TagMap,
+					AssetsReady: assetsReady,
+				})
 			})
 			wasmWg.Add(1)
 			go func() {
@@ -75,7 +79,9 @@ func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.Metada
 
 		if cb.IndexedPosts != nil {
 			siteWideGroup.Go(func() error {
-				return b.renderSiteMetadata(nil, nil, cb.IndexedPosts, nil)
+				return b.renderSiteMetadata(MetadataRenderOptions{
+					IndexedPosts: cb.IndexedPosts,
+				})
 			})
 		}
 
@@ -94,16 +100,23 @@ func (b *Engine) shouldSkipSiteWideRendering(cb *post.MetadataContext, assetsCha
 	return true
 }
 
-func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[string][]models.PostMetadata, indexedPosts []models.IndexedPost, assetsReady <-chan struct{}) error {
+type MetadataRenderOptions struct {
+	AllPosts     []models.PostMetadata
+	TagMap       map[string][]models.PostMetadata
+	IndexedPosts []models.IndexedPost
+	AssetsReady  <-chan struct{}
+}
+
+func (b *Engine) renderSiteMetadata(opts MetadataRenderOptions) error {
 	g := new(errgroup.Group)
 
-	if b.Cfg.Features.Generators.Sitemap && allPosts != nil && indexedPosts == nil {
+	if b.Cfg.Features.Generators.Sitemap && opts.AllPosts != nil && opts.IndexedPosts == nil {
 		g.Go(func() error {
 			_, err := generators.GenerateSitemap(generators.SitemapOptions{
 				Sink:       b.Sink,
 				BaseURL:    b.Cfg.BaseURL,
-				Posts:      allPosts,
-				Tags:       tagMap,
+				Posts:      opts.AllPosts,
+				Tags:       opts.TagMap,
 				OutputPath: filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"),
 			})
 			if err == nil {
@@ -127,12 +140,12 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 		})
 	}
 
-	if b.Cfg.Features.Generators.RSS && allPosts != nil && indexedPosts == nil {
+	if b.Cfg.Features.Generators.RSS && opts.AllPosts != nil && opts.IndexedPosts == nil {
 		g.Go(func() error {
 			_, err := generators.GenerateRSS(generators.RSSOptions{
 				Sink:        b.Sink,
 				BaseURL:     b.Cfg.BaseURL,
-				Posts:       allPosts,
+				Posts:       opts.AllPosts,
 				Title:       b.Cfg.Title,
 				Description: b.Cfg.Description,
 				OutputPath:  filepath.Join(b.Cfg.OutputDir, "rss.xml"),
@@ -147,13 +160,13 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 		})
 	}
 
-	if b.Cfg.Features.Generators.Search && indexedPosts != nil {
+	if b.Cfg.Features.Generators.Search && opts.IndexedPosts != nil {
 		g.Go(func() error {
-			searchPath, size, err := generators.GenerateSearchIndex(b.Sink, indexedPosts)
+			searchPath, size, err := generators.GenerateSearchIndex(b.Sink, opts.IndexedPosts)
 			if err == nil {
 				b.Deps.Render.RegisterFile(searchPath)
 				if b.Health != nil {
-					b.Health.RecordSearchStats(int64(len(indexedPosts)), size)
+					b.Health.RecordSearchStats(int64(len(opts.IndexedPosts)), size)
 				}
 			} else {
 				b.Deps.Logger.Error("Failed to generate search index", "error", err)
@@ -163,18 +176,13 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 		})
 	}
 
-	if b.Cfg.Features.Generators.Graph.Enabled && len(allPosts) > 0 {
+	if b.Cfg.Features.Generators.Graph.Enabled && len(opts.AllPosts) > 0 {
 		g.Go(func() error {
-
-			// We must always generate the graph during clean builds because the staging directory is empty
-			// and the graph JSON itself is not stored in the cache (only its hash was).
-			// During incremental dev builds, the file persists so we could skip it, but generation
-			// is extremely fast (< 5ms) so we just run it unconditionally to ensure file registration
-			// and prevent orphan cleanup accidents.
+			// [omitted comment for brevity]
 			_, _, err := generators.GenerateGraph(generators.GraphOptions{
 				Sink:       b.Sink,
 				BaseURL:    b.Cfg.BaseURL,
-				Posts:      allPosts,
+				Posts:      opts.AllPosts,
 				OutputPath: filepath.Join(b.Cfg.OutputDir, "graph.json"),
 				Config:     b.Cfg.Features.Generators.Graph,
 				SiteTitle:  b.Cfg.Title,
@@ -185,8 +193,8 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 			}
 			b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "graph.json"))
 
-			if assetsReady != nil {
-				<-assetsReady
+			if opts.AssetsReady != nil {
+				<-opts.AssetsReady
 			}
 			if err := b.Deps.Render.RenderGraph(filepath.Join(b.Cfg.OutputDir, "graph.html"), models.PageData{
 				Title:          "Graph View",

@@ -157,7 +157,10 @@ func (tx *DirectoryTx) Commit(ctx context.Context) error {
 		return fmt.Errorf("failed to publish staging directory: %w (rolled back successfully)", err)
 	}
 
-	// 3. Commit complete
+	// 3. Commit complete. Remove backup directory as it's no longer needed for rollback.
+	if tx.backupDir != "" {
+		_ = retry.RemoveAllWithRetry(ctx, tx.backupDir, 5, 10*time.Millisecond)
+	}
 	tx.committed = true
 	return nil
 }

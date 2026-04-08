@@ -403,7 +403,11 @@ func (r *lineReporter) shouldSkip(msg string) bool {
 		"cached search",
 		"search wasm",
 		"publishing",
-		"deployed search",
+		"build insights",
+		"flushing diagram",
+		"wasm deployed",
+		"build health",
+		"build complete",
 	}
 	for _, p := range skipPatterns {
 		if strings.Contains(lower, p) {
