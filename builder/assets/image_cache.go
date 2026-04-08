@@ -24,10 +24,21 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
+const (
+	webpBufferPoolCap        = 256 * 1024
+	imageCacheEntryOverhead  = 128
+	defaultImageCacheItems   = 400
+	defaultImageCacheMaxSize = 100 * 1024 * 1024
+	keyBufCap                = 512
+	imageCacheWriterBuffer   = 2048
+	imageCacheDirMode        = 0755
+	imageCacheFileMode       = 0644
+)
+
 // webpBufferPool stores *bytes.Buffer instances for WebP encoding.
 var webpBufferPool = sync.Pool{
 	New: func() any {
-		return bytes.NewBuffer(make([]byte, 0, 256*1024))
+		return bytes.NewBuffer(make([]byte, 0, webpBufferPoolCap))
 	},
 }
 
@@ -54,7 +65,7 @@ func newImageCache(maxItems int, maxBytes int64) *imageCache {
 	}
 
 	onEvict := func(key imageCacheKey, value []byte) {
-		overhead := 128 + len(key.path)
+		overhead := imageCacheEntryOverhead + len(key.path)
 		ic.size.Add(-int64(cap(value) + overhead))
 	}
 
@@ -69,7 +80,7 @@ func (c *imageCache) get(key imageCacheKey) ([]byte, bool) {
 }
 
 func (c *imageCache) set(key imageCacheKey, data []byte) {
-	overhead := 128 + len(key.path)
+	overhead := imageCacheEntryOverhead + len(key.path)
 	itemSize := cap(data) + overhead
 
 	c.size.Add(int64(itemSize))
@@ -95,7 +106,7 @@ var (
 // GetImageCache returns the global in-memory image cache.
 func GetImageCache() *imageCache {
 	globalImageCacheOnce.Do(func() {
-		globalImageCache = newImageCache(400, 100*1024*1024)
+		globalImageCache = newImageCache(defaultImageCacheItems, defaultImageCacheMaxSize)
 	})
 	return globalImageCache
 }
@@ -126,7 +137,7 @@ func ResetConvertedImages() {
 // keyBufPool stores *[]byte buffers for hash key construction.
 var keyBufPool = sync.Pool{
 	New: func() any {
-		b := make([]byte, 0, 512)
+		b := make([]byte, 0, keyBufCap)
 		return &b
 	},
 }
@@ -163,11 +174,11 @@ var imageCacheWriter struct {
 
 func initImageCacheWriter() {
 	imageCacheWriter.once.Do(func() {
-		imageCacheWriter.ch = make(chan imageCacheEntry, 2048)
+		imageCacheWriter.ch = make(chan imageCacheEntry, imageCacheWriterBuffer)
 		async.FireAndForget(context.Background(), slog.Default(), "image cache writer", func() error {
 			for entry := range imageCacheWriter.ch {
-				_ = os.MkdirAll(filepath.Dir(entry.path), 0755)
-				if err := os.WriteFile(entry.path, entry.data, 0644); err != nil {
+				_ = os.MkdirAll(filepath.Dir(entry.path), imageCacheDirMode)
+				if err := os.WriteFile(entry.path, entry.data, imageCacheFileMode); err != nil {
 					slog.Warn("Failed to write image cache file", "path", entry.path, "error", err)
 				}
 			}
@@ -190,8 +201,8 @@ func queueImageCacheWrite(path string, data []byte, isCloned bool) {
 	select {
 	case imageCacheWriter.ch <- imageCacheEntry{path: path, data: dataCopy}:
 	default:
-		_ = os.MkdirAll(filepath.Dir(path), 0755)
-		_ = os.WriteFile(path, dataCopy, 0644)
+		_ = os.MkdirAll(filepath.Dir(path), imageCacheDirMode)
+		_ = os.WriteFile(path, dataCopy, imageCacheFileMode)
 	}
 }
 

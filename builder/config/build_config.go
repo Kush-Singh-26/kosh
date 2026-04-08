@@ -7,6 +7,60 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	DefaultMaxWorkers     = 32
+	DefaultDefaultWorkers = 12
+
+	DefaultMaxBufferSize       = 64 * 1024
+	DefaultInlineHTMLThreshold = 32 * 1024
+	DefaultMaxFileSize         = 50 * 1024 * 1024
+	DefaultFastZstdMax         = 64 * 1024
+
+	DefaultShutdownTimeout  = 5 * time.Second
+	DefaultDebounceDuration = 500 * time.Millisecond
+	DefaultTemplateCheckTTL = 2 * time.Second
+	DefaultCacheDBTimeout   = 10 * time.Second
+
+	DefaultMaxSnippetContentLength = 10000
+	DefaultSnippetLength           = 150
+	DefaultScoreTitleMatch         = 10.0
+	DefaultScoreTagMatch           = 5.0
+	DefaultScorePhraseMatch        = 15.0
+	DefaultScoreFuzzyModifier      = 0.7
+	DefaultMaxEditDistance         = 2
+	DefaultMaxSearchResults        = 100
+)
+
+const (
+	MinWorkers = 1
+	MaxWorkers = 256
+
+	MinBufferSize = 1024
+	MaxBufferSize = 10 * 1024 * 1024
+
+	MinInlineHTMLThreshold = 1024
+
+	MinMaxFileSize = 1024 * 1024
+	MaxMaxFileSize = 500 * 1024 * 1024
+
+	MinShutdownTimeout = 1 * time.Second
+	MaxShutdownTimeout = 60 * time.Second
+
+	MinDebounceDuration = 10 * time.Millisecond
+	MaxDebounceDuration = 5 * time.Second
+
+	MinCacheDBTimeout = 1 * time.Second
+
+	MinSnippetLength = 50
+	MaxSnippetLength = 500
+
+	MinEditDistance = 0
+	MaxEditDistance = 4
+
+	MinSearchResults = 10
+	MaxSearchResults = 1000
+)
+
 // BuildConfig contains all tunable build parameters
 // These can be overridden via kosh.build.yaml
 type BuildConfig struct {
@@ -40,29 +94,29 @@ type BuildConfig struct {
 func DefaultBuildConfig() *BuildConfig {
 	return &BuildConfig{
 		// Workers
-		MaxWorkers:     32,
-		DefaultWorkers: 12,
+		MaxWorkers:     DefaultMaxWorkers,
+		DefaultWorkers: DefaultDefaultWorkers,
 		// Buffers
-		MaxBufferSize:       64 * 1024,        // 64KB
-		InlineHTMLThreshold: 32 * 1024,        // 32KB
-		MaxFileSize:         50 * 1024 * 1024, // 50MB
-		FastZstdMax:         64 * 1024,        // 64KB
+		MaxBufferSize:       DefaultMaxBufferSize,       // 64KB
+		InlineHTMLThreshold: DefaultInlineHTMLThreshold, // 32KB
+		MaxFileSize:         DefaultMaxFileSize,         // 50MB
+		FastZstdMax:         DefaultFastZstdMax,         // 64KB
 
 		// Timeouts
-		ShutdownTimeout:  5 * time.Second,
-		DebounceDuration: 500 * time.Millisecond,
-		TemplateCheckTTL: 2 * time.Second,
-		CacheDBTimeout:   10 * time.Second,
+		ShutdownTimeout:  DefaultShutdownTimeout,
+		DebounceDuration: DefaultDebounceDuration,
+		TemplateCheckTTL: DefaultTemplateCheckTTL,
+		CacheDBTimeout:   DefaultCacheDBTimeout,
 
 		// Search
-		MaxSnippetContentLength: 10000,
-		DefaultSnippetLength:    150,
-		ScoreTitleMatch:         10.0,
-		ScoreTagMatch:           5.0,
-		ScorePhraseMatch:        15.0,
-		ScoreFuzzyModifier:      0.7,
-		MaxEditDistance:         2,
-		MaxSearchResults:        100,
+		MaxSnippetContentLength: DefaultMaxSnippetContentLength,
+		DefaultSnippetLength:    DefaultSnippetLength,
+		ScoreTitleMatch:         DefaultScoreTitleMatch,
+		ScoreTagMatch:           DefaultScoreTagMatch,
+		ScorePhraseMatch:        DefaultScorePhraseMatch,
+		ScoreFuzzyModifier:      DefaultScoreFuzzyModifier,
+		MaxEditDistance:         DefaultMaxEditDistance,
+		MaxSearchResults:        DefaultMaxSearchResults,
 	}
 }
 
@@ -96,69 +150,69 @@ func LoadBuildConfigFs(fs afero.Fs) *BuildConfig {
 // validate ensures configuration values are within reasonable bounds
 func (c *BuildConfig) validate() {
 	// Workers
-	if c.MaxWorkers < 1 {
-		c.MaxWorkers = 1
+	if c.MaxWorkers < MinWorkers {
+		c.MaxWorkers = MinWorkers
 	}
-	if c.MaxWorkers > 256 {
-		c.MaxWorkers = 256
+	if c.MaxWorkers > MaxWorkers {
+		c.MaxWorkers = MaxWorkers
 	}
-	if c.DefaultWorkers < 1 {
-		c.DefaultWorkers = 1
+	if c.DefaultWorkers < MinWorkers {
+		c.DefaultWorkers = MinWorkers
 	}
 	if c.DefaultWorkers > c.MaxWorkers {
 		c.DefaultWorkers = c.MaxWorkers
 	}
 	// Buffers
-	if c.MaxBufferSize < 1024 {
-		c.MaxBufferSize = 1024 // Minimum 1KB
+	if c.MaxBufferSize < MinBufferSize {
+		c.MaxBufferSize = MinBufferSize // Minimum 1KB
 	}
-	if c.MaxBufferSize > 10*1024*1024 {
-		c.MaxBufferSize = 10 * 1024 * 1024 // Maximum 10MB
+	if c.MaxBufferSize > MaxBufferSize {
+		c.MaxBufferSize = MaxBufferSize // Maximum 10MB
 	}
-	if c.InlineHTMLThreshold < 1024 {
-		c.InlineHTMLThreshold = 1024
+	if c.InlineHTMLThreshold < MinInlineHTMLThreshold {
+		c.InlineHTMLThreshold = MinInlineHTMLThreshold
 	}
-	if c.MaxFileSize < 1024*1024 {
-		c.MaxFileSize = 1024 * 1024 // Minimum 1MB
+	if c.MaxFileSize < MinMaxFileSize {
+		c.MaxFileSize = MinMaxFileSize // Minimum 1MB
 	}
-	if c.MaxFileSize > 500*1024*1024 {
-		c.MaxFileSize = 500 * 1024 * 1024 // Maximum 500MB
+	if c.MaxFileSize > MaxMaxFileSize {
+		c.MaxFileSize = MaxMaxFileSize // Maximum 500MB
 	}
 
 	// Timeouts
-	if c.ShutdownTimeout < 1*time.Second {
-		c.ShutdownTimeout = 1 * time.Second
+	if c.ShutdownTimeout < MinShutdownTimeout {
+		c.ShutdownTimeout = MinShutdownTimeout
 	}
-	if c.ShutdownTimeout > 60*time.Second {
-		c.ShutdownTimeout = 60 * time.Second
+	if c.ShutdownTimeout > MaxShutdownTimeout {
+		c.ShutdownTimeout = MaxShutdownTimeout
 	}
-	if c.DebounceDuration < 10*time.Millisecond {
-		c.DebounceDuration = 10 * time.Millisecond
+	if c.DebounceDuration < MinDebounceDuration {
+		c.DebounceDuration = MinDebounceDuration
 	}
-	if c.DebounceDuration > 5*time.Second {
-		c.DebounceDuration = 5 * time.Second
+	if c.DebounceDuration > MaxDebounceDuration {
+		c.DebounceDuration = MaxDebounceDuration
 	}
-	if c.CacheDBTimeout < 1*time.Second {
-		c.CacheDBTimeout = 1 * time.Second
+	if c.CacheDBTimeout < MinCacheDBTimeout {
+		c.CacheDBTimeout = MinCacheDBTimeout
 	}
 
 	// Search
-	if c.DefaultSnippetLength < 50 {
-		c.DefaultSnippetLength = 50
+	if c.DefaultSnippetLength < MinSnippetLength {
+		c.DefaultSnippetLength = MinSnippetLength
 	}
-	if c.DefaultSnippetLength > 500 {
-		c.DefaultSnippetLength = 500
+	if c.DefaultSnippetLength > MaxSnippetLength {
+		c.DefaultSnippetLength = MaxSnippetLength
 	}
-	if c.MaxEditDistance < 0 {
-		c.MaxEditDistance = 0
+	if c.MaxEditDistance < MinEditDistance {
+		c.MaxEditDistance = MinEditDistance
 	}
-	if c.MaxEditDistance > 4 {
-		c.MaxEditDistance = 4
+	if c.MaxEditDistance > MaxEditDistance {
+		c.MaxEditDistance = MaxEditDistance
 	}
-	if c.MaxSearchResults < 10 {
-		c.MaxSearchResults = 10
+	if c.MaxSearchResults < MinSearchResults {
+		c.MaxSearchResults = MinSearchResults
 	}
-	if c.MaxSearchResults > 1000 {
-		c.MaxSearchResults = 1000
+	if c.MaxSearchResults > MaxSearchResults {
+		c.MaxSearchResults = MaxSearchResults
 	}
 }

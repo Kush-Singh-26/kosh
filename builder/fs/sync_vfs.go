@@ -22,6 +22,16 @@ import (
 	"github.com/spf13/afero"
 )
 
+const (
+	createdDirsCacheSize  = 2000
+	fileContentCacheSize  = 1000
+	maxSyncWorkers        = 32
+	atomicWriteDirMode    = 0755
+	atomicWriteFileMode   = 0644
+	atomicWriteMaxRetries = 5
+	atomicWriteBaseDelay  = 10 * time.Millisecond
+)
+
 var (
 	createdDirs     *lru.Cache[string, bool]
 	createdDirsInit sync.Once
@@ -36,7 +46,7 @@ var (
 func getCreatedDirsCache() (*lru.Cache[string, bool], error) {
 	createdDirsInit.Do(func() {
 		var err error
-		createdDirs, err = lru.New[string, bool](2000)
+		createdDirs, err = lru.New[string, bool](createdDirsCacheSize)
 		if err != nil {
 			createdDirsErr = err
 		}
@@ -47,7 +57,7 @@ func getCreatedDirsCache() (*lru.Cache[string, bool], error) {
 func getFileContentCache() (*lru.Cache[string, []byte], error) {
 	fileContentCacheInit.Do(func() {
 		var err error
-		fileContentCache, err = lru.New[string, []byte](1000)
+		fileContentCache, err = lru.New[string, []byte](fileContentCacheSize)
 		if err != nil {
 			fileContentCacheErr = err
 		}
@@ -167,7 +177,7 @@ func SyncVFS(opts SyncOptions) error {
 	_ = dirPool.Stop()
 
 	// 3. Sync files with high concurrency
-	numWorkers := min(runtime.NumCPU()*2, 32)
+	numWorkers := min(runtime.NumCPU()*2, maxSyncWorkers)
 
 	pool := async.NewWorkerPool(ctx, numWorkers, func(task syncTask) error {
 		if err := syncSingleFileTask(SyncFileOptions{
@@ -280,13 +290,13 @@ func syncSingleFileTask(opts SyncFileOptions) error {
 // This ensures that the target file is either fully written or not written at all.
 func atomicWrite(ctx context.Context, path string, data []byte) error {
 	// Ensure parent directory exists (handles race conditions with background clean)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), atomicWriteDirMode); err != nil {
 		return err
 	}
 
 	// Include PID to prevent collisions from concurrent processes
 	tmpPath := path + ".tmp-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, atomicWriteFileMode)
 	if err != nil {
 		return err
 	}
@@ -319,8 +329,8 @@ func atomicWrite(ctx context.Context, path string, data []byte) error {
 		Ctx:        ctx,
 		OldPath:    tmpPath,
 		NewPath:    path,
-		MaxRetries: 5,
-		BaseDelay:  10 * time.Millisecond,
+		MaxRetries: atomicWriteMaxRetries,
+		BaseDelay:  atomicWriteBaseDelay,
 	})
 	if err != nil {
 		_ = os.Remove(tmpPath)

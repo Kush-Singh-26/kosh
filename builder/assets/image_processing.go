@@ -23,7 +23,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
 
-const smallImageResizeThresholdBytes int64 = 32 * 1024
+const (
+	smallImageResizeThresholdBytes int64 = 32 * 1024
+	maxResizeWidth                       = 1200
+	maxResizeHeight                      = 1600
+	rgbaBytesPerPixel                    = 4
+	minWebPQuality                       = 1
+	maxWebPQuality                       = 100
+	defaultWebPQuality                   = 80
+	retryWriteAttempts                   = 3
+	retryWriteDelay                      = 10 * time.Millisecond
+)
 
 func isNil(i any) bool {
 	if i == nil {
@@ -178,14 +188,14 @@ func ProcessCacheMissImage(opts ProcessImageOptions) error {
 
 func retryWriteFile(sink fspkg.ArtifactSink, path string, data []byte) error {
 	var lastErr error
-	for i := 0; i < 3; i++ {
+	for i := 0; i < retryWriteAttempts; i++ {
 		if err := sink.WriteFile(path, data); err == nil {
 			return nil
 		} else {
 			lastErr = err
-			if i < 2 {
+			if i < retryWriteAttempts-1 {
 				select {
-				case <-time.After(10 * time.Millisecond):
+				case <-time.After(retryWriteDelay):
 				default:
 				}
 			}
@@ -326,14 +336,14 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 	width := bounds.Dx()
 	height := bounds.Dy()
 	finalImg := src
-	if width > 1200 && !skipResize {
-		newWidth := 1200
+	if width > maxResizeWidth && !skipResize {
+		newWidth := maxResizeWidth
 		newHeight := (height * newWidth) / width
 
-		neededSize := newWidth * newHeight * 4
+		neededSize := newWidth * newHeight * rgbaBytesPerPixel
 		var pix []byte
 		var pixPtr *[]byte
-		if neededSize <= 1200*1600*4 {
+		if neededSize <= maxResizeWidth*maxResizeHeight*rgbaBytesPerPixel {
 			pixPtr = rgbaPixPool.Get().(*[]byte)
 			pix = *pixPtr
 			defer rgbaPixPool.Put(pixPtr)
@@ -343,7 +353,7 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 
 		dst := &image.RGBA{
 			Pix:    pix[:neededSize],
-			Stride: newWidth * 4,
+			Stride: newWidth * rgbaBytesPerPixel,
 			Rect:   image.Rect(0, 0, newWidth, newHeight),
 		}
 
@@ -366,8 +376,8 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 	}
 
 	webpQuality := opts.Opts.WebPQuality
-	if webpQuality < 1 || webpQuality > 100 {
-		webpQuality = 80
+	if webpQuality < minWebPQuality || webpQuality > maxWebPQuality {
+		webpQuality = defaultWebPQuality
 	}
 
 	buf := webpBufferPool.Get().(*bytes.Buffer)

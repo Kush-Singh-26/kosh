@@ -27,10 +27,10 @@ type fileTask struct {
 }
 
 var (
-	// rgbaPixPool stores *[]byte buffers sized for 1200x1600 RGBA images.
+	// rgbaPixPool stores *[]byte buffers sized for maxResizeWidth x maxResizeHeight RGBA images.
 	rgbaPixPool = sync.Pool{
 		New: func() any {
-			b := make([]byte, 1200*1600*4)
+			b := make([]byte, maxResizeWidth*maxResizeHeight*rgbaBytesPerPixel)
 			return &b
 		},
 	}

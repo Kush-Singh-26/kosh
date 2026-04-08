@@ -16,6 +16,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	DefaultPostsPerPage  = 10
+	DefaultImageWorkers  = 8
+	MaxImageWorkers      = 32
+	DefaultWebPQuality   = 80
+	MinWebPQuality       = 1
+	MaxWebPQuality       = 100
+	DefaultParserWorkers = 0
+	MaxParserWorkers     = 64
+
+	DefaultTheme      = "blog"
+	DefaultThemeDir   = "themes"
+	DefaultContentDir = "content"
+	DefaultOutputDir  = "public"
+	DefaultCacheDir   = ".kosh-cache"
+
+	DefaultSocialCardAngle = 135
+)
+
 // ThemeConfig captures metadata about the active theme.
 type ThemeConfig struct {
 	Name string `yaml:"name"`
@@ -90,19 +109,19 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 			BaseURL: "",
 		},
 		BuildOptions: BuildOptions{
-			PostsPerPage:   10,
+			PostsPerPage:   DefaultPostsPerPage,
 			CompressImages: true, // Always compress for performance
 			MinifySVGs:     true,
-			ImageWorkers:   8,  // Default 8 parallel workers for image processing (benchmarked optimum)
-			WebPQuality:    80, // Default WebP quality is 80
-			ParserWorkers:  0,  // 0 = auto (use models.GetDefaultWorkerCount)
+			ImageWorkers:   DefaultImageWorkers,  // Default 8 parallel workers for image processing (benchmarked optimum)
+			WebPQuality:    DefaultWebPQuality,   // Default WebP quality is 80
+			ParserWorkers:  DefaultParserWorkers, // 0 = auto (use models.GetDefaultWorkerCount)
 		},
 		PathConfig: PathConfig{
-			Theme:      "blog",
-			ThemeDir:   "themes",
-			ContentDir: "content",
-			OutputDir:  "public",
-			CacheDir:   ".kosh-cache",
+			Theme:      DefaultTheme,
+			ThemeDir:   DefaultThemeDir,
+			ContentDir: DefaultContentDir,
+			OutputDir:  DefaultOutputDir,
+			CacheDir:   DefaultCacheDir,
 		},
 		BuildVersion: time.Now().Unix(),
 		Features: models.FeaturesConfig{
@@ -118,7 +137,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 		SocialCards: models.SocialCardsConfig{
 			Background: "#faf8f5",
 			Gradient:   []string{"#e8e0d0", "#d4c4a8"},
-			Angle:      135,
+			Angle:      DefaultSocialCardAngle,
 			TextColor:  "#1a1a1a",
 		},
 	}
@@ -139,16 +158,16 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 
 	// Validate and set defaults for ImageWorkers
 	if cfg.ImageWorkers <= 0 {
-		cfg.ImageWorkers = 8
+		cfg.ImageWorkers = DefaultImageWorkers
 	}
 	// Cap at reasonable maximum to prevent resource exhaustion
-	if cfg.ImageWorkers > 32 {
-		cfg.ImageWorkers = 32
+	if cfg.ImageWorkers > MaxImageWorkers {
+		cfg.ImageWorkers = MaxImageWorkers
 	}
 
 	// Validate ParserWorkers (0 = auto)
-	if cfg.ParserWorkers > 64 {
-		cfg.ParserWorkers = 64
+	if cfg.ParserWorkers > MaxParserWorkers {
+		cfg.ParserWorkers = MaxParserWorkers
 	}
 
 	// Load build configuration from kosh.build.yaml
@@ -158,7 +177,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 
 	// 3. Apply Smart Defaults and resolve to absolute paths
 	if cfg.ThemeDir == "" {
-		cfg.ThemeDir = "themes"
+		cfg.ThemeDir = DefaultThemeDir
 	}
 	if !isTesting {
 		if abs, err := filepath.Abs(cfg.ThemeDir); err == nil {
@@ -190,7 +209,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 
 	// Resolve configurable directory paths to absolute paths
 	if cfg.ContentDir == "" {
-		cfg.ContentDir = "content"
+		cfg.ContentDir = DefaultContentDir
 	}
 	if !isTesting {
 		if abs, err := filepath.Abs(cfg.ContentDir); err == nil {
@@ -199,7 +218,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	}
 
 	if cfg.OutputDir == "" {
-		cfg.OutputDir = "public"
+		cfg.OutputDir = DefaultOutputDir
 	}
 	if !isTesting {
 		if abs, err := filepath.Abs(cfg.OutputDir); err == nil {
@@ -208,7 +227,7 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	}
 
 	if cfg.CacheDir == "" {
-		cfg.CacheDir = ".kosh-cache"
+		cfg.CacheDir = DefaultCacheDir
 	}
 	if !isTesting {
 		if abs, err := filepath.Abs(cfg.CacheDir); err == nil {
@@ -241,8 +260,8 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
 	}
 
-	if cfg.WebPQuality < 1 || cfg.WebPQuality > 100 {
-		cfg.WebPQuality = 80 // enforce valid range
+	if cfg.WebPQuality < MinWebPQuality || cfg.WebPQuality > MaxWebPQuality {
+		cfg.WebPQuality = DefaultWebPQuality // enforce valid range
 	}
 
 	// Set repository root for WASM compilation and source lookups
