@@ -71,12 +71,12 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 	}
 
 	pipeline := NewPipeline(
+		&TitleScorer{},
 		&TagScorer{},
 		&BM25Scorer{},
 		&PhraseScorer{},
 		&ProximityScorer{},
 		&RecencyScorer{},
-		&FallbackScorer{},
 		&BoostScorer{},
 		&FilterScorer{},
 	)

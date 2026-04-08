@@ -115,27 +115,50 @@ func (s *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	}
 }
 
-// FallbackScorer provides a safety net for empty query arrays
-type FallbackScorer struct{}
+// TitleScorer boosts scores based on title and description matches
+type TitleScorer struct{}
 
-func (s *FallbackScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
-	if len(opts.Scores) > 0 || ctx.OriginalQuery == "" {
+func (s *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+	if ctx.OriginalQuery == "" {
 		return
 	}
 
+	query := ctx.OriginalQuery
 	for id, post := range ctx.Index.Posts {
-		match := false
-		if strings.Contains(post.NormalizedTitle, ctx.OriginalQuery) {
-			opts.Scores[id] += ScoreTitleMatch
-			match = true
-		}
-		if strings.Contains(core.ToLower(post.Description), ctx.OriginalQuery) {
-			opts.Scores[id] += 1.0
-			match = true
+		title := post.NormalizedTitle
+		score := 0.0
+
+		// 1. Exact Title Match (Highest priority)
+		if title == query {
+			score += 50.0
+		} else if strings.HasPrefix(title, query) {
+			// 2. Prefix Title Match
+			score += 30.0
+		} else if strings.Contains(title, query) {
+			// 3. Substring Title Match
+			score += 15.0
 		}
 
-		if match {
-			for word := range strings.FieldsSeq(ctx.OriginalQuery) {
+		// 4. Word-level matching within title
+		titleWords := strings.Fields(title)
+		for _, word := range titleWords {
+			if word == query {
+				score += 20.0
+			} else if strings.HasPrefix(word, query) {
+				score += 10.0
+			}
+		}
+
+		// 5. Description matching (Lower priority)
+		desc := core.ToLower(post.Description)
+		if strings.Contains(desc, query) {
+			score += 5.0
+		}
+
+		if score > 0 {
+			opts.Scores[id] += score
+			// Add terms to highlight
+			for _, word := range strings.Fields(query) {
 				if len(word) > 2 {
 					opts.HighlightTerms[word] = true
 				}
@@ -144,23 +167,25 @@ func (s *FallbackScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	}
 }
 
-// BoostScorer boosts scores based on title and exact tag matches
+// BoostScorer boosts scores based on exact tag matches
 type BoostScorer struct{}
 
 func (s *BoostScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+	if ctx.OriginalQuery == "" && ctx.TagFilter == "" {
+		return
+	}
+
 	for id := range opts.Scores {
 		post, ok := ctx.Index.Posts[id]
 		if !ok {
 			continue
 		}
 
-		if ctx.OriginalQuery != "" && strings.Contains(post.NormalizedTitle, ctx.OriginalQuery) {
-			opts.Scores[id] += ScoreTitleMatch
-		}
-
+		// Exact tag matches
 		for _, tag := range post.NormalizedTags {
 			if tag == ctx.OriginalQuery || tag == ctx.TagFilter {
-				opts.Scores[id] += ScoreTagMatch
+				opts.Scores[id] += ScoreTagMatch * 2.0
+				opts.HighlightTerms[tag] = true
 			}
 		}
 	}
