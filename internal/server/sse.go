@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// clientSlicePool reduces allocations during broadcast
+// clientSlicePool stores *[]chan<- struct{} slices for broadcast snapshots.
 var clientSlicePool = sync.Pool{
 	New: func() any {
 		s := make([]chan<- struct{}, 0, 16)

@@ -2,6 +2,7 @@ package generators
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"text/template"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 
 	"github.com/disintegration/imaging"
@@ -211,30 +213,38 @@ func GeneratePWAIconBytes(srcFs afero.Fs, srcPath string, logger *slog.Logger) (
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	errs := make([]error, len(sizes))
+	if logger == nil {
+		logger = slog.Default()
+	}
 
 	for i, size := range sizes {
+		idx := i
+		sz := size
 		wg.Add(1)
-		go func(idx, sz int) {
-			defer wg.Done()
-
-			if logger != nil {
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       context.Background(),
+			Logger:    logger,
+			Operation: "pwa icon encode",
+			Fn: func() error {
 				logger.Info("Generating PWA Icon", "size", fmt.Sprintf("%dx%d", sz, sz))
-			}
-			dst := imaging.Resize(src, sz, sz, imaging.Lanczos)
+				dst := imaging.Resize(src, sz, sz, imaging.Lanczos)
 
-			var buf bytes.Buffer
-			if err := imaging.Encode(&buf, dst, imaging.PNG); err != nil {
-				errs[idx] = err
-				return
-			}
+				var buf bytes.Buffer
+				if err := imaging.Encode(&buf, dst, imaging.PNG); err != nil {
+					errs[idx] = err
+					return nil
+				}
 
-			encoded := make([]byte, buf.Len())
-			copy(encoded, buf.Bytes())
+				encoded := make([]byte, buf.Len())
+				copy(encoded, buf.Bytes())
 
-			mu.Lock()
-			out[sz] = encoded
-			mu.Unlock()
-		}(i, size)
+				mu.Lock()
+				out[sz] = encoded
+				mu.Unlock()
+				return nil
+			},
+			Cleanup: wg.Done,
+		})
 	}
 	wg.Wait()
 

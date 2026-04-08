@@ -42,7 +42,7 @@ type SSRMap interface {
 // MemorySSRMap is a thread-safe in-memory implementation of SSRMap
 // using sync.Map.
 type MemorySSRMap struct {
-	m sync.Map
+	m sync.Map // key: string, value: string or models.SSRThemePair
 }
 
 // NewMemorySSRMap creates a new in-memory SSR map.
@@ -66,7 +66,7 @@ type unifiedTransformer struct {
 	Renderer *native.Renderer
 	Cache    SSRMap
 	D2Group  *singleflight.Group
-	A11yMap  sync.Map
+	A11yMap  sync.Map // key: string, value: string (a11y warning)
 }
 
 type replacement struct {

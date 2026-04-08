@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
@@ -23,8 +24,9 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
+// webpBufferPool stores *bytes.Buffer instances for WebP encoding.
 var webpBufferPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return bytes.NewBuffer(make([]byte, 0, 256*1024))
 	},
 }
@@ -98,6 +100,7 @@ func GetImageCache() *imageCache {
 	return globalImageCache
 }
 
+// convertedImagePaths stores string->string mappings of original to WebP paths.
 var convertedImagePaths sync.Map
 
 // RecordConvertedImage stores a mapping from original to WebP path.
@@ -120,6 +123,7 @@ func ResetConvertedImages() {
 	convertedImagePaths = sync.Map{}
 }
 
+// keyBufPool stores *[]byte buffers for hash key construction.
 var keyBufPool = sync.Pool{
 	New: func() any {
 		b := make([]byte, 0, 512)
@@ -160,14 +164,15 @@ var imageCacheWriter struct {
 func initImageCacheWriter() {
 	imageCacheWriter.once.Do(func() {
 		imageCacheWriter.ch = make(chan imageCacheEntry, 2048)
-		go func() {
+		async.FireAndForget(context.Background(), slog.Default(), "image cache writer", func() error {
 			for entry := range imageCacheWriter.ch {
 				_ = os.MkdirAll(filepath.Dir(entry.path), 0755)
 				if err := os.WriteFile(entry.path, entry.data, 0644); err != nil {
 					slog.Warn("Failed to write image cache file", "path", entry.path, "error", err)
 				}
 			}
-		}()
+			return nil
+		})
 	})
 }
 

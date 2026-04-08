@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 
@@ -31,7 +32,7 @@ var katexBytecode []byte
 // Renderer manages a pool of native rendering instances for concurrency
 type Renderer struct {
 	pool           chan *instance
-	rulerPool      sync.Pool
+	rulerPool      sync.Pool // stores *textmeasure.Ruler instances
 	numWorkers     int
 	mathBatchSize  int
 	initOnce       sync.Once
@@ -109,7 +110,10 @@ func New(opts ...RendererOption) *Renderer {
 
 	// Start math batcher workers
 	for i := 0; i < r.numWorkers; i++ {
-		go r.mathBatchWorker()
+		async.FireAndForget(context.Background(), slog.Default(), "math batch worker", func() error {
+			r.mathBatchWorker()
+			return nil
+		})
 	}
 
 	return r
@@ -213,26 +217,33 @@ func (r *Renderer) ensureInitialized() {
 		var initWg sync.WaitGroup
 		initWg.Add(r.numWorkers)
 		for i := 0; i < r.numWorkers; i++ {
-			go func(id int) {
-				defer initWg.Done()
-				instance := &instance{}
-				instance.ensureInitialized(r.katexBytecode)
+			async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+				Ctx:       context.Background(),
+				Logger:    slog.Default(),
+				Operation: "native renderer init worker",
+				Fn: func() error {
+					instance := &instance{}
+					instance.ensureInitialized(r.katexBytecode)
 
-				r.mu.Lock()
-				isClosed := r.closed
-				r.mu.Unlock()
+					r.mu.Lock()
+					isClosed := r.closed
+					r.mu.Unlock()
 
-				if !isClosed {
-					r.pool <- instance
-				}
-			}(i)
+					if !isClosed {
+						r.pool <- instance
+					}
+					return nil
+				},
+				Cleanup: initWg.Done,
+			})
 		}
 
 		// Close initReady in background when all workers are started
-		go func() {
+		async.FireAndForget(context.Background(), slog.Default(), "native renderer init", func() error {
 			initWg.Wait()
 			close(r.initReady)
-		}()
+			return nil
+		})
 	})
 }
 

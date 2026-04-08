@@ -32,8 +32,8 @@ type DiskSink struct {
 	realOutputDir      string
 	stagingDirLower    string
 	realOutputDirLower string
-	writtenPaths       sync.Map
-	dirCache           sync.Map
+	writtenPaths       sync.Map // path string -> true
+	dirCache           sync.Map // directory path -> struct{}{}
 	pathCache          sync.Map // raw input -> resolved staging path
 	regCache           sync.Map // raw input -> resolved real path
 	bufPool            sync.Pool
@@ -56,7 +56,7 @@ func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
 		realOutputDirLower: strings.ToLower(rDir),
 		bufPool: sync.Pool{
 			New: func() any {
-				// 64KB buffer for streaming
+				// 64KB buffer for streaming writes.
 				return bufio.NewWriterSize(nil, 64*1024)
 			},
 		},

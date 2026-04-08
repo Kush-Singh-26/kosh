@@ -1,15 +1,20 @@
 package core
 
 import (
+	"context"
+	"log/slog"
 	"runtime"
 	"strings"
 	"sync"
 	"unicode/utf8"
+
+	"github.com/Kush-Singh-26/kosh/builder/async"
 )
 
 // MaxEditDistance is the maximum Levenshtein distance for fuzzy matching
 const MaxEditDistance = 2
 
+// intSlicePool stores *[]int buffers for Levenshtein computation.
 var intSlicePool = sync.Pool{
 	New: func() any {
 		s := make([]int, 0, 32)
@@ -34,6 +39,7 @@ func putIntSlice(p *[]int) {
 	intSlicePool.Put(p)
 }
 
+// runeSlicePool stores *[]rune buffers for Levenshtein computation.
 var runeSlicePool = sync.Pool{
 	New: func() any {
 		s := make([]rune, 0, 32)
@@ -274,21 +280,28 @@ func BuildNgramIndex(inverted map[string]map[string][]uint32) map[string][]strin
 
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			localNgram := make(map[string][]string)
-			start := workerID * chunkSize
-			end := min(start+chunkSize, totalTerms)
+		workerID := i
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       context.Background(),
+			Logger:    slog.Default(),
+			Operation: "ngram build",
+			Fn: func() error {
+				localNgram := make(map[string][]string)
+				start := workerID * chunkSize
+				end := min(start+chunkSize, totalTerms)
 
-			for j := start; j < end; j++ {
-				term := terms[j]
-				trigrams := GenerateTrigrams(term)
-				for _, tg := range trigrams {
-					localNgram[tg] = append(localNgram[tg], term)
+				for j := start; j < end; j++ {
+					term := terms[j]
+					trigrams := GenerateTrigrams(term)
+					for _, tg := range trigrams {
+						localNgram[tg] = append(localNgram[tg], term)
+					}
 				}
-			}
-			results[workerID] = localNgram
-		}(i)
+				results[workerID] = localNgram
+				return nil
+			},
+			Cleanup: wg.Done,
+		})
 	}
 	wg.Wait()
 

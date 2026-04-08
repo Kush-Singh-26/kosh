@@ -69,6 +69,7 @@ func (a *Analyzer) AnalyzeWithMapping(text string) ([]string, map[string]string)
 }
 
 var (
+	// tokenPool stores *[]Token buffers for tokenization.
 	tokenPool = sync.Pool{
 		New: func() any {
 			s := make([]Token, 0, 512)

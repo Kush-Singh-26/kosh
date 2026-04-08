@@ -5,12 +5,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
+	"log/slog"
 	"strconv"
 	"syscall/js"
 
 	"github.com/andybalholm/brotli"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search"
 )
@@ -33,14 +36,14 @@ func main() {
 	<-c
 }
 
-func getSuggestions(this js.Value, args []js.Value) interface{} {
+func getSuggestions(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return nil
 	}
 	prefix := args[0].String()
 	suggestions := search.GetSuggestions(&index, prefix)
 
-	jsSug := make([]interface{}, 0, len(suggestions))
+	jsSug := make([]any, 0, len(suggestions))
 	for _, s := range suggestions {
 		jsSug = append(jsSug, s)
 	}
@@ -48,26 +51,26 @@ func getSuggestions(this js.Value, args []js.Value) interface{} {
 	return js.ValueOf(jsSug)
 }
 
-func initSearch(this js.Value, args []js.Value) interface{} {
+func initSearch(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return "Error: No URL provided"
 	}
 	url := args[0].String()
 
-	handler := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+	handler := js.FuncOf(func(this js.Value, args []js.Value) any {
 		resolve := args[0]
 		reject := args[1]
 
-		go func() {
+		async.FireAndForget(context.Background(), slog.Default(), "wasm search init", func() error {
 			data, err := fetchAndDecompress(url)
 			if err != nil {
 				reject.Invoke("Fetch/Decompress error: " + err.Error())
-				return
+				return nil
 			}
 
 			if _, err := index.UnmarshalMsg(data); err != nil {
 				reject.Invoke("Decode error: " + err.Error())
-				return
+				return nil
 			}
 
 			// Validate schema version
@@ -81,7 +84,8 @@ func initSearch(this js.Value, args []js.Value) interface{} {
 			lastResults = nil
 
 			resolve.Invoke(len(index.Posts))
-		}()
+			return nil
+		})
 
 		return nil
 	})
@@ -93,14 +97,14 @@ func initSearch(this js.Value, args []js.Value) interface{} {
 }
 
 func fetchAndDecompress(url string) ([]byte, error) {
-	ch := make(chan interface{}, 1)
+	ch := make(chan any, 1)
 
 	window := js.Global()
 	promise := window.Call("fetch", url)
 
 	var success js.Func
 	var failure js.Func
-	success = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+	success = js.FuncOf(func(this js.Value, args []js.Value) any {
 		defer success.Release()
 		defer failure.Release()
 
@@ -115,7 +119,7 @@ func fetchAndDecompress(url string) ([]byte, error) {
 		var bufSuccess js.Func
 		var bufFailure js.Func
 
-		bufSuccess = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		bufSuccess = js.FuncOf(func(this js.Value, args []js.Value) any {
 			defer bufSuccess.Release()
 			defer bufFailure.Release()
 
@@ -141,7 +145,7 @@ func fetchAndDecompress(url string) ([]byte, error) {
 			return nil
 		})
 
-		bufFailure = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		bufFailure = js.FuncOf(func(this js.Value, args []js.Value) any {
 			defer bufSuccess.Release()
 			defer bufFailure.Release()
 			ch <- "arrayBuffer failed"
@@ -152,7 +156,7 @@ func fetchAndDecompress(url string) ([]byte, error) {
 		return nil
 	})
 
-	failure = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+	failure = js.FuncOf(func(this js.Value, args []js.Value) any {
 		defer success.Release()
 		defer failure.Release()
 		ch <- "fetch failed"
@@ -177,7 +181,7 @@ func (e *jsError) Error() string {
 	return e.msg
 }
 
-func searchPosts(this js.Value, args []js.Value) interface{} {
+func searchPosts(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return nil
 	}

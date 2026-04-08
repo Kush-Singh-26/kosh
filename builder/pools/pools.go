@@ -12,7 +12,7 @@ import (
 
 // BufferPool manages a pool of reusable bytes.Buffer objects.
 type BufferPool struct {
-	pool sync.Pool
+	pool sync.Pool // stores *bytes.Buffer
 }
 
 // NewBufferPool returns a new BufferPool.
@@ -42,7 +42,7 @@ func (p *BufferPool) Put(buf *bytes.Buffer) {
 
 // StringBuilderPool manages a pool of reusable strings.Builder objects.
 type StringBuilderPool struct {
-	pool sync.Pool
+	pool sync.Pool // stores *strings.Builder
 }
 
 // NewStringBuilderPool returns a new StringBuilderPool.
@@ -72,7 +72,7 @@ func (p *StringBuilderPool) Put(sb *strings.Builder) {
 
 // BufioWriterPool manages a pool of reusable bufio.Writer objects.
 type BufioWriterPool struct {
-	pool sync.Pool
+	pool sync.Pool // stores *bufio.Writer
 }
 
 // NewBufioWriterPool returns a new BufioWriterPool.
@@ -104,7 +104,7 @@ func (p *BufioWriterPool) Put(bw *bufio.Writer) {
 
 // BufioReaderPool manages a pool of reusable bufio.Reader objects.
 type BufioReaderPool struct {
-	pool sync.Pool
+	pool sync.Pool // stores *bufio.Reader
 }
 
 // NewBufioReaderPool returns a new BufioReaderPool.
@@ -148,7 +148,7 @@ var (
 
 // ByteSlicePool manages a pool of byte slices.
 type ByteSlicePool struct {
-	pool sync.Pool
+	pool sync.Pool // stores *[]byte
 }
 
 // NewByteSlicePool returns a new ByteSlicePool.

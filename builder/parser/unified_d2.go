@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/yuin/goldmark/ast"
@@ -35,54 +36,61 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 
 	// Only launch goroutines for unique hashes
 	for _, firstIdx := range hashToFirstIndex {
+		idx := firstIdx
 		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			b := d2Blocks[idx]
-			key := "d2:" + b.hash
-			pairVal, exists := t.Cache.Load(key)
-			if exists {
-				if pair, ok := pairVal.(models.SSRThemePair); ok {
-					results[idx] = pair
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    slog.Default(),
+			Operation: "d2 render block",
+			Fn: func() error {
+				b := d2Blocks[idx]
+				key := "d2:" + b.hash
+				pairVal, exists := t.Cache.Load(key)
+				if exists {
+					if pair, ok := pairVal.(models.SSRThemePair); ok {
+						results[idx] = pair
+						return
+					}
+				}
+				if t.Renderer == nil {
 					return
 				}
-			}
-			if t.Renderer == nil {
-				return
-			}
 
-			if t.D2Group != nil {
-				v, err, _ := t.D2Group.Do(b.hash, func() (any, error) {
-					if pairVal, exists := t.Cache.Load(key); exists {
-						if pair, ok := pairVal.(models.SSRThemePair); ok {
-							return pair, nil
+				if t.D2Group != nil {
+					v, err, _ := t.D2Group.Do(b.hash, func() (any, error) {
+						if pairVal, exists := t.Cache.Load(key); exists {
+							if pair, ok := pairVal.(models.SSRThemePair); ok {
+								return pair, nil
+							}
 						}
-					}
-					lightSVG, err := t.Renderer.RenderD2(ctx, b.code, 0)
-					if err != nil {
-						if !errors.Is(err, context.Canceled) {
-							slog.Warn("D2 light render failed", "error", err)
+						lightSVG, err := t.Renderer.RenderD2(ctx, b.code, 0)
+						if err != nil {
+							if !errors.Is(err, context.Canceled) {
+								slog.Warn("D2 light render failed", "error", err)
+							}
+							return models.SSRThemePair{}, err
 						}
-						return models.SSRThemePair{}, err
-					}
-					darkSVG, err := t.Renderer.RenderD2(ctx, b.code, 200)
-					if err != nil {
-						if !errors.Is(err, context.Canceled) {
-							slog.Warn("D2 dark render failed", "error", err)
+						darkSVG, err := t.Renderer.RenderD2(ctx, b.code, 200)
+						if err != nil {
+							if !errors.Is(err, context.Canceled) {
+								slog.Warn("D2 dark render failed", "error", err)
+							}
+							return models.SSRThemePair{}, err
 						}
-						return models.SSRThemePair{}, err
-					}
-					pair := models.SSRThemePair{Light: lightSVG, Dark: darkSVG}
-					t.Cache.Store(key, pair)
-					return pair, nil
-				})
-				if err == nil {
-					if pair, ok := v.(models.SSRThemePair); ok {
-						results[idx] = pair
+						pair := models.SSRThemePair{Light: lightSVG, Dark: darkSVG}
+						t.Cache.Store(key, pair)
+						return pair, nil
+					})
+					if err == nil {
+						if pair, ok := v.(models.SSRThemePair); ok {
+							results[idx] = pair
+						}
 					}
 				}
-			}
-		}(firstIdx)
+				return nil
+			},
+			Cleanup: wg.Done,
+		})
 	}
 	wg.Wait()
 

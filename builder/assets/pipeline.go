@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/afero"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
@@ -25,6 +26,7 @@ type fileTask struct {
 }
 
 var (
+	// rgbaPixPool stores *[]byte buffers sized for 1200x1600 RGBA images.
 	rgbaPixPool = sync.Pool{
 		New: func() any {
 			b := make([]byte, 1200*1600*4)
@@ -103,87 +105,97 @@ func CopyDirVFS(ctx context.Context, opts CopyDirOptions) error {
 
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case task, ok := <-imageQueue:
-					if !ok {
-						return
-					}
-					func() {
-						defer func() {
-							if r := recover(); r != nil {
-								slog.Error("Image worker panic recovered", "panic", r)
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    slog.Default(),
+			Operation: "asset image worker",
+			Fn: func() error {
+				for {
+					select {
+					case <-ctx.Done():
+						return nil
+					case task, ok := <-imageQueue:
+						if !ok {
+							return nil
+						}
+						func() {
+							defer func() {
+								if r := recover(); r != nil {
+									slog.Error("Image worker panic recovered", "panic", r)
+									errMu.Lock()
+									errs = append(errs, fmt.Errorf("image worker panicked on %s: %v", task.path, r))
+									errMu.Unlock()
+								}
+							}()
+							target := filepath.Join(dstDir, task.relPath)
+							if err := convertToWebPVFS(ProcessImageOptions{
+								Ctx:       ctx,
+								SrcFs:     srcFs,
+								Sink:      sink,
+								SrcPath:   task.path,
+								DstPath:   target,
+								SrcInfo:   task.info,
+								Opts:      opts.CopyOptions,
+								Scheduler: opts.Scheduler,
+							}); err != nil {
 								errMu.Lock()
-								errs = append(errs, fmt.Errorf("image worker panicked on %s: %v", task.path, r))
+								errs = append(errs, fmt.Errorf("failed to process image %s: %w", task.path, err))
 								errMu.Unlock()
+							} else {
+								if opts.OnWrite != nil {
+									opts.OnWrite(target)
+								}
+								if task.originalRelPath != "" {
+									// URL format mapping - register all variants
+									relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(task.originalRelPath), "/")
+									relDst := "/" + strings.TrimPrefix(filepath.ToSlash(task.relPath), "/")
+									registerImageVariants(relSrc, relDst)
+								}
 							}
 						}()
-						target := filepath.Join(dstDir, task.relPath)
-						if err := convertToWebPVFS(ProcessImageOptions{
-							Ctx:       ctx,
-							SrcFs:     srcFs,
-							Sink:      sink,
-							SrcPath:   task.path,
-							DstPath:   target,
-							SrcInfo:   task.info,
-							Opts:      opts.CopyOptions,
-							Scheduler: opts.Scheduler,
-						}); err != nil {
-							errMu.Lock()
-							errs = append(errs, fmt.Errorf("failed to process image %s: %w", task.path, err))
-							errMu.Unlock()
-						} else {
-							if opts.OnWrite != nil {
-								opts.OnWrite(target)
-							}
-							if task.originalRelPath != "" {
-								// URL format mapping - register all variants
-								relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(task.originalRelPath), "/")
-								relDst := "/" + strings.TrimPrefix(filepath.ToSlash(task.relPath), "/")
-								registerImageVariants(relSrc, relDst)
-							}
-						}
-					}()
+					}
 				}
-			}
-		}()
+			},
+			Cleanup: wg.Done,
+		})
 	}
 	for i := 0; i < nonImageWorkers; i++ {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case task, ok := <-nonImageQueue:
-					if !ok {
-						return
-					}
-					destPath := filepath.Join(dstDir, task.relPath)
-					if err := fspkg.CopyFileVFS(fspkg.CopyFileOptions{
-						SrcFs:   srcFs,
-						Sink:    sink,
-						SrcPath: task.path,
-						DstPath: destPath,
-						ModTime: task.info.ModTime().UnixNano(),
-						OnWrite: opts.OnWrite,
-					}); err != nil {
-						errMu.Lock()
-						errs = append(errs, err)
-						errMu.Unlock()
-					} else {
-						if opts.Metrics != nil {
-							opts.Metrics.IncrementAssetsProcessed()
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    slog.Default(),
+			Operation: "asset copy worker",
+			Fn: func() error {
+				for {
+					select {
+					case <-ctx.Done():
+						return nil
+					case task, ok := <-nonImageQueue:
+						if !ok {
+							return nil
+						}
+						destPath := filepath.Join(dstDir, task.relPath)
+						if err := fspkg.CopyFileVFS(fspkg.CopyFileOptions{
+							SrcFs:   srcFs,
+							Sink:    sink,
+							SrcPath: task.path,
+							DstPath: destPath,
+							ModTime: task.info.ModTime().UnixNano(),
+							OnWrite: opts.OnWrite,
+						}); err != nil {
+							errMu.Lock()
+							errs = append(errs, err)
+							errMu.Unlock()
+						} else {
+							if opts.Metrics != nil {
+								opts.Metrics.IncrementAssetsProcessed()
+							}
 						}
 					}
 				}
-			}
-		}()
+			},
+			Cleanup: wg.Done,
+		})
 	}
 
 	// Use higher concurrency for discovery walk on modern SSDs

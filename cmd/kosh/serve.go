@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/internal/server"
@@ -81,7 +83,7 @@ func runServe(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 
-		go func() {
+		async.FireAndForget(ctx, slog.Default(), "watcher", func() error {
 			watchDirs := []string{b.Cfg.ContentDir, b.Cfg.TemplateDir, b.Cfg.StaticDir, "kosh.yaml"}
 			siteStaticDir := "static"
 			if b.Cfg.SiteRoot != "" {
@@ -109,10 +111,11 @@ func runServe(cmd *cobra.Command, args []string) {
 			})
 			if err != nil {
 				orchestration.DevLogError("Watcher failed: " + err.Error())
-				return
+				return nil
 			}
 			w.Start()
-		}()
+			return nil
+		})
 
 		server.Run(server.ServerOptions{
 			Ctx:         ctx,

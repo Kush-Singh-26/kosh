@@ -3,6 +3,7 @@ package post
 import (
 	"context"
 	"html/template"
+	"log/slog"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -82,37 +83,59 @@ func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 	collectedFilesChan := make(chan models.ScannedFile, 1024)
 	var allFiles []models.ScannedFile
 	var collectWg sync.WaitGroup
+	logger := s.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 	collectWg.Add(1)
-	go func() {
-		defer collectWg.Done()
-		for f := range collectedFilesChan {
-			allFiles = append(allFiles, f)
-		}
-		// Once all files collected, prepare navigation and signal render phase
-		navReady <- s.prepareNavigationInfo(allFiles)
-	}()
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "collect scan results",
+		Fn: func() error {
+			for f := range collectedFilesChan {
+				allFiles = append(allFiles, f)
+			}
+			// Once all files collected, prepare navigation and signal render phase
+			navReady <- s.prepareNavigationInfo(allFiles)
+			return nil
+		},
+		Cleanup: collectWg.Done,
+	})
 
 	// Start render task collector goroutine to avoid blocking parse workers
 	var renderTasks []renderTask
 	var renderTasksMu sync.Mutex
 	renderTasksDone := make(chan struct{})
 
-	go func() {
-		defer close(renderTasksDone)
-		for rt := range renderChan {
-			renderTasksMu.Lock()
-			renderTasks = append(renderTasks, rt)
-			renderTasksMu.Unlock()
-		}
-	}()
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "collect render tasks",
+		Fn: func() error {
+			for rt := range renderChan {
+				renderTasksMu.Lock()
+				renderTasks = append(renderTasks, rt)
+				renderTasksMu.Unlock()
+			}
+			return nil
+		},
+		Cleanup: func() { close(renderTasksDone) },
+	})
 
 	// renderWg is kept for context-based cleanup if needed, though runStreamingRenderPhase is synchronous
 	var renderWg sync.WaitGroup
 	renderWg.Add(1)
-	go func() {
-		defer renderWg.Done()
-		// This goroutine will wait for renderChan to close and tasks to be collected elsewhere
-	}()
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "render phase sync",
+		Fn: func() error {
+			// This goroutine will wait for renderChan to close and tasks to be collected elsewhere
+			return nil
+		},
+		Cleanup: renderWg.Done,
+	})
 
 	wCtx := WorkerContext{
 		Ctx: ctx, PC: pc, CardPool: cardPool, SearchPool: searchPool,

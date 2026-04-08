@@ -1,12 +1,14 @@
 package clean
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildFs "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
@@ -81,8 +83,14 @@ func removePathAsync(fs afero.Fs, path string) {
 	}
 
 	cleanupWg.Add(1)
-	go func() {
-		defer cleanupWg.Done()
-		_ = fs.RemoveAll(tempPath)
-	}()
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       context.Background(),
+		Logger:    slog.Default(),
+		Operation: "clean remove",
+		Fn: func() error {
+			_ = fs.RemoveAll(tempPath)
+			return nil
+		},
+		Cleanup: cleanupWg.Done,
+	})
 }

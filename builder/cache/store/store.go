@@ -21,6 +21,7 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
+// level3EncoderPool stores *zstd.Encoder instances (or errors on init failure).
 var level3EncoderPool = sync.Pool{
 	New: func() any {
 		enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
@@ -36,7 +37,7 @@ type Store struct {
 	basePath string
 	encoder  *zstd.Encoder
 	decoder  *zstd.Decoder
-	dirCache sync.Map
+	dirCache sync.Map // directory path -> struct{}{} (exists)
 }
 
 var storeTempCounter atomic.Uint64

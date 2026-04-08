@@ -289,7 +289,7 @@ type GraphConfig struct {
 }
 
 // UnmarshalYAML implements custom unmarshalling for GraphConfig.
-func (gc *GraphConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (gc *GraphConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	var b bool
 	if err := unmarshal(&b); err == nil {
 		gc.Enabled = b

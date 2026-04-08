@@ -13,6 +13,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 
 	assetpkg "github.com/Kush-Singh-26/kosh/builder/assets"
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
@@ -304,12 +305,18 @@ func (b *Engine) SaveCaches() {
 		// Launch flush in background — completes during Close() before BoltDB closes.
 		// Cache loss on process crash is acceptable: entries are regenerated next build.
 		b.flushWg.Add(1)
-		go func() {
-			defer b.flushWg.Done()
-			if err := b.Deps.Diagrams.Flush(); err != nil {
-				b.Deps.Logger.Warn("Diagram cache flush failed", "error", err)
-			}
-		}()
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       context.Background(),
+			Logger:    b.Deps.Logger,
+			Operation: "diagram cache flush",
+			Fn: func() error {
+				if err := b.Deps.Diagrams.Flush(); err != nil {
+					b.Deps.Logger.Warn("Diagram cache flush failed", "error", err)
+				}
+				return nil
+			},
+			Cleanup: b.flushWg.Done,
+		})
 	}
 	if b.Deps.Cache != nil {
 		// Trigger garbage collection every 20 builds

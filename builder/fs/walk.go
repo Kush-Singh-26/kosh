@@ -9,6 +9,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"log/slog"
+
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/spf13/afero"
 )
 
@@ -82,69 +85,72 @@ func ParallelWalk(opts WalkOptions) error {
 
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case t, ok := <-tasks:
-					if !ok {
-						return
-					}
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    slog.Default(),
+			Operation: "parallel walk worker",
+			Fn: func() error {
+				for {
+					select {
+					case <-ctx.Done():
+						return nil
+					case t, ok := <-tasks:
+						if !ok {
+							return nil
+						}
 
-					// Read directory entries in bulk
-					entries, err := afero.ReadDir(sourceFs, t.path)
-					if err != nil {
-						setErr(walkFnWrapped(t.path, nil, err))
-					} else {
-						for _, entry := range entries {
-							if ctx.Err() != nil || firstErr != nil {
-								break
-							}
+						// Read directory entries in bulk
+						entries, err := afero.ReadDir(sourceFs, t.path)
+						if err != nil {
+							setErr(walkFnWrapped(t.path, nil, err))
+						} else {
+							for _, entry := range entries {
+								if ctx.Err() != nil || firstErr != nil {
+									break
+								}
 
-							fullPath := filepath.ToSlash(filepath.Join(t.path, entry.Name()))
+								fullPath := filepath.ToSlash(filepath.Join(t.path, entry.Name()))
 
-							// Execute callback
-							walkErr := walkFnWrapped(fullPath, entry, nil)
-							if walkErr != nil {
-								if errors.Is(walkErr, filepath.SkipDir) {
-									if entry.IsDir() {
-										continue
+								// Execute callback
+								walkErr := walkFnWrapped(fullPath, entry, nil)
+								if walkErr != nil {
+									if errors.Is(walkErr, filepath.SkipDir) {
+										if entry.IsDir() {
+											continue
+										}
+										break
 									}
-									break
-								}
-								if errors.Is(walkErr, fs.SkipAll) {
+									if errors.Is(walkErr, fs.SkipAll) {
+										setErr(walkErr)
+										cancelOnce.Do(func() {
+											// Cancel context to stop other workers
+										})
+										break
+									}
 									setErr(walkErr)
-									cancelOnce.Do(func() {
-										// Cancel context to stop other workers
-									})
 									break
 								}
-								setErr(walkErr)
-								break
-							}
 
-							if entry.IsDir() {
-								atomic.AddInt32(&activeTasks, 1)
-								go func(p string) {
+								if entry.IsDir() {
+									atomic.AddInt32(&activeTasks, 1)
 									select {
-									case tasks <- dirTask{path: p}:
+									case tasks <- dirTask{path: fullPath}:
 									case <-ctx.Done():
 										atomic.AddInt32(&activeTasks, -1)
 									}
-								}(fullPath)
+								}
 							}
 						}
-					}
 
-					// Check if we are done
-					if atomic.AddInt32(&activeTasks, -1) == 0 {
-						close(tasks)
+						// Check if we are done
+						if atomic.AddInt32(&activeTasks, -1) == 0 {
+							close(tasks)
+						}
 					}
 				}
-			}
-		}()
+			},
+			Cleanup: wg.Done,
+		})
 	}
 
 	wg.Wait()

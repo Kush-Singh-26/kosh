@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/afero"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
@@ -244,14 +245,20 @@ func (s *postService) commitPostCache(opts commitPostCacheOptions) {
 	newDep := &models.Dependencies{Tags: opts.post.Tags}
 
 	s.cacheWg.Add(1)
-	go func() {
-		defer s.cacheWg.Done()
-		timer := timeutil.StartPhase("Cache commit (incremental)")
-		if err := s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*models.Dependencies{postID: newDep}); err != nil {
-			s.logger.Error("Failed to commit post to cache", "path", opts.relPath, "error", err)
-		}
-		timer.Stop()
-	}()
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       context.Background(),
+		Logger:    s.logger,
+		Operation: "cache commit",
+		Fn: func() error {
+			timer := timeutil.StartPhase("Cache commit (incremental)")
+			if err := s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*models.Dependencies{postID: newDep}); err != nil {
+				s.logger.Error("Failed to commit post to cache", "path", opts.relPath, "error", err)
+			}
+			timer.Stop()
+			return nil
+		},
+		Cleanup: s.cacheWg.Done,
+	})
 }
 
 func (s *postService) handleSocialCard(parseRes *ParsedMarkdownResult, relPath, cardRelPath, cardDestPath string) {

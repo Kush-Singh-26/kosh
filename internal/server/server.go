@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
@@ -114,11 +115,12 @@ func Run(opts ServerOptions) {
 	reloadEvents := startWatcherWithConfig(staticDir, debounceDuration)
 	defer stopWatcher()
 
-	go func() {
+	async.FireAndForget(ctx, slog.Default(), "server watcher shutdown", func() error {
 		<-ctx.Done()
 		orchestration.DevLogInfo("Shutting down server...")
 		stopWatcher()
-	}()
+		return nil
+	})
 
 	mux := http.NewServeMux()
 
@@ -149,7 +151,10 @@ func Run(opts ServerOptions) {
 	})
 
 	if reloadEvents != nil {
-		go broadcastReload(reloadEvents)
+		async.FireAndForget(ctx, slog.Default(), "reload broadcast", func() error {
+			broadcastReload(reloadEvents)
+			return nil
+		})
 	}
 
 	httpServer := &http.Server{
@@ -157,7 +162,7 @@ func Run(opts ServerOptions) {
 		Handler: loggingMiddleware(recoveryMiddleware(mux)),
 	}
 
-	go func() {
+	async.FireAndForget(ctx, slog.Default(), "http server shutdown", func() error {
 		<-ctx.Done()
 		orchestration.DevLogInfo("Shutting down HTTP server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
@@ -165,7 +170,8 @@ func Run(opts ServerOptions) {
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			slog.Error("HTTP server shutdown error", "error", err)
 		}
-	}()
+		return nil
+	})
 
 	if reporter != nil {
 		reporter.Status("Live Preview: http://" + addr)

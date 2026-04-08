@@ -2,8 +2,10 @@ package scanner
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/fs"
+	"log/slog"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -43,7 +46,10 @@ func (s *metadataScanner) ScanStreaming(opts ScanOptions) (<-chan *models.Metada
 	resultChan := make(chan *models.MetadataScannerResult, 1)
 	errChan := make(chan error, 1)
 
-	go func() {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	async.FireAndForget(ctx, slog.Default(), "metadata scan stream", func() error {
 		result := &models.MetadataScannerResult{
 			Files:         make([]models.ScannedFile, 0, 50),
 			ContentAssets: make([]models.ScannedAsset, 0, 10),
@@ -111,7 +117,8 @@ func (s *metadataScanner) ScanStreaming(opts ScanOptions) (<-chan *models.Metada
 
 		resultChan <- result
 		errChan <- nil
-	}()
+		return nil
+	})
 
 	return resultChan, errChan
 }

@@ -1,6 +1,10 @@
 package mocks
 
 import (
+	"context"
+	"log/slog"
+
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
@@ -24,7 +28,11 @@ func (m *MockScanner) ScanStreaming(opts scanner.ScanOptions) (<-chan *models.Me
 	fileChan := opts.FileChan
 	resChan := make(chan *models.MetadataScannerResult, 1)
 	errChan := make(chan error, 1)
-	go func() {
+	ctx := opts.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	async.FireAndForget(ctx, slog.Default(), "mock scanner stream", func() error {
 		if m.Result != nil && fileChan != nil {
 			for _, f := range m.Result.Files {
 				fileChan <- f
@@ -32,7 +40,8 @@ func (m *MockScanner) ScanStreaming(opts scanner.ScanOptions) (<-chan *models.Me
 		}
 		resChan <- m.Result
 		errChan <- m.Err
-	}()
+		return nil
+	})
 	return resChan, errChan
 }
 

@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -109,44 +111,49 @@ func startWatcherWithConfig(dir string, debounce time.Duration) chan struct{} {
 	reloadMu.Unlock()
 
 	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
-		defer func() {
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       context.Background(),
+		Logger:    slog.Default(),
+		Operation: "file watcher",
+		Fn: func() error {
+			defer func() {
+				watcherMu.RLock()
+				w := watcher
+				watcherMu.RUnlock()
+				if w != nil {
+					if err := w.Close(); err != nil {
+						slog.Warn("Failed to close file watcher", "error", err)
+					}
+				}
+			}()
+
 			watcherMu.RLock()
 			w := watcher
 			watcherMu.RUnlock()
-			if w != nil {
-				if err := w.Close(); err != nil {
-					slog.Warn("Failed to close file watcher", "error", err)
+
+			for {
+				select {
+				case event, ok := <-w.Events:
+					if !ok {
+						return nil
+					}
+					if event.Op&fsnotify.Chmod != 0 {
+						continue
+					}
+
+					// Safely reset the debounce timer
+					resetDebounceTimer()
+
+				case err, ok := <-w.Errors:
+					if !ok {
+						return nil
+					}
+					slog.Warn("Watcher error", "error", err)
 				}
 			}
-		}()
-
-		watcherMu.RLock()
-		w := watcher
-		watcherMu.RUnlock()
-
-		for {
-			select {
-			case event, ok := <-w.Events:
-				if !ok {
-					return
-				}
-				if event.Op&fsnotify.Chmod != 0 {
-					continue
-				}
-
-				// Safely reset the debounce timer
-				resetDebounceTimer()
-
-			case err, ok := <-w.Errors:
-				if !ok {
-					return
-				}
-				slog.Warn("Watcher error", "error", err)
-			}
-		}
-	}()
+		},
+		Cleanup: watcherWg.Done,
+	})
 
 	return currentReloadChan
 }

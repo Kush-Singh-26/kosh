@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
@@ -75,13 +76,19 @@ func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.Metada
 				})
 			})
 			wasmWg.Add(1)
-			go func() {
-				defer wasmWg.Done()
-				b.Assets.WaitForAvailability(ctx, assetsReady)
-				if err := b.generatePWA(ctx, b.Cfg.ForceRebuild); err != nil {
-					b.Deps.Logger.Warn("PWA generation failed", "error", err)
-				}
-			}()
+			async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+				Ctx:       ctx,
+				Logger:    b.Deps.Logger,
+				Operation: "pwa generation",
+				Fn: func() error {
+					b.Assets.WaitForAvailability(ctx, assetsReady)
+					if err := b.generatePWA(ctx, b.Cfg.ForceRebuild); err != nil {
+						b.Deps.Logger.Warn("PWA generation failed", "error", err)
+					}
+					return nil
+				},
+				Cleanup: wasmWg.Done,
+			})
 		})
 
 		if cb.IndexedPosts != nil {

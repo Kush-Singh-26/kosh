@@ -17,7 +17,7 @@ type cacheService struct {
 	logger  *slog.Logger
 
 	// Dirty tracking using sync.Map for thread safety
-	dirty sync.Map
+	dirty sync.Map // postID -> bool
 }
 
 // NewService creates a new CacheService with the given dependencies.

@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
@@ -103,8 +105,14 @@ func New(deps CoordinatorDependencies) *Coordinator {
 
 // Start begins processing of build and search queues.
 func (c *Coordinator) Start() {
-	go c.processBuildQueue()
-	go c.processSearchQueue()
+	async.FireAndForget(context.Background(), slog.Default(), "watch build queue", func() error {
+		c.processBuildQueue()
+		return nil
+	})
+	async.FireAndForget(context.Background(), slog.Default(), "watch search queue", func() error {
+		c.processSearchQueue()
+		return nil
+	})
 }
 
 // Close shuts down the coordinator and its queues.
@@ -340,14 +348,15 @@ func (c *Coordinator) processSearchQueue() {
 				timer = time.AfterFunc(delay, func() {
 					if pending {
 						pending = false
-						go func() {
+						async.FireAndForget(context.Background(), slog.Default(), "watch search regen", func() error {
 							c.buildMu.Lock()
 							defer c.buildMu.Unlock()
 							c.lastSearchReg = time.Now()
 							if c.onSearch != nil {
 								c.onSearch(context.Background())
 							}
-						}()
+							return nil
+						})
 					}
 				})
 				timerRunning = true

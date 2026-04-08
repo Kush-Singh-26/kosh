@@ -33,14 +33,14 @@ type Renderer struct {
 	Compress       bool
 	Sink           fspkg.ArtifactSink
 	SourceFs       afero.Fs
-	renderedFiles  sync.Map
+	renderedFiles  sync.Map // path string -> struct{}{}
 	logger         *slog.Logger
 	templateDir    string
 	mu             sync.RWMutex // protects template pointers and logger
 	devMode        bool
 	renderErrors   []renderError
 	errMu          sync.Mutex // protects renderErrors
-	assetCache     sync.Map
+	assetCache     sync.Map   // cacheKey string -> map[string]string
 	Minifier       *minify.M
 }
 
@@ -182,7 +182,7 @@ func (r *Renderer) ReloadTemplates() {
 			}
 			return fmt.Sprintf("%v", v)
 		},
-		"jsonify": func(v interface{}) (string, error) {
+		"jsonify": func(v any) (string, error) {
 			b, err := json.Marshal(v)
 			return string(b), err
 		},

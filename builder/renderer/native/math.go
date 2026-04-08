@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
@@ -63,24 +64,31 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []models.M
 		end := min(start+chunkSize, len(uniqueExprs))
 
 		wg.Add(1)
-		go func(chunk []models.MathExpression) {
-			defer wg.Done()
+		chunk := uniqueExprs[start:end]
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    slog.Default(),
+			Operation: "math batch render",
+			Fn: func() error {
 
-			rendered, err := r.RenderMathBatch(ctx, chunk)
+				rendered, err := r.RenderMathBatch(ctx, chunk)
 
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				if globalErr == nil {
-					globalErr = err
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					if globalErr == nil {
+						globalErr = err
+					}
+					return nil
 				}
-				return
-			}
 
-			for j, html := range rendered {
-				results[chunk[j].Hash] = html
-			}
-		}(uniqueExprs[start:end])
+				for j, html := range rendered {
+					results[chunk[j].Hash] = html
+				}
+				return nil
+			},
+			Cleanup: wg.Done,
+		})
 	}
 
 	wg.Wait()
@@ -282,24 +290,31 @@ func (r *Renderer) RenderAllMath(ctx context.Context, expressions []models.MathE
 		end := min(start+chunkSize, len(toRender))
 
 		wg.Add(1)
-		go func(chunk []models.MathExpression) {
-			defer wg.Done()
+		chunk := toRender[start:end]
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    slog.Default(),
+			Operation: "math render",
+			Fn: func() error {
 
-			rendered, err := r.RenderMathBatch(ctx, chunk)
+				rendered, err := r.RenderMathBatch(ctx, chunk)
 
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				if globalErr == nil {
-					globalErr = err
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					if globalErr == nil {
+						globalErr = err
+					}
+					return nil
 				}
-				return
-			}
 
-			for j, html := range rendered {
-				results[chunk[j].Hash] = html
-			}
-		}(toRender[start:end])
+				for j, html := range rendered {
+					results[chunk[j].Hash] = html
+				}
+				return nil
+			},
+			Cleanup: wg.Done,
+		})
 	}
 
 	wg.Wait()

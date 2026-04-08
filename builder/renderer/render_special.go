@@ -10,7 +10,7 @@ import (
 // Executor is a minimal interface for templates that can be executed.
 // This allows the unified helper to work with any template-like type.
 type Executor interface {
-	Execute(wr io.Writer, data interface{}) error
+	Execute(wr io.Writer, data any) error
 }
 
 // RenderIndex renders the homepage using the index template.

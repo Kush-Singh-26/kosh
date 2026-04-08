@@ -1,11 +1,14 @@
 package index
 
 import (
+	"context"
+	"log/slog"
 	"maps"
 	"runtime"
 	"strconv"
 	"sync"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
@@ -63,62 +66,69 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 	chunkSize := (totalDocs + numWorkers - 1) / numWorkers
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			start := workerID * chunkSize
-			end := min(start+chunkSize, totalDocs)
+		workerID := i
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       context.Background(),
+			Logger:    slog.Default(),
+			Operation: "search index build",
+			Fn: func() error {
+				start := workerID * chunkSize
+				end := min(start+chunkSize, totalDocs)
 
-			chunkUniqueWords := 0
-			for j := start; j < end; j++ {
-				chunkUniqueWords += len(indexedPosts[j].PositionalIndex)
-			}
-			workerCap := max(int(float64(chunkUniqueWords)*0.7), 64)
-
-			localPosts := make(map[string]models.PostRecord, end-start)
-			localInverted := make(map[string]map[string][]uint32, workerCap)
-			localOffsets := make(map[string]map[string][]uint32, workerCap)
-			localDocLens := make(map[string]int64, end-start)
-			localStemMap := make(map[string]map[string]bool, workerCap/2)
-			var localTotalLen int64
-
-			for j := start; j < end; j++ {
-				ip := indexedPosts[j]
-				id := ip.Record.ID
-				idStr := strconv.FormatUint(id, 10)
-				localPosts[idStr] = ip.Record
-				localDocLens[idStr] = int64(ip.DocLen)
-				localTotalLen += int64(ip.DocLen)
-
-				for word, positions := range ip.PositionalIndex {
-					if _, ok := localInverted[word]; !ok {
-						localInverted[word] = make(map[string][]uint32, 4)
-					}
-					localInverted[word][idStr] = positions
+				chunkUniqueWords := 0
+				for j := start; j < end; j++ {
+					chunkUniqueWords += len(indexedPosts[j].PositionalIndex)
 				}
+				workerCap := max(int(float64(chunkUniqueWords)*0.7), 64)
 
-				for word, off := range ip.ByteOffsets {
-					if _, ok := localOffsets[word]; !ok {
-						localOffsets[word] = make(map[string][]uint32, 4)
-					}
-					localOffsets[word][idStr] = off
-				}
+				localPosts := make(map[string]models.PostRecord, end-start)
+				localInverted := make(map[string]map[string][]uint32, workerCap)
+				localOffsets := make(map[string]map[string][]uint32, workerCap)
+				localDocLens := make(map[string]int64, end-start)
+				localStemMap := make(map[string]map[string]bool, workerCap/2)
+				var localTotalLen int64
 
-				for orig, stem := range ip.StemMap {
-					if _, ok := localStemMap[stem]; !ok {
-						localStemMap[stem] = make(map[string]bool, 4)
+				for j := start; j < end; j++ {
+					ip := indexedPosts[j]
+					id := ip.Record.ID
+					idStr := strconv.FormatUint(id, 10)
+					localPosts[idStr] = ip.Record
+					localDocLens[idStr] = int64(ip.DocLen)
+					localTotalLen += int64(ip.DocLen)
+
+					for word, positions := range ip.PositionalIndex {
+						if _, ok := localInverted[word]; !ok {
+							localInverted[word] = make(map[string][]uint32, 4)
+						}
+						localInverted[word][idStr] = positions
 					}
-					localStemMap[stem][orig] = true
+
+					for word, off := range ip.ByteOffsets {
+						if _, ok := localOffsets[word]; !ok {
+							localOffsets[word] = make(map[string][]uint32, 4)
+						}
+						localOffsets[word][idStr] = off
+					}
+
+					for orig, stem := range ip.StemMap {
+						if _, ok := localStemMap[stem]; !ok {
+							localStemMap[stem] = make(map[string]bool, 4)
+						}
+						localStemMap[stem][orig] = true
+					}
 				}
-			}
-			results[workerID] = partialResult{
-				posts:    localPosts,
-				inverted: localInverted,
-				offsets:  localOffsets,
-				docLens:  localDocLens,
-				stemMap:  localStemMap,
-				totalLen: localTotalLen,
-			}
-		}(i)
+				results[workerID] = partialResult{
+					posts:    localPosts,
+					inverted: localInverted,
+					offsets:  localOffsets,
+					docLens:  localDocLens,
+					stemMap:  localStemMap,
+					totalLen: localTotalLen,
+				}
+				return nil
+			},
+			Cleanup: wg.Done,
+		})
 	}
 	wg.Wait()
 

@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
@@ -105,7 +106,10 @@ func (s *buildSetup) initNativeRenderer() {
 	}
 	sched := s.ctx.Scheduler
 	s.nativeRenderer = native.New(native.WithWorkers(workers), native.WithScheduler(sched))
-	go s.nativeRenderer.EnsureInitialized(context.Background())
+	async.FireAndForget(context.Background(), s.logger, "native renderer warmup", func() error {
+		s.nativeRenderer.EnsureInitialized(context.Background())
+		return nil
+	})
 
 	var ssrMap parser.SSRMap
 	if s.diagramAdapter != nil {
@@ -116,6 +120,7 @@ func (s *buildSetup) initNativeRenderer() {
 
 	d2Group := s.nativeRenderer.GetD2Singleflight()
 	s.mdPool = &sync.Pool{
+		// mdPool stores *parser.Parser instances for markdown parsing.
 		New: func() any {
 			return parser.New(s.cfg, s.nativeRenderer, ssrMap, d2Group)
 		},

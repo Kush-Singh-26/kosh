@@ -1,13 +1,16 @@
 package ui
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
@@ -116,16 +119,16 @@ func (r *lineReporter) Start(mode string) {
 
 	// Start a background goroutine to animate the spinner at 100ms intervals
 	r.ticker = time.NewTicker(100 * time.Millisecond)
-	go func() {
+	async.FireAndForget(context.Background(), slog.Default(), "line reporter spinner", func() error {
 		for {
 			select {
 			case <-r.ticker.C:
 				r.renderSpinner()
 			case <-r.done:
-				return
+				return nil
 			}
 		}
-	}()
+	})
 }
 
 // StartPhase marks a build phase as started.

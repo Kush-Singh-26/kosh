@@ -69,7 +69,7 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 
 	// Use singleflight to ensure only one goroutine checks templates
 	// All concurrent callers will share the same result
-	result, err, _ := tc.sf.Do("checkTemplates", func() (interface{}, error) {
+	result, err, _ := tc.sf.Do("checkTemplates", func() (any, error) {
 		// Re-check TTL after acquiring singleflight to handle race condition
 		nowNs := time.Now().UnixNano()
 		lastNs := tc.lastCheckNs.Load()

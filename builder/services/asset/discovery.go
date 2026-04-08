@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
@@ -157,41 +158,47 @@ func (s *assetService) getStaticSourceDirs() (string, string) {
 func (s *assetService) setupAssetWorker(assetChan <-chan assetTask, group *errgroup.Group, ctx context.Context) *sync.WaitGroup {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for task := range assetChan {
-			t := task
-			group.Go(func() error {
-				dst := filepath.Join(s.cfg.OutputDir, t.relPath)
-				opts := assets.CopyOptions{
-					Compress:     s.cfg.CompressImages,
-					MinifySVGs:   s.cfg.MinifySVGs,
-					KeepOriginal: false,
-					CacheDir:     s.cfg.CacheDir + "/images",
-					WebPQuality:  s.cfg.WebPQuality,
-					Metrics:      s.metrics,
-					OnWrite:      s.renderer.RegisterFile,
-					ImageWorkers: s.cfg.ImageWorkers,
-				}
-				return assets.CopyFileWithOptionalImageProcessing(assets.ProcessImageOptions{
-					Ctx:     ctx,
-					SrcFs:   s.sourceFs,
-					Sink:    s.sink,
-					SrcPath: t.srcPath,
-					DstPath: dst,
-					RelPath: t.relPath,
-					SrcInfo: t.info,
-					Opts:    opts,
-					Scheduler: func() scheduler.BuildScheduler {
-						if s.ctx != nil {
-							return s.ctx.Scheduler
-						}
-						return nil
-					}(),
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    s.logger,
+		Operation: "asset worker",
+		Fn: func() error {
+			for task := range assetChan {
+				t := task
+				group.Go(func() error {
+					dst := filepath.Join(s.cfg.OutputDir, t.relPath)
+					opts := assets.CopyOptions{
+						Compress:     s.cfg.CompressImages,
+						MinifySVGs:   s.cfg.MinifySVGs,
+						KeepOriginal: false,
+						CacheDir:     s.cfg.CacheDir + "/images",
+						WebPQuality:  s.cfg.WebPQuality,
+						Metrics:      s.metrics,
+						OnWrite:      s.renderer.RegisterFile,
+						ImageWorkers: s.cfg.ImageWorkers,
+					}
+					return assets.CopyFileWithOptionalImageProcessing(assets.ProcessImageOptions{
+						Ctx:     ctx,
+						SrcFs:   s.sourceFs,
+						Sink:    s.sink,
+						SrcPath: t.srcPath,
+						DstPath: dst,
+						RelPath: t.relPath,
+						SrcInfo: t.info,
+						Opts:    opts,
+						Scheduler: func() scheduler.BuildScheduler {
+							if s.ctx != nil {
+								return s.ctx.Scheduler
+							}
+							return nil
+						}(),
+					})
 				})
-			})
-		}
-	}()
+			}
+			return nil
+		},
+		Cleanup: wg.Done,
+	})
 	return wg
 }
 
@@ -299,46 +306,52 @@ func (s *assetService) setupDiscoveryWalk(opts discoveryWalkOptions) func(contex
 			return nil
 		}
 		opts.walkerWg.Add(1)
-		go func() {
-			defer opts.walkerWg.Done()
-			_ = fspkg.ParallelWalk(fspkg.WalkOptions{
-				Ctx:         ctx,
-				SourceFs:    s.sourceFs,
-				Root:        dir,
-				Concurrency: opts.walkConcurrency,
-				WalkFn: func(path string, info fs.FileInfo, err error) error {
-					if err != nil || info.IsDir() {
-						return nil
-					}
-					if opts.debugAssets {
-						if isSite {
-							atomic.AddInt64(&opts.syncCtx.siteFiles, 1)
-						} else {
-							atomic.AddInt64(&opts.syncCtx.themeFiles, 1)
-						}
-					}
-					if filepath.Base(path) == "search.wasm" {
-						return nil
-					}
-
-					rel, relErr := fspkg.SafeRel(dir, path)
-					if relErr != nil || rel == "" {
-						rel = s.handleRelPathManualFallback(dir, path, opts.debugAssets, opts.syncCtx)
-						if rel == "" {
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    s.logger,
+			Operation: "asset discovery walk",
+			Fn: func() error {
+				_ = fspkg.ParallelWalk(fspkg.WalkOptions{
+					Ctx:         ctx,
+					SourceFs:    s.sourceFs,
+					Root:        dir,
+					Concurrency: opts.walkConcurrency,
+					WalkFn: func(path string, info fs.FileInfo, err error) error {
+						if err != nil || info.IsDir() {
 							return nil
 						}
-					}
-					fullRel := "static/" + rel
-					if _, loaded := opts.syncCtx.seen.LoadOrStore(fullRel, true); !loaded {
 						if opts.debugAssets {
-							s.recordDiscoverySample(isSite, fullRel, opts.syncCtx)
+							if isSite {
+								atomic.AddInt64(&opts.syncCtx.siteFiles, 1)
+							} else {
+								atomic.AddInt64(&opts.syncCtx.themeFiles, 1)
+							}
 						}
-						opts.enqueue(assetTask{srcPath: path, relPath: fullRel, info: info})
-					}
-					return nil
-				},
-			})
-		}()
+						if filepath.Base(path) == "search.wasm" {
+							return nil
+						}
+
+						rel, relErr := fspkg.SafeRel(dir, path)
+						if relErr != nil || rel == "" {
+							rel = s.handleRelPathManualFallback(dir, path, opts.debugAssets, opts.syncCtx)
+							if rel == "" {
+								return nil
+							}
+						}
+						fullRel := "static/" + rel
+						if _, loaded := opts.syncCtx.seen.LoadOrStore(fullRel, true); !loaded {
+							if opts.debugAssets {
+								s.recordDiscoverySample(isSite, fullRel, opts.syncCtx)
+							}
+							opts.enqueue(assetTask{srcPath: path, relPath: fullRel, info: info})
+						}
+						return nil
+					},
+				})
+				return nil
+			},
+			Cleanup: opts.walkerWg.Done,
+		})
 		return nil
 	}
 }

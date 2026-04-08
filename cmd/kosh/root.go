@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"charm.land/fang/v2"
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/spf13/cobra"
@@ -47,10 +48,14 @@ func getContext() context.Context {
 
 	sigChan := make(chan os.Signal, 2) // Buffer for 2 signals
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigChan
-		orchestration.DevLogInfo("Received signal: " + sig.String() + ". Initiating graceful shutdown...")
-		cancel()
+	async.FireAndForget(ctx, slog.Default(), "signal handler", func() error {
+		select {
+		case sig := <-sigChan:
+			orchestration.DevLogInfo("Received signal: " + sig.String() + ". Initiating graceful shutdown...")
+			cancel()
+		case <-ctx.Done():
+			return nil
+		}
 
 		// Second signal forces exit
 		select {
@@ -60,13 +65,15 @@ func getContext() context.Context {
 		case <-time.After(2 * time.Second):
 			// After 2 seconds, the user can still force exit with another Ctrl+C
 			// but we keep the listener alive just in case.
-			go func() {
+			async.FireAndForget(context.Background(), slog.Default(), "signal handler (force)", func() error {
 				sig3 := <-sigChan
 				orchestration.DevLogInfo("Received forceful signal: " + sig3.String() + ". Exiting.")
 				os.Exit(1)
-			}()
+				return nil
+			})
 		}
-	}()
+		return nil
+	})
 
 	return ctx
 }
