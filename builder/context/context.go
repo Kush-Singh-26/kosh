@@ -15,6 +15,7 @@ type BuildContext struct {
 	Logger       *slog.Logger
 }
 
+// ContextOptions configures NewBuildContext.
 type ContextOptions struct {
 	IsTesting    bool
 	IsDev        bool

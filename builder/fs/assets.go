@@ -13,18 +13,30 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
 
-func restoreAssetsFromCache(cachePath string, sink ArtifactSink, destDir string, onWrite func(string), onAssetProcessed func()) (map[string]string, bool, error) {
-	if info, err := os.Stat(cachePath); err != nil || !info.IsDir() {
+type restoreAssetsOptions struct {
+	cachePath        string
+	sink             ArtifactSink
+	destDir          string
+	onWrite          func(string)
+	onAssetProcessed func()
+}
+
+func restoreAssetsFromCache(opts restoreAssetsOptions) (map[string]string, bool, error) {
+	if opts.cachePath == "" || opts.sink == nil || opts.destDir == "" {
+		return nil, false, fmt.Errorf("restoreAssetsFromCache: missing required fields")
+	}
+	if info, err := os.Stat(opts.cachePath); err != nil || !info.IsDir() {
 		return nil, false, nil
 	}
 
-	mapFile := filepath.Join(cachePath, "map.json")
+	mapFile := filepath.Join(opts.cachePath, "map.json")
 	mapData, err := os.ReadFile(mapFile)
 	if err != nil {
 		return nil, false, nil
@@ -40,23 +52,23 @@ func restoreAssetsFromCache(cachePath string, sink ArtifactSink, destDir string,
 	for _, v := range assets {
 		rel := v
 		g.Go(func() error {
-			cacheFile := filepath.Join(cachePath, rel)
-			destPath := filepath.Join(destDir, rel)
+			cacheFile := filepath.Join(opts.cachePath, rel)
+			destPath := filepath.Join(opts.destDir, rel)
 			data, err := os.ReadFile(cacheFile)
 			if err != nil {
 				return err
 			}
-			if err := sink.MkdirAll(filepath.Dir(destPath)); err != nil {
+			if err := opts.sink.MkdirAll(filepath.Dir(destPath)); err != nil {
 				return err
 			}
-			if err := sink.WriteFile(destPath, data); err != nil {
+			if err := opts.sink.WriteFile(destPath, data); err != nil {
 				return err
 			}
-			if onWrite != nil {
-				onWrite(destPath)
+			if opts.onWrite != nil {
+				opts.onWrite(destPath)
 			}
-			if onAssetProcessed != nil {
-				onAssetProcessed()
+			if opts.onAssetProcessed != nil {
+				opts.onAssetProcessed()
 			}
 			return nil
 		})
@@ -105,7 +117,17 @@ func BuildAssetsEsbuild(opts BuildAssetsOptions) (map[string]string, error) {
 	cachePath := ""
 	if cacheDir != "" && !force {
 		cachePath = filepath.Join(cacheDir, scan.hash)
-		if restored, ok, _ := restoreAssetsFromCache(cachePath, sink, destDir, onWrite, onAssetProcessed); ok {
+		restored, ok, err := restoreAssetsFromCache(restoreAssetsOptions{
+			cachePath:        cachePath,
+			sink:             sink,
+			destDir:          destDir,
+			onWrite:          onWrite,
+			onAssetProcessed: onAssetProcessed,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if ok {
 			return restored, nil
 		}
 	}

@@ -7,7 +7,9 @@ import (
 )
 
 var (
-	ErrEmptyList    = errors.New("post list is empty")
+	// ErrEmptyList indicates a missing post list.
+	ErrEmptyList = errors.New("post list is empty")
+	// ErrPostNotFound indicates the current post was not found.
 	ErrPostNotFound = errors.New("post not found in list")
 )
 

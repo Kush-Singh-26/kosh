@@ -5,9 +5,10 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/yuin/goldmark/parser"
+
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/yuin/goldmark/parser"
 )
 
 var mathExpressionsKey = parser.NewContextKey()
@@ -39,27 +40,45 @@ func ReplaceMathExpressions(html string, expressions []models.MathExpression, re
 	return strings.NewReplacer(replacements...).Replace(html)
 }
 
+// RenderMathOptions configures RenderMathForHTML.
+type RenderMathOptions struct {
+	// Required
+	Ctx          context.Context
+	HTML         string
+	Renderer     *native.Renderer
+	PreCollected []models.MathExpression
+
+	// Optional
+	CacheLookup func(string) (string, bool)
+}
+
 // RenderMathForHTML extracts, renders, and replaces all LaTeX in HTML.
-func RenderMathForHTML(ctx context.Context, html string, renderer *native.Renderer, cacheLookup func(string) (string, bool), preCollected []models.MathExpression) (string, []string, map[string]string) {
-	if len(preCollected) == 0 {
-		return html, nil, nil
+func RenderMathForHTML(opts RenderMathOptions) (string, []string, map[string]string) {
+	if opts.Ctx == nil {
+		opts.Ctx = context.Background()
+	}
+	if opts.Renderer == nil {
+		panic("RenderMathForHTML: Renderer is nil")
+	}
+	if len(opts.PreCollected) == 0 {
+		return opts.HTML, nil, nil
 	}
 
-	hashes := make([]string, len(preCollected))
-	for i, expr := range preCollected {
+	hashes := make([]string, len(opts.PreCollected))
+	for i, expr := range opts.PreCollected {
 		hashes[i] = expr.Hash
 	}
 
-	cachedSubset := make(map[string]string, len(preCollected))
-	if cacheLookup != nil {
-		for _, expr := range preCollected {
-			if v, ok := cacheLookup(expr.Hash); ok {
+	cachedSubset := make(map[string]string, len(opts.PreCollected))
+	if opts.CacheLookup != nil {
+		for _, expr := range opts.PreCollected {
+			if v, ok := opts.CacheLookup(expr.Hash); ok {
 				cachedSubset[expr.Hash] = v
 			}
 		}
 	}
 
-	rendered, err := renderer.RenderAllMath(ctx, preCollected, cachedSubset)
+	rendered, err := opts.Renderer.RenderAllMath(opts.Ctx, opts.PreCollected, cachedSubset)
 	if err != nil {
 		slog.Warn("LaTeX batch render failed", "error", err)
 	}
@@ -71,7 +90,7 @@ func RenderMathForHTML(ctx context.Context, html string, renderer *native.Render
 		}
 	}
 
-	return ReplaceMathExpressions(html, preCollected, rendered), hashes, newEntries
+	return ReplaceMathExpressions(opts.HTML, opts.PreCollected, rendered), hashes, newEntries
 }
 
 // GetMathExpressions retrieves math from context

@@ -75,35 +75,73 @@ func FireAndForgetWithResult(ctx context.Context, logger *slog.Logger, operation
 	return errCh
 }
 
+// FireAndForgetCallbackOptions configures FireAndForgetWithCallback.
+type FireAndForgetCallbackOptions struct {
+	// Required
+	Ctx       context.Context
+	Logger    *slog.Logger
+	Operation string
+	Fn        func() error
+
+	// Optional
+	OnError func(error)
+}
+
 // FireAndForgetWithCallback runs a function in a goroutine with error callback.
 // The onError callback is invoked if the operation fails, allowing callers to
 // track failures, increment metrics, or trigger alerts.
 //
 // Example:
 //
-//	FireAndForgetWithCallback(ctx, logger, "cache commit",
-//	    func() error { return cache.BatchCommit(...) },
-//	    func(err error) { metrics.Increment("cache_failures") })
-func FireAndForgetWithCallback(ctx context.Context, logger *slog.Logger, operation string, fn func() error, onError func(error)) {
+//	FireAndForgetWithCallback(FireAndForgetCallbackOptions{
+//	    Ctx:       ctx,
+//	    Logger:    logger,
+//	    Operation: "cache commit",
+//	    Fn:        func() error { return cache.BatchCommit(...) },
+//	    OnError:   func(err error) { metrics.Increment("cache_failures") },
+//	})
+func FireAndForgetWithCallback(opts FireAndForgetCallbackOptions) {
+	if opts.Ctx == nil {
+		opts.Ctx = context.Background()
+	}
+	if opts.Logger == nil {
+		opts.Logger = slog.Default()
+	}
+	if opts.Fn == nil {
+		panic("FireAndForgetWithCallback: Fn is nil")
+	}
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logger.Error("Panic in background goroutine",
-					"operation", operation,
+				opts.Logger.Error("Panic in background goroutine",
+					"operation", opts.Operation,
 					"panic", r,
 					"stack", string(debug.Stack()))
 			}
 		}()
 
-		if err := fn(); err != nil {
-			logger.Error("Background operation failed",
-				"operation", operation,
+		if err := opts.Fn(); err != nil {
+			opts.Logger.Error("Background operation failed",
+				"operation", opts.Operation,
 				"error", err)
-			if onError != nil {
-				onError(err)
+			if opts.OnError != nil {
+				opts.OnError(err)
 			}
 		}
 	}()
+}
+
+// FireAndForgetMetricsOptions configures FireAndForgetWithMetrics.
+type FireAndForgetMetricsOptions struct {
+	// Required
+	Ctx       context.Context
+	Logger    *slog.Logger
+	Operation string
+	Fn        func() error
+
+	// Optional
+	TrackFailure func()
 }
 
 // FireAndForgetWithMetrics runs a function in a goroutine with metrics tracking.
@@ -112,29 +150,55 @@ func FireAndForgetWithCallback(ctx context.Context, logger *slog.Logger, operati
 //
 // Example:
 //
-//	FireAndForgetWithMetrics(ctx, logger, "cache_commit",
-//	    func() error { return cache.BatchCommit(...) },
-//	    func() { metrics.Increment("background_cache_failures") })
-func FireAndForgetWithMetrics(ctx context.Context, logger *slog.Logger, operation string, fn func() error, trackFailure func()) {
+//	FireAndForgetWithMetrics(FireAndForgetMetricsOptions{
+//	    Ctx:          ctx,
+//	    Logger:       logger,
+//	    Operation:    "cache_commit",
+//	    Fn:           func() error { return cache.BatchCommit(...) },
+//	    TrackFailure: func() { metrics.Increment("background_cache_failures") },
+//	})
+func FireAndForgetWithMetrics(opts FireAndForgetMetricsOptions) {
+	if opts.Ctx == nil {
+		opts.Ctx = context.Background()
+	}
+	if opts.Logger == nil {
+		opts.Logger = slog.Default()
+	}
+	if opts.Fn == nil {
+		panic("FireAndForgetWithMetrics: Fn is nil")
+	}
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logger.Error("Panic in background goroutine",
-					"operation", operation,
+				opts.Logger.Error("Panic in background goroutine",
+					"operation", opts.Operation,
 					"panic", r,
 					"stack", string(debug.Stack()))
 			}
 		}()
 
-		if err := fn(); err != nil {
-			logger.Error("Background operation failed",
-				"operation", operation,
+		if err := opts.Fn(); err != nil {
+			opts.Logger.Error("Background operation failed",
+				"operation", opts.Operation,
 				"error", err)
-			if trackFailure != nil {
-				trackFailure()
+			if opts.TrackFailure != nil {
+				opts.TrackFailure()
 			}
 		}
 	}()
+}
+
+// FireAndForgetCleanupOptions configures FireAndForgetWithCleanup.
+type FireAndForgetCleanupOptions struct {
+	// Required
+	Ctx       context.Context
+	Logger    *slog.Logger
+	Operation string
+	Fn        func() error
+
+	// Optional
+	Cleanup func()
 }
 
 // FireAndForgetWithCleanup runs a function in a goroutine with cleanup callback.
@@ -142,31 +206,45 @@ func FireAndForgetWithMetrics(ctx context.Context, logger *slog.Logger, operatio
 //
 // Example:
 //
-//	FireAndForgetWithCleanup(ctx, logger, "social card",
-//	    func() error { return generateCard() },
-//	    func() { cleanupResources() })
-func FireAndForgetWithCleanup(ctx context.Context, logger *slog.Logger, operation string, fn func() error, cleanup func()) {
+//	FireAndForgetWithCleanup(FireAndForgetCleanupOptions{
+//	    Ctx:       ctx,
+//	    Logger:    logger,
+//	    Operation: "social card",
+//	    Fn:        func() error { return generateCard() },
+//	    Cleanup:   func() { cleanupResources() },
+//	})
+func FireAndForgetWithCleanup(opts FireAndForgetCleanupOptions) {
+	if opts.Ctx == nil {
+		opts.Ctx = context.Background()
+	}
+	if opts.Logger == nil {
+		opts.Logger = slog.Default()
+	}
+	if opts.Fn == nil {
+		panic("FireAndForgetWithCleanup: Fn is nil")
+	}
+
 	go func() {
 		// Cleanup is always called, even on panic (registered first, runs last)
 		defer func() {
-			if cleanup != nil {
-				cleanup()
+			if opts.Cleanup != nil {
+				opts.Cleanup()
 			}
 		}()
 
 		// Panic recovery (registered second, runs before cleanup)
 		defer func() {
 			if r := recover(); r != nil {
-				logger.Error("Panic in background goroutine",
-					"operation", operation,
+				opts.Logger.Error("Panic in background goroutine",
+					"operation", opts.Operation,
 					"panic", r,
 					"stack", string(debug.Stack()))
 			}
 		}()
 
-		if err := fn(); err != nil {
-			logger.Error("Background operation failed",
-				"operation", operation,
+		if err := opts.Fn(); err != nil {
+			opts.Logger.Error("Background operation failed",
+				"operation", opts.Operation,
 				"error", err)
 		}
 	}()

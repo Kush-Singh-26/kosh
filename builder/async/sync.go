@@ -56,9 +56,11 @@ func getFileContentCache() (*lru.Cache[string, []byte], error) {
 }
 
 const (
+	// WriteBufferSize is the default buffer size used for file writes.
 	WriteBufferSize = 64 * 1024 // 64KB buffer for writes
 )
 
+// ClearSyncCache clears the VFS sync caches.
 func ClearSyncCache() {
 	cache, err := getFileContentCache()
 	if err == nil && cache != nil {
@@ -75,6 +77,7 @@ type syncTask struct {
 	destPath string // Path on OS disk (Physical)
 }
 
+// SyncOptions configures SyncVFS.
 type SyncOptions struct {
 	Ctx          context.Context
 	SrcFs        afero.Fs
@@ -83,6 +86,7 @@ type SyncOptions struct {
 	IsCleanBuild bool
 }
 
+// SyncVFS syncs a VFS to disk with transactional safety.
 func SyncVFS(opts SyncOptions) error {
 	ctx := opts.Ctx
 	srcFs := opts.SrcFs
@@ -191,6 +195,7 @@ func SyncVFS(opts SyncOptions) error {
 	return nil
 }
 
+// SyncFileOptions configures a single-file sync operation.
 type SyncFileOptions struct {
 	Ctx          context.Context
 	SrcFs        afero.Fs

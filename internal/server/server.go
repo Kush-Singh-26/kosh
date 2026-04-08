@@ -35,11 +35,13 @@ type statusWriter struct {
 	status int
 }
 
+// WriteHeader records the status and delegates to the underlying writer.
 func (w *statusWriter) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
 }
 
+// Flush forwards the flush to the underlying writer when supported.
 func (w *statusWriter) Flush() {
 	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
@@ -59,6 +61,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// ServerOptions configures the development server.
 type ServerOptions struct {
 	Ctx         context.Context
 	Args        []string
@@ -68,6 +71,7 @@ type ServerOptions struct {
 	Reporter    ui.Reporter
 }
 
+// Run starts the development HTTP server.
 func Run(opts ServerOptions) {
 	ctx := opts.Ctx
 	args := opts.Args
@@ -135,9 +139,14 @@ func Run(opts ServerOptions) {
 			return
 		}
 
-		handleFileRequest(w, r, staticDir, fullPath, normalizedPath)
+		handleFileRequest(fileRequestOptions{
+			writer:         w,
+			request:        r,
+			staticDir:      staticDir,
+			fullPath:       fullPath,
+			normalizedPath: normalizedPath,
+		})
 	})
-
 
 	if reloadEvents != nil {
 		go broadcastReload(reloadEvents)
@@ -194,39 +203,61 @@ func waitForBuildCompletion(w http.ResponseWriter, r *http.Request) bool {
 	}
 }
 
-func handleFileRequest(w http.ResponseWriter, r *http.Request, staticDir, fullPath, normalizedPath string) {
-	acceptEncoding := r.Header.Get("Accept-Encoding")
-	ext := strings.ToLower(filepath.Ext(normalizedPath))
+type fileRequestOptions struct {
+	writer         http.ResponseWriter
+	request        *http.Request
+	staticDir      string
+	fullPath       string
+	normalizedPath string
+}
+
+type responseHeaderOptions struct {
+	writer         http.ResponseWriter
+	fullPath       string
+	normalizedPath string
+	fileInfo       os.FileInfo
+	preCompressed  bool
+}
+
+func handleFileRequest(opts fileRequestOptions) {
+	acceptEncoding := opts.request.Header.Get("Accept-Encoding")
+	ext := strings.ToLower(filepath.Ext(opts.normalizedPath))
 	preCompressed := false
 
 	if ext != ".wasm" && ext != ".bin" && strings.Contains(acceptEncoding, "br") {
-		if _, err := os.Stat(fullPath + ".br"); err == nil {
-			fullPath += ".br"
+		if _, err := os.Stat(opts.fullPath + ".br"); err == nil {
+			opts.fullPath += ".br"
 			preCompressed = true
 		}
 	}
 
 	serve := func(w http.ResponseWriter, r *http.Request) {
-		fileInfo, err := os.Stat(fullPath)
+		fileInfo, err := os.Stat(opts.fullPath)
 		if err != nil {
-			handleFileError(w, staticDir, err)
+			handleFileError(w, opts.staticDir, err)
 			return
 		}
 
 		if fileInfo.IsDir() {
-			if handleDirectory(w, r, fullPath) {
+			if handleDirectory(w, r, opts.fullPath) {
 				return
 			}
 		}
 
-		setResponseHeaders(w, fullPath, normalizedPath, fileInfo, preCompressed)
-		http.ServeFile(w, r, fullPath)
+		setResponseHeaders(responseHeaderOptions{
+			writer:         w,
+			fullPath:       opts.fullPath,
+			normalizedPath: opts.normalizedPath,
+			fileInfo:       fileInfo,
+			preCompressed:  preCompressed,
+		})
+		http.ServeFile(w, r, opts.fullPath)
 	}
 
 	if preCompressed {
-		serve(w, r)
+		serve(opts.writer, opts.request)
 	} else {
-		compressionHandler(serve)(w, r)
+		compressionHandler(serve)(opts.writer, opts.request)
 	}
 }
 
@@ -258,34 +289,34 @@ func handleDirectory(w http.ResponseWriter, r *http.Request, fullPath string) bo
 	return false
 }
 
-func setResponseHeaders(w http.ResponseWriter, fullPath, normalizedPath string, fileInfo os.FileInfo, preCompressed bool) {
-	filename := filepath.Base(normalizedPath)
+func setResponseHeaders(opts responseHeaderOptions) {
+	filename := filepath.Base(opts.normalizedPath)
 
 	// Set Cache-Control
 	if isHashedAsset(filename) {
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-	} else if fileInfo.IsDir() || strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".wasm") || strings.HasSuffix(filename, ".bin") {
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("Expires", "0")
+		opts.writer.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else if opts.fileInfo.IsDir() || strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".wasm") || strings.HasSuffix(filename, ".bin") {
+		opts.writer.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+		opts.writer.Header().Set("Pragma", "no-cache")
+		opts.writer.Header().Set("Expires", "0")
 	} else {
-		w.Header().Set("Cache-Control", "public, max-age=60")
+		opts.writer.Header().Set("Cache-Control", "public, max-age=60")
 	}
 
-	if preCompressed {
-		w.Header().Set("Content-Encoding", "br")
-		w.Header().Set("Vary", "Accept-Encoding")
-		originalExt := strings.ToLower(filepath.Ext(normalizedPath))
+	if opts.preCompressed {
+		opts.writer.Header().Set("Content-Encoding", "br")
+		opts.writer.Header().Set("Vary", "Accept-Encoding")
+		originalExt := strings.ToLower(filepath.Ext(opts.normalizedPath))
 		if contentType := mime.TypeByExtension(originalExt); contentType != "" {
-			w.Header().Set("Content-Type", contentType)
+			opts.writer.Header().Set("Content-Type", contentType)
 		}
 	} else {
-		ext := strings.ToLower(filepath.Ext(fullPath))
+		ext := strings.ToLower(filepath.Ext(opts.fullPath))
 		switch ext {
 		case ".css":
-			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+			opts.writer.Header().Set("Content-Type", "text/css; charset=utf-8")
 		case ".js":
-			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+			opts.writer.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		}
 	}
 }

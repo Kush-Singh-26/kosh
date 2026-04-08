@@ -1,0 +1,102 @@
+package post
+
+import (
+	"context"
+	"sync/atomic"
+
+	"github.com/Kush-Singh-26/kosh/builder/async"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+)
+
+type renderTask struct {
+	parseRes    *ParsedMarkdownResult
+	f           models.ScannedFile
+	htmlContent string
+	destPath    string
+	relPath     string
+	htmlRelPath string
+	source      []byte
+}
+
+type searchTask struct {
+	record    models.PostRecord
+	plainText string
+	indexed   *models.IndexedPost
+	cached    *models.SearchRecord
+}
+
+// workerLocalState accumulates results within a single parse worker,
+// eliminating contention on the shared postProcessContext.
+type workerLocalState struct {
+	allPosts      []models.PostMetadata
+	pinnedPosts   []models.PostMetadata
+	tagEntries    []tagEntry
+	indexedPosts  []models.IndexedPost
+	searchTasks   []deferredSearchTask
+	newPostsMeta  []*models.PostMeta
+	newSearchRecs map[string]*models.SearchRecord
+	newDeps       map[string]*models.Dependencies
+	anyChanged    bool
+	errs          []error
+}
+
+type tagEntry struct {
+	tag  string
+	post models.PostMetadata
+}
+
+type deferredSearchTask struct {
+	record    models.PostRecord
+	plainText string
+	localIdx  int // index into this worker's indexedPosts
+	cached    *models.SearchRecord
+}
+
+// WorkerContext holds shared dependencies and configuration for streaming workers.
+type WorkerContext struct {
+	Ctx                context.Context
+	PC                 *postProcessContext
+	CardPool           *async.WorkerPool[socialCardTask]
+	SearchPool         *async.WorkerPool[searchTask]
+	RenderChan         chan<- renderTask
+	ShouldForce        bool
+	ForceSocialRebuild bool
+}
+
+type postProcessContext struct {
+	allPosts         []models.PostMetadata
+	pinnedPosts      []models.PostMetadata
+	tagMap           map[string][]models.PostMetadata
+	anyPostChanged   atomic.Bool
+	newPostsMeta     []*models.PostMeta
+	newSearchRecords map[string]*models.SearchRecord
+	newDeps          map[string]*models.Dependencies
+	indexedPosts     []models.IndexedPost
+	errs             []error
+}
+
+// AggregateContext bundles inputs needed to aggregate a single post result.
+type AggregateContext struct {
+	Ctx         context.Context
+	Res         *ParsedMarkdownResult
+	Post        models.PostMetadata
+	HtmlContent string
+	DestPath    string
+	RelPath     string
+	HtmlRelPath string
+	SSRHashes   []string
+	UseCache    bool
+	WCtx        WorkerContext
+	Local       *workerLocalState
+	SourceBytes []byte
+	ScannedFile models.ScannedFile
+}
+
+// SocialCardOptions configures social card generation for a post.
+type SocialCardOptions struct {
+	RelPath            string
+	Result             *ParsedMarkdownResult
+	HtmlRelPath        string
+	ForceSocialRebuild bool
+	CardPool           *async.WorkerPool[socialCardTask]
+}

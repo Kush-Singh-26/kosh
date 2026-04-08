@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ErrEmptyData indicates empty input for frontmatter parsing.
 var ErrEmptyData = errors.New("empty data")
 
 // GetFrontmatterHash computes the canonical frontmatter hash from the raw metadata map.
@@ -85,6 +86,7 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
+// FrontmatterHashOptions provides parsed frontmatter values for hashing.
 type FrontmatterHashOptions struct {
 	Title       string
 	Description string
@@ -139,6 +141,7 @@ func GetFrontmatterHashFromValues(opts FrontmatterHashOptions) string {
 	return hex.EncodeToString(b[:])
 }
 
+// HashStandardFieldsOptions configures hashing of standard frontmatter fields.
 type HashStandardFieldsOptions struct {
 	Hasher      *xxh3.Hasher
 	Title       string
@@ -203,13 +206,14 @@ func writeStringXXH3(h *xxh3.Hasher, s string) {
 // YAMLDelim is the YAML frontmatter delimiter
 var YAMLDelim = []byte("---")
 
+// HashBytes returns a stable hash for the provided bytes.
 func HashBytes(data []byte) string {
 	hash := xxh3.Hash128(data)
 	b := hash.Bytes()
 	return hex.EncodeToString(b[:])
 }
 
-// GetBodyHash extracts the body content (after frontmatter) and returns its XXH3 hash
+// GetBodyHash extracts the body content (after frontmatter) and returns its XXH3 hash.
 // This is CRITICAL for cache validity - body changes without frontmatter changes
 // would otherwise be silently ignored
 func GetBodyHash(source []byte) string {
@@ -245,6 +249,7 @@ func GetFrontmatterHashFromSource(source []byte, fallbackTitle string) (string, 
 	return GetFrontmatterHash(metadata)
 }
 
+// ParseFrontmatter parses YAML frontmatter into a map.
 func ParseFrontmatter(data []byte) (map[string]any, error) {
 	if len(data) == 0 {
 		return nil, ErrEmptyData

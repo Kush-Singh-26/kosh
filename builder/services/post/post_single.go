@@ -20,6 +20,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
+// ProcessSingle processes and renders a single markdown file.
 func (s *postService) ProcessSingle(ctx context.Context, path string, source []byte) error {
 	return s.ProcessSingleWithResult(ctx, path, source, nil)
 }
@@ -100,6 +101,7 @@ func (s *postService) renderMathSSR(ctx context.Context, html string, exprs []mo
 	return mdParser.ReplaceMathExpressions(html, exprs, rendered)
 }
 
+// ProcessSingleWithResult processes and renders a single markdown file using an optional pre-parse result.
 func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, source []byte, preParsed *ParsedMarkdownResult) error {
 	info, err := s.sourceFs.Stat(path)
 	if err != nil {
@@ -162,7 +164,13 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 	}
 
 	if s.cache != nil {
-		s.commitPostCache(parseRes, post, relPath, info, htmlContent)
+		s.commitPostCache(commitPostCacheOptions{
+			parseRes:    parseRes,
+			post:        post,
+			relPath:     relPath,
+			info:        info,
+			htmlContent: htmlContent,
+		})
 		s.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
 	}
 
@@ -177,52 +185,70 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 	})
 }
 
-func (s *postService) commitPostCache(parseRes *ParsedMarkdownResult, post models.PostMetadata, relPath string, info os.FileInfo, htmlContent string) {
-	postID := cache.GeneratePostID("", relPath)
-	cacheTOC := make([]models.TOCEntry, len(parseRes.TOC))
-	for i, t := range parseRes.TOC {
+type commitPostCacheOptions struct {
+	parseRes    *ParsedMarkdownResult
+	post        models.PostMetadata
+	relPath     string
+	info        os.FileInfo
+	htmlContent string
+}
+
+func (s *postService) commitPostCache(opts commitPostCacheOptions) {
+	if opts.parseRes == nil {
+		panic("commitPostCache: parseRes is nil")
+	}
+	if opts.info == nil {
+		panic("commitPostCache: info is nil")
+	}
+	if opts.relPath == "" {
+		panic("commitPostCache: relPath is empty")
+	}
+
+	postID := cache.GeneratePostID("", opts.relPath)
+	cacheTOC := make([]models.TOCEntry, len(opts.parseRes.TOC))
+	for i, t := range opts.parseRes.TOC {
 		cacheTOC[i] = models.TOCEntry{ID: t.ID, Text: t.Text, Level: t.Level}
 	}
 
 	newMeta := &cache.PostMeta{
-		PostID: postID, Path: relPath, ModTime: info.ModTime().Unix(),
-		ContentHash: parseRes.FrontmatterHash, BodyHash: hashing.GetBodyHash(nil),
-		Title: post.Title, Date: post.DateObj, Tags: post.Tags,
-		ReadingTime: post.ReadingTime, Description: post.Description,
-		Link: post.Link, Pinned: post.Pinned, Weight: post.Weight,
-		Draft: post.Draft, Meta: parseRes.Metadata, TOC: cacheTOC,
-		SSRInputHashes: parseRes.SSRHashes,
-		CardHash:       parseRes.FrontmatterHash,
-		HasImages:      parseRes.HasImages,
+		PostID: postID, Path: opts.relPath, ModTime: opts.info.ModTime().Unix(),
+		ContentHash: opts.parseRes.FrontmatterHash, BodyHash: hashing.GetBodyHash(nil),
+		Title: opts.post.Title, Date: opts.post.DateObj, Tags: opts.post.Tags,
+		ReadingTime: opts.post.ReadingTime, Description: opts.post.Description,
+		Link: opts.post.Link, Pinned: opts.post.Pinned, Weight: opts.post.Weight,
+		Draft: opts.post.Draft, Meta: opts.parseRes.Metadata, TOC: cacheTOC,
+		SSRInputHashes: opts.parseRes.SSRHashes,
+		CardHash:       opts.parseRes.FrontmatterHash,
+		HasImages:      opts.parseRes.HasImages,
 	}
-	if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
-		s.logger.Error("Failed to store HTML in cache", "path", relPath, "error", err)
+	if err := s.cache.StoreHTMLForPost(newMeta, []byte(opts.htmlContent)); err != nil {
+		s.logger.Error("Failed to store HTML in cache", "path", opts.relPath, "error", err)
 	}
 
-	normalizedTags := make([]string, len(post.Tags))
-	for i, t := range post.Tags {
+	normalizedTags := make([]string, len(opts.post.Tags))
+	for i, t := range opts.post.Tags {
 		normalizedTags[i] = strings.ToLower(t)
 	}
 
 	newSearch := &cache.SearchRecord{
-		Title:           post.Title,
-		NormalizedTitle: strings.ToLower(post.Title),
-		BM25Data:        parseRes.WordFreqs,
-		DocLen:          parseRes.DocLen,
-		Content:         parseRes.PlainText,
+		Title:           opts.post.Title,
+		NormalizedTitle: strings.ToLower(opts.post.Title),
+		BM25Data:        opts.parseRes.WordFreqs,
+		DocLen:          opts.parseRes.DocLen,
+		Content:         opts.parseRes.PlainText,
 		NormalizedTags:  normalizedTags,
-		StemMap:         parseRes.StemMap,
-		PositionalIndex: parseRes.PositionalIndex,
-		ByteOffsets:     parseRes.ByteOffsets,
+		StemMap:         opts.parseRes.StemMap,
+		PositionalIndex: opts.parseRes.PositionalIndex,
+		ByteOffsets:     opts.parseRes.ByteOffsets,
 	}
-	newDep := &models.Dependencies{Tags: post.Tags}
+	newDep := &models.Dependencies{Tags: opts.post.Tags}
 
 	s.cacheWg.Add(1)
 	go func() {
 		defer s.cacheWg.Done()
 		timer := timeutil.StartPhase("Cache commit (incremental)")
 		if err := s.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*models.Dependencies{postID: newDep}); err != nil {
-			s.logger.Error("Failed to commit post to cache", "path", relPath, "error", err)
+			s.logger.Error("Failed to commit post to cache", "path", opts.relPath, "error", err)
 		}
 		timer.Stop()
 	}()

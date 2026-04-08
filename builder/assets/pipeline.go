@@ -11,9 +11,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/spf13/afero"
+
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/spf13/afero"
 )
 
 type fileTask struct {
@@ -32,6 +33,7 @@ var (
 	}
 )
 
+// CopyOptions controls how assets are copied and processed.
 type CopyOptions struct {
 	Compress     bool
 	MinifySVGs   bool
@@ -45,9 +47,40 @@ type CopyOptions struct {
 	Scheduler    scheduler.BuildScheduler
 }
 
-func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink fspkg.ArtifactSink, srcDir, dstDir string, opts CopyOptions) error {
-	srcDir = fspkg.NormalizePath(srcDir)
-	dstDir = fspkg.NormalizePath(dstDir)
+// CopyDirOptions configures CopyDirVFS.
+type CopyDirOptions struct {
+	// Required
+	SrcFs  afero.Fs
+	Sink   fspkg.ArtifactSink
+	SrcDir string
+	DstDir string
+
+	// Optional
+	CopyOptions
+}
+
+// CopyDirVFS copies assets from a source VFS into the artifact sink.
+func CopyDirVFS(ctx context.Context, opts CopyDirOptions) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if opts.SrcFs == nil {
+		return fmt.Errorf("CopyDirVFS: SrcFs is nil")
+	}
+	if opts.Sink == nil {
+		return fmt.Errorf("CopyDirVFS: Sink is nil")
+	}
+	if opts.SrcDir == "" {
+		return fmt.Errorf("CopyDirVFS: SrcDir is empty")
+	}
+	if opts.DstDir == "" {
+		return fmt.Errorf("CopyDirVFS: DstDir is empty")
+	}
+
+	srcFs := opts.SrcFs
+	sink := opts.Sink
+	srcDir := fspkg.NormalizePath(opts.SrcDir)
+	dstDir := fspkg.NormalizePath(opts.DstDir)
 	if err := sink.MkdirAll(dstDir); err != nil {
 		return fmt.Errorf("failed to create destination directory %s: %w", dstDir, err)
 	}
@@ -168,49 +201,49 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink fspkg.ArtifactSink, sr
 				return nil
 			}
 
-		relPath, _ := fspkg.SafeRel(srcDir, path)
-		ext := strings.ToLower(filepath.Ext(path))
-		baseName := filepath.Base(path)
-		if baseName == "search.wasm" {
-			return nil
-		}
-		isExcluded := false
-		if baseName != "wasm_engine.js" && baseName != "engine.js" && baseName != "force-graph.js" && baseName != "wasm_exec.js" {
-			if slices.Contains(opts.ExcludeExts, ext) {
-				isExcluded = true
+			relPath, _ := fspkg.SafeRel(srcDir, path)
+			ext := strings.ToLower(filepath.Ext(path))
+			baseName := filepath.Base(path)
+			if baseName == "search.wasm" {
+				return nil
 			}
-		}
-		if isExcluded {
-			return nil
-		}
+			isExcluded := false
+			if baseName != "wasm_engine.js" && baseName != "engine.js" && baseName != "force-graph.js" && baseName != "wasm_exec.js" {
+				if slices.Contains(opts.ExcludeExts, ext) {
+					isExcluded = true
+				}
+			}
+			if isExcluded {
+				return nil
+			}
 
-		isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
-		finalRelPath := relPath
-		if opts.Compress && isImage {
-			finalRelPath = relPath[:len(relPath)-len(ext)] + ".webp"
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case imageQueue <- fileTask{
-				path:            path,
-				relPath:         finalRelPath,
-				originalRelPath: relPath,
-				info:            info,
-			}:
+			isImage := (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
+			finalRelPath := relPath
+			if opts.Compress && isImage {
+				finalRelPath = relPath[:len(relPath)-len(ext)] + ".webp"
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case imageQueue <- fileTask{
+					path:            path,
+					relPath:         finalRelPath,
+					originalRelPath: relPath,
+					info:            info,
+				}:
+				}
+			} else {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case nonImageQueue <- fileTask{
+					path:            path,
+					relPath:         finalRelPath,
+					originalRelPath: "",
+					info:            info,
+				}:
+				}
 			}
-		} else {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case nonImageQueue <- fileTask{
-				path:            path,
-				relPath:         finalRelPath,
-				originalRelPath: "",
-				info:            info,
-			}:
-			}
-		}
-		return nil
+			return nil
 		},
 	})
 

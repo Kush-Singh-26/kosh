@@ -51,6 +51,7 @@ func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, sourceFs afero.Fs) {
 	m.deps.SourceFs = sourceFs
 }
 
+// ReconfigureWithLogger updates the manager logger for the current build pass.
 func (m *Manager) ReconfigureWithLogger(l *slog.Logger) {
 	m.deps.Logger = l
 }

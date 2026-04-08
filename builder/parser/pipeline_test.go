@@ -191,7 +191,13 @@ func TestRenderMathForHTML(t *testing.T) {
 		return v, ok
 	}
 
-	out, hashes, newEntries := RenderMathForHTML(ctx, html, r, lookup, exprs)
+	out, hashes, newEntries := RenderMathForHTML(RenderMathOptions{
+		Ctx:          ctx,
+		HTML:         html,
+		Renderer:     r,
+		CacheLookup:  lookup,
+		PreCollected: exprs,
+	})
 	if len(hashes) != 1 || len(newEntries) != 1 {
 		t.Errorf("RenderMathForHTML failed: hashes=%v, newEntries=%v", hashes, newEntries)
 	}

@@ -121,20 +121,24 @@ func TestFireAndForgetWithCleanup_Success(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	FireAndForgetWithCleanup(ctx, logger, "test success",
-		func() error {
+	FireAndForgetWithCleanup(FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test success",
+		Fn: func() error {
 			mu.Lock()
 			executed = true
 			mu.Unlock()
 			wg.Done()
 			return nil
 		},
-		func() {
+		Cleanup: func() {
 			mu.Lock()
 			cleaned = true
 			mu.Unlock()
 			wg.Done()
-		})
+		},
+	})
 
 	// Wait for goroutine to complete including cleanup
 	wg.Wait()
@@ -162,20 +166,24 @@ func TestFireAndForgetWithCleanup_Error(t *testing.T) {
 
 	expectedErr := errors.New("test error")
 
-	FireAndForgetWithCleanup(ctx, logger, "test error",
-		func() error {
+	FireAndForgetWithCleanup(FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test error",
+		Fn: func() error {
 			mu.Lock()
 			executed = true
 			mu.Unlock()
 			wg.Done()
 			return expectedErr
 		},
-		func() {
+		Cleanup: func() {
 			mu.Lock()
 			cleaned = true
 			mu.Unlock()
 			wg.Done()
-		})
+		},
+	})
 
 	// Wait for goroutine to complete
 	wg.Wait()
@@ -200,17 +208,21 @@ func TestFireAndForgetWithCleanup_Panic(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	FireAndForgetWithCleanup(ctx, logger, "test panic",
-		func() error {
+	FireAndForgetWithCleanup(FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test panic",
+		Fn: func() error {
 			defer wg.Done()
 			panic("test panic")
 		},
-		func() {
+		Cleanup: func() {
 			mu.Lock()
 			cleaned = true
 			mu.Unlock()
 			wg.Done()
-		})
+		},
+	})
 
 	// Wait for goroutine to complete
 	wg.Wait()
@@ -232,13 +244,17 @@ func TestFireAndForgetWithCleanup_NilCleanup(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	FireAndForgetWithCleanup(ctx, logger, "test nil cleanup",
-		func() error {
+	FireAndForgetWithCleanup(FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test nil cleanup",
+		Fn: func() error {
 			executed = true
 			wg.Done()
 			return nil
 		},
-		nil) // nil cleanup
+		Cleanup: nil, // nil cleanup
+	})
 
 	// Wait for goroutine to complete
 	wg.Wait()
@@ -258,17 +274,21 @@ func TestFireAndForgetWithCleanup_CleanupRunsAfterPanic(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	FireAndForgetWithCleanup(ctx, logger, "test cleanup order",
-		func() error {
+	FireAndForgetWithCleanup(FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test cleanup order",
+		Fn: func() error {
 			defer wg.Done()
 			panic("intentional panic")
 		},
-		func() {
+		Cleanup: func() {
 			mu.Lock()
 			cleanupCalled = true
 			mu.Unlock()
 			wg.Done()
-		})
+		},
+	})
 
 	// Wait for goroutine to complete
 	wg.Wait()
@@ -323,20 +343,24 @@ func TestFireAndForgetWithCleanup_MultipleGoroutines(t *testing.T) {
 	wg.Add(numGoroutines * 2)
 
 	for i := 0; i < numGoroutines; i++ {
-		FireAndForgetWithCleanup(ctx, logger, "test concurrent",
-			func() error {
+		FireAndForgetWithCleanup(FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    logger,
+			Operation: "test concurrent",
+			Fn: func() error {
 				mu.Lock()
 				execCount++
 				mu.Unlock()
 				wg.Done()
 				return nil
 			},
-			func() {
+			Cleanup: func() {
 				mu.Lock()
 				cleanupCount++
 				mu.Unlock()
 				wg.Done()
-			})
+			},
+		})
 	}
 
 	// Wait for all goroutines to complete
@@ -411,11 +435,17 @@ func TestFireAndForgetWithCallback_Success(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	FireAndForgetWithCallback(ctx, logger, "test success", func() error {
-		executed = true
-		wg.Done()
-		return nil
-	}, nil)
+	FireAndForgetWithCallback(FireAndForgetCallbackOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test success",
+		Fn: func() error {
+			executed = true
+			wg.Done()
+			return nil
+		},
+		OnError: nil,
+	})
 
 	wg.Wait()
 
@@ -437,15 +467,21 @@ func TestFireAndForgetWithCallback_Error(t *testing.T) {
 
 	expectedErr := errors.New("test error")
 
-	FireAndForgetWithCallback(ctx, logger, "test error", func() error {
-		wg.Done()
-		return expectedErr
-	}, func(err error) {
-		mu.Lock()
-		callbackCalled = true
-		callbackErr = err
-		mu.Unlock()
-		wg.Done()
+	FireAndForgetWithCallback(FireAndForgetCallbackOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test error",
+		Fn: func() error {
+			wg.Done()
+			return expectedErr
+		},
+		OnError: func(err error) {
+			mu.Lock()
+			callbackCalled = true
+			callbackErr = err
+			mu.Unlock()
+			wg.Done()
+		},
 	})
 
 	wg.Wait()
@@ -471,10 +507,16 @@ func TestFireAndForgetWithCallback_NilCallback(t *testing.T) {
 	expectedErr := errors.New("test error")
 
 	// Should not panic with nil callback
-	FireAndForgetWithCallback(ctx, logger, "test nil callback", func() error {
-		defer wg.Done()
-		return expectedErr
-	}, nil)
+	FireAndForgetWithCallback(FireAndForgetCallbackOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test nil callback",
+		Fn: func() error {
+			defer wg.Done()
+			return expectedErr
+		},
+		OnError: nil,
+	})
 
 	wg.Wait()
 	// If we reach here, it worked correctly with nil callback
@@ -489,12 +531,18 @@ func TestFireAndForgetWithCallback_Panic(t *testing.T) {
 	wg.Add(1)
 	var callbackCalled bool
 
-	FireAndForgetWithCallback(ctx, logger, "test panic", func() error {
-		defer wg.Done()
-		panic("test panic")
-	}, func(err error) {
-		// Should not be called on panic
-		callbackCalled = true
+	FireAndForgetWithCallback(FireAndForgetCallbackOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test panic",
+		Fn: func() error {
+			defer wg.Done()
+			panic("test panic")
+		},
+		OnError: func(err error) {
+			// Should not be called on panic
+			callbackCalled = true
+		},
 	})
 
 	wg.Wait()
@@ -516,17 +564,23 @@ func TestFireAndForgetWithCallback_CallbackRunsAfterError(t *testing.T) {
 
 	expectedErr := errors.New("test error")
 
-	FireAndForgetWithCallback(ctx, logger, "test order", func() error {
-		mu.Lock()
-		executionOrder = append(executionOrder, "fn")
-		mu.Unlock()
-		wg.Done()
-		return expectedErr
-	}, func(err error) {
-		mu.Lock()
-		executionOrder = append(executionOrder, "callback")
-		mu.Unlock()
-		wg.Done()
+	FireAndForgetWithCallback(FireAndForgetCallbackOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test order",
+		Fn: func() error {
+			mu.Lock()
+			executionOrder = append(executionOrder, "fn")
+			mu.Unlock()
+			wg.Done()
+			return expectedErr
+		},
+		OnError: func(err error) {
+			mu.Lock()
+			executionOrder = append(executionOrder, "callback")
+			mu.Unlock()
+			wg.Done()
+		},
 	})
 
 	wg.Wait()
@@ -630,14 +684,18 @@ func TestFireAndForgetWithMetrics_Success(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	FireAndForgetWithMetrics(ctx, logger, "test metrics",
-		func() error {
+	FireAndForgetWithMetrics(FireAndForgetMetricsOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test metrics",
+		Fn: func() error {
 			wg.Done()
 			return nil
 		},
-		func() {
+		TrackFailure: func() {
 			tracked = true
-		})
+		},
+	})
 
 	wg.Wait()
 
@@ -656,17 +714,21 @@ func TestFireAndForgetWithMetrics_Error(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	FireAndForgetWithMetrics(ctx, logger, "test metrics error",
-		func() error {
+	FireAndForgetWithMetrics(FireAndForgetMetricsOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test metrics error",
+		Fn: func() error {
 			wg.Done()
 			return errors.New("test error")
 		},
-		func() {
+		TrackFailure: func() {
 			mu.Lock()
 			tracked = true
 			mu.Unlock()
 			wg.Done()
-		})
+		},
+	})
 
 	wg.Wait()
 
@@ -685,12 +747,16 @@ func TestFireAndForgetWithMetrics_NilTrack(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	FireAndForgetWithMetrics(ctx, logger, "test nil track",
-		func() error {
+	FireAndForgetWithMetrics(FireAndForgetMetricsOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "test nil track",
+		Fn: func() error {
 			wg.Done()
 			return errors.New("test error")
 		},
-		nil)
+		TrackFailure: nil,
+	})
 
 	wg.Wait()
 }

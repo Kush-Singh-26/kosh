@@ -27,6 +27,7 @@ type WorkerPool[T any] struct {
 	mu        sync.Mutex
 }
 
+// NewWorkerPool constructs a worker pool with bounded concurrency.
 func NewWorkerPool[T any](ctx context.Context, workers int, handler func(T) error) *WorkerPool[T] {
 	if workers <= 0 {
 		workers = runtime.NumCPU()
@@ -49,6 +50,7 @@ func (p *WorkerPool[T]) WithScheduler(s scheduler.BuildScheduler, t scheduler.Ta
 	return p
 }
 
+// Start launches the worker goroutines.
 func (p *WorkerPool[T]) Start() {
 	for i := 0; i < p.workers; i++ {
 		p.wg.Add(1)
@@ -94,6 +96,7 @@ func (p *WorkerPool[T]) worker() {
 	}
 }
 
+// Submit enqueues a task for processing.
 func (p *WorkerPool[T]) Submit(task T) {
 	if p.stopped.Load() {
 		return
@@ -106,6 +109,7 @@ func (p *WorkerPool[T]) Submit(task T) {
 	}
 }
 
+// Stop closes the queue and waits for all workers to finish.
 func (p *WorkerPool[T]) Stop() error {
 	if !p.stopped.CompareAndSwap(false, true) {
 		p.wg.Wait()

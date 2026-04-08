@@ -121,7 +121,7 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 	cfg := deps.Config
 
 	b := &Engine{
-		Cfg:    cfg,
+		Cfg: cfg,
 		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        cfg.IsDev,
@@ -242,6 +242,7 @@ func NewEngine(opts ...EngineOption) *Engine {
 	return newEngineWithConfigFs(o.vfs, cfg, o.reporter)
 }
 
+// SetReporter updates the reporter and logger for the engine and all services.
 func (b *Engine) SetReporter(r ui.Reporter) {
 	b.Deps.Reporter = r
 	b.Deps.Logger = InitLogger(r)
@@ -256,10 +257,12 @@ func (b *Engine) SetReporter(r ui.Reporter) {
 	b.Search.ReconfigureWithLogger(b.Deps.Logger)
 }
 
+// SetDevMode toggles dev mode on the active configuration.
 func (b *Engine) SetDevMode(isDev bool) {
 	config.SetDevMode(b.Cfg, isDev)
 }
 
+// SetSink configures the artifact sink and reconfigures services for a build pass.
 func (b *Engine) SetSink(sink fspkg.ArtifactSink) {
 	b.Sink = sink
 	if sink != nil {
@@ -276,6 +279,7 @@ func (b *Engine) SetSink(sink fspkg.ArtifactSink) {
 	}
 }
 
+// SetSourceFs updates the source filesystem and reconfigures dependent services.
 func (b *Engine) SetSourceFs(fs afero.Fs) {
 	b.Deps.SourceFs = fs
 	// Trigger reconfiguration of all services with the new filesystem
@@ -414,7 +418,6 @@ func (b *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 				return fmt.Errorf("site-wide rendering failed: %w", err)
 			}
 		}
-
 
 		// Remove original raster images when .webp equivalents exist
 		assetpkg.CleanupOriginalImages(b.Tx.StagingDir())

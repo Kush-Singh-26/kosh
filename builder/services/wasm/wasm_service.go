@@ -42,6 +42,7 @@ func NewService(deps Dependencies) Service {
 	}
 }
 
+// CheckAndUpdate recompiles WASM if sources are newer or marked dirty.
 func (s *wasmService) CheckAndUpdate(ctx context.Context) (bool, error) {
 	// Skip WASM operations in test mode
 	if s.ctx != nil && s.ctx.IsTesting {
@@ -72,6 +73,7 @@ func (s *wasmService) CheckAndUpdate(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
+// Deploy ensures the search WASM is available in the output sink.
 func (s *wasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) error {
 	// Skip WASM operations in test mode
 	if s.ctx != nil && s.ctx.IsTesting {
@@ -96,6 +98,7 @@ func (s *wasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) error
 	return nil
 }
 
+// SetSearchSourceDirty marks the search source as dirty to force rebuild.
 func (s *wasmService) SetSearchSourceDirty(dirty bool) {
 	s.searchSourceDirty.Store(dirty)
 }

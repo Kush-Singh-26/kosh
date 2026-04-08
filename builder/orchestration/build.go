@@ -115,6 +115,7 @@ func (b *Engine) buildAssetOnly(ctx context.Context) error {
 	})
 }
 
+// Build runs a full build with concurrency and locking safeguards.
 func (b *Engine) Build(ctx context.Context) error {
 	// Prevent concurrent builds
 	b.State.BuildMu.Lock()

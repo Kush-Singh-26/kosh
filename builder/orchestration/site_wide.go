@@ -6,14 +6,15 @@ import (
 	"path/filepath"
 	"sync"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-
-	"golang.org/x/sync/errgroup"
 )
 
+// SiteWideOptions configures site-wide generator orchestration.
 type SiteWideOptions struct {
 	Ctx                context.Context
 	AssetsReady        <-chan struct{}
@@ -54,7 +55,13 @@ func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.Metada
 
 			siteWideGroup.Go(func() error {
 				b.Assets.WaitForAvailability(siteWideCtx, assetsReady)
-				return b.renderPagination(siteWideCtx, cb.AllPosts, cb.PinnedPosts, b.Cfg.ForceRebuild, allTags)
+				return b.renderPagination(renderPaginationOptions{
+					ctx:         siteWideCtx,
+					allPosts:    cb.AllPosts,
+					pinnedPosts: cb.PinnedPosts,
+					force:       b.Cfg.ForceRebuild,
+					allTags:     allTags,
+				})
 			})
 			siteWideGroup.Go(func() error {
 				b.Assets.WaitForAvailability(siteWideCtx, assetsReady)
@@ -100,6 +107,7 @@ func (b *Engine) shouldSkipSiteWideRendering(cb *post.MetadataContext, assetsCha
 	return true
 }
 
+// MetadataRenderOptions configures site-wide metadata generation.
 type MetadataRenderOptions struct {
 	AllPosts     []models.PostMetadata
 	TagMap       map[string][]models.PostMetadata

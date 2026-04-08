@@ -9,6 +9,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+// ScanOptions configures the scanner run.
 type ScanOptions struct {
 	Ctx        context.Context
 	ContentDir string

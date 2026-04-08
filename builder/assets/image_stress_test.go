@@ -54,7 +54,13 @@ func TestImageOptimizationStress(t *testing.T) {
 		WebPQuality:  80,
 		Metrics:      nil,
 	}
-	err := assets.CopyDirVFS(ctx, srcFs, sink, srcDir, destDir, opts)
+	err := assets.CopyDirVFS(ctx, assets.CopyDirOptions{
+		SrcFs:       srcFs,
+		Sink:        sink,
+		SrcDir:      srcDir,
+		DstDir:      destDir,
+		CopyOptions: opts,
+	})
 	if err != nil {
 		t.Fatalf("assets.CopyDirVFS failed: %v", err)
 	}

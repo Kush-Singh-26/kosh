@@ -104,10 +104,12 @@ type compressionResponseWriter struct {
 	http.ResponseWriter
 }
 
+// Write writes through the compression writer.
 func (w *compressionResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
+// WriteHeader clears Content-Length and writes the header.
 func (w *compressionResponseWriter) WriteHeader(code int) {
 	w.Header().Del("Content-Length")
 	w.ResponseWriter.WriteHeader(code)

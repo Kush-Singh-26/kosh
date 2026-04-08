@@ -16,10 +16,12 @@ import (
 // cleanupWg tracks background deletion goroutines for proper shutdown
 var cleanupWg sync.WaitGroup
 
+// Run performs a clean operation using the OS filesystem.
 func Run(cleanCache bool) {
 	RunFs(afero.NewOsFs(), cleanCache, buildFs.DetectTestingMode())
 }
 
+// RunFs performs a clean operation using the provided filesystem.
 func RunFs(fs afero.Fs, cleanCache bool, isTesting bool) {
 	start := time.Now()
 

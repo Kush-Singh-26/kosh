@@ -8,15 +8,21 @@ import (
 	"time"
 )
 
+// HealthLevel describes the severity of a build health event.
 type HealthLevel int
 
 const (
-	HealthLevelInfo     HealthLevel = 0
-	HealthLevelWarning  HealthLevel = 1
-	HealthLevelError    HealthLevel = 2
+	// HealthLevelInfo represents informational events.
+	HealthLevelInfo HealthLevel = 0
+	// HealthLevelWarning represents recoverable warnings.
+	HealthLevelWarning HealthLevel = 1
+	// HealthLevelError represents error-level events.
+	HealthLevelError HealthLevel = 2
+	// HealthLevelCritical represents critical failures.
 	HealthLevelCritical HealthLevel = 3
 )
 
+// String returns the string label for the health level.
 func (h HealthLevel) String() string {
 	switch h {
 	case HealthLevelInfo:
@@ -32,6 +38,7 @@ func (h HealthLevel) String() string {
 	}
 }
 
+// HealthEvent records a single health event with optional context.
 type HealthEvent struct {
 	Level      HealthLevel `json:"level"`
 	Message    string      `json:"message"`
@@ -41,6 +48,7 @@ type HealthEvent struct {
 	Path       string      `json:"path,omitempty"`
 }
 
+// BuildHealthRegistry collects and reports build health events and metrics.
 type BuildHealthRegistry struct {
 	mu         sync.Mutex
 	events     []HealthEvent
@@ -62,12 +70,14 @@ type BuildHealthRegistry struct {
 	startTime time.Time
 }
 
+// NewBuildHealthRegistry returns a new build health registry.
 func NewBuildHealthRegistry() *BuildHealthRegistry {
 	return &BuildHealthRegistry{
 		startTime: time.Now(),
 	}
 }
 
+// Reset clears all recorded events and counters.
 func (r *BuildHealthRegistry) Reset() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -84,11 +94,13 @@ func (r *BuildHealthRegistry) Reset() {
 	r.startTime = time.Now()
 }
 
+// AddEvent records a health event at the given level.
 func (r *BuildHealthRegistry) AddEvent(level HealthLevel, message string) {
 	event := HealthEvent{Level: level, Message: message}
 	r.recordEvent(event)
 }
 
+// AddWarning records a warning-level event.
 func (r *BuildHealthRegistry) AddWarning(msg string) {
 	event := HealthEvent{Level: HealthLevelWarning, Message: msg}
 	if len(r.phaseStack) > 0 {
@@ -98,6 +110,7 @@ func (r *BuildHealthRegistry) AddWarning(msg string) {
 	r.recordEvent(event)
 }
 
+// AddError records an error-level event.
 func (r *BuildHealthRegistry) AddError(msg string) {
 	event := HealthEvent{Level: HealthLevelError, Message: msg}
 	if len(r.phaseStack) > 0 {
@@ -107,6 +120,7 @@ func (r *BuildHealthRegistry) AddError(msg string) {
 	r.recordEvent(event)
 }
 
+// AddCritical records a critical-level event.
 func (r *BuildHealthRegistry) AddCritical(msg string) {
 	event := HealthEvent{Level: HealthLevelCritical, Message: msg}
 	if len(r.phaseStack) > 0 {
@@ -116,6 +130,7 @@ func (r *BuildHealthRegistry) AddCritical(msg string) {
 	r.recordEvent(event)
 }
 
+// RecordRetry records a retry event and updates counters.
 func (r *BuildHealthRegistry) RecordRetry(msg string, count int) {
 	event := HealthEvent{
 		Level:      HealthLevelInfo,
@@ -129,6 +144,7 @@ func (r *BuildHealthRegistry) RecordRetry(msg string, count int) {
 	r.recordEvent(event)
 }
 
+// RecordRollback records a rollback event.
 func (r *BuildHealthRegistry) RecordRollback(msg string) {
 	event := HealthEvent{Level: HealthLevelWarning, Message: msg}
 	if len(r.phaseStack) > 0 {
@@ -138,11 +154,13 @@ func (r *BuildHealthRegistry) RecordRollback(msg string) {
 	r.recordEvent(event)
 }
 
+// RecordSearchStats stores the latest search index metrics.
 func (r *BuildHealthRegistry) RecordSearchStats(docs int64, size int64) {
 	r.searchDocs.Store(docs)
 	r.searchSize.Store(size)
 }
 
+// RecordSlowPhase records a slow phase event with timing information.
 func (r *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Duration) {
 	threshold := 5 * time.Second
 	event := HealthEvent{
@@ -162,12 +180,14 @@ func (r *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Durati
 	}
 }
 
+// PushPhase pushes a phase name onto the active phase stack.
 func (r *BuildHealthRegistry) PushPhase(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.phaseStack = append(r.phaseStack, name)
 }
 
+// PopPhase removes the most recent phase name if it matches.
 func (r *BuildHealthRegistry) PopPhase(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -208,6 +228,7 @@ func (r *BuildHealthRegistry) recordEvent(event HealthEvent) {
 	}
 }
 
+// BuildHealthReport summarizes health metrics for a build.
 type BuildHealthReport struct {
 	TotalDuration  time.Duration `json:"total_duration"`
 	Warnings       int64         `json:"warnings"`
@@ -223,6 +244,7 @@ type BuildHealthReport struct {
 	SearchSize     int64         `json:"search_size"`
 }
 
+// Report builds a summary report for the current registry state.
 func (r *BuildHealthRegistry) Report() BuildHealthReport {
 	totalDuration := time.Since(r.startTime)
 	warnings := r.warnings.Load()
@@ -280,6 +302,7 @@ func (r *BuildHealthRegistry) Report() BuildHealthReport {
 	}
 }
 
+// LogSummary logs a summary of build health metrics.
 func (r *BuildHealthRegistry) LogSummary() {
 	report := r.Report()
 

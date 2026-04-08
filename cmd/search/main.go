@@ -172,6 +172,7 @@ type jsError struct {
 	msg string
 }
 
+// Error implements the error interface.
 func (e *jsError) Error() string {
 	return e.msg
 }

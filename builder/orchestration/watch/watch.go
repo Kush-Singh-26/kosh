@@ -15,15 +15,21 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 )
 
+// ChangeType describes the category of a filesystem change.
 type ChangeType string
 
 const (
+	// ChangeTypeContent indicates a content file change.
 	ChangeTypeContent ChangeType = "content"
-	ChangeTypeAsset   ChangeType = "asset"
-	ChangeTypeOther   ChangeType = "other"
-	ChangeTypeDelete  ChangeType = "delete"
+	// ChangeTypeAsset indicates an asset file change.
+	ChangeTypeAsset ChangeType = "asset"
+	// ChangeTypeOther indicates a non-content, non-asset change.
+	ChangeTypeOther ChangeType = "other"
+	// ChangeTypeDelete indicates a deletion event.
+	ChangeTypeDelete ChangeType = "delete"
 )
 
+// ChangeEvent represents a classified filesystem change.
 type ChangeEvent struct {
 	Path    string
 	Op      fsnotify.Op
@@ -32,8 +38,10 @@ type ChangeEvent struct {
 	Version string
 }
 
+// SearchRegenerationCallback is invoked to rebuild the search index.
 type SearchRegenerationCallback func(ctx context.Context)
 
+// CoordinatorDependencies bundles dependencies for the watch coordinator.
 type CoordinatorDependencies struct {
 	Cfg           *config.Config
 	BuildMu       *sync.Mutex
@@ -42,6 +50,7 @@ type CoordinatorDependencies struct {
 	OnSearchRegen SearchRegenerationCallback
 }
 
+// Coordinator manages debounced change handling during watch mode.
 type Coordinator struct {
 	cfg        *config.Config
 	buildMu    *sync.Mutex
@@ -56,11 +65,13 @@ type Coordinator struct {
 	closed        chan struct{}
 }
 
+// BuildRequest groups paths for a debounced build trigger.
 type BuildRequest struct {
 	Paths []string
 	Op    fsnotify.Op
 }
 
+// New constructs a new watch Coordinator.
 func New(deps CoordinatorDependencies) *Coordinator {
 	return &Coordinator{
 		cfg:        deps.Cfg,
@@ -74,11 +85,13 @@ func New(deps CoordinatorDependencies) *Coordinator {
 	}
 }
 
+// Start begins processing of build and search queues.
 func (c *Coordinator) Start() {
 	go c.processBuildQueue()
 	go c.processSearchQueue()
 }
 
+// Close shuts down the coordinator and its queues.
 func (c *Coordinator) Close() {
 	c.closeOnce.Do(func() {
 		close(c.closed)
@@ -87,6 +100,7 @@ func (c *Coordinator) Close() {
 	})
 }
 
+// EnqueueChange enqueues a path change for debounced processing.
 func (c *Coordinator) EnqueueChange(path string, op fsnotify.Op) {
 	select {
 	case c.buildQueue <- BuildRequest{Paths: []string{path}, Op: op}:
@@ -94,6 +108,7 @@ func (c *Coordinator) EnqueueChange(path string, op fsnotify.Op) {
 	}
 }
 
+// TriggerSearchRegeneration enqueues a search regeneration request.
 func (c *Coordinator) TriggerSearchRegeneration() {
 	select {
 	case c.searchCh <- struct{}{}:
@@ -101,11 +116,13 @@ func (c *Coordinator) TriggerSearchRegeneration() {
 	}
 }
 
+// NormalizeWatchPath normalizes a watch path relative to the working directory.
 func (c *Coordinator) NormalizeWatchPath(path string) string {
 	wd, _ := os.Getwd()
 	return fspkg.NormalizeWatchPath(path, wd)
 }
 
+// NormalizeAbsoluteWatchPath normalizes a path to an absolute, stable form.
 func (c *Coordinator) NormalizeAbsoluteWatchPath(path string) string {
 	if abs, err := fspkg.AbsNormalizePath(path); err == nil {
 		return abs
@@ -113,12 +130,14 @@ func (c *Coordinator) NormalizeAbsoluteWatchPath(path string) string {
 	return fspkg.NormalizePath(path)
 }
 
+// IsContentPath reports whether a path is within the content directory.
 func (c *Coordinator) IsContentPath(path string) bool {
 	path = c.NormalizeAbsoluteWatchPath(path)
 	contentDir := c.NormalizeAbsoluteWatchPath(c.cfg.ContentDir)
 	return fspkg.IsPathInOrSame(path, contentDir)
 }
 
+// IsAssetPath reports whether a path is within asset directories.
 func (c *Coordinator) IsAssetPath(path string) bool {
 	path = c.NormalizeAbsoluteWatchPath(path)
 	staticDir := c.NormalizeAbsoluteWatchPath(c.cfg.StaticDir)
@@ -130,11 +149,13 @@ func (c *Coordinator) IsAssetPath(path string) bool {
 	return fspkg.IsPathInOrSame(path, staticDir) || fspkg.IsPathInOrSame(path, siteStaticDir)
 }
 
+// IsSearchSourcePath reports whether a path affects search source files.
 func IsSearchSourcePath(path string) bool {
 	path = fspkg.NormalizePath(path)
 	return strings.HasPrefix(path, "cmd/search/") || strings.HasPrefix(path, "builder/search/") || strings.HasPrefix(path, "builder/models/")
 }
 
+// InvalidateForTemplate returns paths to invalidate for a template change.
 func (c *Coordinator) InvalidateForTemplate(templatePath string) []string {
 	tp := fspkg.NormalizePath(templatePath)
 	templateDir := fspkg.NormalizePath(c.cfg.TemplateDir)
@@ -176,6 +197,7 @@ func (c *Coordinator) InvalidateForTemplate(templatePath string) []string {
 	}
 }
 
+// ClassifyChange classifies a filesystem change into a ChangeEvent.
 func (c *Coordinator) ClassifyChange(path string, op fsnotify.Op) ChangeEvent {
 	evt := ChangeEvent{Path: path, Op: op}
 

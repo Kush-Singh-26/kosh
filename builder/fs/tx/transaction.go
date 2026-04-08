@@ -96,10 +96,12 @@ func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
 	}
 }
 
+// StagingDir returns the current staging directory path.
 func (tx *DirectoryTx) StagingDir() string {
 	return tx.stagingDir
 }
 
+// Commit publishes the staging directory to the final output.
 func (tx *DirectoryTx) Commit(ctx context.Context) error {
 	if tx.committed {
 		return nil
@@ -165,6 +167,7 @@ func (tx *DirectoryTx) Commit(ctx context.Context) error {
 	return nil
 }
 
+// Rollback cleans up the staging directory after a failed publish.
 func (tx *DirectoryTx) Rollback() error {
 	if tx.committed || !tx.isCleanBuild {
 		return nil
@@ -173,6 +176,7 @@ func (tx *DirectoryTx) Rollback() error {
 	return retry.RemoveAllWithRetry(context.Background(), tx.stagingDir, 5, 10*time.Millisecond)
 }
 
+// GetLastBuildTime returns the mod time of the output directory.
 func (tx *DirectoryTx) GetLastBuildTime() time.Time {
 	info, err := os.Stat(tx.realOutputDir)
 	if err != nil {

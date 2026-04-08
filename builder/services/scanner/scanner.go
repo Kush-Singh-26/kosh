@@ -21,15 +21,18 @@ import (
 
 type metadataScanner struct{}
 
+// NewScanner returns a metadata scanner implementation.
 func NewScanner() Scanner {
 	return &metadataScanner{}
 }
 
+// Scan performs a full scan and returns aggregated results.
 func (s *metadataScanner) Scan(opts ScanOptions) (*models.MetadataScannerResult, error) {
 	resChan, errChan := s.ScanStreaming(opts)
 	return <-resChan, <-errChan
 }
 
+// ScanStreaming performs a scan and returns result and error channels.
 func (s *metadataScanner) ScanStreaming(opts ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error) {
 	ctx := opts.Ctx
 	contentDir := opts.ContentDir
@@ -113,6 +116,7 @@ func (s *metadataScanner) ScanStreaming(opts ScanOptions) (<-chan *models.Metada
 	return resultChan, errChan
 }
 
+// ScanFile scans a single markdown file for metadata.
 func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error) {
 	file, err := srcFs.Open(path)
 	if err != nil {

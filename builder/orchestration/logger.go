@@ -27,30 +27,37 @@ var devTimeFormat = "15:04:05"
 
 var rebuildLevel = slog.Level(slog.LevelWarn + 1)
 
+// DevLogChange logs a file change event in dev mode.
 func DevLogChange(path, changeType string) {
 	slog.Log(context.Background(), rebuildLevel, "file change", "path", path, "type", changeType)
 }
 
+// DevLogRebuild logs a rebuild action in dev mode.
 func DevLogRebuild(action string) {
 	slog.Log(context.Background(), rebuildLevel, action)
 }
 
+// DevLogSuccess logs a success message in dev mode.
 func DevLogSuccess(message string) {
 	slog.Log(context.Background(), slog.LevelInfo, message)
 }
 
+// DevLogSkip logs a skipped action in dev mode.
 func DevLogSkip(message string) {
 	slog.Log(context.Background(), rebuildLevel, message, "skipped", true)
 }
 
+// DevLogInfo logs an informational message in dev mode.
 func DevLogInfo(message string) {
 	slog.Log(context.Background(), slog.LevelInfo, message)
 }
 
+// DevLogError logs an error message in dev mode.
 func DevLogError(message string) {
 	slog.Log(context.Background(), slog.LevelError, message)
 }
 
+// HTTPLog logs an HTTP request with timing information.
 func HTTPLog(method, path string, status int, duration time.Duration) {
 	slog.Info("http request",
 		"method", method,
@@ -70,6 +77,7 @@ type consoleHandler struct {
 	reporter   ui.Reporter
 }
 
+// NewConsoleHandler constructs a console handler for slog output.
 func NewConsoleHandler(output io.Writer, reporter ui.Reporter) *consoleHandler {
 	return &consoleHandler{
 		output:     output,
@@ -78,10 +86,12 @@ func NewConsoleHandler(output io.Writer, reporter ui.Reporter) *consoleHandler {
 	}
 }
 
+// Enabled reports whether the handler handles the given level.
 func (h *consoleHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return level >= slog.LevelInfo
 }
 
+// Handle formats and writes a log record.
 func (h *consoleHandler) Handle(ctx context.Context, r slog.Record) error {
 	if h.reporter != nil {
 		isHTTP := false
@@ -216,6 +226,7 @@ func (h *consoleHandler) writeAttr(a slog.Attr) {
 	}
 }
 
+// WithAttrs returns a handler with additional attributes.
 func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
 	copy(newAttrs, h.attrs)
@@ -229,6 +240,7 @@ func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
+// WithGroup returns a handler with the given group name.
 func (h *consoleHandler) WithGroup(name string) slog.Handler {
 	return &consoleHandler{
 		output:     h.output,
@@ -257,6 +269,7 @@ func getLevelColor(level slog.Level) string {
 	}
 }
 
+// InitLogger initializes the default logger and optionally wires a reporter.
 func InitLogger(reporters ...ui.Reporter) *slog.Logger {
 	var r ui.Reporter
 	if len(reporters) > 0 {

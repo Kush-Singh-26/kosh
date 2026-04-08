@@ -7,6 +7,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
+// PostPaths holds computed paths for a post and its social card.
 type PostPaths struct {
 	HTMLRelPath      string
 	CleanHTMLRelPath string
@@ -17,6 +18,7 @@ type PostPaths struct {
 	CardImageURL     string
 }
 
+// ComputePathVars returns HTML-relative and destination paths for a post.
 func ComputePathVars(outputDir, relPath string) (htmlRelPath, cleanHtmlRelPath, destPath string) {
 	relPath = filepath.ToSlash(relPath)
 	htmlRelPath = fs.MarkdownToHTMLPath(relPath)
@@ -26,12 +28,14 @@ func ComputePathVars(outputDir, relPath string) (htmlRelPath, cleanHtmlRelPath, 
 	return
 }
 
+// BuildAbsoluteURL joins a base URL with a relative path.
 func BuildAbsoluteURL(baseURL, relPath string) string {
 	baseURL = strings.TrimSuffix(baseURL, "/")
 	relPath = strings.TrimPrefix(relPath, "/")
 	return baseURL + "/" + relPath
 }
 
+// CardPaths computes social card paths and URLs for a post.
 func CardPaths(baseURL, outputDir, htmlRelPath string) (cardRelPath, cardDestPath, cardImageURL string) {
 	cardRelPath = strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
 	cardDestPath = filepath.ToSlash(filepath.Join(outputDir, "static", "images", "cards", cardRelPath))

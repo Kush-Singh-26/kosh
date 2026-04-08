@@ -54,7 +54,7 @@ func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
 	}
 }
 
-// ParsedMarkdownResult holds the output of the markdown parsing phase
+// ParsedMarkdownResult holds the output of the markdown parsing phase.
 type ParsedMarkdownResult struct {
 	AST             ast.Node
 	Context         parser.Context
@@ -76,6 +76,7 @@ type ParsedMarkdownResult struct {
 	BodyOnly        []byte
 }
 
+// ParseOptions configures markdown parsing and metadata extraction.
 type ParseOptions struct {
 	Path                 string
 	RelPath              string
@@ -138,6 +139,7 @@ func ParseMarkdownMetadata(opts ParseOptions) (*ParsedMarkdownResult, error) {
 	return res, nil
 }
 
+// MarkdownRenderOptions configures HTML rendering for parsed markdown.
 type MarkdownRenderOptions struct {
 	Source         []byte
 	Result         *ParsedMarkdownResult

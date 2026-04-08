@@ -78,6 +78,7 @@ type Parser interface {
 	ParseMarkdown(opts ParseOptions) (*ParsedMarkdownResult, error)
 }
 
+// ProcessOptions configures post processing operations.
 type ProcessOptions struct {
 	Ctx                context.Context
 	ShouldForce        bool

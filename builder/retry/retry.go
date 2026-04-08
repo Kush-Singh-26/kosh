@@ -7,8 +7,7 @@ import (
 	"time"
 )
 
-// RenameWithRetry attempts to rename a path with exponential backoff.
-// Critical for Windows where antivirus/indexers can briefly lock directories.
+// RenameOptions configures RenameWithRetry.
 type RenameOptions struct {
 	Ctx        context.Context
 	OldPath    string
@@ -17,6 +16,8 @@ type RenameOptions struct {
 	BaseDelay  time.Duration
 }
 
+// RenameWithRetry attempts to rename a path with exponential backoff.
+// Critical for Windows where antivirus/indexers can briefly lock directories.
 func RenameWithRetry(opts RenameOptions) error {
 	ctx := opts.Ctx
 	oldPath := opts.OldPath

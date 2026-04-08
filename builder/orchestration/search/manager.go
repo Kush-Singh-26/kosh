@@ -17,6 +17,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 )
 
+// Manager coordinates search index regeneration and cache updates.
 type Manager struct {
 	cfg    *config.Config
 	cache  svcCache.Service
@@ -30,10 +31,12 @@ type Manager struct {
 	indexedPosts []models.IndexedPost
 }
 
+// HealthRegistry records search-related health metrics.
 type HealthRegistry interface {
 	RecordSearchStats(docs int64, size int64)
 }
 
+// ManagerDependencies holds dependencies for the search Manager.
 type ManagerDependencies struct {
 	Cfg    *config.Config
 	Cache  svcCache.Service
@@ -41,6 +44,7 @@ type ManagerDependencies struct {
 	Health HealthRegistry
 }
 
+// NewManager constructs a new search Manager.
 func NewManager(deps ManagerDependencies) *Manager {
 	return &Manager{
 		cfg:    deps.Cfg,
@@ -50,6 +54,7 @@ func NewManager(deps ManagerDependencies) *Manager {
 	}
 }
 
+// Reconfigure updates build-time sink and render dependencies.
 func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, render render.Service) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -57,24 +62,28 @@ func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, render render.Service) {
 	m.render = render
 }
 
+// ReconfigureWithLogger updates the logger for the manager.
 func (m *Manager) ReconfigureWithLogger(l *slog.Logger) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.logger = l
 }
 
+// SetIndexedPosts replaces the in-memory indexed posts cache.
 func (m *Manager) SetIndexedPosts(posts []models.IndexedPost) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.indexedPosts = posts
 }
 
+// GetIndexedPosts returns the current indexed posts cache.
 func (m *Manager) GetIndexedPosts() []models.IndexedPost {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.indexedPosts
 }
 
+// UpdateIndexedPostCache updates or inserts a single indexed post entry.
 func (m *Manager) UpdateIndexedPostCache(relPath string, parseRes *post.ParsedMarkdownResult) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -114,6 +123,7 @@ func (m *Manager) UpdateIndexedPostCache(relPath string, parseRes *post.ParsedMa
 	}
 }
 
+// PruneDeletedPost removes a post from the indexed cache.
 func (m *Manager) PruneDeletedPost(relPath string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -128,6 +138,7 @@ func (m *Manager) PruneDeletedPost(relPath string) {
 	m.indexedPosts = newIndexed
 }
 
+// RegenerateIndex rebuilds and writes the search index.
 func (m *Manager) RegenerateIndex(ctx context.Context) error {
 	m.mu.Lock()
 	sink := m.sink

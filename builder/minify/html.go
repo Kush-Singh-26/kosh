@@ -13,10 +13,12 @@ var (
 	globalHTMLMinifierOnce sync.Once
 )
 
+// InitHTMLMinifier initializes the shared HTML minifier.
 func InitHTMLMinifier() {
 	GetHTMLMinifier()
 }
 
+// GetHTMLMinifier returns the initialized HTML minifier.
 func GetHTMLMinifier() *minify.M {
 	globalHTMLMinifierOnce.Do(func() {
 		globalHTMLMinifier = minify.New()

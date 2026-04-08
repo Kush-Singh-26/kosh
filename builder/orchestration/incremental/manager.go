@@ -23,15 +23,21 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 )
 
+// PostChangeType describes the kind of change detected for a post.
 type PostChangeType int
 
 const (
+	// PostChangeNone indicates no meaningful change.
 	PostChangeNone PostChangeType = iota
+	// PostChangeNew indicates a new post.
 	PostChangeNew
+	// PostChangeFrontmatter indicates frontmatter-only changes.
 	PostChangeFrontmatter
+	// PostChangeBody indicates body content changes.
 	PostChangeBody
 )
 
+// SiteBuilder defines the build operations used by the incremental manager.
 type SiteBuilder interface {
 	Build(ctx context.Context) error
 	BuildLocked(ctx context.Context) error
@@ -47,16 +53,19 @@ type SiteBuilder interface {
 	UnlockBuild()
 }
 
+// SearchManager provides hooks for search index updates during incremental builds.
 type SearchManager interface {
 	UpdateIndexedPostCache(relPath string, parseRes *post.ParsedMarkdownResult)
 	PruneDeletedPost(relPath string)
 }
 
+// WatchCoordinator provides change classification during watch mode.
 type WatchCoordinator interface {
 	ClassifyChange(path string, op fsnotify.Op) watch.ChangeEvent
 	TriggerSearchRegeneration()
 }
 
+// IncrementalDependencies groups optional services used by the incremental manager.
 type IncrementalDependencies struct {
 	Cache    svcCache.Service
 	Post     post.Service
@@ -64,6 +73,7 @@ type IncrementalDependencies struct {
 	Diagrams *cache.DiagramCacheAdapter
 }
 
+// ManagerDependencies holds dependencies for creating an incremental Manager.
 type ManagerDependencies struct {
 	Cfg            *config.Config
 	Logger         *slog.Logger
@@ -75,6 +85,7 @@ type ManagerDependencies struct {
 	NativeRenderer *native.Renderer
 }
 
+// Manager coordinates incremental build behavior for file changes.
 type Manager struct {
 	cfg            *config.Config
 	logger         *slog.Logger
@@ -86,6 +97,7 @@ type Manager struct {
 	nativeRenderer *native.Renderer
 }
 
+// NewManager constructs a new incremental Manager.
 func NewManager(deps ManagerDependencies) *Manager {
 	return &Manager{
 		cfg:            deps.Cfg,
@@ -99,10 +111,12 @@ func NewManager(deps ManagerDependencies) *Manager {
 	}
 }
 
+// ReconfigureWithLogger updates the logger for the manager.
 func (m *Manager) ReconfigureWithLogger(l *slog.Logger) {
 	m.logger = l
 }
 
+// BuildSingleFileChange handles a single filesystem change event.
 func (m *Manager) BuildSingleFileChange(ctx context.Context, path string, op fsnotify.Op) {
 	select {
 	case <-ctx.Done():
@@ -136,6 +150,7 @@ func (m *Manager) BuildSingleFileChange(ctx context.Context, path string, op fsn
 	m.HandleOtherChange(ctx, path)
 }
 
+// HandleMarkdownChange handles markdown content changes.
 func (m *Manager) HandleMarkdownChange(ctx context.Context, path string) {
 	m.builder.LockBuild()
 	defer m.builder.UnlockBuild()

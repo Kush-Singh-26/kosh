@@ -51,8 +51,10 @@ type mathRequest struct {
 	err  chan error
 }
 
+// RendererOption configures a Renderer.
 type RendererOption func(*Renderer)
 
+// WithWorkers sets the worker pool size for the renderer.
 func WithWorkers(n int) RendererOption {
 	return func(r *Renderer) {
 		if n > 0 {
@@ -61,12 +63,14 @@ func WithWorkers(n int) RendererOption {
 	}
 }
 
+// WithScheduler sets the build scheduler used by the renderer.
 func WithScheduler(s scheduler.BuildScheduler) RendererOption {
 	return func(r *Renderer) {
 		r.scheduler = s
 	}
 }
 
+// WithMathBatchSize sets the batch size for math rendering.
 func WithMathBatchSize(n int) RendererOption {
 	return func(r *Renderer) {
 		if n > 0 {
