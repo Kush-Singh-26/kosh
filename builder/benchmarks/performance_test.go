@@ -98,12 +98,12 @@ This is post number %d.
 		})
 		renderSvc := render.NewService(render.Dependencies{
 			Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
-			IsTesting:    true,
-			IsDev:        false,
-			IsCleanBuild: false,
-			Scheduler:    scheduler.NewBuildScheduler(),
-			Logger:       logger,
-		}),
+				IsTesting:    true,
+				IsDev:        false,
+				IsCleanBuild: false,
+				Scheduler:    scheduler.NewBuildScheduler(),
+				Logger:       logger,
+			}),
 			Renderer: rnd,
 			Logger:   logger,
 		})
@@ -112,12 +112,12 @@ This is post number %d.
 		wasmSvc := &mocks.MockWasmService{}
 		postSvc := post.NewService(post.Dependencies{
 			Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
-			IsTesting:    true,
-			IsDev:        false,
-			IsCleanBuild: false,
-			Scheduler:    scheduler.NewBuildScheduler(),
-			Logger:       logger,
-		}),
+				IsTesting:    true,
+				IsDev:        false,
+				IsCleanBuild: false,
+				Scheduler:    scheduler.NewBuildScheduler(),
+				Logger:       logger,
+			}),
 			Cfg:            cfg,
 			Renderer:       renderSvc,
 			Logger:         logger,

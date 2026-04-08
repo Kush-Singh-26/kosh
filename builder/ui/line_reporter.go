@@ -107,6 +107,7 @@ func (r *lineReporter) ts() string {
 	return r.color(gray, time.Now().Format("15:04:05"))
 }
 
+// Start initializes the reporter with the given mode.
 func (r *lineReporter) Start(mode string) {
 	r.mode = mode
 	if !r.isTTY {
@@ -127,6 +128,7 @@ func (r *lineReporter) Start(mode string) {
 	}()
 }
 
+// StartPhase marks a build phase as started.
 func (r *lineReporter) StartPhase(phase Phase) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -143,6 +145,7 @@ func (r *lineReporter) StartPhase(phase Phase) {
 	}
 }
 
+// UpdateProgress updates progress numbers for a phase.
 func (r *lineReporter) UpdateProgress(phase Phase, current, total int, detail string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -154,6 +157,7 @@ func (r *lineReporter) UpdateProgress(phase Phase, current, total int, detail st
 	}
 }
 
+// EndPhase marks a phase as completed.
 func (r *lineReporter) EndPhase(phase Phase, duration time.Duration) {
 	r.mu.Lock()
 	ps, ok := r.phases[phase]
@@ -179,6 +183,7 @@ func (r *lineReporter) EndPhase(phase Phase, duration time.Duration) {
 	r.printLine(line)
 }
 
+// Info logs an informational message.
 func (r *lineReporter) Info(msg string, args ...any) {
 	content := fmt.Sprintf(msg, args...)
 	if r.shouldSkip(content) {
@@ -190,6 +195,7 @@ func (r *lineReporter) Info(msg string, args ...any) {
 	r.printLine(line)
 }
 
+// Warn logs a warning message.
 func (r *lineReporter) Warn(msg string, args ...any) {
 	content := fmt.Sprintf(msg, args...)
 	content = r.shortenPaths(content)
@@ -198,6 +204,7 @@ func (r *lineReporter) Warn(msg string, args ...any) {
 	r.printLine(line)
 }
 
+// Error logs an error message with an optional error value.
 func (r *lineReporter) Error(msg string, err error, args ...any) {
 	content := fmt.Sprintf(msg, args...)
 	if err != nil {
@@ -209,6 +216,7 @@ func (r *lineReporter) Error(msg string, err error, args ...any) {
 	r.printLine(line)
 }
 
+// Success logs a success message.
 func (r *lineReporter) Success(msg string) {
 	content := r.shortenPaths(msg)
 	line := fmt.Sprintf("%s %s %s\n", r.ts(), r.color(green, symCheck), content)
@@ -216,6 +224,7 @@ func (r *lineReporter) Success(msg string) {
 	r.printLine(line)
 }
 
+// Status prints a status line.
 func (r *lineReporter) Status(msg string) {
 	r.mu.Lock()
 	r.status = msg
@@ -239,6 +248,7 @@ func (r *lineReporter) printLine(line string) {
 	}
 }
 
+// Finish renders the final build summary.
 func (r *lineReporter) Finish(stats BuildStats) {
 	r.mu.Lock()
 	r.finished = true

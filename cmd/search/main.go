@@ -18,7 +18,7 @@ import (
 var (
 	index       models.SearchIndex
 	lastQuery   string
-	lastResults []interface{}
+	lastResults []any
 )
 
 func main() {
@@ -190,9 +190,10 @@ func searchPosts(this js.Value, args []js.Value) interface{} {
 
 	results := search.PerformSearch(&index, query)
 
-	finalResults := make([]interface{}, 0, len(results))
+	finalResults := make([]any, 0, len(results))
 	for _, res := range results {
-		jsRes := make(map[string]interface{})
+		// jsRes is JSON-compatible: strings for text fields, float64 for score.
+		jsRes := make(map[string]any)
 		jsRes["title"] = res.Title
 		jsRes["link"] = res.Link
 		jsRes["description"] = res.Description

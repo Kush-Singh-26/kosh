@@ -11,13 +11,21 @@ import (
 type TaskType int
 
 const (
+	// TaskDefault is the default scheduling category.
 	TaskDefault TaskType = iota
+	// TaskMarkdown schedules markdown parsing work.
 	TaskMarkdown
+	// TaskImage schedules image processing work.
 	TaskImage
+	// TaskMath schedules math rendering work.
 	TaskMath
+	// TaskD2 schedules D2 diagram rendering work.
 	TaskD2
+	// TaskSearch schedules search indexing work.
 	TaskSearch
+	// TaskSocialCard schedules social card rendering work.
 	TaskSocialCard
+	// TaskAsset schedules asset bundling work.
 	TaskAsset
 )
 
@@ -69,6 +77,7 @@ func NewBuildScheduler() BuildScheduler {
 	}
 }
 
+// Acquire reserves scheduler capacity for a task type.
 func (s *weightedScheduler) Acquire(ctx context.Context, task TaskType) error {
 	weight, ok := s.weights[task]
 	if !ok {
@@ -77,6 +86,7 @@ func (s *weightedScheduler) Acquire(ctx context.Context, task TaskType) error {
 	return s.sem.Acquire(ctx, weight)
 }
 
+// Release returns scheduler capacity for a task type.
 func (s *weightedScheduler) Release(task TaskType) {
 	weight, ok := s.weights[task]
 	if !ok {

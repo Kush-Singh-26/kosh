@@ -23,10 +23,12 @@ type RawHTMLBlock struct {
 	Content []byte
 }
 
+// Kind reports the node kind for RawHTMLBlock.
 func (n *RawHTMLBlock) Kind() ast.NodeKind {
 	return KindRawHTMLBlock
 }
 
+// Dump renders a debug dump of the RawHTMLBlock node.
 func (n *RawHTMLBlock) Dump(source []byte, level int) {
 	ast.DumpHelper(n, source, level, nil, nil)
 }
@@ -37,10 +39,12 @@ type RawHTMLInline struct {
 	Content []byte
 }
 
+// Kind reports the node kind for RawHTMLInline.
 func (n *RawHTMLInline) Kind() ast.NodeKind {
 	return KindRawHTMLInline
 }
 
+// Dump renders a debug dump of the RawHTMLInline node.
 func (n *RawHTMLInline) Dump(source []byte, level int) {
 	ast.DumpHelper(n, source, level, nil, nil)
 }
@@ -48,6 +52,7 @@ func (n *RawHTMLInline) Dump(source []byte, level int) {
 // rawHTMLBlockRenderer renders RawHTMLBlock and RawHTMLInline nodes by writing their content directly.
 type rawHTMLBlockRenderer struct{}
 
+// RegisterFuncs registers raw HTML renderers for the markdown pipeline.
 func (r *rawHTMLBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(KindRawHTMLBlock, r.renderRawHTML)
 	reg.Register(KindRawHTMLInline, r.renderRawHTML)

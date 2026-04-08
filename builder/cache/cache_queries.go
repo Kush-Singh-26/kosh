@@ -9,6 +9,7 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// ListAllPosts returns all post IDs stored in the cache.
 func (m *Manager) ListAllPosts() ([]string, error) {
 	var ids []string
 	err := m.db.View(func(tx *bbolt.Tx) error {
@@ -21,6 +22,7 @@ func (m *Manager) ListAllPosts() ([]string, error) {
 	return ids, err
 }
 
+// Stats returns a snapshot of cache statistics.
 func (m *Manager) Stats() (*core.CacheStats, error) {
 	stats := &core.CacheStats{
 		SchemaVersion: core.SchemaVersion,

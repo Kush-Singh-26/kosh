@@ -70,7 +70,8 @@ func parseMarkdownWithRecovery(
 	return docNode, mdCtx, parseErr
 }
 
-// extractMetadata extracts metadata from context or frontmatter
+// extractMetadata extracts metadata from context or frontmatter.
+// Expected value types (from YAML decoding): string, bool, int/float64, time.Time, []any, map[string]any.
 func extractMetadata(mdCtx parser.Context, source []byte, preParsedMeta map[string]any) map[string]any {
 	if preParsedMeta != nil {
 		return preParsedMeta
@@ -204,7 +205,8 @@ func computeReadingTime(source []byte, knownReadingTime int) int {
 	return int(math.Ceil(float64(wordCount) / wordsPerMinute))
 }
 
-// computeFrontmatterHash computes the frontmatter hash if not already known
+// computeFrontmatterHash computes the frontmatter hash if not already known.
+// Expected value types (from YAML decoding): string, bool, int/float64, time.Time, []any, map[string]any.
 func computeFrontmatterHash(metadata map[string]any, knownHash string) string {
 	if knownHash != "" {
 		return knownHash

@@ -7,6 +7,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+// SetAssets snapshots the asset map for template rendering.
 func (r *Renderer) SetAssets(assets map[string]string) {
 	// Create snapshot
 	snapshot := make(map[string]string, len(assets))
@@ -14,7 +15,7 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 		snapshot[k] = v
 	}
 	r.assetsSnapshot.Store(&snapshot)
-	
+
 	// Invalidate relativization cache because assets have changed
 	r.assetCache.Range(func(key, value any) bool {
 		r.assetCache.Delete(key)

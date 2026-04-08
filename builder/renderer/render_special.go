@@ -13,6 +13,7 @@ type Executor interface {
 	Execute(wr io.Writer, data interface{}) error
 }
 
+// RenderIndex renders the homepage using the index template.
 func (r *Renderer) RenderIndex(path string, data models.PageData) error {
 	r.mu.RLock()
 	index := r.Index
@@ -25,6 +26,7 @@ func (r *Renderer) RenderIndex(path string, data models.PageData) error {
 	return r.executeTemplateAndWrite(path, index, data, "index")
 }
 
+// RenderGraph renders the graph page using the graph template.
 func (r *Renderer) RenderGraph(path string, data models.PageData) error {
 	r.mu.RLock()
 	graph := r.Graph
@@ -49,6 +51,7 @@ func (r *Renderer) RenderGraph(path string, data models.PageData) error {
 	return nil
 }
 
+// Render404 renders the 404 page using the 404 template.
 func (r *Renderer) Render404(path string, data models.PageData) error {
 	r.mu.RLock()
 	notFound := r.NotFound

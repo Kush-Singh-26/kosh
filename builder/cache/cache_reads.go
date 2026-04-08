@@ -271,6 +271,7 @@ func (m *Manager) GetHTMLContent(post *core.PostMeta) ([]byte, error) {
 	return m.store.Get("html", post.HTMLHash, true)
 }
 
+// GetPostsByTag returns post IDs for a given tag.
 func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
 	prefix := []byte(tag + "/")
 	var ids []string

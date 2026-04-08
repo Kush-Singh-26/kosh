@@ -82,6 +82,7 @@ func (c *imageCache) set(key imageCacheKey, data []byte) {
 	c.cache.Add(key, data)
 }
 
+// Size reports the current in-memory cache size in bytes.
 func (c *imageCache) Size() int64 { return c.size.Load() }
 
 var (
@@ -145,7 +146,10 @@ func getImageHash(key imageCacheKey) string {
 
 type atomicInt64 struct{ v int64 }
 
-func (a *atomicInt64) Load() int64     { return atomic.LoadInt64(&a.v) }
+// Load returns the current value.
+func (a *atomicInt64) Load() int64 { return atomic.LoadInt64(&a.v) }
+
+// Add increments the value by delta.
 func (a *atomicInt64) Add(delta int64) { atomic.AddInt64(&a.v, delta) }
 
 var imageCacheWriter struct {

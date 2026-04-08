@@ -56,6 +56,7 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 	return nil
 }
 
+// RenderPage renders a standard content page using the layout template.
 func (r *Renderer) RenderPage(path string, data models.PageData) error {
 	r.mu.RLock()
 	layout := r.Layout

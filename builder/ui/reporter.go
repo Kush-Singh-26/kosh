@@ -8,11 +8,17 @@ import (
 type Phase int
 
 const (
+	// PhaseScan represents the metadata scan phase.
 	PhaseScan Phase = iota
+	// PhaseAssets represents asset build/copy.
 	PhaseAssets
+	// PhasePosts represents markdown parsing and rendering.
 	PhasePosts
+	// PhaseSiteWide represents site-wide generators.
 	PhaseSiteWide
+	// PhasePublish represents publish/commit of outputs.
 	PhasePublish
+	// PhaseIncremental represents incremental rebuilds.
 	PhaseIncremental
 )
 

@@ -148,6 +148,7 @@ func (a *DiagramCacheAdapter) Flush() error {
 }
 
 // Merge stores a batch of values in the adapter and marks them dirty.
+// Entry values are SSR payloads: string (HTML/SVG) or models.SSRThemePair.
 func (a *DiagramCacheAdapter) Merge(entries map[string]any) {
 	for key, value := range entries {
 		a.Set(key, value)

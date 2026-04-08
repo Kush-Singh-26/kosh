@@ -27,6 +27,7 @@ type Scorer interface {
 // TagScorer boosts scores based on tag matches
 type TagScorer struct{}
 
+// Score boosts results that match the active tag filter.
 func (s *TagScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.TagFilter != "" && len(ctx.QueryTerms) == 0 {
 		opts.HighlightTerms[ctx.TagFilter] = true
@@ -41,6 +42,7 @@ func (s *TagScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 // BM25Scorer calculates base scores using BM25 and fuzzy matching
 type BM25Scorer struct{}
 
+// Score applies BM25 scoring and fuzzy matching when needed.
 func (s *BM25Scorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	for _, term := range ctx.QueryTerms {
 		if posts, ok := ctx.Index.Inverted[term]; ok {
@@ -93,6 +95,7 @@ func (s *BM25Scorer) scoreFuzzy(ctx *SearchContext, term string, opts *SearchSco
 // PhraseScorer boosts scores for phrase matches
 type PhraseScorer struct{}
 
+// Score boosts results that match phrases or full query terms.
 func (s *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if len(ctx.QueryTerms) > 1 {
 		for id := range opts.Scores {
@@ -118,6 +121,7 @@ func (s *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 // TitleScorer boosts scores based on title and description matches
 type TitleScorer struct{}
 
+// Score boosts results that match title or description text.
 func (s *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.OriginalQuery == "" {
 		return
@@ -170,6 +174,7 @@ func (s *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 // BoostScorer boosts scores based on exact tag matches
 type BoostScorer struct{}
 
+// Score boosts results that match exact tags.
 func (s *BoostScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.OriginalQuery == "" && ctx.TagFilter == "" {
 		return
@@ -201,6 +206,7 @@ func NewPipeline(scorers ...Scorer) *Pipeline {
 	return &Pipeline{scorers: scorers}
 }
 
+// Execute runs all scorers in order.
 func (p *Pipeline) Execute(ctx *SearchContext, opts *SearchScoringOptions) {
 	for _, scorer := range p.scorers {
 		scorer.Score(ctx, opts)
@@ -210,6 +216,7 @@ func (p *Pipeline) Execute(ctx *SearchContext, opts *SearchScoringOptions) {
 // FilterScorer enforces required and excluded terms
 type FilterScorer struct{}
 
+// Score filters results based on required and excluded query terms.
 func (s *FilterScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if len(opts.TermInfos) == 0 {
 		return
@@ -241,6 +248,7 @@ func (s *FilterScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 // ProximityScorer rewards documents where query terms appear close to each other
 type ProximityScorer struct{}
 
+// Score boosts results where terms appear close together.
 func (s *ProximityScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if len(ctx.QueryTerms) < 2 {
 		return
@@ -303,6 +311,7 @@ func (s *ProximityScorer) calculateProximityScore(ctx *SearchContext, id string)
 // RecencyScorer boosts scores for newer documents using an exponential decay function
 type RecencyScorer struct{}
 
+// Score boosts newer results using an exponential decay.
 func (s *RecencyScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.Index.TotalDocs == 0 {
 		return

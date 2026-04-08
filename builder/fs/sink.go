@@ -134,6 +134,7 @@ func (s *DiskSink) fastJoinStaging(rel string) string {
 	return sb.String()
 }
 
+// Register records a path as written in the real output directory.
 func (s *DiskSink) Register(p string) {
 	if cached, ok := s.regCache.Load(p); ok {
 		s.writtenPaths.Store(cached.(string), true)
@@ -181,6 +182,7 @@ func (s *DiskSink) ensureDir(path string) error {
 	return s.MkdirAll(dir)
 }
 
+// MkdirAll ensures the directory exists inside the sink output roots.
 func (s *DiskSink) MkdirAll(p string) error {
 	target, err := s.resolvePathForWrite(p)
 	if err != nil {
@@ -200,6 +202,7 @@ func (s *DiskSink) MkdirAll(p string) error {
 	return nil
 }
 
+// WriteFile writes a full file into the sink and registers it.
 func (s *DiskSink) WriteFile(p string, data []byte) error {
 	target, err := s.resolvePathForWrite(p)
 	if err != nil {
@@ -216,6 +219,7 @@ func (s *DiskSink) WriteFile(p string, data []byte) error {
 	return err
 }
 
+// WriteStream streams content into a file inside the sink and registers it.
 func (s *DiskSink) WriteStream(p string, fn func(io.Writer) error) error {
 	target, err := s.resolvePathForWrite(p)
 	if err != nil {
@@ -273,6 +277,7 @@ func (s *DiskSink) WriteStream(p string, fn func(io.Writer) error) error {
 	return err
 }
 
+// GetWrittenFiles returns a snapshot of files registered during the build.
 func (s *DiskSink) GetWrittenFiles() map[string]bool {
 	res := make(map[string]bool)
 	s.writtenPaths.Range(func(key, value any) bool {
@@ -282,6 +287,7 @@ func (s *DiskSink) GetWrittenFiles() map[string]bool {
 	return res
 }
 
+// GetOutputDir returns the staging output directory.
 func (s *DiskSink) GetOutputDir() string {
 	return s.stagingDir
 }
@@ -291,6 +297,7 @@ func (s *DiskSink) GetRealOutputDir() string {
 	return s.realOutputDir
 }
 
+// SetMtime updates the modification time for a file in the sink.
 func (s *DiskSink) SetMtime(path string, mtime time.Time) error {
 	target, err := s.resolvePathForWrite(path)
 	if err != nil {
@@ -299,6 +306,7 @@ func (s *DiskSink) SetMtime(path string, mtime time.Time) error {
 	return os.Chtimes(filepath.FromSlash(target), mtime, mtime)
 }
 
+// Stat returns os.FileInfo for a path within the sink.
 func (s *DiskSink) Stat(path string) (os.FileInfo, error) {
 	target, err := s.resolvePathForWrite(path)
 	if err != nil {
@@ -307,6 +315,7 @@ func (s *DiskSink) Stat(path string) (os.FileInfo, error) {
 	return os.Stat(filepath.FromSlash(target))
 }
 
+// CopyFile copies a file into the sink and registers it.
 func (s *DiskSink) CopyFile(src, dst string) error {
 	target, err := s.resolvePathForWrite(dst)
 	if err != nil {

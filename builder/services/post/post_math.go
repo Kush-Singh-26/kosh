@@ -58,7 +58,7 @@ func (s *postService) renderMath(ctx context.Context, path string, res *ParsedMa
 	}
 
 	if s.diagramAdapter != nil && len(rendered) > 0 {
-		newMath := make(map[string]any)
+		newMath := make(map[string]any) // values are rendered HTML/SVG strings.
 		for h, v := range rendered {
 			if _, ok := cachedSubset[h]; !ok {
 				key := "math:" + h

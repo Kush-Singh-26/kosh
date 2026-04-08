@@ -129,12 +129,23 @@ type memFileInfo struct {
 	size int64
 }
 
-func (f *memFileInfo) Name() string       { return f.name }
-func (f *memFileInfo) Size() int64        { return f.size }
-func (f *memFileInfo) Mode() os.FileMode  { return 0644 }
+// Name returns the base name of the file.
+func (f *memFileInfo) Name() string { return f.name }
+
+// Size returns the file size in bytes.
+func (f *memFileInfo) Size() int64 { return f.size }
+
+// Mode returns the file mode bits.
+func (f *memFileInfo) Mode() os.FileMode { return 0644 }
+
+// ModTime returns a synthetic modification time.
 func (f *memFileInfo) ModTime() time.Time { return time.Now() }
-func (f *memFileInfo) IsDir() bool        { return false }
-func (f *memFileInfo) Sys() any           { return nil }
+
+// IsDir reports whether the file is a directory.
+func (f *memFileInfo) IsDir() bool { return false }
+
+// Sys returns underlying data source (none for MemSink).
+func (f *memFileInfo) Sys() any { return nil }
 
 // FailingSink is a sink that always returns errors.
 type FailingSink struct {

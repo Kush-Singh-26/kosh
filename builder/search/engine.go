@@ -180,16 +180,23 @@ type resultHeap struct {
 	results []Result
 }
 
-func (h resultHeap) Len() int           { return len(h.results) }
-func (h resultHeap) Less(i, j int) bool { return h.results[i].Score < h.results[j].Score }
-func (h resultHeap) Swap(i, j int)      { h.results[i], h.results[j] = h.results[j], h.results[i] }
+// Len implements heap.Interface.
+func (h resultHeap) Len() int { return len(h.results) }
 
+// Less implements heap.Interface for a min-heap by score.
+func (h resultHeap) Less(i, j int) bool { return h.results[i].Score < h.results[j].Score }
+
+// Swap implements heap.Interface.
+func (h resultHeap) Swap(i, j int) { h.results[i], h.results[j] = h.results[j], h.results[i] }
+
+// Push implements heap.Interface.
 func (h *resultHeap) Push(x any) {
 	if r, ok := x.(Result); ok {
 		h.results = append(h.results, r)
 	}
 }
 
+// Pop implements heap.Interface.
 func (h *resultHeap) Pop() any {
 	old := h.results
 	n := len(old)

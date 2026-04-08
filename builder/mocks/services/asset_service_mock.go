@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"sync"
 
 	"log/slog"
 
@@ -15,6 +16,7 @@ import (
 
 // MockAssetService is a test double for the asset service.
 type MockAssetService struct {
+	mu                sync.Mutex
 	Sink              fspkg.ArtifactSink
 	Metrics           *metrics.BuildMetrics
 	assetsReady       chan struct{}
@@ -38,16 +40,22 @@ func (m *MockAssetService) SetMetrics(m2 *metrics.BuildMetrics) {
 
 // SetAssetsReadySignal sets the readiness channel for asset build completion.
 func (m *MockAssetService) SetAssetsReadySignal(ch chan struct{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.assetsReady = ch
 }
 
 // SetDiscoveryReady sets the discovery-ready channel for the mock.
 func (m *MockAssetService) SetDiscoveryReady(ch chan struct{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.discoveryReady = ch
 }
 
 // SetContentAssetsChannel sets the channel used for content asset discovery.
 func (m *MockAssetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.contentAssetsChan = ch
 }
 
@@ -58,19 +66,30 @@ func (m *MockAssetService) Build(ctx context.Context) error {
 
 // BuildWithOptions runs the mock build with options.
 func (m *MockAssetService) BuildWithOptions(ctx context.Context, skipImages bool) error {
-	if m.FailBuild {
-		return context.Canceled // Simulate build failure
-	}
-	if m.contentAssetsChan != nil {
-		<-m.contentAssetsChan
-	}
-	if m.assetsReady != nil {
-		close(m.assetsReady)
+	m.mu.Lock()
+	failBuild := m.FailBuild
+	contentAssetsChan := m.contentAssetsChan
+	assetsReady := m.assetsReady
+	discoveryReady := m.discoveryReady
+	if assetsReady != nil {
 		m.assetsReady = nil
 	}
-	if m.discoveryReady != nil {
-		close(m.discoveryReady)
+	if discoveryReady != nil {
 		m.discoveryReady = nil
+	}
+	m.mu.Unlock()
+
+	if failBuild {
+		return context.Canceled // Simulate build failure
+	}
+	if contentAssetsChan != nil {
+		<-contentAssetsChan
+	}
+	if assetsReady != nil {
+		close(assetsReady)
+	}
+	if discoveryReady != nil {
+		close(discoveryReady)
 	}
 	return nil
 }
@@ -87,6 +106,8 @@ func (m *MockAssetService) BuildForAssetChangeWithOptions(ctx context.Context, f
 
 // DiscoveryReady returns the discovery-ready channel, falling back to assets-ready.
 func (m *MockAssetService) DiscoveryReady() <-chan struct{} {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.discoveryReady != nil {
 		return m.discoveryReady
 	}

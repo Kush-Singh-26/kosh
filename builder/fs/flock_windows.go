@@ -15,7 +15,9 @@ var (
 )
 
 const (
-	LOCKFILE_EXCLUSIVE_LOCK   = 2
+	// LOCKFILE_EXCLUSIVE_LOCK requests an exclusive file lock.
+	LOCKFILE_EXCLUSIVE_LOCK = 2
+	// LOCKFILE_FAIL_IMMEDIATELY returns immediately instead of waiting for a lock.
 	LOCKFILE_FAIL_IMMEDIATELY = 1
 )
 

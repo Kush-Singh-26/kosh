@@ -87,7 +87,7 @@ func (s *postService) renderMathSSR(ctx context.Context, html string, exprs []mo
 	}
 
 	if s.diagramAdapter != nil && len(rendered) > 0 {
-		newMath := make(map[string]any)
+		newMath := make(map[string]any) // values are rendered HTML/SVG strings.
 		for h, v := range rendered {
 			if _, ok := cached[h]; !ok {
 				newMath["math:"+h] = v

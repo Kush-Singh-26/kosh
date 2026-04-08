@@ -25,7 +25,7 @@ func TestRenameWithRetry_Succeeds(t *testing.T) {
 		OldPath:    tmp,
 		NewPath:    final,
 		MaxRetries: 3,
-		BaseDelay:  1*time.Millisecond,
+		BaseDelay:  1 * time.Millisecond,
 	}); err != nil {
 		t.Fatalf("RenameWithRetry should succeed: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestRenameWithRetry_FailsWhenMissing(t *testing.T) {
 		OldPath:    tmp,
 		NewPath:    final,
 		MaxRetries: 2,
-		BaseDelay:  1*time.Millisecond,
+		BaseDelay:  1 * time.Millisecond,
 	})
 	if err == nil {
 		t.Fatal("expected RenameWithRetry to fail for missing temp file")

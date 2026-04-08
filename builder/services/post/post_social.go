@@ -54,7 +54,7 @@ func (s *postService) generateSocialCard(t socialCardTask) {
 		Description: timeutil.ExtractStringFromMap(t.metadata, "description"),
 		DateStr:     timeutil.ExtractStringFromMap(t.metadata, "date"),
 		DestPath:    cachedCardPath,
-		LogoPath: logoPath,
+		LogoPath:    logoPath,
 	})
 
 	if err == nil {
@@ -86,7 +86,7 @@ func (s *postService) generateSocialCard(t socialCardTask) {
 			Description: timeutil.ExtractStringFromMap(t.metadata, "description"),
 			DateStr:     timeutil.ExtractStringFromMap(t.metadata, "date"),
 			DestPath:    t.cardDestPath,
-			LogoPath: logoPath,
+			LogoPath:    logoPath,
 		}); err != nil {
 			s.logger.Error("Failed to generate social card (fallback)", "path", t.cardDestPath, "error", err)
 		} else {

@@ -8,10 +8,14 @@ import (
 type MathType int
 
 const (
-	MathBlock   MathType = iota // $$...$$
-	MathDisplay                 // \[...\]
-	MathInline                  // $...$
-	MathParen                   // \(...\)
+	// MathBlock represents $$...$$ blocks.
+	MathBlock MathType = iota
+	// MathDisplay represents \[...\] blocks.
+	MathDisplay
+	// MathInline represents $...$ inline math.
+	MathInline
+	// MathParen represents \(...\) inline math.
+	MathParen
 )
 
 // MathMatch represents a found LaTeX expression

@@ -24,7 +24,8 @@ func CreateSamplePostMeta() *cache.PostMeta {
 		Weight:      10,
 		WordCount:   150,
 		ReadingTime: 1,
-		Meta:        make(map[string]any),
+		// Meta values mirror YAML frontmatter decoding (string, bool, int/float64, time.Time, []any, map[string]any).
+		Meta: make(map[string]any),
 	}
 }
 
@@ -34,6 +35,7 @@ func CreateSamplePageData() models.PageData {
 		Title:       "Test Page",
 		Description: "Test page description",
 		Content:     template.HTML("<p>Test content</p>"),
+		// Meta values mirror YAML frontmatter decoding (string, bool, int/float64, time.Time, []any, map[string]any).
 		Meta: map[string]any{
 			"title":       "Test Page",
 			"description": "Test page description",

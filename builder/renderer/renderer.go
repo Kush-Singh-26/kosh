@@ -77,10 +77,12 @@ func NewWithFs(opts RendererOptions) *Renderer {
 	return r
 }
 
+// SetSink swaps the output sink used for rendered pages.
 func (r *Renderer) SetSink(sink fspkg.ArtifactSink) {
 	r.Sink = sink
 }
 
+// SetLogger updates the logger used for renderer diagnostics.
 func (r *Renderer) SetLogger(l *slog.Logger) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -95,6 +97,7 @@ func (r *Renderer) Has404Template() bool {
 	return r.NotFound != nil
 }
 
+// ReloadTemplates reloads templates from disk or cache.
 func (r *Renderer) ReloadTemplates() {
 	tc := getGlobalCache(r.templateDir, r.devMode)
 

@@ -124,12 +124,14 @@ func (tx *TxSync) Rollback(ctx context.Context) {
 	}
 }
 
+// FileCount returns the number of files tracked in the transaction.
 func (tx *TxSync) FileCount() int {
 	tx.mu.Lock()
 	defer tx.mu.Unlock()
 	return len(tx.written)
 }
 
+// IsCommitted reports whether the transaction has been committed.
 func (tx *TxSync) IsCommitted() bool {
 	tx.mu.Lock()
 	defer tx.mu.Unlock()

@@ -300,10 +300,12 @@ func (m *Manager) clearFilesystemStore() error {
 	return nil
 }
 
+// Store exposes the underlying content-addressed store.
 func (m *Manager) Store() *store.Store {
 	return m.store
 }
 
+// DB exposes the underlying BoltDB handle.
 func (m *Manager) DB() *bbolt.DB {
 	return m.db
 }

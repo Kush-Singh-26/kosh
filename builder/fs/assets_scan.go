@@ -48,36 +48,36 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 		Concurrency: 0,
 		WalkFn: func(path string, info fs.FileInfo, err error) error {
 
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			ext := strings.ToLower(filepath.Ext(path))
+			baseName := filepath.Base(path)
+
+			if baseName == "wasm_engine.js" || baseName == "wasm_exec.js" || baseName == "engine.js" || baseName == "force-graph.js" {
+				return nil
+			}
+
+			walkMu.Lock()
+			defer walkMu.Unlock()
+
+			switch ext {
+			case ".js":
+				js = append(js, path)
+			case ".css":
+				css = append(css, path)
+			}
+
+			metas = append(metas, fileMeta{
+				path:  path,
+				size:  info.Size(),
+				mtime: info.ModTime().UnixNano(),
+			})
 			return nil
-		}
-		ext := strings.ToLower(filepath.Ext(path))
-		baseName := filepath.Base(path)
-
-		if baseName == "wasm_engine.js" || baseName == "wasm_exec.js" || baseName == "engine.js" || baseName == "force-graph.js" {
-			return nil
-		}
-
-		walkMu.Lock()
-		defer walkMu.Unlock()
-
-		switch ext {
-		case ".js":
-			js = append(js, path)
-		case ".css":
-			css = append(css, path)
-		}
-
-		metas = append(metas, fileMeta{
-			path:  path,
-			size:  info.Size(),
-			mtime: info.ModTime().UnixNano(),
-		})
-		return nil
-	}})
+		}})
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan for assets: %w", err)
 	}

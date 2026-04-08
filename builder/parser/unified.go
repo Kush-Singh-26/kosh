@@ -50,10 +50,12 @@ func NewMemorySSRMap() *MemorySSRMap {
 	return &MemorySSRMap{}
 }
 
+// Load returns a cached SSR value by key.
 func (m *MemorySSRMap) Load(key string) (any, bool) {
 	return m.m.Load(key)
 }
 
+// Store caches an SSR value by key.
 func (m *MemorySSRMap) Store(key string, value any) {
 	m.m.Store(key, value)
 }
@@ -91,6 +93,7 @@ type transformState struct {
 	transformer     *unifiedTransformer
 }
 
+// Transform walks the AST and extracts TOC, plaintext, math, and D2 data.
 func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	state := &transformState{
 		source:      reader.Source(),
