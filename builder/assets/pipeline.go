@@ -155,13 +155,18 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink fspkg.ArtifactSink, sr
 
 	// Use higher concurrency for discovery walk on modern SSDs
 	walkConcurrency := max(numWorkers/2, 4)
-	walkErr := fspkg.ParallelWalk(ctx, srcFs, srcDir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
+	walkErr := fspkg.ParallelWalk(fspkg.WalkOptions{
+		Ctx:         ctx,
+		SourceFs:    srcFs,
+		Root:        srcDir,
+		Concurrency: walkConcurrency,
+		WalkFn: func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
 
 		relPath, _ := fspkg.SafeRel(srcDir, path)
 		ext := strings.ToLower(filepath.Ext(path))
@@ -206,6 +211,7 @@ func CopyDirVFS(ctx context.Context, srcFs afero.Fs, sink fspkg.ArtifactSink, sr
 			}
 		}
 		return nil
+		},
 	})
 
 	close(imageQueue)

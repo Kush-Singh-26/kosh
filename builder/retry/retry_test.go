@@ -24,7 +24,13 @@ func TestRenameWithRetry_Success(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	err := RenameWithRetry(ctx, oldPath, newPath, 3, 10*time.Millisecond)
+	err := RenameWithRetry(RenameOptions{
+		Ctx:        ctx,
+		OldPath:    oldPath,
+		NewPath:    newPath,
+		MaxRetries: 3,
+		BaseDelay:  10 * time.Millisecond,
+	})
 	if err != nil {
 		t.Errorf("RenameWithRetry() error = %v", err)
 	}
@@ -47,7 +53,13 @@ func TestRenameWithRetry_NotExist(t *testing.T) {
 	newPath := filepath.Join(tmpDir, "new.txt")
 
 	start := time.Now()
-	err := RenameWithRetry(ctx, oldPath, newPath, 3, 100*time.Millisecond)
+	err := RenameWithRetry(RenameOptions{
+		Ctx:        ctx,
+		OldPath:    oldPath,
+		NewPath:    newPath,
+		MaxRetries: 3,
+		BaseDelay:  100 * time.Millisecond,
+	})
 	elapsed := time.Since(start)
 
 	if !os.IsNotExist(err) {
@@ -76,7 +88,13 @@ func TestRenameWithRetry_ContextCancellation(t *testing.T) {
 	// Cancel context immediately
 	cancel()
 
-	err := RenameWithRetry(ctx, oldPath, newPath, 10, 10*time.Millisecond)
+	err := RenameWithRetry(RenameOptions{
+		Ctx:        ctx,
+		OldPath:    oldPath,
+		NewPath:    newPath,
+		MaxRetries: 10,
+		BaseDelay:  10 * time.Millisecond,
+	})
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("RenameWithRetry() expected context.Canceled, got %v", err)
 	}
@@ -101,7 +119,13 @@ func TestRenameWithRetry_MaxRetriesExhausted(t *testing.T) {
 		t.Fatalf("Failed to create directory: %v", err)
 	}
 
-	err := RenameWithRetry(ctx, oldPath, newPath, 3, 10*time.Millisecond)
+	err := RenameWithRetry(RenameOptions{
+		Ctx:        ctx,
+		OldPath:    oldPath,
+		NewPath:    newPath,
+		MaxRetries: 3,
+		BaseDelay:  10 * time.Millisecond,
+	})
 	if err == nil {
 		t.Error("RenameWithRetry() expected error when renaming to directory path")
 	}
@@ -180,7 +204,13 @@ func TestRenameWithRetry_Jitter(t *testing.T) {
 	}
 
 	// First rename should succeed
-	err := RenameWithRetry(ctx, oldPath, newPath, 3, 10*time.Millisecond)
+	err := RenameWithRetry(RenameOptions{
+		Ctx:        ctx,
+		OldPath:    oldPath,
+		NewPath:    newPath,
+		MaxRetries: 3,
+		BaseDelay:  10 * time.Millisecond,
+	})
 	if err != nil {
 		t.Errorf("First RenameWithRetry() error = %v", err)
 	}
@@ -191,7 +221,13 @@ func TestRenameWithRetry_Jitter(t *testing.T) {
 	}
 
 	// Second rename should also succeed (jitter doesn't affect success)
-	err = RenameWithRetry(ctx, oldPath, newPath, 3, 10*time.Millisecond)
+	err = RenameWithRetry(RenameOptions{
+		Ctx:        ctx,
+		OldPath:    oldPath,
+		NewPath:    newPath,
+		MaxRetries: 3,
+		BaseDelay:  10 * time.Millisecond,
+	})
 	if err != nil {
 		t.Errorf("Second RenameWithRetry() error = %v", err)
 	}
@@ -259,7 +295,13 @@ func TestRetryBackoffTiming(t *testing.T) {
 	}
 
 	start := time.Now()
-	_ = RenameWithRetry(ctx, oldPath, newPath, 3, 50*time.Millisecond)
+	_ = RenameWithRetry(RenameOptions{
+		Ctx:        ctx,
+		OldPath:    oldPath,
+		NewPath:    newPath,
+		MaxRetries: 3,
+		BaseDelay:  50 * time.Millisecond,
+	})
 	elapsed := time.Since(start)
 
 	// Should have taken at least some backoff time (but may fail fast on certain errors)
@@ -307,7 +349,13 @@ func TestRenameWithRetry_SamePath(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	err := RenameWithRetry(ctx, filePath, filePath, 3, 10*time.Millisecond)
+	err := RenameWithRetry(RenameOptions{
+		Ctx:        ctx,
+		OldPath:    filePath,
+		NewPath:    filePath,
+		MaxRetries: 3,
+		BaseDelay:  10 * time.Millisecond,
+	})
 	if err != nil {
 		t.Errorf("RenameWithRetry() same path error = %v", err)
 	}

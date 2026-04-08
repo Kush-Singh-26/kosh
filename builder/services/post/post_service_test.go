@@ -220,7 +220,13 @@ func setupPostServiceTest(t *testing.T) *postService {
 	}
 
 	return &postService{
-		ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		cfg:            cfg,
 		cache:          &mockCacheService{},
 		renderer:       &mockRenderService{},
@@ -381,7 +387,13 @@ func TestDecoupledPipeline(t *testing.T) {
 	}
 
 	// 2. Render AST
-	err = RenderParsedMarkdown(source, res, mdPool, nil, nil)
+	err = RenderParsedMarkdown(MarkdownRenderOptions{
+		Source:         source,
+		Result:         res,
+		MdPool:         mdPool,
+		NativeRenderer: nil,
+		DiagramAdapter: nil,
+	})
 	if err != nil {
 		t.Fatalf("RenderParsedMarkdown failed: %v", err)
 	}

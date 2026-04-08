@@ -86,7 +86,13 @@ func (tx *TxSync) Rollback(ctx context.Context) {
 	rolled := 0
 
 	for original, backup := range tx.backups {
-		if err := retry.RenameWithRetry(ctx, backup, original, txSyncMaxRetries, txSyncBaseDelayMs); err != nil {
+		if err := retry.RenameWithRetry(retry.RenameOptions{
+			Ctx:        ctx,
+			OldPath:    backup,
+			NewPath:    original,
+			MaxRetries: txSyncMaxRetries,
+			BaseDelay:  txSyncBaseDelayMs,
+		}); err != nil {
 			if tx.logger != nil {
 				tx.logger.Warn("TxSync rollback: failed to restore backup",
 					"original", original, "backup", backup, "error", err)

@@ -43,18 +43,30 @@ type Renderer struct {
 	Minifier       *minify.M
 }
 
-func New(compress bool, sink fspkg.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
-	return NewWithFs(afero.NewOsFs(), compress, sink, templateDir, devMode, logger)
+type RendererOptions struct {
+	SourceFs    afero.Fs
+	Compress    bool
+	Sink        fspkg.ArtifactSink
+	TemplateDir string
+	DevMode     bool
+	Logger      *slog.Logger
 }
 
-func NewWithFs(sourceFs afero.Fs, compress bool, sink fspkg.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
+func New(opts RendererOptions) *Renderer {
+	if opts.SourceFs == nil {
+		opts.SourceFs = afero.NewOsFs()
+	}
+	return NewWithFs(opts)
+}
+
+func NewWithFs(opts RendererOptions) *Renderer {
 	r := &Renderer{
-		Compress:    compress,
-		Sink:        sink,
-		SourceFs:    sourceFs,
-		logger:      logger,
-		templateDir: templateDir,
-		devMode:     devMode,
+		Compress:    opts.Compress,
+		Sink:        opts.Sink,
+		SourceFs:    opts.SourceFs,
+		logger:      opts.Logger,
+		templateDir: opts.TemplateDir,
+		devMode:     opts.DevMode,
 		Minifier:    koshMinify.GetHTMLMinifier(),
 	}
 	r.ReloadTemplates()

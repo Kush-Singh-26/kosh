@@ -32,11 +32,27 @@ func (b *Engine) generatePWA(ctx context.Context, shouldForce bool) error {
 	g, _ := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return generators.GenerateSW(b.Sink, b.Cfg.OutputDir, b.Cfg.BuildVersion, shouldForce, b.Cfg.BaseURL, b.Deps.Render.GetAssets(), b.Ctx.IsTesting)
+		return generators.GenerateSW(generators.SWOptions{
+			Sink:         b.Sink,
+			DestDir:      b.Cfg.OutputDir,
+			BuildVersion: b.Cfg.BuildVersion,
+			ForceRebuild: shouldForce,
+			BaseURL:      b.Cfg.BaseURL,
+			Assets:       b.Deps.Render.GetAssets(),
+			IsTesting:    b.Ctx.IsTesting,
+		})
 	})
 
 	g.Go(func() error {
-		return generators.GenerateManifest(b.Sink, b.Cfg.OutputDir, b.Cfg.BaseURL, b.Cfg.Title, b.Cfg.Description, shouldForce, b.Ctx.IsTesting)
+		return generators.GenerateManifest(generators.ManifestOptions{
+			Sink:            b.Sink,
+			DestDir:         b.Cfg.OutputDir,
+			BaseURL:         b.Cfg.BaseURL,
+			SiteTitle:       b.Cfg.Title,
+			SiteDescription: b.Cfg.Description,
+			ForceRebuild:    shouldForce,
+			IsTesting:       b.Ctx.IsTesting,
+		})
 	})
 
 	g.Go(func() error {

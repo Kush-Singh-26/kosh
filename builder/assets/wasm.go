@@ -48,10 +48,28 @@ func CheckWASM(sink fspkg.ArtifactSink, cacheDir string) bool {
 }
 
 func CheckWASMFs(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string) bool {
-	return CheckWASMFsWithSource(fs, sink, cacheDir, nil, 0)
+	return CheckWASMFsWithSource(CheckWASMOptions{
+		Fs:       fs,
+		Sink:     sink,
+		CacheDir: cacheDir,
+	})
 }
 
-func CheckWASMFsWithSource(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string, sourceWasm []byte, compressionLevel int) bool {
+type CheckWASMOptions struct {
+	Fs               afero.Fs
+	Sink             fspkg.ArtifactSink
+	CacheDir         string
+	SourceWasm       []byte
+	CompressionLevel int
+}
+
+func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
+	fs := opts.Fs
+	sink := opts.Sink
+	cacheDir := opts.CacheDir
+	sourceWasm := opts.SourceWasm
+	compressionLevel := opts.CompressionLevel
+
 	// Default compression level is 4 (balanced)
 	if compressionLevel == 0 {
 		compressionLevel = 4
@@ -152,19 +170,39 @@ func CheckWASMFsWithSource(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string
 }
 
 func DeployWASMFromFile(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePath string) bool {
-	return DeployWASMFromFileWithLevel(fs, sink, cacheDir, sourcePath, 4)
+	return DeployWASMFromFileWithLevel(DeployWASMOptions{
+		Fs:         fs,
+		Sink:       sink,
+		CacheDir:   cacheDir,
+		SourcePath: sourcePath,
+		Level:      4,
+	})
 }
 
-func DeployWASMFromFileWithLevel(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePath string, level int) bool {
-	data, err := afero.ReadFile(fs, sourcePath)
+type DeployWASMOptions struct {
+	Fs         afero.Fs
+	Sink       fspkg.ArtifactSink
+	CacheDir   string
+	SourcePath string
+	Level      int
+}
+
+func DeployWASMFromFileWithLevel(opts DeployWASMOptions) bool {
+	data, err := afero.ReadFile(opts.Fs, opts.SourcePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return CheckWASMFs(fs, sink, cacheDir)
+			return CheckWASMFs(opts.Fs, opts.Sink, opts.CacheDir)
 		}
-		slog.Warn("Failed to read source WASM", "path", sourcePath, "error", err)
-		return CheckWASMFs(fs, sink, cacheDir)
+		slog.Warn("Failed to read source WASM", "path", opts.SourcePath, "error", err)
+		return CheckWASMFs(opts.Fs, opts.Sink, opts.CacheDir)
 	}
-	return CheckWASMFsWithSource(fs, sink, cacheDir, data, level)
+	return CheckWASMFsWithSource(CheckWASMOptions{
+		Fs:               opts.Fs,
+		Sink:             opts.Sink,
+		CacheDir:         opts.CacheDir,
+		SourceWasm:       data,
+		CompressionLevel: opts.Level,
+	})
 }
 
 // CompileWASMFromSource builds the search engine WASM from Go source.

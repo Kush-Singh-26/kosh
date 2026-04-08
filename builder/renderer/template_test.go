@@ -23,7 +23,7 @@ func TestRenderer_ReloadTemplates(t *testing.T) {
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ .Title }}`), 0644)
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "index.html"), []byte(`Index: {{ .Title }}`), 0644)
 
-	r := NewWithFs(fs, false, sink, templateDir, false, logger)
+	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
 
 	if r.Layout == nil {
 		t.Fatal("Layout template should not be nil")
@@ -50,7 +50,7 @@ func TestRenderer_ReloadTemplates_Missing(t *testing.T) {
 	_ = fs.MkdirAll(templateDir, 0755)
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`Layout`), 0644)
 
-	r := NewWithFs(fs, false, sink, templateDir, false, logger)
+	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
 
 	if r.Layout == nil {
 		t.Fatal("Layout template should not be nil")
@@ -71,7 +71,7 @@ func TestRenderer_FuncMap_Relativize(t *testing.T) {
 	_ = fs.MkdirAll(templateDir, 0755)
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ relativize .BaseURL .RelativePrefix .Link }}`), 0644)
 
-	r := NewWithFs(fs, false, sink, templateDir, false, logger)
+	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
 
 	tests := []struct {
 		baseURL  string
@@ -116,7 +116,7 @@ func TestRenderer_FuncMap_Slugify(t *testing.T) {
 	_ = fs.MkdirAll(templateDir, 0755)
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ slugify .Title }}`), 0644)
 
-	r := NewWithFs(fs, false, sink, templateDir, false, logger)
+	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
 
 	buf := new(bytes.Buffer)
 	_ = r.Layout.Execute(buf, map[string]string{"Title": "Hello World!"})

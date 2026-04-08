@@ -92,7 +92,13 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 
 	if b.Cfg.Features.Generators.Sitemap && allPosts != nil && indexedPosts == nil {
 		g.Go(func() error {
-			_, err := generators.GenerateSitemap(b.Sink, b.Cfg.BaseURL, allPosts, tagMap, filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"))
+			_, err := generators.GenerateSitemap(generators.SitemapOptions{
+				Sink:       b.Sink,
+				BaseURL:    b.Cfg.BaseURL,
+				Posts:      allPosts,
+				Tags:       tagMap,
+				OutputPath: filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"),
+			})
 			if err == nil {
 				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"))
 			} else {
@@ -116,7 +122,14 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 
 	if b.Cfg.Features.Generators.RSS && allPosts != nil && indexedPosts == nil {
 		g.Go(func() error {
-			_, err := generators.GenerateRSS(b.Sink, b.Cfg.BaseURL, allPosts, b.Cfg.Title, b.Cfg.Description, filepath.Join(b.Cfg.OutputDir, "rss.xml"))
+			_, err := generators.GenerateRSS(generators.RSSOptions{
+				Sink:        b.Sink,
+				BaseURL:     b.Cfg.BaseURL,
+				Posts:       allPosts,
+				Title:       b.Cfg.Title,
+				Description: b.Cfg.Description,
+				OutputPath:  filepath.Join(b.Cfg.OutputDir, "rss.xml"),
+			})
 			if err == nil {
 				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "rss.xml"))
 			} else {
@@ -151,7 +164,14 @@ func (b *Engine) renderSiteMetadata(allPosts []models.PostMetadata, tagMap map[s
 			// During incremental dev builds, the file persists so we could skip it, but generation
 			// is extremely fast (< 5ms) so we just run it unconditionally to ensure file registration
 			// and prevent orphan cleanup accidents.
-			_, _, err := generators.GenerateGraph(b.Sink, b.Cfg.BaseURL, allPosts, filepath.Join(b.Cfg.OutputDir, "graph.json"), b.Cfg.Features.Generators.Graph, b.Cfg.Title)
+			_, _, err := generators.GenerateGraph(generators.GraphOptions{
+				Sink:       b.Sink,
+				BaseURL:    b.Cfg.BaseURL,
+				Posts:      allPosts,
+				OutputPath: filepath.Join(b.Cfg.OutputDir, "graph.json"),
+				Config:     b.Cfg.Features.Generators.Graph,
+				SiteTitle:  b.Cfg.Title,
+			})
 			if err != nil {
 				b.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
 				return err

@@ -45,7 +45,16 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 		weight = int(w)
 	}
 
-	hashStandardFields(h, title, description, date, tags, pinned, draft, weight)
+	hashStandardFields(HashStandardFieldsOptions{
+		Hasher:      h,
+		Title:       title,
+		Description: description,
+		Date:        date,
+		Tags:        tags,
+		Pinned:      pinned,
+		Draft:       draft,
+		Weight:      weight,
+	})
 
 	// 2. Catch-all for Custom Fields
 	// Sort keys to ensure deterministic hashing
@@ -76,12 +85,32 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
+type FrontmatterHashOptions struct {
+	Title       string
+	Description string
+	Date        string
+	Tags        []string
+	Pinned      bool
+	Draft       bool
+	Weight      int
+	Other       map[string]any
+}
+
 // GetFrontmatterHashFromValues computes the canonical frontmatter hash from already-parsed values.
 // This avoids reparsing YAML when scanner-stage frontmatter is already available.
-func GetFrontmatterHashFromValues(title, description, date string, tags []string, pinned, draft bool, weight int, other map[string]any) string {
+func GetFrontmatterHashFromValues(opts FrontmatterHashOptions) string {
 	h := xxh3.New()
 
-	hashStandardFields(h, title, description, date, tags, pinned, draft, weight)
+	hashStandardFields(HashStandardFieldsOptions{
+		Hasher:      h,
+		Title:       opts.Title,
+		Description: opts.Description,
+		Date:        opts.Date,
+		Tags:        opts.Tags,
+		Pinned:      opts.Pinned,
+		Draft:       opts.Draft,
+		Weight:      opts.Weight,
+	})
 
 	// Catch-all for custom fields
 	var keys []string
@@ -90,7 +119,7 @@ func GetFrontmatterHashFromValues(title, description, date string, tags []string
 		"pinned": true, "draft": true, "weight": true,
 	}
 
-	for k := range other {
+	for k := range opts.Other {
 		if !standardKeys[k] {
 			keys = append(keys, k)
 		}
@@ -100,7 +129,7 @@ func GetFrontmatterHashFromValues(title, description, date string, tags []string
 	for _, k := range keys {
 		writeStringXXH3(h, k)
 		_, _ = h.Write([]byte{':'})
-		val := fmt.Sprintf("%v", other[k])
+		val := fmt.Sprintf("%v", opts.Other[k])
 		writeStringXXH3(h, val)
 		_, _ = h.Write([]byte{0})
 	}
@@ -110,49 +139,60 @@ func GetFrontmatterHashFromValues(title, description, date string, tags []string
 	return hex.EncodeToString(b[:])
 }
 
-func hashStandardFields(h *xxh3.Hasher, title, description, date string, tags []string, pinned, draft bool, weight int) {
-	writeStringXXH3(h, title)
-	_, _ = h.Write([]byte{0})
-	writeStringXXH3(h, description)
-	_, _ = h.Write([]byte{0})
+type HashStandardFieldsOptions struct {
+	Hasher      *xxh3.Hasher
+	Title       string
+	Description string
+	Date        string
+	Tags        []string
+	Pinned      bool
+	Draft       bool
+	Weight      int
+}
+
+func hashStandardFields(opts HashStandardFieldsOptions) {
+	writeStringXXH3(opts.Hasher, opts.Title)
+	_, _ = opts.Hasher.Write([]byte{0})
+	writeStringXXH3(opts.Hasher, opts.Description)
+	_, _ = opts.Hasher.Write([]byte{0})
 
 	// Normalize date to YYYY-MM-DD when parseable
-	if t, err := time.Parse("2006-01-02", date); err == nil {
-		writeStringXXH3(h, t.Format("2006-01-02"))
+	if t, err := time.Parse("2006-01-02", opts.Date); err == nil {
+		writeStringXXH3(opts.Hasher, t.Format("2006-01-02"))
 	} else {
-		writeStringXXH3(h, date)
+		writeStringXXH3(opts.Hasher, opts.Date)
 	}
-	_, _ = h.Write([]byte{0})
+	_, _ = opts.Hasher.Write([]byte{0})
 
-	if len(tags) > 0 {
-		normalized := make([]string, len(tags))
-		copy(normalized, tags)
+	if len(opts.Tags) > 0 {
+		normalized := make([]string, len(opts.Tags))
+		copy(normalized, opts.Tags)
 		for i := range normalized {
 			normalized[i] = strings.TrimSpace(normalized[i])
 		}
 		sort.Strings(normalized)
 		for _, tag := range normalized {
-			writeStringXXH3(h, tag)
-			_, _ = h.Write([]byte{0})
+			writeStringXXH3(opts.Hasher, tag)
+			_, _ = opts.Hasher.Write([]byte{0})
 		}
 	}
-	_, _ = h.Write([]byte{0})
+	_, _ = opts.Hasher.Write([]byte{0})
 
 	// Flags and numeric values
-	if pinned {
-		_, _ = h.Write([]byte{1})
+	if opts.Pinned {
+		_, _ = opts.Hasher.Write([]byte{1})
 	} else {
-		_, _ = h.Write([]byte{0})
+		_, _ = opts.Hasher.Write([]byte{0})
 	}
-	if draft {
-		_, _ = h.Write([]byte{1})
+	if opts.Draft {
+		_, _ = opts.Hasher.Write([]byte{1})
 	} else {
-		_, _ = h.Write([]byte{0})
+		_, _ = opts.Hasher.Write([]byte{0})
 	}
 
 	weightBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(weightBytes, uint64(weight))
-	_, _ = h.Write(weightBytes)
+	binary.LittleEndian.PutUint64(weightBytes, uint64(opts.Weight))
+	_, _ = opts.Hasher.Write(weightBytes)
 }
 
 // writeStringXXH3 writes a string to the XXH3 hash

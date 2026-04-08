@@ -1,4 +1,4 @@
-// Package run provides integration tests for the full build pipeline.
+﻿// Package run provides integration tests for the full build pipeline.
 // These tests verify end-to-end build correctness, cache utilization,
 // and transaction rollback behavior.
 package orchestration
@@ -84,13 +84,32 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -100,7 +119,13 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -211,13 +236,20 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:      buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -227,7 +259,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:            buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -332,14 +364,22 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		cacheManager, _ := cache.Open(cacheDir, false)
 		t.Cleanup(func() { _ = cacheManager.Close() })
 
+		sink := testutil.NewMemSink()
 		cacheSvc := svcCache.NewService(svcCache.Dependencies{
-			Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+			Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 			Manager: cacheManager,
 			Logger:  logger,
 		})
-		rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+		rnd := renderer.NewWithFs(renderer.RendererOptions{
+			SourceFs:    fs,
+			Compress:    false,
+			Sink:        sink,
+			TemplateDir: cfg.TemplateDir,
+			DevMode:     true,
+			Logger:      logger,
+		})
 		renderSvc := render.NewService(render.Dependencies{
-			Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+			Ctx:      buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 			Renderer: rnd,
 			Logger:   logger,
 		})
@@ -347,9 +387,8 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		assetSvc.SetMetrics(buildMetrics)
 		wasmSvc := &mocks.MockWasmService{}
 		metadataScanner := scanner.NewScanner()
-		sink := testutil.NewMemSink()
 		postSvc := post.NewService(post.Dependencies{
-			Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+			Ctx:            buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 			Cfg:            cfg,
 			Cache:          cacheSvc,
 			Renderer:       renderSvc,
@@ -463,13 +502,20 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:      buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -483,7 +529,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:            buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -546,7 +592,7 @@ func TestCacheService_DirtyTrackingIntegration(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
@@ -584,7 +630,7 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
@@ -653,7 +699,7 @@ func TestCacheService_SocialCardHashPersistence(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
@@ -726,13 +772,20 @@ func TestBuild_WithRealCache(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:      buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -742,7 +795,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:            buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -790,13 +843,13 @@ func TestBuild_WithRealCache(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager2.Close() })
 
 	cacheSvc2 := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager2,
 		Logger:  logger,
 	})
 	b.Deps.Cache = cacheSvc2
 	postSvc2 := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:            buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc2,
 		Renderer:       renderSvc,
@@ -897,13 +950,20 @@ Content 3
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:      buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -911,7 +971,7 @@ Content 3
 	assetSvc.SetMetrics(buildMetrics)
 	sink := testutil.NewMemSink()
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx:            buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,

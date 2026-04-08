@@ -138,14 +138,22 @@ func ParseMarkdownMetadata(opts ParseOptions) (*ParsedMarkdownResult, error) {
 	return res, nil
 }
 
+type MarkdownRenderOptions struct {
+	Source         []byte
+	Result         *ParsedMarkdownResult
+	MdPool         *sync.Pool
+	NativeRenderer *native.Renderer
+	DiagramAdapter *cache.DiagramCacheAdapter
+}
+
 // RenderParsedMarkdown converts the AST to HTML and performs Math discovery
-func RenderParsedMarkdown(
-	source []byte,
-	res *ParsedMarkdownResult,
-	mdPool *sync.Pool,
-	nativeRenderer *native.Renderer,
-	diagramAdapter *cache.DiagramCacheAdapter,
-) error {
+func RenderParsedMarkdown(opts MarkdownRenderOptions) error {
+	source := opts.Source
+	res := opts.Result
+	mdPool := opts.MdPool
+	// nativeRenderer and diagramAdapter are currently unused in the body,
+	// but kept for future compatibility or because they were in the signature.
+
 	if res.AST == nil || res.Context == nil {
 		return fmt.Errorf("missing AST or Context in ParsedMarkdownResult")
 	}
@@ -188,7 +196,13 @@ func ParseMarkdown(opts ParseOptions) (*ParsedMarkdownResult, error) {
 		return nil, err
 	}
 
-	if err := RenderParsedMarkdown(opts.Source, res, opts.MdPool, opts.NativeRenderer, opts.DiagramAdapter); err != nil {
+	if err := RenderParsedMarkdown(MarkdownRenderOptions{
+		Source:         opts.Source,
+		Result:         res,
+		MdPool:         opts.MdPool,
+		NativeRenderer: opts.NativeRenderer,
+		DiagramAdapter: opts.DiagramAdapter,
+	}); err != nil {
 		return nil, err
 	}
 

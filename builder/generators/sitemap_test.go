@@ -25,7 +25,13 @@ func TestGenerateSitemap(t *testing.T) {
 	}
 	outputPath := "sitemap.xml"
 
-	_, err := GenerateSitemap(sink, baseURL, posts, tags, outputPath)
+	_, err := GenerateSitemap(SitemapOptions{
+		Sink:       sink,
+		BaseURL:    baseURL,
+		Posts:      posts,
+		Tags:       tags,
+		OutputPath: outputPath,
+	})
 	if err != nil {
 		t.Fatalf("GenerateSitemap failed: %v", err)
 	}
@@ -49,7 +55,13 @@ func TestGenerateSitemap(t *testing.T) {
 
 func TestGenerateSitemap_EmptyPosts(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, err := GenerateSitemap(sink, "https://example.com", []models.PostMetadata{}, nil, "sitemap.xml")
+	_, err := GenerateSitemap(SitemapOptions{
+		Sink:       sink,
+		BaseURL:    "https://example.com",
+		Posts:      []models.PostMetadata{},
+		Tags:       nil,
+		OutputPath: "sitemap.xml",
+	})
 	if err != nil {
 		t.Fatalf("GenerateSitemap failed with empty posts: %v", err)
 	}

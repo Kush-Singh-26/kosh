@@ -94,9 +94,22 @@ func TestFullBuild(t *testing.T) {
 		},
 	}
 
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, true, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        true,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -104,7 +117,13 @@ func TestFullBuild(t *testing.T) {
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, true, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        true,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Cfg:            cfg,
 		Renderer:       renderSvc,
 		Logger:         logger,

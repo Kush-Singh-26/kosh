@@ -59,7 +59,23 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func Run(ctx context.Context, args []string, outputDir string, baseURL string, buildCfg *config.BuildConfig, reporter ui.Reporter) {
+type ServerOptions struct {
+	Ctx         context.Context
+	Args        []string
+	OutputDir   string
+	BaseURL     string
+	BuildConfig *config.BuildConfig
+	Reporter    ui.Reporter
+}
+
+func Run(opts ServerOptions) {
+	ctx := opts.Ctx
+	args := opts.Args
+	outputDir := opts.OutputDir
+	baseURL := opts.BaseURL
+	buildCfg := opts.BuildConfig
+	reporter := opts.Reporter
+
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	host := fs.String("host", "localhost", "The host/IP to bind to")
 	port := fs.String("port", "2604", "The port to listen on")

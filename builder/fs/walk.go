@@ -16,7 +16,22 @@ import (
 type WalkFunc func(path string, info fs.FileInfo, err error) error
 
 // ParallelWalk provides a stable, parallelized directory traversal using the afero interface.
-func ParallelWalk(ctx context.Context, sourceFs afero.Fs, root string, concurrency int, walkFn WalkFunc) error {
+type WalkOptions struct {
+	Ctx         context.Context
+	SourceFs    afero.Fs
+	Root        string
+	Concurrency int
+	WalkFn      WalkFunc
+}
+
+// ParallelWalk provides a stable, parallelized directory traversal using the afero interface.
+func ParallelWalk(opts WalkOptions) error {
+	ctx := opts.Ctx
+	sourceFs := opts.SourceFs
+	root := opts.Root
+	concurrency := opts.Concurrency
+	walkFn := opts.WalkFn
+
 	// Add context cancellation to the walk function
 	walkFnWrapped := func(path string, info fs.FileInfo, err error) error {
 		if ctx.Err() != nil {

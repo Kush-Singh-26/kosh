@@ -93,7 +93,13 @@ func RenderTags(opts TagOptions) error {
 	tagsIndexCache := filepath.Join(cfg.CacheDir, "social-cards", tagsIndexHash+".webp")
 	tagsIndexCard := filepath.Join(cfg.OutputDir, "static/images/cards/tags/index.webp")
 
-	if ShouldGenerateSocialCard(opts.Cache, "tags/index", tagsIndexHash, tagsIndexCache, opts.ForceSocialRebuild) {
+	if ShouldGenerateSocialCard(CheckSocialCardOptions{
+		Cache:          opts.Cache,
+		CacheKey:       "tags/index",
+		CurrentHash:    tagsIndexHash,
+		CachedCardPath: tagsIndexCache,
+		Force:          opts.ForceSocialRebuild,
+	}) {
 		ProvideSocialCard(ProvideSocialCardOptions{
 			Sink:        sink,
 			Cache:       opts.Cache,
@@ -146,7 +152,13 @@ func RenderTags(opts TagOptions) error {
 		hash := SocialCardHash("#"+tagName, tagDesc)
 		cached := filepath.Join(cfg.CacheDir, "social-cards", hash+".webp")
 
-		if ShouldGenerateSocialCard(opts.Cache, "tags/"+slug, hash, cached, opts.ForceSocialRebuild) {
+		if ShouldGenerateSocialCard(CheckSocialCardOptions{
+			Cache:          opts.Cache,
+			CacheKey:       "tags/" + slug,
+			CurrentHash:    hash,
+			CachedCardPath: cached,
+			Force:          opts.ForceSocialRebuild,
+		}) {
 			tagCardPool.Submit(TagSocialCardTask{Slug: slug, Title: tagName, Count: len(tagPosts)})
 		} else if data, err := afero.ReadFile(afero.NewOsFs(), cached); err == nil {
 			tagCard := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/tags/%s.webp", slug))

@@ -27,7 +27,13 @@ func TestSyncVFS_Basic(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := SyncVFS(ctx, srcFs, targetDir, dirtyFiles, true)
+	err := SyncVFS(SyncOptions{
+		Ctx:          ctx,
+		SrcFs:        srcFs,
+		TargetDir:    targetDir,
+		DirtyFiles:   dirtyFiles,
+		IsCleanBuild: true,
+	})
 	if err != nil {
 		t.Fatalf("SyncVFS failed: %v", err)
 	}
@@ -62,7 +68,13 @@ func TestSyncVFS_AbsolutePaths(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := SyncVFS(ctx, srcFs, targetDir, dirtyFiles, true)
+	err := SyncVFS(SyncOptions{
+		Ctx:          ctx,
+		SrcFs:        srcFs,
+		TargetDir:    targetDir,
+		DirtyFiles:   dirtyFiles,
+		IsCleanBuild: true,
+	})
 	if err != nil {
 		t.Fatalf("SyncVFS failed with absolute paths: %v", err)
 	}

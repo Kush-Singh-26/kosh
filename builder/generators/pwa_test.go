@@ -18,7 +18,15 @@ func TestGenerateSW(t *testing.T) {
 		"/static/css/layout.css": "layout.abc.css",
 	}
 
-	err := GenerateSW(sink, destDir, buildVersion, forceRebuild, baseURL, assets, true)
+	err := GenerateSW(SWOptions{
+		Sink:         sink,
+		DestDir:      destDir,
+		BuildVersion: buildVersion,
+		ForceRebuild: forceRebuild,
+		BaseURL:      baseURL,
+		Assets:       assets,
+		IsTesting:    true,
+	})
 	if err != nil {
 		t.Fatalf("GenerateSW failed: %v", err)
 	}
@@ -55,7 +63,15 @@ func TestGenerateManifest(t *testing.T) {
 	siteDescription := "Blog Description"
 	forceRebuild := true
 
-	err := GenerateManifest(sink, destDir, baseURL, siteTitle, siteDescription, forceRebuild, true)
+	err := GenerateManifest(ManifestOptions{
+		Sink:            sink,
+		DestDir:         destDir,
+		BaseURL:         baseURL,
+		SiteTitle:       siteTitle,
+		SiteDescription: siteDescription,
+		ForceRebuild:    forceRebuild,
+		IsTesting:       true,
+	})
 	if err != nil {
 		t.Fatalf("GenerateManifest failed: %v", err)
 	}

@@ -15,13 +15,21 @@ type BuildContext struct {
 	Logger       *slog.Logger
 }
 
+type ContextOptions struct {
+	IsTesting    bool
+	IsDev        bool
+	IsCleanBuild bool
+	Scheduler    scheduler.BuildScheduler
+	Logger       *slog.Logger
+}
+
 // NewBuildContext creates a new BuildContext.
-func NewBuildContext(isTesting, isDev, isClean bool, s scheduler.BuildScheduler, l *slog.Logger) *BuildContext {
+func NewBuildContext(opts ContextOptions) *BuildContext {
 	return &BuildContext{
-		IsTesting:    isTesting,
-		IsDev:        isDev,
-		IsCleanBuild: isClean,
-		Scheduler:    s,
-		Logger:       l,
+		IsTesting:    opts.IsTesting,
+		IsDev:        opts.IsDev,
+		IsCleanBuild: opts.IsCleanBuild,
+		Scheduler:    opts.Scheduler,
+		Logger:       opts.Logger,
 	}
 }

@@ -246,13 +246,32 @@ Initial body.
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Manager: cm,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -260,7 +279,13 @@ Initial body.
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -364,13 +389,32 @@ Initial body.
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Manager: cm,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -378,7 +422,13 @@ Initial body.
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -465,20 +515,45 @@ date: "2026-03-06"
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Manager: cm,
 		Logger:  logger,
 	})
 
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
 
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,

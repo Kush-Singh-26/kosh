@@ -243,8 +243,19 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 				}
 			}
 
-			err := assets.CopyFromDiskCache(s.sourceFs, s.sink, t.relPath, t.srcPath, dstWebp,
-				s.cfg.CacheDir+"/images", t.info, s.metrics, s.renderer.RegisterFile, s.cfg.IsDev || s.cfg.Features.RawMarkdown, skipImages)
+			err := assets.CopyFromDiskCache(assets.CopyFromDiskCacheOptions{
+				SrcFs:        s.sourceFs,
+				Sink:         s.sink,
+				RelPath:      t.relPath,
+				SrcPath:      t.srcPath,
+				DstPath:      dstWebp,
+				CacheDir:     s.cfg.CacheDir + "/images",
+				SrcInfo:      t.info,
+				Metrics:      s.metrics,
+				OnWrite:      s.renderer.RegisterFile,
+				KeepOriginal: s.cfg.IsDev || s.cfg.Features.RawMarkdown,
+				MuteMetrics:  skipImages,
+			})
 			if err == nil {
 				return
 			}
@@ -294,20 +305,26 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 		walkerWg.Add(1)
 		go func() {
 			defer walkerWg.Done()
-			_ = fspkg.ParallelWalk(ctx, s.sourceFs, dir, walkConcurrency, func(path string, info fs.FileInfo, err error) error {
-				if err != nil || info.IsDir() {
-					return nil
-				}
-				if debugAssets {
-					if isSite {
-						atomic.AddInt64(&siteFiles, 1)
-					} else {
-						atomic.AddInt64(&themeFiles, 1)
+			_ = fspkg.ParallelWalk(fspkg.WalkOptions{
+				Ctx:         ctx,
+				SourceFs:    s.sourceFs,
+				Root:        dir,
+				Concurrency: walkConcurrency,
+				WalkFn: func(path string, info fs.FileInfo, err error) error {
+					if err != nil || info.IsDir() {
+						return nil
 					}
-				}
-				if filepath.Base(path) == "search.wasm" {
-					return nil
-				}
+					if debugAssets {
+						if isSite {
+							atomic.AddInt64(&siteFiles, 1)
+						} else {
+							atomic.AddInt64(&themeFiles, 1)
+						}
+					}
+					if filepath.Base(path) == "search.wasm" {
+						return nil
+					}
+
 				rel, relErr := fspkg.SafeRel(dir, path)
 				if relErr != nil || rel == "" {
 					baseNorm := fspkg.NormalizePath(dir)
@@ -346,6 +363,7 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 					enqueue(assetTask{srcPath: path, relPath: fullRel, info: info})
 				}
 				return nil
+				},
 			})
 		}()
 		return nil
@@ -563,7 +581,18 @@ func (s *assetService) buildEsbuildAssets(force bool) (map[string]string, error)
 		onAssetProcessed = s.metrics.IncrementAssetsProcessed
 	}
 
-	assets, assetErr := fspkg.BuildAssetsEsbuild(s.sourceFs, s.sink, srcDir, destStaticDir, s.cfg.CompressImages, s.renderer.RegisterFile, s.cfg.CacheDir+"/assets", force, sched, onAssetProcessed)
+	assets, assetErr := fspkg.BuildAssetsEsbuild(fspkg.BuildAssetsOptions{
+		SrcFs:            s.sourceFs,
+		Sink:             s.sink,
+		SrcDir:           srcDir,
+		DestDir:          destStaticDir,
+		Minify:           s.cfg.CompressImages,
+		OnWrite:          s.renderer.RegisterFile,
+		CacheDir:         s.cfg.CacheDir + "/assets",
+		Force:            force,
+		Sched:            sched,
+		OnAssetProcessed: onAssetProcessed,
+	})
 	if assetErr == nil {
 		s.renderer.SetAssets(assets)
 	}
@@ -618,7 +647,7 @@ func ComputeStaticFingerprint(sourceFs afero.Fs, dirs []string) (string, error) 
 
 	for _, dir := range dirs {
 		dir = fspkg.NormalizePath(dir)
-		err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+		err := afero.Walk(sourceFs, dir, func(path string, info fs.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}

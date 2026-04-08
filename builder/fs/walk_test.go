@@ -50,16 +50,22 @@ func TestParallelWalk(t *testing.T) {
 	var fileCount int32
 	var dirCount int32
 
-	err = ParallelWalk(ctx, sourceFs, root, 4, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			atomic.AddInt32(&dirCount, 1)
-		} else {
-			atomic.AddInt32(&fileCount, 1)
-		}
-		return nil
+	err = ParallelWalk(WalkOptions{
+		Ctx:         ctx,
+		SourceFs:    sourceFs,
+		Root:        root,
+		Concurrency: 4,
+		WalkFn: func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				atomic.AddInt32(&dirCount, 1)
+			} else {
+				atomic.AddInt32(&fileCount, 1)
+			}
+			return nil
+		},
 	})
 
 	if err != nil {
@@ -89,16 +95,22 @@ func TestParallelWalk_MemMapFsFallback(t *testing.T) {
 	var fileCount int32
 	var dirCount int32
 
-	err := ParallelWalk(ctx, sourceFs, root, 4, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			atomic.AddInt32(&dirCount, 1)
-		} else {
-			atomic.AddInt32(&fileCount, 1)
-		}
-		return nil
+	err := ParallelWalk(WalkOptions{
+		Ctx:         ctx,
+		SourceFs:    sourceFs,
+		Root:        root,
+		Concurrency: 4,
+		WalkFn: func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				atomic.AddInt32(&dirCount, 1)
+			} else {
+				atomic.AddInt32(&fileCount, 1)
+			}
+			return nil
+		},
 	})
 
 	if err != nil {
@@ -129,14 +141,20 @@ func TestParallelWalk_SkipDir(t *testing.T) {
 	ctx := context.Background()
 	var seenSkipInner bool
 
-	err := ParallelWalk(ctx, afero.NewOsFs(), root, 2, func(path string, info fs.FileInfo, err error) error {
-		if filepath.Base(path) == "skip_me" {
-			return filepath.SkipDir
-		}
-		if filepath.Base(path) == "inner" || filepath.Base(path) == "f1.txt" {
-			seenSkipInner = true
-		}
-		return nil
+	err := ParallelWalk(WalkOptions{
+		Ctx:         ctx,
+		SourceFs:    afero.NewOsFs(),
+		Root:        root,
+		Concurrency: 2,
+		WalkFn: func(path string, info fs.FileInfo, err error) error {
+			if filepath.Base(path) == "skip_me" {
+				return filepath.SkipDir
+			}
+			if filepath.Base(path) == "inner" || filepath.Base(path) == "f1.txt" {
+				seenSkipInner = true
+			}
+			return nil
+		},
 	})
 
 	if err != nil {

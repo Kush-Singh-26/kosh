@@ -49,7 +49,13 @@ func RenderPagination(opts PaginationOptions) error {
 	homeHash := SocialCardHash(cfg.Title, desc)
 	homeCached := filepath.Join(cfg.CacheDir, "social-cards", homeHash+".webp")
 
-	if ShouldGenerateSocialCard(opts.Cache, "home", homeHash, homeCached, opts.Force) {
+	if ShouldGenerateSocialCard(CheckSocialCardOptions{
+		Cache:          opts.Cache,
+		CacheKey:       "home",
+		CurrentHash:    homeHash,
+		CachedCardPath: homeCached,
+		Force:          opts.Force,
+	}) {
 		homeCardTimer := timeutil.StartPhase("Home social card")
 		ProvideSocialCard(ProvideSocialCardOptions{
 			Sink:        sink,

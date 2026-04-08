@@ -114,10 +114,24 @@ func runServe(cmd *cobra.Command, args []string) {
 			w.Start()
 		}()
 
-		server.Run(ctx, filteredArgs, b.Cfg.OutputDir, b.Cfg.BaseURL, b.Cfg.Build, reporter)
+		server.Run(server.ServerOptions{
+			Ctx:         ctx,
+			Args:        filteredArgs,
+			OutputDir:   b.Cfg.OutputDir,
+			BaseURL:     b.Cfg.BaseURL,
+			BuildConfig: b.Cfg.Build,
+			Reporter:    reporter,
+		})
 	} else {
 		cfg := config.Load(filteredArgs)
 		printStartupBanner("Static Preview", cfg)
-		server.Run(ctx, filteredArgs, cfg.OutputDir, cfg.BaseURL, cfg.Build, reporter)
+		server.Run(server.ServerOptions{
+			Ctx:         ctx,
+			Args:        filteredArgs,
+			OutputDir:   cfg.OutputDir,
+			BaseURL:     cfg.BaseURL,
+			BuildConfig: cfg.Build,
+			Reporter:    reporter,
+		})
 	}
 }

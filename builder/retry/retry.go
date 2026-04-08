@@ -9,7 +9,21 @@ import (
 
 // RenameWithRetry attempts to rename a path with exponential backoff.
 // Critical for Windows where antivirus/indexers can briefly lock directories.
-func RenameWithRetry(ctx context.Context, oldPath, newPath string, maxRetries int, baseDelay time.Duration) error {
+type RenameOptions struct {
+	Ctx        context.Context
+	OldPath    string
+	NewPath    string
+	MaxRetries int
+	BaseDelay  time.Duration
+}
+
+func RenameWithRetry(opts RenameOptions) error {
+	ctx := opts.Ctx
+	oldPath := opts.OldPath
+	newPath := opts.NewPath
+	maxRetries := opts.MaxRetries
+	baseDelay := opts.BaseDelay
+
 	var err error
 	for i := 0; i < maxRetries; i++ {
 		select {

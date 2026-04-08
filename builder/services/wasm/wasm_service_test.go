@@ -18,7 +18,13 @@ func TestWasmService_SkipInTestMode(t *testing.T) {
 		KoshSourceRoot: "/tmp/kosh",
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	ctx := buildCtx.NewBuildContext(true, true, true, scheduler.NewBuildScheduler(), logger)
+	ctx := buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		IsTesting:    true,
+		IsDev:        true,
+		IsCleanBuild: true,
+		Scheduler:    scheduler.NewBuildScheduler(),
+		Logger:       logger,
+	})
 
 	svc := NewService(Dependencies{
 		Ctx:    ctx,

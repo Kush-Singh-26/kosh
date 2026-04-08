@@ -122,7 +122,13 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 
 	b := &Engine{
 		Cfg:    cfg,
-		Ctx:    buildCtx.NewBuildContext(true, cfg.IsDev, false, scheduler.NewBuildScheduler(), deps.Logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        cfg.IsDev,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       deps.Logger,
+		}),
 		Deps:   deps,
 		Health: NewBuildHealthRegistry(),
 	}

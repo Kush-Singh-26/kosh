@@ -6,8 +6,20 @@ import (
 	"github.com/fogleman/gg"
 )
 
+type GradientOptions struct {
+	DC     *gg.Context
+	W, H   int
+	Colors []string
+	Angle  int
+}
+
 // drawGradient draws a linear gradient on the context
-func drawGradient(dc *gg.Context, w, h int, colors []string, angle int) {
+func drawGradient(opts GradientOptions) {
+	dc := opts.DC
+	w, h := opts.W, opts.H
+	colors := opts.Colors
+	angle := opts.Angle
+
 	if len(colors) < 2 {
 		// If only one color or no colors, use solid background
 		bg := "#faf8f5"

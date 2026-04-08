@@ -42,9 +42,22 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	}
 
 	// Initial successful build
-	rnd := renderer.NewWithFs(fs, false, nil, cfg.TemplateDir, true, logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    fs,
+		Compress:    false,
+		Sink:        nil,
+		TemplateDir: cfg.TemplateDir,
+		DevMode:     true,
+		Logger:      logger,
+	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -52,7 +65,13 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Cfg:            cfg,
 		Renderer:       renderSvc,
 		Logger:         logger,

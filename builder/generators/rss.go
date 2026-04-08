@@ -10,7 +10,23 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-func GenerateRSS(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, title, description string, outputPath string) (string, error) {
+type RSSOptions struct {
+	Sink        fspkg.ArtifactSink
+	BaseURL     string
+	Posts       []models.PostMetadata
+	Title       string
+	Description string
+	OutputPath  string
+}
+
+func GenerateRSS(opts RSSOptions) (string, error) {
+	sink := opts.Sink
+	baseURL := opts.BaseURL
+	posts := opts.Posts
+	title := opts.Title
+	description := opts.Description
+	outputPath := opts.OutputPath
+
 	slog.Info("Generating RSS feed")
 
 	var items []models.Item

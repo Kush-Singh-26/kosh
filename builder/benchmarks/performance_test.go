@@ -88,9 +88,22 @@ This is post number %d.
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// We need fresh services for each run or at least reset them
-		rnd := renderer.NewWithFs(fs, false, sink, cfg.TemplateDir, true, logger)
+		rnd := renderer.NewWithFs(renderer.RendererOptions{
+			SourceFs:    fs,
+			Compress:    false,
+			Sink:        sink,
+			TemplateDir: cfg.TemplateDir,
+			DevMode:     true,
+			Logger:      logger,
+		})
 		renderSvc := render.NewService(render.Dependencies{
-			Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+			Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 			Renderer: rnd,
 			Logger:   logger,
 		})
@@ -98,7 +111,13 @@ This is post number %d.
 		assetSvc.SetMetrics(buildMetrics)
 		wasmSvc := &mocks.MockWasmService{}
 		postSvc := post.NewService(post.Dependencies{
-			Ctx:            buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+			Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 			Cfg:            cfg,
 			Renderer:       renderSvc,
 			Logger:         logger,

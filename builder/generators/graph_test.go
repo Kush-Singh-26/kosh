@@ -31,7 +31,14 @@ func TestGenerateGraph(t *testing.T) {
 		},
 	}
 
-	resultPath, _, err := GenerateGraph(sink, baseURL, posts, outputPath, models.GraphConfig{Enabled: true, ShowTags: true}, "Test Site")
+	resultPath, _, err := GenerateGraph(GraphOptions{
+		Sink:       sink,
+		BaseURL:    baseURL,
+		Posts:      posts,
+		OutputPath: outputPath,
+		Config:     models.GraphConfig{Enabled: true, ShowTags: true},
+		SiteTitle:  "Test Site",
+	})
 	if err != nil {
 		t.Fatalf("GenerateGraph failed: %v", err)
 	}
@@ -116,7 +123,14 @@ func TestGenerateGraph(t *testing.T) {
 
 func TestGenerateGraph_Empty(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, _, err := GenerateGraph(sink, "https://example.com", []models.PostMetadata{}, "empty.json", models.GraphConfig{Enabled: true, ShowTags: true}, "Test Site")
+	_, _, err := GenerateGraph(GraphOptions{
+		Sink:       sink,
+		BaseURL:    "https://example.com",
+		Posts:      []models.PostMetadata{},
+		OutputPath: "empty.json",
+		Config:     models.GraphConfig{Enabled: true, ShowTags: true},
+		SiteTitle:  "Test Site",
+	})
 	if err != nil {
 		t.Fatalf("GenerateGraph failed with empty posts: %v", err)
 	}
@@ -141,7 +155,14 @@ func TestGenerateGraph_DisableTags(t *testing.T) {
 		},
 	}
 
-	_, _, err := GenerateGraph(sink, "https://example.com", posts, "graph.json", models.GraphConfig{Enabled: true, ShowTags: false}, "Test Site")
+	_, _, err := GenerateGraph(GraphOptions{
+		Sink:       sink,
+		BaseURL:    "https://example.com",
+		Posts:      posts,
+		OutputPath: "graph.json",
+		Config:     models.GraphConfig{Enabled: true, ShowTags: false},
+		SiteTitle:  "Test Site",
+	})
 	if err != nil {
 		t.Fatalf("GenerateGraph failed: %v", err)
 	}

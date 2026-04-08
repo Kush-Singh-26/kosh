@@ -25,7 +25,7 @@ func TestRenderer_MutexProtection(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	r := New(true, nil, templateDir, true, logger)
+	r := New(RendererOptions{Compress: true, Sink: nil, TemplateDir: templateDir, DevMode: true, Logger: logger})
 
 	var wg sync.WaitGroup
 
@@ -158,7 +158,7 @@ Now: {{ now }}
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	r := New(true, nil, templateDir, true, logger)
+	r := New(RendererOptions{Compress: true, Sink: nil, TemplateDir: templateDir, DevMode: true, Logger: logger})
 
 	r.ReloadTemplates()
 
@@ -190,7 +190,7 @@ Title: {{ .Title | lower }}
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	r := New(true, nil, templateDir, true, logger)
+	r := New(RendererOptions{Compress: true, Sink: nil, TemplateDir: templateDir, DevMode: true, Logger: logger})
 
 	r.ReloadTemplates()
 

@@ -75,7 +75,21 @@ type syncTask struct {
 	destPath string // Path on OS disk (Physical)
 }
 
-func SyncVFS(ctx context.Context, srcFs afero.Fs, targetDir string, dirtyFiles map[string]bool, isCleanBuild bool) error {
+type SyncOptions struct {
+	Ctx          context.Context
+	SrcFs        afero.Fs
+	TargetDir    string
+	DirtyFiles   map[string]bool
+	IsCleanBuild bool
+}
+
+func SyncVFS(opts SyncOptions) error {
+	ctx := opts.Ctx
+	srcFs := opts.SrcFs
+	targetDir := opts.TargetDir
+	dirtyFiles := opts.DirtyFiles
+	isCleanBuild := opts.IsCleanBuild
+
 	slog.Info("Syncing in-memory filesystem to disk", "clean_build", isCleanBuild)
 
 	targetDirClean := filepath.Clean(targetDir)
@@ -152,7 +166,13 @@ func SyncVFS(ctx context.Context, srcFs afero.Fs, targetDir string, dirtyFiles m
 	numWorkers := min(runtime.NumCPU()*2, 32)
 
 	pool := NewWorkerPool(ctx, numWorkers, func(task syncTask) error {
-		if err := syncSingleFileTask(ctx, srcFs, task, isCleanBuild, tx); err != nil {
+		if err := syncSingleFileTask(SyncFileOptions{
+			Ctx:          ctx,
+			SrcFs:        srcFs,
+			Task:         task,
+			IsCleanBuild: isCleanBuild,
+			Tx:           tx,
+		}); err != nil {
 			slog.Error("Error syncing file", "path", task.destPath, "error", err)
 			return err
 		}
@@ -171,7 +191,21 @@ func SyncVFS(ctx context.Context, srcFs afero.Fs, targetDir string, dirtyFiles m
 	return nil
 }
 
-func syncSingleFileTask(ctx context.Context, srcFs afero.Fs, task syncTask, isCleanBuild bool, tx *fs.TxSync) error {
+type SyncFileOptions struct {
+	Ctx          context.Context
+	SrcFs        afero.Fs
+	Task         syncTask
+	IsCleanBuild bool
+	Tx           *fs.TxSync
+}
+
+func syncSingleFileTask(opts SyncFileOptions) error {
+	ctx := opts.Ctx
+	srcFs := opts.SrcFs
+	task := opts.Task
+	isCleanBuild := opts.IsCleanBuild
+	tx := opts.Tx
+
 	// Use ToSlash for VFS lookups to ensure consistency on Windows
 	srcContent, err := afero.ReadFile(srcFs, filepath.ToSlash(task.srcPath))
 	if err != nil {
@@ -276,7 +310,13 @@ func atomicWrite(ctx context.Context, path string, data []byte) error {
 	}
 
 	// Atomic rename
-	err = retry.RenameWithRetry(ctx, tmpPath, path, 5, 10*time.Millisecond)
+	err = retry.RenameWithRetry(retry.RenameOptions{
+		Ctx:        ctx,
+		OldPath:    tmpPath,
+		NewPath:    path,
+		MaxRetries: 5,
+		BaseDelay:  10 * time.Millisecond,
+	})
 	if err != nil {
 		_ = os.Remove(tmpPath)
 		return err

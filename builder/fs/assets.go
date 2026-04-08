@@ -68,7 +68,31 @@ func restoreAssetsFromCache(cachePath string, sink ArtifactSink, destDir string,
 	return assets, true, nil
 }
 
-func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir string, minify bool, onWrite func(string), cacheDir string, force bool, sched scheduler.BuildScheduler, onAssetProcessed func()) (map[string]string, error) {
+type BuildAssetsOptions struct {
+	SrcFs            afero.Fs
+	Sink             ArtifactSink
+	SrcDir           string
+	DestDir          string
+	Minify           bool
+	OnWrite          func(string)
+	CacheDir         string
+	Force            bool
+	Sched            scheduler.BuildScheduler
+	OnAssetProcessed func()
+}
+
+func BuildAssetsEsbuild(opts BuildAssetsOptions) (map[string]string, error) {
+	srcFs := opts.SrcFs
+	sink := opts.Sink
+	srcDir := opts.SrcDir
+	destDir := opts.DestDir
+	minify := opts.Minify
+	onWrite := opts.OnWrite
+	cacheDir := opts.CacheDir
+	force := opts.Force
+	sched := opts.Sched
+	onAssetProcessed := opts.OnAssetProcessed
+
 	srcDir = NormalizePath(srcDir)
 	destDir = NormalizePath(destDir)
 

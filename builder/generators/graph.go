@@ -42,7 +42,23 @@ func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
-func GenerateGraph(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, outputPath string, cfg models.GraphConfig, siteTitle string) (string, string, error) {
+type GraphOptions struct {
+	Sink       fspkg.ArtifactSink
+	BaseURL    string
+	Posts      []models.PostMetadata
+	OutputPath string
+	Config     models.GraphConfig
+	SiteTitle  string
+}
+
+func GenerateGraph(opts GraphOptions) (string, string, error) {
+	sink := opts.Sink
+	baseURL := opts.BaseURL
+	posts := opts.Posts
+	outputPath := opts.OutputPath
+	cfg := opts.Config
+	siteTitle := opts.SiteTitle
+
 	slog.Info("Generating knowledge graph data", "output", outputPath)
 
 	nodes := []models.GraphNode{}

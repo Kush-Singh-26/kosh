@@ -224,7 +224,13 @@ func (s *Store) Put(category string, content []byte) (hash string, ct core.Compr
 		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("temp file missing before rename: %w", err)
 	}
-	if err := retry.RenameWithRetry(context.Background(), tmpPath, path, 6, 10*time.Millisecond); err != nil {
+	if err := retry.RenameWithRetry(retry.RenameOptions{
+		Ctx:        context.Background(),
+		OldPath:    tmpPath,
+		NewPath:    path,
+		MaxRetries: 6,
+		BaseDelay:  10 * time.Millisecond,
+	}); err != nil {
 		if fileExists(path) {
 			_ = os.Remove(tmpPath)
 			return hash, ct, nil
@@ -294,21 +300,27 @@ func (s *Store) ListHashes(category string) ([]string, error) {
 
 	var hashes []string
 	var mu sync.Mutex
-	err := fspkg.ParallelWalk(context.Background(), afero.NewOsFs(), categoryPath, 0, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
+	err := fspkg.ParallelWalk(fspkg.WalkOptions{
+		Ctx:         context.Background(),
+		SourceFs:    afero.NewOsFs(),
+		Root:        categoryPath,
+		Concurrency: 0,
+		WalkFn: func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			name := info.Name()
+			if ext := filepath.Ext(name); ext == ".raw" || ext == ".zst" {
+				hash := strings.TrimSuffix(name, ext)
+				mu.Lock()
+				hashes = append(hashes, hash)
+				mu.Unlock()
+			}
 			return nil
-		}
-		name := info.Name()
-		if ext := filepath.Ext(name); ext == ".raw" || ext == ".zst" {
-			hash := strings.TrimSuffix(name, ext)
-			mu.Lock()
-			hashes = append(hashes, hash)
-			mu.Unlock()
-		}
-		return nil
+		},
 	})
 	return hashes, err
 }
@@ -320,14 +332,20 @@ func (s *Store) Size(category string) (int64, error) {
 	}
 
 	var total int64
-	err := fspkg.ParallelWalk(context.Background(), afero.NewOsFs(), categoryPath, 0, func(_ string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			atomic.AddInt64(&total, info.Size())
-		}
-		return nil
+	err := fspkg.ParallelWalk(fspkg.WalkOptions{
+		Ctx:         context.Background(),
+		SourceFs:    afero.NewOsFs(),
+		Root:        categoryPath,
+		Concurrency: 0,
+		WalkFn: func(_ string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() {
+				atomic.AddInt64(&total, info.Size())
+			}
+			return nil
+		},
 	})
 	return total, err
 }
@@ -341,10 +359,15 @@ func (s *Store) CleanOrphans(category string, liveHashes map[string]bool, maxAge
 		return 0, 0, nil
 	}
 
-	err := fspkg.ParallelWalk(context.Background(), afero.NewOsFs(), categoryPath, 0, func(path string, info fs.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
+	err := fspkg.ParallelWalk(fspkg.WalkOptions{
+		Ctx:         context.Background(),
+		SourceFs:    afero.NewOsFs(),
+		Root:        categoryPath,
+		Concurrency: 0,
+		WalkFn: func(path string, info fs.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
 
 		ext := filepath.Ext(info.Name())
 		if ext != ".raw" && ext != ".zst" && ext != ".tmp" && ext != ".kosh-backup" {
@@ -359,6 +382,7 @@ func (s *Store) CleanOrphans(category string, liveHashes map[string]bool, maxAge
 			}
 		}
 		return nil
+		},
 	})
 
 	return int(deleted), freedBytes, err

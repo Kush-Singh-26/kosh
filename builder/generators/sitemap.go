@@ -13,7 +13,21 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-func GenerateSitemap(sink fspkg.ArtifactSink, baseURL string, posts []models.PostMetadata, tags map[string][]models.PostMetadata, outputPath string) (string, error) {
+type SitemapOptions struct {
+	Sink       fspkg.ArtifactSink
+	BaseURL    string
+	Posts      []models.PostMetadata
+	Tags       map[string][]models.PostMetadata
+	OutputPath string
+}
+
+func GenerateSitemap(opts SitemapOptions) (string, error) {
+	sink := opts.Sink
+	baseURL := opts.BaseURL
+	posts := opts.Posts
+	tags := opts.Tags
+	outputPath := opts.OutputPath
+
 	slog.Info("Generating sitemap")
 
 	baseURL = strings.TrimRight(baseURL, "/")

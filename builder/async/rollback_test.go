@@ -43,7 +43,13 @@ func TestSyncVFS_RollbackOnFailure(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := async.SyncVFS(ctx, srcFs, tmpDir, dirtyFiles, false)
+	err := async.SyncVFS(async.SyncOptions{
+		Ctx:          ctx,
+		SrcFs:        srcFs,
+		TargetDir:    tmpDir,
+		DirtyFiles:   dirtyFiles,
+		IsCleanBuild: false,
+	})
 	if err == nil {
 		t.Fatal("SyncVFS should have failed due to MkdirAll error")
 	}

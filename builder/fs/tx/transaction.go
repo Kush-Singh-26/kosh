@@ -114,17 +114,35 @@ func (tx *DirectoryTx) Commit(ctx context.Context) error {
 	if _, err := os.Stat(tx.realOutputDir); err == nil {
 		// Try to remove old backup if it somehow exists
 		_ = retry.RemoveAllWithRetry(ctx, backupDir, 5, 10*time.Millisecond)
-		if err := retry.RenameWithRetry(ctx, tx.realOutputDir, backupDir, 12, 20*time.Millisecond); err != nil {
+		if err := retry.RenameWithRetry(retry.RenameOptions{
+			Ctx:        ctx,
+			OldPath:    tx.realOutputDir,
+			NewPath:    backupDir,
+			MaxRetries: 12,
+			BaseDelay:  20 * time.Millisecond,
+		}); err != nil {
 			return fmt.Errorf("failed to backup output directory: %w", err)
 		}
 	}
 
 	// 2. Rename outputDir.tmp -> outputDir
-	if err := retry.RenameWithRetry(ctx, tx.stagingDir, tx.realOutputDir, 12, 20*time.Millisecond); err != nil {
+	if err := retry.RenameWithRetry(retry.RenameOptions{
+		Ctx:        ctx,
+		OldPath:    tx.stagingDir,
+		NewPath:    tx.realOutputDir,
+		MaxRetries: 12,
+		BaseDelay:  20 * time.Millisecond,
+	}); err != nil {
 		// Attempt to restore backup on failure
 		var rollbackErr error
 		if backupDir != "" {
-			rollbackErr = retry.RenameWithRetry(ctx, backupDir, tx.realOutputDir, 12, 20*time.Millisecond)
+			rollbackErr = retry.RenameWithRetry(retry.RenameOptions{
+				Ctx:        ctx,
+				OldPath:    backupDir,
+				NewPath:    tx.realOutputDir,
+				MaxRetries: 12,
+				BaseDelay:  20 * time.Millisecond,
+			})
 			if rollbackErr != nil {
 				slog.Error("CRITICAL: Both publish and rollback failed",
 					"publish_error", err,

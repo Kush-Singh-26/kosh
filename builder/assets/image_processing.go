@@ -52,29 +52,39 @@ type ProcessImageOptions struct {
 	Scheduler scheduler.BuildScheduler
 }
 
-func maybeCopyOriginal(srcFs afero.Fs, sink fspkg.ArtifactSink, srcPath, dstWebp string, srcInfo fs.FileInfo, onWrite func(string), keepOriginal bool) error {
-	if !keepOriginal {
+type MaybeCopyOriginalOptions struct {
+	SrcFs        afero.Fs
+	Sink         fspkg.ArtifactSink
+	SrcPath      string
+	DstWebp      string
+	SrcInfo      fs.FileInfo
+	OnWrite      func(string)
+	KeepOriginal bool
+}
+
+func maybeCopyOriginal(opts MaybeCopyOriginalOptions) error {
+	if !opts.KeepOriginal {
 		return nil
 	}
-	ext := strings.ToLower(filepath.Ext(srcPath))
+	ext := strings.ToLower(filepath.Ext(opts.SrcPath))
 	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
 		return nil
 	}
-	if strings.ToLower(filepath.Ext(dstWebp)) != ".webp" {
+	if strings.ToLower(filepath.Ext(opts.DstWebp)) != ".webp" {
 		return nil
 	}
-	origDst := strings.TrimSuffix(dstWebp, filepath.Ext(dstWebp)) + ext
+	origDst := strings.TrimSuffix(opts.DstWebp, filepath.Ext(opts.DstWebp)) + ext
 	modTime := int64(0)
-	if srcInfo != nil {
-		modTime = srcInfo.ModTime().UnixNano()
+	if opts.SrcInfo != nil {
+		modTime = opts.SrcInfo.ModTime().UnixNano()
 	}
 	return fspkg.CopyFileVFS(fspkg.CopyFileOptions{
-		SrcFs:   srcFs,
-		Sink:    sink,
-		SrcPath: srcPath,
+		SrcFs:   opts.SrcFs,
+		Sink:    opts.Sink,
+		SrcPath: opts.SrcPath,
 		DstPath: origDst,
 		ModTime: modTime,
-		OnWrite: onWrite,
+		OnWrite: opts.OnWrite,
 	})
 }
 
@@ -212,7 +222,15 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 			registerImageVariants(relSrc, relDst)
 		}
 		if err == nil {
-			_ = maybeCopyOriginal(opts.SrcFs, opts.Sink, opts.SrcPath, opts.DstPath, opts.SrcInfo, opts.Opts.OnWrite, opts.Opts.KeepOriginal)
+			_ = maybeCopyOriginal(MaybeCopyOriginalOptions{
+				SrcFs:        opts.SrcFs,
+				Sink:         opts.Sink,
+				SrcPath:      opts.SrcPath,
+				DstWebp:      opts.DstPath,
+				SrcInfo:      opts.SrcInfo,
+				OnWrite:      opts.Opts.OnWrite,
+				KeepOriginal: opts.Opts.KeepOriginal,
+			})
 		}
 		return err
 	}
@@ -248,7 +266,15 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 					relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
 					registerImageVariants(relSrc, relDst)
 				}
-				_ = maybeCopyOriginal(opts.SrcFs, opts.Sink, opts.SrcPath, opts.DstPath, opts.SrcInfo, opts.Opts.OnWrite, opts.Opts.KeepOriginal)
+				_ = maybeCopyOriginal(MaybeCopyOriginalOptions{
+					SrcFs:        opts.SrcFs,
+					Sink:         opts.Sink,
+					SrcPath:      opts.SrcPath,
+					DstWebp:      opts.DstPath,
+					SrcInfo:      opts.SrcInfo,
+					OnWrite:      opts.Opts.OnWrite,
+					KeepOriginal: opts.Opts.KeepOriginal,
+				})
 			} else {
 				return fmt.Errorf("failed to read cached image %s: %w", cacheFile, readErr)
 			}
@@ -373,7 +399,15 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
 			registerImageVariants(relSrc, relDst)
 		}
-		_ = maybeCopyOriginal(opts.SrcFs, opts.Sink, opts.SrcPath, opts.DstPath, opts.SrcInfo, opts.Opts.OnWrite, opts.Opts.KeepOriginal)
+		_ = maybeCopyOriginal(MaybeCopyOriginalOptions{
+			SrcFs:        opts.SrcFs,
+			Sink:         opts.Sink,
+			SrcPath:      opts.SrcPath,
+			DstWebp:      opts.DstPath,
+			SrcInfo:      opts.SrcInfo,
+			OnWrite:      opts.Opts.OnWrite,
+			KeepOriginal: opts.Opts.KeepOriginal,
+		})
 	}
 
 	return err

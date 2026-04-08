@@ -31,7 +31,14 @@ func TestGenerateRSS(t *testing.T) {
 	description := "Blog Description"
 	outputPath := "rss.xml"
 
-	_, err := GenerateRSS(sink, baseURL, posts, title, description, outputPath)
+	_, err := GenerateRSS(RSSOptions{
+		Sink:        sink,
+		BaseURL:     baseURL,
+		Posts:       posts,
+		Title:       title,
+		Description: description,
+		OutputPath:  outputPath,
+	})
 	if err != nil {
 		t.Fatalf("GenerateRSS failed: %v", err)
 	}
@@ -55,7 +62,14 @@ func TestGenerateRSS(t *testing.T) {
 
 func TestGenerateRSS_EmptyPosts(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, err := GenerateRSS(sink, "https://example.com", []models.PostMetadata{}, "Empty Blog", "No posts", "rss.xml")
+	_, err := GenerateRSS(RSSOptions{
+		Sink:        sink,
+		BaseURL:     "https://example.com",
+		Posts:       []models.PostMetadata{},
+		Title:       "Empty Blog",
+		Description: "No posts",
+		OutputPath:  "rss.xml",
+	})
 	if err != nil {
 		t.Fatalf("GenerateRSS failed with empty posts: %v", err)
 	}
@@ -81,7 +95,14 @@ func TestGenerateRSS_SpecialCharacters(t *testing.T) {
 		},
 	}
 
-	_, err := GenerateRSS(sink, "https://example.com", posts, "Blog & Sitemap", "Desc <tag>", "rss.xml")
+	_, err := GenerateRSS(RSSOptions{
+		Sink:        sink,
+		BaseURL:     "https://example.com",
+		Posts:       posts,
+		Title:       "Blog & Sitemap",
+		Description: "Desc <tag>",
+		OutputPath:  "rss.xml",
+	})
 	if err != nil {
 		t.Fatalf("GenerateRSS failed with special characters: %v", err)
 	}

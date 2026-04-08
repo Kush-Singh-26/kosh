@@ -41,7 +41,13 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 	var metas []fileMeta
 	var walkMu sync.Mutex
 
-	err := ParallelWalk(context.Background(), srcFs, filepath.FromSlash(srcDir), 0, func(path string, info fs.FileInfo, err error) error {
+	err := ParallelWalk(WalkOptions{
+		Ctx:         context.Background(),
+		SourceFs:    srcFs,
+		Root:        filepath.FromSlash(srcDir),
+		Concurrency: 0,
+		WalkFn: func(path string, info fs.FileInfo, err error) error {
+
 		if err != nil {
 			return err
 		}
@@ -71,7 +77,7 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 			mtime: info.ModTime().UnixNano(),
 		})
 		return nil
-	})
+	}})
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan for assets: %w", err)
 	}

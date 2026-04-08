@@ -39,16 +39,24 @@ func SocialCardHash(title, description string) string {
 }
 
 // ShouldGenerateSocialCard determines if a social card needs generation
-func ShouldGenerateSocialCard(cache models.SocialCardCache, cacheKey, currentHash, cachedCardPath string, force bool) bool {
-	if force {
+type CheckSocialCardOptions struct {
+	Cache          models.SocialCardCache
+	CacheKey       string
+	CurrentHash    string
+	CachedCardPath string
+	Force          bool
+}
+
+func ShouldGenerateSocialCard(opts CheckSocialCardOptions) bool {
+	if opts.Force {
 		return true
 	}
-	if _, err := os.Stat(cachedCardPath); os.IsNotExist(err) {
+	if _, err := os.Stat(opts.CachedCardPath); os.IsNotExist(err) {
 		return true
 	}
-	if cache != nil {
-		storedHash, _ := cache.GetSocialCardHash(cacheKey)
-		return storedHash != currentHash
+	if opts.Cache != nil {
+		storedHash, _ := opts.Cache.GetSocialCardHash(opts.CacheKey)
+		return storedHash != opts.CurrentHash
 	}
 	return false
 }
@@ -77,7 +85,13 @@ func ProvideSocialCard(opts ProvideSocialCardOptions) {
 	currentHash := SocialCardHash(opts.CardTitle, opts.Description)
 	cachedCardPath := filepath.Join(opts.CacheDir, "social-cards", currentHash+".webp")
 
-	needsGen := ShouldGenerateSocialCard(opts.Cache, opts.CacheKey, currentHash, cachedCardPath, opts.Force)
+	needsGen := ShouldGenerateSocialCard(CheckSocialCardOptions{
+		Cache:          opts.Cache,
+		CacheKey:       opts.CacheKey,
+		CurrentHash:    currentHash,
+		CachedCardPath: cachedCardPath,
+		Force:          opts.Force,
+	})
 
 	buildCtx.IgnoreError(opts.Sink.MkdirAll(filepath.Dir(opts.DestPath)), "ensure social card dir in VFS")
 
@@ -159,7 +173,13 @@ func getBaseSocialCardImage(opts SocialCardOptions) *image.RGBA {
 
 	// --- 1. Draw Gradient Background ---
 	allColors := append([]string{opts.Cfg.Background}, opts.Cfg.Gradient...)
-	drawGradient(dc, socialCardWidth, socialCardHeight, allColors, opts.Cfg.Angle)
+	drawGradient(GradientOptions{
+		DC:     dc,
+		W:      socialCardWidth,
+		H:      socialCardHeight,
+		Colors: allColors,
+		Angle:  opts.Cfg.Angle,
+	})
 
 	// --- 2. Draw Dot Pattern Overlay ---
 	drawDotPattern(dc, socialCardWidth, socialCardHeight)

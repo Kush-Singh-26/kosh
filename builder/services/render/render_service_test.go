@@ -22,7 +22,13 @@ func setupRenderServiceTest(t *testing.T) *renderService {
 	}
 
 	service := NewService(Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Renderer: rnd,
 		Logger:   logger,
 	}).(*renderService)
@@ -34,7 +40,13 @@ func TestNewService(t *testing.T) {
 	rnd := &renderer.Renderer{}
 
 	service := NewService(Dependencies{
-		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Renderer: rnd,
 		Logger:   logger,
 	})

@@ -20,7 +20,13 @@ func setupCacheServiceTest(t *testing.T) (*cacheService, *cache.Manager, func())
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	service := NewService(Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Manager: mgr,
 		Logger:  logger,
 	}).(*cacheService)
@@ -33,7 +39,13 @@ func TestNewService(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	service := NewService(Dependencies{
-		Ctx:     buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),
+		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			IsTesting:    true,
+			IsDev:        false,
+			IsCleanBuild: false,
+			Scheduler:    scheduler.NewBuildScheduler(),
+			Logger:       logger,
+		}),
 		Manager: mgr,
 		Logger:  logger,
 	})

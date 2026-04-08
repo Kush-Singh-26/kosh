@@ -185,54 +185,69 @@ func queueImageCacheWrite(path string, data []byte, isCloned bool) {
 // ErrCacheMiss is returned when an image is not in the disk cache.
 var ErrCacheMiss = errors.New("image not in disk cache")
 
+// CopyFromDiskCacheOptions bundles parameters for CopyFromDiskCache.
+type CopyFromDiskCacheOptions struct {
+	SrcFs        afero.Fs
+	Sink         fspkg.ArtifactSink
+	RelPath      string
+	SrcPath      string
+	DstPath      string
+	CacheDir     string
+	SrcInfo      fs.FileInfo
+	Metrics      ImageMetrics
+	OnWrite      func(string)
+	KeepOriginal bool
+	MuteMetrics  bool
+}
+
 // CopyFromDiskCache checks the on-disk WebP cache for an image and, if found,
 // writes it to the sink and registers it in the converted-images map.
 // Returns nil on cache hit, ErrCacheMiss on miss, or a real error.
 // Called from the asset discovery goroutine to speed up image registration
 // before background workers process the remaining cache-miss images.
-func CopyFromDiskCache(srcFs afero.Fs, sink fspkg.ArtifactSink, relPath, srcPath, dstPath, cacheDir string, srcInfo fs.FileInfo, metrics ImageMetrics, onWrite func(string), keepOriginal bool, muteMetrics bool) error {
+func CopyFromDiskCache(opts CopyFromDiskCacheOptions) error {
 	cacheFs := afero.NewOsFs()
 	memKey := imageCacheKey{
-		path:    srcPath,
-		size:    srcInfo.Size(),
-		modTime: srcInfo.ModTime().UnixNano(),
+		path:    opts.SrcPath,
+		size:    opts.SrcInfo.Size(),
+		modTime: opts.SrcInfo.ModTime().UnixNano(),
 	}
 	hash := getImageHash(memKey)
-	cacheFile := filepath.Join(cacheDir, hash+".webp")
+	cacheFile := filepath.Join(opts.CacheDir, hash+".webp")
 
 	cachedData, err := afero.ReadFile(cacheFs, cacheFile)
 	if err != nil {
 		return ErrCacheMiss
 	}
 
-	if err := sink.WriteFile(dstPath, cachedData); err != nil {
+	if err := opts.Sink.WriteFile(opts.DstPath, cachedData); err != nil {
 		return err
 	}
 
-	if metrics != nil && !muteMetrics {
-		metrics.RecordImageOptimization(srcInfo.Size(), int64(len(cachedData)))
-		metrics.IncrementAssetsProcessed()
+	if opts.Metrics != nil && !opts.MuteMetrics {
+		opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cachedData)))
+		opts.Metrics.IncrementAssetsProcessed()
 	}
 
-	relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(relPath), "/")
+	relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
 	relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
 	registerImageVariants(relSrc, relDst)
 
-	if onWrite != nil {
-		onWrite(dstPath)
+	if opts.OnWrite != nil {
+		opts.OnWrite(opts.DstPath)
 	}
 
 	// If keepOriginal is requested, also copy the source file to its destination
-	if keepOriginal {
-		ext := strings.ToLower(filepath.Ext(srcPath))
-		origDst := strings.TrimSuffix(dstPath, filepath.Ext(dstPath)) + ext
+	if opts.KeepOriginal {
+		ext := strings.ToLower(filepath.Ext(opts.SrcPath))
+		origDst := strings.TrimSuffix(opts.DstPath, filepath.Ext(opts.DstPath)) + ext
 		_ = fspkg.CopyFileVFS(fspkg.CopyFileOptions{
-			SrcFs:   srcFs,
-			Sink:    sink,
-			SrcPath: srcPath,
+			SrcFs:   opts.SrcFs,
+			Sink:    opts.Sink,
+			SrcPath: opts.SrcPath,
 			DstPath: origDst,
-			ModTime: srcInfo.ModTime().UnixNano(),
-			OnWrite: onWrite,
+			ModTime: opts.SrcInfo.ModTime().UnixNano(),
+			OnWrite: opts.OnWrite,
 		})
 	}
 

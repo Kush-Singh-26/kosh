@@ -64,7 +64,13 @@ func (s *buildSetup) initLoggerAndContext(cfg *config.Config, r ui.Reporter) {
 	outputExists, _ := afero.Exists(s.vfs, cfg.OutputDir)
 	s.isCleanBuild = !outputExists
 	sched := scheduler.NewBuildScheduler()
-	s.ctx = buildCtx.NewBuildContext(isTesting, cfg.IsDev, s.isCleanBuild, sched, s.logger)
+	s.ctx = buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		IsTesting:    isTesting,
+		IsDev:        cfg.IsDev,
+		IsCleanBuild: s.isCleanBuild,
+		Scheduler:    sched,
+		Logger:       s.logger,
+	})
 	VerifyThemeFs(s.vfs, cfg, s.logger, isTesting)
 
 	// Ensure all packages use the configured repository root
@@ -121,7 +127,14 @@ func (s *buildSetup) initServices() {
 	// RenderService receives it via SetAssetsGate and waits before rendering pages.
 	// This is a one-way synchronization channel, not a bidirectional dependency.
 	// AssetService owns the channel lifecycle; RenderService only waits on it.
-	rnd := renderer.NewWithFs(s.vfs, s.cfg.CompressImages, nil, s.cfg.TemplateDir, s.cfg.IsDev, s.logger)
+	rnd := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    s.vfs,
+		Compress:    s.cfg.CompressImages,
+		Sink:        nil,
+		TemplateDir: s.cfg.TemplateDir,
+		DevMode:     s.cfg.IsDev,
+		Logger:      s.logger,
+	})
 
 	assetsReady := make(chan struct{})
 

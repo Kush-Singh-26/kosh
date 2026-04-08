@@ -16,8 +16,25 @@ import (
 	"github.com/spf13/afero"
 )
 
+type SWOptions struct {
+	Sink         fspkg.ArtifactSink
+	DestDir      string
+	BuildVersion int64
+	ForceRebuild bool
+	BaseURL      string
+	Assets       map[string]string
+	IsTesting    bool
+}
+
 // GenerateSW creates the service worker only if needed (smart build)
-func GenerateSW(sink fspkg.ArtifactSink, destDir string, buildVersion int64, forceRebuild bool, baseURL string, assets map[string]string, isTesting bool) error {
+func GenerateSW(opts SWOptions) error {
+	sink := opts.Sink
+	destDir := opts.DestDir
+	buildVersion := opts.BuildVersion
+	forceRebuild := opts.ForceRebuild
+	baseURL := opts.BaseURL
+	assets := opts.Assets
+	isTesting := opts.IsTesting
 	swPath := filepath.Join(destDir, "sw.js")
 
 	// 1. Smart Check: If not forcing rebuild and SW exists, skip
@@ -76,8 +93,25 @@ self.addEventListener('fetch', function(event) {
 	})
 }
 
+type ManifestOptions struct {
+	Sink            fspkg.ArtifactSink
+	DestDir         string
+	BaseURL         string
+	SiteTitle       string
+	SiteDescription string
+	ForceRebuild    bool
+	IsTesting       bool
+}
+
 // GenerateManifest creates the manifest.json dynamically with a smart build check
-func GenerateManifest(sink fspkg.ArtifactSink, destDir string, baseURL string, siteTitle string, siteDescription string, forceRebuild bool, isTesting bool) error {
+func GenerateManifest(opts ManifestOptions) error {
+	sink := opts.Sink
+	destDir := opts.DestDir
+	baseURL := opts.BaseURL
+	siteTitle := opts.SiteTitle
+	siteDescription := opts.SiteDescription
+	forceRebuild := opts.ForceRebuild
+	isTesting := opts.IsTesting
 	manifestPath := filepath.Join(destDir, "manifest.json")
 
 	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
@@ -230,8 +264,21 @@ func WritePWAIcons(sink fspkg.ArtifactSink, destDir string, icons PWAIconsData) 
 	return nil
 }
 
+type PWAIconsOptions struct {
+	SrcFs   afero.Fs
+	Sink    fspkg.ArtifactSink
+	SrcPath string
+	DestDir string
+	Logger  *slog.Logger
+}
+
 // GeneratePWAIcons generates 192x192 and 512x512 icons from favicon.png
-func GeneratePWAIcons(srcFs afero.Fs, sink fspkg.ArtifactSink, srcPath, destDir string, logger *slog.Logger) error {
+func GeneratePWAIcons(opts PWAIconsOptions) error {
+	srcFs := opts.SrcFs
+	sink := opts.Sink
+	srcPath := opts.SrcPath
+	destDir := opts.DestDir
+	logger := opts.Logger
 	icons, err := GeneratePWAIconBytes(srcFs, srcPath, logger)
 	if err != nil {
 		return err
