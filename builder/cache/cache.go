@@ -170,7 +170,7 @@ func (m *Manager) cleanupOnError() error {
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("cleanup errors: %v", errs)
+		return fmt.Errorf("cleanup errors: %w", errors.Join(errs...))
 	}
 	return nil
 }
@@ -189,7 +189,7 @@ func (m *Manager) Close() error {
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("cache close errors: %v", errs)
+		return fmt.Errorf("cache close errors: %w", errors.Join(errs...))
 	}
 	return nil
 }

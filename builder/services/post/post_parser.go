@@ -3,6 +3,7 @@ package post
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"sync"
@@ -152,6 +153,8 @@ type MarkdownRenderOptions struct {
 	DiagramAdapter *cache.DiagramCacheAdapter
 }
 
+var errMissingParsedMarkdownContext = errors.New("missing AST or Context in ParsedMarkdownResult")
+
 // RenderParsedMarkdown converts the AST to HTML and performs Math discovery
 func RenderParsedMarkdown(opts MarkdownRenderOptions) error {
 	source := opts.Source
@@ -161,7 +164,7 @@ func RenderParsedMarkdown(opts MarkdownRenderOptions) error {
 	// but kept for future compatibility or because they were in the signature.
 
 	if res.AST == nil || res.Context == nil {
-		return fmt.Errorf("missing AST or Context in ParsedMarkdownResult")
+		return errMissingParsedMarkdownContext
 	}
 
 	body := res.BodyOnly

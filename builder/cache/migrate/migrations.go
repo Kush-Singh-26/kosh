@@ -144,7 +144,7 @@ func RunMigrations(db *bbolt.DB, currentVersion uint32, logger *slog.Logger) (ui
 			if err := db.Update(func(tx *bbolt.Tx) error {
 				meta := tx.Bucket([]byte(core.BucketMeta))
 				if meta == nil {
-					return fmt.Errorf("metadata bucket missing")
+					return errors.New("metadata bucket missing")
 				}
 				v := make([]byte, 4)
 				binary.BigEndian.PutUint32(v, currentVersion)

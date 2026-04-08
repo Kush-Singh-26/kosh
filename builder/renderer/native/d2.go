@@ -32,7 +32,7 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
-		return "", fmt.Errorf("renderer is closed")
+		return "", errRendererClosed
 	}
 	r.taskWg.Add(1)
 	r.mu.Unlock()
@@ -42,7 +42,7 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 	ruler := r.rulerPool.Get().(*textmeasure.Ruler)
 	if ruler == nil {
 		// Fallback or error if ruler is nil
-		return "", fmt.Errorf("failed to get text ruler from pool")
+		return "", errRulerPoolUnavailable
 	}
 	defer r.rulerPool.Put(ruler)
 

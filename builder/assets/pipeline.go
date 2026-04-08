@@ -2,6 +2,7 @@ package assets
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -67,16 +68,16 @@ func CopyDirVFS(ctx context.Context, opts CopyDirOptions) error {
 		ctx = context.Background()
 	}
 	if opts.SrcFs == nil {
-		return fmt.Errorf("CopyDirVFS: SrcFs is nil")
+		return errors.New("CopyDirVFS: SrcFs is nil")
 	}
 	if opts.Sink == nil {
-		return fmt.Errorf("CopyDirVFS: Sink is nil")
+		return errors.New("CopyDirVFS: Sink is nil")
 	}
 	if opts.SrcDir == "" {
-		return fmt.Errorf("CopyDirVFS: SrcDir is empty")
+		return errors.New("CopyDirVFS: SrcDir is empty")
 	}
 	if opts.DstDir == "" {
-		return fmt.Errorf("CopyDirVFS: DstDir is empty")
+		return errors.New("CopyDirVFS: DstDir is empty")
 	}
 
 	srcFs := opts.SrcFs

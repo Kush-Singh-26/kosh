@@ -113,7 +113,7 @@ func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode boo
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
-		return "", fmt.Errorf("renderer is closed")
+		return "", errRendererClosed
 	}
 	r.taskWg.Add(1)
 	r.mu.Unlock()
@@ -132,7 +132,7 @@ func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode boo
 	}()
 
 	if instance.ctx == nil || instance.renderFn == nil {
-		return "", fmt.Errorf("KaTeX not initialized in worker")
+		return "", errKaTeXNotInitialized
 	}
 
 	jsLatex := instance.ctx.NewString(latex)
@@ -174,7 +174,7 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
-		return nil, fmt.Errorf("renderer is closed")
+		return nil, errRendererClosed
 	}
 	r.taskWg.Add(1)
 	r.mu.Unlock()
@@ -193,7 +193,7 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 	}()
 
 	if instance.ctx == nil || instance.renderBatchFn == nil {
-		return nil, fmt.Errorf("renderBatch not initialized in worker")
+		return nil, errRenderBatchNotInit
 	}
 
 	// Create parallel JS arrays

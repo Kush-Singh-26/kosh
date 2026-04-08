@@ -3,6 +3,7 @@ package core
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/tinylib/msgp/msgp"
@@ -12,7 +13,7 @@ import (
 )
 
 // ErrNoContent indicates a cache miss when reading content.
-var ErrNoContent = fmt.Errorf("no content found in cache")
+var ErrNoContent = errors.New("no content found in cache")
 
 // PostMeta stores metadata about a cached post
 type PostMeta = models.PostMeta

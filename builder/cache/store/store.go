@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -70,7 +71,7 @@ func (s *Store) Close() error {
 	}
 	s.decoder.Close()
 	if len(errs) > 0 {
-		return fmt.Errorf("store close errors: %v", errs)
+		return fmt.Errorf("store close errors: %w", errors.Join(errs...))
 	}
 	return nil
 }

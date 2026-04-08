@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,11 @@ import (
 	"github.com/andybalholm/brotli"
 )
 
+var (
+	errAbsolutePath  = errors.New("absolute path attempt detected")
+	errPathTraversal = errors.New("path traversal attempt detected")
+)
+
 func validatePath(baseDir, userPath string) (string, error) {
 	// URL-decode first to prevent encoded traversal sequences (%2e%2e%2f)
 	decodedPath, err := url.PathUnescape(userPath)
@@ -21,18 +27,18 @@ func validatePath(baseDir, userPath string) (string, error) {
 
 	// Reject UNC paths (\\server\share)
 	if strings.HasPrefix(decodedPath, "\\\\") {
-		return "", fmt.Errorf("absolute path attempt detected")
+		return "", errAbsolutePath
 	}
 
 	// Reject volume-based absolute paths (e.g. C:\Windows on Windows)
 	if vol := filepath.VolumeName(decodedPath); vol != "" {
-		return "", fmt.Errorf("absolute path attempt detected")
+		return "", errAbsolutePath
 	}
 
 	// Cross-platform check: reject paths that look like Windows absolute paths even on Linux
 	// Pattern: letter:/path (e.g., C:/Windows/System32)
 	if len(decodedPath) >= 2 && decodedPath[1] == ':' && ((decodedPath[0] >= 'a' && decodedPath[0] <= 'z') || (decodedPath[0] >= 'A' && decodedPath[0] <= 'Z')) {
-		return "", fmt.Errorf("absolute path attempt detected")
+		return "", errAbsolutePath
 	}
 
 	// Clean the path first
@@ -40,7 +46,7 @@ func validatePath(baseDir, userPath string) (string, error) {
 
 	// Reject if it still tries to escape via .. (path.Clean preserves leading .. if it can't resolve them)
 	if strings.HasPrefix(cleanUserPath, "..") {
-		return "", fmt.Errorf("path traversal attempt detected")
+		return "", errPathTraversal
 	}
 
 	// Trim leading slashes for joining
@@ -59,7 +65,7 @@ func validatePath(baseDir, userPath string) (string, error) {
 
 	// Ensure the resulting path is within the base directory
 	if absUserPath != absBase && !strings.HasPrefix(absUserPath, absBase+string(filepath.Separator)) {
-		return "", fmt.Errorf("path traversal attempt detected")
+		return "", errPathTraversal
 	}
 
 	return absUserPath, nil

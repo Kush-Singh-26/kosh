@@ -2,6 +2,7 @@ package asset
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -73,10 +74,12 @@ func GetStaticDirs(cfg *config.Config) []string {
 	return dirs
 }
 
+var errCacheDirNotSet = errors.New("cache directory not set")
+
 // LoadStaticFingerprint reads the static fingerprint from cache.
 func LoadStaticFingerprint(cacheDir string) (string, error) {
 	if cacheDir == "" {
-		return "", fmt.Errorf("cache directory not set")
+		return "", errCacheDirNotSet
 	}
 	fingerprintPath := filepath.Join(cacheDir, "static-fingerprint")
 	data, err := os.ReadFile(fingerprintPath)
@@ -89,7 +92,7 @@ func LoadStaticFingerprint(cacheDir string) (string, error) {
 // SaveStaticFingerprint writes the static fingerprint to cache.
 func SaveStaticFingerprint(cacheDir, fingerprint string) error {
 	if cacheDir == "" {
-		return fmt.Errorf("cache directory not set")
+		return errCacheDirNotSet
 	}
 	fingerprintPath := filepath.Join(cacheDir, "static-fingerprint")
 	return os.WriteFile(fingerprintPath, []byte(fingerprint), 0644)

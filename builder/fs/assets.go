@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -30,7 +31,7 @@ type restoreAssetsOptions struct {
 
 func restoreAssetsFromCache(opts restoreAssetsOptions) (map[string]string, bool, error) {
 	if opts.cachePath == "" || opts.sink == nil || opts.destDir == "" {
-		return nil, false, fmt.Errorf("restoreAssetsFromCache: missing required fields")
+		return nil, false, errors.New("restoreAssetsFromCache: missing required fields")
 	}
 	if info, err := os.Stat(opts.cachePath); err != nil || !info.IsDir() {
 		return nil, false, nil

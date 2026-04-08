@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -106,7 +107,7 @@ func hashBytes(data []byte) string {
 func getRepoRoot() (string, error) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
-		return "", fmt.Errorf("could not get caller info")
+		return "", errors.New("could not get caller info")
 	}
 	// scripts/rebuild-search.go -> go back one level
 	return filepath.Dir(filepath.Dir(filename)), nil
