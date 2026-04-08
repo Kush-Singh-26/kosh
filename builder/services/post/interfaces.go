@@ -72,6 +72,12 @@ type Dependencies struct {
 	Reporter       ui.Reporter
 }
 
+// Parser handles markdown parsing and processing
+type Parser interface {
+	ParseMarkdownMetadata(opts ParseOptions) (*ParsedMarkdownResult, error)
+	ParseMarkdown(opts ParseOptions) (*ParsedMarkdownResult, error)
+}
+
 // Service handles markdown parsing and post processing.
 type Service interface {
 	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)

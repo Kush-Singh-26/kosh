@@ -120,9 +120,27 @@ type imageCopyTask struct {
 	opts assets.ProcessImageOptions
 }
 
-func isWebPCandidate(path string) bool {
+func (s *assetService) isWebPCandidate(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
-	return ext == ".jpg" || ext == ".jpeg" || ext == ".png"
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+		return false
+	}
+
+	// Exclude critical assets from WebP conversion to preserve compatibility
+	// with non-img tags (icons, social sharing, etc.)
+	base := strings.ToLower(filepath.Base(path))
+	if base == "icon-192.png" || base == "icon-512.png" || base == "favicon.png" || base == "favicon.ico" {
+		return false
+	}
+
+	if s.cfg != nil && s.cfg.Logo != "" {
+		logoBase := strings.ToLower(filepath.Base(s.cfg.Logo))
+		if base == logoBase {
+			return false
+		}
+	}
+
+	return true
 }
 
 // syncStaticAssets discovers and copies all static assets to the sink synchronously.
@@ -200,7 +218,13 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 	var imageQueueMu sync.Mutex
 
 	enqueue := func(t assetTask) {
-		if s.cfg.CompressImages && isWebPCandidate(t.srcPath) {
+		if s.cfg.CompressImages && s.isWebPCandidate(t.srcPath) {
+			// Pre-register the image for in-memory HTML rewrites before background processing
+			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(t.relPath), "/")
+			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
+			assets.RecordConvertedImage(relSrc, relDst)
+			assets.RecordConvertedImage(strings.TrimPrefix(relSrc, "/"), relDst)
+
 			dst := filepath.Join(s.cfg.OutputDir, t.relPath)
 			dstWebp := dst[:len(dst)-len(filepath.Ext(dst))] + ".webp"
 
@@ -209,11 +233,6 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 			// so that it doesn't get cleaned up as an orphan.
 			if skipImages && s.cfg.IsDev {
 				if _, err := s.sink.Stat(dstWebp); err == nil {
-					// Register it in the converted-images map so HTML rewrites work
-					relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(t.relPath), "/")
-					relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
-					assets.RecordConvertedImage(relSrc, relDst)
-					assets.RecordConvertedImage(strings.TrimPrefix(relSrc, "/"), relDst)
 
 					// Register it with the sink so it isn't cleaned up by cleanupOrphans
 					s.sink.Register(dstWebp)

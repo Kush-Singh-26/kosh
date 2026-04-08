@@ -42,9 +42,9 @@ type mockRenderService struct {
 	panicMsg    string
 }
 
-func (m *mockRenderService) SetSink(sink fspkg.ArtifactSink)  {}
-func (m *mockRenderService) SetSourceFs(fs afero.Fs)          {}
-func (m *mockRenderService) SetAssetsGate(ch <-chan struct{}) {}
+func (m *mockRenderService) SetSink(sink fspkg.ArtifactSink)      {}
+func (m *mockRenderService) SetSourceFs(fs afero.Fs)              {}
+func (m *mockRenderService) SetAssetsGate(ch <-chan struct{})     {}
 func (m *mockRenderService) ReconfigureWithLogger(l *slog.Logger) {}
 
 func (m *mockRenderService) RenderPage(path string, data models.PageData) error {
@@ -356,10 +356,16 @@ func TestDecoupledPipeline(t *testing.T) {
 	}
 
 	source := []byte("---\ntitle: Test\ndate: 2024-01-01\n---\n# Hello World\n\nThis is a test.")
-	ctx := context.Background()
 
 	// 1. Semantic Parse
-	res, err := ParseMarkdownMetadata(ctx, source, "content/test.md", "test.html", "test.html", mdPool, cfg, "", 0, 0, nil)
+	res, err := ParseMarkdownMetadata(ParseOptions{
+		Source:           source,
+		Path:             "content/test.md",
+		CleanHtmlRelPath: "test.html",
+		HtmlRelPath:      "test.html",
+		MdPool:           mdPool,
+		Cfg:              cfg,
+	})
 	if err != nil {
 		t.Fatalf("ParseMarkdownMetadata failed: %v", err)
 	}

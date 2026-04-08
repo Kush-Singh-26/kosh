@@ -156,11 +156,13 @@ func BuildAssetsEsbuild(srcFs afero.Fs, sink ArtifactSink, srcDir, destDir strin
 					contents = normalizeAssetURLHashes(contents)
 				}
 
-				if err := sink.MkdirAll(filepath.Dir(vfsPath)); err != nil {
-					return err
+				dir := filepath.Dir(vfsPath)
+				if err := sink.MkdirAll(dir); err != nil {
+					return fmt.Errorf("failed to create directory for asset %s: %w", vfsPath, err)
 				}
+
 				if err := sink.WriteFile(vfsPath, contents); err != nil {
-					return err
+					return fmt.Errorf("failed to write asset %s: %w", vfsPath, err)
 				}
 				if onWrite != nil {
 					onWrite(vfsPath)

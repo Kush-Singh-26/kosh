@@ -392,8 +392,6 @@ func (b *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 			}
 		}
 
-		// Batch rewrite image paths in output HTML for converted images.
-		assetpkg.RewriteImagePaths(b.Tx.StagingDir(), b.Deps.Render.GetRenderedFiles())
 
 		// Remove original raster images when .webp equivalents exist
 		assetpkg.CleanupOriginalImages(b.Tx.StagingDir())

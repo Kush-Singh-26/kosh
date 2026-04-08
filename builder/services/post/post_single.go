@@ -127,21 +127,20 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 	if preParsed != nil {
 		parseRes = preParsed
 	} else {
-		parseRes, err = ParseMarkdown(
-			ParseConfig{
-				Source:           source,
-				Path:             path,
-				CleanHtmlRelPath: htmlRelPath,
-				HtmlRelPath:      htmlRelPath,
-			},
-			ParseContext{
-				MdPool:         s.mdPool,
-				Cfg:            s.cfg,
-				NativeRenderer: s.nativeRenderer,
-				DiagramAdapter: s.diagramAdapter,
-				MathBatchSize:  DefaultMathBatchSize,
-			},
-		)
+		parseRes, err = ParseMarkdown(ParseOptions{
+			Path:             path,
+			RelPath:          relPath,
+			Source:           source,
+			Info:             info,
+			Renderer:         s.renderer,
+			NativeRenderer:   s.nativeRenderer,
+			MdPool:           s.mdPool,
+			DiagramAdapter:   s.diagramAdapter,
+			Metrics:          s.metrics,
+			Cfg:              s.cfg,
+			CleanHtmlRelPath: htmlRelPath,
+			HtmlRelPath:      htmlRelPath,
+		})
 		if err != nil {
 			return err
 		}

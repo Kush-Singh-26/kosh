@@ -231,8 +231,8 @@ func (s *postService) ProcessStreaming(ctx context.Context, shouldForce, forceSo
 	collectWg.Wait() // Wait for scanner walk to finish and navReady to be filled
 
 	// Once scanner is done and navReady is filled, signal the render phase
-	close(renderChan)      // No more render tasks will be produced
-	<-renderTasksDone      // Wait for all produced tasks to be collected
+	close(renderChan) // No more render tasks will be produced
+	<-renderTasksDone // Wait for all produced tasks to be collected
 
 	// Now start the render pool with complete navInfo
 	nav := <-navReady
@@ -423,25 +423,24 @@ func (s *postService) parseWorkerTaskLocal(f models.ScannedFile, wCtx WorkerCont
 			readingTime = cachedMeta.ReadingTime
 		}
 
-		parseRes, err = ParseMarkdown(
-			ParseConfig{
-				Source:               sourceBytes,
-				Path:                 path,
-				CleanHtmlRelPath:     htmlRelPath,
-				HtmlRelPath:          htmlRelPath,
-				KnownFrontmatterHash: f.FrontmatterHash,
-				KnownReadingTime:     readingTime,
-				BodyOffset:           f.BodyOffset,
-				PreParsedMeta:        f.PreParsedMeta,
-			},
-			ParseContext{
-				MdPool:         s.mdPool,
-				Cfg:            s.cfg,
-				NativeRenderer: s.nativeRenderer,
-				DiagramAdapter: s.diagramAdapter,
-				MathBatchSize:  DefaultMathBatchSize,
-			},
-		)
+		parseRes, err = ParseMarkdown(ParseOptions{
+			Path:                 path,
+			RelPath:              relPath,
+			Source:               sourceBytes,
+			Info:                 f.Info,
+			Renderer:             s.renderer,
+			NativeRenderer:       s.nativeRenderer,
+			MdPool:               s.mdPool,
+			DiagramAdapter:       s.diagramAdapter,
+			Metrics:              s.metrics,
+			Cfg:                  s.cfg,
+			CleanHtmlRelPath:     htmlRelPath,
+			HtmlRelPath:          htmlRelPath,
+			KnownFrontmatterHash: f.FrontmatterHash,
+			KnownReadingTime:     readingTime,
+			BodyOffset:           f.BodyOffset,
+			PreParsedMeta:        f.PreParsedMeta,
+		})
 		if err != nil {
 			s.logger.Error("Failed to parse markdown", "path", path, "error", err)
 			local.errs = append(local.errs, err)
@@ -466,13 +465,55 @@ func (s *postService) parseWorkerTaskLocal(f models.ScannedFile, wCtx WorkerCont
 	s.queueSocialCard(relPath, parseRes, htmlRelPath, wCtx.ForceSocialRebuild, wCtx.CardPool)
 
 	// 5. Aggregate and stream
-	s.aggregateLocal(f, parseRes, post, htmlContent, destPath, relPath, htmlRelPath, finalSSRHashes, useCache, wCtx, local, sourceBytes)
+	s.aggregateLocal(AggregateContext{
+		ScannedFile: f,
+		Res:         parseRes,
+		Post:        post,
+		HtmlContent: htmlContent,
+		DestPath:    destPath,
+		RelPath:     relPath,
+		HtmlRelPath: htmlRelPath,
+		SSRHashes:   finalSSRHashes,
+		UseCache:    useCache,
+		WCtx:        wCtx,
+		Local:       local,
+		SourceBytes: sourceBytes,
+	})
 	if s.metrics != nil {
 		s.metrics.IncrementPostsProcessed()
 	}
 }
 
-func (s *postService) aggregateLocal(f models.ScannedFile, res *ParsedMarkdownResult, post models.PostMetadata, htmlContent, destPath, relPath, htmlRelPath string, ssrHashes []string, useCache bool, wCtx WorkerContext, local *workerLocalState, sourceBytes []byte) {
+type AggregateContext struct {
+	Ctx         context.Context
+	Res         *ParsedMarkdownResult
+	Post        models.PostMetadata
+	HtmlContent string
+	DestPath    string
+	RelPath     string
+	HtmlRelPath string
+	SSRHashes   []string
+	UseCache    bool
+	WCtx        WorkerContext
+	Local       *workerLocalState
+	SourceBytes []byte
+	ScannedFile models.ScannedFile
+}
+
+func (s *postService) aggregateLocal(ac AggregateContext) {
+	f := ac.ScannedFile
+	res := ac.Res
+	post := ac.Post
+	htmlContent := ac.HtmlContent
+	destPath := ac.DestPath
+	relPath := ac.RelPath
+	htmlRelPath := ac.HtmlRelPath
+	ssrHashes := ac.SSRHashes
+	useCache := ac.UseCache
+	wCtx := ac.WCtx
+	local := ac.Local
+	sourceBytes := ac.SourceBytes
+
 	searchRecord := res.SearchRecord
 	searchRecord.ID = xxh3.HashString(searchRecord.Link)
 
@@ -524,7 +565,7 @@ func (s *postService) aggregateLocal(f models.ScannedFile, res *ParsedMarkdownRe
 			PostID: postID, Path: relPath, ModTime: f.Info.ModTime().UnixNano(),
 			ContentHash: res.FrontmatterHash, BodyHash: f.BodyHash, Title: post.Title, Date: post.DateObj,
 			WordCount: int(f.Info.Size()), // Use WordCount as size for quick comparison
-			Tags: post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
+			Tags:      post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
 			Meta: res.Metadata, TOC: res.TOC, SSRInputHashes: ssrHashes,
 			CardHash: res.FrontmatterHash, HasImages: res.HasImages, MathExpressions: res.MathExpressions,

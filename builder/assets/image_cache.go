@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -263,163 +262,6 @@ func registerImageVariants(srcPath, webpPath string) {
 	}
 }
 
-// RewriteImagePaths rewrites image paths in output HTML files from original
-// extensions (.png/.jpg/.jpeg) to .webp for images processed in the background.
-// Called after all images have been processed and all HTML files have been written.
-// outputDir must point to the actual output directory (staging dir for clean builds).
-//
-// Two-pass approach:
-// Pass 1: Use the conversion map (exact path matching) for images known to the current build.
-// Pass 2: Scan the output directory for .webp files and rewrite any remaining references.
-// This ensures cached HTML (from previous builds) is also correctly rewritten.
-//
-// Optimization: If no images were converted in this build (empty converted map),
-// there is no work to do since we know exactly what we processed.
-func RewriteImagePaths(outputDir string, htmlFiles map[string]bool) {
-	converted := GetConvertedImages()
-
-	if len(converted) == 0 || len(htmlFiles) == 0 {
-		return
-	}
-
-	// Pass 1: Build rewrite map from registered conversion variants
-	type rewriteEntry struct{ from, to string }
-	var rewrites []rewriteEntry
-	for orig, webp := range converted {
-		lower := strings.ToLower(orig)
-		if strings.HasSuffix(lower, ".png") || strings.HasSuffix(lower, ".jpg") || strings.HasSuffix(lower, ".jpeg") {
-			rewrites = append(rewrites, rewriteEntry{from: orig, to: webp})
-		}
-	}
-
-	// Longest-first prevents partial matches: "Transformer10.png" won't be
-	// matched by a rule for "Transformer1.png".
-	sort.Slice(rewrites, func(i, j int) bool {
-		return len(rewrites[i].from) > len(rewrites[j].from)
-	})
-
-	// Pass 2: Scan output directory for .webp files and build filename-only mapping.
-	// This catches HTML from cached posts that still reference original extensions.
-	// Maps basename-without-ext (lowercase) → webp basename.
-	// e.g. "transformer1" → "Transformer1.webp"
-	webpFiles := make(map[string]string)
-	_ = fs.WalkDir(os.DirFS(outputDir), ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(strings.ToLower(path), ".webp") {
-			return nil
-		}
-		base := filepath.Base(path)
-		baseNoExt := base[:len(base)-len(filepath.Ext(base))]
-		key := strings.ToLower(baseNoExt)
-		webpFiles[key] = base
-		return nil
-	})
-
-	// Collect HTML file paths from the provided map
-	var htmlPaths []string
-	for path := range htmlFiles {
-		lower := strings.ToLower(path)
-		if strings.HasSuffix(lower, ".html") || strings.HasSuffix(lower, ".htm") {
-			// GetRenderedFiles currently returns absolute paths if sink was absolute,
-			// but we need to ensure they match outputDir semantics.
-			// Actually, GetRenderedFiles keys are often exactly what Sink wrote.
-			// So we can use the path directly if it's absolute, or join if relative.
-			// However `RegisterFile` usually receives exactly `filepath.Join(outputDir, p)`.
-			// Since `RewriteImagePaths` iterates, we just store the raw paths.
-			htmlPaths = append(htmlPaths, path)
-		}
-	}
-
-	// Process HTML files in parallel
-	var totalRewrites atomic.Int64
-	numWorkers := runtime.NumCPU()
-	if numWorkers > len(htmlPaths) {
-		numWorkers = len(htmlPaths)
-	}
-	if numWorkers < 1 {
-		numWorkers = 1
-	}
-
-	g, _ := errgroup.WithContext(context.Background())
-	g.SetLimit(numWorkers)
-
-	for _, path := range htmlPaths {
-		p := path // p is already the absolute path as registered by the Renderer
-		g.Go(func() error {
-			data, readErr := os.ReadFile(p)
-			if readErr != nil {
-				return nil
-			}
-
-			modified := false
-			fileRewrites := 0
-
-			// Pass 1: Exact path rewrites from conversion map
-			for _, r := range rewrites {
-				if bytes.Contains(data, []byte(r.from)) {
-					data = bytes.ReplaceAll(data, []byte(r.from), []byte(r.to))
-					modified = true
-					fileRewrites++
-				}
-			}
-
-			// Pass 2: Basename-level rewrites using webp files on disk.
-			// Fast path: skip if file contains no known image extensions
-			hasImageExt := false
-			for _, ext := range []string{".png", ".jpg", ".jpeg"} {
-				if bytes.Contains(data, []byte(ext)) {
-					hasImageExt = true
-					break
-				}
-			}
-
-			if hasImageExt {
-				dataStr := string(data)
-				dataLower := strings.ToLower(dataStr)
-				for baseNoExtLower := range webpFiles {
-					for _, ext := range []string{".png", ".jpg", ".jpeg"} {
-						searchTarget := baseNoExtLower + ext
-						idx := 0
-						for {
-							foundIdx := strings.Index(dataLower[idx:], searchTarget)
-							if foundIdx < 0 {
-								break
-							}
-							absIdx := idx + foundIdx
-							idx = absIdx + len(searchTarget)
-
-							// Extract the original filename (preserving case)
-							end := absIdx + len(searchTarget)
-							original := dataStr[absIdx:end]
-							// Only replace the extension part: keep prefix, swap ext
-							originalBaseNoExt := original[:len(original)-len(ext)]
-							replacement := originalBaseNoExt + ".webp"
-							dataStr = dataStr[:absIdx] + replacement + dataStr[end:]
-							dataLower = strings.ToLower(dataStr)
-							modified = true
-							fileRewrites++
-							// Adjust idx because replacement length changed
-							idx += len(replacement) - len(original)
-						}
-					}
-				}
-				if modified && fileRewrites > 0 {
-					data = []byte(dataStr)
-				}
-			}
-
-			if modified {
-				totalRewrites.Add(int64(fileRewrites))
-				_ = os.WriteFile(p, data, 0644)
-			}
-			return nil
-		})
-	}
-	_ = g.Wait()
-}
-
 // CleanupOriginalImages removes source image files (.png/.jpg/.jpeg) from the
 // output directory when a corresponding .webp file exists. It uses the known
 // conversion map, eliminating expensive filesystem sweeps.
@@ -430,7 +272,12 @@ func CleanupOriginalImages(outputDir string) {
 	}
 
 	// Critical .png files that must be preserved
-	criticalPNGs := map[string]bool{}
+	criticalPNGs := map[string]bool{
+		"logo.png":     true,
+		"icon-192.png": true,
+		"icon-512.png": true,
+		"favicon.png":  true,
+	}
 
 	// Determine exactly which source images to delete based on the converted map
 	var toDelete []string
@@ -439,12 +286,12 @@ func CleanupOriginalImages(outputDir string) {
 		if !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") {
 			continue
 		}
-		
+
 		base := filepath.Base(origRelPath)
 		if criticalPNGs[strings.ToLower(base)] {
 			continue
 		}
-		
+
 		// Map the relative path to the physical output dir
 		absPath := filepath.Join(outputDir, strings.TrimPrefix(filepath.ToSlash(origRelPath), "/"))
 		toDelete = append(toDelete, absPath)
@@ -472,6 +319,8 @@ func CleanupOriginalImages(outputDir string) {
 		g.Go(func() error {
 			if err := os.Remove(p); err == nil {
 				deleted.Add(1)
+			} else if !os.IsNotExist(err) {
+				return err // Propagate real errors instead of swallowing them
 			}
 			return nil
 		})

@@ -18,9 +18,7 @@ func setupRenderServiceTest(t *testing.T) *renderService {
 
 	// Create a renderer with in-memory mock sink (via a dummy sink implementation)
 	rnd := &renderer.Renderer{
-		Assets:      make(map[string]string),
-		RenderedSet: make(map[string]bool),
-		Compress:    false,
+		Compress: false,
 	}
 
 	service := NewService(Dependencies{
@@ -33,10 +31,7 @@ func setupRenderServiceTest(t *testing.T) *renderService {
 
 func TestNewService(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	rnd := &renderer.Renderer{
-		Assets:      make(map[string]string),
-		RenderedSet: make(map[string]bool),
-	}
+	rnd := &renderer.Renderer{}
 
 	service := NewService(Dependencies{
 		Ctx:      buildCtx.NewBuildContext(true, false, false, scheduler.NewBuildScheduler(), logger),

@@ -215,21 +215,17 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 		// Full builds (via BuildLocked) manage their own session.
 		m.builder.RefreshBuildSession()
 
-		parseRes, err := post.ParseMarkdown(
-			post.ParseConfig{
-				Source:           source,
-				Path:             path,
-				CleanHtmlRelPath: cleanHtmlRelPath,
-				HtmlRelPath:      htmlRelPath,
-			},
-			post.ParseContext{
-				MdPool:         m.mdPool,
-				Cfg:            m.cfg,
-				NativeRenderer: m.nativeRenderer,
-				DiagramAdapter: m.deps.Diagrams,
-				MathBatchSize:  post.DefaultMathBatchSize,
-			},
-		)
+		parseRes, err := post.ParseMarkdown(post.ParseOptions{
+			Source:           source,
+			Path:             path,
+			RelPath:          relPath,
+			CleanHtmlRelPath: cleanHtmlRelPath,
+			HtmlRelPath:      htmlRelPath,
+			MdPool:           m.mdPool,
+			Cfg:              m.cfg,
+			NativeRenderer:   m.nativeRenderer,
+			DiagramAdapter:   m.deps.Diagrams,
+		})
 
 		if err != nil {
 			m.logger.Error("Error parsing markdown", "path", path, "error", err)

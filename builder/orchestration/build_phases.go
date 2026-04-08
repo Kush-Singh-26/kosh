@@ -383,11 +383,6 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup, asse
 		b.Deps.Reporter.EndPhase(ui.PhaseAssets, 0)
 	}
 
-	// Batch rewrite image paths in output HTML for background-processed images.
-	// Images processed after discoveryReady closed are rewritten from .png/.jpg/.jpeg
-	// to .webp on disk. This only affects files that were rendered while images were
-	// still processing (their HTML still has original extensions).
-	assets.RewriteImagePaths(b.Tx.StagingDir(), b.Deps.Render.GetRenderedFiles())
 
 	// Remove original raster images (.png/.jpg/.jpeg) when .webp equivalents exist.
 	// This ensures the published output contains only WebP images (except critical assets).

@@ -4,14 +4,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
 	"sync"
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
+	renderSvc "github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
@@ -21,25 +25,6 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 )
-
-type ParseConfig struct {
-	Source               []byte
-	Path                 string
-	CleanHtmlRelPath     string
-	HtmlRelPath          string
-	KnownFrontmatterHash string
-	KnownReadingTime     int
-	BodyOffset           int
-	PreParsedMeta        map[string]any
-}
-
-type ParseContext struct {
-	MdPool         *sync.Pool
-	Cfg            *config.Config
-	NativeRenderer *native.Renderer
-	DiagramAdapter *cache.DiagramCacheAdapter
-	MathBatchSize  int
-}
 
 type parsedFrontmatter struct {
 	Title       string
@@ -91,28 +76,36 @@ type ParsedMarkdownResult struct {
 	BodyOnly        []byte
 }
 
+type ParseOptions struct {
+	Path                 string
+	RelPath              string
+	Source               []byte
+	Info                 fs.FileInfo
+	Scanner              scanner.Scanner
+	Renderer             renderSvc.Service
+	NativeRenderer       *native.Renderer
+	MdPool               *sync.Pool
+	DiagramAdapter       *cache.DiagramCacheAdapter
+	Metrics              *metrics.BuildMetrics
+	Cfg                  *config.Config
+	CleanHtmlRelPath     string
+	HtmlRelPath          string
+	KnownFrontmatterHash string
+	KnownReadingTime     int
+	BodyOffset           int
+	PreParsedMeta        map[string]any
+}
+
 // ParseMarkdownMetadata handles the semantic parsing and metadata extraction.
 // This is a refactored version using helper functions for better maintainability.
-func ParseMarkdownMetadata(
-	ctx context.Context,
-	source []byte,
-	path string,
-	cleanHtmlRelPath string,
-	htmlRelPath string,
-	mdPool *sync.Pool,
-	cfg *config.Config,
-	knownFrontmatterHash string,
-	knownReadingTime int,
-	bodyOffset int,
-	preParsedMeta map[string]any,
-) (*ParsedMarkdownResult, error) {
+func ParseMarkdownMetadata(opts ParseOptions) (*ParsedMarkdownResult, error) {
 	res := &ParsedMarkdownResult{}
 
 	// Step 1: Strip frontmatter
-	res.BodyOnly = stripFrontmatter(source, bodyOffset)
+	res.BodyOnly = stripFrontmatter(opts.Source, opts.BodyOffset)
 
 	// Step 2: Parse markdown with panic recovery
-	docNode, mdCtx, parseErr := parseMarkdownWithRecovery(res.BodyOnly, path, mdPool, ctx)
+	docNode, mdCtx, parseErr := parseMarkdownWithRecovery(res.BodyOnly, opts.Path, opts.MdPool, context.Background())
 	if parseErr != nil {
 		return nil, parseErr
 	}
@@ -122,25 +115,25 @@ func ParseMarkdownMetadata(
 	res.SSRHashes = mdParser.GetSSRHashes(mdCtx)
 
 	// Step 3: Extract metadata
-	res.Metadata = extractMetadata(mdCtx, source, preParsedMeta)
+	res.Metadata = extractMetadata(mdCtx, opts.Source, opts.PreParsedMeta)
 
 	// Step 4: Extract frontmatter data and build post metadata
 	fm := extractFrontmatter(res.Metadata)
 	res.TOC = mdParser.GetTOC(mdCtx)
 
-	postLink := navigation.BuildAbsoluteURL(cfg.BaseURL, cleanHtmlRelPath)
-	readingTime := computeReadingTime(source, knownReadingTime)
+	postLink := navigation.BuildAbsoluteURL(opts.Cfg.BaseURL, opts.CleanHtmlRelPath)
+	readingTime := computeReadingTime(opts.Source, opts.KnownReadingTime)
 
 	res.Post = buildPostMetadata(fm, postLink, readingTime)
 
 	// Step 5: Get plain text and build search record
 	res.PlainText = mdParser.GetPlainText(mdCtx)
-	res.SearchRecord = buildSearchRecord(res.Post, htmlRelPath, res.PlainText)
+	res.SearchRecord = buildSearchRecord(res.Post, opts.HtmlRelPath, res.PlainText)
 
 	// Step 6: Search Analysis (DEFERRED to background worker)
 
 	// Step 7: Compute frontmatter hash
-	res.FrontmatterHash = computeFrontmatterHash(res.Metadata, knownFrontmatterHash)
+	res.FrontmatterHash = computeFrontmatterHash(res.Metadata, opts.KnownFrontmatterHash)
 
 	return res, nil
 }
@@ -189,25 +182,13 @@ func RenderParsedMarkdown(
 }
 
 // ParseMarkdown handles the safe parsing and processing of markdown files
-func ParseMarkdown(cfg ParseConfig, ctx ParseContext) (*ParsedMarkdownResult, error) {
-	res, err := ParseMarkdownMetadata(
-		context.Background(),
-		cfg.Source,
-		cfg.Path,
-		cfg.CleanHtmlRelPath,
-		cfg.HtmlRelPath,
-		ctx.MdPool,
-		ctx.Cfg,
-		cfg.KnownFrontmatterHash,
-		cfg.KnownReadingTime,
-		cfg.BodyOffset,
-		cfg.PreParsedMeta,
-	)
+func ParseMarkdown(opts ParseOptions) (*ParsedMarkdownResult, error) {
+	res, err := ParseMarkdownMetadata(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := RenderParsedMarkdown(cfg.Source, res, ctx.MdPool, ctx.NativeRenderer, ctx.DiagramAdapter); err != nil {
+	if err := RenderParsedMarkdown(opts.Source, res, opts.MdPool, opts.NativeRenderer, opts.DiagramAdapter); err != nil {
 		return nil, err
 	}
 

@@ -85,11 +85,6 @@ func (b *Engine) buildAssetOnly(ctx context.Context) error {
 			return fmt.Errorf("post processing failed: %w", err)
 		}
 
-		// Batch rewrite image paths in output HTML for converted images.
-		// Without this, asset-only rebuilds (CSS/JS changes) would publish HTML
-		// with stale .png/.jpg references while the actual files are .webp.
-		assets.RewriteImagePaths(b.Tx.StagingDir(), b.Deps.Render.GetRenderedFiles())
-
 		// Remove original raster images when .webp equivalents exist
 		assets.CleanupOriginalImages(b.Tx.StagingDir())
 

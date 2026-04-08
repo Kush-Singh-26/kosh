@@ -14,7 +14,7 @@ func TestRewriteImageRefs(t *testing.T) {
 		expected  string
 	}{
 		{
-			name:      "no converted images",
+			name:      "no converted images (keep original)",
 			html:      `<img src="/static/images/test.png">`,
 			converted: map[string]string{},
 			expected:  `<img src="/static/images/test.png" loading="lazy" decoding="async">`,
