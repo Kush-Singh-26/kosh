@@ -1,8 +1,6 @@
-package async
+package fs
 
 import (
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-
 	"context"
 	"os"
 	"path/filepath"
@@ -155,7 +153,7 @@ func TestAtomicWrite_CleansUpOnError(t *testing.T) {
 func TestAcquireBuildLock_Success(t *testing.T) {
 	outputDir := t.TempDir()
 
-	lock, err := fspkg.AcquireBuildLock(outputDir)
+	lock, err := AcquireBuildLock(outputDir)
 	if err != nil {
 		t.Fatalf("fspkg.AcquireBuildLock failed: %v", err)
 	}
@@ -182,14 +180,14 @@ func TestAcquireBuildLock_DoubleLockFails(t *testing.T) {
 	outputDir := t.TempDir()
 
 	// First lock should succeed
-	lock1, err := fspkg.AcquireBuildLock(outputDir)
+	lock1, err := AcquireBuildLock(outputDir)
 	if err != nil {
 		t.Fatalf("First fspkg.AcquireBuildLock failed: %v", err)
 	}
 	defer func() { _ = lock1.Release() }()
 
 	// Second lock should fail (non-blocking)
-	_, err = fspkg.AcquireBuildLock(outputDir)
+	_, err = AcquireBuildLock(outputDir)
 	if err == nil {
 		t.Error("Second fspkg.AcquireBuildLock should fail when lock is held")
 	}
@@ -201,7 +199,7 @@ func TestAcquireBuildLock_ReleaseClearsLock(t *testing.T) {
 	outputDir := t.TempDir()
 
 	// Acquire and release lock
-	lock, err := fspkg.AcquireBuildLock(outputDir)
+	lock, err := AcquireBuildLock(outputDir)
 	if err != nil {
 		t.Fatalf("fspkg.AcquireBuildLock failed: %v", err)
 	}
@@ -217,7 +215,7 @@ func TestAcquireBuildLock_ReleaseClearsLock(t *testing.T) {
 	}
 
 	// Should be able to acquire lock again
-	lock2, err := fspkg.AcquireBuildLock(outputDir)
+	lock2, err := AcquireBuildLock(outputDir)
 	if err != nil {
 		t.Fatalf("Second fspkg.AcquireBuildLock after release failed: %v", err)
 	}
@@ -229,7 +227,7 @@ func TestAcquireBuildLock_ReleaseClearsLock(t *testing.T) {
 func TestAcquireBuildLock_PIDWritten(t *testing.T) {
 	outputDir := t.TempDir()
 
-	lock, err := fspkg.AcquireBuildLock(outputDir)
+	lock, err := AcquireBuildLock(outputDir)
 	if err != nil {
 		t.Fatalf("fspkg.AcquireBuildLock failed: %v", err)
 	}

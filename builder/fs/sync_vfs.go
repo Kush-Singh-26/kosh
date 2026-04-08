@@ -1,6 +1,6 @@
 //go:build !wasm
 
-package async
+package fs
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/retry"
@@ -97,7 +97,7 @@ func SyncVFS(opts SyncOptions) error {
 	slog.Info("Syncing in-memory filesystem to disk", "clean_build", isCleanBuild)
 
 	targetDirClean := filepath.Clean(targetDir)
-	tx := fs.NewTxSync(slog.Default())
+	tx := NewTxSync(slog.Default())
 	defer func() {
 		if !tx.IsCommitted() {
 			tx.Rollback(ctx)
@@ -157,7 +157,7 @@ func SyncVFS(opts SyncOptions) error {
 		dirs[filepath.Dir(task.destPath)] = true
 	}
 
-	dirPool := NewWorkerPool(ctx, runtime.NumCPU(), func(dir string) error {
+	dirPool := async.NewWorkerPool(ctx, runtime.NumCPU(), func(dir string) error {
 		return os.MkdirAll(dir, 0755)
 	})
 	dirPool.Start()
@@ -169,7 +169,7 @@ func SyncVFS(opts SyncOptions) error {
 	// 3. Sync files with high concurrency
 	numWorkers := min(runtime.NumCPU()*2, 32)
 
-	pool := NewWorkerPool(ctx, numWorkers, func(task syncTask) error {
+	pool := async.NewWorkerPool(ctx, numWorkers, func(task syncTask) error {
 		if err := syncSingleFileTask(SyncFileOptions{
 			Ctx:          ctx,
 			SrcFs:        srcFs,
@@ -201,7 +201,7 @@ type SyncFileOptions struct {
 	SrcFs        afero.Fs
 	Task         syncTask
 	IsCleanBuild bool
-	Tx           *fs.TxSync
+	Tx           *TxSync
 }
 
 func syncSingleFileTask(opts SyncFileOptions) error {

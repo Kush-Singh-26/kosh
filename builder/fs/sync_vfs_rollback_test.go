@@ -1,4 +1,4 @@
-package async_test
+package fs_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/async"
+	"github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
 )
 
@@ -43,7 +43,7 @@ func TestSyncVFS_RollbackOnFailure(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := async.SyncVFS(async.SyncOptions{
+	err := fs.SyncVFS(fs.SyncOptions{
 		Ctx:          ctx,
 		SrcFs:        srcFs,
 		TargetDir:    tmpDir,

@@ -15,7 +15,6 @@ import (
 	"fmt"
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
-	"github.com/Kush-Singh-26/kosh/builder/async"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -25,7 +24,7 @@ import (
 // refreshBuildSession creates a fresh Transaction and Sink for a new build pass.
 func (b *Engine) refreshBuildSession() {
 	// Clear per-file content cache so dev rebuilds don't serve stale data
-	async.ClearSyncCache()
+	fspkg.ClearSyncCache()
 	// If we already have a sink/tx (e.g. injected in tests), don't overwrite it
 	if b.Sink == nil || !b.Ctx.IsTesting {
 		useStaging := !b.Cfg.IsDev || b.State.IsCleanBuild

@@ -7,8 +7,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
 func TestFireAndForget_Success(t *testing.T) {
@@ -161,7 +159,7 @@ func TestFireAndForget_ReturnsImmediately(t *testing.T) {
 		t.Errorf("FireAndForget did not return immediately: %v", elapsed)
 	}
 
-	testutil.WaitForCondition(t, 200*time.Millisecond, func() bool {
+	waitForCondition(t, 200*time.Millisecond, func() bool {
 		return executed.Load()
 	})
 }

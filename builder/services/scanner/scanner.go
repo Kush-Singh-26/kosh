@@ -106,13 +106,13 @@ func (s *metadataScanner) ScanStreaming(opts ScanOptions) (<-chan *models.Metada
 		if err != nil {
 			resultChan <- nil
 			errChan <- err
-			return
+			return err
 		}
 
 		if err := g.Wait(); err != nil {
 			resultChan <- nil
 			errChan <- err
-			return
+			return err
 		}
 
 		resultChan <- result

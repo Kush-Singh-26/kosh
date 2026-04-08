@@ -49,11 +49,11 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 				if exists {
 					if pair, ok := pairVal.(models.SSRThemePair); ok {
 						results[idx] = pair
-						return
+						return nil
 					}
 				}
 				if t.Renderer == nil {
-					return
+					return nil
 				}
 
 				if t.D2Group != nil {
