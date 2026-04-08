@@ -7,7 +7,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-func (b *Engine) renderPagination(ctx context.Context, allPosts, pinnedPosts []models.PostMetadata, force bool) error {
+func (b *Engine) renderPagination(ctx context.Context, allPosts, pinnedPosts []models.PostMetadata, force bool, allTags []models.TagData) error {
 	return generators.RenderPagination(generators.PaginationOptions{
 		Ctx:         ctx,
 		Cfg:         b.Cfg,
@@ -20,6 +20,7 @@ func (b *Engine) renderPagination(ctx context.Context, allPosts, pinnedPosts []m
 		Force:       force,
 		Logger:      b.Deps.Logger,
 		LogoPath:    b.getLogoPath(),
+		AllTags:     allTags,
 	})
 }
 

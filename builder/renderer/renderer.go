@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -23,23 +24,23 @@ import (
 )
 
 type Renderer struct {
-	Layout           *template.Template
-	Index            *template.Template
-	Graph            *template.Template
-	NotFound         *template.Template
-	assetsSnapshot   atomic.Pointer[map[string]string]
-	Compress         bool
-	Sink             fspkg.ArtifactSink
-	SourceFs         afero.Fs
-	renderedFiles    sync.Map
-	logger           *slog.Logger
-	templateDir      string
-	mu               sync.RWMutex
-	devMode          bool
-	renderErrors     []renderError
-	errMu            sync.Mutex
-	assetCache       sync.Map
-	Minifier         *minify.M
+	Layout         *template.Template
+	Index          *template.Template
+	Graph          *template.Template
+	NotFound       *template.Template
+	assetsSnapshot atomic.Pointer[map[string]string]
+	Compress       bool
+	Sink           fspkg.ArtifactSink
+	SourceFs       afero.Fs
+	renderedFiles  sync.Map
+	logger         *slog.Logger
+	templateDir    string
+	mu             sync.RWMutex
+	devMode        bool
+	renderErrors   []renderError
+	errMu          sync.Mutex
+	assetCache     sync.Map
+	Minifier       *minify.M
 }
 
 func New(compress bool, sink fspkg.ArtifactSink, templateDir string, devMode bool, logger *slog.Logger) *Renderer {
@@ -141,6 +142,31 @@ func (r *Renderer) ReloadTemplates() {
 		"now":       time.Now,
 		"urlEscape": url.PathEscape,
 		"slugify":   timeutil.Slugify,
+		"dateFormat": func(layout string, v any) string {
+			if v == nil {
+				return ""
+			}
+			if t, ok := v.(time.Time); ok {
+				return t.Format(layout)
+			}
+			if s, ok := v.(string); ok {
+				if t, err := time.Parse("2006-01-02", s); err == nil {
+					return t.Format(layout)
+				}
+				if t, err := time.Parse("2006-01-02 15:04:05 -0700 MST", s); err == nil {
+					return t.Format(layout)
+				}
+				if t, err := time.Parse("2006-01-02 15:04:05 -0700", s); err == nil {
+					return t.Format(layout)
+				}
+				return s
+			}
+			return fmt.Sprintf("%v", v)
+		},
+		"jsonify": func(v interface{}) (string, error) {
+			b, err := json.Marshal(v)
+			return string(b), err
+		},
 	}
 
 	var (

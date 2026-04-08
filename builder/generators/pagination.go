@@ -32,6 +32,7 @@ type PaginationOptions struct {
 	Force       bool
 	Logger      *slog.Logger
 	LogoPath    string
+	AllTags     []models.TagData
 }
 
 // RenderPagination orchestrates the generation of paginated index pages.
@@ -136,6 +137,7 @@ func RenderPagination(opts PaginationOptions) error {
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
 				Paginator: paginator, Config: cfg,
 				RelativePrefix: fspkg.GetRelativePrefix(relPath),
+				AllTags:        opts.AllTags,
 			}); err != nil {
 				return fmt.Errorf("failed to render index page %d: %w", pageIdx, err)
 			}

@@ -39,9 +39,15 @@ func (b *Engine) setupSiteWideRendering(
 			siteTimer = timeutil.StartPhase("Site-wide rendering")
 			siteWideGroup, siteWideCtx = errgroup.WithContext(ctx)
 
+			var allTags []models.TagData
+			for t, posts := range cb.TagMap {
+				slug := timeutil.Slugify(t)
+				allTags = append(allTags, models.TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("/tags/%s.html", slug)})
+			}
+
 			siteWideGroup.Go(func() error {
 				b.Assets.WaitForAvailability(siteWideCtx, assetsReady)
-				return b.renderPagination(siteWideCtx, cb.AllPosts, cb.PinnedPosts, b.Cfg.ForceRebuild)
+				return b.renderPagination(siteWideCtx, cb.AllPosts, cb.PinnedPosts, b.Cfg.ForceRebuild, allTags)
 			})
 			siteWideGroup.Go(func() error {
 				b.Assets.WaitForAvailability(siteWideCtx, assetsReady)

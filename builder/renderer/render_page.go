@@ -185,7 +185,21 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 		}
 
 		if i >= len(tag) || tag[i] == '>' || tag[i] == '/' {
-			result = append(result, tag[i:]...)
+			// Capture the closing part to append attributes before it
+			closingPart := tag[i:]
+			// Add loading="lazy" and decoding="async" to content images
+			// Skip images with class="site-logo" (above-the-fold LCP candidates)
+			lowerResult := strings.ToLower(string(result))
+			isSiteLogo := strings.Contains(lowerResult, `class="site-logo`) || strings.Contains(lowerResult, `class='site-logo`)
+			if !isSiteLogo {
+				if !strings.Contains(lowerResult, " loading=") && !strings.Contains(lowerResult, " loading\t") && !strings.Contains(lowerResult, " loading\n") {
+					result = append(result, []byte(" loading=\"lazy\"")...)
+				}
+				if !strings.Contains(lowerResult, " decoding=") && !strings.Contains(lowerResult, " decoding\t") && !strings.Contains(lowerResult, " decoding\n") {
+					result = append(result, []byte(" decoding=\"async\"")...)
+				}
+			}
+			result = append(result, closingPart...)
 			break
 		}
 
@@ -256,19 +270,6 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 			} else {
 				result = append(result, tag[valStart:i]...)
 			}
-		}
-	}
-
-	// Add loading="lazy" and decoding="async" to content images
-	// Skip images with class="site-logo" (above-the-fold LCP candidates)
-	lowerResult := strings.ToLower(string(result))
-	isSiteLogo := strings.Contains(lowerResult, `class="site-logo`) || strings.Contains(lowerResult, `class='site-logo`)
-	if !isSiteLogo {
-		if !strings.Contains(lowerResult, " loading=") && !strings.Contains(lowerResult, " loading\t") && !strings.Contains(lowerResult, " loading\n") {
-			result = append(result, []byte(" loading=\"lazy\"")...)
-		}
-		if !strings.Contains(lowerResult, " decoding=") && !strings.Contains(lowerResult, " decoding\t") && !strings.Contains(lowerResult, " decoding\n") {
-			result = append(result, []byte(" decoding=\"async\"")...)
 		}
 	}
 

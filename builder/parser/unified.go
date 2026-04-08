@@ -1,7 +1,9 @@
 package parser
 
 import (
+	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -13,6 +15,21 @@ import (
 	"github.com/yuin/goldmark/text"
 	"golang.org/x/sync/singleflight"
 )
+
+// slugify creates a URL-safe slug from text (same logic as goldmark's auto-heading-ID)
+func slugify(s string) string {
+	s = strings.ToLower(s)
+	var buf strings.Builder
+	buf.Grow(len(s))
+	for _, r := range s {
+		if ('a' <= r && r <= 'z') || ('0' <= r && r <= '9') {
+			buf.WriteRune(r)
+		} else if r == ' ' || r == '-' || r == '_' {
+			buf.WriteRune('-')
+		}
+	}
+	return buf.String()
+}
 
 // SSRMap provides a key-value interface for server-side rendered content.
 // This allows the transformer to use either a raw sync.Map or a persistent
@@ -84,16 +101,21 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 					ctx.inHeading = true
 					ctx.headingLevel = heading.Level
 					ctx.headingText.Reset()
+					ctx.headingID = "" // Will be generated on exit
 					id, _ := heading.AttributeString("id")
 					if idBytes, ok := id.([]byte); ok {
 						ctx.headingID = string(idBytes)
-					} else {
-						ctx.headingID = ""
 					}
 				}
 			} else {
 				if ctx.inHeading {
-					// Heading exit - record TOC entry
+					// Generate ID if not already set
+					if ctx.headingID == "" {
+						ctx.headingID = slugify(ctx.headingText.String())
+					}
+					// Set the ID attribute on the heading node so it renders to HTML
+					heading.SetAttributeString("id", []byte(ctx.headingID))
+					// Record TOC entry
 					if ctx.headingID != "" {
 						toc = append(toc, models.TOCEntry{
 							ID:    ctx.headingID,
@@ -181,6 +203,102 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 						slog.Warn("A11y Lint: Image missing alt text",
 							"file", filePath,
 							"src", src)
+					}
+				}
+
+				// 5. Image Captioning (Automatic figure/figcaption for descriptive alt tags)
+				var altSB strings.Builder
+				for child := img.FirstChild(); child != nil; child = child.NextSibling() {
+					if tNode, ok := child.(*ast.Text); ok {
+						altSB.Write(tNode.Segment.Value(source))
+					}
+				}
+				altStr := strings.TrimSpace(altSB.String())
+
+				if altStr != "" && strings.ToLower(altStr) != "image" {
+					if parent := img.Parent(); parent != nil {
+						if p, ok := parent.(*ast.Paragraph); ok {
+							// Only wrap if it's the sole image in the paragraph to preserve "Zen" aesthetic
+							isSole := true
+							for c := p.FirstChild(); c != nil; c = c.NextSibling() {
+								if c == img {
+									continue
+								}
+								if tn, ok := c.(*ast.Text); ok {
+									if strings.TrimSpace(string(tn.Segment.Value(source))) != "" {
+										isSole = false
+										break
+									}
+								} else {
+									isSole = false
+									break
+								}
+							}
+
+							if isSole {
+								src := string(img.Destination)
+								figHTML := fmt.Sprintf("<figure><img src=\"%s\" alt=\"%s\" loading=\"lazy\"><figcaption>%s</figcaption></figure>",
+									src, altStr, altStr)
+								toReplace = append(toReplace, replacement{
+									old: p, // Replace the entire paragraph to avoid <img> being inside <p>
+									new: &RawHTMLBlock{Content: []byte(figHTML)},
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// 6. Raw HTML Image Captioning (Handles <img> tags in HTML blocks)
+		if (kind == ast.KindHTMLBlock || kind == ast.KindRawHTML) && entering {
+			var htmlContent string
+			if kind == ast.KindHTMLBlock {
+				hb := n.(*ast.HTMLBlock)
+				var sb strings.Builder
+				for i := 0; i < hb.Lines().Len(); i++ {
+					line := hb.Lines().At(i)
+					sb.Write(line.Value(source))
+				}
+				htmlContent = sb.String()
+			} else {
+				ri := n.(*ast.RawHTML)
+				var sb strings.Builder
+				for i := 0; i < ri.Segments.Len(); i++ {
+					seg := ri.Segments.At(i)
+					sb.Write(seg.Value(source))
+				}
+				htmlContent = sb.String()
+			}
+
+			// Process <img> tags if they have descriptive alt attributes
+			imgRe := regexp.MustCompile(`(?i)<img\b[^>]*?\balt=["'](.*?)["'][^>]*?>`)
+			if imgRe.MatchString(htmlContent) {
+				newHTML := imgRe.ReplaceAllStringFunc(htmlContent, func(imgTag string) string {
+					matches := imgRe.FindStringSubmatch(imgTag)
+					if len(matches) > 1 {
+						alt := strings.TrimSpace(matches[1])
+						if alt != "" && strings.ToLower(alt) != "image" {
+							// Only wrap if not already wrapped (simple check for existing figure tag)
+							if !strings.Contains(htmlContent, "<figure") {
+								return fmt.Sprintf("<figure>%s<figcaption>%s</figcaption></figure>", imgTag, alt)
+							}
+						}
+					}
+					return imgTag
+				})
+
+				if newHTML != htmlContent {
+					if kind == ast.KindHTMLBlock {
+						toReplace = append(toReplace, replacement{
+							old: n,
+							new: &RawHTMLBlock{Content: []byte(newHTML)},
+						})
+					} else {
+						toReplace = append(toReplace, replacement{
+							old: n,
+							new: &RawHTMLInline{Content: []byte(newHTML)},
+						})
 					}
 				}
 			}
