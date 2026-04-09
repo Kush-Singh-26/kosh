@@ -104,7 +104,7 @@ func appendD2Replacements(d2Blocks []d2BlockInfo, results []models.SSRThemePair,
 		buf.WriteString(pair.Light)
 		buf.WriteString(`</div><div class="d2-dark">`)
 		buf.WriteString(pair.Dark)
-		buf.WriteString(`</div><span class="zoom-hint">🔍 Click to zoom</span></div>`)
+		buf.WriteString(`</div><span class="zoom-hint">Click to zoom</span></div>`)
 
 		content := make([]byte, buf.Len())
 		copy(content, buf.Bytes())

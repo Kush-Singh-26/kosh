@@ -19,11 +19,16 @@ menu:
     url: "/tags/index.html"
   - name: "Graph"
     url: "/graph.html"
+
+footerMenu:
   - name: "Home"
     url: "https://kush-singh-26.github.io/"
     target: "_blank"
   - name: "GitHub"
-    url: "https://github.com/Kush-Singh-26/blogs"
+    url: "https://github.com/Kush-Singh-26"
+    target: "_blank"
+  - name: "RSS Feed"
+    url: "/rss.xml"
     target: "_blank"
 
 # Global Features & Generators

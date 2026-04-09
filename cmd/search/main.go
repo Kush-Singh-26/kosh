@@ -76,7 +76,7 @@ func initSearch(this js.Value, args []js.Value) any {
 			// Validate schema version
 			if index.SchemaVersion != models.CurrentSchemaVersion {
 				reject.Invoke("Incompatible index schema: please rebuild your site")
-				return
+				return nil
 			}
 
 			// Clear cache on new index load

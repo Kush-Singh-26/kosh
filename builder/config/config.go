@@ -48,6 +48,7 @@ type SiteConfig struct {
 	Language    string              `yaml:"language"`
 	Author      models.AuthorConfig `yaml:"author"`
 	Menu        []models.MenuEntry  `yaml:"menu"`
+	FooterMenu  []models.MenuEntry  `yaml:"footerMenu"`
 }
 
 // BuildOptions defines build-time tuning parameters.
