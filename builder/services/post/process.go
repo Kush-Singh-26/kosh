@@ -36,34 +36,25 @@ func (s *postService) Process(opts ProcessOptions) (*PostResult, error) {
 	return s.ProcessStreaming(opts)
 }
 
-// ProcessStreaming processes posts using streaming parse and render phases.
-func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error) {
-	ctx := opts.Ctx
-	shouldForce := opts.ShouldForce
-	forceSocialRebuild := opts.ForceSocialRebuild
-	fileChan := opts.FileChan
-
-	numWorkers := models.GetDefaultWorkerCount()
-
-	cardPool := async.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) error {
+func (s *postService) startCardPool(ctx context.Context, numWorkers int) *async.WorkerPool[socialCardTask] {
+	pool := async.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) error {
 		s.generateSocialCard(task)
 		return nil
 	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskSocialCard)
-	cardPool.Start()
-	defer func() { buildCtx.IgnoreError(cardPool.Stop(), "stop card pool") }()
+	pool.Start()
+	return pool
+}
 
-	// Search Indexing Pool (Background)
-	searchPool := async.NewWorkerPool(ctx, numWorkers, func(task searchTask) error {
+func (s *postService) startSearchPool(ctx context.Context, numWorkers int) *async.WorkerPool[searchTask] {
+	pool := async.NewWorkerPool(ctx, numWorkers, func(task searchTask) error {
 		wordFreqs, docLen, stemMap, posIndex, byteOffsets := tokenizeSearchData(task.record, task.plainText)
 
-		// Update in-memory index result
 		task.indexed.WordFreqs = wordFreqs
 		task.indexed.DocLen = docLen
 		task.indexed.StemMap = stemMap
 		task.indexed.PositionalIndex = posIndex
 		task.indexed.ByteOffsets = byteOffsets
 
-		// Update BoltDB cache record if present
 		if task.cached != nil {
 			task.cached.BM25Data = wordFreqs
 			task.cached.DocLen = docLen
@@ -73,27 +64,16 @@ func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 		}
 		return nil
 	}).WithScheduler(s.ctx.Scheduler, scheduler.TaskMarkdown)
-	searchPool.Start()
-	defer func() { buildCtx.IgnoreError(searchPool.Stop(), "stop search pool") }()
+	pool.Start()
+	return pool
+}
 
-	// Create a channel for navInfo to be sent once scanner finishes
-	navReady := make(chan navInfo, navReadyBuffer)
-	renderChan := make(chan renderTask, numWorkers*renderChanMultiplier)
-	pc := &postProcessContext{
-		tagMap:           make(map[string][]models.PostMetadata),
-		newSearchRecords: make(map[string]*models.SearchRecord),
-		newDeps:          make(map[string]*models.Dependencies),
-		indexedPosts:     make([]models.IndexedPost, 0, indexedPostsCap),
-	}
-
-	// Internal channel to collect all files for navigation calculation
+func startNavCollector(ctx context.Context, logger *slog.Logger, prepare func([]models.ScannedFile) navInfo) (chan models.ScannedFile, chan navInfo, *sync.WaitGroup) {
 	collectedFilesChan := make(chan models.ScannedFile, collectedFilesBuffer)
+	navReady := make(chan navInfo, navReadyBuffer)
 	var allFiles []models.ScannedFile
 	var collectWg sync.WaitGroup
-	logger := s.logger
-	if logger == nil {
-		logger = slog.Default()
-	}
+
 	collectWg.Add(1)
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 		Ctx:       ctx,
@@ -103,32 +83,92 @@ func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 			for f := range collectedFilesChan {
 				allFiles = append(allFiles, f)
 			}
-			// Once all files collected, prepare navigation and signal render phase
-			navReady <- s.prepareNavigationInfo(allFiles)
+			navReady <- prepare(allFiles)
 			return nil
 		},
 		Cleanup: collectWg.Done,
 	})
 
-	// Start render task collector goroutine to avoid blocking parse workers
-	var renderTasks []renderTask
-	var renderTasksMu sync.Mutex
-	renderTasksDone := make(chan struct{})
+	return collectedFilesChan, navReady, &collectWg
+}
 
+type renderTaskCollector struct {
+	renderChan      chan renderTask
+	renderTasks     []renderTask
+	renderTasksMu   sync.Mutex
+	renderTasksDone chan struct{}
+}
+
+func startRenderTaskCollector(ctx context.Context, logger *slog.Logger, numWorkers int) *renderTaskCollector {
+	collector := &renderTaskCollector{
+		renderChan:      make(chan renderTask, numWorkers*renderChanMultiplier),
+		renderTasksDone: make(chan struct{}),
+	}
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 		Ctx:       ctx,
 		Logger:    logger,
 		Operation: "collect render tasks",
 		Fn: func() error {
-			for rt := range renderChan {
-				renderTasksMu.Lock()
-				renderTasks = append(renderTasks, rt)
-				renderTasksMu.Unlock()
+			for rt := range collector.renderChan {
+				collector.renderTasksMu.Lock()
+				collector.renderTasks = append(collector.renderTasks, rt)
+				collector.renderTasksMu.Unlock()
 			}
 			return nil
 		},
-		Cleanup: func() { close(renderTasksDone) },
+		Cleanup: func() { close(collector.renderTasksDone) },
 	})
+	return collector
+}
+
+func waitForRenderTasks(collector *renderTaskCollector) []renderTask {
+	<-collector.renderTasksDone
+	collector.renderTasksMu.Lock()
+	defer collector.renderTasksMu.Unlock()
+	return append([]renderTask(nil), collector.renderTasks...)
+}
+
+func finalizePostProcessing(pc *postProcessContext) {
+	timeutil.SortPosts(pc.allPosts)
+	timeutil.SortPosts(pc.pinnedPosts)
+	for _, posts := range pc.tagMap {
+		timeutil.SortPosts(posts)
+	}
+}
+
+// ProcessStreaming processes posts using streaming parse and render phases.
+func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error) {
+	ctx := opts.Ctx
+	shouldForce := opts.ShouldForce
+	forceSocialRebuild := opts.ForceSocialRebuild
+	fileChan := opts.FileChan
+
+	numWorkers := models.GetDefaultWorkerCount()
+
+	cardPool := s.startCardPool(ctx, numWorkers)
+	defer func() { buildCtx.IgnoreError(cardPool.Stop(), "stop card pool") }()
+
+	// Search Indexing Pool (Background)
+	searchPool := s.startSearchPool(ctx, numWorkers)
+	defer func() { buildCtx.IgnoreError(searchPool.Stop(), "stop search pool") }()
+
+	// Create a channel for navInfo to be sent once scanner finishes
+	pc := &postProcessContext{
+		tagMap:           make(map[string][]models.PostMetadata),
+		newSearchRecords: make(map[string]*models.SearchRecord),
+		newDeps:          make(map[string]*models.Dependencies),
+		indexedPosts:     make([]models.IndexedPost, 0, indexedPostsCap),
+	}
+
+	// Internal channel to collect all files for navigation calculation
+	logger := s.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	collectedFilesChan, navReady, collectWg := startNavCollector(ctx, logger, s.prepareNavigationInfo)
+
+	// Start render task collector goroutine to avoid blocking parse workers
+	renderCollector := startRenderTaskCollector(ctx, logger, numWorkers)
 
 	// renderWg is kept for context-based cleanup if needed, though runStreamingRenderPhase is synchronous
 	var renderWg sync.WaitGroup
@@ -146,7 +186,7 @@ func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 
 	wCtx := WorkerContext{
 		Ctx: ctx, PC: pc, CardPool: cardPool, SearchPool: searchPool,
-		RenderChan: renderChan, ShouldForce: shouldForce, ForceSocialRebuild: forceSocialRebuild,
+		RenderChan: renderCollector.renderChan, ShouldForce: shouldForce, ForceSocialRebuild: forceSocialRebuild,
 	}
 
 	// Stream from original channel to both parse workers and our navigation collector
@@ -155,8 +195,8 @@ func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 	collectWg.Wait() // Wait for scanner walk to finish and navReady to be filled
 
 	// Once scanner is done and navReady is filled, signal the render phase
-	close(renderChan) // No more render tasks will be produced
-	<-renderTasksDone // Wait for all produced tasks to be collected
+	close(renderCollector.renderChan) // No more render tasks will be produced
+	renderTasks := waitForRenderTasks(renderCollector)
 
 	// Now start the render pool with complete navInfo
 	nav := <-navReady
@@ -176,15 +216,11 @@ func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 	s.finalizeBuild(pc)
 
 	// Sort allPosts to ensure deterministic ordering across builds
-	timeutil.SortPosts(pc.allPosts)
-	timeutil.SortPosts(pc.pinnedPosts)
-	// Sort tagMap values (slices of posts) for deterministic output
-	for _, posts := range pc.tagMap {
-		timeutil.SortPosts(posts)
-	}
+	finalizePostProcessing(pc)
 
 	return &PostResult{
 		AllPosts: pc.allPosts, PinnedPosts: pc.pinnedPosts, TagMap: pc.tagMap,
+		AllTags:      nav.allTags,
 		IndexedPosts: pc.indexedPosts, AnyPostChanged: pc.anyPostChanged.Load(), Has404: false,
 	}, nil
 }
@@ -246,6 +282,7 @@ func (s *postService) runStreamingRenderPhase(ctx context.Context, numWorkers in
 			Meta: rt.parseRes.Metadata, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
 			TabTitle: post.Title + " | " + s.cfg.Title, Permalink: rt.f.Link, Image: cardImageURL,
 			TOC: rt.parseRes.TOC, Config: s.cfg, ReadingTime: post.ReadingTime,
+			AllTags:  nav.allTags,
 			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(rt.htmlRelPath),
 			HasImages: rt.parseRes.HasImages,
 			JSONLD:    models.GeneratePostJSONLD(post, s.cfg.Author, cardImageURL),

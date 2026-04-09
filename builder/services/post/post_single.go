@@ -13,6 +13,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
@@ -28,6 +29,7 @@ func (s *postService) ProcessSingle(ctx context.Context, path string, source []b
 
 type navResult struct {
 	prev, next *models.NavPage
+	allTags    []models.TagData
 }
 
 func (s *postService) resolveNavigation(post models.PostMetadata) *navResult {
@@ -41,6 +43,7 @@ func (s *postService) resolveNavigation(post models.PostMetadata) *navResult {
 					Link:    m.Link,
 					Weight:  m.Weight,
 					DateObj: m.Date,
+					Tags:    m.Tags,
 				}
 			}
 		}
@@ -61,7 +64,19 @@ func (s *postService) resolveNavigation(post models.PostMetadata) *navResult {
 	timeutil.SortPosts(posts)
 	prev, next, _ := navigation.FindPrevNext(post, posts)
 
-	return &navResult{prev: prev, next: next}
+	// Build all tags for the search modal even in incremental mode
+	tagMap := make(map[string][]models.PostMetadata)
+	for _, p := range posts {
+		if p.Draft && !s.cfg.IncludeDrafts {
+			continue
+		}
+		for _, t := range p.Tags {
+			tagMap[t] = append(tagMap[t], p)
+		}
+	}
+	allTags := generators.BuildAllTags(tagMap)
+
+	return &navResult{prev: prev, next: next, allTags: allTags}
 }
 
 func (s *postService) renderMathSSR(ctx context.Context, html string, exprs []models.MathExpression) string {
@@ -180,6 +195,7 @@ func (s *postService) ProcessSingleWithResult(ctx context.Context, path string, 
 		Meta: parseRes.Metadata, BaseURL: s.cfg.BaseURL, BuildVersion: s.cfg.BuildVersion,
 		TabTitle: post.Title + " | " + s.cfg.Title, Permalink: post.Link, Image: cardImageURL,
 		TOC: parseRes.TOC, Config: s.cfg, ReadingTime: post.ReadingTime,
+		AllTags:  nav.allTags,
 		PrevPage: nav.prev, NextPage: nav.next, RelativePrefix: fspkg.GetRelativePrefix(htmlRelPath),
 		HasImages: parseRes.HasImages,
 		JSONLD:    models.GeneratePostJSONLD(post, s.cfg.Author, cardImageURL),

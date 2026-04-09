@@ -100,21 +100,19 @@ func Load(args []string) *Config {
 	return LoadFs(afero.NewOsFs(), args)
 }
 
-// LoadFs loads configuration using the provided filesystem.
-func LoadFs(fs afero.Fs, args []string) *Config {
-	// 1. Default Configuration
-	cfg := &Config{
+func defaultConfig() *Config {
+	return &Config{
 		SiteConfig: SiteConfig{
 			Title:   "Kosh Blog",
 			BaseURL: "",
 		},
 		BuildOptions: BuildOptions{
 			PostsPerPage:   DefaultPostsPerPage,
-			CompressImages: true, // Always compress for performance
+			CompressImages: true,
 			MinifySVGs:     true,
-			ImageWorkers:   DefaultImageWorkers,  // Default 8 parallel workers for image processing (benchmarked optimum)
-			WebPQuality:    DefaultWebPQuality,   // Default WebP quality is 80
-			ParserWorkers:  DefaultParserWorkers, // 0 = auto (use models.GetDefaultWorkerCount)
+			ImageWorkers:   DefaultImageWorkers,
+			WebPQuality:    DefaultWebPQuality,
+			ParserWorkers:  DefaultParserWorkers,
 		},
 		PathConfig: PathConfig{
 			Theme:      DefaultTheme,
@@ -141,41 +139,35 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 			TextColor:  "#1a1a1a",
 		},
 	}
+}
 
-	// 2. Load from YAML file if exists
+func loadConfigFile(fs afero.Fs, cfg *Config) {
 	if data, err := afero.ReadFile(fs, "kosh.yaml"); err == nil {
 		if err := yaml.Unmarshal(data, cfg); err != nil {
 			slog.Warn("Failed to parse kosh.yaml", "error", err)
 		}
-	} else {
-		// Try fallback to config.yaml
-		if data, err := afero.ReadFile(fs, "config.yaml"); err == nil {
-			if err := yaml.Unmarshal(data, cfg); err != nil {
-				slog.Warn("Failed to parse config.yaml", "error", err)
-			}
+		return
+	}
+	if data, err := afero.ReadFile(fs, "config.yaml"); err == nil {
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			slog.Warn("Failed to parse config.yaml", "error", err)
 		}
 	}
+}
 
-	// Validate and set defaults for ImageWorkers
+func validateWorkerConfig(cfg *Config) {
 	if cfg.ImageWorkers <= 0 {
 		cfg.ImageWorkers = DefaultImageWorkers
 	}
-	// Cap at reasonable maximum to prevent resource exhaustion
 	if cfg.ImageWorkers > MaxImageWorkers {
 		cfg.ImageWorkers = MaxImageWorkers
 	}
-
-	// Validate ParserWorkers (0 = auto)
 	if cfg.ParserWorkers > MaxParserWorkers {
 		cfg.ParserWorkers = MaxParserWorkers
 	}
+}
 
-	// Load build configuration from kosh.build.yaml
-	cfg.Build = LoadBuildConfigFs(fs)
-
-	isTesting := fspkg.DetectTestingMode()
-
-	// 3. Apply Smart Defaults and resolve to absolute paths
+func resolveThemePaths(cfg *Config, isTesting bool) {
 	if cfg.ThemeDir == "" {
 		cfg.ThemeDir = DefaultThemeDir
 	}
@@ -186,7 +178,6 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	}
 
 	if cfg.TemplateDir == "" {
-		// Default: themes/<theme>/templates
 		cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 	} else if !filepath.IsAbs(cfg.TemplateDir) && !isTesting {
 		if abs, err := filepath.Abs(cfg.TemplateDir); err == nil {
@@ -197,7 +188,6 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	}
 
 	if cfg.StaticDir == "" {
-		// Default: themes/<theme>/static
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
 	} else if !filepath.IsAbs(cfg.StaticDir) && !isTesting {
 		if abs, err := filepath.Abs(cfg.StaticDir); err == nil {
@@ -206,8 +196,9 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	} else {
 		cfg.StaticDir = fspkg.NormalizePath(cfg.StaticDir)
 	}
+}
 
-	// Resolve configurable directory paths to absolute paths
+func resolveContentPaths(cfg *Config, isTesting bool) {
 	if cfg.ContentDir == "" {
 		cfg.ContentDir = DefaultContentDir
 	}
@@ -234,8 +225,9 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 			cfg.CacheDir = fspkg.NormalizePath(abs)
 		}
 	}
+}
 
-	// 3. Override with CLI Flags
+func applyCLIOverrides(cfg *Config, args []string) {
 	fset := flag.NewFlagSet("config", flag.ContinueOnError)
 	baseUrlFlag := fset.String("baseurl", "", "Base URL (overrides config file)")
 	draftsFlag := fset.Bool("drafts", false, "Include draft posts in the build")
@@ -255,27 +247,50 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	}
 	if *themeFlag != "" {
 		cfg.Theme = *themeFlag
-		// Re-apply smart defaults and absolute resolution since theme changed
 		cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
 	}
+}
 
+func finalizeConfig(cfg *Config) {
 	if cfg.WebPQuality < MinWebPQuality || cfg.WebPQuality > MaxWebPQuality {
-		cfg.WebPQuality = DefaultWebPQuality // enforce valid range
+		cfg.WebPQuality = DefaultWebPQuality
 	}
 
-	// Set repository root for WASM compilation and source lookups
 	cfg.KoshSourceRoot = os.Getenv("KOSH_REPO_ROOT")
 	if cfg.KoshSourceRoot == "" {
 		cfg.KoshSourceRoot = fspkg.RepoRoot()
 	}
 
-	// Capture working directory (site root) for resolving site-level paths like ./static
 	if wd, err := os.Getwd(); err == nil {
 		cfg.SiteRoot = fspkg.NormalizePath(wd)
 	} else {
 		cfg.SiteRoot = "."
 	}
+}
+
+// LoadFs loads configuration using the provided filesystem.
+func LoadFs(fs afero.Fs, args []string) *Config {
+	cfg := defaultConfig()
+
+	// 2. Load from YAML file if exists
+	loadConfigFile(fs, cfg)
+
+	// Validate and set defaults for ImageWorkers
+	validateWorkerConfig(cfg)
+
+	// Load build configuration from kosh.build.yaml
+	cfg.Build = LoadBuildConfigFs(fs)
+
+	isTesting := fspkg.DetectTestingMode()
+
+	// 3. Apply Smart Defaults and resolve to absolute paths
+	resolveThemePaths(cfg, isTesting)
+	resolveContentPaths(cfg, isTesting)
+
+	// 3. Override with CLI Flags
+	applyCLIOverrides(cfg, args)
+	finalizeConfig(cfg)
 
 	return cfg
 }

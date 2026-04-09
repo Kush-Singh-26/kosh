@@ -48,12 +48,6 @@ func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.Metada
 			siteTimer = timeutil.StartPhase("Site-wide rendering")
 			siteWideGroup, siteWideCtx = errgroup.WithContext(ctx)
 
-			var allTags []models.TagData
-			for t, posts := range cb.TagMap {
-				slug := timeutil.Slugify(t)
-				allTags = append(allTags, models.TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("/tags/%s.html", slug)})
-			}
-
 			siteWideGroup.Go(func() error {
 				b.Assets.WaitForAvailability(siteWideCtx, assetsReady)
 				return b.renderPagination(renderPaginationOptions{
@@ -61,7 +55,7 @@ func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.Metada
 					allPosts:    cb.AllPosts,
 					pinnedPosts: cb.PinnedPosts,
 					force:       b.Cfg.ForceRebuild,
-					allTags:     allTags,
+					allTags:     cb.AllTags,
 				})
 			})
 			siteWideGroup.Go(func() error {
@@ -72,6 +66,7 @@ func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.Metada
 				return b.renderSiteMetadata(MetadataRenderOptions{
 					AllPosts:    cb.AllPosts,
 					TagMap:      cb.TagMap,
+					AllTags:     cb.AllTags,
 					AssetsReady: assetsReady,
 				})
 			})
@@ -118,8 +113,98 @@ func (b *Engine) shouldSkipSiteWideRendering(cb *post.MetadataContext, assetsCha
 type MetadataRenderOptions struct {
 	AllPosts     []models.PostMetadata
 	TagMap       map[string][]models.PostMetadata
+	AllTags      []models.TagData
 	IndexedPosts []models.IndexedPost
 	AssetsReady  <-chan struct{}
+}
+
+func (b *Engine) generateSitemap(opts MetadataRenderOptions) error {
+	_, err := generators.GenerateSitemap(generators.SitemapOptions{
+		Sink:       b.Sink,
+		BaseURL:    b.Cfg.BaseURL,
+		Posts:      opts.AllPosts,
+		Tags:       opts.TagMap,
+		OutputPath: filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"),
+	})
+	if err != nil {
+		b.Deps.Logger.Error("Failed to generate sitemap", "error", err)
+		return err
+	}
+	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"))
+	return nil
+}
+
+func (b *Engine) generateRobotsTxt() error {
+	_, err := generators.GenerateRobotsTxt(b.Sink, b.Cfg.BaseURL, filepath.Join(b.Cfg.OutputDir, "robots.txt"))
+	if err != nil {
+		b.Deps.Logger.Error("Failed to generate robots.txt", "error", err)
+		return err
+	}
+	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "robots.txt"))
+	return nil
+}
+
+func (b *Engine) generateRSS(opts MetadataRenderOptions) error {
+	_, err := generators.GenerateRSS(generators.RSSOptions{
+		Sink:        b.Sink,
+		BaseURL:     b.Cfg.BaseURL,
+		Posts:       opts.AllPosts,
+		Title:       b.Cfg.Title,
+		Description: b.Cfg.Description,
+		OutputPath:  filepath.Join(b.Cfg.OutputDir, "rss.xml"),
+	})
+	if err != nil {
+		b.Deps.Logger.Error("Failed to generate RSS feed", "error", err)
+		return err
+	}
+	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "rss.xml"))
+	return nil
+}
+
+func (b *Engine) generateSearchIndex(opts MetadataRenderOptions) error {
+	searchPath, size, err := generators.GenerateSearchIndex(b.Sink, opts.IndexedPosts)
+	if err != nil {
+		b.Deps.Logger.Error("Failed to generate search index", "error", err)
+		return err
+	}
+	b.Deps.Render.RegisterFile(searchPath)
+	if b.Health != nil {
+		b.Health.RecordSearchStats(int64(len(opts.IndexedPosts)), size)
+	}
+	return nil
+}
+
+func (b *Engine) generateGraph(opts MetadataRenderOptions) error {
+	_, _, err := generators.GenerateGraph(generators.GraphOptions{
+		Sink:       b.Sink,
+		BaseURL:    b.Cfg.BaseURL,
+		Posts:      opts.AllPosts,
+		OutputPath: filepath.Join(b.Cfg.OutputDir, "graph.json"),
+		Config:     b.Cfg.Features.Generators.Graph,
+		SiteTitle:  b.Cfg.Title,
+	})
+	if err != nil {
+		b.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
+		return err
+	}
+	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "graph.json"))
+
+	if opts.AssetsReady != nil {
+		<-opts.AssetsReady
+	}
+	if err := b.Deps.Render.RenderGraph(filepath.Join(b.Cfg.OutputDir, "graph.html"), models.PageData{
+		Title:          "Graph View",
+		TabTitle:       "Knowledge Graph | " + b.Cfg.Title,
+		BaseURL:        b.Cfg.BaseURL,
+		BuildVersion:   b.Cfg.BuildVersion,
+		Config:         b.Cfg,
+		AllTags:        opts.AllTags,
+		RelativePrefix: "",
+		IsGraphPage:    true,
+	}); err != nil {
+		return fmt.Errorf("failed to render graph page: %w", err)
+	}
+	return nil
 }
 
 func (b *Engine) renderSiteMetadata(opts MetadataRenderOptions) error {
@@ -127,102 +212,29 @@ func (b *Engine) renderSiteMetadata(opts MetadataRenderOptions) error {
 
 	if b.Cfg.Features.Generators.Sitemap && opts.AllPosts != nil && opts.IndexedPosts == nil {
 		g.Go(func() error {
-			_, err := generators.GenerateSitemap(generators.SitemapOptions{
-				Sink:       b.Sink,
-				BaseURL:    b.Cfg.BaseURL,
-				Posts:      opts.AllPosts,
-				Tags:       opts.TagMap,
-				OutputPath: filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"),
-			})
-			if err == nil {
-				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"))
-			} else {
-				b.Deps.Logger.Error("Failed to generate sitemap", "error", err)
-				return err
-			}
-			return nil
+			return b.generateSitemap(opts)
 		})
 
 		g.Go(func() error {
-			_, err := generators.GenerateRobotsTxt(b.Sink, b.Cfg.BaseURL, filepath.Join(b.Cfg.OutputDir, "robots.txt"))
-			if err == nil {
-				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "robots.txt"))
-			} else {
-				b.Deps.Logger.Error("Failed to generate robots.txt", "error", err)
-				return err
-			}
-			return nil
+			return b.generateRobotsTxt()
 		})
 	}
 
 	if b.Cfg.Features.Generators.RSS && opts.AllPosts != nil && opts.IndexedPosts == nil {
 		g.Go(func() error {
-			_, err := generators.GenerateRSS(generators.RSSOptions{
-				Sink:        b.Sink,
-				BaseURL:     b.Cfg.BaseURL,
-				Posts:       opts.AllPosts,
-				Title:       b.Cfg.Title,
-				Description: b.Cfg.Description,
-				OutputPath:  filepath.Join(b.Cfg.OutputDir, "rss.xml"),
-			})
-			if err == nil {
-				b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "rss.xml"))
-			} else {
-				b.Deps.Logger.Error("Failed to generate RSS feed", "error", err)
-				return err
-			}
-			return nil
+			return b.generateRSS(opts)
 		})
 	}
 
 	if b.Cfg.Features.Generators.Search && opts.IndexedPosts != nil {
 		g.Go(func() error {
-			searchPath, size, err := generators.GenerateSearchIndex(b.Sink, opts.IndexedPosts)
-			if err == nil {
-				b.Deps.Render.RegisterFile(searchPath)
-				if b.Health != nil {
-					b.Health.RecordSearchStats(int64(len(opts.IndexedPosts)), size)
-				}
-			} else {
-				b.Deps.Logger.Error("Failed to generate search index", "error", err)
-				return err
-			}
-			return nil
+			return b.generateSearchIndex(opts)
 		})
 	}
 
 	if b.Cfg.Features.Generators.Graph.Enabled && len(opts.AllPosts) > 0 {
 		g.Go(func() error {
-			// [omitted comment for brevity]
-			_, _, err := generators.GenerateGraph(generators.GraphOptions{
-				Sink:       b.Sink,
-				BaseURL:    b.Cfg.BaseURL,
-				Posts:      opts.AllPosts,
-				OutputPath: filepath.Join(b.Cfg.OutputDir, "graph.json"),
-				Config:     b.Cfg.Features.Generators.Graph,
-				SiteTitle:  b.Cfg.Title,
-			})
-			if err != nil {
-				b.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
-				return err
-			}
-			b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "graph.json"))
-
-			if opts.AssetsReady != nil {
-				<-opts.AssetsReady
-			}
-			if err := b.Deps.Render.RenderGraph(filepath.Join(b.Cfg.OutputDir, "graph.html"), models.PageData{
-				Title:          "Graph View",
-				TabTitle:       "Knowledge Graph | " + b.Cfg.Title,
-				BaseURL:        b.Cfg.BaseURL,
-				BuildVersion:   b.Cfg.BuildVersion,
-				Config:         b.Cfg,
-				RelativePrefix: "",
-				IsGraphPage:    true,
-			}); err != nil {
-				return fmt.Errorf("failed to render graph page: %w", err)
-			}
-			return nil
+			return b.generateGraph(opts)
 		})
 	}
 

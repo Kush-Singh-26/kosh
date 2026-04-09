@@ -101,66 +101,11 @@ func maybeCopyOriginal(opts MaybeCopyOriginalOptions) error {
 	})
 }
 
-// CopyFileWithOptionalImageProcessing copies or converts an image based on options.
-func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
-	ext := strings.ToLower(filepath.Ext(opts.SrcPath))
-	isImage := ext == ".jpg" || ext == ".jpeg" || ext == ".png"
-	if opts.Opts.Compress && isImage {
-		dstPath := opts.DstPath[:len(opts.DstPath)-len(filepath.Ext(opts.DstPath))] + ".webp"
-		newOpts := opts
-		newOpts.DstPath = dstPath
-		if opts.Scheduler == nil {
-			newOpts.Scheduler = opts.Opts.Scheduler
-		}
-		if err := convertToWebPVFS(newOpts); err != nil {
-			return err
-		}
-		if opts.Opts.OnWrite != nil {
-			opts.Opts.OnWrite(dstPath)
-		}
+func isConvertibleImage(ext string) bool {
+	return ext == ".jpg" || ext == ".jpeg" || ext == ".png"
+}
 
-		if opts.RelPath != "" {
-			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
-			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
-			registerImageVariants(relSrc, relDst)
-		}
-		return nil
-	}
-
-	if opts.Opts.MinifySVGs && ext == ".svg" {
-		sched := opts.Scheduler
-		if sched == nil {
-			sched = opts.Opts.Scheduler
-		}
-		if sched != nil {
-			if err := sched.Acquire(opts.Ctx, scheduler.TaskDefault); err != nil {
-				return err
-			}
-			defer sched.Release(scheduler.TaskDefault)
-		}
-
-		data, err := afero.ReadFile(opts.SrcFs, opts.SrcPath)
-		if err == nil {
-			m := koshMinify.GetHTMLMinifier()
-			minified, err := m.Bytes("image/svg+xml", data)
-			if err == nil {
-				if !isNil(opts.Opts.Metrics) {
-					opts.Opts.Metrics.IncrementSVGsMinified()
-					opts.Opts.Metrics.IncrementAssetsProcessed()
-				}
-				if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
-					return err
-				}
-				if err := opts.Sink.WriteFile(opts.DstPath, minified); err == nil {
-					if opts.Opts.OnWrite != nil {
-						opts.Opts.OnWrite(opts.DstPath)
-					}
-					return nil
-				}
-			}
-		}
-	}
-
+func copyFileWithMetrics(opts ProcessImageOptions) error {
 	modTime := int64(0)
 	if opts.SrcInfo != nil {
 		modTime = opts.SrcInfo.ModTime().UnixNano()
@@ -177,6 +122,78 @@ func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
 		opts.Opts.Metrics.IncrementAssetsProcessed()
 	}
 	return err
+}
+
+func convertImageToWebP(opts ProcessImageOptions) error {
+	dstPath := opts.DstPath[:len(opts.DstPath)-len(filepath.Ext(opts.DstPath))] + ".webp"
+	newOpts := opts
+	newOpts.DstPath = dstPath
+	if opts.Scheduler == nil {
+		newOpts.Scheduler = opts.Opts.Scheduler
+	}
+	if err := convertToWebPVFS(newOpts); err != nil {
+		return err
+	}
+	if opts.Opts.OnWrite != nil {
+		opts.Opts.OnWrite(dstPath)
+	}
+	return nil
+}
+
+func maybeMinifySVG(opts ProcessImageOptions) (bool, error) {
+	if !opts.Opts.MinifySVGs || strings.ToLower(filepath.Ext(opts.SrcPath)) != ".svg" {
+		return false, nil
+	}
+
+	sched := opts.Scheduler
+	if sched == nil {
+		sched = opts.Opts.Scheduler
+	}
+	if sched != nil {
+		if err := sched.Acquire(opts.Ctx, scheduler.TaskDefault); err != nil {
+			return true, err
+		}
+		defer sched.Release(scheduler.TaskDefault)
+	}
+
+	data, err := afero.ReadFile(opts.SrcFs, opts.SrcPath)
+	if err != nil {
+		return false, nil
+	}
+	m := koshMinify.GetHTMLMinifier()
+	minified, err := m.Bytes("image/svg+xml", data)
+	if err != nil {
+		return false, nil
+	}
+	if !isNil(opts.Opts.Metrics) {
+		opts.Opts.Metrics.IncrementSVGsMinified()
+		opts.Opts.Metrics.IncrementAssetsProcessed()
+	}
+	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+		return true, err
+	}
+	if err := opts.Sink.WriteFile(opts.DstPath, minified); err == nil {
+		if opts.Opts.OnWrite != nil {
+			opts.Opts.OnWrite(opts.DstPath)
+		}
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// CopyFileWithOptionalImageProcessing copies or converts an image based on options.
+func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
+	ext := strings.ToLower(filepath.Ext(opts.SrcPath))
+	if opts.Opts.Compress && isConvertibleImage(ext) {
+		return convertImageToWebP(opts)
+	}
+
+	if handled, err := maybeMinifySVG(opts); handled {
+		return err
+	}
+
+	return copyFileWithMetrics(opts)
 }
 
 // ProcessCacheMissImage processes an image that is known to not be in any cache.
@@ -204,120 +221,110 @@ func retryWriteFile(sink fspkg.ArtifactSink, path string, data []byte) error {
 	return fmt.Errorf("failed to write file after retries: %w", lastErr)
 }
 
-func convertToWebPVFS(opts ProcessImageOptions) error {
-	if opts.SrcInfo == nil {
-		var err error
-		opts.SrcInfo, err = opts.SrcFs.Stat(opts.SrcPath)
-		if err != nil {
-			return fmt.Errorf("failed to stat source image %s: %w", opts.SrcPath, err)
-		}
+func ensureSrcInfo(opts *ProcessImageOptions) error {
+	if opts.SrcInfo != nil {
+		return nil
 	}
-
-	skipResize := opts.SrcInfo.Size() <= smallImageResizeThresholdBytes
-
-	memCacheKey := imageCacheKey{
-		path:    opts.SrcPath,
-		size:    opts.SrcInfo.Size(),
-		modTime: opts.SrcInfo.ModTime().UnixNano(),
-	}
-
-	if cached, ok := GetImageCache().get(memCacheKey); ok {
-		if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
-			return fmt.Errorf("failed to create image directory: %w", err)
-		}
-		if !isNil(opts.Opts.Metrics) {
-			opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cached)))
-			opts.Opts.Metrics.IncrementAssetsProcessed()
-		}
-		err := retryWriteFile(opts.Sink, opts.DstPath, cached)
-		if err == nil && opts.RelPath != "" {
-			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
-			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
-			registerImageVariants(relSrc, relDst)
-		}
-		if err == nil {
-			_ = maybeCopyOriginal(MaybeCopyOriginalOptions{
-				SrcFs:        opts.SrcFs,
-				Sink:         opts.Sink,
-				SrcPath:      opts.SrcPath,
-				DstWebp:      opts.DstPath,
-				SrcInfo:      opts.SrcInfo,
-				OnWrite:      opts.Opts.OnWrite,
-				KeepOriginal: opts.Opts.KeepOriginal,
-			})
-		}
-		return err
-	}
-
-	var cacheFile string
-	cacheFs := afero.NewOsFs()
-	if opts.Opts.CacheDir != "" {
-		hashStr := getImageHash(memCacheKey)
-		cacheFile = filepath.Join(opts.Opts.CacheDir, hashStr+".webp")
-
-		if cacheInfo, err := cacheFs.Stat(cacheFile); err == nil && !cacheInfo.IsDir() {
-			f, err := cacheFs.Open(cacheFile)
-			if err != nil {
-				return fmt.Errorf("failed to open cached image %s: %w", cacheFile, err)
-			}
-			defer func() { _ = f.Close() }()
-
-			if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
-				return fmt.Errorf("failed to create image directory: %w", err)
-			}
-
-			if cachedData, readErr := afero.ReadAll(f); readErr == nil {
-				GetImageCache().set(memCacheKey, cachedData)
-				if !isNil(opts.Opts.Metrics) {
-					opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cachedData)))
-					opts.Opts.Metrics.IncrementAssetsProcessed()
-				}
-				if err := opts.Sink.WriteFile(opts.DstPath, cachedData); err != nil {
-					return fmt.Errorf("failed to write cached image %s: %w", opts.DstPath, err)
-				}
-				if opts.RelPath != "" {
-					relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
-					relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
-					registerImageVariants(relSrc, relDst)
-				}
-				_ = maybeCopyOriginal(MaybeCopyOriginalOptions{
-					SrcFs:        opts.SrcFs,
-					Sink:         opts.Sink,
-					SrcPath:      opts.SrcPath,
-					DstWebp:      opts.DstPath,
-					SrcInfo:      opts.SrcInfo,
-					OnWrite:      opts.Opts.OnWrite,
-					KeepOriginal: opts.Opts.KeepOriginal,
-				})
-			} else {
-				return fmt.Errorf("failed to read cached image %s: %w", cacheFile, readErr)
-			}
-
-			_ = opts.Sink.SetMtime(opts.DstPath, opts.SrcInfo.ModTime())
-			return nil
-		}
-	}
-
-	select {
-	case <-opts.Ctx.Done():
-		return opts.Ctx.Err()
-	default:
-	}
-
-	sched := opts.Scheduler
-	if sched == nil {
-		sched = opts.Opts.Scheduler
-	}
-	if sched != nil {
-		if err := sched.Acquire(opts.Ctx, scheduler.TaskImage); err != nil {
-			return err
-		}
-		defer sched.Release(scheduler.TaskImage)
-	}
-
-	f, err := opts.SrcFs.Open(opts.SrcPath)
+	info, err := opts.SrcFs.Stat(opts.SrcPath)
 	if err != nil {
-		return fmt.Errorf("failed to open image %s: %w", opts.SrcPath, err)
+		return fmt.Errorf("failed to stat source image %s: %w", opts.SrcPath, err)
+	}
+	opts.SrcInfo = info
+	return nil
+}
+
+func registerWebPRelPath(relPath string) {
+	if relPath == "" {
+		return
+	}
+	relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(relPath), "/")
+	relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
+	registerImageVariants(relSrc, relDst)
+}
+
+func maybeCopyOriginalBestEffort(opts ProcessImageOptions) {
+	_ = maybeCopyOriginal(MaybeCopyOriginalOptions{
+		SrcFs:        opts.SrcFs,
+		Sink:         opts.Sink,
+		SrcPath:      opts.SrcPath,
+		DstWebp:      opts.DstPath,
+		SrcInfo:      opts.SrcInfo,
+		OnWrite:      opts.Opts.OnWrite,
+		KeepOriginal: opts.Opts.KeepOriginal,
+	})
+}
+
+func tryMemoryCache(opts ProcessImageOptions, key imageCacheKey) (bool, error) {
+	cached, ok := GetImageCache().get(key)
+	if !ok {
+		return false, nil
+	}
+	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+		return true, fmt.Errorf("failed to create image directory: %w", err)
+	}
+	if !isNil(opts.Opts.Metrics) {
+		opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cached)))
+		opts.Opts.Metrics.IncrementAssetsProcessed()
+	}
+	err := retryWriteFile(opts.Sink, opts.DstPath, cached)
+	if err == nil {
+		registerWebPRelPath(opts.RelPath)
+		maybeCopyOriginalBestEffort(opts)
+	}
+	return true, err
+}
+
+func resolveCacheFile(opts ProcessImageOptions, key imageCacheKey) string {
+	if opts.Opts.CacheDir == "" {
+		return ""
+	}
+	hashStr := getImageHash(key)
+	return filepath.Join(opts.Opts.CacheDir, hashStr+".webp")
+}
+
+func tryDiskCache(opts ProcessImageOptions, cacheFile string, key imageCacheKey) (bool, error) {
+	if cacheFile == "" {
+		return false, nil
+	}
+	cacheFs := afero.NewOsFs()
+	cacheInfo, err := cacheFs.Stat(cacheFile)
+	if err != nil || cacheInfo.IsDir() {
+		return false, nil
+	}
+
+	f, err := cacheFs.Open(cacheFile)
+	if err != nil {
+		return true, fmt.Errorf("failed to open cached image %s: %w", cacheFile, err)
+	}
+	defer func() { _ = f.Close() }()
+
+	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+		return true, fmt.Errorf("failed to create image directory: %w", err)
+	}
+
+	cachedData, readErr := afero.ReadAll(f)
+	if readErr != nil {
+		return true, fmt.Errorf("failed to read cached image %s: %w", cacheFile, readErr)
+	}
+	GetImageCache().set(key, cachedData)
+	if !isNil(opts.Opts.Metrics) {
+		opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cachedData)))
+		opts.Opts.Metrics.IncrementAssetsProcessed()
+	}
+	if err := opts.Sink.WriteFile(opts.DstPath, cachedData); err != nil {
+		return true, fmt.Errorf("failed to write cached image %s: %w", opts.DstPath, err)
+	}
+	registerWebPRelPath(opts.RelPath)
+	maybeCopyOriginalBestEffort(opts)
+
+	_ = opts.Sink.SetMtime(opts.DstPath, opts.SrcInfo.ModTime())
+	return true, nil
+}
+
+func decodeSourceImage(srcFs afero.Fs, srcPath string) (image.Image, error) {
+	f, err := srcFs.Open(srcPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open image %s: %w", srcPath, err)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -329,13 +336,15 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 
 	src, _, err := image.Decode(br)
 	if err != nil {
-		return fmt.Errorf("failed to decode image %s: %w", opts.SrcPath, err)
+		return nil, fmt.Errorf("failed to decode image %s: %w", srcPath, err)
 	}
+	return src, nil
+}
 
+func resizeImageIfNeeded(src image.Image, skipResize bool, metrics ImageMetrics) image.Image {
 	bounds := src.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
-	finalImg := src
 	if width > maxResizeWidth && !skipResize {
 		newWidth := maxResizeWidth
 		newHeight := (height * newWidth) / width
@@ -358,42 +367,47 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 		}
 
 		draw.BiLinear.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
-		finalImg = dst
-	} else if skipResize {
-		if _, isYCbCr := finalImg.(*image.YCbCr); isYCbCr {
-			b := finalImg.Bounds()
+		return dst
+	}
+
+	if skipResize {
+		if _, isYCbCr := src.(*image.YCbCr); isYCbCr {
+			b := src.Bounds()
 			rgba := image.NewRGBA(b)
-			draw.Draw(rgba, b, finalImg, b.Min, draw.Src)
-			finalImg = rgba
+			draw.Draw(rgba, b, src, b.Min, draw.Src)
+			src = rgba
 		}
-		if !isNil(opts.Opts.Metrics) {
-			opts.Opts.Metrics.RecordImageResizeSkipped()
+		if !isNil(metrics) {
+			metrics.RecordImageResizeSkipped()
 		}
 	}
+	return src
+}
 
-	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
-		return fmt.Errorf("failed to create image directory: %w", err)
+func resolveWebPQuality(quality int) int {
+	if quality < minWebPQuality || quality > maxWebPQuality {
+		return defaultWebPQuality
 	}
+	return quality
+}
 
-	webpQuality := opts.Opts.WebPQuality
-	if webpQuality < minWebPQuality || webpQuality > maxWebPQuality {
-		webpQuality = defaultWebPQuality
-	}
-
+func encodeWebP(img image.Image, quality int) ([]byte, error) {
 	buf := webpBufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer webpBufferPool.Put(buf)
 
-	err = webp.Encode(buf, finalImg, &webp.Options{Lossless: false, Quality: float32(webpQuality)})
-	if err != nil {
-		return fmt.Errorf("failed to encode webp %s: %w", opts.DstPath, err)
+	if err := webp.Encode(buf, img, &webp.Options{Lossless: false, Quality: float32(quality)}); err != nil {
+		return nil, err
 	}
-	encodedData := buf.Bytes()
 
+	encodedData := buf.Bytes()
 	cacheData := make([]byte, len(encodedData))
 	copy(cacheData, encodedData)
-	GetImageCache().set(memCacheKey, cacheData)
+	return cacheData, nil
+}
 
+func writeEncodedWebP(opts ProcessImageOptions, key imageCacheKey, cacheFile string, cacheData []byte) error {
+	GetImageCache().set(key, cacheData)
 	if cacheFile != "" {
 		queueImageCacheWrite(cacheFile, cacheData, true)
 	}
@@ -402,27 +416,72 @@ func convertToWebPVFS(opts ProcessImageOptions) error {
 		opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cacheData)))
 	}
 
-	err = opts.Sink.WriteFile(opts.DstPath, cacheData)
-	if err == nil {
-		_ = opts.Sink.SetMtime(opts.DstPath, opts.SrcInfo.ModTime())
-		if !isNil(opts.Opts.Metrics) {
-			opts.Opts.Metrics.IncrementAssetsProcessed()
-		}
-		if opts.RelPath != "" {
-			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
-			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
-			registerImageVariants(relSrc, relDst)
-		}
-		_ = maybeCopyOriginal(MaybeCopyOriginalOptions{
-			SrcFs:        opts.SrcFs,
-			Sink:         opts.Sink,
-			SrcPath:      opts.SrcPath,
-			DstWebp:      opts.DstPath,
-			SrcInfo:      opts.SrcInfo,
-			OnWrite:      opts.Opts.OnWrite,
-			KeepOriginal: opts.Opts.KeepOriginal,
-		})
+	if err := opts.Sink.WriteFile(opts.DstPath, cacheData); err != nil {
+		return err
+	}
+	_ = opts.Sink.SetMtime(opts.DstPath, opts.SrcInfo.ModTime())
+	if !isNil(opts.Opts.Metrics) {
+		opts.Opts.Metrics.IncrementAssetsProcessed()
+	}
+	registerWebPRelPath(opts.RelPath)
+	maybeCopyOriginalBestEffort(opts)
+	return nil
+}
+
+func convertToWebPVFS(opts ProcessImageOptions) error {
+	if err := ensureSrcInfo(&opts); err != nil {
+		return err
+	}
+	skipResize := opts.SrcInfo.Size() <= smallImageResizeThresholdBytes
+
+	memCacheKey := imageCacheKey{
+		path:    opts.SrcPath,
+		size:    opts.SrcInfo.Size(),
+		modTime: opts.SrcInfo.ModTime().UnixNano(),
 	}
 
-	return err
+	if ok, err := tryMemoryCache(opts, memCacheKey); ok {
+		return err
+	}
+
+	cacheFile := resolveCacheFile(opts, memCacheKey)
+	if ok, err := tryDiskCache(opts, cacheFile, memCacheKey); ok {
+		return err
+	}
+
+	select {
+	case <-opts.Ctx.Done():
+		return opts.Ctx.Err()
+	default:
+	}
+
+	sched := opts.Scheduler
+	if sched == nil {
+		sched = opts.Opts.Scheduler
+	}
+	if sched != nil {
+		if err := sched.Acquire(opts.Ctx, scheduler.TaskImage); err != nil {
+			return err
+		}
+		defer sched.Release(scheduler.TaskImage)
+	}
+
+	src, err := decodeSourceImage(opts.SrcFs, opts.SrcPath)
+	if err != nil {
+		return err
+	}
+
+	finalImg := resizeImageIfNeeded(src, skipResize, opts.Opts.Metrics)
+
+	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+		return fmt.Errorf("failed to create image directory: %w", err)
+	}
+
+	webpQuality := resolveWebPQuality(opts.Opts.WebPQuality)
+	cacheData, err := encodeWebP(finalImg, webpQuality)
+	if err != nil {
+		return fmt.Errorf("failed to encode webp %s: %w", opts.DstPath, err)
+	}
+
+	return writeEncodedWebP(opts, memCacheKey, cacheFile, cacheData)
 }

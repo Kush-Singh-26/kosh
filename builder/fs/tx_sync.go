@@ -91,11 +91,11 @@ func (tx *TxSync) Rollback(ctx context.Context) {
 			OldPath:    backup,
 			NewPath:    original,
 			MaxRetries: txSyncMaxRetries,
-			BaseDelay:  txSyncBaseDelayMs,
+			BaseDelay:  txSyncBaseDelay,
 		}); err != nil {
 			if tx.logger != nil {
 				tx.logger.Warn("TxSync rollback: failed to restore backup",
-					"original", original, "backup", backup, "error", err)
+					"path", original, "error", err)
 			}
 		} else {
 			rolled++
@@ -104,7 +104,7 @@ func (tx *TxSync) Rollback(ctx context.Context) {
 
 	for _, path := range tx.written {
 		if _, hasBackup := tx.backups[path]; !hasBackup {
-			if err := retry.RemoveAllWithRetry(ctx, path, txSyncMaxRetries, txSyncBaseDelayMs); err != nil && !os.IsNotExist(err) {
+			if err := retry.RemoveAllWithRetry(ctx, path, txSyncMaxRetries, txSyncBaseDelay); err != nil && !os.IsNotExist(err) {
 				if tx.logger != nil {
 					tx.logger.Warn("TxSync rollback: failed to remove new file",
 						"path", path, "error", err)
@@ -139,6 +139,6 @@ func (tx *TxSync) IsCommitted() bool {
 }
 
 const (
-	txSyncMaxRetries  = 12
-	txSyncBaseDelayMs = 20 * time.Millisecond
+	txSyncMaxRetries = 12
+	txSyncBaseDelay  = 20 * time.Millisecond
 )

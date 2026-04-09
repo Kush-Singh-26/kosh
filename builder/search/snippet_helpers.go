@@ -94,9 +94,9 @@ func findMatches(content string, terms []string, termOffsets map[string][]int) [
 }
 
 // scoreMatchWindow calculates the score for a window of matches starting at startIndex
-func scoreMatchWindow(matches []snippetMatch, termToIndex map[string]int, windowSize int, startIndex int) (count int, mask uint64) {
-	count = 0
-	mask = 0
+func scoreMatchWindow(matches []snippetMatch, termToIndex map[string]int, windowSize int, startIndex int) (int, uint64) {
+	count := 0
+	var mask uint64
 
 	for j := startIndex; j < len(matches) && matches[j].pos < matches[startIndex].pos+windowSize; j++ {
 		count++

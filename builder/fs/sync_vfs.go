@@ -97,6 +97,91 @@ type SyncOptions struct {
 	IsCleanBuild bool
 }
 
+func collectSyncTasks(srcFs afero.Fs, targetDirClean string, dirtyFiles map[string]bool) []syncTask {
+	var tasks []syncTask
+	seen := make(map[string]bool)
+
+	for path := range dirtyFiles {
+		srcP := path
+		destP := path
+		if !filepath.IsAbs(destP) {
+			destP = filepath.Join(targetDirClean, filepath.FromSlash(destP))
+		}
+
+		normalizedDest := filepath.Clean(destP)
+		if !seen[normalizedDest] {
+			tasks = append(tasks, syncTask{srcPath: srcP, destPath: normalizedDest})
+			seen[normalizedDest] = true
+		}
+	}
+
+	for path := range models.AlwaysSyncPaths {
+		srcP := path
+		destP := filepath.Join(targetDirClean, filepath.FromSlash(path))
+		normalizedDest := filepath.Clean(destP)
+
+		if seen[normalizedDest] {
+			continue
+		}
+
+		exists := false
+		if ex, _ := afero.Exists(srcFs, srcP); ex {
+			exists = true
+		} else if ex, _ := afero.Exists(srcFs, filepath.Join(targetDirClean, srcP)); ex {
+			exists = true
+			srcP = filepath.Join(targetDirClean, srcP)
+		}
+
+		if exists {
+			tasks = append(tasks, syncTask{srcPath: srcP, destPath: normalizedDest})
+			seen[normalizedDest] = true
+		}
+	}
+
+	return tasks
+}
+
+func precreateDirs(ctx context.Context, tasks []syncTask) {
+	dirs := make(map[string]bool)
+	for _, task := range tasks {
+		dirs[filepath.Dir(task.destPath)] = true
+	}
+
+	dirPool := async.NewWorkerPool(ctx, runtime.NumCPU(), func(dir string) error {
+		return os.MkdirAll(dir, defaultDirMode)
+	})
+	dirPool.Start()
+	for dir := range dirs {
+		dirPool.Submit(dir)
+	}
+	_ = dirPool.Stop()
+}
+
+func syncTasks(ctx context.Context, srcFs afero.Fs, tasks []syncTask, isCleanBuild bool, tx *TxSync) error {
+	numWorkers := min(runtime.NumCPU()*2, maxSyncWorkers)
+	pool := async.NewWorkerPool(ctx, numWorkers, func(task syncTask) error {
+		if err := syncSingleFileTask(SyncFileOptions{
+			Ctx:          ctx,
+			SrcFs:        srcFs,
+			Task:         task,
+			IsCleanBuild: isCleanBuild,
+			Tx:           tx,
+		}); err != nil {
+			slog.Error("Error syncing file", "path", task.destPath, "error", err)
+			return err
+		}
+		return nil
+	})
+	pool.Start()
+	for _, task := range tasks {
+		pool.Submit(task)
+	}
+	if err := pool.Stop(); err != nil {
+		return fmt.Errorf("sync failed: %w", err)
+	}
+	return nil
+}
+
 // SyncVFS syncs a VFS to disk with transactional safety.
 func SyncVFS(opts SyncOptions) error {
 	ctx := opts.Ctx
@@ -116,90 +201,18 @@ func SyncVFS(opts SyncOptions) error {
 	}()
 
 	// 1. Collect all files to sync and resolve absolute/relative paths
-	var tasks []syncTask
-	seen := make(map[string]bool)
-
-	// Files rendered in this build
-	for path := range dirtyFiles {
-		srcP := path
-		destP := path
-		if !filepath.IsAbs(destP) {
-			destP = filepath.Join(targetDirClean, filepath.FromSlash(destP))
-		}
-
-		normalizedDest := filepath.Clean(destP)
-		if !seen[normalizedDest] {
-			tasks = append(tasks, syncTask{srcPath: srcP, destPath: normalizedDest})
-			seen[normalizedDest] = true
-		}
-	}
-
-	// Always sync paths (configs, bin, etc)
-	for path := range models.AlwaysSyncPaths {
-		// Check both root-relative and output-relative paths in VFS
-		srcP := path
-		destP := filepath.Join(targetDirClean, filepath.FromSlash(path))
-		normalizedDest := filepath.Clean(destP)
-
-		if !seen[normalizedDest] {
-			// Check if it exists in VFS at root or with output prefix
-			exists := false
-			if ex, _ := afero.Exists(srcFs, srcP); ex {
-				exists = true
-			} else if ex, _ := afero.Exists(srcFs, filepath.Join(targetDirClean, srcP)); ex {
-				exists = true
-				srcP = filepath.Join(targetDirClean, srcP)
-			}
-
-			if exists {
-				tasks = append(tasks, syncTask{srcPath: srcP, destPath: normalizedDest})
-				seen[normalizedDest] = true
-			}
-		}
-	}
+	tasks := collectSyncTasks(srcFs, targetDirClean, dirtyFiles)
 
 	if len(tasks) == 0 {
 		return nil
 	}
 
 	// 2. Pre-create directories in parallel
-	dirs := make(map[string]bool)
-	for _, task := range tasks {
-		dirs[filepath.Dir(task.destPath)] = true
-	}
-
-	dirPool := async.NewWorkerPool(ctx, runtime.NumCPU(), func(dir string) error {
-		return os.MkdirAll(dir, defaultDirMode)
-	})
-	dirPool.Start()
-	for dir := range dirs {
-		dirPool.Submit(dir)
-	}
-	_ = dirPool.Stop()
+	precreateDirs(ctx, tasks)
 
 	// 3. Sync files with high concurrency
-	numWorkers := min(runtime.NumCPU()*2, maxSyncWorkers)
-
-	pool := async.NewWorkerPool(ctx, numWorkers, func(task syncTask) error {
-		if err := syncSingleFileTask(SyncFileOptions{
-			Ctx:          ctx,
-			SrcFs:        srcFs,
-			Task:         task,
-			IsCleanBuild: isCleanBuild,
-			Tx:           tx,
-		}); err != nil {
-			slog.Error("Error syncing file", "path", task.destPath, "error", err)
-			return err
-		}
-		return nil
-	})
-	pool.Start()
-
-	for _, task := range tasks {
-		pool.Submit(task)
-	}
-	if err := pool.Stop(); err != nil {
-		return fmt.Errorf("sync failed: %w", err)
+	if err := syncTasks(ctx, srcFs, tasks, isCleanBuild, tx); err != nil {
+		return err
 	}
 
 	tx.Commit()

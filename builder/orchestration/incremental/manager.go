@@ -302,7 +302,7 @@ func (m *Manager) deletePostFromCache(path string) {
 }
 
 // ResolveContentPaths resolves various path formats for incremental builds.
-func (m *Manager) ResolveContentPaths(path string) (relPath, htmlRelPath, cleanHtmlRelPath string, err error) {
+func (m *Manager) ResolveContentPaths(path string) (string, string, string, error) {
 	contentRoot, err := filepath.Abs(m.cfg.ContentDir)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to resolve content directory: %w", err)
@@ -311,14 +311,14 @@ func (m *Manager) ResolveContentPaths(path string) (relPath, htmlRelPath, cleanH
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to resolve changed path: %w", err)
 	}
-	relPath, err = filepath.Rel(contentRoot, absPath)
+	relPath, err := filepath.Rel(contentRoot, absPath)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to compute content-relative path: %w", err)
 	}
 	relPath = fspkg.NormalizePath(relPath)
 
-	htmlRelPath = fspkg.MarkdownToHTMLPath(relPath)
-	cleanHtmlRelPath = htmlRelPath
+	htmlRelPath := fspkg.MarkdownToHTMLPath(relPath)
+	cleanHtmlRelPath := htmlRelPath
 	return relPath, htmlRelPath, cleanHtmlRelPath, nil
 }
 

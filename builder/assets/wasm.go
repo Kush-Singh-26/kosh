@@ -61,97 +61,93 @@ type CheckWASMOptions struct {
 	CompressionLevel int
 }
 
-// CheckWASMFsWithSource checks and deploys WASM using a provided source payload.
-func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
-	fs := opts.Fs
-	sink := opts.Sink
-	cacheDir := opts.CacheDir
-	sourceWasm := opts.SourceWasm
-	compressionLevel := opts.CompressionLevel
-
-	// Default compression level is 4 (balanced)
-	if compressionLevel == 0 {
-		compressionLevel = defaultCompressionLevel
+func resolveCompressionLevel(level int) int {
+	if level == 0 {
+		return defaultCompressionLevel
 	}
+	return level
+}
 
+func resolveWasmPaths(outputDir string) (string, string, string, string) {
 	wasmRelPath := "static/wasm/search.wasm"
 	brRelPath := wasmRelPath + ".br"
-
-	outputDir := sink.GetOutputDir()
 	wasmOut := filepath.Join(outputDir, wasmRelPath)
 	brOut := filepath.Join(outputDir, brRelPath)
+	return wasmRelPath, brRelPath, wasmOut, brOut
+}
 
-	var wasmBytes []byte
-	var wasmHash string
-	var wasmBrBytes []byte
-	isEmbedded := len(sourceWasm) == 0
-
-	if isEmbedded {
-		// Check for initialization error
+func loadWasmSource(sourceWasm []byte) ([]byte, string, []byte, bool) {
+	if len(sourceWasm) == 0 {
 		if wasmInitErr != nil {
 			slog.Error("WASM initialization failed", "error", wasmInitErr)
-			return false
+			return nil, "", nil, false
 		}
-		wasmHash = SearchWasmHash
-		wasmBrBytes = searchWasmBr
-	} else {
-		wasmBytes = sourceWasm
-		wasmHash = hashBytes(sourceWasm)
+		return nil, SearchWasmHash, searchWasmBr, true
 	}
+	return sourceWasm, hashBytes(sourceWasm), nil, true
+}
 
+func ensureWasmDir(sink fspkg.ArtifactSink, wasmRelPath string) {
 	if err := sink.MkdirAll(filepath.Dir(wasmRelPath)); err != nil {
 		slog.Warn("Failed to create WASM directory", "error", err)
 	}
+}
 
-	// Check if deployed WASM matches current version
+func hasDeployedWasm(fs afero.Fs, wasmOut, brOut, wasmHash string) bool {
 	brExists, _ := afero.Exists(fs, brOut)
 	if deployedHash, err := hashFileFs(fs, wasmOut); err == nil && brExists {
 		if deployedHash == wasmHash {
-			return false
+			return true
 		}
 		slog.Info("WASM updated, deploying new version...")
-	} else {
-		// Check persistent cache for non-embedded source
-		if !isEmbedded && cacheDir != "" {
-			cachePath := filepath.Join(cacheDir, "wasm", wasmHash+".br")
-			if cachedBr, err := os.ReadFile(cachePath); err == nil {
-				slog.Info("Using cached Search WASM...")
-				_ = sink.WriteFile(wasmRelPath, wasmBytes)
-				_ = sink.WriteFile(brRelPath, cachedBr)
-				return true
-			}
-		}
-		slog.Info("Deploying Search WASM...")
+	}
+	return false
+}
+
+func tryDeployFromCache(sink fspkg.ArtifactSink, cacheDir, wasmHash string, wasmBytes []byte, wasmRelPath, brRelPath string) bool {
+	if cacheDir == "" {
+		return false
+	}
+	cachePath := filepath.Join(cacheDir, "wasm", wasmHash+".br")
+	cachedBr, err := os.ReadFile(cachePath)
+	if err != nil {
+		return false
+	}
+	slog.Info("Using cached Search WASM...")
+	_ = sink.WriteFile(wasmRelPath, wasmBytes)
+	_ = sink.WriteFile(brRelPath, cachedBr)
+	return true
+}
+
+func prepareEmbeddedWasm(wasmBrBytes []byte) ([]byte, []byte, bool) {
+	wasmBytes, err := decompressBrotli(wasmBrBytes)
+	if err != nil {
+		slog.Error("Failed to decompress embedded WASM", "error", err)
+		return nil, nil, false
+	}
+	return wasmBytes, wasmBrBytes, true
+}
+
+func prepareSourceWasm(wasmBytes []byte, compressionLevel int, cacheDir, wasmHash string) []byte {
+	slog.Info("Compressing WASM...")
+	var buf bytes.Buffer
+	bw := brotli.NewWriterLevel(&buf, compressionLevel)
+	_, _ = bw.Write(wasmBytes)
+	if err := bw.Close(); err != nil {
+		slog.Warn("Failed to close Brotli writer", "error", err)
+	}
+	wasmBrBytes := buf.Bytes()
+
+	if cacheDir != "" {
+		cacheDirFull := filepath.Join(cacheDir, "wasm")
+		_ = os.MkdirAll(cacheDirFull, wasmCacheDirMode)
+		_ = os.WriteFile(filepath.Join(cacheDirFull, wasmHash+".br"), wasmBrBytes, wasmCacheFileMode)
 	}
 
-	// Deploy WASM and Brotli
-	if isEmbedded {
-		// For embedded, we have .br, need to decompress for .wasm
-		var err error
-		wasmBytes, err = decompressBrotli(wasmBrBytes)
-		if err != nil {
-			slog.Error("Failed to decompress embedded WASM", "error", err)
-			return false
-		}
-	} else {
-		// For source, we have .wasm, need to compress for .br
-		slog.Info("Compressing WASM...")
-		var buf bytes.Buffer
-		bw := brotli.NewWriterLevel(&buf, compressionLevel)
-		_, _ = bw.Write(wasmBytes)
-		if err := bw.Close(); err != nil {
-			slog.Warn("Failed to close Brotli writer", "error", err)
-		}
-		wasmBrBytes = buf.Bytes()
+	return wasmBrBytes
+}
 
-		// Save to persistent cache
-		if cacheDir != "" {
-			cacheDirFull := filepath.Join(cacheDir, "wasm")
-			_ = os.MkdirAll(cacheDirFull, wasmCacheDirMode)
-			_ = os.WriteFile(filepath.Join(cacheDirFull, wasmHash+".br"), wasmBrBytes, wasmCacheFileMode)
-		}
-	}
-
+func writeWasmOutputs(sink fspkg.ArtifactSink, wasmRelPath, brRelPath string, wasmBytes, wasmBrBytes []byte) bool {
 	if err := sink.WriteFile(wasmRelPath, wasmBytes); err != nil {
 		slog.Error("Failed to write WASM", "error", err)
 		return false
@@ -160,12 +156,48 @@ func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
 		slog.Error("Failed to write WASM.br", "error", err)
 		return false
 	}
-
 	slog.Info("WASM deployed",
 		"uncompressed", formatSize(len(wasmBytes)),
 		"compressed", formatSize(len(wasmBrBytes)))
-
 	return true
+}
+
+// CheckWASMFsWithSource checks and deploys WASM using a provided source payload.
+func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
+	fs := opts.Fs
+	sink := opts.Sink
+	cacheDir := opts.CacheDir
+	compressionLevel := resolveCompressionLevel(opts.CompressionLevel)
+
+	outputDir := sink.GetOutputDir()
+	wasmRelPath, brRelPath, wasmOut, brOut := resolveWasmPaths(outputDir)
+
+	wasmBytes, wasmHash, wasmBrBytes, ok := loadWasmSource(opts.SourceWasm)
+	if !ok {
+		return false
+	}
+	isEmbedded := len(opts.SourceWasm) == 0
+
+	ensureWasmDir(sink, wasmRelPath)
+
+	if hasDeployedWasm(fs, wasmOut, brOut, wasmHash) {
+		return false
+	}
+	if !isEmbedded && tryDeployFromCache(sink, cacheDir, wasmHash, wasmBytes, wasmRelPath, brRelPath) {
+		return true
+	}
+	slog.Info("Deploying Search WASM...")
+
+	if isEmbedded {
+		wasmBytes, wasmBrBytes, ok = prepareEmbeddedWasm(wasmBrBytes)
+		if !ok {
+			return false
+		}
+	} else {
+		wasmBrBytes = prepareSourceWasm(wasmBytes, compressionLevel, cacheDir, wasmHash)
+	}
+
+	return writeWasmOutputs(sink, wasmRelPath, brRelPath, wasmBytes, wasmBrBytes)
 }
 
 // DeployWASMFromFile deploys a WASM binary from a file path.

@@ -333,6 +333,7 @@ func (m *MockCacheService) GetAllPostsMetadata() ([]cache.PostListMeta, error) {
 			Link:   post.Link,
 			Weight: post.Weight,
 			Date:   post.Date,
+			Tags:   post.Tags,
 		})
 	}
 	return result, nil

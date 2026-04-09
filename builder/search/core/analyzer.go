@@ -202,7 +202,7 @@ func toLowerASCII(s string, buf []byte) ([]byte, bool) {
 
 // AnalyzeWithOriginals returns both stemmed and original forms
 // This enables fuzzy matching on original forms while using stemmed forms for indexing
-func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, originals []string) {
+func (a *Analyzer) AnalyzeWithOriginals(text string) ([]string, []string) {
 	tokensPtr := tokenPool.Get().(*[]Token)
 	tokens := TokenizeWithUnicodeInto(text, (*tokensPtr)[:0])
 	defer func() {
@@ -213,6 +213,8 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) (stemmed []string, original
 	bufPtr := pools.SharedByteSlicePool.Get()
 	defer pools.SharedByteSlicePool.Put(bufPtr)
 
+	var stemmed []string
+	var originals []string
 	for _, token := range tokens {
 		var orig string
 		if isLowerASCII(token.Value) {

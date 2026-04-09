@@ -10,16 +10,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 )
 
-type mockHealthRegistry struct {
-	docs int64
-	size int64
-}
-
-func (m *mockHealthRegistry) RecordSearchStats(docs int64, size int64) {
-	m.docs = docs
-	m.size = size
-}
-
 func TestManager_UpdateIndexedPostCache(t *testing.T) {
 	m := NewManager(ManagerDependencies{
 		Cfg: &config.Config{},

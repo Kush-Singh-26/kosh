@@ -3,6 +3,7 @@ package post
 import (
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
@@ -10,11 +11,13 @@ import (
 type navInfo struct {
 	allPosts []models.PostMetadata
 	postPos  map[string]int
+	allTags  []models.TagData
 }
 
 func (s *postService) prepareNavigationInfo(files []models.ScannedFile) navInfo {
 	var allPosts []models.PostMetadata
 	postPos := make(map[string]int)
+	tagMap := make(map[string][]models.PostMetadata)
 
 	for _, f := range files {
 		if f.Draft && !s.cfg.IncludeDrafts {
@@ -31,6 +34,10 @@ func (s *postService) prepareNavigationInfo(files []models.ScannedFile) navInfo 
 			ReadingTime: f.ReadingTime,
 		}
 		allPosts = append(allPosts, post)
+
+		for _, t := range f.Tags {
+			tagMap[t] = append(tagMap[t], post)
+		}
 	}
 
 	timeutil.SortPosts(allPosts)
@@ -38,5 +45,7 @@ func (s *postService) prepareNavigationInfo(files []models.ScannedFile) navInfo 
 		postPos[p.Link] = i
 	}
 
-	return navInfo{allPosts: allPosts, postPos: postPos}
+	allTags := generators.BuildAllTags(tagMap)
+
+	return navInfo{allPosts: allPosts, postPos: postPos, allTags: allTags}
 }

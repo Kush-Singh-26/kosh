@@ -109,16 +109,36 @@ func (r *Renderer) ReloadTemplates() {
 	cacheValid := hasTemplates && !tc.hasTemplatesChanged()
 
 	if cacheValid {
-		r.mu.Lock()
-		r.Layout = tc.templates["layout"]
-		r.Index = tc.templates["index"]
-		r.Graph = tc.templates["graph"]
-		r.NotFound = tc.templates["404"]
-		r.mu.Unlock()
+		r.applyTemplateCache(tc)
 		return
 	}
 
-	funcMap := template.FuncMap{
+	funcMap := templateFuncMap()
+	layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl, err := r.loadTemplates(tc, funcMap)
+	if err != nil {
+		r.logger.Error("Template parsing failed", "error", err)
+		os.Exit(1)
+	}
+
+	r.mu.Lock()
+	r.Layout = layoutTmpl
+	r.Index = indexTmpl
+	r.Graph = graphTmpl
+	r.NotFound = notFoundTmpl
+	r.mu.Unlock()
+}
+
+func (r *Renderer) applyTemplateCache(tc *templateCache) {
+	r.mu.Lock()
+	r.Layout = tc.templates["layout"]
+	r.Index = tc.templates["index"]
+	r.Graph = tc.templates["graph"]
+	r.NotFound = tc.templates["404"]
+	r.mu.Unlock()
+}
+
+func templateFuncMap() template.FuncMap {
+	return template.FuncMap{
 		"lower":     strings.ToLower,
 		"hasPrefix": strings.HasPrefix,
 		"replace": func(from, to, input string) string {
@@ -130,12 +150,10 @@ func (r *Renderer) ReloadTemplates() {
 				return link
 			}
 
-			// Fast path for absolute URLs
 			if strings.HasPrefix(link, "http") || strings.HasPrefix(link, "//") || strings.HasPrefix(link, "data:") {
 				return link
 			}
 
-			// Clean the link
 			isHome := link == "/"
 			if link[0] != '/' {
 				link = "/" + link
@@ -145,12 +163,11 @@ func (r *Renderer) ReloadTemplates() {
 				return filepath.ToSlash(strings.TrimSuffix(baseURL, "/") + link)
 			}
 
-			// If baseURL is empty, use RelativePrefix
 			if prefix == "" || prefix == "." || prefix == "./" {
 				if isHome {
 					return "index.html"
 				}
-				return filepath.ToSlash(link[1:]) // Just remove leading slash
+				return filepath.ToSlash(link[1:])
 			}
 
 			if isHome {
@@ -187,7 +204,9 @@ func (r *Renderer) ReloadTemplates() {
 			return string(b), err
 		},
 	}
+}
 
+func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*template.Template, *template.Template, *template.Template, *template.Template, error) {
 	var (
 		layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl *template.Template
 		mu                                             sync.Mutex
@@ -262,14 +281,7 @@ func (r *Renderer) ReloadTemplates() {
 	})
 
 	if err := g.Wait(); err != nil {
-		r.logger.Error("Template parsing failed", "error", err)
-		os.Exit(1)
+		return nil, nil, nil, nil, err
 	}
-
-	r.mu.Lock()
-	r.Layout = layoutTmpl
-	r.Index = indexTmpl
-	r.Graph = graphTmpl
-	r.NotFound = notFoundTmpl
-	r.mu.Unlock()
+	return layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl, nil
 }

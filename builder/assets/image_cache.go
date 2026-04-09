@@ -36,6 +36,12 @@ const (
 	strconvBase10            = 10
 )
 
+var criticalOriginalPNGs = map[string]struct{}{
+	"logo.png":     {},
+	"icon-192.png": {},
+	"icon-512.png": {},
+}
+
 // webpBufferPool stores *bytes.Buffer instances for WebP encoding.
 var webpBufferPool = sync.Pool{
 	New: func() any {
@@ -302,23 +308,12 @@ func registerImageVariants(srcPath, webpPath string) {
 	}
 }
 
-// CleanupOriginalImages removes source image files (.png/.jpg/.jpeg) from the
-// output directory when a corresponding .webp file exists. It uses the known
-// conversion map, eliminating expensive filesystem sweeps.
-func CleanupOriginalImages(outputDir string) {
-	converted := GetConvertedImages()
-	if len(converted) == 0 {
-		return
-	}
+func shouldPreserveOriginal(name string) bool {
+	_, ok := criticalOriginalPNGs[strings.ToLower(name)]
+	return ok
+}
 
-	// Critical .png files that must be preserved
-	criticalPNGs := map[string]bool{
-		"logo.png":     true,
-		"icon-192.png": true,
-		"icon-512.png": true,
-	}
-
-	// Determine exactly which source images to delete based on the converted map
+func collectOriginalsToDelete(outputDir string, converted map[string]string) []string {
 	var toDelete []string
 	for origRelPath := range converted {
 		lower := strings.ToLower(origRelPath)
@@ -327,24 +322,25 @@ func CleanupOriginalImages(outputDir string) {
 		}
 
 		base := filepath.Base(origRelPath)
-		if criticalPNGs[strings.ToLower(base)] {
+		if shouldPreserveOriginal(base) {
 			continue
 		}
 
-		// Map the relative path to the physical output dir
 		absPath := filepath.Join(outputDir, strings.TrimPrefix(filepath.ToSlash(origRelPath), "/"))
 		toDelete = append(toDelete, absPath)
 	}
+	return toDelete
+}
 
-	if len(toDelete) == 0 {
-		return
+func deleteOriginals(paths []string) int64 {
+	if len(paths) == 0 {
+		return 0
 	}
 
-	// Delete in parallel
 	var deleted atomic.Int64
 	numWorkers := runtime.NumCPU()
-	if numWorkers > len(toDelete) {
-		numWorkers = len(toDelete)
+	if numWorkers > len(paths) {
+		numWorkers = len(paths)
 	}
 	if numWorkers < 1 {
 		numWorkers = 1
@@ -353,7 +349,7 @@ func CleanupOriginalImages(outputDir string) {
 	g, _ := errgroup.WithContext(context.Background())
 	g.SetLimit(numWorkers)
 
-	for _, fullPath := range toDelete {
+	for _, fullPath := range paths {
 		p := fullPath
 		g.Go(func() error {
 			if err := os.Remove(p); err == nil {
@@ -364,9 +360,22 @@ func CleanupOriginalImages(outputDir string) {
 			return nil
 		})
 	}
-	_ = g.Wait()
+	_ = g.Wait() // Best-effort cleanup; errors are already filtered above.
 
-	if d := deleted.Load(); d > 0 {
-		slog.Info("Cleaned up original images", "deleted", d)
+	return deleted.Load()
+}
+
+// CleanupOriginalImages removes source image files (.png/.jpg/.jpeg) from the
+// output directory when a corresponding .webp file exists. It uses the known
+// conversion map, eliminating expensive filesystem sweeps.
+func CleanupOriginalImages(outputDir string) {
+	converted := GetConvertedImages()
+	if len(converted) == 0 {
+		return
+	}
+	toDelete := collectOriginalsToDelete(outputDir, converted)
+	deleted := deleteOriginals(toDelete)
+	if deleted > 0 {
+		slog.Info("Cleaned up original images", "deleted", deleted)
 	}
 }

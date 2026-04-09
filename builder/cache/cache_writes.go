@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
+	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 
 	"go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
@@ -28,24 +29,9 @@ const (
 	ssrInlineContentLimitSize = 16 * 1024
 )
 
-// BatchCommit atomically commits posts, search records, and dependencies in a single BoltDB transaction.
-// All data is encoded in parallel with bounded concurrency before the transaction begins.
-//
-// Error Contract:
-//   - Returns error on BoltDB transaction failure or encoding error (partial commit not possible)
-//   - Retry behavior: Safe to retry on failure; idempotent within same build session
-//   - Thread safety: Concurrent calls are serialized via internal mutex
-//   - On error, no data is committed (all-or-nothing semantics)
-//
-// Usage Note:
-// BatchCommit is designed for asynchronous fire-and-forget calls from the build pipeline.
-// It is safe to call without checking the error - the caller should log the error for visibility,
-// but the build should continue. On failure, the cache will rebuild on the next run.
-func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, deps map[string]*core.Dependencies) error {
-	// Pre-allocate slice for parallel encoding results
+func encodePosts(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, deps map[string]*core.Dependencies) ([]EncodedPost, error) {
 	encoded := make([]EncodedPost, len(posts))
 
-	// Parallelize encoding with bounded concurrency
 	var encodeMu sync.Mutex
 	var encodeErr error
 	var g errgroup.Group
@@ -112,9 +98,12 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 	_ = g.Wait()
 
 	if encodeErr != nil {
-		return encodeErr
+		return nil, encodeErr
 	}
+	return encoded, nil
+}
 
+func buildBucketOps(encoded []EncodedPost) bucketOps {
 	var ops bucketOps
 	totalTags := 0
 	totalTemplates := 0
@@ -160,101 +149,151 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 			}
 		}
 	}
+	return ops
+}
 
-	// Invalidate memory cache BEFORE the transaction
+func invalidateMemCache(m *Manager, encoded []EncodedPost) {
 	for _, ep := range encoded {
 		m.memCacheDelete("id:" + string(ep.PostID))
 		m.memCacheDelete("path:" + string(ep.Path))
 	}
+}
 
-	err := m.db.Update(func(tx *bbolt.Tx) error {
+func collectOldHashes(postsBucket *bbolt.Bucket, encoded []EncodedPost) map[string]string {
+	oldHashes := make(map[string]string)
+	for _, ep := range encoded {
+		if existing := postsBucket.Get(ep.PostID); existing != nil {
+			var oldPost core.PostMeta
+			if err := core.Decode(existing, &oldPost); err == nil && oldPost.HTMLHash != "" {
+				oldHashes[string(ep.PostID)] = oldPost.HTMLHash
+			}
+		}
+	}
+	return oldHashes
+}
+
+func writeAllOps(tx *bbolt.Tx, ops bucketOps) error {
+	sortOps(ops.posts)
+	sortOps(ops.paths)
+	sortOps(ops.search)
+	sortOps(ops.deps)
+	sortOps(ops.tags)
+	sortOps(ops.templates)
+	sortOps(ops.includes)
+
+	if err := writeOps(tx.Bucket([]byte(core.BucketPosts)), ops.posts); err != nil {
+		return err
+	}
+	if err := writeOps(tx.Bucket([]byte(core.BucketPaths)), ops.paths); err != nil {
+		return err
+	}
+	if err := writeOps(tx.Bucket([]byte(core.BucketSearch)), ops.search); err != nil {
+		return err
+	}
+	if err := writeOps(tx.Bucket([]byte(core.BucketPostDeps)), ops.deps); err != nil {
+		return err
+	}
+	if err := writeOps(tx.Bucket([]byte(core.BucketTags)), ops.tags); err != nil {
+		return err
+	}
+	if err := writeOps(tx.Bucket([]byte(core.BucketDepsTemplates)), ops.templates); err != nil {
+		return err
+	}
+	if err := writeOps(tx.Bucket([]byte(core.BucketDepsIncludes)), ops.includes); err != nil {
+		return err
+	}
+	return nil
+}
+
+func updateRefCounts(tx *bbolt.Tx, refCount *gc.RefCountManager, encoded []EncodedPost, oldHashes map[string]string) error {
+	for _, ep := range encoded {
+		var newPost core.PostMeta
+		if err := core.Decode(ep.Data, &newPost); err != nil {
+			continue
+		}
+		oldHash := oldHashes[string(ep.PostID)]
+		newHash := newPost.HTMLHash
+
+		if oldHash != "" && oldHash != newHash {
+			if err := refCount.DecrementTx(tx, oldHash, nil); err != nil {
+				return fmt.Errorf("failed to decrement refcount: %w", err)
+			}
+		}
+		if newHash != "" && newHash != oldHash {
+			if err := refCount.IncrementTx(tx, newHash); err != nil {
+				return fmt.Errorf("failed to increment refcount: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func bumpBuildCount(tx *bbolt.Tx) error {
+	stats := tx.Bucket([]byte(core.BucketStats))
+	buildCount := uint32(1)
+	if data := stats.Get([]byte(core.KeyBuildCount)); data != nil {
+		buildCount = binary.BigEndian.Uint32(data) + 1
+	}
+	countData := make([]byte, uint32Size)
+	binary.BigEndian.PutUint32(countData, buildCount)
+	return stats.Put([]byte(core.KeyBuildCount), countData)
+}
+
+func logBatchCommitFailure(err error, encoded []EncodedPost) {
+	postIDs := make([]string, len(encoded))
+	for i, ep := range encoded {
+		postIDs[i] = string(ep.PostID)
+	}
+	slog.Error("BatchCommit failed", "count", len(postIDs), "ids", postIDs, "error", err)
+}
+
+// BatchCommit atomically commits posts, search records, and dependencies in a single BoltDB transaction.
+// All data is encoded in parallel with bounded concurrency before the transaction begins.
+//
+// Error Contract:
+//   - Returns error on BoltDB transaction failure or encoding error (partial commit not possible)
+//   - Retry behavior: Safe to retry on failure; idempotent within same build session
+//   - Thread safety: Concurrent calls are serialized via internal mutex
+//   - On error, no data is committed (all-or-nothing semantics)
+//
+// Usage Note:
+// BatchCommit is designed for asynchronous fire-and-forget calls from the build pipeline.
+// It is safe to call without checking the error - the caller should log the error for visibility,
+// but the build should continue. On failure, the cache will rebuild on the next run.
+func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, deps map[string]*core.Dependencies) error {
+	encoded, err := encodePosts(posts, searchRecords, deps)
+	if err != nil {
+		return err
+	}
+
+	ops := buildBucketOps(encoded)
+
+	// Invalidate memory cache BEFORE the transaction
+	invalidateMemCache(m, encoded)
+
+	err = m.db.Update(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 
 		// Phase 1: Collect old HTML hashes for refcount delta (inside the tx)
-		oldHashes := make(map[string]string) // postID -> oldHTMLHash
-		for _, ep := range encoded {
-			if existing := postsBucket.Get(ep.PostID); existing != nil {
-				var oldPost core.PostMeta
-				if err := core.Decode(existing, &oldPost); err == nil && oldPost.HTMLHash != "" {
-					oldHashes[string(ep.PostID)] = oldPost.HTMLHash
-				}
-			}
-		}
+		oldHashes := collectOldHashes(postsBucket, encoded)
 
 		// Phase 2: Write all bucket operations
 		// Sort operations by key for sequential write performance in BoltDB
-		sortOps(ops.posts)
-		sortOps(ops.paths)
-		sortOps(ops.search)
-		sortOps(ops.deps)
-		sortOps(ops.tags)
-		sortOps(ops.templates)
-		sortOps(ops.includes)
-
-		if err := writeOps(postsBucket, ops.posts); err != nil {
-			return err
-		}
-		if err := writeOps(tx.Bucket([]byte(core.BucketPaths)), ops.paths); err != nil {
-			return err
-		}
-		if err := writeOps(tx.Bucket([]byte(core.BucketSearch)), ops.search); err != nil {
-			return err
-		}
-		if err := writeOps(tx.Bucket([]byte(core.BucketPostDeps)), ops.deps); err != nil {
-			return err
-		}
-		if err := writeOps(tx.Bucket([]byte(core.BucketTags)), ops.tags); err != nil {
-			return err
-		}
-		if err := writeOps(tx.Bucket([]byte(core.BucketDepsTemplates)), ops.templates); err != nil {
-			return err
-		}
-		if err := writeOps(tx.Bucket([]byte(core.BucketDepsIncludes)), ops.includes); err != nil {
+		if err := writeAllOps(tx, ops); err != nil {
 			return err
 		}
 
 		// Phase 3: Adjust refcounts atomically inside the same transaction
-		for _, ep := range encoded {
-			var newPost core.PostMeta
-			if err := core.Decode(ep.Data, &newPost); err != nil {
-				continue
-			}
-			oldHash := oldHashes[string(ep.PostID)]
-			newHash := newPost.HTMLHash
-
-			if oldHash != "" && oldHash != newHash {
-				if err := m.refCount.DecrementTx(tx, oldHash, nil); err != nil {
-					return fmt.Errorf("failed to decrement refcount: %w", err)
-				}
-			}
-			if newHash != "" && newHash != oldHash {
-				if err := m.refCount.IncrementTx(tx, newHash); err != nil {
-					return fmt.Errorf("failed to increment refcount: %w", err)
-				}
-			}
-		}
-
-		stats := tx.Bucket([]byte(core.BucketStats))
-		buildCount := uint32(1)
-		if data := stats.Get([]byte(core.KeyBuildCount)); data != nil {
-			buildCount = binary.BigEndian.Uint32(data) + 1
-		}
-		countData := make([]byte, uint32Size)
-		binary.BigEndian.PutUint32(countData, buildCount)
-		if err := stats.Put([]byte(core.KeyBuildCount), countData); err != nil {
+		if err := updateRefCounts(tx, m.refCount, encoded, oldHashes); err != nil {
 			return err
 		}
 
-		return nil
+		return bumpBuildCount(tx)
 	})
 
 	if err != nil {
 		// Log failed batch commits with post IDs for manual reconciliation
-		postIDs := make([]string, len(encoded))
-		for i, ep := range encoded {
-			postIDs[i] = string(ep.PostID)
-		}
-		slog.Error("BatchCommit failed", "count", len(postIDs), "ids", postIDs, "error", err)
+		logBatchCommitFailure(err, encoded)
 	}
 
 	return err

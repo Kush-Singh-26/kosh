@@ -23,6 +23,7 @@ type PostResult struct {
 	AllPosts       []models.PostMetadata
 	PinnedPosts    []models.PostMetadata
 	TagMap         map[string][]models.PostMetadata
+	AllTags        []models.TagData
 	IndexedPosts   []models.IndexedPost
 	AnyPostChanged bool
 	Has404         bool
@@ -33,6 +34,7 @@ type MetadataContext struct {
 	AllPosts       []models.PostMetadata
 	PinnedPosts    []models.PostMetadata
 	TagMap         map[string][]models.PostMetadata
+	AllTags        []models.TagData
 	IndexedPosts   []models.IndexedPost
 	AnyPostChanged bool
 }
@@ -43,6 +45,7 @@ func (pr *PostResult) ToMetadataContext() *MetadataContext {
 		AllPosts:       pr.AllPosts,
 		PinnedPosts:    pr.PinnedPosts,
 		TagMap:         pr.TagMap,
+		AllTags:        pr.AllTags,
 		IndexedPosts:   pr.IndexedPosts,
 		AnyPostChanged: pr.AnyPostChanged,
 	}

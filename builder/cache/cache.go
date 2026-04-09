@@ -61,17 +61,9 @@ func Open(basePath string, isDev bool) (*Manager, error) {
 	return OpenWithTimeout(basePath, isDev, defaultOpenTimeout)
 }
 
-// OpenWithTimeout opens or creates a cache with a custom timeout
-func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manager, error) {
-	if err := os.MkdirAll(basePath, cacheDirMode); err != nil {
-		return nil, fmt.Errorf("failed to create cache directory: %w", err)
-	}
-
-	// Calculate initial mmap size based on existing database
-	initialSize := defaultInitialMmapSize // Default 10MB
-	dbPath := filepath.Join(basePath, "meta.db")
+func computeInitialMmapSize(dbPath string) int {
+	initialSize := defaultInitialMmapSize
 	if info, err := os.Stat(dbPath); err == nil {
-		// Use 2x current size, minimum 10MB, maximum 100MB
 		calculatedSize := int(info.Size()) * mmapSizeMultiplier
 		if calculatedSize > maxInitialMmapSize {
 			initialSize = maxInitialMmapSize
@@ -79,43 +71,98 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 			initialSize = calculatedSize
 		}
 	}
+	return initialSize
+}
 
+func openBoltDB(dbPath string, timeout time.Duration, initialSize int) (*bbolt.DB, error) {
 	opts := &bbolt.Options{
 		Timeout:         timeout,
 		FreelistType:    bbolt.FreelistArrayType,
 		PageSize:        boltPageSize,
 		InitialMmapSize: initialSize,
+		NoGrowSync:      true,
+		NoSync:          true,
 	}
+	return bbolt.Open(dbPath, dbFileMode, opts)
+}
 
-	// Kosh cache is derivative and reproducible from source.
-	// Skipping fsync (NoSync) and mmap grow sync (NoGrowSync) significantly
-	// improves build performance, especially on Windows, with minimal durability risk
-	// for a build tool.
-	opts.NoGrowSync = true
-	opts.NoSync = true
-
-	db, err := bbolt.Open(dbPath, dbFileMode, opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open BoltDB: %w", err)
-	}
-
+func openStoreWithCleanup(db *bbolt.DB, basePath string) (*store.Store, error) {
 	storePath := filepath.Join(basePath, "store")
-	store, err := store.New(storePath)
+	st, err := store.New(storePath)
 	if err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			slog.Error("Failed to close DB during cleanup", "error", closeErr)
 		}
-		return nil, fmt.Errorf("failed to create store: %w", err)
+		return nil, err
 	}
+	return st, nil
+}
 
-	lruCache, err := lru.New[string, *memoryCacheEntry](memCacheMaxEntries) // 1024 items max
+func newMemCacheWithCleanup(st *store.Store, db *bbolt.DB) (*lru.Cache[string, *memoryCacheEntry], error) {
+	cache, err := lru.New[string, *memoryCacheEntry](memCacheMaxEntries)
 	if err != nil {
-		if closeErr := store.Close(); closeErr != nil {
+		if closeErr := st.Close(); closeErr != nil {
 			slog.Error("Failed to close store during cleanup", "error", closeErr)
 		}
 		if closeErr := db.Close(); closeErr != nil {
 			slog.Error("Failed to close DB during cleanup", "error", closeErr)
 		}
+		return nil, err
+	}
+	return cache, nil
+}
+
+func loadSchemaVersion(db *bbolt.DB) (uint32, error) {
+	var currentVersion uint32
+	err := db.View(func(tx *bbolt.Tx) error {
+		meta := tx.Bucket([]byte(core.BucketMeta))
+		if meta != nil {
+			v := meta.Get([]byte(core.KeySchemaVersion))
+			if v != nil {
+				currentVersion = binary.BigEndian.Uint32(v)
+			}
+		}
+		return nil
+	})
+	return currentVersion, err
+}
+
+func ensureSchemaVersion(db *bbolt.DB, currentVersion uint32) error {
+	if currentVersion == 0 || currentVersion == uint32(core.SchemaVersion) {
+		return nil
+	}
+	newVer, err := migrate.RunMigrations(db, currentVersion, nil)
+	if err != nil || newVer != uint32(core.SchemaVersion) {
+		return fmt.Errorf("incompatible schema version: got %d, want %d (migration failed: %w)", currentVersion, core.SchemaVersion, err)
+	}
+	return nil
+}
+
+// OpenWithTimeout opens or creates a cache with a custom timeout
+func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manager, error) {
+	if err := os.MkdirAll(basePath, cacheDirMode); err != nil {
+		return nil, fmt.Errorf("failed to create cache directory: %w", err)
+	}
+
+	dbPath := filepath.Join(basePath, "meta.db")
+	initialSize := computeInitialMmapSize(dbPath)
+
+	// Kosh cache is derivative and reproducible from source.
+	// Skipping fsync (NoSync) and mmap grow sync (NoGrowSync) significantly
+	// improves build performance, especially on Windows, with minimal durability risk
+	// for a build tool.
+	db, err := openBoltDB(dbPath, timeout, initialSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open BoltDB: %w", err)
+	}
+
+	store, err := openStoreWithCleanup(db, basePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create store: %w", err)
+	}
+
+	lruCache, err := newMemCacheWithCleanup(store, db)
+	if err != nil {
 		return nil, fmt.Errorf("failed to create LRU cache: %w", err)
 	}
 
@@ -137,17 +184,7 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 	}
 
 	// Verify schema and run migrations if needed
-	var currentVersion uint32
-	err = m.db.View(func(tx *bbolt.Tx) error {
-		meta := tx.Bucket([]byte(core.BucketMeta))
-		if meta != nil {
-			v := meta.Get([]byte(core.KeySchemaVersion))
-			if v != nil {
-				currentVersion = binary.BigEndian.Uint32(v)
-			}
-		}
-		return nil
-	})
+	currentVersion, err := loadSchemaVersion(m.db)
 	if err != nil {
 		if cleanupErr := m.cleanupOnError(); cleanupErr != nil {
 			slog.Error("Failed to cleanup after schema version read failure", "error", cleanupErr)
@@ -155,14 +192,11 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		return nil, fmt.Errorf("failed to read schema version: %w", err)
 	}
 
-	if currentVersion > 0 && currentVersion != uint32(core.SchemaVersion) {
-		newVer, err := migrate.RunMigrations(m.db, currentVersion, nil)
-		if err != nil || newVer != uint32(core.SchemaVersion) {
-			if cleanupErr := m.cleanupOnError(); cleanupErr != nil {
-				slog.Error("Failed to cleanup after migration failure", "error", cleanupErr)
-			}
-			return nil, fmt.Errorf("incompatible schema version: got %d, want %d (migration failed: %w)", currentVersion, core.SchemaVersion, err)
+	if err := ensureSchemaVersion(m.db, currentVersion); err != nil {
+		if cleanupErr := m.cleanupOnError(); cleanupErr != nil {
+			slog.Error("Failed to cleanup after migration failure", "error", cleanupErr)
 		}
+		return nil, err
 	}
 
 	return m, nil
@@ -229,9 +263,9 @@ func (m *Manager) initSchema() error {
 }
 
 // VerifyCacheID checks if the cache ID matches
-func (m *Manager) VerifyCacheID(expectedID string) (needsRebuild bool, err error) {
+func (m *Manager) VerifyCacheID(expectedID string) (bool, error) {
 	var storedID []byte
-	err = m.db.View(func(tx *bbolt.Tx) error {
+	err := m.db.View(func(tx *bbolt.Tx) error {
 		meta := tx.Bucket([]byte(core.BucketMeta))
 		storedID = meta.Get([]byte(core.KeyCacheID))
 		return nil

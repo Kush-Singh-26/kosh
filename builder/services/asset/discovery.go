@@ -81,7 +81,7 @@ func (s *assetService) isWebPCandidate(path string) bool {
 }
 
 // syncStaticAssets discovers and copies all static assets to the sink synchronously.
-func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Context, skipImages bool) (imageQueue []imageCopyTask, err error) {
+func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Context, skipImages bool) ([]imageCopyTask, error) {
 	themeDir, siteStaticDir := s.getStaticSourceDirs()
 	debugAssets := os.Getenv("KOSH_DEBUG_ASSETS") == "1"
 
@@ -130,7 +130,7 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 		})
 	}
 
-	err = discoveryGroup.Wait()
+	err := discoveryGroup.Wait()
 	walkerWg.Wait()
 	close(assetChan)
 	workerWg.Wait()

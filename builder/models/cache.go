@@ -68,6 +68,7 @@ type PostListMeta struct {
 	Link   string
 	Weight int
 	Date   time.Time
+	Tags   []string
 }
 
 // CacheStats holds runtime statistics

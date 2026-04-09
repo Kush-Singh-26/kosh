@@ -426,7 +426,7 @@ func (b *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 		siteWideGroup, siteTimer := runSiteWide(metadataCtx, assetsChanged)
 
 		if siteWideGroup != nil {
-			if err := b.waitForSiteWideRendering(siteWideGroup, siteTimer, postResult.Has404 || b.Deps.Render.Has404Template()); err != nil {
+			if err := b.waitForSiteWideRendering(siteWideGroup, siteTimer, postResult.Has404 || b.Deps.Render.Has404Template(), metadataCtx); err != nil {
 				return fmt.Errorf("site-wide rendering failed: %w", err)
 			}
 		}

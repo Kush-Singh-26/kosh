@@ -312,6 +312,7 @@ func (m *Manager) GetAllPostsMetadata() ([]PostListMeta, error) {
 					Link:   meta.Link,
 					Weight: meta.Weight,
 					Date:   meta.Date,
+					Tags:   meta.Tags,
 				})
 			}
 			return nil

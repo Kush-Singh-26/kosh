@@ -177,6 +177,28 @@ func findTagEnd(html []byte, i int) int {
 	return -1
 }
 
+func appendLazyAttributes(result []byte) []byte {
+	lowerResult := strings.ToLower(string(result))
+	isSiteLogo := strings.Contains(lowerResult, `class="site-logo`) || strings.Contains(lowerResult, `class='site-logo`)
+	if isSiteLogo {
+		return result
+	}
+	if !strings.Contains(lowerResult, " loading=") && !strings.Contains(lowerResult, " loading\t") && !strings.Contains(lowerResult, " loading\n") {
+		result = append(result, []byte(" loading=\"lazy\"")...)
+	}
+	if !strings.Contains(lowerResult, " decoding=") && !strings.Contains(lowerResult, " decoding\t") && !strings.Contains(lowerResult, " decoding\n") {
+		result = append(result, []byte(" decoding=\"async\"")...)
+	}
+	return result
+}
+
+func rewriteAttrValue(attrName, value string, converted map[string]string) string {
+	if strings.EqualFold(attrName, "src") {
+		return rewriteImgSrc(value, converted)
+	}
+	return value
+}
+
 func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 	result := make([]byte, 0, len(tag))
 	// 1. Skip the "<img" part
@@ -195,16 +217,7 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 			closingPart := tag[i:]
 			// Add loading="lazy" and decoding="async" to content images
 			// Skip images with class="site-logo" (above-the-fold LCP candidates)
-			lowerResult := strings.ToLower(string(result))
-			isSiteLogo := strings.Contains(lowerResult, `class="site-logo`) || strings.Contains(lowerResult, `class='site-logo`)
-			if !isSiteLogo {
-				if !strings.Contains(lowerResult, " loading=") && !strings.Contains(lowerResult, " loading\t") && !strings.Contains(lowerResult, " loading\n") {
-					result = append(result, []byte(" loading=\"lazy\"")...)
-				}
-				if !strings.Contains(lowerResult, " decoding=") && !strings.Contains(lowerResult, " decoding\t") && !strings.Contains(lowerResult, " decoding\n") {
-					result = append(result, []byte(" decoding=\"async\"")...)
-				}
-			}
+			result = appendLazyAttributes(result)
 			result = append(result, closingPart...)
 			break
 		}
@@ -251,13 +264,8 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 				i++
 			}
 			val := string(tag[valStart:i])
-
-			if strings.EqualFold(attrName, "src") {
-				rewritten := rewriteImgSrc(val, converted)
-				result = append(result, []byte(rewritten)...)
-			} else {
-				result = append(result, tag[valStart:i]...)
-			}
+			rewritten := rewriteAttrValue(attrName, val, converted)
+			result = append(result, []byte(rewritten)...)
 
 			if i < len(tag) {
 				result = append(result, quote)
@@ -270,12 +278,8 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 				i++
 			}
 			val := string(tag[valStart:i])
-			if strings.EqualFold(attrName, "src") {
-				rewritten := rewriteImgSrc(val, converted)
-				result = append(result, []byte(rewritten)...)
-			} else {
-				result = append(result, tag[valStart:i]...)
-			}
+			rewritten := rewriteAttrValue(attrName, val, converted)
+			result = append(result, []byte(rewritten)...)
 		}
 	}
 

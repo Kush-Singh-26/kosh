@@ -148,7 +148,7 @@ func buildSearchRecord(
 func tokenizeSearchData(
 	searchRecord models.PostRecord,
 	plainText string,
-) (wordFreqs map[string]int, docLen int, stemMap map[string]string, positionalIndex map[string][]uint32, byteOffsets map[string][]uint32) {
+) (map[string]int, int, map[string]string, map[string][]uint32, map[string][]uint32) {
 	sb := pools.SharedStringBuilderPool.Get()
 	defer pools.SharedStringBuilderPool.Put(sb)
 
@@ -166,7 +166,7 @@ func tokenizeSearchData(
 
 	words, freshStemMap, positions, rawOffsets := core.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
 
-	wordFreqs = make(map[string]int, len(words)/wordFreqMapDivisor)
+	wordFreqs := make(map[string]int, len(words)/wordFreqMapDivisor)
 	for _, w := range words {
 		wordFreqs[w]++
 	}
@@ -177,17 +177,17 @@ func tokenizeSearchData(
 		wordFreqs[t] += titleBoost
 	}
 
-	docLen = len(words)
-	stemMap = freshStemMap
+	docLen := len(words)
+	stemMap := freshStemMap
 
 	// Encode positions using delta encoding
-	positionalIndex = make(map[string][]uint32, len(positions))
+	positionalIndex := make(map[string][]uint32, len(positions))
 	for term, posList := range positions {
 		positionalIndex[term] = models.EncodePositions(posList)
 	}
 
 	// Shift and encode offsets using delta format
-	byteOffsets = make(map[string][]uint32, len(rawOffsets))
+	byteOffsets := make(map[string][]uint32, len(rawOffsets))
 	for term, termOffsets := range rawOffsets {
 		bodyOffsets := make([]int, 0, len(termOffsets))
 		for i := 0; i < len(termOffsets); i += offsetPairSize {

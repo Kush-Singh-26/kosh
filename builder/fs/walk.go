@@ -32,6 +32,116 @@ type WalkOptions struct {
 	WalkFn      WalkFunc
 }
 
+type dirTask struct {
+	path string
+}
+
+type walkState struct {
+	ctx         context.Context
+	sourceFs    afero.Fs
+	walkFn      WalkFunc
+	tasks       chan dirTask
+	activeTasks int32
+	firstErr    error
+	errOnce     sync.Once
+	cancelOnce  sync.Once
+}
+
+func wrapWalkFn(ctx context.Context, walkFn WalkFunc) WalkFunc {
+	return func(path string, info fs.FileInfo, err error) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return walkFn(path, info, err)
+	}
+}
+
+func processRoot(sourceFs afero.Fs, root string, walkFn WalkFunc) (fs.FileInfo, error) {
+	rootInfo, err := sourceFs.Stat(root)
+	if err := walkFn(root, rootInfo, err); err != nil {
+		if errors.Is(err, filepath.SkipDir) || errors.Is(err, fs.SkipAll) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return rootInfo, nil
+}
+
+func (s *walkState) setErr(err error) {
+	if err == nil {
+		return
+	}
+	s.errOnce.Do(func() {
+		s.firstErr = err
+	})
+}
+
+func (s *walkState) maybeQueueDir(path string) {
+	atomic.AddInt32(&s.activeTasks, 1)
+	select {
+	case s.tasks <- dirTask{path: path}:
+	case <-s.ctx.Done():
+		atomic.AddInt32(&s.activeTasks, -1)
+	}
+}
+
+func (s *walkState) handleEntry(parent string, entry fs.FileInfo) bool {
+	if s.ctx.Err() != nil || s.firstErr != nil {
+		return false
+	}
+
+	fullPath := filepath.ToSlash(filepath.Join(parent, entry.Name()))
+	walkErr := s.walkFn(fullPath, entry, nil)
+	if walkErr != nil {
+		if errors.Is(walkErr, filepath.SkipDir) {
+			return !entry.IsDir()
+		}
+		if errors.Is(walkErr, fs.SkipAll) {
+			s.setErr(walkErr)
+			s.cancelOnce.Do(func() {})
+			return false
+		}
+		s.setErr(walkErr)
+		return false
+	}
+
+	if entry.IsDir() {
+		s.maybeQueueDir(fullPath)
+	}
+	return true
+}
+
+func (s *walkState) processTask(t dirTask) {
+	entries, err := afero.ReadDir(s.sourceFs, t.path)
+	if err != nil {
+		s.setErr(s.walkFn(t.path, nil, err))
+	} else {
+		for _, entry := range entries {
+			if !s.handleEntry(t.path, entry) {
+				break
+			}
+		}
+	}
+
+	if atomic.AddInt32(&s.activeTasks, -1) == 0 {
+		close(s.tasks)
+	}
+}
+
+func (s *walkState) runWorker() {
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case t, ok := <-s.tasks:
+			if !ok {
+				return
+			}
+			s.processTask(t)
+		}
+	}
+}
+
 // ParallelWalk provides a stable, parallelized directory traversal using the afero interface.
 func ParallelWalk(opts WalkOptions) error {
 	ctx := opts.Ctx
@@ -40,20 +150,11 @@ func ParallelWalk(opts WalkOptions) error {
 	concurrency := opts.Concurrency
 	walkFn := opts.WalkFn
 
-	// Add context cancellation to the walk function
-	walkFnWrapped := func(path string, info fs.FileInfo, err error) error {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		return walkFn(path, info, err)
-	}
+	walkFnWrapped := wrapWalkFn(ctx, walkFn)
 
 	// Root processing (parity with filepath.Walk)
-	rootInfo, err := sourceFs.Stat(root)
-	if err := walkFnWrapped(root, rootInfo, err); err != nil {
-		if errors.Is(err, filepath.SkipDir) || errors.Is(err, fs.SkipAll) {
-			return nil
-		}
+	rootInfo, err := processRoot(sourceFs, root, walkFnWrapped)
+	if err != nil {
 		return err
 	}
 
@@ -65,29 +166,17 @@ func ParallelWalk(opts WalkOptions) error {
 		concurrency = defaultWalkConcurrency // Safe default for overlapping I/O latency
 	}
 
-	type dirTask struct {
-		path string
-	}
-
-	tasks := make(chan dirTask, dirTaskBufferSize)
-	var wg sync.WaitGroup
-	var activeTasks int32
-	var firstErr error
-	var errOnce sync.Once
-	var cancelOnce sync.Once
-
-	setErr := func(err error) {
-		if err != nil {
-			errOnce.Do(func() {
-				firstErr = err
-			})
-		}
+	state := &walkState{
+		ctx:      ctx,
+		sourceFs: sourceFs,
+		walkFn:   walkFnWrapped,
+		tasks:    make(chan dirTask, dirTaskBufferSize),
 	}
 
 	// Initial task
-	atomic.AddInt32(&activeTasks, 1)
-	tasks <- dirTask{path: root}
+	state.maybeQueueDir(root)
 
+	var wg sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
@@ -95,72 +184,16 @@ func ParallelWalk(opts WalkOptions) error {
 			Logger:    slog.Default(),
 			Operation: "parallel walk worker",
 			Fn: func() error {
-				for {
-					select {
-					case <-ctx.Done():
-						return nil
-					case t, ok := <-tasks:
-						if !ok {
-							return nil
-						}
-
-						// Read directory entries in bulk
-						entries, err := afero.ReadDir(sourceFs, t.path)
-						if err != nil {
-							setErr(walkFnWrapped(t.path, nil, err))
-						} else {
-							for _, entry := range entries {
-								if ctx.Err() != nil || firstErr != nil {
-									break
-								}
-
-								fullPath := filepath.ToSlash(filepath.Join(t.path, entry.Name()))
-
-								// Execute callback
-								walkErr := walkFnWrapped(fullPath, entry, nil)
-								if walkErr != nil {
-									if errors.Is(walkErr, filepath.SkipDir) {
-										if entry.IsDir() {
-											continue
-										}
-										break
-									}
-									if errors.Is(walkErr, fs.SkipAll) {
-										setErr(walkErr)
-										cancelOnce.Do(func() {
-											// Cancel context to stop other workers
-										})
-										break
-									}
-									setErr(walkErr)
-									break
-								}
-
-								if entry.IsDir() {
-									atomic.AddInt32(&activeTasks, 1)
-									select {
-									case tasks <- dirTask{path: fullPath}:
-									case <-ctx.Done():
-										atomic.AddInt32(&activeTasks, -1)
-									}
-								}
-							}
-						}
-
-						// Check if we are done
-						if atomic.AddInt32(&activeTasks, -1) == 0 {
-							close(tasks)
-						}
-					}
-				}
+				state.runWorker()
+				return nil
 			},
 			Cleanup: wg.Done,
 		})
 	}
 
 	wg.Wait()
-	if errors.Is(firstErr, fs.SkipAll) {
+	if errors.Is(state.firstErr, fs.SkipAll) {
 		return nil
 	}
-	return firstErr
+	return state.firstErr
 }

@@ -101,197 +101,236 @@ type BuildAssetsOptions struct {
 	OnAssetProcessed func()
 }
 
+type buildAssetsContext struct {
+	srcFs            afero.Fs
+	sink             ArtifactSink
+	srcDir           string
+	destDir          string
+	minify           bool
+	onWrite          func(string)
+	cachePath        string
+	sched            scheduler.BuildScheduler
+	onAssetProcessed func()
+}
+
+func normalizeBuildAssetsOptions(opts BuildAssetsOptions) buildAssetsContext {
+	return buildAssetsContext{
+		srcFs:            opts.SrcFs,
+		sink:             opts.Sink,
+		srcDir:           NormalizePath(opts.SrcDir),
+		destDir:          NormalizePath(opts.DestDir),
+		minify:           opts.Minify,
+		onWrite:          opts.OnWrite,
+		cachePath:        opts.CacheDir,
+		sched:            opts.Sched,
+		onAssetProcessed: opts.OnAssetProcessed,
+	}
+}
+
+func tryRestoreAssetCache(ctx buildAssetsContext, scan *assetScanResult, force bool) (map[string]string, bool, error) {
+	if ctx.cachePath == "" || force {
+		return nil, false, nil
+	}
+	cachePath := filepath.Join(ctx.cachePath, scan.hash)
+	restored, ok, err := restoreAssetsFromCache(restoreAssetsOptions{
+		cachePath:        cachePath,
+		sink:             ctx.sink,
+		destDir:          ctx.destDir,
+		onWrite:          ctx.onWrite,
+		onAssetProcessed: ctx.onAssetProcessed,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if ok {
+		return restored, true, nil
+	}
+	return nil, false, nil
+}
+
+func buildEsbuildOptions(ctx buildAssetsContext, entryPoints []string, bundle bool) api.BuildOptions {
+	buildOptions := api.BuildOptions{
+		EntryPoints:       entryPoints,
+		Bundle:            bundle,
+		Write:             false,
+		Outdir:            ctx.destDir,
+		Outbase:           ctx.srcDir,
+		MinifyWhitespace:  ctx.minify,
+		MinifyIdentifiers: ctx.minify,
+		MinifySyntax:      ctx.minify,
+		Sourcemap:         api.SourceMapExternal,
+		Metafile:          true,
+		Loader: map[string]api.Loader{
+			".woff2": api.LoaderFile,
+			".woff":  api.LoaderFile,
+			".ttf":   api.LoaderFile,
+			".png":   api.LoaderFile,
+			".webp":  api.LoaderFile,
+			".svg":   api.LoaderFile,
+		},
+	}
+
+	if ctx.minify {
+		buildOptions.EntryNames = "[dir]/[name].[hash]"
+		buildOptions.AssetNames = "assets/[name].[hash]"
+	}
+	return buildOptions
+}
+
+func writeEsbuildOutputs(ctx buildAssetsContext, outFiles []api.OutputFile, cachePath string) error {
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(runtime.NumCPU())
+
+	for _, outFile := range outFiles {
+		file := outFile
+		g.Go(func() error {
+			if len(file.Contents) == 0 && !strings.HasSuffix(strings.ToLower(file.Path), ".map") {
+				return fmt.Errorf("esbuild produced empty output for %s", file.Path)
+			}
+			fullPath := NormalizePath(file.Path)
+			relPath, err := filepath.Rel(ctx.destDir, fullPath)
+			if err != nil {
+				return fmt.Errorf("failed to compute relative path for %s: %w", fullPath, err)
+			}
+			vfsPath := filepath.Join(ctx.destDir, relPath)
+			vfsPath = normalizeEsbuildHashCase(vfsPath)
+
+			contents := file.Contents
+			ext := strings.ToLower(filepath.Ext(vfsPath))
+			if ext == ".css" || ext == ".js" {
+				contents = normalizeAssetURLHashes(contents)
+			}
+
+			dir := filepath.Dir(vfsPath)
+			if err := ctx.sink.MkdirAll(dir); err != nil {
+				return fmt.Errorf("failed to create directory for asset %s: %w", vfsPath, err)
+			}
+
+			if err := ctx.sink.WriteFile(vfsPath, contents); err != nil {
+				return fmt.Errorf("failed to write asset %s: %w", vfsPath, err)
+			}
+			if ctx.onWrite != nil {
+				ctx.onWrite(vfsPath)
+			}
+			if ctx.onAssetProcessed != nil {
+				ctx.onAssetProcessed()
+			}
+
+			if cachePath != "" {
+				rel, err := filepath.Rel(ctx.destDir, vfsPath)
+				if err == nil {
+					rel = normalizeEsbuildHashCase(rel)
+					cacheFile := filepath.Join(cachePath, rel)
+					_ = os.MkdirAll(filepath.Dir(cacheFile), defaultDirMode)
+					_ = os.WriteFile(cacheFile, contents, defaultFileMode)
+				}
+			}
+			return nil
+		})
+	}
+
+	return g.Wait()
+}
+
+func updateAssetsFromMetafile(metaJSON string, srcDir string, assets map[string]string, assetsMu *sync.Mutex) error {
+	type metafileEntry struct {
+		EntryPoint string `json:"entryPoint"`
+	}
+	type metafile struct {
+		Outputs map[string]metafileEntry `json:"outputs"`
+	}
+
+	var meta metafile
+	if err := json.Unmarshal([]byte(metaJSON), &meta); err != nil {
+		return fmt.Errorf("failed to parse metafile: %w", err)
+	}
+
+	for outPath, outInfo := range meta.Outputs {
+		if outInfo.EntryPoint == "" {
+			continue
+		}
+
+		entryPointAbs, _ := filepath.Abs(outInfo.EntryPoint)
+		relEntryPoint, _ := SafeRel(srcDir, NormalizePath(entryPointAbs))
+		relEntryPoint = strings.TrimPrefix(filepath.ToSlash(relEntryPoint), "/")
+
+		key := "/static/" + relEntryPoint
+
+		val := filepath.ToSlash(outPath)
+		if idx := strings.Index(val, "/static/"); idx != -1 {
+			val = val[idx:]
+		} else if !strings.HasPrefix(val, "/") {
+			val = "/" + val
+		}
+
+		val = normalizeEsbuildHashCase(val)
+
+		assetsMu.Lock()
+		assets[key] = val
+		assetsMu.Unlock()
+	}
+	return nil
+}
+
+func buildEntryPoints(ctx buildAssetsContext, entryPoints []string, bundle bool, assets map[string]string, assetsMu *sync.Mutex, cachePath string) error {
+	if len(entryPoints) == 0 {
+		return nil
+	}
+	buildOptions := buildEsbuildOptions(ctx, entryPoints, bundle)
+	result := api.Build(buildOptions)
+	if len(result.Errors) > 0 {
+		for _, e := range result.Errors {
+			slog.Error("esbuild error", "message", e.Text)
+		}
+		return fmt.Errorf("esbuild failed with %d errors", len(result.Errors))
+	}
+
+	if err := writeEsbuildOutputs(ctx, result.OutputFiles, cachePath); err != nil {
+		return err
+	}
+
+	return updateAssetsFromMetafile(result.Metafile, ctx.srcDir, assets, assetsMu)
+}
+
 // BuildAssetsEsbuild builds CSS/JS assets with esbuild and returns the asset map.
 func BuildAssetsEsbuild(opts BuildAssetsOptions) (map[string]string, error) {
-	srcFs := opts.SrcFs
-	sink := opts.Sink
-	srcDir := opts.SrcDir
-	destDir := opts.DestDir
-	minify := opts.Minify
-	onWrite := opts.OnWrite
-	cacheDir := opts.CacheDir
-	force := opts.Force
-	sched := opts.Sched
-	onAssetProcessed := opts.OnAssetProcessed
-
-	srcDir = NormalizePath(srcDir)
-	destDir = NormalizePath(destDir)
-
-	scan, err := scanAssets(srcFs, srcDir)
+	ctx := normalizeBuildAssetsOptions(opts)
+	scan, err := scanAssets(ctx.srcFs, ctx.srcDir)
 	if err != nil {
 		return nil, err
 	}
 
+	if restored, ok, err := tryRestoreAssetCache(ctx, scan, opts.Force); err != nil {
+		return nil, err
+	} else if ok {
+		return restored, nil
+	}
+
+	if ctx.sched != nil {
+		if err := ctx.sched.Acquire(context.Background(), scheduler.TaskAsset); err != nil {
+			return nil, err
+		}
+		defer ctx.sched.Release(scheduler.TaskAsset)
+	}
+
 	assets := make(map[string]string)
-	cachePath := ""
-	if cacheDir != "" && !force {
-		cachePath = filepath.Join(cacheDir, scan.hash)
-		restored, ok, err := restoreAssetsFromCache(restoreAssetsOptions{
-			cachePath:        cachePath,
-			sink:             sink,
-			destDir:          destDir,
-			onWrite:          onWrite,
-			onAssetProcessed: onAssetProcessed,
-		})
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			return restored, nil
-		}
-	}
-
-	if sched != nil {
-		if err := sched.Acquire(context.Background(), scheduler.TaskAsset); err != nil {
-			return nil, err
-		}
-		defer sched.Release(scheduler.TaskAsset)
-	}
-
 	var assetsMu sync.Mutex
 
-	process := func(entryPoints []string, bundle bool) error {
-		if len(entryPoints) == 0 {
-			return nil
-		}
-		buildOptions := api.BuildOptions{
-			EntryPoints:       entryPoints,
-			Bundle:            bundle,
-			Write:             false,
-			Outdir:            destDir,
-			Outbase:           srcDir,
-			MinifyWhitespace:  minify,
-			MinifyIdentifiers: minify,
-			MinifySyntax:      minify,
-			Sourcemap:         api.SourceMapExternal,
-			Metafile:          true,
-			Loader: map[string]api.Loader{
-				".woff2": api.LoaderFile,
-				".woff":  api.LoaderFile,
-				".ttf":   api.LoaderFile,
-				".png":   api.LoaderFile,
-				".webp":  api.LoaderFile,
-				".svg":   api.LoaderFile,
-			},
-		}
-
-		if minify {
-			buildOptions.EntryNames = "[dir]/[name].[hash]"
-			buildOptions.AssetNames = "assets/[name].[hash]"
-		}
-
-		result := api.Build(buildOptions)
-		if len(result.Errors) > 0 {
-			for _, e := range result.Errors {
-				slog.Error("esbuild error", "message", e.Text)
-			}
-			return fmt.Errorf("esbuild failed with %d errors", len(result.Errors))
-		}
-
-		g, _ := errgroup.WithContext(context.Background())
-		g.SetLimit(runtime.NumCPU())
-
-		for _, outFile := range result.OutputFiles {
-			file := outFile
-			g.Go(func() error {
-				if len(file.Contents) == 0 && !strings.HasSuffix(strings.ToLower(file.Path), ".map") {
-					return fmt.Errorf("esbuild produced empty output for %s", file.Path)
-				}
-				fullPath := NormalizePath(file.Path)
-				relPath, err := filepath.Rel(destDir, fullPath)
-				if err != nil {
-					return fmt.Errorf("failed to compute relative path for %s: %w", fullPath, err)
-				}
-				vfsPath := filepath.Join(destDir, relPath)
-				vfsPath = normalizeEsbuildHashCase(vfsPath)
-
-				contents := file.Contents
-				ext := strings.ToLower(filepath.Ext(vfsPath))
-				if ext == ".css" || ext == ".js" {
-					contents = normalizeAssetURLHashes(contents)
-				}
-
-				dir := filepath.Dir(vfsPath)
-				if err := sink.MkdirAll(dir); err != nil {
-					return fmt.Errorf("failed to create directory for asset %s: %w", vfsPath, err)
-				}
-
-				if err := sink.WriteFile(vfsPath, contents); err != nil {
-					return fmt.Errorf("failed to write asset %s: %w", vfsPath, err)
-				}
-				if onWrite != nil {
-					onWrite(vfsPath)
-				}
-				if onAssetProcessed != nil {
-					onAssetProcessed()
-				}
-
-				if cachePath != "" {
-					rel, err := filepath.Rel(destDir, vfsPath)
-					if err == nil {
-						rel = normalizeEsbuildHashCase(rel)
-						cacheFile := filepath.Join(cachePath, rel)
-						_ = os.MkdirAll(filepath.Dir(cacheFile), defaultDirMode)
-						_ = os.WriteFile(cacheFile, contents, defaultFileMode)
-					}
-				}
-				return nil
-			})
-		}
-
-		if err := g.Wait(); err != nil {
-			return err
-		}
-
-		type metafileEntry struct {
-			EntryPoint string `json:"entryPoint"`
-		}
-		type metafile struct {
-			Outputs map[string]metafileEntry `json:"outputs"`
-		}
-
-		var meta metafile
-		if err := json.Unmarshal([]byte(result.Metafile), &meta); err != nil {
-			return fmt.Errorf("failed to parse metafile: %w", err)
-		}
-
-		for outPath, outInfo := range meta.Outputs {
-			if outInfo.EntryPoint == "" {
-				continue
-			}
-
-			entryPointAbs, _ := filepath.Abs(outInfo.EntryPoint)
-			relEntryPoint, _ := SafeRel(srcDir, NormalizePath(entryPointAbs))
-			relEntryPoint = strings.TrimPrefix(filepath.ToSlash(relEntryPoint), "/")
-
-			key := "/static/" + relEntryPoint
-
-			val := filepath.ToSlash(outPath)
-			if idx := strings.Index(val, "/static/"); idx != -1 {
-				val = val[idx:]
-			} else if !strings.HasPrefix(val, "/") {
-				val = "/" + val
-			}
-
-			val = normalizeEsbuildHashCase(val)
-
-			assetsMu.Lock()
-			assets[key] = val
-			assetsMu.Unlock()
-		}
-		return nil
+	cachePath := ""
+	if ctx.cachePath != "" && !opts.Force {
+		cachePath = filepath.Join(ctx.cachePath, scan.hash)
 	}
 
 	buildGroup, _ := errgroup.WithContext(context.Background())
 
 	if scan.hasCSS() {
 		buildGroup.Go(func() error {
-			return process(scan.points.css, true)
+			return buildEntryPoints(ctx, scan.points.css, true, assets, &assetsMu, cachePath)
 		})
 	}
 	if scan.hasJS() {
 		buildGroup.Go(func() error {
-			return process(scan.points.js, true)
+			return buildEntryPoints(ctx, scan.points.js, true, assets, &assetsMu, cachePath)
 		})
 	}
 

@@ -43,8 +43,7 @@ type PaginationOptions struct {
 	AllTags     []models.TagData
 }
 
-// RenderPagination orchestrates the generation of paginated index pages.
-func RenderPagination(opts PaginationOptions) error {
+func ensureHomeSocialCard(opts PaginationOptions) {
 	cfg := opts.Cfg
 	sink := opts.Sink
 	render := opts.Render
@@ -83,24 +82,83 @@ func RenderPagination(opts PaginationOptions) error {
 			LogoPath:    opts.LogoPath,
 		})
 		homeCardTimer.Stop()
-	} else {
-		if data, err := os.ReadFile(homeCached); err == nil {
-			buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(homeCardPath)), "create home card dir")
-			buildCtx.IgnoreError(sink.WriteFile(homeCardPath, data), "write cached home card")
-			render.RegisterFile(homeCardPath)
-		}
+		return
 	}
+
+	if data, err := os.ReadFile(homeCached); err == nil {
+		buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(homeCardPath)), "create home card dir")
+		buildCtx.IgnoreError(sink.WriteFile(homeCardPath, data), "write cached home card")
+		render.RegisterFile(homeCardPath)
+	}
+}
+
+func resolvePostsPerPage(cfg *config.Config) int {
+	if cfg.PostsPerPage <= 0 {
+		return defaultPostsPerPage
+	}
+	return cfg.PostsPerPage
+}
+
+func resolveTotalPages(totalPosts, postsPerPage int) int {
+	totalPages := int(math.Ceil(float64(totalPosts) / float64(postsPerPage)))
+	if totalPages == 0 {
+		return 1
+	}
+	return totalPages
+}
+
+func pageWindow(pageIdx, postsPerPage, totalPosts int) (int, int) {
+	start, end := (pageIdx-1)*postsPerPage, pageIdx*postsPerPage
+	if end > totalPosts {
+		end = totalPosts
+	}
+	return start, end
+}
+
+func pagePaths(cfg *config.Config, sink models.ArtifactSink, pageIdx int) (string, string, string) {
+	destPath, permalink := filepath.Join(cfg.OutputDir, "index.html"), cfg.BaseURL+"/"
+	relPath := "index.html"
+	if pageIdx > firstPageIndex {
+		destPath = filepath.Join(cfg.OutputDir, fmt.Sprintf("page/%d/index.html", pageIdx))
+		permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, pageIdx)
+		relPath = fmt.Sprintf("page/%d/index.html", pageIdx)
+		_ = sink.MkdirAll(filepath.Dir(destPath))
+	}
+	return destPath, permalink, relPath
+}
+
+func buildPaginator(cfg *config.Config, pageIdx, totalPages int) models.Paginator {
+	paginator := models.Paginator{
+		CurrentPage: pageIdx,
+		TotalPages:  totalPages,
+		HasPrev:     pageIdx > firstPageIndex,
+		HasNext:     pageIdx < totalPages,
+		FirstURL:    cfg.BaseURL + "/#latest",
+		LastURL:     fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, totalPages),
+	}
+	if pageIdx > secondPageIndex {
+		paginator.PrevURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, pageIdx-1)
+	} else if pageIdx == secondPageIndex {
+		paginator.PrevURL = cfg.BaseURL + "/#latest"
+	}
+	if pageIdx < totalPages {
+		paginator.NextURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, pageIdx+1)
+	}
+	return paginator
+}
+
+// RenderPagination orchestrates the generation of paginated index pages.
+func RenderPagination(opts PaginationOptions) error {
+	cfg := opts.Cfg
+	sink := opts.Sink
+	render := opts.Render
+
+	ensureHomeSocialCard(opts)
 
 	latestPosts := opts.AllPosts
 
-	postsPerPage := cfg.PostsPerPage
-	if postsPerPage <= 0 {
-		postsPerPage = defaultPostsPerPage
-	}
-	totalPages := int(math.Ceil(float64(len(latestPosts)) / float64(postsPerPage)))
-	if totalPages == 0 {
-		totalPages = 1
-	}
+	postsPerPage := resolvePostsPerPage(cfg)
+	totalPages := resolveTotalPages(len(latestPosts), postsPerPage)
 
 	g, _ := errgroup.WithContext(opts.Ctx)
 	g.SetLimit(runtime.NumCPU())
@@ -108,41 +166,13 @@ func RenderPagination(opts PaginationOptions) error {
 	for i := firstPageIndex; i <= totalPages; i++ {
 		pageIdx := i
 		g.Go(func() error {
-			start, end := (pageIdx-1)*postsPerPage, pageIdx*postsPerPage
-			if end > len(latestPosts) {
-				end = len(latestPosts)
-			}
+			start, end := pageWindow(pageIdx, postsPerPage, len(latestPosts))
 			pagePosts := latestPosts[start:end]
-			destPath, permalink := filepath.Join(cfg.OutputDir, "index.html"), cfg.BaseURL+"/"
-			if pageIdx > firstPageIndex {
-				destPath = filepath.Join(cfg.OutputDir, fmt.Sprintf("page/%d/index.html", pageIdx))
-				permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, pageIdx)
-				_ = sink.MkdirAll(filepath.Dir(destPath))
-			}
-			paginator := models.Paginator{
-				CurrentPage: pageIdx,
-				TotalPages:  totalPages,
-				HasPrev:     pageIdx > firstPageIndex,
-				HasNext:     pageIdx < totalPages,
-				FirstURL:    cfg.BaseURL + "/#latest",
-				LastURL:     fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, totalPages),
-			}
-			if pageIdx > secondPageIndex {
-				paginator.PrevURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, pageIdx-1)
-			} else if pageIdx == secondPageIndex {
-				paginator.PrevURL = cfg.BaseURL + "/#latest"
-			}
-			if pageIdx < totalPages {
-				paginator.NextURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, pageIdx+1)
-			}
+			destPath, permalink, relPath := pagePaths(cfg, sink, pageIdx)
+			paginator := buildPaginator(cfg, pageIdx, totalPages)
 			var curPinned []models.PostMetadata
 			if pageIdx == firstPageIndex {
 				curPinned = opts.PinnedPosts
-			}
-
-			relPath := "index.html"
-			if pageIdx > firstPageIndex {
-				relPath = fmt.Sprintf("page/%d/index.html", pageIdx)
 			}
 
 			if err := render.RenderIndex(destPath, models.PageData{

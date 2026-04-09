@@ -82,15 +82,15 @@ type ServerOptions struct {
 	Reporter    ui.Reporter
 }
 
-// Run starts the development HTTP server.
-func Run(opts ServerOptions) {
-	ctx := opts.Ctx
-	args := opts.Args
-	outputDir := opts.OutputDir
-	baseURL := opts.BaseURL
-	buildCfg := opts.BuildConfig
-	reporter := opts.Reporter
+type serveConfig struct {
+	addr             string
+	host             string
+	staticDir        string
+	shutdownTimeout  time.Duration
+	debounceDuration time.Duration
+}
 
+func parseServeFlags(args []string) (string, string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	host := fs.String("host", "localhost", "The host/IP to bind to")
 	port := fs.String("port", "2604", "The port to listen on")
@@ -100,37 +100,101 @@ func Run(opts ServerOptions) {
 	_ = fs.Bool("compress", false, "Enable compression (handled by builder)")
 
 	_ = fs.Parse(args)
+	return *host, *port
+}
 
-	addr := fmt.Sprintf("%s:%s", *host, *port)
-
-	_ = mime.AddExtensionType(".wasm", "application/wasm")
-	_ = mime.AddExtensionType(".bin", "application/octet-stream")
-
-	staticDir := outputDir
-	if staticDir == "" {
-		staticDir = "./public"
+func resolveStaticDir(outputDir string) string {
+	if outputDir == "" {
+		return "./public"
 	}
+	return outputDir
+}
 
-	// Get shutdown timeout from build config
-	shutdownTimeout := defaultShutdownTimeout
-	if buildCfg != nil {
-		shutdownTimeout = buildCfg.ShutdownTimeout
+func resolveShutdownTimeout(buildCfg *config.BuildConfig) time.Duration {
+	if buildCfg == nil {
+		return defaultShutdownTimeout
 	}
+	return buildCfg.ShutdownTimeout
+}
 
-	debounceDuration := defaultDebounceDuration
-	if buildCfg != nil {
-		debounceDuration = buildCfg.DebounceDuration
+func resolveDebounceDuration(buildCfg *config.BuildConfig) time.Duration {
+	if buildCfg == nil {
+		return defaultDebounceDuration
 	}
+	return buildCfg.DebounceDuration
+}
 
-	reloadEvents := startWatcherWithConfig(staticDir, debounceDuration)
-	defer stopWatcher()
-
+func startWatcher(ctx context.Context, staticDir string, debounce time.Duration) <-chan struct{} {
+	reloadEvents := startWatcherWithConfig(staticDir, debounce)
 	async.FireAndForget(ctx, slog.Default(), "server watcher shutdown", func() error {
 		<-ctx.Done()
 		orchestration.DevLogInfo("Shutting down server...")
 		stopWatcher()
 		return nil
 	})
+	return reloadEvents
+}
+
+func startReloadBroadcast(ctx context.Context, reloadEvents <-chan struct{}) {
+	if reloadEvents == nil {
+		return
+	}
+	async.FireAndForget(ctx, slog.Default(), "reload broadcast", func() error {
+		broadcastReload(reloadEvents)
+		return nil
+	})
+}
+
+func buildServeConfig(opts ServerOptions, host, port string) serveConfig {
+	return serveConfig{
+		addr:             fmt.Sprintf("%s:%s", host, port),
+		host:             host,
+		staticDir:        resolveStaticDir(opts.OutputDir),
+		shutdownTimeout:  resolveShutdownTimeout(opts.BuildConfig),
+		debounceDuration: resolveDebounceDuration(opts.BuildConfig),
+	}
+}
+
+func registerServerShutdown(ctx context.Context, httpServer *http.Server, timeout time.Duration) {
+	async.FireAndForget(ctx, slog.Default(), "http server shutdown", func() error {
+		<-ctx.Done()
+		orchestration.DevLogInfo("Shutting down HTTP server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			slog.Error("HTTP server shutdown error", "error", err)
+		}
+		return nil
+	})
+}
+
+func logServeStatus(reporter ui.Reporter, addr, host string) {
+	if reporter != nil {
+		reporter.Status("Live Preview: http://" + addr)
+	} else {
+		orchestration.DevLogInfo("Serving on http://" + addr)
+	}
+	if host == "0.0.0.0" {
+		orchestration.DevLogInfo("Accessible on your local network")
+	}
+	orchestration.DevLogInfo("Auto-reload enabled via /events")
+}
+
+// Run starts the development HTTP server.
+func Run(opts ServerOptions) {
+	ctx := opts.Ctx
+	args := opts.Args
+	baseURL := opts.BaseURL
+	reporter := opts.Reporter
+
+	host, port := parseServeFlags(args)
+	cfg := buildServeConfig(opts, host, port)
+
+	_ = mime.AddExtensionType(".wasm", "application/wasm")
+	_ = mime.AddExtensionType(".bin", "application/octet-stream")
+
+	reloadEvents := startWatcher(ctx, cfg.staticDir, cfg.debounceDuration)
+	defer stopWatcher()
 
 	mux := http.NewServeMux()
 
@@ -145,7 +209,7 @@ func Run(opts ServerOptions) {
 		normalizedPath := normalizeRequestPath(rawPath, baseURL)
 		r.URL.Path = normalizedPath
 
-		fullPath, err := validatePath(staticDir, normalizedPath)
+		fullPath, err := validatePath(cfg.staticDir, normalizedPath)
 		if err != nil {
 			renderError(w, http.StatusForbidden, "403 - Forbidden: Invalid path")
 			return
@@ -154,46 +218,22 @@ func Run(opts ServerOptions) {
 		handleFileRequest(fileRequestOptions{
 			writer:         w,
 			request:        r,
-			staticDir:      staticDir,
+			staticDir:      cfg.staticDir,
 			fullPath:       fullPath,
 			normalizedPath: normalizedPath,
 		})
 	})
 
-	if reloadEvents != nil {
-		async.FireAndForget(ctx, slog.Default(), "reload broadcast", func() error {
-			broadcastReload(reloadEvents)
-			return nil
-		})
-	}
+	startReloadBroadcast(ctx, reloadEvents)
 
 	httpServer := &http.Server{
-		Addr:    addr,
+		Addr:    cfg.addr,
 		Handler: loggingMiddleware(recoveryMiddleware(mux)),
 	}
 
-	async.FireAndForget(ctx, slog.Default(), "http server shutdown", func() error {
-		<-ctx.Done()
-		orchestration.DevLogInfo("Shutting down HTTP server...")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			slog.Error("HTTP server shutdown error", "error", err)
-		}
-		return nil
-	})
+	registerServerShutdown(ctx, httpServer, cfg.shutdownTimeout)
 
-	if reporter != nil {
-		reporter.Status("Live Preview: http://" + addr)
-	} else {
-		orchestration.DevLogInfo("Serving on http://" + addr)
-	}
-
-	if *host == "0.0.0.0" {
-		orchestration.DevLogInfo("Accessible on your local network")
-	}
-
-	orchestration.DevLogInfo("Auto-reload enabled via /events")
+	logServeStatus(reporter, cfg.addr, cfg.host)
 
 	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 		slog.Error("HTTP server error", "error", err)

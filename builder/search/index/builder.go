@@ -24,57 +24,42 @@ const (
 	decimalBase     = 10
 )
 
-// Build constructs an in-memory search index from a list of indexed posts.
-func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
-	totalDocs := len(indexedPosts)
+type partialResult struct {
+	posts    map[string]models.PostRecord
+	inverted map[string]map[string][]uint32
+	offsets  map[string]map[string][]uint32
+	docLens  map[string]int64
+	stemMap  map[string]map[string]bool
+	totalLen int64
+}
 
-	if totalDocs == 0 {
-		return &models.SearchIndex{
-			SchemaVersion: models.CurrentSchemaVersion,
-			Posts:         make(map[string]models.PostRecord),
-			Inverted:      make(map[string]map[string][]uint32),
-			DocLens:       make(map[string]int64),
-			StemMap:       make(map[string][]string),
-			TotalDocs:     0,
-			Offsets:       make(map[string]map[string][]uint32),
-			AvgDocLen:     0,
-		}
+func emptySearchIndex() *models.SearchIndex {
+	return &models.SearchIndex{
+		SchemaVersion: models.CurrentSchemaVersion,
+		Posts:         make(map[string]models.PostRecord),
+		Inverted:      make(map[string]map[string][]uint32),
+		DocLens:       make(map[string]int64),
+		StemMap:       make(map[string][]string),
+		TotalDocs:     0,
+		Offsets:       make(map[string]map[string][]uint32),
+		AvgDocLen:     0,
 	}
+}
 
-	numWorkers := min(runtime.NumCPU(), maxIndexWorkers)
-
+func computeGlobalCap(indexedPosts []models.IndexedPost) int {
 	totalUniqueWordsEst := 0
 	for _, ip := range indexedPosts {
 		totalUniqueWordsEst += len(ip.PositionalIndex)
 	}
+	return max(int(float64(totalUniqueWordsEst)*globalCapScale), minGlobalCap)
+}
 
-	globalCap := max(int(float64(totalUniqueWordsEst)*globalCapScale), minGlobalCap)
-
-	index := &models.SearchIndex{
-		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         make(map[string]models.PostRecord, totalDocs),
-		Inverted:      make(map[string]map[string][]uint32, globalCap),
-		DocLens:       make(map[string]int64, totalDocs),
-		StemMap:       make(map[string][]string, globalCap/2),
-		TotalDocs:     int64(totalDocs),
-		Offsets:       make(map[string]map[string][]uint32, globalCap),
-	}
-
-	var totalLen int64
-
-	type partialResult struct {
-		posts    map[string]models.PostRecord
-		inverted map[string]map[string][]uint32
-		offsets  map[string]map[string][]uint32
-		docLens  map[string]int64
-		stemMap  map[string]map[string]bool
-		totalLen int64
-	}
-
+func buildPartialResults(indexedPosts []models.IndexedPost, numWorkers int) []partialResult {
+	totalDocs := len(indexedPosts)
 	results := make([]partialResult, numWorkers)
 	var wg sync.WaitGroup
-
 	chunkSize := (totalDocs + numWorkers - 1) / numWorkers
+
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 		workerID := i
@@ -101,8 +86,7 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 
 				for j := start; j < end; j++ {
 					ip := indexedPosts[j]
-					id := ip.Record.ID
-					idStr := strconv.FormatUint(id, decimalBase)
+					idStr := strconv.FormatUint(ip.Record.ID, decimalBase)
 					localPosts[idStr] = ip.Record
 					localDocLens[idStr] = int64(ip.DocLen)
 					localTotalLen += int64(ip.DocLen)
@@ -142,7 +126,11 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 		})
 	}
 	wg.Wait()
+	return results
+}
 
+func mergePartialResults(index *models.SearchIndex, results []partialResult) int64 {
+	var totalLen int64
 	for _, r := range results {
 		totalLen += r.totalLen
 		maps.Copy(index.Posts, r.posts)
@@ -162,11 +150,10 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 			}
 		}
 	}
+	return totalLen
+}
 
-	if index.TotalDocs > 0 {
-		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
-	}
-
+func buildStemOrigins(results []partialResult, globalCap int) map[string][]string {
 	stemMapCap := max(globalCap/2, minStemMapCap)
 	stemMap := make(map[string]map[string]bool, stemMapCap)
 	for _, r := range results {
@@ -181,13 +168,46 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 		}
 	}
 
+	flattened := make(map[string][]string, len(stemMap))
 	for stem, originMap := range stemMap {
 		origins := make([]string, 0, len(originMap))
 		for origin := range originMap {
 			origins = append(origins, origin)
 		}
-		index.StemMap[stem] = origins
+		flattened[stem] = origins
 	}
+	return flattened
+}
+
+// Build constructs an in-memory search index from a list of indexed posts.
+func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
+	totalDocs := len(indexedPosts)
+
+	if totalDocs == 0 {
+		return emptySearchIndex()
+	}
+
+	numWorkers := min(runtime.NumCPU(), maxIndexWorkers)
+
+	globalCap := computeGlobalCap(indexedPosts)
+
+	index := &models.SearchIndex{
+		SchemaVersion: models.CurrentSchemaVersion,
+		Posts:         make(map[string]models.PostRecord, totalDocs),
+		Inverted:      make(map[string]map[string][]uint32, globalCap),
+		DocLens:       make(map[string]int64, totalDocs),
+		StemMap:       make(map[string][]string, globalCap/2),
+		TotalDocs:     int64(totalDocs),
+		Offsets:       make(map[string]map[string][]uint32, globalCap),
+	}
+
+	results := buildPartialResults(indexedPosts, numWorkers)
+	totalLen := mergePartialResults(index, results)
+	if index.TotalDocs > 0 {
+		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
+	}
+
+	index.StemMap = buildStemOrigins(results, globalCap)
 
 	index.NgramIndex = core.BuildNgramIndex(index.Inverted)
 	return index

@@ -24,82 +24,65 @@ type d2BlockInfo struct {
 	hash string
 }
 
-func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Context, toReplace *[]replacement) {
-	results := make([]models.SSRThemePair, len(d2Blocks))
-	var wg sync.WaitGroup
-	ctx := GetContext(pc)
-
-	// Optimized: Deduplicate hashes locally before launching goroutines
-	// This avoids launching goroutines that immediately block on singleflight
-	// Map from hash to first index where it appears
+func dedupeD2Blocks(d2Blocks []d2BlockInfo) map[string]int {
 	hashToFirstIndex := make(map[string]int)
 	for i, block := range d2Blocks {
 		if _, exists := hashToFirstIndex[block.hash]; !exists {
 			hashToFirstIndex[block.hash] = i
 		}
 	}
+	return hashToFirstIndex
+}
 
-	// Only launch goroutines for unique hashes
-	for _, firstIdx := range hashToFirstIndex {
-		idx := firstIdx
-		wg.Add(1)
-		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       ctx,
-			Logger:    slog.Default(),
-			Operation: "d2 render block",
-			Fn: func() error {
-				b := d2Blocks[idx]
-				key := "d2:" + b.hash
-				pairVal, exists := t.Cache.Load(key)
-				if exists {
-					if pair, ok := pairVal.(models.SSRThemePair); ok {
-						results[idx] = pair
-						return nil
-					}
-				}
-				if t.Renderer == nil {
-					return nil
-				}
-
-				if t.D2Group != nil {
-					v, err, _ := t.D2Group.Do(b.hash, func() (any, error) {
-						if pairVal, exists := t.Cache.Load(key); exists {
-							if pair, ok := pairVal.(models.SSRThemePair); ok {
-								return pair, nil
-							}
-						}
-						lightSVG, err := t.Renderer.RenderD2(ctx, b.code, d2LightTheme)
-						if err != nil {
-							if !errors.Is(err, context.Canceled) {
-								slog.Warn("D2 light render failed", "error", err)
-							}
-							return models.SSRThemePair{}, err
-						}
-						darkSVG, err := t.Renderer.RenderD2(ctx, b.code, d2DarkTheme)
-						if err != nil {
-							if !errors.Is(err, context.Canceled) {
-								slog.Warn("D2 dark render failed", "error", err)
-							}
-							return models.SSRThemePair{}, err
-						}
-						pair := models.SSRThemePair{Light: lightSVG, Dark: darkSVG}
-						t.Cache.Store(key, pair)
-						return pair, nil
-					})
-					if err == nil {
-						if pair, ok := v.(models.SSRThemePair); ok {
-							results[idx] = pair
-						}
-					}
-				}
-				return nil
-			},
-			Cleanup: wg.Done,
-		})
+func (t *unifiedTransformer) renderD2Block(ctx context.Context, b d2BlockInfo) (models.SSRThemePair, error) {
+	key := "d2:" + b.hash
+	if pairVal, exists := t.Cache.Load(key); exists {
+		if pair, ok := pairVal.(models.SSRThemePair); ok {
+			return pair, nil
+		}
 	}
-	wg.Wait()
+	if t.Renderer == nil {
+		return models.SSRThemePair{}, nil
+	}
 
-	// Copy results from first occurrence to all duplicates
+	if t.D2Group == nil {
+		return models.SSRThemePair{}, nil
+	}
+
+	v, err, _ := t.D2Group.Do(b.hash, func() (any, error) {
+		if pairVal, exists := t.Cache.Load(key); exists {
+			if pair, ok := pairVal.(models.SSRThemePair); ok {
+				return pair, nil
+			}
+		}
+		lightSVG, err := t.Renderer.RenderD2(ctx, b.code, d2LightTheme)
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				slog.Warn("D2 light render failed", "error", err)
+			}
+			return models.SSRThemePair{}, err
+		}
+		darkSVG, err := t.Renderer.RenderD2(ctx, b.code, d2DarkTheme)
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				slog.Warn("D2 dark render failed", "error", err)
+			}
+			return models.SSRThemePair{}, err
+		}
+		pair := models.SSRThemePair{Light: lightSVG, Dark: darkSVG}
+		t.Cache.Store(key, pair)
+		return pair, nil
+	})
+	if err != nil {
+		return models.SSRThemePair{}, err
+	}
+	if pair, ok := v.(models.SSRThemePair); ok {
+		return pair, nil
+	}
+	return models.SSRThemePair{}, nil
+}
+
+func copyD2ResultsForDuplicates(d2Blocks []d2BlockInfo, hashToFirstIndex map[string]int, results []models.SSRThemePair) {
 	for hash, firstIdx := range hashToFirstIndex {
 		result := results[firstIdx]
 		for i, block := range d2Blocks {
@@ -108,7 +91,9 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 			}
 		}
 	}
+}
 
+func appendD2Replacements(d2Blocks []d2BlockInfo, results []models.SSRThemePair, toReplace *[]replacement) {
 	for i, block := range d2Blocks {
 		pair := results[i]
 		if pair.Light == "" && pair.Dark == "" {
@@ -127,4 +112,40 @@ func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Co
 		pools.SharedBufferPool.Put(buf)
 		*toReplace = append(*toReplace, replacement{old: block.node, new: rawNode})
 	}
+}
+
+func (t *unifiedTransformer) renderD2Blocks(d2Blocks []d2BlockInfo, pc parser.Context, toReplace *[]replacement) {
+	results := make([]models.SSRThemePair, len(d2Blocks))
+	var wg sync.WaitGroup
+	ctx := GetContext(pc)
+
+	// Optimized: Deduplicate hashes locally before launching goroutines
+	// This avoids launching goroutines that immediately block on singleflight
+	// Map from hash to first index where it appears
+	hashToFirstIndex := dedupeD2Blocks(d2Blocks)
+
+	// Only launch goroutines for unique hashes
+	for _, firstIdx := range hashToFirstIndex {
+		idx := firstIdx
+		wg.Add(1)
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    slog.Default(),
+			Operation: "d2 render block",
+			Fn: func() error {
+				b := d2Blocks[idx]
+				pair, err := t.renderD2Block(ctx, b)
+				if err == nil {
+					results[idx] = pair
+				}
+				return nil
+			},
+			Cleanup: wg.Done,
+		})
+	}
+	wg.Wait()
+
+	// Copy results from first occurrence to all duplicates
+	copyD2ResultsForDuplicates(d2Blocks, hashToFirstIndex, results)
+	appendD2Replacements(d2Blocks, results, toReplace)
 }

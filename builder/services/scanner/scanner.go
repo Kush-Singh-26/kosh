@@ -3,6 +3,7 @@ package scanner
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -139,8 +140,8 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 	}
 	buf := make([]byte, scanBufferSize)
 	n, err := io.ReadFull(file, buf)
-	file.Close()
-	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+	_ = file.Close()
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return models.ScannedFile{}, err
 	}
 	data := buf[:n]

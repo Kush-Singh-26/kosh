@@ -1,6 +1,7 @@
 package post
 
 import (
+	"context"
 	"strings"
 
 	"github.com/zeebo/xxh3"
@@ -10,15 +11,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
-func (s *postService) parseWorkerTaskLocal(f models.ScannedFile, wCtx WorkerContext, local *workerLocalState) {
-	path := f.Path
-	relPath := f.RelPath
-
-	htmlRelPath, _, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath)
-
-	// 1. Check Cache
-	cachedMeta, useCache := s.checkCache(relPath, f, wCtx.ShouldForce)
-
+func (s *postService) loadCachedPost(relPath, htmlRelPath string, f models.ScannedFile, cachedMeta *models.PostMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
 	var parseRes *ParsedMarkdownResult
 	var htmlContent string
 	var finalSSRHashes []string
@@ -33,69 +26,98 @@ func (s *postService) parseWorkerTaskLocal(f models.ScannedFile, wCtx WorkerCont
 		}
 	}
 
-	// 2. Math processing from cache (only if we have cached HTML content)
 	if useCache && htmlContent != "" && len(parseRes.MathExpressions) > 0 {
 		var mathOk bool
 		htmlContent, mathOk = s.processCachedMath(htmlContent, parseRes.MathExpressions)
 		useCache = useCache && mathOk
 	}
 
-	// 3. Full Parse if needed
-	var sourceBytes []byte
-	var err error
+	return parseRes, htmlContent, finalSSRHashes, useCache
+}
 
-	if !useCache || s.cfg.Features.RawMarkdown {
-		if f.SourceLoader != nil {
-			sourceBytes, err = f.SourceLoader()
-			if err != nil {
-				s.logger.Error("Failed to load source", "path", path, "error", err)
-				local.errs = append(local.errs, err)
-				return
-			}
-		}
+func (s *postService) loadSourceIfNeeded(f models.ScannedFile, useCache bool) ([]byte, error) {
+	if useCache && !s.cfg.Features.RawMarkdown {
+		return nil, nil
+	}
+	if f.SourceLoader == nil {
+		return nil, nil
+	}
+	return f.SourceLoader()
+}
+
+func (s *postService) parseIfNeeded(ctx context.Context, f models.ScannedFile, cachedMeta *models.PostMeta, htmlRelPath string, sourceBytes []byte, useCache bool) (*ParsedMarkdownResult, string, []string, bool, error) {
+	if useCache {
+		return nil, "", nil, true, nil
+	}
+
+	if s.metrics != nil {
+		s.metrics.IncrementCacheMiss()
+	}
+
+	readingTime := f.ReadingTime
+	if cachedMeta != nil && cachedMeta.BodyHash == f.BodyHash && cachedMeta.ReadingTime > 0 {
+		readingTime = cachedMeta.ReadingTime
+	}
+
+	parseRes, err := ParseMarkdown(ParseOptions{
+		Path:                 f.Path,
+		RelPath:              f.RelPath,
+		Source:               sourceBytes,
+		Info:                 f.Info,
+		Renderer:             s.renderer,
+		NativeRenderer:       s.nativeRenderer,
+		MdPool:               s.mdPool,
+		DiagramAdapter:       s.diagramAdapter,
+		Metrics:              s.metrics,
+		Cfg:                  s.cfg,
+		CleanHtmlRelPath:     htmlRelPath,
+		HtmlRelPath:          htmlRelPath,
+		KnownFrontmatterHash: f.FrontmatterHash,
+		KnownReadingTime:     readingTime,
+		BodyOffset:           f.BodyOffset,
+		PreParsedMeta:        f.PreParsedMeta,
+	})
+	if err != nil {
+		return nil, "", nil, false, err
+	}
+
+	if parseRes.Post.Title == "" {
+		parseRes.Post.Title = f.Title
+	}
+
+	htmlContent := s.renderMath(ctx, f.Path, parseRes)
+	finalSSRHashes := parseRes.SSRHashes
+	return parseRes, htmlContent, finalSSRHashes, false, nil
+}
+
+func (s *postService) parseWorkerTaskLocal(f models.ScannedFile, wCtx WorkerContext, local *workerLocalState) {
+	path := f.Path
+	relPath := f.RelPath
+
+	htmlRelPath, _, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath)
+
+	// 1. Check Cache
+	cachedMeta, useCache := s.checkCache(relPath, f, wCtx.ShouldForce)
+
+	parseRes, htmlContent, finalSSRHashes, useCache := s.loadCachedPost(relPath, htmlRelPath, f, cachedMeta, useCache)
+
+	// 3. Full Parse if needed
+	sourceBytes, err := s.loadSourceIfNeeded(f, useCache)
+	if err != nil {
+		s.logger.Error("Failed to load source", "path", path, "error", err)
+		local.errs = append(local.errs, err)
+		return
 	}
 
 	if !useCache {
-		if s.metrics != nil {
-			s.metrics.IncrementCacheMiss()
-		}
-
-		readingTime := f.ReadingTime
-		if cachedMeta != nil && cachedMeta.BodyHash == f.BodyHash && cachedMeta.ReadingTime > 0 {
-			readingTime = cachedMeta.ReadingTime
-		}
-
-		parseRes, err = ParseMarkdown(ParseOptions{
-			Path:                 path,
-			RelPath:              relPath,
-			Source:               sourceBytes,
-			Info:                 f.Info,
-			Renderer:             s.renderer,
-			NativeRenderer:       s.nativeRenderer,
-			MdPool:               s.mdPool,
-			DiagramAdapter:       s.diagramAdapter,
-			Metrics:              s.metrics,
-			Cfg:                  s.cfg,
-			CleanHtmlRelPath:     htmlRelPath,
-			HtmlRelPath:          htmlRelPath,
-			KnownFrontmatterHash: f.FrontmatterHash,
-			KnownReadingTime:     readingTime,
-			BodyOffset:           f.BodyOffset,
-			PreParsedMeta:        f.PreParsedMeta,
-		})
-		if err != nil {
-			s.logger.Error("Failed to parse markdown", "path", path, "error", err)
-			local.errs = append(local.errs, err)
+		var parseErr error
+		parseRes, htmlContent, finalSSRHashes, useCache, parseErr = s.parseIfNeeded(wCtx.Ctx, f, cachedMeta, htmlRelPath, sourceBytes, useCache)
+		if parseErr != nil {
+			s.logger.Error("Failed to parse markdown", "path", path, "error", parseErr)
+			local.errs = append(local.errs, parseErr)
 			return
 		}
 		local.anyChanged = true
-
-		if parseRes.Post.Title == "" {
-			parseRes.Post.Title = f.Title
-		}
-
-		htmlContent = s.renderMath(wCtx.Ctx, path, parseRes)
-		finalSSRHashes = parseRes.SSRHashes
 	}
 
 	post := parseRes.Post

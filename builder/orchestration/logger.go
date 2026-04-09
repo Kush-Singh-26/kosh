@@ -13,18 +13,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
-const (
-	cyan   = "\033[36m"
-	green  = "\033[32m"
-	yellow = "\033[33m"
-	red    = "\033[31m"
-	dim    = "\033[90m"
-	reset  = "\033[0m"
-	bold   = "\033[1m"
-)
-
-var devTimeFormat = "15:04:05"
-
 var rebuildLevel = slog.Level(slog.LevelWarn + 1)
 
 // DevLogChange logs a file change event in dev mode.

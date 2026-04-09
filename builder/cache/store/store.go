@@ -166,9 +166,9 @@ func (s *Store) getDirMutex(path string) *sync.Mutex {
 }
 
 // Put stores content and returns its hash and compression type.
-func (s *Store) Put(category string, content []byte) (hash string, ct core.CompressionType, err error) {
-	hash = core.HashContent(content)
-	ct = determineCompression(len(content))
+func (s *Store) Put(category string, content []byte) (string, core.CompressionType, error) {
+	hash := core.HashContent(content)
+	ct := determineCompression(len(content))
 
 	path := s.shardPath(category, hash) + extension(ct)
 

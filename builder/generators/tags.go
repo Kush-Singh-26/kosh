@@ -49,24 +49,28 @@ type TagOptions struct {
 	LogoPath           string
 }
 
-// RenderTags orchestrates the generation of tag index and individual tag pages.
-func RenderTags(opts TagOptions) error {
+// BuildAllTags builds a list of TagData from a tag map.
+func BuildAllTags(tagMap map[string][]models.PostMetadata) []models.TagData {
+	allTags := make([]models.TagData, 0, len(tagMap))
+	for t, posts := range tagMap {
+		slug := timeutil.Slugify(t)
+		allTags = append(allTags, models.TagData{
+			Name:  t,
+			Count: len(posts),
+			Link:  fmt.Sprintf("/tags/%s.html", slug),
+		})
+	}
+	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
+	return allTags
+}
+
+func startTagCardPool(opts TagOptions, workers int) *async.WorkerPool[TagSocialCardTask] {
 	cfg := opts.Cfg
 	sink := opts.Sink
 	render := opts.Render
 
-	var allTags []models.TagData
-	for t, posts := range opts.TagMap {
-		slug := timeutil.Slugify(t)
-		allTags = append(allTags, models.TagData{Name: t, Count: len(posts), Link: fmt.Sprintf("/tags/%s.html", slug)})
-	}
-	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
-
-	workers := BoundedTagSocialCardWorkers()
-	tagCardsTimer := timeutil.StartPhase("Tags social cards")
-	tagCardPool := async.NewWorkerPool(opts.Ctx, workers, func(task TagSocialCardTask) error {
+	pool := async.NewWorkerPool(opts.Ctx, workers, func(task TagSocialCardTask) error {
 		tagCard := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/tags/%s.webp", task.Slug))
-
 		ProvideSocialCard(ProvideSocialCardOptions{
 			Sink:        sink,
 			Cache:       opts.Cache,
@@ -86,9 +90,15 @@ func RenderTags(opts TagOptions) error {
 		})
 		return nil
 	})
-	tagCardPool.Start()
+	pool.Start()
+	return pool
+}
 
-	tagsDesc := fmt.Sprintf("Browse all %d topics", len(opts.TagMap))
+func ensureTagsIndexCard(opts TagOptions, tagsDesc string) {
+	cfg := opts.Cfg
+	sink := opts.Sink
+	render := opts.Render
+
 	tagsIndexHash := SocialCardHash("All Topics", tagsDesc)
 	tagsIndexCache := filepath.Join(cfg.CacheDir, "social-cards", tagsIndexHash+".webp")
 	tagsIndexCard := filepath.Join(cfg.OutputDir, "static/images/cards/tags/index.webp")
@@ -117,18 +127,18 @@ func RenderTags(opts TagOptions) error {
 			Render:      render,
 			LogoPath:    opts.LogoPath,
 		})
-	} else {
-		// Use file reading helper if needed, or just standard os.ReadFile
-		if data, err := afero.ReadFile(afero.NewOsFs(), tagsIndexCache); err == nil {
-			buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(tagsIndexCard)), "create tags index card dir")
-			buildCtx.IgnoreError(sink.WriteFile(tagsIndexCard, data), "write cached tags index card")
-			render.RegisterFile(tagsIndexCard)
-		}
+		return
 	}
 
-	// Generate Tags Index
-	tagRenderTimer := timeutil.StartPhase("Tags HTML rendering")
-	if err := render.RenderPage(filepath.Join(cfg.OutputDir, "tags/index.html"), models.PageData{
+	if data, err := afero.ReadFile(afero.NewOsFs(), tagsIndexCache); err == nil {
+		buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(tagsIndexCard)), "create tags index card dir")
+		buildCtx.IgnoreError(sink.WriteFile(tagsIndexCard, data), "write cached tags index card")
+		render.RegisterFile(tagsIndexCard)
+	}
+}
+
+func renderTagsIndex(cfg *config.Config, render models.RenderService, allTags []models.TagData) error {
+	return render.RenderPage(filepath.Join(cfg.OutputDir, "tags/index.html"), models.PageData{
 		Title: "All Tags", IsTagsIndex: true, AllTags: allTags,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 		Permalink: cfg.BaseURL + "/tags/index.html",
@@ -136,7 +146,50 @@ func RenderTags(opts TagOptions) error {
 		TabTitle:  "All Topics | " + cfg.Title, Config: cfg,
 		Weight:         0,
 		RelativePrefix: "../",
-	}); err != nil {
+	})
+}
+
+func renderTagPage(cfg *config.Config, render models.RenderService, tagName, slug string, posts []models.PostMetadata) error {
+	timeutil.SortPosts(posts)
+	return render.RenderPage(filepath.Join(cfg.OutputDir, fmt.Sprintf("tags/%s.html", slug)), models.PageData{
+		Title: "#" + tagName, IsIndex: true, Posts: posts,
+		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
+		Permalink: fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, slug),
+		Image:     fmt.Sprintf("%s/static/images/cards/tags/%s.webp", cfg.BaseURL, slug),
+		TabTitle:  "#" + tagName + " | " + cfg.Title, Config: cfg,
+		Weight:         0,
+		RelativePrefix: "../",
+	})
+}
+
+func stopTagCardPool(pool *async.WorkerPool[TagSocialCardTask], timer *timeutil.PhaseTimer) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Debug("Tag card pool stop recovered", "panic", r)
+		}
+	}()
+	buildCtx.IgnoreError(pool.Stop(), "stop tag card pool")
+	timer.Stop()
+}
+
+// RenderTags orchestrates the generation of tag index and individual tag pages.
+func RenderTags(opts TagOptions) error {
+	cfg := opts.Cfg
+	sink := opts.Sink
+	render := opts.Render
+
+	allTags := BuildAllTags(opts.TagMap)
+
+	workers := BoundedTagSocialCardWorkers()
+	tagCardsTimer := timeutil.StartPhase("Tags social cards")
+	tagCardPool := startTagCardPool(opts, workers)
+
+	tagsDesc := fmt.Sprintf("Browse all %d topics", len(opts.TagMap))
+	ensureTagsIndexCard(opts, tagsDesc)
+
+	// Generate Tags Index
+	tagRenderTimer := timeutil.StartPhase("Tags HTML rendering")
+	if err := renderTagsIndex(cfg, render, allTags); err != nil {
 		return fmt.Errorf("failed to render tags index: %w", err)
 	}
 
@@ -168,16 +221,7 @@ func RenderTags(opts TagOptions) error {
 		}
 
 		g.Go(func() error {
-			timeutil.SortPosts(tagPosts)
-			if err := render.RenderPage(filepath.Join(cfg.OutputDir, fmt.Sprintf("tags/%s.html", slug)), models.PageData{
-				Title: "#" + tagName, IsIndex: true, Posts: tagPosts,
-				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
-				Permalink: fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, slug),
-				Image:     fmt.Sprintf("%s/static/images/cards/tags/%s.webp", cfg.BaseURL, slug),
-				TabTitle:  "#" + tagName + " | " + cfg.Title, Config: cfg,
-				Weight:         0,
-				RelativePrefix: "../",
-			}); err != nil {
+			if err := renderTagPage(cfg, render, tagName, slug, tagPosts); err != nil {
 				return fmt.Errorf("failed to render tag page %s: %w", slug, err)
 			}
 			return nil
@@ -186,15 +230,7 @@ func RenderTags(opts TagOptions) error {
 	err := g.Wait()
 	tagRenderTimer.Stop()
 
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Debug("Tag card pool stop recovered", "panic", r)
-			}
-		}()
-		buildCtx.IgnoreError(tagCardPool.Stop(), "stop tag card pool")
-		tagCardsTimer.Stop()
-	}()
+	stopTagCardPool(tagCardPool, tagCardsTimer)
 
 	return err
 }
