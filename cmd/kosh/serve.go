@@ -77,7 +77,9 @@ func runServe(cmd *cobra.Command, args []string) {
 			b.SetReporter(reporter)
 			reporter.Start("Live Preview")
 		}
-		b.SetDevMode(true)
+		b.OnBuildStart = func() { server.SetBuildActive(true) }
+		b.OnBuildDone = func() { server.SetBuildActive(false) }
+
 		if err := b.Build(ctx); err != nil {
 			orchestration.DevLogError("Build failed: " + err.Error())
 			os.Exit(1)
@@ -105,9 +107,7 @@ func runServe(cmd *cobra.Command, args []string) {
 
 			w, err := watch.New(watchDirs, func(event watch.Event) {
 				orchestration.DevLogChange(event.Name, "watch")
-				server.SetBuildActive(true)
 				b.BuildChanged(ctx, event.Name, event.Op)
-				server.SetBuildActive(false)
 			})
 			if err != nil {
 				orchestration.DevLogError("Watcher failed: " + err.Error())

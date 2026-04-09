@@ -51,6 +51,7 @@ type SiteBuilder interface {
 	GetPost() post.Service
 	LockBuild()
 	UnlockBuild()
+	RenderSiteWide(ctx context.Context, cb *post.MetadataContext) error
 }
 
 // SearchManager provides hooks for search index updates during incremental builds.
@@ -256,6 +257,12 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 		} else {
 			if m.search != nil {
 				m.search.UpdateIndexedPostCache(relPath, parseRes)
+			}
+			metadataCtx, err := m.builder.GetPost().GetMetadataContext(ctx)
+			if err != nil {
+				m.logger.Warn("Failed to retrieve metadata context for site-wide rendering", "error", err)
+			} else if err := m.builder.RenderSiteWide(ctx, metadataCtx); err != nil {
+				m.logger.Warn("Failed to update site-wide assets during incremental build", "error", err)
 			}
 		}
 

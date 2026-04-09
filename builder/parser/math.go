@@ -2,6 +2,8 @@ package parser
 
 import (
 	"context"
+	"fmt"
+	"html"
 	"log/slog"
 	"strings"
 
@@ -14,30 +16,32 @@ import (
 var mathExpressionsKey = parser.NewContextKey()
 
 // ReplaceMathExpressions replaces LaTeX placeholders in HTML with rendered output.
-func ReplaceMathExpressions(html string, expressions []models.MathExpression, rendered map[string]string) string {
+func ReplaceMathExpressions(htmlContent string, expressions []models.MathExpression, rendered map[string]string) string {
 	if len(expressions) == 0 {
-		return html
+		return htmlContent
 	}
 
 	replacements := make([]string, 0, len(expressions)*2)
 	for _, expr := range expressions {
 		if renderedHTML, ok := rendered[expr.Hash]; ok {
 			placeholder := "<!--KOSH_MATH:" + expr.Hash + "-->"
+			escapedLatex := html.EscapeString(expr.LaTeX)
+			copyBtn := `<button class="katex-copy-btn" aria-label="Copy LaTeX">Copy</button>`
 			var replacement string
 			if expr.DisplayMode {
-				replacement = `<div class="katex-display">` + renderedHTML + `</div>`
+				replacement = fmt.Sprintf(`<div class="katex-display" data-latex="%s">%s%s</div>`, escapedLatex, copyBtn, renderedHTML)
 			} else {
-				replacement = `<span class="katex-inline">` + renderedHTML + `</span>`
+				replacement = fmt.Sprintf(`<span class="katex-inline" data-latex="%s">%s%s</span>`, escapedLatex, copyBtn, renderedHTML)
 			}
 			replacements = append(replacements, placeholder, replacement)
 		}
 	}
 
 	if len(replacements) == 0 {
-		return html
+		return htmlContent
 	}
 
-	return strings.NewReplacer(replacements...).Replace(html)
+	return strings.NewReplacer(replacements...).Replace(htmlContent)
 }
 
 // RenderMathOptions configures RenderMathForHTML.

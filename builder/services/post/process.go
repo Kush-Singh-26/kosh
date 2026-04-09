@@ -16,6 +16,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 )
 
 const (
@@ -222,6 +223,61 @@ func (s *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 		AllPosts: pc.allPosts, PinnedPosts: pc.pinnedPosts, TagMap: pc.tagMap,
 		AllTags:      nav.allTags,
 		IndexedPosts: pc.indexedPosts, AnyPostChanged: pc.anyPostChanged.Load(), Has404: false,
+	}, nil
+}
+
+// GetMetadataContext retrieves the full site metadata context from the post cache.
+func (s *postService) GetMetadataContext(ctx context.Context) (*MetadataContext, error) {
+	if s.cache == nil {
+		return &MetadataContext{}, nil
+	}
+
+	ids, err := s.cache.ListAllPosts()
+	if err != nil {
+		return nil, err
+	}
+
+	metas, err := s.cache.GetPostsByIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+
+	var allPosts []models.PostMetadata
+	pinnedPosts := make([]models.PostMetadata, 0)
+	tagMap := make(map[string][]models.PostMetadata)
+
+	for _, m := range metas {
+		if m.Draft && !s.cfg.IncludeDrafts {
+			continue
+		}
+		p := models.PostMetadata{
+			Title: m.Title, Link: m.Link, Description: m.Description,
+			Tags: m.Tags, Pinned: m.Pinned, Weight: m.Weight,
+			ReadingTime: m.ReadingTime, DateObj: m.Date,
+			Draft: m.Draft,
+		}
+		allPosts = append(allPosts, p)
+		if p.Pinned {
+			pinnedPosts = append(pinnedPosts, p)
+		}
+		for _, t := range p.Tags {
+			tagMap[t] = append(tagMap[t], p)
+		}
+	}
+
+	timeutil.SortPosts(allPosts)
+	timeutil.SortPosts(pinnedPosts)
+	for _, posts := range tagMap {
+		timeutil.SortPosts(posts)
+	}
+
+	allTags := generators.BuildAllTags(tagMap)
+
+	return &MetadataContext{
+		AllPosts:    allPosts,
+		PinnedPosts: pinnedPosts,
+		TagMap:      tagMap,
+		AllTags:     allTags,
 	}, nil
 }
 

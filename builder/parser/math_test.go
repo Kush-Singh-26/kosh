@@ -19,14 +19,14 @@ func TestReplaceMathExpressions(t *testing.T) {
 	}
 
 	result := ReplaceMathExpressions(html, expressions, rendered)
-
-	expected1 := `<span class="katex-inline"><span>RENDERED_INLINE</span></span>`
-	expected2 := `<div class="katex-display"><div>RENDERED_BLOCK</div></div>`
+	
+	expected1 := `<span class="katex-inline" data-latex="x+1=0"><button class="katex-copy-btn" aria-label="Copy LaTeX">Copy</button><span>RENDERED_INLINE</span></span>`
+	expected2 := `<div class="katex-display" data-latex="y^2=4"><button class="katex-copy-btn" aria-label="Copy LaTeX">Copy</button><div>RENDERED_BLOCK</div></div>`
 
 	if !strings.Contains(result, expected1) {
-		t.Errorf("Expected result to contain %q", expected1)
+		t.Errorf("Expected result to contain %q, but got %q", expected1, result)
 	}
 	if !strings.Contains(result, expected2) {
-		t.Errorf("Expected result to contain %q", expected2)
+		t.Errorf("Expected result to contain %q, but got %q", expected2, result)
 	}
 }

@@ -112,6 +112,10 @@ type Engine struct {
 
 	// Build coordination state
 	State EngineState
+
+	// Optional callbacks for build lifecycle synchronization
+	OnBuildStart func()
+	OnBuildDone  func()
 }
 
 // newEngineFromManual creates a builder with manual dependency injection (for testing/benchmarks).
@@ -484,6 +488,15 @@ func (b *Engine) GetPost() post.Service {
 // handleWatchChange is the callback invoked by WatchCoordinator when a debounced
 // file change batch is ready to process.
 func (b *Engine) handleWatchChange(evt watch.ChangeEvent) {
+	if b.OnBuildStart != nil {
+		b.OnBuildStart()
+	}
+	defer func() {
+		if b.OnBuildDone != nil {
+			b.OnBuildDone()
+		}
+	}()
+
 	if b.Incremental != nil {
 		b.Incremental.BuildSingleFileChange(context.Background(), evt.Path, evt.Op)
 	}

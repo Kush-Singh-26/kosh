@@ -240,3 +240,27 @@ func (b *Engine) renderSiteMetadata(opts MetadataRenderOptions) error {
 
 	return g.Wait()
 }
+
+// RenderSiteWide triggers a subset of site-wide generators suitable for incremental builds.
+// In dev mode, this focuses on pagination (index.html) to maintain consistency without
+// the overhead of full metadata (RSS/Sitemap) or PWA regeneration.
+func (b *Engine) RenderSiteWide(ctx context.Context, cb *post.MetadataContext) error {
+	if b.shouldSkipSiteWideRendering(cb, false) {
+		return nil
+	}
+
+	g, siteWideCtx := errgroup.WithContext(ctx)
+
+	// Always render pagination to ensure index.html consists of the latest post list/snippets.
+	g.Go(func() error {
+		return b.renderPagination(renderPaginationOptions{
+			ctx:         siteWideCtx,
+			allPosts:    cb.AllPosts,
+			pinnedPosts: cb.PinnedPosts,
+			force:       false,
+			allTags:     cb.AllTags,
+		})
+	})
+
+	return g.Wait()
+}

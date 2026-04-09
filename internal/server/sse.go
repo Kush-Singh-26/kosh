@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 )
 
 const (
@@ -57,7 +58,14 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 }
 
 func broadcastReload(ch <-chan struct{}) {
+	var lastReload time.Time
 	for range ch {
+		// Throttling: only reload once every 500ms to avoid refresh loops during rapid changes
+		if time.Since(lastReload) < 500*time.Millisecond {
+			continue
+		}
+		lastReload = time.Now()
+
 		// Wait for active build to complete before broadcasting
 		if waitCh := waitForBuild(); waitCh != nil {
 			<-waitCh

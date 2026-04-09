@@ -100,5 +100,6 @@ type Service interface {
 	ProcessStreaming(opts ProcessOptions) (*PostResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
+	GetMetadataContext(ctx context.Context) (*MetadataContext, error)
 	WaitForCacheCommit()
 }
