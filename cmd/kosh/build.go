@@ -49,7 +49,7 @@ func init() {
 }
 
 func runBuild(cmd *cobra.Command, args []string) {
-	ctx := getContext()
+	ctx := cmd.Context()
 	timeutil.ResetPhaseTracking()
 	if buildPhaseTimings || buildPhaseTimingsFile != "" {
 		timeutil.EnablePhaseTracking()

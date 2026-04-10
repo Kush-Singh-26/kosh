@@ -48,4 +48,5 @@ type TemplateConfig interface {
 	GetFeatures() FeaturesConfig
 	GetSiteTitle() string
 	GetBaseURL() string
+	IsDevMode() bool
 }

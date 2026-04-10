@@ -47,7 +47,7 @@ func init() {
 }
 
 func runServe(cmd *cobra.Command, args []string) {
-	ctx := getContext()
+	ctx := cmd.Context()
 
 	var filteredArgs []string
 	if serveBaseURL != "" {

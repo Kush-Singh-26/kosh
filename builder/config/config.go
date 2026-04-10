@@ -58,9 +58,9 @@ type BuildOptions struct {
 	PostsPerPage         int  `yaml:"postsPerPage"`
 	ShouldCompressImages bool `yaml:"shouldCompressImages"`
 	ShouldMinifySVGs     bool `yaml:"shouldMinifySVGs"`
-	ImageWorkers   int  `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
-	WebPQuality    int  `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
-	ParserWorkers  int  `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
+	ImageWorkers         int  `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
+	WebPQuality          int  `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
+	ParserWorkers        int  `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
 }
 
 // PathConfig defines filesystem paths used during builds.
@@ -91,8 +91,8 @@ type Config struct {
 	ShouldIncludeDrafts bool   `yaml:"-"`
 	BuildVersion        int64  `yaml:"-"`
 	IsDev               bool   `yaml:"-"`
-	KoshSourceRoot string `yaml:"-"` // Repository root for WASM compilation
-	SiteRoot       string `yaml:"-"` // Working directory where kosh.yaml was loaded
+	KoshSourceRoot      string `yaml:"-"` // Repository root for WASM compilation
+	SiteRoot            string `yaml:"-"` // Working directory where kosh.yaml was loaded
 
 	// Build configuration (loaded from kosh.build.yaml)
 	Build *BuildConfig `yaml:"-"`
@@ -322,3 +322,6 @@ func (cfg *Config) GetSiteTitle() string { return cfg.Title }
 
 // GetBaseURL returns the configured base URL.
 func (cfg *Config) GetBaseURL() string { return cfg.BaseURL }
+
+// IsDevMode returns whether the build is running in development mode.
+func (cfg *Config) IsDevMode() bool { return cfg.IsDev }
