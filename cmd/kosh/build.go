@@ -69,6 +69,9 @@ func runBuild(cmd *cobra.Command, args []string) {
 	if buildForceLock {
 		filteredArgs = append(filteredArgs, "-force-lock")
 	}
+	if debug {
+		filteredArgs = append(filteredArgs, "-debug")
+	}
 
 	if buildCPUProfile != "" {
 		profileFile, err := os.Create(buildCPUProfile)

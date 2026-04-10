@@ -99,6 +99,7 @@ type Config struct {
 	IsDev               bool   `yaml:"-"`
 	KoshSourceRoot      string `yaml:"-"` // Repository root for WASM compilation
 	SiteRoot            string `yaml:"-"` // Working directory where kosh.yaml was loaded
+	Debug               bool   `yaml:"-"` // Enable debug output
 
 	// Build configuration (loaded from kosh.build.yaml)
 	Build *BuildConfig `yaml:"-"`
@@ -242,6 +243,7 @@ func applyCLIOverrides(cfg *Config, args []string) {
 	draftsFlag := flagSet.Bool("drafts", false, "Include draft posts in the build")
 	themeFlag := flagSet.String("theme", "", "Theme to use (overrides config file)")
 	forceLockFlag := flagSet.Bool("force-lock", false, "Acquire build lock even if another build is running")
+	debugFlag := flagSet.Bool("debug", false, "Enable debug output")
 
 	_ = flagSet.Parse(args)
 
@@ -258,6 +260,9 @@ func applyCLIOverrides(cfg *Config, args []string) {
 		cfg.Theme = *themeFlag
 		cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
+	}
+	if *debugFlag {
+		cfg.Build.Debug = true
 	}
 }
 

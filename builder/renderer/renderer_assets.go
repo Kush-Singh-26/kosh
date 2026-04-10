@@ -40,16 +40,64 @@ func (r *Renderer) PreparePageData(data *models.PageData) {
 		} else {
 			relativizedAssets := make(map[string]string, len(data.Assets))
 			for k, v := range data.Assets {
-				link := v
-				if link[0] != '/' {
-					link = "/" + link
+				if isExternalURL(v) || isDataURI(v) {
+					relativizedAssets[k] = v
+					continue
 				}
-				relativizedAssets[k] = filepath.ToSlash(link)
+
+				relativizedAsset := relativizeAsset(v, data.BaseURL, data.RelativePrefix)
+				relativizedAssets[k] = filepath.ToSlash(relativizedAsset)
 			}
 			r.assetCache.Store(cacheKey, relativizedAssets)
 			data.Assets = relativizedAssets
 		}
 	}
+}
+
+// isExternalURL returns true if the URL is an absolute/external URL.
+func isExternalURL(url string) bool {
+	if len(url) < 5 {
+		return false
+	}
+	return url[:5] == "http:" || url[:5] == "https"
+}
+
+// isDataURI returns true if the URL is a data URI.
+func isDataURI(url string) bool {
+	return len(url) >= 5 && url[:5] == "data:"
+}
+
+// relativizeAsset applies BaseURL and RelativePrefix to an asset path.
+func relativizeAsset(assetPath, baseURL, relativePrefix string) string {
+	if assetPath == "" {
+		return ""
+	}
+
+	// Don't modify external URLs or data URIs
+	if isExternalURL(assetPath) || isDataURI(assetPath) {
+		return assetPath
+	}
+
+	// If baseURL is provided, prepend it
+	if baseURL != "" {
+		return baseURL + assetPath
+	}
+
+	// If relativePrefix is provided, prepend it (for moving up directories)
+	// But first, strip leading slash from assetPath to avoid double slashes
+	if relativePrefix != "" {
+		if len(assetPath) > 0 && assetPath[0] == '/' {
+			return relativePrefix + assetPath[1:]
+		}
+		return relativePrefix + assetPath
+	}
+
+	// Otherwise, remove leading slash if present (for root-relative paths)
+	if len(assetPath) > 0 && assetPath[0] == '/' {
+		return assetPath[1:]
+	}
+
+	return assetPath
 }
 
 // GetAssets returns a copy of the asset map to prevent accidental mutation

@@ -65,6 +65,9 @@ func runServe(cmd *cobra.Command, args []string) {
 	if serveForceLock {
 		filteredArgs = append(filteredArgs, "-force-lock")
 	}
+	if debug {
+		filteredArgs = append(filteredArgs, "-debug")
+	}
 
 	if serveDev {
 		cfg := config.Load(filteredArgs)

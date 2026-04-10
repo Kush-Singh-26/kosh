@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -83,7 +82,7 @@ func (service *assetService) isWebPCandidate(path string) bool {
 // syncStaticAssets discovers and copies all static assets to the sink synchronously.
 func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx context.Context, skipImages bool) ([]imageCopyTask, error) {
 	themeDir, siteStaticDir := service.getStaticSourceDirs()
-	debugAssets := os.Getenv("KOSH_DEBUG_ASSETS") == "1"
+	debugAssets := service.cfg.Debug
 
 	syncContextInstance := &syncContext{}
 

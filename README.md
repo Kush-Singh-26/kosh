@@ -54,6 +54,20 @@ kosh new "My Post"
 kosh version --info
 ```
 
+### Debug Output
+
+Use the `--debug` (or `-d`) flag to enable debug-level logging:
+
+```bash
+kosh build --debug
+kosh serve --dev --debug
+```
+
+This enables verbose output including:
+- Debug-level log messages (asset discovery, routing requests)
+- Verbose reporter output
+- Asset pipeline debug information
+
 ### Command Behavior Notes
 
 - `kosh clean`

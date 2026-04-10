@@ -64,6 +64,9 @@ const (
 // BuildConfig contains all tunable build parameters
 // These can be overridden via kosh.build.yaml
 type BuildConfig struct {
+	// Debug settings
+	Debug bool `yaml:"debug"` // Enable debug output (default: false)
+
 	// Worker settings
 	MaxWorkers     int `yaml:"maxWorkers"`     // Maximum worker pool size (default: 32)
 	DefaultWorkers int `yaml:"defaultWorkers"` // Default worker count (default: 12)

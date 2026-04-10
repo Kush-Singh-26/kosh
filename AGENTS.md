@@ -111,6 +111,23 @@ Important behavior:
 - `kosh new "Title"`
 - `kosh version`
 
+### Debug Flag
+
+The `--debug` (or `-d`) flag enables debug-level logging throughout Kosh:
+
+```bash
+# Enable debug output for build
+kosh build --debug
+
+# Enable debug output for dev server
+kosh serve --dev --debug
+```
+
+Debug mode enables:
+- Debug-level log messages (e.g., "Routing request", "Asset map snapshot updated")
+- Verbose reporter output for all commands
+- Asset discovery debug logging in the asset pipeline
+
 ### Important command semantics
 
 - `kosh clean`

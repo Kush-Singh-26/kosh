@@ -63,6 +63,7 @@ type consoleHandler struct {
 	attrs      []slog.Attr
 	group      string
 	reporter   ui.Reporter
+	minLevel   slog.Level
 }
 
 // NewConsoleHandler constructs a console handler for slog output.
@@ -76,7 +77,11 @@ func NewConsoleHandler(output io.Writer, reporter ui.Reporter) *consoleHandler {
 
 // Enabled reports whether the handler handles the given level.
 func (handler *consoleHandler) Enabled(workingContext context.Context, level slog.Level) bool {
-	return level >= slog.LevelInfo
+	minLevel := handler.minLevel
+	if minLevel == 0 {
+		minLevel = slog.LevelInfo
+	}
+	return level >= minLevel
 }
 
 // Handle formats and writes a log record.
@@ -257,11 +262,29 @@ func getLevelColor(level slog.Level) string {
 	}
 }
 
-// InitLogger initializes the default logger and optionally wires a reporter.
-func InitLogger(reporters ...ui.Reporter) *slog.Logger {
-	var reporter ui.Reporter
-	if len(reporters) > 0 {
-		reporter = reporters[0]
+// LogLevelOption configures the minimum log level for the logger.
+type LogLevelOption func(*consoleHandler)
+
+// WithDebugLevel sets the minimum log level to Debug.
+func WithDebugLevel() LogLevelOption {
+	return func(h *consoleHandler) {
+		h.minLevel = slog.LevelDebug
 	}
-	return slog.New(NewConsoleHandler(os.Stdout, reporter))
+}
+
+// InitLogger initializes the default logger and optionally wires a reporter.
+func InitLogger(reportersAndOpts ...any) *slog.Logger {
+	var reporter ui.Reporter
+	handler := NewConsoleHandler(os.Stdout, reporter)
+
+	for _, arg := range reportersAndOpts {
+		switch v := arg.(type) {
+		case ui.Reporter:
+			reporter = v
+			handler.reporter = reporter
+		case LogLevelOption:
+			v(handler)
+		}
+	}
+	return slog.New(handler)
 }

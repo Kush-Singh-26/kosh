@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	verbose  bool
+	debug    bool
 	reporter ui.Reporter
 )
 
@@ -28,8 +28,15 @@ It supports full builds, incremental development rebuilds, CSS/JS asset fingerpr
 WebP image conversion for eligible local raster images, SSR for math and D2, and Go+WASM search.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Initialize standardized themed logger for all commands
-		reporter = ui.NewReporter(verbose)
-		slog.SetDefault(orchestration.InitLogger(reporter))
+		// When --debug is enabled, also enable verbose reporter output
+		reporter = ui.NewReporter(debug)
+		var logger *slog.Logger
+		if debug {
+			logger = orchestration.InitLogger(reporter, orchestration.WithDebugLevel())
+		} else {
+			logger = orchestration.InitLogger(reporter)
+		}
+		slog.SetDefault(logger)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		printStartupBanner("CLI Help", nil)
@@ -38,7 +45,7 @@ WebP image conversion for eligible local raster images, SSR for math and D2, and
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug output (log level + verbose reporter)")
 	rootCmd.CompletionOptions.DisableDefaultCmd = false
 	rootCmd.Version = cliVersion
 }
