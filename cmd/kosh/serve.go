@@ -118,23 +118,25 @@ func runServe(cmd *cobra.Command, args []string) {
 		})
 
 		server.Run(server.ServerOptions{
-			Ctx:         ctx,
-			Args:        filteredArgs,
-			OutputDir:   engine.Cfg.OutputDir,
-			BaseURL:     engine.Cfg.BaseURL,
-			BuildConfig: engine.Cfg.Build,
-			Reporter:    reporter,
+			Ctx:           ctx,
+			Args:          filteredArgs,
+			OutputDir:     engine.Cfg.OutputDir,
+			RootDirectory: engine.Cfg.Server.RootDirectory,
+			BaseURL:       engine.Cfg.BaseURL,
+			BuildConfig:   engine.Cfg.Build,
+			Reporter:      reporter,
 		})
 	} else {
 		cfg := config.Load(filteredArgs)
 		printStartupBanner("Static Preview", cfg)
 		server.Run(server.ServerOptions{
-			Ctx:         ctx,
-			Args:        filteredArgs,
-			OutputDir:   cfg.OutputDir,
-			BaseURL:     cfg.BaseURL,
-			BuildConfig: cfg.Build,
-			Reporter:    reporter,
+			Ctx:           ctx,
+			Args:          filteredArgs,
+			OutputDir:     cfg.OutputDir,
+			RootDirectory: cfg.Server.RootDirectory,
+			BaseURL:       cfg.BaseURL,
+			BuildConfig:   cfg.Build,
+			Reporter:      reporter,
 		})
 	}
 }

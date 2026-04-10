@@ -77,7 +77,8 @@ func validatePath(baseDir, userPath string) (string, error) {
 	return absUserPath, nil
 }
 
-func normalizeRequestPath(rawPath, baseURL string) string {
+// GetBaseURLPrefix extracts the path prefix from the baseURL (e.g., "/blogs" from "https://example.com/blogs").
+func GetBaseURLPrefix(baseURL string) string {
 	prefix := ""
 	if baseURL != "" {
 		if after, ok := strings.CutPrefix(baseURL, "http://"); ok {
@@ -94,6 +95,15 @@ func normalizeRequestPath(rawPath, baseURL string) string {
 			prefix = baseURL
 		}
 	}
+
+	if prefix != "" && !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	return strings.TrimSuffix(prefix, "/")
+}
+
+func normalizeRequestPath(rawPath, baseURL string) string {
+	prefix := GetBaseURLPrefix(baseURL)
 
 	if prefix != "" && prefix != "/" {
 		rawPath = strings.TrimPrefix(rawPath, prefix)
@@ -151,6 +161,26 @@ func compressionHandler(next http.HandlerFunc) http.HandlerFunc {
 		cw := &compressionResponseWriter{Writer: bw, ResponseWriter: w}
 		next(cw, r)
 	}
+}
+
+// HasPathPrefix reports whether the path starts with the prefix as a full path segment.
+// For example, if prefix is "/blogs", it matches "/blogs" and "/blogs/",
+// but not "/blogs-src".
+func HasPathPrefix(path, prefix string) bool {
+	if prefix == "" {
+		return false
+	}
+	if path == prefix {
+		return true
+	}
+	if strings.HasPrefix(path, prefix) {
+		if len(path) > len(prefix) {
+			lastChar := path[len(prefix)]
+			return lastChar == '/'
+		}
+		return true
+	}
+	return false
 }
 
 func isHashedAsset(filename string) bool {

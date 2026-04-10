@@ -74,18 +74,20 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 // ServerOptions configures the development server.
 type ServerOptions struct {
-	Ctx         context.Context
-	Args        []string
-	OutputDir   string
-	BaseURL     string
-	BuildConfig *config.BuildConfig
-	Reporter    ui.Reporter
+	Ctx           context.Context
+	Args          []string
+	OutputDir     string
+	RootDirectory string
+	BaseURL       string
+	BuildConfig   *config.BuildConfig
+	Reporter      ui.Reporter
 }
 
 type serveConfig struct {
 	addr             string
 	host             string
 	staticDir        string
+	rootDirectory    string
 	shutdownTimeout  time.Duration
 	debounceDuration time.Duration
 }
@@ -124,8 +126,8 @@ func resolveDebounceDuration(buildCfg *config.BuildConfig) time.Duration {
 	return buildCfg.DebounceDuration
 }
 
-func startWatcher(ctx context.Context, staticDir string, debounce time.Duration) <-chan struct{} {
-	reloadEvents := startWatcherWithConfig(staticDir, debounce)
+func startWatcher(ctx context.Context, dirs []string, debounce time.Duration) <-chan struct{} {
+	reloadEvents := startWatcherWithConfig(dirs, debounce)
 	async.FireAndForget(ctx, slog.Default(), "server watcher shutdown", func() error {
 		<-ctx.Done()
 		orchestration.DevLogInfo("Shutting down server...")
@@ -150,6 +152,7 @@ func buildServeConfig(opts ServerOptions, host, port string) serveConfig {
 		addr:             fmt.Sprintf("%s:%s", host, port),
 		host:             host,
 		staticDir:        resolveStaticDir(opts.OutputDir),
+		rootDirectory:    opts.RootDirectory,
 		shutdownTimeout:  resolveShutdownTimeout(opts.BuildConfig),
 		debounceDuration: resolveDebounceDuration(opts.BuildConfig),
 	}
@@ -193,7 +196,12 @@ func Run(opts ServerOptions) {
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
 	_ = mime.AddExtensionType(".bin", "application/octet-stream")
 
-	reloadEvents := startWatcher(ctx, cfg.staticDir, cfg.debounceDuration)
+	watchDirs := []string{cfg.staticDir}
+	if cfg.rootDirectory != "" {
+		watchDirs = append(watchDirs, cfg.rootDirectory)
+	}
+
+	reloadEvents := startWatcher(ctx, watchDirs, cfg.debounceDuration)
 	defer stopWatcher()
 
 	mux := http.NewServeMux()
@@ -206,19 +214,45 @@ func Run(opts ServerOptions) {
 		}
 
 		rawPath := request.URL.Path
-		normalizedPath := normalizeRequestPath(rawPath, baseURL)
+		blogPrefix := GetBaseURLPrefix(baseURL)
+		effectiveStaticDir := cfg.staticDir
+		var normalizedPath string
+
+		if HasPathPrefix(rawPath, blogPrefix) {
+			normalizedPath = normalizeRequestPath(rawPath, baseURL)
+		} else if cfg.rootDirectory != "" {
+			effectiveStaticDir = cfg.rootDirectory
+			normalizedPath = rawPath // Already starts with /
+		} else {
+			normalizedPath = normalizeRequestPath(rawPath, baseURL)
+		}
+
 		request.URL.Path = normalizedPath
 
-		fullPath, err := validatePath(cfg.staticDir, normalizedPath)
+		fullPath, err := validatePath(effectiveStaticDir, normalizedPath)
 		if err != nil {
-			renderError(writer, http.StatusForbidden, "403 - Forbidden: Invalid path")
+			slog.Error("Routing failed - invalid path",
+				"rawPath", rawPath,
+				"blogPrefix", blogPrefix,
+				"effectiveStaticDir", effectiveStaticDir,
+				"normalizedPath", normalizedPath,
+				"error", err)
+			http.Error(writer, "Forbidden", http.StatusForbidden)
 			return
 		}
+
+		slog.Debug("Routing request",
+			"rawPath", rawPath,
+			"blogPrefix", blogPrefix,
+			"rootDirectory", cfg.rootDirectory,
+			"effectiveStaticDir", effectiveStaticDir,
+			"normalizedPath", normalizedPath,
+			"fullPath", fullPath)
 
 		handleFileRequest(fileRequestOptions{
 			writer:         writer,
 			request:        request,
-			staticDir:      cfg.staticDir,
+			staticDir:      effectiveStaticDir,
 			fullPath:       fullPath,
 			normalizedPath: normalizedPath,
 		})

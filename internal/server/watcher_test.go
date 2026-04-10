@@ -10,7 +10,7 @@ import (
 func TestWatchScenario(t *testing.T) {
 	dir := t.TempDir()
 
-	startWatcherWithConfig(dir, 10*time.Millisecond)
+	startWatcherWithConfig([]string{dir}, 10*time.Millisecond)
 	time.Sleep(50 * time.Millisecond)
 
 	tmpFile := filepath.Join(dir, "test.txt")

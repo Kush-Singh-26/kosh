@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -86,7 +88,7 @@ func resetDebounceTimer() {
 	})
 }
 
-func startWatcherWithConfig(dir string, debounce time.Duration) chan struct{} {
+func startWatcherWithConfig(dirs []string, debounce time.Duration) chan struct{} {
 	debounceConfig = debounce
 
 	w, err := fsnotify.NewWatcher()
@@ -95,19 +97,31 @@ func startWatcherWithConfig(dir string, debounce time.Duration) chan struct{} {
 		return nil
 	}
 
-	if err := w.Add(dir); err != nil {
-		slog.Warn("Failed to watch directory", "dir", dir, "error", err)
-		_ = w.Close()
-		return nil
+	for _, dir := range dirs {
+		err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				if err := w.Add(path); err != nil {
+					slog.Warn("Failed to watch directory", "dir", path, "error", err)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			slog.Warn("Failed to walk directory for watching", "dir", dir, "error", err)
+		}
 	}
 
 	watcherMu.Lock()
 	watcher = w
 	watcherMu.Unlock()
 
+	var currentReloadChan chan struct{}
 	reloadMu.Lock()
 	reloadChan = make(chan struct{}, 1)
-	currentReloadChan := reloadChan
+	currentReloadChan = reloadChan
 	reloadMu.Unlock()
 
 	watcherWg.Add(1)

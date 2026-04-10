@@ -1,8 +1,8 @@
 package renderer
 
 import (
+	"log/slog"
 	"path/filepath"
-	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
@@ -15,6 +15,7 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 		snapshot[k] = v
 	}
 	r.assetsSnapshot.Store(&snapshot)
+	slog.Debug("Asset map snapshot updated", "count", len(snapshot))
 
 	// Invalidate relativization cache because assets have changed
 	r.assetCache.Range(func(key, value any) bool {
@@ -38,20 +39,12 @@ func (r *Renderer) PreparePageData(data *models.PageData) {
 			}
 		} else {
 			relativizedAssets := make(map[string]string, len(data.Assets))
-			prefix := data.RelativePrefix
-			baseURL := data.BaseURL
 			for k, v := range data.Assets {
 				link := v
 				if link[0] != '/' {
 					link = "/" + link
 				}
-				if baseURL != "" {
-					relativizedAssets[k] = filepath.ToSlash(strings.TrimSuffix(baseURL, "/") + link)
-				} else if prefix == "" || prefix == "." || prefix == "./" {
-					relativizedAssets[k] = filepath.ToSlash(link[1:])
-				} else {
-					relativizedAssets[k] = filepath.ToSlash(prefix + link[1:])
-				}
+				relativizedAssets[k] = filepath.ToSlash(link)
 			}
 			r.assetCache.Store(cacheKey, relativizedAssets)
 			data.Assets = relativizedAssets

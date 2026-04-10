@@ -63,6 +63,11 @@ type BuildOptions struct {
 	ParserWorkers        int  `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
 }
 
+// ServerConfig defines development server parameters.
+type ServerConfig struct {
+	RootDirectory string `yaml:"rootDirectory"` // Optional directory to serve alongside the blog
+}
+
 // PathConfig defines filesystem paths used during builds.
 type PathConfig struct {
 	Theme       string `yaml:"theme"`
@@ -81,6 +86,7 @@ type Config struct {
 	BuildOptions `yaml:",inline"`
 	PathConfig   `yaml:",inline"`
 
+	Server        ServerConfig             `yaml:"server"`   // Server-specific configuration
 	Features      models.FeaturesConfig    `yaml:"features"` // Enable/Disable features
 	ThemeMetadata ThemeConfig              `yaml:"-"`        // Loaded from theme.yaml
 	SocialCards   models.SocialCardsConfig `yaml:"socialCards"`
@@ -269,6 +275,11 @@ func finalizeConfig(cfg *Config) {
 		cfg.SiteRoot = fspkg.NormalizePath(wd)
 	} else {
 		cfg.SiteRoot = "."
+	}
+
+	if cfg.Server.RootDirectory != "" && !filepath.IsAbs(cfg.Server.RootDirectory) {
+		cfg.Server.RootDirectory = filepath.Join(cfg.SiteRoot, cfg.Server.RootDirectory)
+		cfg.Server.RootDirectory = fspkg.NormalizePath(cfg.Server.RootDirectory)
 	}
 }
 

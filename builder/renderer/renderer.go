@@ -160,6 +160,16 @@ func templateFuncMap() template.FuncMap {
 			}
 
 			if baseURL != "" {
+				slog.Debug("relativize called", "baseURL", baseURL, "link", link)
+				if strings.HasPrefix(link, baseURL) {
+					return filepath.ToSlash(link)
+				}
+				// Also check if it starts with the path part of baseURL
+				if u, err := url.Parse(baseURL); err == nil && u.Path != "" {
+					if strings.HasPrefix(link, u.Path) {
+						return filepath.ToSlash(link)
+					}
+				}
 				return filepath.ToSlash(strings.TrimSuffix(baseURL, "/") + link)
 			}
 
