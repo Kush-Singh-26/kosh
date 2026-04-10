@@ -84,7 +84,7 @@ Body of draft`,
 	if post1.Title == "" {
 		t.Fatal("Post 1 not found in scanned files")
 	}
-	if !post1.Pinned {
+	if !post1.IsPinned {
 		t.Error("Post 1 should be pinned")
 	}
 	if len(post1.Tags) != 2 {
@@ -146,7 +146,7 @@ Body content`
 	if sf.Date != "2026-03-01" {
 		t.Errorf("Expected date 2026-03-01, got %s", sf.Date)
 	}
-	if !sf.Pinned {
+	if !sf.IsPinned {
 		t.Error("Expected pinned to be true")
 	}
 	if len(sf.Tags) != 2 {

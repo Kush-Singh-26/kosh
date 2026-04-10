@@ -18,17 +18,17 @@ type buildSetupResult struct {
 }
 
 // setupPhase handles early build configuration and project-wide setup.
-func (b *Engine) setupPhase(ctx context.Context) (*buildSetupResult, error) {
-	if b.Deps.Metrics != nil {
-		b.Deps.Metrics.Reset()
+func (engineInstance *Engine) setupPhase(ctx context.Context) (*buildSetupResult, error) {
+	if engineInstance.Deps.Metrics != nil {
+		engineInstance.Deps.Metrics.Reset()
 	}
 
-	if b.Health != nil {
-		b.Health.Reset()
+	if engineInstance.Health != nil {
+		engineInstance.Health.Reset()
 	}
 
 	// Always start each full build pass with a fresh session/tracking state.
-	b.refreshBuildSession()
+	engineInstance.refreshBuildSession()
 
 	// Check for cancellation early.
 	select {
@@ -38,84 +38,84 @@ func (b *Engine) setupPhase(ctx context.Context) (*buildSetupResult, error) {
 	}
 
 	// Project-wide setup.
-	wasmWg := b.setupWasmDeployment(ctx)
+	wasmWaitGroup := engineInstance.setupWasmDeployment(ctx)
 
 	// Handle incremental social card rebuild if needed.
-	forceSocialRebuild := b.checkSocialCardRebuild()
+	forceSocialRebuild := engineInstance.checkSocialCardRebuild()
 
 	// Warm up the JS renderer pool.
-	b.initializeNativeRenderer(ctx)
+	engineInstance.initializeNativeRenderer(ctx)
 
 	// Set dev build version.
-	if b.Cfg.IsDev {
-		b.Cfg.BuildVersion = time.Now().UnixNano()
+	if engineInstance.Cfg.IsDev {
+		engineInstance.Cfg.BuildVersion = time.Now().UnixNano()
 	}
 
 	// Pre-create output directories.
-	if err := b.createOutputDirectories(); err != nil {
+	if err := engineInstance.createOutputDirectories(); err != nil {
 		return nil, err
 	}
 
 	return &buildSetupResult{
-		wasmWg:             wasmWg,
+		wasmWg:             wasmWaitGroup,
 		forceSocialRebuild: forceSocialRebuild,
 	}, nil
 }
 
 // setupWasmDeployment launches WASM compilation asynchronously.
-func (b *Engine) setupWasmDeployment(ctx context.Context) *sync.WaitGroup {
-	var wasmWg sync.WaitGroup
-	wasmWg.Add(1)
+func (engineInstance *Engine) setupWasmDeployment(ctx context.Context) *sync.WaitGroup {
+	var wasmWaitGroup sync.WaitGroup
+	wasmWaitGroup.Add(1)
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 		Ctx:       ctx,
-		Logger:    b.Deps.Logger,
+		Logger:    engineInstance.Deps.Logger,
 		Operation: "WASM compilation",
 		Fn: func() error {
-			updated, err := b.Deps.Wasm.CheckAndUpdate(ctx)
+			updated, err := engineInstance.Deps.Wasm.CheckAndUpdate(ctx)
 			if err == nil && updated {
-				b.State.ForceGenerators.Store(true)
+				engineInstance.State.ForceGenerators.Store(true)
 			}
 			return err
 		},
 		Cleanup: func() {
-			wasmWg.Done()
+			wasmWaitGroup.Done()
 		},
 	})
-	return &wasmWg
+	return &wasmWaitGroup
 }
 
 // checkSocialCardRebuild determines if social cards need forced rebuild.
-func (b *Engine) checkSocialCardRebuild() bool {
-	if b.Cfg.ForceRebuild {
+func (engineInstance *Engine) checkSocialCardRebuild() bool {
+	if engineInstance.Cfg.ShouldForceRebuild {
 		return false
 	}
-	lastBuildTime := b.Tx.GetLastBuildTime()
+	lastBuildTime := engineInstance.buildTransaction.GetLastBuildTime()
 	if lastBuildTime.IsZero() {
 		return false
 	}
-	info, err := os.Stat("builder/generators/social.go")
-	return err == nil && info.ModTime().After(lastBuildTime)
+	fileInfo, err := os.Stat("builder/generators/social.go")
+	return err == nil && fileInfo.ModTime().After(lastBuildTime)
 }
 
 // initializeNativeRenderer warms up the JS renderer pool asynchronously.
-func (b *Engine) initializeNativeRenderer(ctx context.Context) {
-	if b.Deps.NativeRenderer != nil {
-		logger := b.Deps.Logger
+func (engineInstance *Engine) initializeNativeRenderer(ctx context.Context) {
+	if engineInstance.Deps.NativeRenderer != nil {
+		logger := engineInstance.Deps.Logger
 		if logger == nil {
 			logger = slog.Default()
 		}
 		async.FireAndForget(ctx, logger, "native renderer warmup", func() error {
-			b.Deps.NativeRenderer.EnsureInitialized(ctx)
+			engineInstance.Deps.NativeRenderer.EnsureInitialized(ctx)
 			return nil
 		})
 	}
 }
 
 // createOutputDirectories creates required output directories.
-func (b *Engine) createOutputDirectories() error {
+func (engineInstance *Engine) createOutputDirectories() error {
 	for _, dir := range []string{"tags", "static/images/cards", "sitemap"} {
-		if err := b.Sink.MkdirAll(filepath.Join(b.Cfg.OutputDir, dir)); err != nil {
-			b.Deps.Logger.Error("Failed to create directory", "dir", dir, "error", err)
+		if err := engineInstance.artifactSink.MkdirAll(filepath.Join(engineInstance.Cfg.OutputDir, dir)); err != nil {
+			engineInstance.Deps.Logger.Error("Failed to create directory", "dir", dir, "error", err)
 			return err
 		}
 	}

@@ -28,24 +28,24 @@ type snippetMatch struct {
 	term string
 }
 
-// truncateToLength truncates string s to maxLen and aligns to rune boundaries
-func truncateToLength(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
+// truncateToLength truncates string text to maxLen and aligns to rune boundaries
+func truncateToLength(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
 	}
 
-	s = s[:maxLen]
+	text = text[:maxLen]
 	// Align to rune boundary to avoid invalid UTF-8
-	for len(s) > 0 && !utf8.RuneStart(s[len(s)-1]) {
-		s = s[:len(s)-1]
+	for len(text) > 0 && !utf8.RuneStart(text[len(text)-1]) {
+		text = text[:len(text)-1]
 	}
 	// If the last byte is the start of a multi-byte rune but we don't have the rest,
 	// we should also trim it.
-	r, sz := utf8.DecodeLastRuneInString(s)
-	if r == utf8.RuneError && sz == 1 {
-		s = s[:len(s)-1]
+	char, size := utf8.DecodeLastRuneInString(text)
+	if char == utf8.RuneError && size == 1 {
+		text = text[:len(text)-1]
 	}
-	return s
+	return text
 }
 
 // truncateContent truncates content to MaxSnippetContentLength and aligns to rune boundaries
@@ -201,77 +201,77 @@ func calculateIsland(bestStart, windowSize int, content string) snippetIsland {
 
 // buildSnippetText builds the final snippet text with highlighted matches across islands
 func buildSnippetText(content string, matches []snippetMatch, islands []snippetIsland, hasMatches bool) string {
-	b := pools.SharedStringBuilderPool.Get()
+	builder := pools.SharedStringBuilderPool.Get()
 
 	totalLen := 0
 	for _, island := range islands {
 		totalLen += island.end - island.start
 	}
-	b.Grow(int(float64(totalLen) * snippetGrowFactor))
+	builder.Grow(int(float64(totalLen) * snippetGrowFactor))
 
 	if !hasMatches || len(matches) == 0 {
 		island := islands[0]
 		if island.start > 0 {
-			b.WriteString("...")
+			builder.WriteString("...")
 		}
-		escapeToBuilder(b, content[island.start:island.end])
+		escapeToBuilder(builder, content[island.start:island.end])
 		if island.end < len(content) {
-			b.WriteString("...")
+			builder.WriteString("...")
 		}
-		res := b.String()
-		pools.SharedStringBuilderPool.Put(b)
+		res := builder.String()
+		pools.SharedStringBuilderPool.Put(builder)
 		return res
 	}
 
 	for i, island := range islands {
 		if i > 0 || island.start > 0 {
-			b.WriteString("...")
+			builder.WriteString("...")
 		}
 
 		lastPos := island.start
-		for _, m := range matches {
-			if m.pos < island.start {
+		for _, match := range matches {
+			if match.pos < island.start {
 				continue
 			}
-			if m.pos >= island.end {
+			if match.pos >= island.end {
 				break
 			}
-			if m.pos < lastPos {
+			if match.pos < lastPos {
 				continue
 			}
 
-			escapeToBuilder(b, content[lastPos:m.pos])
+			escapeToBuilder(builder, content[lastPos:match.pos])
 
-			actualEnd := m.pos + len(m.term)
+			actualEnd := match.pos + len(match.term)
 			if actualEnd > island.end {
 				actualEnd = island.end
 			}
 
 			for actualEnd < island.end {
-				r, sz := utf8.DecodeRuneInString(content[actualEnd:])
-				if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' {
+				char, size := utf8.DecodeRuneInString(content[actualEnd:])
+				if !unicode.IsLetter(char) && !unicode.IsNumber(char) && char != '_' {
 					break
 				}
-				actualEnd += sz
+				actualEnd += size
 			}
 
-			b.WriteString("<b>")
-			escapeToBuilder(b, content[m.pos:actualEnd])
-			b.WriteString("</b>")
+			builder.WriteString("<b>")
+			escapeToBuilder(builder, content[match.pos:actualEnd])
+			builder.WriteString("</b>")
 			lastPos = actualEnd
 		}
 
 		if lastPos < island.end {
-			escapeToBuilder(b, content[lastPos:island.end])
+			escapeToBuilder(builder, content[lastPos:island.end])
 		}
 
 		if i == len(islands)-1 && island.end < len(content) {
-			b.WriteString("...")
+			builder.WriteString("...")
 		}
 	}
 
-	res := b.String()
-	pools.SharedStringBuilderPool.Put(b)
+	res := builder.String()
+	pools.SharedStringBuilderPool.Put(builder)
 	return res
 }
 

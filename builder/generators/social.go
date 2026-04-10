@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 
 	"github.com/chai2010/webp"
@@ -105,10 +105,10 @@ func ProvideSocialCard(opts ProvideSocialCardOptions) {
 		Force:          opts.Force,
 	})
 
-	buildCtx.IgnoreError(opts.Sink.MkdirAll(filepath.Dir(opts.DestPath)), "ensure social card dir in VFS")
+	buildctx.IgnoreError(opts.Sink.MkdirAll(filepath.Dir(opts.DestPath)), "ensure social card dir in VFS")
 
 	if needsGen {
-		buildCtx.IgnoreError(os.MkdirAll(filepath.Dir(cachedCardPath), socialCardDirMode), "ensure social card dir in cache")
+		buildctx.IgnoreError(os.MkdirAll(filepath.Dir(cachedCardPath), socialCardDirMode), "ensure social card dir in cache")
 
 		err := GenerateSocialCardToDisk(SocialCardOptions{
 			SrcFs:       opts.SourceFs,
@@ -124,13 +124,13 @@ func ProvideSocialCard(opts ProvideSocialCardOptions) {
 			return
 		}
 		if opts.Cache != nil {
-			buildCtx.IgnoreError(opts.Cache.SetSocialCardHash(opts.CacheKey, currentHash), "update social card hash")
+			buildctx.IgnoreError(opts.Cache.SetSocialCardHash(opts.CacheKey, currentHash), "update social card hash")
 		}
 	}
 
 	data, err := os.ReadFile(cachedCardPath)
 	if err == nil {
-		buildCtx.IgnoreError(opts.Sink.WriteFile(opts.DestPath, data), "write social card to VFS")
+		buildctx.IgnoreError(opts.Sink.WriteFile(opts.DestPath, data), "write social card to VFS")
 		opts.Render.RegisterFile(opts.DestPath)
 	}
 }

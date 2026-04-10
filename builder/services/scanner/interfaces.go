@@ -20,7 +20,7 @@ type ScanOptions struct {
 
 // Scanner scans content directory for markdown files and extracts metadata.
 type Scanner interface {
-	Scan(opts ScanOptions) (*models.MetadataScannerResult, error)
-	ScanStreaming(opts ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error)
-	ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error)
+	Scan(options ScanOptions) (*models.MetadataScannerResult, error)
+	ScanStreaming(options ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error)
+	ScanFile(srcFs afero.Fs, config *config.Config, path string) (models.ScannedFile, error)
 }

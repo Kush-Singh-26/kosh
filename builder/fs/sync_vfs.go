@@ -102,38 +102,38 @@ func collectSyncTasks(srcFs afero.Fs, targetDirClean string, dirtyFiles map[stri
 	seen := make(map[string]bool)
 
 	for path := range dirtyFiles {
-		srcP := path
-		destP := path
-		if !filepath.IsAbs(destP) {
-			destP = filepath.Join(targetDirClean, filepath.FromSlash(destP))
+		srcPath := path
+		destPath := path
+		if !filepath.IsAbs(destPath) {
+			destPath = filepath.Join(targetDirClean, filepath.FromSlash(destPath))
 		}
 
-		normalizedDest := filepath.Clean(destP)
+		normalizedDest := filepath.Clean(destPath)
 		if !seen[normalizedDest] {
-			tasks = append(tasks, syncTask{srcPath: srcP, destPath: normalizedDest})
+			tasks = append(tasks, syncTask{srcPath: srcPath, destPath: normalizedDest})
 			seen[normalizedDest] = true
 		}
 	}
 
 	for path := range models.AlwaysSyncPaths {
-		srcP := path
-		destP := filepath.Join(targetDirClean, filepath.FromSlash(path))
-		normalizedDest := filepath.Clean(destP)
+		srcPath := path
+		destPath := filepath.Join(targetDirClean, filepath.FromSlash(path))
+		normalizedDest := filepath.Clean(destPath)
 
 		if seen[normalizedDest] {
 			continue
 		}
 
 		exists := false
-		if ex, _ := afero.Exists(srcFs, srcP); ex {
+		if ex, _ := afero.Exists(srcFs, srcPath); ex {
 			exists = true
-		} else if ex, _ := afero.Exists(srcFs, filepath.Join(targetDirClean, srcP)); ex {
+		} else if ex, _ := afero.Exists(srcFs, filepath.Join(targetDirClean, srcPath)); ex {
 			exists = true
-			srcP = filepath.Join(targetDirClean, srcP)
+			srcPath = filepath.Join(targetDirClean, srcPath)
 		}
 
 		if exists {
-			tasks = append(tasks, syncTask{srcPath: srcP, destPath: normalizedDest})
+			tasks = append(tasks, syncTask{srcPath: srcPath, destPath: normalizedDest})
 			seen[normalizedDest] = true
 		}
 	}
@@ -310,15 +310,15 @@ func atomicWrite(ctx context.Context, path string, data []byte) error {
 
 	// Include PID to prevent collisions from concurrent processes
 	tmpPath := path + ".tmp-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(time.Now().UnixNano(), decimalBase)
-	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, atomicWriteFileMode)
+	file, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, atomicWriteFileMode)
 	if err != nil {
 		return err
 	}
 
-	writer := pools.SharedBufioWriterPool.Get(f)
+	writer := pools.SharedBufioWriterPool.Get(file)
 	_, err = writer.Write(data)
 	if err != nil {
-		_ = f.Close()
+		_ = file.Close()
 		_ = os.Remove(tmpPath)
 		pools.SharedBufioWriterPool.Put(writer)
 		return err
@@ -327,12 +327,12 @@ func atomicWrite(ctx context.Context, path string, data []byte) error {
 	err = writer.Flush()
 	pools.SharedBufioWriterPool.Put(writer)
 	if err != nil {
-		_ = f.Close()
+		_ = file.Close()
 		_ = os.Remove(tmpPath)
 		return err
 	}
 
-	err = f.Close()
+	err = file.Close()
 	if err != nil {
 		_ = os.Remove(tmpPath)
 		return err

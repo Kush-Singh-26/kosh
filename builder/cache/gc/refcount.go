@@ -24,25 +24,25 @@ func NewRefCountManager(db *bbolt.DB) *RefCountManager {
 }
 
 // Decrement decreases the refcount for a hash.
-func (m *RefCountManager) Decrement(hash string) (uint32, error) {
+func (manager *RefCountManager) Decrement(hash string) (uint32, error) {
 	if hash == "" {
 		return 0, nil
 	}
 	var newCount uint32
-	err := m.db.Update(func(tx *bbolt.Tx) error {
-		return m.DecrementTx(tx, hash, &newCount)
+	err := manager.db.Update(func(tx *bbolt.Tx) error {
+		return manager.DecrementTx(tx, hash, &newCount)
 	})
 	return newCount, err
 }
 
 // DecrementTx decreases the refcount using an existing transaction.
-func (m *RefCountManager) DecrementTx(tx *bbolt.Tx, hash string, newCountOut *uint32) error {
+func (manager *RefCountManager) DecrementTx(tx *bbolt.Tx, hash string, newCountOut *uint32) error {
 	bucket := tx.Bucket([]byte(core.BucketRefCount))
 	if bucket == nil {
 		return nil
 	}
-	if v := bucket.Get([]byte(hash)); v != nil {
-		count := binary.BigEndian.Uint32(v)
+	if value := bucket.Get([]byte(hash)); value != nil {
+		count := binary.BigEndian.Uint32(value)
 		if count > 0 {
 			count--
 		}
@@ -57,24 +57,24 @@ func (m *RefCountManager) DecrementTx(tx *bbolt.Tx, hash string, newCountOut *ui
 }
 
 // Increment increases the refcount for a hash.
-func (m *RefCountManager) Increment(hash string) error {
+func (manager *RefCountManager) Increment(hash string) error {
 	if hash == "" {
 		return nil
 	}
-	return m.db.Update(func(tx *bbolt.Tx) error {
-		return m.IncrementTx(tx, hash)
+	return manager.db.Update(func(tx *bbolt.Tx) error {
+		return manager.IncrementTx(tx, hash)
 	})
 }
 
 // IncrementTx increases the refcount using an existing transaction.
-func (m *RefCountManager) IncrementTx(tx *bbolt.Tx, hash string) error {
+func (manager *RefCountManager) IncrementTx(tx *bbolt.Tx, hash string) error {
 	bucket := tx.Bucket([]byte(core.BucketRefCount))
 	if bucket == nil {
 		return nil
 	}
 	var count uint32
-	if v := bucket.Get([]byte(hash)); v != nil {
-		count = binary.BigEndian.Uint32(v)
+	if value := bucket.Get([]byte(hash)); value != nil {
+		count = binary.BigEndian.Uint32(value)
 	}
 	count++
 	data := make([]byte, refCountBytes)
@@ -83,18 +83,18 @@ func (m *RefCountManager) IncrementTx(tx *bbolt.Tx, hash string) error {
 }
 
 // Get returns the current refcount for a hash.
-func (m *RefCountManager) Get(hash string) uint32 {
+func (manager *RefCountManager) Get(hash string) uint32 {
 	if hash == "" {
 		return 0
 	}
 	var count uint32
-	_ = m.db.View(func(tx *bbolt.Tx) error {
+	_ = manager.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketRefCount))
 		if bucket == nil {
 			return nil
 		}
-		if v := bucket.Get([]byte(hash)); v != nil {
-			count = binary.BigEndian.Uint32(v)
+		if value := bucket.Get([]byte(hash)); value != nil {
+			count = binary.BigEndian.Uint32(value)
 		}
 		return nil
 	})
@@ -102,13 +102,13 @@ func (m *RefCountManager) Get(hash string) uint32 {
 }
 
 // Reconcile recomputes refcounts without logging.
-func (m *RefCountManager) Reconcile() error {
-	return m.ReconcileWithLog(nil)
+func (manager *RefCountManager) Reconcile() error {
+	return manager.ReconcileWithLog(nil)
 }
 
 // ReconcileWithLog recomputes all refcounts from the posts bucket and logs discrepancies.
-func (m *RefCountManager) ReconcileWithLog(logger *slog.Logger) error {
-	return m.db.Update(func(tx *bbolt.Tx) error {
+func (manager *RefCountManager) ReconcileWithLog(logger *slog.Logger) error {
+	return manager.db.Update(func(tx *bbolt.Tx) error {
 		refBucket := tx.Bucket([]byte(core.BucketRefCount))
 		if refBucket == nil {
 			return nil
@@ -116,14 +116,14 @@ func (m *RefCountManager) ReconcileWithLog(logger *slog.Logger) error {
 
 		// Capture old counts before clearing
 		oldCounts := make(map[string]uint32)
-		_ = refBucket.ForEach(func(k, v []byte) error {
-			oldCounts[string(k)] = binary.BigEndian.Uint32(v)
+		_ = refBucket.ForEach(func(key, value []byte) error {
+			oldCounts[string(key)] = binary.BigEndian.Uint32(value)
 			return nil
 		})
 
 		// Clear all refcounts
-		_ = refBucket.ForEach(func(k, _ []byte) error {
-			return refBucket.Delete(k)
+		_ = refBucket.ForEach(func(key, _ []byte) error {
+			return refBucket.Delete(key)
 		})
 
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
@@ -133,9 +133,9 @@ func (m *RefCountManager) ReconcileWithLog(logger *slog.Logger) error {
 
 		// Recompute from posts
 		counts := make(map[string]uint32)
-		_ = postsBucket.ForEach(func(_, v []byte) error {
+		_ = postsBucket.ForEach(func(_, value []byte) error {
 			var post core.PostMeta
-			if err := core.Decode(v, &post); err != nil {
+			if err := core.Decode(value, &post); err != nil {
 				return nil
 			}
 			if post.HTMLHash != "" {
@@ -151,31 +151,31 @@ func (m *RefCountManager) ReconcileWithLog(logger *slog.Logger) error {
 			_ = refBucket.Put([]byte(hash), data)
 
 			if logger != nil {
-				if old, existed := oldCounts[hash]; existed && old != count {
-					truncHash := hash
-					if len(truncHash) > truncHashLen {
-						truncHash = truncHash[:truncHashLen] + "..."
+				if oldCount, existed := oldCounts[hash]; existed && oldCount != count {
+					truncatedHash := hash
+					if len(truncatedHash) > truncHashLen {
+						truncatedHash = truncatedHash[:truncHashLen] + "..."
 					}
 					logger.Warn("refcount mismatch",
-						"hash", truncHash,
-						"stored", old,
+						"hash", truncatedHash,
+						"stored", oldCount,
 						"computed", count,
-						"delta", int(count)-int(old))
+						"delta", int(count)-int(oldCount))
 				}
 			}
 		}
 
 		// Log orphaned refcounts (hashes with refcount but no posts)
 		if logger != nil {
-			for hash, old := range oldCounts {
-				if _, exists := counts[hash]; !exists && old > 0 {
-					truncHash := hash
-					if len(truncHash) > truncHashLen {
-						truncHash = truncHash[:truncHashLen] + "..."
+			for hash, oldCount := range oldCounts {
+				if _, exists := counts[hash]; !exists && oldCount > 0 {
+					truncatedHash := hash
+					if len(truncatedHash) > truncHashLen {
+						truncatedHash = truncatedHash[:truncHashLen] + "..."
 					}
 					logger.Warn("orphaned refcount (no posts reference this hash)",
-						"hash", truncHash,
-						"stored_count", old)
+						"hash", truncatedHash,
+						"stored_count", oldCount)
 				}
 			}
 		}

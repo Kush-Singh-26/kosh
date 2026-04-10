@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/spf13/afero"
 )
@@ -18,7 +18,7 @@ func TestWasmService_SkipInTestMode(t *testing.T) {
 		KoshSourceRoot: "/tmp/kosh",
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	ctx := buildCtx.NewBuildContext(buildCtx.ContextOptions{
+	ctx := buildctx.NewBuildContext(buildctx.ContextOptions{
 		IsTesting:    true,
 		IsDev:        true,
 		IsCleanBuild: true,
@@ -30,7 +30,7 @@ func TestWasmService_SkipInTestMode(t *testing.T) {
 		Ctx:    ctx,
 		Cfg:    cfg,
 		Logger: logger,
-		Fs:     fs,
+		SourceFs: fs,
 	})
 
 	updated, err := svc.CheckAndUpdate(context.Background())

@@ -44,9 +44,9 @@ func (s *postService) loadFromCache(cachedMeta *models.PostMeta, htmlRelPath str
 		ByteOffsets: cachedSearch.ByteOffsets,
 		Post: models.PostMetadata{
 			Title: cachedMeta.Title, Link: cachedMeta.Link, Description: cachedMeta.Description,
-			Tags: cachedMeta.Tags, Pinned: cachedMeta.Pinned, Weight: cachedMeta.Weight,
+			Tags: cachedMeta.Tags, IsPinned: cachedMeta.IsPinned, Weight: cachedMeta.Weight,
 			ReadingTime: cachedMeta.ReadingTime, DateObj: cachedMeta.Date,
-			Draft: cachedMeta.Draft,
+			IsDraft: cachedMeta.IsDraft,
 		},
 	}
 	return res, string(cachedHTML), true

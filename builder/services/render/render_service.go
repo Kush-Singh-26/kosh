@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"time"
 
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
@@ -21,79 +21,79 @@ import (
 const assetWaitTimeout = 30 * time.Second
 
 type renderService struct {
-	ctx         *buildCtx.BuildContext
-	rnd         *renderer.Renderer
+	ctx         *buildctx.BuildContext
+	renderer    *renderer.Renderer
 	logger      *slog.Logger
 	assetsReady <-chan struct{}
 }
 
 // NewService creates a new RenderService with the given dependencies.
 // Using dependency struct pattern for API coherence.
-func NewService(deps Dependencies) Service {
+func NewService(dependencies Dependencies) Service {
 	return &renderService{
-		ctx:    deps.Ctx,
-		rnd:    deps.Renderer,
-		logger: deps.Logger,
+		ctx:      dependencies.Ctx,
+		renderer: dependencies.Renderer,
+		logger:   dependencies.Logger,
 	}
 }
 
 // ReconfigureForBuild swaps sink and source filesystem for a new build.
-func (s *renderService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
-	s.rnd.SetSink(sink)
-	s.rnd.SourceFs = fs
-	s.rnd.ReloadTemplates()
+func (service *renderService) ReconfigureForBuild(sink fspkg.ArtifactSink, sourceFs afero.Fs) {
+	service.renderer.SetSink(sink)
+	service.renderer.SourceFs = sourceFs
+	service.renderer.ReloadTemplates()
 }
 
 // SetAssetsGate sets the signal that assets are ready for rendering.
-func (s *renderService) SetAssetsGate(ch <-chan struct{}) {
-	s.assetsReady = ch
+func (service *renderService) SetAssetsGate(assetsReadySignal <-chan struct{}) {
+	service.assetsReady = assetsReadySignal
 }
 
 // ReconfigureWithLogger updates the logger used by the render service.
-func (s *renderService) ReconfigureWithLogger(l *slog.Logger) {
-	s.logger = l
-	s.rnd.SetLogger(l)
+func (service *renderService) ReconfigureWithLogger(logger *slog.Logger) {
+	service.logger = logger
+	service.renderer.SetLogger(logger)
 }
 
 // RenderPage renders a standard page after assets are ready.
-func (s *renderService) RenderPage(path string, data models.PageData) error {
-	if err := s.waitForAssets(path); err != nil {
+func (service *renderService) RenderPage(path string, data models.PageData) error {
+	if err := service.waitForAssets(path); err != nil {
 		return err
 	}
-	s.rnd.PreparePageData(&data)
-	return s.rnd.RenderPage(path, data)
+	service.renderer.PreparePageData(&data)
+	return service.renderer.RenderPage(path, data)
 }
 
 // RenderIndex renders the index page after assets are ready.
-func (s *renderService) RenderIndex(path string, data models.PageData) error {
-	if err := s.waitForAssets(path); err != nil {
+func (service *renderService) RenderIndex(path string, data models.PageData) error {
+	if err := service.waitForAssets(path); err != nil {
 		return err
 	}
-	s.rnd.PreparePageData(&data)
-	return s.rnd.RenderIndex(path, data)
+	service.renderer.PreparePageData(&data)
+	return service.renderer.RenderIndex(path, data)
 }
 
 // Render404 renders the 404 page without waiting for assets.
-func (s *renderService) Render404(path string, data models.PageData) error {
+func (service *renderService) Render404(path string, data models.PageData) error {
 	// 404 typically doesn't wait for assets to avoid recursive waits or hangs
 	// but we still prepare data for consistency.
-	s.rnd.PreparePageData(&data)
-	return s.rnd.Render404(path, data)
+	service.renderer.PreparePageData(&data)
+	return service.renderer.Render404(path, data)
 }
 
 // RenderGraph renders the graph page after assets are ready.
-func (s *renderService) RenderGraph(path string, data models.PageData) error {
-	if err := s.waitForAssets(path); err != nil {
+func (service *renderService) RenderGraph(path string, data models.PageData) error {
+	if err := service.waitForAssets(path); err != nil {
 		return err
 	}
-	s.rnd.PreparePageData(&data)
-	return s.rnd.RenderGraph(path, data)
+	service.renderer.PreparePageData(&data)
+	return service.renderer.RenderGraph(path, data)
 }
 
-func (s *renderService) waitForAssets(path string) error {
-	if s.assetsReady != nil {
+func (service *renderService) waitForAssets(path string) error {
+	if service.assetsReady != nil {
 		select {
-		case <-s.assetsReady:
+		case <-service.assetsReady:
 		case <-time.After(assetWaitTimeout):
 			return fmt.Errorf("asset build timed out after %s for %s - esbuild may be hung", assetWaitTimeout, path)
 		}
@@ -102,36 +102,36 @@ func (s *renderService) waitForAssets(path string) error {
 }
 
 // RegisterFile records a rendered file path.
-func (s *renderService) RegisterFile(path string) {
-	s.rnd.RegisterFile(path)
+func (service *renderService) RegisterFile(path string) {
+	service.renderer.RegisterFile(path)
 }
 
 // SetAssets snapshots the asset map for rendering.
-func (s *renderService) SetAssets(assets map[string]string) {
-	s.rnd.SetAssets(assets)
+func (service *renderService) SetAssets(assets map[string]string) {
+	service.renderer.SetAssets(assets)
 }
 
 // GetAssets returns a snapshot of the asset map.
-func (s *renderService) GetAssets() map[string]string {
-	return s.rnd.GetAssets()
+func (service *renderService) GetAssets() map[string]string {
+	return service.renderer.GetAssets()
 }
 
 // GetRenderedFiles returns a snapshot of rendered files.
-func (s *renderService) GetRenderedFiles() map[string]bool {
-	return s.rnd.GetRenderedFiles()
+func (service *renderService) GetRenderedFiles() map[string]bool {
+	return service.renderer.GetRenderedFiles()
 }
 
 // ClearRenderedFiles clears the recorded rendered files.
-func (s *renderService) ClearRenderedFiles() {
-	s.rnd.ClearRenderedFiles()
+func (service *renderService) ClearRenderedFiles() {
+	service.renderer.ClearRenderedFiles()
 }
 
 // ReloadTemplates reloads renderer templates from disk or cache.
-func (s *renderService) ReloadTemplates() {
-	s.rnd.ReloadTemplates()
+func (service *renderService) ReloadTemplates() {
+	service.renderer.ReloadTemplates()
 }
 
 // Has404Template reports whether a 404 template was loaded.
-func (s *renderService) Has404Template() bool {
-	return s.rnd.Has404Template()
+func (service *renderService) Has404Template() bool {
+	return service.renderer.Has404Template()
 }

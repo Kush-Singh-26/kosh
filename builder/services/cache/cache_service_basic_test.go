@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
@@ -17,7 +17,7 @@ func TestNewService(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	service := NewService(Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -47,7 +47,7 @@ func TestCacheService_GetPost(t *testing.T) {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 
-	retrieved, err := service.GetPost(post.PostID)
+	retrieved, err := service.GetPostByID(post.PostID)
 	if err != nil {
 		t.Fatalf("GetPost failed: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestCacheService_GetPost_NotFound(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
-	retrieved, err := service.GetPost("non-existent-post")
+	retrieved, err := service.GetPostByID("non-existent-post")
 	if err == nil {
 		t.Fatal("GetPost should error for missing post")
 	}
@@ -196,7 +196,7 @@ func TestCacheService_DeletePost(t *testing.T) {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 
-	retrieved, err := service.GetPost(post.PostID)
+	retrieved, err := service.GetPostByID(post.PostID)
 	if err != nil {
 		t.Fatalf("GetPost failed: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestCacheService_DeletePost(t *testing.T) {
 		t.Fatalf("DeletePost failed: %v", err)
 	}
 
-	retrieved, err = service.GetPost(post.PostID)
+	retrieved, err = service.GetPostByID(post.PostID)
 	if err == nil {
 		t.Fatal("GetPost should error after delete")
 	}

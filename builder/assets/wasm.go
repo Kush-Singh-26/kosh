@@ -44,9 +44,9 @@ func CheckWASM(sink fspkg.ArtifactSink, cacheDir string) bool {
 }
 
 // CheckWASMFs verifies the deployed WASM using the provided filesystem.
-func CheckWASMFs(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir string) bool {
+func CheckWASMFs(sourceFs afero.Fs, sink fspkg.ArtifactSink, cacheDir string) bool {
 	return CheckWASMFsWithSource(CheckWASMOptions{
-		Fs:       fs,
+		Fs:       sourceFs,
 		Sink:     sink,
 		CacheDir: cacheDir,
 	})
@@ -69,11 +69,11 @@ func resolveCompressionLevel(level int) int {
 }
 
 func resolveWasmPaths(outputDir string) (string, string, string, string) {
-	wasmRelPath := "static/wasm/search.wasm"
-	brRelPath := wasmRelPath + ".br"
-	wasmOut := filepath.Join(outputDir, wasmRelPath)
-	brOut := filepath.Join(outputDir, brRelPath)
-	return wasmRelPath, brRelPath, wasmOut, brOut
+	wasmRelativePath := "static/wasm/search.wasm"
+	brotliRelativePath := wasmRelativePath + ".br"
+	wasmOutputPath := filepath.Join(outputDir, wasmRelativePath)
+	brotliOutputPath := filepath.Join(outputDir, brotliRelativePath)
+	return wasmRelativePath, brotliRelativePath, wasmOutputPath, brotliOutputPath
 }
 
 func loadWasmSource(sourceWasm []byte) ([]byte, string, []byte, bool) {
@@ -87,15 +87,15 @@ func loadWasmSource(sourceWasm []byte) ([]byte, string, []byte, bool) {
 	return sourceWasm, hashBytes(sourceWasm), nil, true
 }
 
-func ensureWasmDir(sink fspkg.ArtifactSink, wasmRelPath string) {
-	if err := sink.MkdirAll(filepath.Dir(wasmRelPath)); err != nil {
+func ensureWasmDir(sink fspkg.ArtifactSink, wasmRelativePath string) {
+	if err := sink.MkdirAll(filepath.Dir(wasmRelativePath)); err != nil {
 		slog.Warn("Failed to create WASM directory", "error", err)
 	}
 }
 
-func hasDeployedWasm(fs afero.Fs, wasmOut, brOut, wasmHash string) bool {
-	brExists, _ := afero.Exists(fs, brOut)
-	if deployedHash, err := hashFileFs(fs, wasmOut); err == nil && brExists {
+func hasDeployedWasm(sourceFs afero.Fs, wasmOutputPath, brotliOutputPath, wasmHash string) bool {
+	brotliExists, _ := afero.Exists(sourceFs, brotliOutputPath)
+	if deployedHash, err := hashFileFs(sourceFs, wasmOutputPath); err == nil && brotliExists {
 		if deployedHash == wasmHash {
 			return true
 		}
@@ -104,106 +104,106 @@ func hasDeployedWasm(fs afero.Fs, wasmOut, brOut, wasmHash string) bool {
 	return false
 }
 
-func tryDeployFromCache(sink fspkg.ArtifactSink, cacheDir, wasmHash string, wasmBytes []byte, wasmRelPath, brRelPath string) bool {
+func tryDeployFromCache(sink fspkg.ArtifactSink, cacheDir, wasmHash string, wasmBytes []byte, wasmRelativePath, brotliRelativePath string) bool {
 	if cacheDir == "" {
 		return false
 	}
 	cachePath := filepath.Join(cacheDir, "wasm", wasmHash+".br")
-	cachedBr, err := os.ReadFile(cachePath)
+	cachedBrotli, err := os.ReadFile(cachePath)
 	if err != nil {
 		return false
 	}
 	slog.Info("Using cached Search WASM...")
-	_ = sink.WriteFile(wasmRelPath, wasmBytes)
-	_ = sink.WriteFile(brRelPath, cachedBr)
+	_ = sink.WriteFile(wasmRelativePath, wasmBytes)
+	_ = sink.WriteFile(brotliRelativePath, cachedBrotli)
 	return true
 }
 
-func prepareEmbeddedWasm(wasmBrBytes []byte) ([]byte, []byte, bool) {
-	wasmBytes, err := decompressBrotli(wasmBrBytes)
+func prepareEmbeddedWasm(wasmBrotliBytes []byte) ([]byte, []byte, bool) {
+	wasmBytes, err := decompressBrotli(wasmBrotliBytes)
 	if err != nil {
 		slog.Error("Failed to decompress embedded WASM", "error", err)
 		return nil, nil, false
 	}
-	return wasmBytes, wasmBrBytes, true
+	return wasmBytes, wasmBrotliBytes, true
 }
 
 func prepareSourceWasm(wasmBytes []byte, compressionLevel int, cacheDir, wasmHash string) []byte {
 	slog.Info("Compressing WASM...")
-	var buf bytes.Buffer
-	bw := brotli.NewWriterLevel(&buf, compressionLevel)
-	_, _ = bw.Write(wasmBytes)
-	if err := bw.Close(); err != nil {
+	var buffer bytes.Buffer
+	brotliWriter := brotli.NewWriterLevel(&buffer, compressionLevel)
+	_, _ = brotliWriter.Write(wasmBytes)
+	if err := brotliWriter.Close(); err != nil {
 		slog.Warn("Failed to close Brotli writer", "error", err)
 	}
-	wasmBrBytes := buf.Bytes()
+	wasmBrotliBytes := buffer.Bytes()
 
 	if cacheDir != "" {
 		cacheDirFull := filepath.Join(cacheDir, "wasm")
 		_ = os.MkdirAll(cacheDirFull, wasmCacheDirMode)
-		_ = os.WriteFile(filepath.Join(cacheDirFull, wasmHash+".br"), wasmBrBytes, wasmCacheFileMode)
+		_ = os.WriteFile(filepath.Join(cacheDirFull, wasmHash+".br"), wasmBrotliBytes, wasmCacheFileMode)
 	}
 
-	return wasmBrBytes
+	return wasmBrotliBytes
 }
 
-func writeWasmOutputs(sink fspkg.ArtifactSink, wasmRelPath, brRelPath string, wasmBytes, wasmBrBytes []byte) bool {
-	if err := sink.WriteFile(wasmRelPath, wasmBytes); err != nil {
+func writeWasmOutputs(sink fspkg.ArtifactSink, wasmRelativePath, brotliRelativePath string, wasmBytes, wasmBrotliBytes []byte) bool {
+	if err := sink.WriteFile(wasmRelativePath, wasmBytes); err != nil {
 		slog.Error("Failed to write WASM", "error", err)
 		return false
 	}
-	if err := sink.WriteFile(brRelPath, wasmBrBytes); err != nil {
+	if err := sink.WriteFile(brotliRelativePath, wasmBrotliBytes); err != nil {
 		slog.Error("Failed to write WASM.br", "error", err)
 		return false
 	}
 	slog.Info("WASM deployed",
 		"uncompressed", formatSize(len(wasmBytes)),
-		"compressed", formatSize(len(wasmBrBytes)))
+		"compressed", formatSize(len(wasmBrotliBytes)))
 	return true
 }
 
 // CheckWASMFsWithSource checks and deploys WASM using a provided source payload.
-func CheckWASMFsWithSource(opts CheckWASMOptions) bool {
-	fs := opts.Fs
-	sink := opts.Sink
-	cacheDir := opts.CacheDir
-	compressionLevel := resolveCompressionLevel(opts.CompressionLevel)
+func CheckWASMFsWithSource(options CheckWASMOptions) bool {
+	sourceFs := options.Fs
+	sink := options.Sink
+	cacheDir := options.CacheDir
+	compressionLevel := resolveCompressionLevel(options.CompressionLevel)
 
 	outputDir := sink.GetOutputDir()
-	wasmRelPath, brRelPath, wasmOut, brOut := resolveWasmPaths(outputDir)
+	wasmRelativePath, brotliRelativePath, wasmOutputPath, brotliOutputPath := resolveWasmPaths(outputDir)
 
-	wasmBytes, wasmHash, wasmBrBytes, ok := loadWasmSource(opts.SourceWasm)
+	wasmBytes, wasmHash, wasmBrotliBytes, ok := loadWasmSource(options.SourceWasm)
 	if !ok {
 		return false
 	}
-	isEmbedded := len(opts.SourceWasm) == 0
+	isEmbedded := len(options.SourceWasm) == 0
 
-	ensureWasmDir(sink, wasmRelPath)
+	ensureWasmDir(sink, wasmRelativePath)
 
-	if hasDeployedWasm(fs, wasmOut, brOut, wasmHash) {
+	if hasDeployedWasm(sourceFs, wasmOutputPath, brotliOutputPath, wasmHash) {
 		return false
 	}
-	if !isEmbedded && tryDeployFromCache(sink, cacheDir, wasmHash, wasmBytes, wasmRelPath, brRelPath) {
+	if !isEmbedded && tryDeployFromCache(sink, cacheDir, wasmHash, wasmBytes, wasmRelativePath, brotliRelativePath) {
 		return true
 	}
 	slog.Info("Deploying Search WASM...")
 
 	if isEmbedded {
-		wasmBytes, wasmBrBytes, ok = prepareEmbeddedWasm(wasmBrBytes)
+		wasmBytes, wasmBrotliBytes, ok = prepareEmbeddedWasm(wasmBrotliBytes)
 		if !ok {
 			return false
 		}
 	} else {
-		wasmBrBytes = prepareSourceWasm(wasmBytes, compressionLevel, cacheDir, wasmHash)
+		wasmBrotliBytes = prepareSourceWasm(wasmBytes, compressionLevel, cacheDir, wasmHash)
 	}
 
-	return writeWasmOutputs(sink, wasmRelPath, brRelPath, wasmBytes, wasmBrBytes)
+	return writeWasmOutputs(sink, wasmRelativePath, brotliRelativePath, wasmBytes, wasmBrotliBytes)
 }
 
 // DeployWASMFromFile deploys a WASM binary from a file path.
-func DeployWASMFromFile(fs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePath string) bool {
+func DeployWASMFromFile(sourceFs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePath string) bool {
 	return DeployWASMFromFileWithLevel(DeployWASMOptions{
-		Fs:         fs,
+		Fs:         sourceFs,
 		Sink:       sink,
 		CacheDir:   cacheDir,
 		SourcePath: sourcePath,
@@ -221,21 +221,21 @@ type DeployWASMOptions struct {
 }
 
 // DeployWASMFromFileWithLevel deploys a WASM file with a specific compression level.
-func DeployWASMFromFileWithLevel(opts DeployWASMOptions) bool {
-	data, err := afero.ReadFile(opts.Fs, opts.SourcePath)
+func DeployWASMFromFileWithLevel(options DeployWASMOptions) bool {
+	data, err := afero.ReadFile(options.Fs, options.SourcePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return CheckWASMFs(opts.Fs, opts.Sink, opts.CacheDir)
+			return CheckWASMFs(options.Fs, options.Sink, options.CacheDir)
 		}
-		slog.Warn("Failed to read source WASM", "path", opts.SourcePath, "error", err)
-		return CheckWASMFs(opts.Fs, opts.Sink, opts.CacheDir)
+		slog.Warn("Failed to read source WASM", "path", options.SourcePath, "error", err)
+		return CheckWASMFs(options.Fs, options.Sink, options.CacheDir)
 	}
 	return CheckWASMFsWithSource(CheckWASMOptions{
-		Fs:               opts.Fs,
-		Sink:             opts.Sink,
-		CacheDir:         opts.CacheDir,
+		Fs:               options.Fs,
+		Sink:             options.Sink,
+		CacheDir:         options.CacheDir,
 		SourceWasm:       data,
-		CompressionLevel: opts.Level,
+		CompressionLevel: options.Level,
 	})
 }
 
@@ -289,27 +289,27 @@ func formatSize(size int) string {
 
 // hashBytes computes XXH3 hash of byte slice (first 16 hex chars)
 func hashBytes(data []byte) string {
-	h := xxh3.New()
-	if _, err := h.Write(data); err != nil {
+	hasher := xxh3.New()
+	if _, err := hasher.Write(data); err != nil {
 		return ""
 	}
-	sum := h.Sum128()
-	b := sum.Bytes()
-	return hex.EncodeToString(b[:])[:wasmHashHexLength]
+	sum := hasher.Sum128()
+	hashBytes := sum.Bytes()
+	return hex.EncodeToString(hashBytes[:])[:wasmHashHexLength]
 }
 
-func hashFileFs(fs afero.Fs, path string) (string, error) {
-	f, err := fs.Open(path)
+func hashFileFs(sourceFs afero.Fs, path string) (string, error) {
+	file, err := sourceFs.Open(path)
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = f.Close() }()
+	defer func() { _ = file.Close() }()
 
-	h := xxh3.New()
-	if _, err := io.Copy(h, f); err != nil {
+	hasher := xxh3.New()
+	if _, err := io.Copy(hasher, file); err != nil {
 		return "", err
 	}
-	sum := h.Sum128()
-	b := sum.Bytes()
-	return hex.EncodeToString(b[:])[:wasmHashHexLength], nil
+	sum := hasher.Sum128()
+	hashBytes := sum.Bytes()
+	return hex.EncodeToString(hashBytes[:])[:wasmHashHexLength], nil
 }

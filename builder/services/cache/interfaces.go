@@ -7,7 +7,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
@@ -30,13 +30,13 @@ type Service interface {
 
 	Stats() (*cache.CacheStats, error)
 	IncrementBuildCount() (uint32, error)
-	RunGC(cfg gc.GCConfig) (*gc.GCResult, error)
+	RunGC(config gc.GCConfig) (*gc.GCResult, error)
 	Close() error
 }
 
 // Dependencies holds all dependencies for CacheService.
 type Dependencies struct {
-	Ctx     *buildCtx.BuildContext
+	Ctx     *buildctx.BuildContext
 	Manager *cache.Manager
 	Logger  *slog.Logger
 }

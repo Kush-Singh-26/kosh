@@ -65,22 +65,22 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 
 	// Check default features
-	if !cfg.Features.Generators.Sitemap {
+	if !cfg.Features.Generators.IsSitemapEnabled {
 		t.Error("Sitemap generator should be enabled by default")
 	}
 
-	if !cfg.Features.Generators.RSS {
+	if !cfg.Features.Generators.IsRSSEnabled {
 		t.Error("RSS generator should be enabled by default")
 	}
 
-	if !cfg.Features.Generators.Graph.Enabled {
+	if !cfg.Features.Generators.Graph.IsEnabled {
 		t.Error("Graph generator should be enabled by default")
 	}
-	if !cfg.Features.Generators.Graph.ShowTags {
-		t.Error("Graph showTags should be enabled by default")
+	if !cfg.Features.Generators.Graph.ShowsTags {
+		t.Error("Graph showsTags should be enabled by default")
 	}
 
-	if !cfg.Features.Generators.Search {
+	if !cfg.Features.Generators.IsSearchEnabled {
 		t.Error("Search generator should be enabled by default")
 	}
 }
@@ -101,8 +101,8 @@ author:
   url: "https://author.example.com"
 features:
   generators:
-    sitemap: false
-    rss: false
+    isSitemapEnabled: false
+    isRSSEnabled: false
 `
 	if err := os.WriteFile("kosh.yaml", []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("Failed to create test kosh.yaml: %v", err)
@@ -134,11 +134,11 @@ features:
 		t.Errorf("Author.Name = %q, want %q", cfg.Author.Name, "Test Author")
 	}
 
-	if cfg.Features.Generators.Sitemap {
+	if cfg.Features.Generators.IsSitemapEnabled {
 		t.Error("Sitemap should be disabled")
 	}
 
-	if cfg.Features.Generators.RSS {
+	if cfg.Features.Generators.IsRSSEnabled {
 		t.Error("RSS should be disabled")
 	}
 }
@@ -205,8 +205,8 @@ baseURL: "https://test.example.com"
 		t.Errorf("BaseURL = %q, want %q", cfg.BaseURL, "https://override.example.com")
 	}
 
-	if !cfg.IncludeDrafts {
-		t.Error("IncludeDrafts should be true")
+	if !cfg.ShouldIncludeDrafts {
+		t.Error("ShouldIncludeDrafts should be true")
 	}
 }
 
@@ -351,8 +351,8 @@ baseURL: "https://vfs.example.com"
 		t.Errorf("BaseURL = %q, want %q", cfg.BaseURL, "https://override.vfs.com")
 	}
 
-	if !cfg.IncludeDrafts {
-		t.Error("IncludeDrafts should be true")
+	if !cfg.ShouldIncludeDrafts {
+		t.Error("ShouldIncludeDrafts should be true")
 	}
 
 	if cfg.Theme != "my-theme" {
@@ -402,15 +402,15 @@ func TestConfig_FeaturesConfig(t *testing.T) {
 			if tt.rawMarkdown {
 				yamlValue = "true"
 			}
-			yamlContent := "features:\n  rawMarkdown: " + yamlValue
+			yamlContent := "features:\n  useRawMarkdown: " + yamlValue
 			if err := os.WriteFile("kosh.yaml", []byte(yamlContent), 0644); err != nil {
 				t.Fatalf("Failed to create test kosh.yaml: %v", err)
 			}
 
 			cfg := Load([]string{})
 
-			if cfg.Features.RawMarkdown != tt.expectRawMD {
-				t.Errorf("Features.RawMarkdown = %v, want %v", cfg.Features.RawMarkdown, tt.expectRawMD)
+			if cfg.Features.UseRawMarkdown != tt.expectRawMD {
+				t.Errorf("Features.UseRawMarkdown = %v, want %v", cfg.Features.UseRawMarkdown, tt.expectRawMD)
 			}
 		})
 	}

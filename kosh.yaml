@@ -33,13 +33,15 @@ footerMenu:
 
 # Global Features & Generators
 features:
-  rawMarkdown: true      # Deploys .md files alongside .html for "View Source"
+  useRawMarkdown: true      # Deploys .md files alongside .html for "View Source"
   generators:
-    sitemap: true        # Auto-generate Google-compatible sitemap
-    rss: true            # Auto-generate RSS feed
-    graph: true          # Generate knowledge graph data
-    pwa: true            # Enable Service Workers, Manifest, and Icons
-    search: true         # Build the WASM search index
+    isSitemapEnabled: true        # Auto-generate Google-compatible sitemap
+    isRSSEnabled: true            # Auto-generate RSS feed
+    graph:
+      isEnabled: true      # Generate knowledge graph data
+      showsTags: true
+    isPWAEnabled: true            # Enable Service Workers, Manifest, and Icons
+    isSearchEnabled: true         # Build the WASM search index
 
 # Social Cards (Open Graph Images)
 socialCards:
@@ -53,7 +55,7 @@ socialCards:
 
 # Build Optimization
 postsPerPage: 10
-compressImages: true     # Auto-convert PNG/JPG to optimized WebP
+shouldCompressImages: true     # Auto-convert PNG/JPG to optimized WebP
 imageWorkers: 8
 
 # Theme Configuration

@@ -7,18 +7,18 @@ import (
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 )
 
-func (s *postService) processCachedMath(html string, exprs []models.MathExpression) (string, bool) {
-	if s.diagramAdapter == nil || len(exprs) == 0 {
+func (service *postService) processCachedMath(html string, expressions []models.MathExpression) (string, bool) {
+	if service.diagramAdapter == nil || len(expressions) == 0 {
 		return html, true
 	}
 
 	renderedMath := make(map[string]string)
 	missingCount := 0
-	for _, expr := range exprs {
+	for _, expr := range expressions {
 		key := "math:" + expr.Hash
-		if v, ok := s.diagramAdapter.Get(key); ok {
-			if s, ok := v.(string); ok {
-				renderedMath[expr.Hash] = s
+		if val, ok := service.diagramAdapter.Get(key); ok {
+			if renderedStr, ok := val.(string); ok {
+				renderedMath[expr.Hash] = renderedStr
 			}
 		} else {
 			missingCount++
@@ -30,45 +30,45 @@ func (s *postService) processCachedMath(html string, exprs []models.MathExpressi
 	}
 
 	if len(renderedMath) > 0 {
-		return mdParser.ReplaceMathExpressions(html, exprs, renderedMath), true
+		return mdParser.ReplaceMathExpressions(html, expressions, renderedMath), true
 	}
 	return html, true
 }
 
-func (s *postService) renderMath(ctx context.Context, path string, res *ParsedMarkdownResult) string {
-	if len(res.MathExpressions) == 0 {
-		return res.HTMLContent
+func (service *postService) renderMath(ctx context.Context, path string, result *ParsedMarkdownResult) string {
+	if len(result.MathExpressions) == 0 {
+		return result.HTMLContent
 	}
 
 	cachedSubset := make(map[string]string)
-	if s.diagramAdapter != nil {
-		for _, e := range res.MathExpressions {
-			key := "math:" + e.Hash
-			if v, ok := s.diagramAdapter.GetLocal(key); ok {
-				if s, ok := v.(string); ok {
-					cachedSubset[e.Hash] = s
+	if service.diagramAdapter != nil {
+		for _, expr := range result.MathExpressions {
+			key := "math:" + expr.Hash
+			if val, ok := service.diagramAdapter.GetLocal(key); ok {
+				if renderedStr, ok := val.(string); ok {
+					cachedSubset[expr.Hash] = renderedStr
 				}
 			}
 		}
 	}
 
-	rendered, err := s.nativeRenderer.RenderAllMath(ctx, res.MathExpressions, cachedSubset)
+	rendered, err := service.nativeRenderer.RenderAllMath(ctx, result.MathExpressions, cachedSubset)
 	if err != nil {
-		s.logger.Warn("Math render failed for post", "path", path, "error", err)
+		service.logger.Warn("Math render failed for post", "path", path, "error", err)
 	}
 
-	if s.diagramAdapter != nil && len(rendered) > 0 {
+	if service.diagramAdapter != nil && len(rendered) > 0 {
 		newMath := make(map[string]any) // values are rendered HTML/SVG strings.
-		for h, v := range rendered {
-			if _, ok := cachedSubset[h]; !ok {
-				key := "math:" + h
-				newMath[key] = v
+		for hash, content := range rendered {
+			if _, ok := cachedSubset[hash]; !ok {
+				key := "math:" + hash
+				newMath[key] = content
 			}
 		}
 		if len(newMath) > 0 {
-			s.diagramAdapter.Merge(newMath)
+			service.diagramAdapter.Merge(newMath)
 		}
 	}
 
-	return mdParser.ReplaceMathExpressions(res.HTMLContent, res.MathExpressions, rendered)
+	return mdParser.ReplaceMathExpressions(result.HTMLContent, result.MathExpressions, rendered)
 }

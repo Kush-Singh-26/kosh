@@ -83,19 +83,19 @@ func NewBuildScheduler() BuildScheduler {
 }
 
 // Acquire reserves scheduler capacity for a task type.
-func (s *weightedScheduler) Acquire(ctx context.Context, task TaskType) error {
-	weight, ok := s.weights[task]
+func (sched *weightedScheduler) Acquire(ctx context.Context, task TaskType) error {
+	weight, ok := sched.weights[task]
 	if !ok {
-		weight = s.weights[TaskDefault]
+		weight = sched.weights[TaskDefault]
 	}
-	return s.sem.Acquire(ctx, weight)
+	return sched.sem.Acquire(ctx, weight)
 }
 
 // Release returns scheduler capacity for a task type.
-func (s *weightedScheduler) Release(task TaskType) {
-	weight, ok := s.weights[task]
+func (sched *weightedScheduler) Release(task TaskType) {
+	weight, ok := sched.weights[task]
 	if !ok {
-		weight = s.weights[TaskDefault]
+		weight = sched.weights[TaskDefault]
 	}
-	s.sem.Release(weight)
+	sched.sem.Release(weight)
 }

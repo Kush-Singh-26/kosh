@@ -19,8 +19,8 @@ var (
 	// copyBufferPool stores *[]byte buffers for streaming copies.
 	copyBufferPool = sync.Pool{
 		New: func() any {
-			b := make([]byte, copyBufferSize)
-			return &b
+			buf := make([]byte, copyBufferSize)
+			return &buf
 		},
 	}
 )
@@ -76,18 +76,18 @@ func CopyFileVFS(opts CopyFileOptions) error {
 		slog.Debug("Optimized copy failed, falling back to streaming", "path", opts.SrcPath, "error", err)
 	}
 
-	in, err := opts.SrcFs.Open(opts.SrcPath)
+	srcFile, err := opts.SrcFs.Open(opts.SrcPath)
 	if err != nil {
 		return fmt.Errorf("failed to open source file %s: %w", opts.SrcPath, err)
 	}
-	defer func() { _ = in.Close() }()
+	defer func() { _ = srcFile.Close() }()
 
 	bufPtr := copyBufferPool.Get().(*[]byte)
 	buf := *bufPtr
 	defer copyBufferPool.Put(bufPtr)
 
-	errWrite := opts.Sink.WriteStream(opts.DstPath, func(w io.Writer) error {
-		_, err := io.CopyBuffer(w, in, buf)
+	errWrite := opts.Sink.WriteStream(opts.DstPath, func(writer io.Writer) error {
+		_, err := io.CopyBuffer(writer, srcFile, buf)
 		return err
 	})
 	if errWrite != nil {

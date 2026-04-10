@@ -41,7 +41,7 @@ type RenderService interface {
 
 // PostCache provides post metadata access.
 type PostCache interface {
-	GetPost(id string) (*PostMeta, error)
+	GetPostByID(postID string) (*PostMeta, error)
 	ListAllPosts() ([]string, error)
 	GetPostByPath(path string) (*PostMeta, error)
 	GetPostsByIDs(ids []string) (map[string]*PostMeta, error)

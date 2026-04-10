@@ -112,45 +112,45 @@ func stem(word string) string {
 
 // measure returns the number of consonant sequences (VC) in the word
 func measure(runes []rune) int {
-	m := 0
+	measureCount := 0
 	i := 0
-	n := len(runes)
+	length := len(runes)
 
 	// Skip initial consonants
-	for i < n && !isVowel(runes, i) {
+	for i < length && !isVowel(runes, i) {
 		i++
 	}
 
-	for i < n {
+	for i < length {
 		// Count vowels
-		for i < n && isVowel(runes, i) {
+		for i < length && isVowel(runes, i) {
 			i++
 		}
-		if i >= n {
+		if i >= length {
 			break
 		}
 		// Count consonants
-		for i < n && !isVowel(runes, i) {
+		for i < length && !isVowel(runes, i) {
 			i++
 		}
-		m++
+		measureCount++
 	}
 
-	return m
+	return measureCount
 }
 
 // isVowel checks if the character at position i is a vowel
 func isVowel(runes []rune, i int) bool {
-	n := len(runes)
-	if i >= n {
+	length := len(runes)
+	if i >= length {
 		return false
 	}
 
-	c := runes[i]
-	if c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u' {
+	char := runes[i]
+	if char == 'a' || char == 'e' || char == 'i' || char == 'o' || char == 'u' {
 		return true
 	}
-	if c == 'y' && i > 0 && !isVowel(runes, i-1) {
+	if char == 'y' && i > 0 && !isVowel(runes, i-1) {
 		return true
 	}
 	return false
@@ -180,18 +180,18 @@ func endsWithDoubleConsonant(runes []rune) bool {
 
 // endsWithCVC checks for consonant-vowel-consonant ending
 func endsWithCVC(runes []rune) bool {
-	n := len(runes)
-	if n < minCvcLen {
+	length := len(runes)
+	if length < minCvcLen {
 		return false
 	}
 
-	if isVowel(runes, n-1) || !isVowel(runes, n-2) || isVowel(runes, n-minCvcLen) {
+	if isVowel(runes, length-1) || !isVowel(runes, length-2) || isVowel(runes, length-minCvcLen) {
 		return false
 	}
 
 	// The final consonant must not be w, x, or y
-	c := runes[n-1]
-	return c != 'w' && c != 'x' && c != 'y'
+	char := runes[length-1]
+	return char != 'w' && char != 'x' && char != 'y'
 }
 
 func step1a(runes []rune) []rune {
@@ -313,11 +313,11 @@ func step2(runes []rune) []rune {
 		{"ousness", "ous"}, {"aliti", "al"}, {"iviti", "ive"}, {"biliti", "ble"},
 	}
 
-	for _, s := range suffixes {
-		if hasSuffix(runes, s.suffix) {
-			stem := runes[:n-len(s.suffix)]
+	for _, suf := range suffixes {
+		if hasSuffix(runes, suf.suffix) {
+			stem := runes[:n-len(suf.suffix)]
 			if measure(stem) > 0 {
-				return append(stem, []rune(s.replacement)...)
+				return append(stem, []rune(suf.replacement)...)
 			}
 			return runes
 		}
@@ -337,11 +337,11 @@ func step3(runes []rune) []rune {
 		{"ical", "ic"}, {"ful", ""}, {"ness", ""},
 	}
 
-	for _, s := range suffixes {
-		if hasSuffix(runes, s.suffix) {
-			stem := runes[:n-len(s.suffix)]
+	for _, suf := range suffixes {
+		if hasSuffix(runes, suf.suffix) {
+			stem := runes[:n-len(suf.suffix)]
 			if measure(stem) > 0 {
-				return append(stem, []rune(s.replacement)...)
+				return append(stem, []rune(suf.replacement)...)
 			}
 			return runes
 		}
@@ -362,14 +362,14 @@ func step4(runes []rune) []rune {
 		if hasSuffix(runes, suffix) {
 			slen := len(suffix)
 			stem := runes[:n-slen]
-			m := measure(stem)
+			measureCount := measure(stem)
 
 			// Special case for -ion: stem must end with s or t
 			if suffix == "ion" {
-				if len(stem) > 0 && (stem[len(stem)-1] == 's' || stem[len(stem)-1] == 't') && m > 1 {
+				if len(stem) > 0 && (stem[len(stem)-1] == 's' || stem[len(stem)-1] == 't') && measureCount > 1 {
 					return stem
 				}
-			} else if m > 1 {
+			} else if measureCount > 1 {
 				return stem
 			}
 			return runes
@@ -383,12 +383,12 @@ func step5a(runes []rune) []rune {
 	n := len(runes)
 	if n >= 1 && runes[n-1] == 'e' {
 		stem := runes[:n-1]
-		m := measure(stem)
+		measureCount := measure(stem)
 
-		if m > 1 {
+		if measureCount > 1 {
 			return stem
 		}
-		if m == 1 && !endsWithCVC(stem) {
+		if measureCount == 1 && !endsWithCVC(stem) {
 			return stem
 		}
 	}

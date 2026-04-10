@@ -31,7 +31,7 @@ func createSamplePostMeta() *core.PostMeta {
 		Date:        time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
 		Tags:        []string{"test", "go", "tutorial"},
 		Description: "A test post for testing purposes",
-		Draft:       false,
+		IsDraft:     false,
 		Weight:      10,
 		WordCount:   150,
 		ReadingTime: 1,
@@ -268,9 +268,9 @@ func TestManager_DirtyTracking(t *testing.T) {
 	}
 
 	// Check internal dirty map
-	m.mu.RLock()
+	m.mutex.RLock()
 	dirty := m.dirty[postID]
-	m.mu.RUnlock()
+	m.mutex.RUnlock()
 
 	if !dirty {
 		t.Error("Internal dirty map should have the post")
@@ -291,9 +291,9 @@ func TestManager_ClearDirty(t *testing.T) {
 	}
 
 	// Clear dirty (not exported, test via internal access)
-	m.mu.Lock()
+	m.mutex.Lock()
 	delete(m.dirty, postID)
-	m.mu.Unlock()
+	m.mutex.Unlock()
 
 	// Should not be dirty anymore
 	if m.IsDirty(postID) {

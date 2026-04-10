@@ -21,29 +21,29 @@ const (
 )
 
 // VerifyTheme checks if the theme directories exist
-func VerifyTheme(cfg *config.Config, logger *slog.Logger) {
-	VerifyThemeFs(afero.NewOsFs(), cfg, logger, pathFs.DetectTestingMode())
+func VerifyTheme(configInstance *config.Config, logger *slog.Logger) {
+	VerifyThemeFs(afero.NewOsFs(), configInstance, logger, pathFs.DetectTestingMode())
 }
 
 // VerifyThemeFs checks if the theme directories exist using the provided filesystem
-func VerifyThemeFs(fs afero.Fs, cfg *config.Config, logger *slog.Logger, isTesting bool) {
-	themePath := filepath.Join(cfg.ThemeDir, cfg.Theme)
-	if exists, _ := afero.Exists(fs, themePath); !exists {
+func VerifyThemeFs(sourceFs afero.Fs, configInstance *config.Config, logger *slog.Logger, isTesting bool) {
+	themePath := filepath.Join(configInstance.ThemeDir, configInstance.Theme)
+	if exists, _ := afero.Exists(sourceFs, themePath); !exists {
 		logger.Error("Theme not found",
-			"theme", cfg.Theme,
+			"theme", configInstance.Theme,
 			"path", themePath,
-			"hint", "Please ensure you have installed the theme into '"+cfg.ThemeDir+"/"+cfg.Theme+"/'")
-		logger.Info("Theme installation:", "example", "git clone <theme-repo-url> "+filepath.Join(cfg.ThemeDir, cfg.Theme))
+			"hint", "Please ensure you have installed the theme into '"+configInstance.ThemeDir+"/"+configInstance.Theme+"/'")
+		logger.Info("Theme installation:", "example", "git clone <theme-repo-url> "+filepath.Join(configInstance.ThemeDir, configInstance.Theme))
 		if !isTesting {
 			os.Exit(1)
 		}
 		return
 	}
 
-	templatePath := cfg.TemplateDir
-	if exists, _ := afero.Exists(fs, templatePath); !exists {
+	templatePath := configInstance.TemplateDir
+	if exists, _ := afero.Exists(sourceFs, templatePath); !exists {
 		logger.Error("Theme templates directory not found",
-			"theme", cfg.Theme,
+			"theme", configInstance.Theme,
 			"path", templatePath,
 			"hint", "Theme must have a 'templates' directory")
 		if !isTesting {
@@ -52,73 +52,73 @@ func VerifyThemeFs(fs afero.Fs, cfg *config.Config, logger *slog.Logger, isTesti
 		return
 	}
 
-	staticPath := cfg.StaticDir
-	if exists, _ := afero.Exists(fs, staticPath); !exists {
+	staticPath := configInstance.StaticDir
+	if exists, _ := afero.Exists(sourceFs, staticPath); !exists {
 		logger.Warn("Theme static directory not found, creating empty",
-			"theme", cfg.Theme,
+			"theme", configInstance.Theme,
 			"path", staticPath)
-		_ = fs.MkdirAll(staticPath, cacheDirMode)
+		_ = sourceFs.MkdirAll(staticPath, cacheDirMode)
 	}
 }
 
 // SetupCacheDirectories creates required cache folders
-func SetupCacheDirectories(cfg *config.Config, logger *slog.Logger) {
-	SetupCacheDirectoriesFs(afero.NewOsFs(), cfg, logger, pathFs.DetectTestingMode())
+func SetupCacheDirectories(configInstance *config.Config, logger *slog.Logger) {
+	SetupCacheDirectoriesFs(afero.NewOsFs(), configInstance, logger, pathFs.DetectTestingMode())
 }
 
 // SetupCacheDirectoriesFs creates required cache folders using the provided filesystem
-func SetupCacheDirectoriesFs(fs afero.Fs, cfg *config.Config, logger *slog.Logger, isTesting bool) {
-	if err := fs.MkdirAll(cfg.CacheDir, cacheDirMode); err != nil {
-		logger.Error("Failed to create cache directory", "path", cfg.CacheDir, "error", err)
+func SetupCacheDirectoriesFs(sourceFs afero.Fs, configInstance *config.Config, logger *slog.Logger, isTesting bool) {
+	if err := sourceFs.MkdirAll(configInstance.CacheDir, cacheDirMode); err != nil {
+		logger.Error("Failed to create cache directory", "path", configInstance.CacheDir, "error", err)
 		if !isTesting {
 			os.Exit(1)
 		}
 		return
 	}
-	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "social-cards"), cacheDirMode); err != nil {
+	if err := sourceFs.MkdirAll(filepath.Join(configInstance.CacheDir, "social-cards"), cacheDirMode); err != nil {
 		logger.Error("Failed to create social-cards cache directory", "error", err)
 	}
-	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "assets"), cacheDirMode); err != nil {
+	if err := sourceFs.MkdirAll(filepath.Join(configInstance.CacheDir, "assets"), cacheDirMode); err != nil {
 		logger.Error("Failed to create assets cache directory", "error", err)
 	}
-	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "images"), cacheDirMode); err != nil {
+	if err := sourceFs.MkdirAll(filepath.Join(configInstance.CacheDir, "images"), cacheDirMode); err != nil {
 		logger.Error("Failed to create images cache directory", "error", err)
 	}
-	if err := fs.MkdirAll(filepath.Join(cfg.CacheDir, "pwa-icons"), cacheDirMode); err != nil {
+	if err := sourceFs.MkdirAll(filepath.Join(configInstance.CacheDir, "pwa-icons"), cacheDirMode); err != nil {
 		logger.Error("Failed to create pwa-icons cache directory", "error", err)
 	}
 }
 
 // SetupCacheManager opens and verifies the bolt DB cache
-func SetupCacheManager(cfg *config.Config, logger *slog.Logger) (*cache.Manager, *cache.DiagramCacheAdapter, error) {
-	cacheTimeout := cfg.Build.CacheDBTimeout
-	cm, err := cache.OpenWithTimeout(cfg.CacheDir, cfg.IsDev, cacheTimeout)
+func SetupCacheManager(configInstance *config.Config, logger *slog.Logger) (*cache.Manager, *cache.DiagramCacheAdapter, error) {
+	cacheTimeout := configInstance.Build.CacheDBTimeout
+	cacheManager, err := cache.OpenWithTimeout(configInstance.CacheDir, configInstance.IsDev, cacheTimeout)
 	if err != nil {
 		logger.Warn("Failed to open cache database", "error", err)
 		return nil, nil, err
 	}
 
-	if errors, verifyErr := cm.QuickVerify(); verifyErr != nil || len(errors) > 0 {
-		logger.Warn("Cache integrity issues detected, forcing rebuild", "errors", len(errors))
-		if len(errors) > 0 && len(errors) <= cacheErrorLogLimit {
-			for _, e := range errors {
-				logger.Debug("Cache error", "detail", e)
+	if cacheErrors, verifyErr := cacheManager.QuickVerify(); verifyErr != nil || len(cacheErrors) > 0 {
+		logger.Warn("Cache integrity issues detected, forcing rebuild", "errors", len(cacheErrors))
+		if len(cacheErrors) > 0 && len(cacheErrors) <= cacheErrorLogLimit {
+			for _, detail := range cacheErrors {
+				logger.Debug("Cache error", "detail", detail)
 			}
 		}
-		cfg.ForceRebuild = true
-		_ = cm.ClearAll()
+		configInstance.ShouldForceRebuild = true
+		_ = cacheManager.ClearAll()
 	}
 
 	cacheID := generateCacheID()
-	needsRebuild, _ := cm.VerifyCacheID(cacheID)
+	needsRebuild, _ := cacheManager.VerifyCacheID(cacheID)
 	if needsRebuild {
 		logger.Info("Cache fingerprint changed, triggering rebuild")
-		cfg.ForceRebuild = true
-		_ = cm.SetCacheID(cacheID)
+		configInstance.ShouldForceRebuild = true
+		_ = cacheManager.SetCacheID(cacheID)
 	}
 
-	diagramAdapter := cache.NewDiagramCacheAdapter(cm)
-	return cm, diagramAdapter, nil
+	diagramAdapter := cache.NewDiagramCacheAdapter(cacheManager)
+	return cacheManager, diagramAdapter, nil
 }
 
 func generateCacheID() string {
@@ -129,27 +129,27 @@ func generateCacheID() string {
 		"katex:embedded",
 	}
 
-	var sb strings.Builder
-	sb.Grow(cacheIDBufferSize)
-	for _, c := range components {
-		sb.WriteString(c)
-		sb.WriteString("|")
+	var cacheIDBuilder strings.Builder
+	cacheIDBuilder.Grow(cacheIDBufferSize)
+	for _, component := range components {
+		cacheIDBuilder.WriteString(component)
+		cacheIDBuilder.WriteString("|")
 	}
 
-	return cache.HashString(sb.String())
+	return cache.HashString(cacheIDBuilder.String())
 }
 
 // LoadThemeMetadata reads the metadata out of the theme yaml
-func LoadThemeMetadata(cfg *config.Config, sourceFs afero.Fs, logger *slog.Logger) {
+func LoadThemeMetadata(configInstance *config.Config, sourceFs afero.Fs, logger *slog.Logger) {
 	themeMetadata := config.ThemeConfig{
-		Name: cfg.Theme,
+		Name: configInstance.Theme,
 	}
-	themePath := filepath.Join(cfg.ThemeDir, cfg.Theme)
+	themePath := filepath.Join(configInstance.ThemeDir, configInstance.Theme)
 	themeYamlPath := filepath.Join(themePath, "theme.yaml")
-	if data, err := afero.ReadFile(sourceFs, themeYamlPath); err == nil {
-		if err := yaml.Unmarshal(data, &themeMetadata); err != nil {
-			logger.Warn("Failed to parse theme.yaml", "error", err)
+	if data, readError := afero.ReadFile(sourceFs, themeYamlPath); readError == nil {
+		if unmarshalError := yaml.Unmarshal(data, &themeMetadata); unmarshalError != nil {
+			logger.Warn("Failed to parse theme.yaml", "error", unmarshalError)
 		}
 	}
-	cfg.ThemeMetadata = themeMetadata
+	configInstance.ThemeMetadata = themeMetadata
 }

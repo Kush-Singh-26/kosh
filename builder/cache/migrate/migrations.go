@@ -36,15 +36,15 @@ var registeredMigrations = []Migration{
 		Description: "Migration to XXH128 hashing (Clean Break)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to hash algorithm change (BLAKE3 -> XXH3)")
-			for _, b := range core.AllBuckets() {
+			for _, bucketName := range core.AllBuckets() {
 				// Don't delete the meta bucket itself, just its contents
-				if b == core.BucketMeta {
+				if bucketName == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(bucketName)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
-				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
+				if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
 					return err
 				}
 			}
@@ -58,14 +58,14 @@ var registeredMigrations = []Migration{
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to schema version alignment (v7 -> v10)")
 			// Purge all cache buckets except meta bucket
-			for _, b := range core.AllBuckets() {
-				if b == core.BucketMeta {
+			for _, bucketName := range core.AllBuckets() {
+				if bucketName == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(bucketName)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
-				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
+				if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
 					return err
 				}
 			}
@@ -78,14 +78,14 @@ var registeredMigrations = []Migration{
 		Description: "Migration to align cache schema with search schema (v6 -> v10)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to schema version alignment (v6 -> v10)")
-			for _, b := range core.AllBuckets() {
-				if b == core.BucketMeta {
+			for _, bucketName := range core.AllBuckets() {
+				if bucketName == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(bucketName)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
-				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
+				if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
 					return err
 				}
 			}
@@ -98,14 +98,14 @@ var registeredMigrations = []Migration{
 		Description: "Migration to align cache schema with search schema (v8 -> v10)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to schema version alignment (v8 -> v10)")
-			for _, b := range core.AllBuckets() {
-				if b == core.BucketMeta {
+			for _, bucketName := range core.AllBuckets() {
+				if bucketName == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(bucketName)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
-				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
+				if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
 					return err
 				}
 			}
@@ -118,14 +118,14 @@ var registeredMigrations = []Migration{
 		Description: "Migration to align cache schema with search schema (v9 -> v10)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to schema version alignment (v9 -> v10)")
-			for _, b := range core.AllBuckets() {
-				if b == core.BucketMeta {
+			for _, bucketName := range core.AllBuckets() {
+				if bucketName == core.BucketMeta {
 					continue
 				}
-				if err := tx.DeleteBucket([]byte(b)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
+				if err := tx.DeleteBucket([]byte(bucketName)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
 					return err
 				}
-				if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
+				if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
 					return err
 				}
 			}
@@ -140,15 +140,15 @@ func RunMigrations(db *bbolt.DB, currentVersion uint32, logger *slog.Logger) (ui
 		logger = slog.Default()
 	}
 
-	for _, m := range registeredMigrations {
-		if currentVersion == m.FromVersion {
-			logger.Info("Running cache migration", "from", m.FromVersion, "to", m.ToVersion, "desc", m.Description)
+	for _, migration := range registeredMigrations {
+		if currentVersion == migration.FromVersion {
+			logger.Info("Running cache migration", "from", migration.FromVersion, "to", migration.ToVersion, "desc", migration.Description)
 			if err := db.Update(func(tx *bbolt.Tx) error {
-				return m.Migrate(tx, logger)
+				return migration.Migrate(tx, logger)
 			}); err != nil {
-				return currentVersion, fmt.Errorf("migration %d->%d failed: %w", m.FromVersion, m.ToVersion, err)
+				return currentVersion, fmt.Errorf("migration %d->%d failed: %w", migration.FromVersion, migration.ToVersion, err)
 			}
-			currentVersion = m.ToVersion
+			currentVersion = migration.ToVersion
 
 			// Update the version in the database
 			if err := db.Update(func(tx *bbolt.Tx) error {
@@ -156,9 +156,9 @@ func RunMigrations(db *bbolt.DB, currentVersion uint32, logger *slog.Logger) (ui
 				if meta == nil {
 					return errors.New("metadata bucket missing")
 				}
-				v := make([]byte, schemaVersionSize)
-				binary.BigEndian.PutUint32(v, currentVersion)
-				return meta.Put([]byte(core.KeySchemaVersion), v)
+				versionData := make([]byte, schemaVersionSize)
+				binary.BigEndian.PutUint32(versionData, currentVersion)
+				return meta.Put([]byte(core.KeySchemaVersion), versionData)
 			}); err != nil {
 				return currentVersion, fmt.Errorf("failed to update schema version to %d: %w", currentVersion, err)
 			}

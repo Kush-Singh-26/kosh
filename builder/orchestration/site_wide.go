@@ -18,78 +18,78 @@ import (
 // SiteWideOptions configures site-wide generator orchestration.
 type SiteWideOptions struct {
 	Ctx                context.Context
-	AssetsReady        <-chan struct{}
-	WasmWg             *sync.WaitGroup
+	AssetsReadySignal  <-chan struct{}
+	WasmWaitGroup      *sync.WaitGroup
 	ForceSocialRebuild bool
 }
 
-func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.MetadataContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
-	ctx := opts.Ctx
-	assetsReady := opts.AssetsReady
-	wasmWg := opts.WasmWg
-	forceSocialRebuild := opts.ForceSocialRebuild
+func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (func(*post.MetadataContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
+	workingContext := options.Ctx
+	assetsReadySignal := options.AssetsReadySignal
+	wasmWaitGroup := options.WasmWaitGroup
+	forceSocialRebuild := options.ForceSocialRebuild
 
 	var siteWideGroup *errgroup.Group
 	var siteWideCtx context.Context
 	var siteTimer *timeutil.PhaseTimer
 	var siteWideOnce sync.Once
 
-	runSiteWide := func(cb *post.MetadataContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
-		if b.Search != nil && cb.IndexedPosts != nil {
-			b.Search.SetIndexedPosts(cb.IndexedPosts)
+	runSiteWide := func(metadataContext *post.MetadataContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
+		if engineInstance.Search != nil && metadataContext.IndexedPosts != nil {
+			engineInstance.Search.SetIndexedPosts(metadataContext.IndexedPosts)
 		}
 
-		if b.shouldSkipSiteWideRendering(cb, assetsChanged) {
+		if engineInstance.shouldSkipSiteWideRendering(metadataContext, assetsChanged) {
 			return nil, nil
 		}
 
 		siteWideOnce.Do(func() {
-			b.Deps.Logger.Info("Rendering pagination, tags, metadata and PWA...")
+			engineInstance.Deps.Logger.Info("Rendering pagination, tags, metadata and PWA...")
 			siteTimer = timeutil.StartPhase("Site-wide rendering")
-			siteWideGroup, siteWideCtx = errgroup.WithContext(ctx)
+			siteWideGroup, siteWideCtx = errgroup.WithContext(workingContext)
 
 			siteWideGroup.Go(func() error {
-				b.Assets.WaitForAvailability(siteWideCtx, assetsReady)
-				return b.renderPagination(renderPaginationOptions{
-					ctx:         siteWideCtx,
-					allPosts:    cb.AllPosts,
-					pinnedPosts: cb.PinnedPosts,
-					force:       b.Cfg.ForceRebuild,
-					allTags:     cb.AllTags,
+				engineInstance.Assets.WaitForAvailability(siteWideCtx, assetsReadySignal)
+				return engineInstance.renderPagination(renderPaginationOptions{
+					workingContext: siteWideCtx,
+					allPosts:       metadataContext.AllPosts,
+					pinnedPosts:    metadataContext.PinnedPosts,
+					force:          engineInstance.Cfg.ShouldForceRebuild,
+					allTags:        metadataContext.AllTags,
 				})
 			})
 			siteWideGroup.Go(func() error {
-				b.Assets.WaitForAvailability(siteWideCtx, assetsReady)
-				return b.renderTags(siteWideCtx, cb.TagMap, forceSocialRebuild)
+				engineInstance.Assets.WaitForAvailability(siteWideCtx, assetsReadySignal)
+				return engineInstance.renderTags(siteWideCtx, metadataContext.TagMap, forceSocialRebuild)
 			})
 			siteWideGroup.Go(func() error {
-				return b.renderSiteMetadata(MetadataRenderOptions{
-					AllPosts:    cb.AllPosts,
-					TagMap:      cb.TagMap,
-					AllTags:     cb.AllTags,
-					AssetsReady: assetsReady,
+				return engineInstance.renderSiteMetadata(MetadataRenderOptions{
+					AllPosts:          metadataContext.AllPosts,
+					TagMap:            metadataContext.TagMap,
+					AllTags:           metadataContext.AllTags,
+					AssetsReadySignal: assetsReadySignal,
 				})
 			})
-			wasmWg.Add(1)
+			wasmWaitGroup.Add(1)
 			async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-				Ctx:       ctx,
-				Logger:    b.Deps.Logger,
+				Ctx:       workingContext,
+				Logger:    engineInstance.Deps.Logger,
 				Operation: "pwa generation",
 				Fn: func() error {
-					b.Assets.WaitForAvailability(ctx, assetsReady)
-					if err := b.generatePWA(ctx, b.Cfg.ForceRebuild); err != nil {
-						b.Deps.Logger.Warn("PWA generation failed", "error", err)
+					engineInstance.Assets.WaitForAvailability(workingContext, assetsReadySignal)
+					if err := engineInstance.generatePWA(workingContext, engineInstance.Cfg.ShouldForceRebuild); err != nil {
+						engineInstance.Deps.Logger.Warn("PWA generation failed", "error", err)
 					}
 					return nil
 				},
-				Cleanup: wasmWg.Done,
+				Cleanup: wasmWaitGroup.Done,
 			})
 		})
 
-		if cb.IndexedPosts != nil {
+		if metadataContext.IndexedPosts != nil {
 			siteWideGroup.Go(func() error {
-				return b.renderSiteMetadata(MetadataRenderOptions{
-					IndexedPosts: cb.IndexedPosts,
+				return engineInstance.renderSiteMetadata(MetadataRenderOptions{
+					IndexedPosts: metadataContext.IndexedPosts,
 				})
 			})
 		}
@@ -100,10 +100,10 @@ func (b *Engine) setupSiteWideRendering(opts SiteWideOptions) (func(*post.Metada
 	return runSiteWide, nil
 }
 
-func (b *Engine) shouldSkipSiteWideRendering(cb *post.MetadataContext, assetsChanged bool) bool {
-	useStaging := !b.Cfg.IsDev || b.State.IsCleanBuild
-	if cb.AnyPostChanged || b.State.IsCleanBuild || useStaging || b.State.ForceGenerators.Load() || assetsChanged {
-		b.State.ForceGenerators.Store(false)
+func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *post.MetadataContext, assetsChanged bool) bool {
+	useStaging := !engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild
+	if metadataContext.AnyPostChanged || engineInstance.State.IsCleanBuild || useStaging || engineInstance.State.ForceGenerators.Load() || assetsChanged {
+		engineInstance.State.ForceGenerators.Store(false)
 		return false
 	}
 	return true
@@ -111,94 +111,90 @@ func (b *Engine) shouldSkipSiteWideRendering(cb *post.MetadataContext, assetsCha
 
 // MetadataRenderOptions configures site-wide metadata generation.
 type MetadataRenderOptions struct {
-	AllPosts     []models.PostMetadata
-	TagMap       map[string][]models.PostMetadata
-	AllTags      []models.TagData
-	IndexedPosts []models.IndexedPost
-	AssetsReady  <-chan struct{}
+	AllPosts          []models.PostMetadata
+	TagMap            map[string][]models.PostMetadata
+	AllTags           []models.TagData
+	IndexedPosts      []models.IndexedPost
+	AssetsReadySignal <-chan struct{}
 }
 
-func (b *Engine) generateSitemap(opts MetadataRenderOptions) error {
+func (engineInstance *Engine) generateSitemap(options MetadataRenderOptions) error {
 	_, err := generators.GenerateSitemap(generators.SitemapOptions{
-		Sink:       b.Sink,
-		BaseURL:    b.Cfg.BaseURL,
-		Posts:      opts.AllPosts,
-		Tags:       opts.TagMap,
-		OutputPath: filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"),
+		Sink:       engineInstance.artifactSink,
+		BaseURL:    engineInstance.Cfg.BaseURL,
+		Posts:      options.AllPosts,
+		Tags:       options.TagMap,
+		OutputPath: filepath.Join(engineInstance.Cfg.OutputDir, "sitemap/sitemap.xml"),
 	})
 	if err != nil {
-		b.Deps.Logger.Error("Failed to generate sitemap", "error", err)
+		engineInstance.Deps.Logger.Error("Failed to generate sitemap", "error", err)
 		return err
 	}
-	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "sitemap/sitemap.xml"))
+	engineInstance.Deps.Render.RegisterFile(filepath.Join(engineInstance.Cfg.OutputDir, "sitemap/sitemap.xml"))
 	return nil
 }
 
-func (b *Engine) generateRobotsTxt() error {
-	_, err := generators.GenerateRobotsTxt(b.Sink, b.Cfg.BaseURL, filepath.Join(b.Cfg.OutputDir, "robots.txt"))
+func (engineInstance *Engine) generateRobotsTxt() error {
+	_, err := generators.GenerateRobotsTxt(engineInstance.artifactSink, engineInstance.Cfg.BaseURL, filepath.Join(engineInstance.Cfg.OutputDir, "robots.txt"))
 	if err != nil {
-		b.Deps.Logger.Error("Failed to generate robots.txt", "error", err)
+		engineInstance.Deps.Logger.Error("Failed to generate robots.txt", "error", err)
 		return err
 	}
-	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "robots.txt"))
+	engineInstance.Deps.Render.RegisterFile(filepath.Join(engineInstance.Cfg.OutputDir, "robots.txt"))
 	return nil
 }
 
-func (b *Engine) generateRSS(opts MetadataRenderOptions) error {
+func (engineInstance *Engine) generateRSS(options MetadataRenderOptions) error {
 	_, err := generators.GenerateRSS(generators.RSSOptions{
-		Sink:        b.Sink,
-		BaseURL:     b.Cfg.BaseURL,
-		Posts:       opts.AllPosts,
-		Title:       b.Cfg.Title,
-		Description: b.Cfg.Description,
-		OutputPath:  filepath.Join(b.Cfg.OutputDir, "rss.xml"),
+		Sink:        engineInstance.artifactSink,
+		BaseURL:     engineInstance.Cfg.BaseURL,
+		Posts:       options.AllPosts,
+		Title:       engineInstance.Cfg.Title,
+		Description: engineInstance.Cfg.Description,
+		OutputPath:  filepath.Join(engineInstance.Cfg.OutputDir, "rss.xml"),
 	})
 	if err != nil {
-		b.Deps.Logger.Error("Failed to generate RSS feed", "error", err)
+		engineInstance.Deps.Logger.Error("Failed to generate RSS feed", "error", err)
 		return err
 	}
-	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "rss.xml"))
+	engineInstance.Deps.Render.RegisterFile(filepath.Join(engineInstance.Cfg.OutputDir, "rss.xml"))
 	return nil
 }
 
-func (b *Engine) generateSearchIndex(opts MetadataRenderOptions) error {
-	searchPath, size, err := generators.GenerateSearchIndex(b.Sink, opts.IndexedPosts)
+func (engineInstance *Engine) generateSearchIndex(options MetadataRenderOptions) error {
+	searchPath, size, err := generators.GenerateSearchIndex(engineInstance.artifactSink, options.IndexedPosts)
 	if err != nil {
-		b.Deps.Logger.Error("Failed to generate search index", "error", err)
-		return err
+		return fmt.Errorf("failed to generate search index: %w", err)
 	}
-	b.Deps.Render.RegisterFile(searchPath)
-	if b.Health != nil {
-		b.Health.RecordSearchStats(int64(len(opts.IndexedPosts)), size)
-	}
+	engineInstance.Deps.Logger.Debug("Search index generated", "path", searchPath, "size", size)
 	return nil
 }
 
-func (b *Engine) generateGraph(opts MetadataRenderOptions) error {
+func (engineInstance *Engine) generateGraph(options MetadataRenderOptions) error {
 	_, _, err := generators.GenerateGraph(generators.GraphOptions{
-		Sink:       b.Sink,
-		BaseURL:    b.Cfg.BaseURL,
-		Posts:      opts.AllPosts,
-		OutputPath: filepath.Join(b.Cfg.OutputDir, "graph.json"),
-		Config:     b.Cfg.Features.Generators.Graph,
-		SiteTitle:  b.Cfg.Title,
+		Sink:       engineInstance.artifactSink,
+		BaseURL:    engineInstance.Cfg.BaseURL,
+		Posts:      options.AllPosts,
+		OutputPath: filepath.Join(engineInstance.Cfg.OutputDir, "graph.json"),
+		Config:     engineInstance.Cfg.Features.Generators.Graph,
+		SiteTitle:  engineInstance.Cfg.Title,
 	})
 	if err != nil {
-		b.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
+		engineInstance.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
 		return err
 	}
-	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, "graph.json"))
+	engineInstance.Deps.Render.RegisterFile(filepath.Join(engineInstance.Cfg.OutputDir, "graph.json"))
 
-	if opts.AssetsReady != nil {
-		<-opts.AssetsReady
+	if options.AssetsReadySignal != nil {
+		<-options.AssetsReadySignal
 	}
-	if err := b.Deps.Render.RenderGraph(filepath.Join(b.Cfg.OutputDir, "graph.html"), models.PageData{
+	if err := engineInstance.Deps.Render.RenderGraph(filepath.Join(engineInstance.Cfg.OutputDir, "graph.html"), models.PageData{
 		Title:          "Graph View",
-		TabTitle:       "Knowledge Graph | " + b.Cfg.Title,
-		BaseURL:        b.Cfg.BaseURL,
-		BuildVersion:   b.Cfg.BuildVersion,
-		Config:         b.Cfg,
-		AllTags:        opts.AllTags,
+		TabTitle:       "Knowledge Graph | " + engineInstance.Cfg.Title,
+		BaseURL:        engineInstance.Cfg.BaseURL,
+		BuildVersion:   engineInstance.Cfg.BuildVersion,
+		Config:         engineInstance.Cfg,
+		AllTags:        options.AllTags,
 		RelativePrefix: "",
 		IsGraphPage:    true,
 	}); err != nil {
@@ -207,60 +203,60 @@ func (b *Engine) generateGraph(opts MetadataRenderOptions) error {
 	return nil
 }
 
-func (b *Engine) renderSiteMetadata(opts MetadataRenderOptions) error {
-	g := new(errgroup.Group)
+func (engineInstance *Engine) renderSiteMetadata(options MetadataRenderOptions) error {
+	errorGroup := new(errgroup.Group)
 
-	if b.Cfg.Features.Generators.Sitemap && opts.AllPosts != nil && opts.IndexedPosts == nil {
-		g.Go(func() error {
-			return b.generateSitemap(opts)
+	if engineInstance.Cfg.Features.Generators.IsSitemapEnabled && options.AllPosts != nil && options.IndexedPosts == nil {
+		errorGroup.Go(func() error {
+			return engineInstance.generateSitemap(options)
 		})
 
-		g.Go(func() error {
-			return b.generateRobotsTxt()
-		})
-	}
-
-	if b.Cfg.Features.Generators.RSS && opts.AllPosts != nil && opts.IndexedPosts == nil {
-		g.Go(func() error {
-			return b.generateRSS(opts)
+		errorGroup.Go(func() error {
+			return engineInstance.generateRobotsTxt()
 		})
 	}
 
-	if b.Cfg.Features.Generators.Search && opts.IndexedPosts != nil {
-		g.Go(func() error {
-			return b.generateSearchIndex(opts)
+	if engineInstance.Cfg.Features.Generators.IsRSSEnabled && options.AllPosts != nil && options.IndexedPosts == nil {
+		errorGroup.Go(func() error {
+			return engineInstance.generateRSS(options)
 		})
 	}
 
-	if b.Cfg.Features.Generators.Graph.Enabled && len(opts.AllPosts) > 0 {
-		g.Go(func() error {
-			return b.generateGraph(opts)
+	if engineInstance.Cfg.Features.Generators.IsSearchEnabled && options.IndexedPosts != nil {
+		errorGroup.Go(func() error {
+			return engineInstance.generateSearchIndex(options)
 		})
 	}
 
-	return g.Wait()
+	if engineInstance.Cfg.Features.Generators.Graph.IsEnabled && len(options.AllPosts) > 0 {
+		errorGroup.Go(func() error {
+			return engineInstance.generateGraph(options)
+		})
+	}
+
+	return errorGroup.Wait()
 }
 
 // RenderSiteWide triggers a subset of site-wide generators suitable for incremental builds.
 // In dev mode, this focuses on pagination (index.html) to maintain consistency without
 // the overhead of full metadata (RSS/Sitemap) or PWA regeneration.
-func (b *Engine) RenderSiteWide(ctx context.Context, cb *post.MetadataContext) error {
-	if b.shouldSkipSiteWideRendering(cb, false) {
+func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContext *post.MetadataContext) error {
+	if engineInstance.shouldSkipSiteWideRendering(metadataContext, false) {
 		return nil
 	}
 
-	g, siteWideCtx := errgroup.WithContext(ctx)
+	errorGroup, siteWideCtx := errgroup.WithContext(ctx)
 
 	// Always render pagination to ensure index.html consists of the latest post list/snippets.
-	g.Go(func() error {
-		return b.renderPagination(renderPaginationOptions{
-			ctx:         siteWideCtx,
-			allPosts:    cb.AllPosts,
-			pinnedPosts: cb.PinnedPosts,
-			force:       false,
-			allTags:     cb.AllTags,
+	errorGroup.Go(func() error {
+		return engineInstance.renderPagination(renderPaginationOptions{
+			workingContext: siteWideCtx,
+			allPosts:       metadataContext.AllPosts,
+			pinnedPosts:    metadataContext.PinnedPosts,
+			force:          false,
+			allTags:        metadataContext.AllTags,
 		})
 	})
 
-	return g.Wait()
+	return errorGroup.Wait()
 }

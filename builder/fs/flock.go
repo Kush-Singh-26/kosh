@@ -46,17 +46,17 @@ func AcquireBuildLock(outputDir string) (*FileLock, error) {
 }
 
 // Release releases the lock and removes the lock file.
-func (fl *FileLock) Release() error {
-	if fl == nil || fl.file == nil {
+func (lock *FileLock) Release() error {
+	if lock == nil || lock.file == nil {
 		return nil
 	}
 
 	// Unlock before close
-	_ = unlock(fl.file)
-	err := fl.file.Close()
-	fl.file = nil
+	_ = unlock(lock.file)
+	err := lock.file.Close()
+	lock.file = nil
 
 	// Best effort cleanup
-	_ = os.Remove(fl.path)
+	_ = os.Remove(lock.path)
 	return err
 }

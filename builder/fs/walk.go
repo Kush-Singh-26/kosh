@@ -67,77 +67,77 @@ func processRoot(sourceFs afero.Fs, root string, walkFn WalkFunc) (fs.FileInfo, 
 	return rootInfo, nil
 }
 
-func (s *walkState) setErr(err error) {
+func (state *walkState) setErr(err error) {
 	if err == nil {
 		return
 	}
-	s.errOnce.Do(func() {
-		s.firstErr = err
+	state.errOnce.Do(func() {
+		state.firstErr = err
 	})
 }
 
-func (s *walkState) maybeQueueDir(path string) {
-	atomic.AddInt32(&s.activeTasks, 1)
+func (state *walkState) maybeQueueDir(path string) {
+	atomic.AddInt32(&state.activeTasks, 1)
 	select {
-	case s.tasks <- dirTask{path: path}:
-	case <-s.ctx.Done():
-		atomic.AddInt32(&s.activeTasks, -1)
+	case state.tasks <- dirTask{path: path}:
+	case <-state.ctx.Done():
+		atomic.AddInt32(&state.activeTasks, -1)
 	}
 }
 
-func (s *walkState) handleEntry(parent string, entry fs.FileInfo) bool {
-	if s.ctx.Err() != nil || s.firstErr != nil {
+func (state *walkState) handleEntry(parent string, entry fs.FileInfo) bool {
+	if state.ctx.Err() != nil || state.firstErr != nil {
 		return false
 	}
 
 	fullPath := filepath.ToSlash(filepath.Join(parent, entry.Name()))
-	walkErr := s.walkFn(fullPath, entry, nil)
+	walkErr := state.walkFn(fullPath, entry, nil)
 	if walkErr != nil {
 		if errors.Is(walkErr, filepath.SkipDir) {
 			return !entry.IsDir()
 		}
 		if errors.Is(walkErr, fs.SkipAll) {
-			s.setErr(walkErr)
-			s.cancelOnce.Do(func() {})
+			state.setErr(walkErr)
+			state.cancelOnce.Do(func() {})
 			return false
 		}
-		s.setErr(walkErr)
+		state.setErr(walkErr)
 		return false
 	}
 
 	if entry.IsDir() {
-		s.maybeQueueDir(fullPath)
+		state.maybeQueueDir(fullPath)
 	}
 	return true
 }
 
-func (s *walkState) processTask(t dirTask) {
-	entries, err := afero.ReadDir(s.sourceFs, t.path)
+func (state *walkState) processTask(task dirTask) {
+	entries, err := afero.ReadDir(state.sourceFs, task.path)
 	if err != nil {
-		s.setErr(s.walkFn(t.path, nil, err))
+		state.setErr(state.walkFn(task.path, nil, err))
 	} else {
 		for _, entry := range entries {
-			if !s.handleEntry(t.path, entry) {
+			if !state.handleEntry(task.path, entry) {
 				break
 			}
 		}
 	}
 
-	if atomic.AddInt32(&s.activeTasks, -1) == 0 {
-		close(s.tasks)
+	if atomic.AddInt32(&state.activeTasks, -1) == 0 {
+		close(state.tasks)
 	}
 }
 
-func (s *walkState) runWorker() {
+func (state *walkState) runWorker() {
 	for {
 		select {
-		case <-s.ctx.Done():
+		case <-state.ctx.Done():
 			return
-		case t, ok := <-s.tasks:
+		case task, ok := <-state.tasks:
 			if !ok {
 				return
 			}
-			s.processTask(t)
+			state.processTask(task)
 		}
 	}
 }

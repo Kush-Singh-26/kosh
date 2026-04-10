@@ -84,8 +84,8 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 		B:              defaultBM25B,
 	}
 
-	for _, t := range opts.QueryTerms {
-		opts.HighlightTerms[t] = true
+	for _, term := range opts.QueryTerms {
+		opts.HighlightTerms[term] = true
 	}
 
 	pipeline := NewPipeline(
@@ -117,8 +117,8 @@ func extractTagFilter(query string) (string, string) {
 
 func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Result {
 	finalHighlightTerms := make([]string, 0, len(opts.HighlightTerms))
-	for t := range opts.HighlightTerms {
-		finalHighlightTerms = append(finalHighlightTerms, t)
+	for term := range opts.HighlightTerms {
+		finalHighlightTerms = append(finalHighlightTerms, term)
 	}
 
 	results := make([]Result, 0, len(opts.Scores))
@@ -134,15 +134,15 @@ func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Re
 	}
 
 	if len(results) > defaultTopKResults {
-		h := &resultHeap{results: results[:defaultTopKResults]}
-		heap.Init(h)
+		resHeap := &resultHeap{results: results[:defaultTopKResults]}
+		heap.Init(resHeap)
 		for i := defaultTopKResults; i < len(results); i++ {
-			if results[i].Score > h.results[0].Score {
-				heap.Pop(h)
-				heap.Push(h, results[i])
+			if results[i].Score > resHeap.results[0].Score {
+				heap.Pop(resHeap)
+				heap.Push(resHeap, results[i])
 			}
 		}
-		slices.SortFunc(h.results, func(a, b Result) int {
+		slices.SortFunc(resHeap.results, func(a, b Result) int {
 			if a.Score > b.Score {
 				return -1
 			}
@@ -151,7 +151,7 @@ func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Re
 			}
 			return 0
 		})
-		results = h.results
+		results = resHeap.results
 	} else {
 		slices.SortFunc(results, func(a, b Result) int {
 			if a.Score > b.Score {
@@ -189,26 +189,30 @@ type resultHeap struct {
 }
 
 // Len implements heap.Interface.
-func (h resultHeap) Len() int { return len(h.results) }
+func (heapObj resultHeap) Len() int { return len(heapObj.results) }
 
 // Less implements heap.Interface for a min-heap by score.
-func (h resultHeap) Less(i, j int) bool { return h.results[i].Score < h.results[j].Score }
+func (heapObj resultHeap) Less(i, j int) bool {
+	return heapObj.results[i].Score < heapObj.results[j].Score
+}
 
 // Swap implements heap.Interface.
-func (h resultHeap) Swap(i, j int) { h.results[i], h.results[j] = h.results[j], h.results[i] }
+func (heapObj resultHeap) Swap(i, j int) {
+	heapObj.results[i], heapObj.results[j] = heapObj.results[j], heapObj.results[i]
+}
 
 // Push implements heap.Interface.
-func (h *resultHeap) Push(x any) {
-	if r, ok := x.(Result); ok {
-		h.results = append(h.results, r)
+func (heapObj *resultHeap) Push(x any) {
+	if res, ok := x.(Result); ok {
+		heapObj.results = append(heapObj.results, res)
 	}
 }
 
 // Pop implements heap.Interface.
-func (h *resultHeap) Pop() any {
-	old := h.results
+func (heapObj *resultHeap) Pop() any {
+	old := heapObj.results
 	n := len(old)
-	x := old[n-1]
-	h.results = old[0 : n-1]
-	return x
+	res := old[n-1]
+	heapObj.results = old[0 : n-1]
+	return res
 }

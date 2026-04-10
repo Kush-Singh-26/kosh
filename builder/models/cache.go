@@ -29,8 +29,8 @@ type PostMeta struct {
 	Description    string
 	Link           string
 	Weight         int
-	Pinned         bool
-	Draft          bool
+	IsPinned       bool
+	IsDraft        bool
 	// Meta stores raw frontmatter values for templating and downstream reuse.
 	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
 	Meta            map[string]any
@@ -91,7 +91,7 @@ type SSRArtifact struct {
 	RefCount      int
 	Size          int64
 	CreatedAt     int64
-	Compressed    bool
+	IsCompressed  bool
 	InlineContent []byte // Content < 16KB stored directly in BoltDB
 }
 

@@ -16,7 +16,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/assets"
@@ -80,20 +80,21 @@ type EngineState struct {
 	CloseOnce sync.Once
 }
 
-// Engine maintains the state for site builds
+// Engine maintains the state for site builds.
 type Engine struct {
 	Cfg *config.Config
-	Ctx *buildCtx.BuildContext
+	Ctx *buildctx.BuildContext
 
 	// Service dependencies - injected at construction
 	Deps EngineDependencies
 
 	// Background cache flush coordination
-	flushWg sync.WaitGroup
+	flushWaitGroup sync.WaitGroup
 
 	// Build output
-	Sink fspkg.ArtifactSink
-	Tx   tx.BuildTransaction
+	artifactMu         sync.Mutex
+	artifactSink       fspkg.ArtifactSink
+	buildTransaction   tx.BuildTransaction
 
 	// Watch coordinator for incremental builds
 	Watch *watch.Coordinator
@@ -130,9 +131,9 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 
 	cfg := deps.Config
 
-	b := &Engine{
+	engineInstance := &Engine{
 		Cfg: cfg,
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        cfg.IsDev,
 			IsCleanBuild: false,
@@ -144,7 +145,7 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 	}
 
 	// Initialize asset manager
-	b.Assets = assets.NewManager(assets.ManagerDependencies{
+	engineInstance.Assets = assets.NewManager(assets.ManagerDependencies{
 		Cfg:      cfg,
 		Asset:    deps.Asset,
 		Render:   deps.Render,
@@ -154,17 +155,17 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 	})
 
 	// Initialize search manager
-	b.Search = search.NewManager(search.ManagerDependencies{
+	engineInstance.Search = search.NewManager(search.ManagerDependencies{
 		Cfg:    cfg,
 		Logger: deps.Logger,
-		Health: b.Health,
+		Health: engineInstance.Health,
 	})
 	if deps.Render != nil {
-		b.Search.Reconfigure(nil, deps.Render)
+		engineInstance.Search.Reconfigure(nil, deps.Render)
 	}
 
 	// Initialize incremental build manager
-	b.Incremental = incremental.NewManager(incremental.ManagerDependencies{
+	engineInstance.Incremental = incremental.NewManager(incremental.ManagerDependencies{
 		Cfg:      cfg,
 		Logger:   deps.Logger,
 		SourceFs: deps.SourceFs,
@@ -174,22 +175,22 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 			Render:   deps.Render,
 			Diagrams: deps.Diagrams,
 		},
-		Builder:        b,
-		Search:         b.Search,
+		Builder:        engineInstance,
+		Search:         engineInstance.Search,
 		MdPool:         deps.MdPool,
 		NativeRenderer: deps.NativeRenderer,
 	})
 
 	// Initialize watch coordinator for incremental builds
-	b.Watch = watch.New(watch.CoordinatorDependencies{
+	engineInstance.Watch = watch.New(watch.CoordinatorDependencies{
 		Cfg:           cfg,
-		BuildMu:       &b.State.BuildMu,
-		Cache:         b.Deps.Cache,
-		OnChange:      b.handleWatchChange,
-		OnSearchRegen: func(ctx context.Context) { _ = b.Search.RegenerateIndex(ctx) },
+		BuildMu:       &engineInstance.State.BuildMu,
+		Cache:         engineInstance.Deps.Cache,
+		OnChange:      engineInstance.handleWatchChange,
+		OnSearchRegen: func(ctx context.Context) { _ = engineInstance.Search.RegenerateIndex(ctx) },
 	})
 
-	return b
+	return engineInstance
 }
 
 // engineOptions holds configuration for NewEngine.
@@ -231,112 +232,119 @@ func WithDeps(deps EngineDependencies) EngineOption {
 
 // NewEngine initializes a new site builder using functional options.
 func NewEngine(opts ...EngineOption) *Engine {
-	o := &engineOptions{
+	options := &engineOptions{
 		vfs: afero.NewOsFs(),
 	}
 	for _, opt := range opts {
-		opt(o)
+		opt(options)
 	}
 
 	// If manual dependencies are provided, use the fast-path constructor.
-	if o.deps != nil {
-		return newEngineFromManual(*o.deps)
+	if options.deps != nil {
+		return newEngineFromManual(*options.deps)
 	}
 
 	// Otherwise, proceed with full service initialization.
-	cfg := o.cfg
+	cfg := options.cfg
 	if cfg == nil {
-		cfg = config.Load(o.args)
+		cfg = config.Load(options.args)
 	}
 
-	return newEngineWithConfigFs(o.vfs, cfg, o.reporter)
+	return newEngineWithConfigFs(options.vfs, cfg, options.reporter)
 }
 
 // SetReporter updates the reporter and logger for the engine and all services.
-func (b *Engine) SetReporter(r ui.Reporter) {
-	b.Deps.Reporter = r
-	b.Deps.Logger = InitLogger(r)
-	b.Ctx.Logger = b.Deps.Logger
+func (engineInstance *Engine) SetReporter(reporter ui.Reporter) {
+	engineInstance.Deps.Reporter = reporter
+	engineInstance.Deps.Logger = InitLogger(reporter)
+	engineInstance.Ctx.Logger = engineInstance.Deps.Logger
 
 	// Update all services that hold onto the logger or reporter
-	b.Deps.Asset.ReconfigureWithReporter(r, b.Deps.Logger)
-	b.Deps.Post.ReconfigureWithReporter(r, b.Deps.Logger)
-	b.Deps.Render.ReconfigureWithLogger(b.Deps.Logger)
-	b.Assets.ReconfigureWithLogger(b.Deps.Logger)
-	b.Incremental.ReconfigureWithLogger(b.Deps.Logger)
-	b.Search.ReconfigureWithLogger(b.Deps.Logger)
+	engineInstance.Deps.Asset.ReconfigureWithReporter(reporter, engineInstance.Deps.Logger)
+	engineInstance.Deps.Post.ReconfigureWithReporter(reporter, engineInstance.Deps.Logger)
+	engineInstance.Deps.Render.ReconfigureWithLogger(engineInstance.Deps.Logger)
+	engineInstance.Assets.ReconfigureWithLogger(engineInstance.Deps.Logger)
+	engineInstance.Incremental.ReconfigureWithLogger(engineInstance.Deps.Logger)
+	engineInstance.Search.ReconfigureWithLogger(engineInstance.Deps.Logger)
 }
 
 // SetDevMode toggles dev mode on the active configuration.
-func (b *Engine) SetDevMode(isDev bool) {
-	config.SetDevMode(b.Cfg, isDev)
+func (engineInstance *Engine) SetDevMode(isDev bool) {
+	config.SetDevMode(engineInstance.Cfg, isDev)
 }
 
 // SetSink configures the artifact sink and reconfigures services for a build pass.
-func (b *Engine) SetSink(sink fspkg.ArtifactSink) {
-	b.Sink = sink
+func (engineInstance *Engine) SetSink(sink fspkg.ArtifactSink) {
+	engineInstance.artifactSink = sink
 	if sink != nil {
-		b.Deps.Post.ReconfigureForBuild(sink, b.Deps.SourceFs)
-		if b.Assets != nil {
-			b.Assets.Reconfigure(sink, b.Deps.SourceFs)
+		engineInstance.Deps.Post.ReconfigureForBuild(sink, engineInstance.Deps.SourceFs)
+		if engineInstance.Assets != nil {
+			engineInstance.Assets.Reconfigure(sink, engineInstance.Deps.SourceFs)
 		} else {
-			b.Deps.Asset.ReconfigureForBuild(sink, b.Deps.SourceFs)
+			engineInstance.Deps.Asset.ReconfigureForBuild(sink, engineInstance.Deps.SourceFs)
 		}
-		b.Deps.Render.ReconfigureForBuild(sink, b.Deps.SourceFs)
-		if b.Search != nil {
-			b.Search.Reconfigure(sink, b.Deps.Render)
+		engineInstance.Deps.Render.ReconfigureForBuild(sink, engineInstance.Deps.SourceFs)
+		if engineInstance.Search != nil {
+			engineInstance.Search.Reconfigure(sink, engineInstance.Deps.Render)
 		}
 	}
 }
 
-// SetSourceFs updates the source filesystem and reconfigures dependent services.
-func (b *Engine) SetSourceFs(fs afero.Fs) {
-	b.Deps.SourceFs = fs
-	// Trigger reconfiguration of all services with the new filesystem
-	if b.Sink != nil {
-		b.SetSink(b.Sink)
-	}
+// SetArtifactSink explicitly overrides the build engine's artifact sink.
+// This is primarily used for testing and benchmarking.
+func (engineInstance *Engine) SetArtifactSink(sink fspkg.ArtifactSink) {
+	engineInstance.artifactMu.Lock()
+	defer engineInstance.artifactMu.Unlock()
+	engineInstance.artifactSink = sink
 }
 
-// getLogoPath returns the site logo path from config.
-func (b *Engine) getLogoPath() string {
-	return b.Cfg.Logo
+// SetBuildTransaction explicitly overrides the build engine's atomic transaction.
+// This is primarily used for testing and benchmarking.
+func (engineInstance *Engine) SetBuildTransaction(tx tx.BuildTransaction) {
+	engineInstance.artifactMu.Lock()
+	defer engineInstance.artifactMu.Unlock()
+	engineInstance.buildTransaction = tx
+}
+
+// GetLogoPath returns the site logo path from config.
+func (engineInstance *Engine) GetLogoPath() string {
+	return engineInstance.Cfg.Logo
 }
 
 // SaveCaches waits for any background cache writes and persists BoltDB changes.
 // Diagram cache flush is deferred to a background goroutine that completes during Close().
-func (b *Engine) SaveCaches() {
+func (engineInstance *Engine) SaveCaches() {
 	// Wait for background cache commit goroutines before closing BoltDB
-	if b.Deps.Post != nil {
-		b.Deps.Post.WaitForCacheCommit()
+	if engineInstance.Deps.Post != nil {
+		engineInstance.Deps.Post.WaitForCacheCommit()
 	}
-	if b.Deps.Diagrams != nil {
+	if engineInstance.Deps.Diagrams != nil {
 		// Launch flush in background — completes during Close() before BoltDB closes.
 		// Cache loss on process crash is acceptable: entries are regenerated next build.
-		b.flushWg.Add(1)
+		engineInstance.flushWaitGroup.Add(1)
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 			Ctx:       context.Background(),
-			Logger:    b.Deps.Logger,
+			Logger:    engineInstance.Deps.Logger,
 			Operation: "diagram cache flush",
 			Fn: func() error {
-				if err := b.Deps.Diagrams.Flush(); err != nil {
-					b.Deps.Logger.Warn("Diagram cache flush failed", "error", err)
+				if err := engineInstance.Deps.Diagrams.Flush(context.Background()); err != nil {
+					engineInstance.Deps.Logger.Warn("Diagram cache flush failed", "error", err)
 				}
 				return nil
 			},
-			Cleanup: b.flushWg.Done,
+			Cleanup: engineInstance.flushWaitGroup.Done,
 		})
 	}
-	if b.Deps.Cache != nil {
+	if engineInstance.Deps.Cache != nil {
 		// Trigger garbage collection every cacheGCPollInterval builds
-		if count, err := b.Deps.Cache.IncrementBuildCount(); err == nil && count >= cacheGCPollInterval {
-			b.Deps.Logger.Info("Triggering scheduled cache garbage collection", "builds", count)
-			if result, err := b.Deps.Cache.RunGC(gc.GCConfig{
+		if count, err := engineInstance.Deps.Cache.IncrementBuildCount(); err == nil && count >= cacheGCPollInterval {
+			engineInstance.Deps.Logger.Info("Triggering scheduled cache garbage collection", "builds", count)
+			if result, err := engineInstance.Deps.Cache.RunGC(gc.GCConfig{
 				MaxAge: cacheGCMaxAge,
 			}); err != nil {
-				b.Deps.Logger.Warn("Cache garbage collection failed", "error", err)
+				engineInstance.Deps.Logger.Warn("Cache garbage collection failed", "error", err)
 			} else {
-				b.Deps.Logger.Info("Cache garbage collection complete",
+				engineInstance.Deps.Logger.Info("Cache garbage collection complete",
 					"deleted_blobs", result.DeletedBlobs,
 					"deleted_bytes", result.DeletedBytes,
 					"duration", result.Duration)
@@ -347,51 +355,51 @@ func (b *Engine) SaveCaches() {
 	}
 }
 
-// Close releases build resources
-func (b *Engine) Close() {
-	b.State.CloseOnce.Do(func() {
-		if b.Watch != nil {
-			b.Watch.Close()
+// Close releases build resources.
+func (engineInstance *Engine) Close() {
+	engineInstance.State.CloseOnce.Do(func() {
+		if engineInstance.Watch != nil {
+			engineInstance.Watch.Close()
 		}
 
 		// Wait for any background cache flush to complete before closing BoltDB
-		b.flushWg.Wait()
+		engineInstance.flushWaitGroup.Wait()
 
-		if b.Deps.Diagrams != nil {
-			_ = b.Deps.Diagrams.Close()
+		if engineInstance.Deps.Diagrams != nil {
+			_ = engineInstance.Deps.Diagrams.Close()
 		}
 
-		if b.Deps.NativeRenderer != nil {
-			_ = b.Deps.NativeRenderer.Close()
+		if engineInstance.Deps.NativeRenderer != nil {
+			_ = engineInstance.Deps.NativeRenderer.Close()
 		}
-		if b.Deps.Cache != nil {
-			_ = b.Deps.Cache.Close()
+		if engineInstance.Deps.Cache != nil {
+			_ = engineInstance.Deps.Cache.Close()
 		}
 	})
 }
 
-// BuildAssetOnly runs asset-only incremental build (exposed for SiteBuilder interface)
-func (b *Engine) BuildAssetOnly(ctx context.Context) error {
-	return b.buildAssetOnly(ctx)
+// BuildAssetOnly runs asset-only incremental build (exposed for SiteBuilder interface).
+func (engineInstance *Engine) BuildAssetOnly(ctx context.Context) error {
+	return engineInstance.buildAssetOnly(ctx)
 }
 
-// BuildAssetOnlyWithOptions runs asset-only incremental build with options
-func (b *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool) error {
-	b.State.IsAssetOnlyBuild = true
-	defer func() { b.State.IsAssetOnlyBuild = false }()
+// BuildAssetOnlyWithOptions runs asset-only incremental build with options.
+func (engineInstance *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool) error {
+	engineInstance.State.IsAssetOnlyBuild = true
+	defer func() { engineInstance.State.IsAssetOnlyBuild = false }()
 
 	// Start fresh session/tracking state
-	b.refreshBuildSession()
+	engineInstance.refreshBuildSession()
 
-	return b.Assets.BuildAssetOnlyWithOptions(ctx, func(ctx context.Context) error {
-		b.Deps.Post.SetAssetsGate(nil)
-		b.State.ForceGenerators.Store(true)
+	return engineInstance.Assets.BuildAssetOnlyWithOptions(ctx, func(ctx context.Context) error {
+		engineInstance.Deps.Post.SetAssetsGate(nil)
+		engineInstance.State.ForceGenerators.Store(true)
 
-		metadataResult, err := b.Deps.Scanner.Scan(scanner.ScanOptions{
+		metadataResult, err := engineInstance.Deps.Scanner.Scan(scanner.ScanOptions{
 			Ctx:        ctx,
-			ContentDir: b.Cfg.ContentDir,
-			SrcFs:      b.Deps.SourceFs,
-			Cfg:        b.Cfg,
+			ContentDir: engineInstance.Cfg.ContentDir,
+			SrcFs:      engineInstance.Deps.SourceFs,
+			Cfg:        engineInstance.Cfg,
 			FileChan:   nil,
 		})
 		if err != nil {
@@ -400,46 +408,46 @@ func (b *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 
 		// Set up site-wide generators (need full asset completion)
 		// Since assets are already built in BuildAssetOnlyWithOptions, we pass a closed channel
-		assetsReady := make(chan struct{})
-		close(assetsReady)
-		wasmWg := &sync.WaitGroup{}
-		runSiteWide, _ := b.setupSiteWideRendering(SiteWideOptions{
+		assetsReadySignal := make(chan struct{})
+		close(assetsReadySignal)
+		wasmWaitGroup := &sync.WaitGroup{}
+		runSiteWide, _ := engineInstance.setupSiteWideRendering(SiteWideOptions{
 			Ctx:                ctx,
-			AssetsReady:        assetsReady,
-			WasmWg:             wasmWg,
+			AssetsReadySignal:  assetsReadySignal,
+			WasmWaitGroup:      wasmWaitGroup,
 			ForceSocialRebuild: false,
 		})
 
 		shouldForce := false
 		forceSocialRebuild := false
 		outputMissing := false
-		postResult, err := b.Deps.Post.Process(post.ProcessOptions{
+		postResult, processError := engineInstance.Deps.Post.Process(post.ProcessOptions{
 			Ctx:                ctx,
 			ShouldForce:        shouldForce,
 			ForceSocialRebuild: forceSocialRebuild,
 			OutputMissing:      outputMissing,
 			Files:              metadataResult.Files,
 		})
-		if err != nil {
-			return fmt.Errorf("post processing failed: %w", err)
+		if processError != nil {
+			return fmt.Errorf("post processing failed: %w", processError)
 		}
 
 		// Run site-wide generators
 		assetsChanged := true // Assets definitely changed in an asset-only build
-		metadataCtx := postResult.ToMetadataContext()
-		siteWideGroup, siteTimer := runSiteWide(metadataCtx, assetsChanged)
+		metadataContext := postResult.ToMetadataContext()
+		siteWideGroup, siteTimer := runSiteWide(metadataContext, assetsChanged)
 
 		if siteWideGroup != nil {
-			if err := b.waitForSiteWideRendering(siteWideGroup, siteTimer, postResult.Has404 || b.Deps.Render.Has404Template(), metadataCtx); err != nil {
+			if err := engineInstance.waitForSiteWideRendering(siteWideGroup, siteTimer, postResult.Has404 || engineInstance.Deps.Render.Has404Template(), metadataContext); err != nil {
 				return fmt.Errorf("site-wide rendering failed: %w", err)
 			}
 		}
 
 		// Remove original raster images when .webp equivalents exist
-		assetpkg.CleanupOriginalImages(b.Tx.StagingDir())
+		assetpkg.CleanupOriginalImages(engineInstance.buildTransaction.StagingDir())
 
 		// Finalize the build
-		if err := b.Tx.Commit(ctx); err != nil {
+		if err := engineInstance.buildTransaction.Commit(ctx); err != nil {
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
 
@@ -447,71 +455,71 @@ func (b *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 	}, forceImages)
 }
 
-// RefreshBuildSession refreshes build session state
-func (b *Engine) RefreshBuildSession() {
-	b.refreshBuildSession()
+// RefreshBuildSession refreshes build session state.
+func (engineInstance *Engine) RefreshBuildSession() {
+	engineInstance.refreshBuildSession()
 }
 
-// Commit commits the current transaction
-func (b *Engine) Commit(ctx context.Context) error {
-	return b.Tx.Commit(ctx)
+// Commit commits the current transaction.
+func (engineInstance *Engine) Commit(ctx context.Context) error {
+	return engineInstance.buildTransaction.Commit(ctx)
 }
 
-// LockBuild acquires the build mutex to prevent concurrent builds
-func (b *Engine) LockBuild() {
-	b.State.BuildMu.Lock()
+// LockBuild acquires the build mutex to prevent concurrent builds.
+func (engineInstance *Engine) LockBuild() {
+	engineInstance.State.BuildMu.Lock()
 }
 
-// UnlockBuild releases the build mutex
-func (b *Engine) UnlockBuild() {
-	b.State.BuildMu.Unlock()
+// UnlockBuild releases the build mutex.
+func (engineInstance *Engine) UnlockBuild() {
+	engineInstance.State.BuildMu.Unlock()
 }
 
-// GetWatch returns the watch coordinator
-func (b *Engine) GetWatch() incremental.WatchCoordinator {
-	if b.Watch == nil {
+// GetWatch returns the watch coordinator.
+func (engineInstance *Engine) GetWatch() incremental.WatchCoordinator {
+	if engineInstance.Watch == nil {
 		return nil
 	}
-	return b.Watch
+	return engineInstance.Watch
 }
 
-// GetRender returns the render service
-func (b *Engine) GetRender() render.Service {
-	return b.Deps.Render
+// GetRender returns the render service.
+func (engineInstance *Engine) GetRender() render.Service {
+	return engineInstance.Deps.Render
 }
 
-// GetPost returns the post service
-func (b *Engine) GetPost() post.Service {
-	return b.Deps.Post
+// GetPost returns the post service.
+func (engineInstance *Engine) GetPost() post.Service {
+	return engineInstance.Deps.Post
 }
 
 // handleWatchChange is the callback invoked by WatchCoordinator when a debounced
 // file change batch is ready to process.
-func (b *Engine) handleWatchChange(evt watch.ChangeEvent) {
-	if b.OnBuildStart != nil {
-		b.OnBuildStart()
+func (engineInstance *Engine) handleWatchChange(evt watch.ChangeEvent) {
+	if engineInstance.OnBuildStart != nil {
+		engineInstance.OnBuildStart()
 	}
 	defer func() {
-		if b.OnBuildDone != nil {
-			b.OnBuildDone()
+		if engineInstance.OnBuildDone != nil {
+			engineInstance.OnBuildDone()
 		}
 	}()
 
-	if b.Incremental != nil {
-		b.Incremental.BuildSingleFileChange(context.Background(), evt.Path, evt.Op)
+	if engineInstance.Incremental != nil {
+		engineInstance.Incremental.BuildSingleFileChange(context.Background(), evt.Path, evt.Op)
 	}
 }
 
 // Run executes the main build logic
-func Run(args []string, r ui.Reporter) error {
-	b := NewEngine(WithArgs(args), WithReporter(r))
-	if r != nil {
-		r.Start("Build")
+func Run(args []string, reporter ui.Reporter) error {
+	engineInstance := NewEngine(WithArgs(args), WithReporter(reporter))
+	if reporter != nil {
+		reporter.Start("Build")
 	}
-	defer b.Close()
-	defer b.SaveCaches()
-	if err := b.Build(context.Background()); err != nil {
-		b.Deps.Logger.Error("Build failed", "error", err)
+	defer engineInstance.Close()
+	defer engineInstance.SaveCaches()
+	if err := engineInstance.Build(context.Background()); err != nil {
+		engineInstance.Deps.Logger.Error("Build failed", "error", err)
 		return err
 	}
 	return nil

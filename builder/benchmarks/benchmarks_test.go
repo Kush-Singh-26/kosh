@@ -317,7 +317,7 @@ func createMockPosts(count int) []models.PostMetadata {
 		posts[i] = models.PostMetadata{
 			Title:   fmt.Sprintf("Post %d", i),
 			DateObj: time.Now().Add(-time.Duration(i) * time.Hour),
-			Pinned:  i%5 == 0,
+			IsPinned: i%5 == 0,
 		}
 	}
 	return posts

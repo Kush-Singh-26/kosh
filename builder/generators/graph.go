@@ -88,7 +88,7 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 	// Collect all unique tags first
 	tagNodes := make(map[string]models.GraphNode)
 	for _, p := range posts {
-		if cfg.ShowTags {
+		if cfg.ShowsTags {
 			for _, t := range p.Tags {
 				slug := timeutil.Slugify(t)
 				tagID := "tag-" + slug
@@ -127,7 +127,7 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 			})
 			nodeExists[p.Link] = true
 		}
-		if cfg.ShowTags {
+		if cfg.ShowsTags {
 			for _, t := range p.Tags {
 				tagID := "tag-" + timeutil.Slugify(t)
 				links = append(links, models.GraphLink{Source: p.Link, Target: tagID, Type: "tag"})

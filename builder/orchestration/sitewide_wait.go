@@ -12,7 +12,7 @@ import (
 )
 
 // waitForSiteWideRendering waits for site-wide generators and renders 404 if needed.
-func (b *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTimer *timeutil.PhaseTimer, siteWideHas404 bool, cb *post.MetadataContext) error {
+func (engineInstance *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTimer *timeutil.PhaseTimer, siteWideHas404 bool, metadataContext *post.MetadataContext) error {
 	if siteWideGroup == nil {
 		return nil
 	}
@@ -26,19 +26,19 @@ func (b *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTim
 	if siteTimer != nil {
 		siteTimer.Stop()
 	}
-	if b.Deps.Reporter != nil {
-		b.Deps.Reporter.EndPhase(ui.PhaseSiteWide, 0)
-		b.Deps.Reporter.StartPhase(ui.PhasePublish)
+	if engineInstance.Deps.Reporter != nil {
+		engineInstance.Deps.Reporter.EndPhase(ui.PhaseSiteWide, 0)
+		engineInstance.Deps.Reporter.StartPhase(ui.PhasePublish)
 	}
 
 	if siteWideHas404 {
 		var allTags []models.TagData
-		if cb != nil {
-			allTags = cb.AllTags
+		if metadataContext != nil {
+			allTags = metadataContext.AllTags
 		}
-		if err := b.Deps.Render.Render404(filepath.Join(b.Cfg.OutputDir, "404.html"), models.PageData{
-			Title: "404 Not Found", BaseURL: b.Cfg.BaseURL, TabTitle: "404 Not Found",
-			Config: b.Cfg, RelativePrefix: "", AllTags: allTags,
+		if err := engineInstance.Deps.Render.Render404(filepath.Join(engineInstance.Cfg.OutputDir, "404.html"), models.PageData{
+			Title: "404 Not Found", BaseURL: engineInstance.Cfg.BaseURL, TabTitle: "404 Not Found",
+			Config: engineInstance.Cfg, RelativePrefix: "", AllTags: allTags,
 		}); err != nil {
 			return fmt.Errorf("failed to render 404 page: %w", err)
 		}

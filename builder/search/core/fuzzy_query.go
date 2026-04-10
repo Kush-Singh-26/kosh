@@ -38,8 +38,8 @@ func ParseQuery(query string) ParsedQuery {
 	inPhrase := false
 	var rawPhrases []string
 
-	for _, r := range normalized {
-		if r == '"' {
+	for _, char := range normalized {
+		if char == '"' {
 			if inPhrase {
 				phrase := strings.TrimSpace(phraseBuf.String())
 				if phrase != "" {
@@ -53,7 +53,7 @@ func ParseQuery(query string) ParsedQuery {
 			}
 			inPhrase = !inPhrase
 		} else if inPhrase {
-			phraseBuf.WriteRune(r)
+			phraseBuf.WriteRune(char)
 		}
 	}
 
@@ -73,11 +73,11 @@ func parseOperators(text string) ([]string, []QueryTerm) {
 	var current strings.Builder
 	inOperator := false
 
-	for _, r := range text {
-		if unicode.IsSpace(r) {
+	for _, char := range text {
+		if unicode.IsSpace(char) {
 			if current.Len() > 0 {
-				term, op := extractOperator(current.String())
-				switch op {
+				term, operator := extractOperator(current.String())
+				switch operator {
 				case 1:
 					result := processTerm(term)
 					if result != "" {
@@ -106,10 +106,10 @@ func parseOperators(text string) ([]string, []QueryTerm) {
 			continue
 		}
 
-		if r == '+' || r == '-' {
+		if char == '+' || char == '-' {
 			if current.Len() > 0 && !inOperator {
-				term, op := extractOperator(current.String())
-				if op == 0 {
+				term, operator := extractOperator(current.String())
+				if operator == 0 {
 					result := processTerm(term)
 					if result != "" {
 						result = StemCached(result)
@@ -120,17 +120,17 @@ func parseOperators(text string) ([]string, []QueryTerm) {
 				current.Reset()
 			}
 			inOperator = true
-			current.WriteRune(r)
+			current.WriteRune(char)
 			continue
 		}
 
 		inOperator = false
-		current.WriteRune(r)
+		current.WriteRune(char)
 	}
 
 	if current.Len() > 0 {
-		term, op := extractOperator(current.String())
-		switch op {
+		term, operator := extractOperator(current.String())
+		switch operator {
 		case 1:
 			result := processTerm(term)
 			if result != "" {

@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -43,8 +43,8 @@ baseURL: "https://kosh.dev"
 	if b.Cfg.BaseURL != "https://kosh.dev" {
 		t.Errorf("Expected BaseURL https://kosh.dev, got %s", b.Cfg.BaseURL)
 	}
-	if !b.Cfg.IncludeDrafts {
-		t.Error("Expected IncludeDrafts to be true")
+	if !b.Cfg.ShouldIncludeDrafts {
+		t.Error("Expected ShouldIncludeDrafts to be true")
 	}
 	if b.Cfg.Theme != "my-theme" {
 		t.Errorf("Expected Theme my-theme, got %s", b.Cfg.Theme)
@@ -74,10 +74,10 @@ func TestFullBuild(t *testing.T) {
 		},
 		Features: models.FeaturesConfig{
 			Generators: models.GeneratorsConfig{
-				Sitemap: true,
-				RSS:     true,
-				Search:  true,
-				Graph:   models.GraphConfig{Enabled: true, ShowTags: true},
+				IsSitemapEnabled: true,
+				IsRSSEnabled:     true,
+				IsSearchEnabled:  true,
+				Graph:           models.GraphConfig{IsEnabled: true, ShowsTags: true},
 			},
 		},
 	}
@@ -103,7 +103,7 @@ func TestFullBuild(t *testing.T) {
 		Logger:      logger,
 	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        true,
 			IsCleanBuild: false,
@@ -117,7 +117,7 @@ func TestFullBuild(t *testing.T) {
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
 	postSvc := post.NewService(post.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        true,
 			IsCleanBuild: false,
@@ -149,8 +149,8 @@ func TestFullBuild(t *testing.T) {
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	ctx := context.Background()
 	err := b.Build(ctx)

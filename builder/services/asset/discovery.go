@@ -30,9 +30,9 @@ const (
 )
 
 type assetTask struct {
-	srcPath string
-	relPath string
-	info    fs.FileInfo
+	sourcePath   string
+	relativePath string
+	info         fs.FileInfo
 }
 
 type imageCopyTask struct {
@@ -57,9 +57,9 @@ type syncContext struct {
 	sampleMu     sync.Mutex // protects siteSamples and themeSamples
 }
 
-func (s *assetService) isWebPCandidate(path string) bool {
-	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+func (service *assetService) isWebPCandidate(path string) bool {
+	extension := strings.ToLower(filepath.Ext(path))
+	if extension != ".jpg" && extension != ".jpeg" && extension != ".png" {
 		return false
 	}
 
@@ -70,8 +70,8 @@ func (s *assetService) isWebPCandidate(path string) bool {
 		return false
 	}
 
-	if s.cfg != nil && s.cfg.Logo != "" {
-		logoBase := strings.ToLower(filepath.Base(s.cfg.Logo))
+	if service.cfg != nil && service.cfg.Logo != "" {
+		logoBase := strings.ToLower(filepath.Base(service.cfg.Logo))
 		if base == logoBase {
 			return false
 		}
@@ -81,33 +81,33 @@ func (s *assetService) isWebPCandidate(path string) bool {
 }
 
 // syncStaticAssets discovers and copies all static assets to the sink synchronously.
-func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Context, skipImages bool) ([]imageCopyTask, error) {
-	themeDir, siteStaticDir := s.getStaticSourceDirs()
+func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx context.Context, skipImages bool) ([]imageCopyTask, error) {
+	themeDir, siteStaticDir := service.getStaticSourceDirs()
 	debugAssets := os.Getenv("KOSH_DEBUG_ASSETS") == "1"
 
-	sc := &syncContext{}
+	syncContextInstance := &syncContext{}
 
-	numWorkers := s.cfg.ImageWorkers
-	if numWorkers <= 0 {
-		numWorkers = runtime.NumCPU()
+	workerCount := service.cfg.ImageWorkers
+	if workerCount <= 0 {
+		workerCount = runtime.NumCPU()
 	}
 
 	assetChan := make(chan assetTask, assetChanBuffer)
-	copyGroup, copyCtx := errgroup.WithContext(ctx)
+	copyGroup, copyContext := errgroup.WithContext(ctx)
 	copyGroup.SetLimit(assetCopyGroupLimit)
 
-	workerWg := s.setupAssetWorker(assetChan, copyGroup, copyCtx)
+	workerWg := service.setupAssetWorker(assetChan, copyGroup, copyContext)
 
 	walkerWg := sync.WaitGroup{}
-	discoveryGroup, dCtx := errgroup.WithContext(ctx)
-	walkConcurrency := max(numWorkers/assetWalkConcurrencyDiv, assetMinWalkConcurrency)
+	discoveryGroup, discoveryContext := errgroup.WithContext(ctx)
+	walkConcurrency := max(workerCount/assetWalkConcurrencyDiv, assetMinWalkConcurrency)
 
-	enqueue := s.setupImageEnqueue(bgCtx, skipImages, sc, assetChan)
-	walkFunc := s.setupDiscoveryWalk(discoveryWalkOptions{
+	enqueue := service.setupImageEnqueue(backgroundCtx, skipImages, syncContextInstance, assetChan)
+	walkFunc := service.setupDiscoveryWalk(discoveryWalkOptions{
 		walkerWg:        &walkerWg,
 		walkConcurrency: walkConcurrency,
 		debugAssets:     debugAssets,
-		syncCtx:         sc,
+		syncCtx:         syncContextInstance,
 		enqueue:         enqueue,
 	})
 
@@ -124,9 +124,9 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 
 	discoveryGroup.Go(func() error { return walkFunc(ctx, themeDir, false) })
 
-	if s.contentAssetsChan != nil {
+	if service.contentAssetsChan != nil {
 		discoveryGroup.Go(func() error {
-			return s.discoverContentAssets(dCtx, sc, enqueue)
+			return service.discoverContentAssets(discoveryContext, syncContextInstance, enqueue)
 		})
 	}
 
@@ -136,68 +136,68 @@ func (s *assetService) syncStaticAssets(ctx context.Context, bgCtx context.Conte
 	workerWg.Wait()
 
 	if debugAssets {
-		s.logDiscoveryStats(siteStaticDir, themeDir, sc)
+		service.logDiscoveryStats(siteStaticDir, themeDir, syncContextInstance)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	s.copyCriticalAssets()
+	service.copyCriticalAssets()
 
 	if err := copyGroup.Wait(); err != nil {
 		return nil, err
 	}
 
-	return sc.imageQueue, nil
+	return syncContextInstance.imageQueue, nil
 }
 
-func (s *assetService) getStaticSourceDirs() (string, string) {
-	themeDir := s.cfg.StaticDir
+func (service *assetService) getStaticSourceDirs() (string, string) {
+	themeDir := service.cfg.StaticDir
 	if themeDir == "" {
 		themeDir = "themes/blog/static"
 	}
 	siteStaticDir := "static"
-	if s.cfg.SiteRoot != "" {
-		siteStaticDir = filepath.Join(s.cfg.SiteRoot, "static")
+	if service.cfg.SiteRoot != "" {
+		siteStaticDir = filepath.Join(service.cfg.SiteRoot, "static")
 	}
 	return themeDir, siteStaticDir
 }
 
-func (s *assetService) setupAssetWorker(assetChan <-chan assetTask, group *errgroup.Group, ctx context.Context) *sync.WaitGroup {
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
+func (service *assetService) setupAssetWorker(assetChan <-chan assetTask, group *errgroup.Group, ctx context.Context) *sync.WaitGroup {
+	waitGroupInstance := &sync.WaitGroup{}
+	waitGroupInstance.Add(1)
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 		Ctx:       ctx,
-		Logger:    s.logger,
+		Logger:    service.logger,
 		Operation: "asset worker",
 		Fn: func() error {
 			for task := range assetChan {
-				t := task
+				currentTask := task
 				group.Go(func() error {
-					dst := filepath.Join(s.cfg.OutputDir, t.relPath)
-					opts := assets.CopyOptions{
-						Compress:     s.cfg.CompressImages,
-						MinifySVGs:   s.cfg.MinifySVGs,
+					destinationPath := filepath.Join(service.cfg.OutputDir, currentTask.relativePath)
+					options := assets.CopyOptions{
+						Compress:     service.cfg.ShouldCompressImages,
+						MinifySVGs:   service.cfg.ShouldMinifySVGs,
 						KeepOriginal: false,
-						CacheDir:     s.cfg.CacheDir + "/images",
-						WebPQuality:  s.cfg.WebPQuality,
-						Metrics:      s.metrics,
-						OnWrite:      s.renderer.RegisterFile,
-						ImageWorkers: s.cfg.ImageWorkers,
+						CacheDir:     service.cfg.CacheDir + "/images",
+						WebPQuality:  service.cfg.WebPQuality,
+						Metrics:      service.metrics,
+						OnWrite:      service.renderer.RegisterFile,
+						ImageWorkers: service.cfg.ImageWorkers,
 					}
 					return assets.CopyFileWithOptionalImageProcessing(assets.ProcessImageOptions{
 						Ctx:     ctx,
-						SrcFs:   s.sourceFs,
-						Sink:    s.sink,
-						SrcPath: t.srcPath,
-						DstPath: dst,
-						RelPath: t.relPath,
-						SrcInfo: t.info,
-						Opts:    opts,
+						SrcFs:   service.sourceFs,
+						Sink:    service.sink,
+						SrcPath: currentTask.sourcePath,
+						DstPath: destinationPath,
+						RelPath: currentTask.relativePath,
+						SrcInfo: currentTask.info,
+						Opts:    options,
 						Scheduler: func() scheduler.BuildScheduler {
-							if s.ctx != nil {
-								return s.ctx.Scheduler
+							if service.ctx != nil {
+								return service.ctx.Scheduler
 							}
 							return nil
 						}(),
@@ -206,84 +206,84 @@ func (s *assetService) setupAssetWorker(assetChan <-chan assetTask, group *errgr
 			}
 			return nil
 		},
-		Cleanup: wg.Done,
+		Cleanup: waitGroupInstance.Done,
 	})
-	return wg
+	return waitGroupInstance
 }
 
-func (s *assetService) setupImageEnqueue(bgCtx context.Context, skipImages bool, sc *syncContext, assetChan chan<- assetTask) func(assetTask) {
-	return func(t assetTask) {
-		if s.cfg.CompressImages && s.isWebPCandidate(t.srcPath) {
-			relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(t.relPath), "/")
-			relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
-			assets.RecordConvertedImage(relSrc, relDst)
-			assets.RecordConvertedImage(strings.TrimPrefix(relSrc, "/"), relDst)
+func (service *assetService) setupImageEnqueue(backgroundCtx context.Context, skipImages bool, syncContextInstance *syncContext, assetChan chan<- assetTask) func(assetTask) {
+	return func(task assetTask) {
+		if service.cfg.ShouldCompressImages && service.isWebPCandidate(task.sourcePath) {
+			relativeSource := "/" + strings.TrimPrefix(filepath.ToSlash(task.relativePath), "/")
+			relativeDestination := relativeSource[:len(relativeSource)-len(filepath.Ext(relativeSource))] + ".webp"
+			assets.RecordConvertedImage(relativeSource, relativeDestination)
+			assets.RecordConvertedImage(strings.TrimPrefix(relativeSource, "/"), relativeDestination)
 
-			dst := filepath.Join(s.cfg.OutputDir, t.relPath)
-			dstWebp := dst[:len(dst)-len(filepath.Ext(dst))] + ".webp"
+			outerDestination := filepath.Join(service.cfg.OutputDir, task.relativePath)
+			destinationWebPPath := outerDestination[:len(outerDestination)-len(filepath.Ext(outerDestination))] + ".webp"
 
-			if skipImages && s.cfg.IsDev {
-				if _, err := s.sink.Stat(dstWebp); err == nil {
-					s.sink.Register(dstWebp)
-					if s.renderer != nil {
-						s.renderer.RegisterFile(dstWebp)
+			if skipImages && service.cfg.IsDev {
+				if _, err := service.sink.Stat(destinationWebPPath); err == nil {
+					service.sink.Register(destinationWebPPath)
+					if service.renderer != nil {
+						service.renderer.RegisterFile(destinationWebPPath)
 					}
 					return
 				}
 			}
 
 			err := assets.CopyFromDiskCache(assets.CopyFromDiskCacheOptions{
-				SrcFs:        s.sourceFs,
-				Sink:         s.sink,
-				RelPath:      t.relPath,
-				SrcPath:      t.srcPath,
-				DstPath:      dstWebp,
-				CacheDir:     s.cfg.CacheDir + "/images",
-				SrcInfo:      t.info,
-				Metrics:      s.metrics,
-				OnWrite:      s.renderer.RegisterFile,
-				KeepOriginal: s.cfg.IsDev || s.cfg.Features.RawMarkdown,
+				SrcFs:        service.sourceFs,
+				Sink:         service.sink,
+				RelPath:      task.relativePath,
+				SrcPath:      task.sourcePath,
+				DstPath:      destinationWebPPath,
+				CacheDir:     service.cfg.CacheDir + "/images",
+				SrcInfo:      task.info,
+				Metrics:      service.metrics,
+				OnWrite:      service.renderer.RegisterFile,
+				KeepOriginal: service.cfg.IsDev || service.cfg.Features.UseRawMarkdown,
 				MuteMetrics:  skipImages,
 			})
 			if err == nil {
 				return
 			}
 			if !errors.Is(err, assets.ErrCacheMiss) {
-				if _, loaded := s.warnOnce.LoadOrStore("cache-fail:"+t.srcPath, true); !loaded {
-					s.logger.Warn("Disk cache lookup failed", "path", t.srcPath, "error", err)
+				if _, loaded := service.warnOnce.LoadOrStore("cache-fail:"+task.sourcePath, true); !loaded {
+					service.logger.Warn("Disk cache lookup failed", "path", task.sourcePath, "error", err)
 				}
 			}
-			imgOpts := assets.ProcessImageOptions{
-				Ctx:     bgCtx,
-				SrcFs:   s.sourceFs,
-				Sink:    s.sink,
-				SrcPath: t.srcPath,
-				DstPath: dstWebp,
-				RelPath: t.relPath,
-				SrcInfo: t.info,
+			imageOptions := assets.ProcessImageOptions{
+				Ctx:     backgroundCtx,
+				SrcFs:   service.sourceFs,
+				Sink:    service.sink,
+				SrcPath: task.sourcePath,
+				DstPath: destinationWebPPath,
+				RelPath: task.relativePath,
+				SrcInfo: task.info,
 				Opts: assets.CopyOptions{
-					Compress:     s.cfg.CompressImages,
-					MinifySVGs:   s.cfg.MinifySVGs,
+					Compress:     service.cfg.ShouldCompressImages,
+					MinifySVGs:   service.cfg.ShouldMinifySVGs,
 					KeepOriginal: false,
-					CacheDir:     s.cfg.CacheDir + "/images",
-					WebPQuality:  s.cfg.WebPQuality,
-					Metrics:      s.metrics,
-					OnWrite:      s.renderer.RegisterFile,
-					ImageWorkers: s.cfg.ImageWorkers,
+					CacheDir:     service.cfg.CacheDir + "/images",
+					WebPQuality:  service.cfg.WebPQuality,
+					Metrics:      service.metrics,
+					OnWrite:      service.renderer.RegisterFile,
+					ImageWorkers: service.cfg.ImageWorkers,
 					Scheduler: func() scheduler.BuildScheduler {
-						if s.ctx != nil {
-							return s.ctx.Scheduler
+						if service.ctx != nil {
+							return service.ctx.Scheduler
 						}
 						return nil
 					}(),
 				},
 			}
-			sc.imageQueueMu.Lock()
-			sc.imageQueue = append(sc.imageQueue, imageCopyTask{task: t, opts: imgOpts})
-			sc.imageQueueMu.Unlock()
+			syncContextInstance.imageQueueMu.Lock()
+			syncContextInstance.imageQueue = append(syncContextInstance.imageQueue, imageCopyTask{task: task, opts: imageOptions})
+			syncContextInstance.imageQueueMu.Unlock()
 			return
 		}
-		assetChan <- t
+		assetChan <- task
 	}
 }
 
@@ -295,119 +295,119 @@ type discoveryWalkOptions struct {
 	enqueue         func(assetTask)
 }
 
-func (s *assetService) setupDiscoveryWalk(opts discoveryWalkOptions) func(context.Context, string, bool) error {
-	if opts.walkerWg == nil {
+func (service *assetService) setupDiscoveryWalk(walkOptions discoveryWalkOptions) func(context.Context, string, bool) error {
+	if walkOptions.walkerWg == nil {
 		panic("setupDiscoveryWalk: walkerWg is nil")
 	}
-	if opts.syncCtx == nil {
+	if walkOptions.syncCtx == nil {
 		panic("setupDiscoveryWalk: syncCtx is nil")
 	}
-	if opts.enqueue == nil {
+	if walkOptions.enqueue == nil {
 		panic("setupDiscoveryWalk: enqueue is nil")
 	}
-	if opts.walkConcurrency <= 0 {
-		opts.walkConcurrency = defaultWalkConcurrency
+	if walkOptions.walkConcurrency <= 0 {
+		walkOptions.walkConcurrency = defaultWalkConcurrency
 	}
 
 	return func(ctx context.Context, dir string, isSite bool) error {
-		exists, _ := afero.Exists(s.sourceFs, dir)
+		exists, _ := afero.Exists(service.sourceFs, dir)
 		if !exists {
 			return nil
 		}
-		opts.walkerWg.Add(1)
+		walkOptions.walkerWg.Add(1)
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 			Ctx:       ctx,
-			Logger:    s.logger,
+			Logger:    service.logger,
 			Operation: "asset discovery walk",
 			Fn: func() error {
 				_ = fspkg.ParallelWalk(fspkg.WalkOptions{
 					Ctx:         ctx,
-					SourceFs:    s.sourceFs,
+					SourceFs:    service.sourceFs,
 					Root:        dir,
-					Concurrency: opts.walkConcurrency,
+					Concurrency: walkOptions.walkConcurrency,
 					WalkFn: func(path string, info fs.FileInfo, err error) error {
 						if err != nil || info.IsDir() {
 							return nil
 						}
-						if opts.debugAssets {
+						if walkOptions.debugAssets {
 							if isSite {
-								atomic.AddInt64(&opts.syncCtx.siteFiles, 1)
+								atomic.AddInt64(&walkOptions.syncCtx.siteFiles, 1)
 							} else {
-								atomic.AddInt64(&opts.syncCtx.themeFiles, 1)
+								atomic.AddInt64(&walkOptions.syncCtx.themeFiles, 1)
 							}
 						}
 						if filepath.Base(path) == "search.wasm" {
 							return nil
 						}
 
-						rel, relErr := fspkg.SafeRel(dir, path)
-						if relErr != nil || rel == "" {
-							rel = s.handleRelPathManualFallback(dir, path, opts.debugAssets, opts.syncCtx)
-							if rel == "" {
+						relative, relativeErrorInstance := fspkg.SafeRel(dir, path)
+						if relativeErrorInstance != nil || relative == "" {
+							relative = service.handleRelPathManualFallback(dir, path, walkOptions.debugAssets, walkOptions.syncCtx)
+							if relative == "" {
 								return nil
 							}
 						}
-						fullRel := "static/" + rel
-						if _, loaded := opts.syncCtx.seen.LoadOrStore(fullRel, true); !loaded {
-							if opts.debugAssets {
-								s.recordDiscoverySample(isSite, fullRel, opts.syncCtx)
+						fullRelativePath := "static/" + relative
+						if _, loaded := walkOptions.syncCtx.seen.LoadOrStore(fullRelativePath, true); !loaded {
+							if walkOptions.debugAssets {
+								service.recordDiscoverySample(isSite, fullRelativePath, walkOptions.syncCtx)
 							}
-							opts.enqueue(assetTask{srcPath: path, relPath: fullRel, info: info})
+							walkOptions.enqueue(assetTask{sourcePath: path, relativePath: fullRelativePath, info: info})
 						}
 						return nil
 					},
 				})
 				return nil
 			},
-			Cleanup: opts.walkerWg.Done,
+			Cleanup: walkOptions.walkerWg.Done,
 		})
 		return nil
 	}
 }
 
-func (s *assetService) handleRelPathManualFallback(dir, path string, debugAssets bool, sc *syncContext) string {
-	baseNorm := fspkg.NormalizePath(dir)
-	pathNorm := fspkg.NormalizePath(path)
-	if !fspkg.IsPathInOrSame(pathNorm, baseNorm) {
+func (service *assetService) handleRelPathManualFallback(dir, path string, debugAssets bool, syncContextInstance *syncContext) string {
+	baseNormalized := fspkg.NormalizePath(dir)
+	pathNormalized := fspkg.NormalizePath(path)
+	if !fspkg.IsPathInOrSame(pathNormalized, baseNormalized) {
 		if debugAssets {
-			atomic.AddInt64(&sc.relErrs, 1)
+			atomic.AddInt64(&syncContextInstance.relErrs, 1)
 		}
 		return ""
 	}
-	rel := strings.TrimPrefix(pathNorm, baseNorm)
-	rel = strings.TrimPrefix(rel, "/")
-	if rel == "" {
+	relative := strings.TrimPrefix(pathNormalized, baseNormalized)
+	relative = strings.TrimPrefix(relative, "/")
+	if relative == "" {
 		if debugAssets {
-			atomic.AddInt64(&sc.relErrs, 1)
+			atomic.AddInt64(&syncContextInstance.relErrs, 1)
 		}
 		return ""
 	}
-	return rel
+	return relative
 }
 
-func (s *assetService) recordDiscoverySample(isSite bool, fullRel string, sc *syncContext) {
+func (service *assetService) recordDiscoverySample(isSite bool, fullRelativePath string, syncContextInstance *syncContext) {
 	if isSite {
-		atomic.AddInt64(&sc.siteEnqueued, 1)
+		atomic.AddInt64(&syncContextInstance.siteEnqueued, 1)
 	} else {
-		atomic.AddInt64(&sc.themeEnqueued, 1)
+		atomic.AddInt64(&syncContextInstance.themeEnqueued, 1)
 	}
-	sc.sampleMu.Lock()
-	if isSite && len(sc.siteSamples) < discoverySampleLimit {
-		sc.siteSamples = append(sc.siteSamples, fullRel)
-	} else if !isSite && len(sc.themeSamples) < discoverySampleLimit {
-		sc.themeSamples = append(sc.themeSamples, fullRel)
+	syncContextInstance.sampleMu.Lock()
+	if isSite && len(syncContextInstance.siteSamples) < discoverySampleLimit {
+		syncContextInstance.siteSamples = append(syncContextInstance.siteSamples, fullRelativePath)
+	} else if !isSite && len(syncContextInstance.themeSamples) < discoverySampleLimit {
+		syncContextInstance.themeSamples = append(syncContextInstance.themeSamples, fullRelativePath)
 	}
-	sc.sampleMu.Unlock()
+	syncContextInstance.sampleMu.Unlock()
 }
 
-func (s *assetService) discoverContentAssets(ctx context.Context, sc *syncContext, enqueue func(assetTask)) error {
+func (service *assetService) discoverContentAssets(ctx context.Context, syncContextInstance *syncContext, enqueue func(assetTask)) error {
 	select {
-	case contentAssets, ok := <-s.contentAssetsChan:
+	case contentAssets, ok := <-service.contentAssetsChan:
 		if ok && contentAssets != nil {
-			for _, a := range contentAssets {
-				rel, _ := fspkg.SafeRel(s.cfg.ContentDir, a.Path)
-				if _, loaded := sc.seen.LoadOrStore(rel, true); !loaded {
-					enqueue(assetTask{srcPath: a.Path, relPath: rel, info: a.Info})
+			for _, asset := range contentAssets {
+				relative, _ := fspkg.SafeRel(service.cfg.ContentDir, asset.Path)
+				if _, loaded := syncContextInstance.seen.LoadOrStore(relative, true); !loaded {
+					enqueue(assetTask{sourcePath: asset.Path, relativePath: relative, info: asset.Info})
 				}
 			}
 		}
@@ -417,25 +417,25 @@ func (s *assetService) discoverContentAssets(ctx context.Context, sc *syncContex
 	return nil
 }
 
-func (s *assetService) logDiscoveryStats(siteStaticDir, themeDir string, sc *syncContext) {
-	s.logger.Info("Static discovery stats",
+func (service *assetService) logDiscoveryStats(siteStaticDir, themeDir string, syncCtx *syncContext) {
+	service.logger.Info("Static discovery stats",
 		"site_dir", siteStaticDir,
 		"theme_dir", themeDir,
-		"site_files", atomic.LoadInt64(&sc.siteFiles),
-		"theme_files", atomic.LoadInt64(&sc.themeFiles),
-		"site_enqueued", atomic.LoadInt64(&sc.siteEnqueued),
-		"theme_enqueued", atomic.LoadInt64(&sc.themeEnqueued),
-		"rel_errors", atomic.LoadInt64(&sc.relErrs),
-		"site_samples", sc.siteSamples,
-		"theme_samples", sc.themeSamples,
+		"site_files", atomic.LoadInt64(&syncCtx.siteFiles),
+		"theme_files", atomic.LoadInt64(&syncCtx.themeFiles),
+		"site_enqueued", atomic.LoadInt64(&syncCtx.siteEnqueued),
+		"theme_enqueued", atomic.LoadInt64(&syncCtx.themeEnqueued),
+		"rel_errors", atomic.LoadInt64(&syncCtx.relErrs),
+		"site_samples", syncCtx.siteSamples,
+		"theme_samples", syncCtx.themeSamples,
 	)
 }
 
-func (s *assetService) copyCriticalAssets() {
-	if s.cfg.Logo != "" {
-		if err := s.copyFileOrLink(s.cfg.Logo, s.cfg.Logo); err != nil {
-			if _, loaded := s.warnOnce.LoadOrStore("logo:"+s.cfg.Logo, true); !loaded {
-				s.logger.Warn("Failed to copy logo", "src", s.cfg.Logo, "error", err)
+func (service *assetService) copyCriticalAssets() {
+	if service.cfg.Logo != "" {
+		if err := service.copyFileOrLink(service.cfg.Logo, service.cfg.Logo); err != nil {
+			if _, loaded := service.warnOnce.LoadOrStore("logo:"+service.cfg.Logo, true); !loaded {
+				service.logger.Warn("Failed to copy logo", "src", service.cfg.Logo, "error", err)
 			}
 		}
 	}

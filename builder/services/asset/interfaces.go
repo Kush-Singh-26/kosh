@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -17,7 +17,7 @@ import (
 
 // Dependencies holds all dependencies for AssetService.
 type Dependencies struct {
-	Ctx      *buildCtx.BuildContext
+	Ctx      *buildctx.BuildContext
 	SourceFs afero.Fs
 	Sink     fspkg.ArtifactSink
 	Cfg      *config.Config
@@ -29,12 +29,12 @@ type Dependencies struct {
 
 // Service handles static asset processing (CSS/JS bundling, image optimization).
 type Service interface {
-	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
-	SetMetrics(m *metrics.BuildMetrics)
-	SetAssetsReadySignal(ch chan struct{})
-	SetContentAssetsChannel(ch <-chan []models.ScannedAsset)
-	SetDiscoveryReady(ch chan struct{})
-	ReconfigureWithReporter(r ui.Reporter, l *slog.Logger)
+	ReconfigureForBuild(sink fspkg.ArtifactSink, sourceFs afero.Fs)
+	SetMetrics(metrics *metrics.BuildMetrics)
+	SetAssetsReadySignal(signal chan struct{})
+	SetContentAssetsChannel(signal <-chan []models.ScannedAsset)
+	SetDiscoveryReady(signal chan struct{})
+	ReconfigureWithReporter(reporter ui.Reporter, logger *slog.Logger)
 	Build(ctx context.Context) error
 	BuildWithOptions(ctx context.Context, skipImages bool) error
 	DiscoveryReady() <-chan struct{}

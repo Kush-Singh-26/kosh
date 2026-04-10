@@ -23,40 +23,40 @@ const (
 	rawHTMLRendererPriority    = 500
 )
 
-func codeBlockWrapper(w util.BufWriter, c highlighting.CodeBlockContext, entering bool) {
+func codeBlockWrapper(writer util.BufWriter, codeCtx highlighting.CodeBlockContext, entering bool) {
 	if entering {
-		langBytes, _ := c.Language()
+		langBytes, _ := codeCtx.Language()
 		lang := string(langBytes)
 		if lang == "" {
 			lang = "text"
 		}
 
 		title := ""
-		if attrs := c.Attributes(); attrs != nil {
-			if t, ok := attrs.Get([]byte("title")); ok {
-				if b, ok := t.([]byte); ok {
-					title = string(b)
-				} else if s, ok := t.(string); ok {
-					title = s
+		if attrs := codeCtx.Attributes(); attrs != nil {
+			if titleVal, ok := attrs.Get([]byte("title")); ok {
+				if titleBytes, ok := titleVal.([]byte); ok {
+					title = string(titleBytes)
+				} else if titleStr, ok := titleVal.(string); ok {
+					title = titleStr
 				}
 			}
 		}
 
 		// Write the wrapper div with data-lang attribute
-		_, _ = w.WriteString(`<div class="code-block-container">`)
+		_, _ = writer.WriteString(`<div class="code-block-container">`)
 		if title != "" {
-			_, _ = w.WriteString(`<div class="code-header">` + title + `</div>`)
+			_, _ = writer.WriteString(`<div class="code-header">` + title + `</div>`)
 		}
-		_, _ = w.WriteString(`<div class="code-wrapper" data-lang="` + lang + `">`)
+		_, _ = writer.WriteString(`<div class="code-wrapper" data-lang="` + lang + `">`)
 	} else {
-		_, _ = w.WriteString(`</div></div>`)
+		_, _ = writer.WriteString(`</div></div>`)
 	}
 }
 
 // New creates a new Goldmark markdown parser with SSR support for diagrams
 func New(cfg *config.Config, renderer *native.Renderer, diagramCache SSRMap, d2Group *singleflight.Group) goldmark.Markdown {
 	baseURL := cfg.BaseURL
-	compress := cfg.CompressImages
+	compress := cfg.ShouldCompressImages
 
 	return goldmark.New(
 		goldmark.WithExtensions(

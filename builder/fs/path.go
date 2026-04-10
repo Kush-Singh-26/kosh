@@ -69,12 +69,12 @@ func AbsNormalizePath(path string) (string, error) {
 }
 
 // NormalizeURLPath normalizes a URL path.
-func NormalizeURLPath(p string) string {
-	if p == "" {
+func NormalizeURLPath(path string) string {
+	if path == "" {
 		return "."
 	}
-	p = strings.ReplaceAll(p, "\\", "/")
-	return pathpkg.Clean(p)
+	path = strings.ReplaceAll(path, "\\", "/")
+	return pathpkg.Clean(path)
 }
 
 // MarkdownToHTMLPath converts a .md file path to its .html equivalent (lowercased).
@@ -256,9 +256,9 @@ func DetectTestingMode() bool {
 	return false
 }
 
-func hasNonASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] >= 0x80 {
+func hasNonASCII(str string) bool {
+	for i := 0; i < len(str); i++ {
+		if str[i] >= 0x80 {
 			return true
 		}
 	}

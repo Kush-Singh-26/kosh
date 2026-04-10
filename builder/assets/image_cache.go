@@ -67,43 +67,43 @@ type imageCacheEntry struct {
 }
 
 func newImageCache(maxItems int, maxBytes int64) *imageCache {
-	ic := &imageCache{
+	cacheInstance := &imageCache{
 		capacity: maxBytes,
 	}
 
 	onEvict := func(key imageCacheKey, value []byte) {
 		overhead := imageCacheEntryOverhead + len(key.path)
-		ic.size.Add(-int64(cap(value) + overhead))
+		cacheInstance.size.Add(-int64(cap(value) + overhead))
 	}
 
-	c, _ := lru.NewWithEvict[imageCacheKey, []byte](maxItems, onEvict)
-	ic.cache = c
+	cache, _ := lru.NewWithEvict[imageCacheKey, []byte](maxItems, onEvict)
+	cacheInstance.cache = cache
 
-	return ic
+	return cacheInstance
 }
 
-func (c *imageCache) get(key imageCacheKey) ([]byte, bool) {
-	return c.cache.Get(key)
+func (cache *imageCache) get(key imageCacheKey) ([]byte, bool) {
+	return cache.cache.Get(key)
 }
 
-func (c *imageCache) set(key imageCacheKey, data []byte) {
+func (cache *imageCache) set(key imageCacheKey, data []byte) {
 	overhead := imageCacheEntryOverhead + len(key.path)
 	itemSize := cap(data) + overhead
 
-	c.size.Add(int64(itemSize))
+	cache.size.Add(int64(itemSize))
 
-	for c.size.Load() > c.capacity && c.cache.Len() > 0 {
-		_, _, ok := c.cache.RemoveOldest()
+	for cache.size.Load() > cache.capacity && cache.cache.Len() > 0 {
+		_, _, ok := cache.cache.RemoveOldest()
 		if !ok {
 			break
 		}
 	}
 
-	c.cache.Add(key, data)
+	cache.cache.Add(key, data)
 }
 
 // Size reports the current in-memory cache size in bytes.
-func (c *imageCache) Size() int64 { return c.size.Load() }
+func (cache *imageCache) Size() int64 { return cache.size.Load() }
 
 var (
 	globalImageCache     *imageCache
@@ -122,8 +122,8 @@ func GetImageCache() *imageCache {
 var convertedImagePaths sync.Map
 
 // RecordConvertedImage stores a mapping from original to WebP path.
-func RecordConvertedImage(originalDst, webpDst string) {
-	convertedImagePaths.Store(originalDst, webpDst)
+func RecordConvertedImage(originalDestination, webpDestination string) {
+	convertedImagePaths.Store(originalDestination, webpDestination)
 }
 
 // GetConvertedImages returns a snapshot of recorded image conversions.
@@ -144,26 +144,26 @@ func ResetConvertedImages() {
 // keyBufPool stores *[]byte buffers for hash key construction.
 var keyBufPool = sync.Pool{
 	New: func() any {
-		b := make([]byte, 0, keyBufCap)
-		return &b
+		buffer := make([]byte, 0, keyBufCap)
+		return &buffer
 	},
 }
 
 func getImageHash(key imageCacheKey) string {
-	bufPtr := keyBufPool.Get().(*[]byte)
-	buf := (*bufPtr)[:0]
+	bufferPointer := keyBufPool.Get().(*[]byte)
+	buffer := (*bufferPointer)[:0]
 	defer func() {
-		*bufPtr = buf
-		keyBufPool.Put(bufPtr)
+		*bufferPointer = buffer
+		keyBufPool.Put(bufferPointer)
 	}()
 
-	buf = append(buf, key.path...)
-	buf = strconv.AppendInt(buf, key.size, strconvBase10)
-	buf = strconv.AppendInt(buf, key.modTime, strconvBase10)
+	buffer = append(buffer, key.path...)
+	buffer = strconv.AppendInt(buffer, key.size, strconvBase10)
+	buffer = strconv.AppendInt(buffer, key.modTime, strconvBase10)
 
-	h := xxh3.Hash128(buf)
-	res := h.Bytes()
-	return hex.EncodeToString(res[:])
+	hash := xxh3.Hash128(buffer)
+	resultBytes := hash.Bytes()
+	return hex.EncodeToString(resultBytes[:])
 }
 
 type atomicInt64 struct{ v int64 }
@@ -175,18 +175,18 @@ func (a *atomicInt64) Load() int64 { return atomic.LoadInt64(&a.v) }
 func (a *atomicInt64) Add(delta int64) { atomic.AddInt64(&a.v, delta) }
 
 var imageCacheWriter struct {
-	ch   chan imageCacheEntry
-	once sync.Once
+	channel chan imageCacheEntry
+	once    sync.Once
 }
 
 func initImageCacheWriter() {
 	imageCacheWriter.once.Do(func() {
-		imageCacheWriter.ch = make(chan imageCacheEntry, imageCacheWriterBuffer)
+		imageCacheWriter.channel = make(chan imageCacheEntry, imageCacheWriterBuffer)
 		async.FireAndForget(context.Background(), slog.Default(), "image cache writer", func() error {
-			for entry := range imageCacheWriter.ch {
-				_ = os.MkdirAll(filepath.Dir(entry.path), imageCacheDirMode)
-				if err := os.WriteFile(entry.path, entry.data, imageCacheFileMode); err != nil {
-					slog.Warn("Failed to write image cache file", "path", entry.path, "error", err)
+			for cacheEntry := range imageCacheWriter.channel {
+				_ = os.MkdirAll(filepath.Dir(cacheEntry.path), imageCacheDirMode)
+				if err := os.WriteFile(cacheEntry.path, cacheEntry.data, imageCacheFileMode); err != nil {
+					slog.Warn("Failed to write image cache file", "path", cacheEntry.path, "error", err)
 				}
 			}
 			return nil
@@ -206,7 +206,7 @@ func queueImageCacheWrite(path string, data []byte, isCloned bool) {
 	}
 
 	select {
-	case imageCacheWriter.ch <- imageCacheEntry{path: path, data: dataCopy}:
+	case imageCacheWriter.channel <- imageCacheEntry{path: path, data: dataCopy}:
 	default:
 		_ = os.MkdirAll(filepath.Dir(path), imageCacheDirMode)
 		_ = os.WriteFile(path, dataCopy, imageCacheFileMode)
@@ -236,49 +236,49 @@ type CopyFromDiskCacheOptions struct {
 // Returns nil on cache hit, ErrCacheMiss on miss, or a real error.
 // Called from the asset discovery goroutine to speed up image registration
 // before background workers process the remaining cache-miss images.
-func CopyFromDiskCache(opts CopyFromDiskCacheOptions) error {
+func CopyFromDiskCache(options CopyFromDiskCacheOptions) error {
 	cacheFs := afero.NewOsFs()
-	memKey := imageCacheKey{
-		path:    opts.SrcPath,
-		size:    opts.SrcInfo.Size(),
-		modTime: opts.SrcInfo.ModTime().UnixNano(),
+	memoryCacheKey := imageCacheKey{
+		path:    options.SrcPath,
+		size:    options.SrcInfo.Size(),
+		modTime: options.SrcInfo.ModTime().UnixNano(),
 	}
-	hash := getImageHash(memKey)
-	cacheFile := filepath.Join(opts.CacheDir, hash+".webp")
+	hash := getImageHash(memoryCacheKey)
+	cacheFile := filepath.Join(options.CacheDir, hash+".webp")
 
 	cachedData, err := afero.ReadFile(cacheFs, cacheFile)
 	if err != nil {
 		return ErrCacheMiss
 	}
 
-	if err := opts.Sink.WriteFile(opts.DstPath, cachedData); err != nil {
+	if err := options.Sink.WriteFile(options.DstPath, cachedData); err != nil {
 		return err
 	}
 
-	if opts.Metrics != nil && !opts.MuteMetrics {
-		opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cachedData)))
-		opts.Metrics.IncrementAssetsProcessed()
+	if options.Metrics != nil && !options.MuteMetrics {
+		options.Metrics.RecordImageOptimization(options.SrcInfo.Size(), int64(len(cachedData)))
+		options.Metrics.IncrementAssetsProcessed()
 	}
 
-	relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(opts.RelPath), "/")
-	relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
-	registerImageVariants(relSrc, relDst)
+	relativeSource := "/" + strings.TrimPrefix(filepath.ToSlash(options.RelPath), "/")
+	relativeDestination := relativeSource[:len(relativeSource)-len(filepath.Ext(relativeSource))] + ".webp"
+	registerImageVariants(relativeSource, relativeDestination)
 
-	if opts.OnWrite != nil {
-		opts.OnWrite(opts.DstPath)
+	if options.OnWrite != nil {
+		options.OnWrite(options.DstPath)
 	}
 
 	// If keepOriginal is requested, also copy the source file to its destination
-	if opts.KeepOriginal {
-		ext := strings.ToLower(filepath.Ext(opts.SrcPath))
-		origDst := strings.TrimSuffix(opts.DstPath, filepath.Ext(opts.DstPath)) + ext
+	if options.KeepOriginal {
+		extension := strings.ToLower(filepath.Ext(options.SrcPath))
+		originalDestination := strings.TrimSuffix(options.DstPath, filepath.Ext(options.DstPath)) + extension
 		_ = fspkg.CopyFileVFS(fspkg.CopyFileOptions{
-			SrcFs:   opts.SrcFs,
-			Sink:    opts.Sink,
-			SrcPath: opts.SrcPath,
-			DstPath: origDst,
-			ModTime: opts.SrcInfo.ModTime().UnixNano(),
-			OnWrite: opts.OnWrite,
+			SrcFs:   options.SrcFs,
+			Sink:    options.Sink,
+			SrcPath: options.SrcPath,
+			DstPath: originalDestination,
+			ModTime: options.SrcInfo.ModTime().UnixNano(),
+			OnWrite: options.OnWrite,
 		})
 	}
 
@@ -315,19 +315,19 @@ func shouldPreserveOriginal(name string) bool {
 
 func collectOriginalsToDelete(outputDir string, converted map[string]string) []string {
 	var toDelete []string
-	for origRelPath := range converted {
-		lower := strings.ToLower(origRelPath)
+	for originalRelativePath := range converted {
+		lower := strings.ToLower(originalRelativePath)
 		if !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") {
 			continue
 		}
 
-		base := filepath.Base(origRelPath)
+		base := filepath.Base(originalRelativePath)
 		if shouldPreserveOriginal(base) {
 			continue
 		}
 
-		absPath := filepath.Join(outputDir, strings.TrimPrefix(filepath.ToSlash(origRelPath), "/"))
-		toDelete = append(toDelete, absPath)
+		absolutePath := filepath.Join(outputDir, strings.TrimPrefix(filepath.ToSlash(originalRelativePath), "/"))
+		toDelete = append(toDelete, absolutePath)
 	}
 	return toDelete
 }
@@ -346,13 +346,13 @@ func deleteOriginals(paths []string) int64 {
 		numWorkers = 1
 	}
 
-	g, _ := errgroup.WithContext(context.Background())
-	g.SetLimit(numWorkers)
+	errorGroup, _ := errgroup.WithContext(context.Background())
+	errorGroup.SetLimit(numWorkers)
 
 	for _, fullPath := range paths {
-		p := fullPath
-		g.Go(func() error {
-			if err := os.Remove(p); err == nil {
+		path := fullPath
+		errorGroup.Go(func() error {
+			if err := os.Remove(path); err == nil {
 				deleted.Add(1)
 			} else if !os.IsNotExist(err) {
 				return err // Propagate real errors instead of swallowing them
@@ -360,7 +360,7 @@ func deleteOriginals(paths []string) int64 {
 			return nil
 		})
 	}
-	_ = g.Wait() // Best-effort cleanup; errors are already filtered above.
+	_ = errorGroup.Wait() // Best-effort cleanup; errors are already filtered above.
 
 	return deleted.Load()
 }

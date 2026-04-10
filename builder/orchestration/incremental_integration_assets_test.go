@@ -10,7 +10,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
@@ -23,6 +23,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
+
 
 func TestIncrementalBuild_CSSChange(t *testing.T) {
 	fs := afero.NewMemMapFs()
@@ -67,7 +68,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -86,7 +87,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 		Logger:      logger,
 	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -100,7 +101,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
 	postSvc := post.NewService(post.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -133,8 +134,8 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	ctx := context.Background()
 	if err := b.Build(ctx); err != nil {
@@ -193,7 +194,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 	cm, _ := cache.OpenWithTimeout(cacheDir, true, 0)
 	defer func() { _ = cm.Close() }()
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -212,7 +213,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 		Logger:      logger,
 	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -226,7 +227,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
 	postSvc := post.NewService(post.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -259,8 +260,8 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	ctx := context.Background()
 	if err := b.Build(ctx); err != nil {

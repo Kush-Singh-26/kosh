@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -26,7 +26,7 @@ func TestCacheService_DirtyTrackingIntegration(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+		Ctx:     buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
@@ -58,7 +58,7 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+		Ctx:     buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
@@ -122,7 +122,7 @@ func TestCacheService_SocialCardHashPersistence(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+		Ctx:     buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})

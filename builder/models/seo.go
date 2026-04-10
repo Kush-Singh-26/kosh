@@ -25,7 +25,7 @@ type Author struct {
 }
 
 // GeneratePostJSONLD builds a JSON-LD payload for a post.
-func GeneratePostJSONLD(post PostMetadata, author AuthorConfig, imageURL string) template.HTML {
+func GeneratePostJSONLD(post PostMetadata, author AuthorConfig, imageURL string) (template.HTML, error) {
 	article := JSONLDArticle{
 		Context:       "https://schema.org",
 		Type:          "BlogPosting",
@@ -45,8 +45,8 @@ func GeneratePostJSONLD(post PostMetadata, author AuthorConfig, imageURL string)
 
 	data, err := json.Marshal(article)
 	if err != nil {
-		return ""
+		return "", err
 	}
 
-	return template.HTML(data)
+	return template.HTML(data), nil
 }

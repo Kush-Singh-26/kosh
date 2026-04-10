@@ -10,7 +10,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
@@ -75,7 +75,7 @@ Initial body.
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -94,7 +94,7 @@ Initial body.
 		Logger:      logger,
 	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -108,7 +108,7 @@ Initial body.
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
 	postSvc := post.NewService(post.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -141,8 +141,8 @@ Initial body.
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	ctx := context.Background()
 	if err := b.Build(ctx); err != nil {
@@ -202,7 +202,7 @@ date: "2026-03-06"
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -222,7 +222,7 @@ date: "2026-03-06"
 		Logger:      logger,
 	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -234,7 +234,7 @@ date: "2026-03-06"
 	})
 
 	postSvc := post.NewService(post.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -265,7 +265,7 @@ date: "2026-03-06"
 		NativeRenderer: nativeRenderer,
 	}))
 	b.SetSink(testutil.NewMemSink())
-	b.Tx = testutil.NewMockTransaction("public")
+	b.buildTransaction = testutil.NewMockTransaction("public")
 
 	ctx := context.Background()
 	_ = b.Build(ctx)

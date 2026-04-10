@@ -14,35 +14,35 @@ type navInfo struct {
 	allTags  []models.TagData
 }
 
-func (s *postService) prepareNavigationInfo(files []models.ScannedFile) navInfo {
+func (service *postService) prepareNavigationInfo(files []models.ScannedFile) navInfo {
 	var allPosts []models.PostMetadata
 	postPos := make(map[string]int)
 	tagMap := make(map[string][]models.PostMetadata)
 
-	for _, f := range files {
-		if f.Draft && !s.cfg.IncludeDrafts {
+	for _, file := range files {
+		if file.IsDraft && !service.cfg.ShouldIncludeDrafts {
 			continue
 		}
-		d, _ := time.Parse("2006-01-02", f.Date)
-		if d.IsZero() {
-			d = f.Info.ModTime()
+		date, _ := time.Parse("2006-01-02", file.Date)
+		if date.IsZero() {
+			date = file.Info.ModTime()
 		}
 		post := models.PostMetadata{
-			Title: f.Title, Link: f.Link, Weight: f.Weight,
-			Pinned: f.Pinned, Draft: f.Draft,
-			DateObj: d, Description: f.Description, Tags: f.Tags,
-			ReadingTime: f.ReadingTime,
+			Title: file.Title, Link: file.Link, Weight: file.Weight,
+			IsPinned: file.IsPinned, IsDraft: file.IsDraft,
+			DateObj: date, Description: file.Description, Tags: file.Tags,
+			ReadingTime: file.ReadingTime,
 		}
 		allPosts = append(allPosts, post)
 
-		for _, t := range f.Tags {
-			tagMap[t] = append(tagMap[t], post)
+		for _, tag := range file.Tags {
+			tagMap[tag] = append(tagMap[tag], post)
 		}
 	}
 
 	timeutil.SortPosts(allPosts)
-	for i, p := range allPosts {
-		postPos[p.Link] = i
+	for idx, post := range allPosts {
+		postPos[post.Link] = idx
 	}
 
 	allTags := generators.BuildAllTags(tagMap)

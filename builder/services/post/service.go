@@ -1,6 +1,7 @@
 package post
 
 import (
+	"html/template"
 	"log/slog"
 	"sync"
 
@@ -8,9 +9,10 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
@@ -18,7 +20,7 @@ import (
 
 // postService implements PostService.
 type postService struct {
-	ctx            *buildCtx.BuildContext
+	ctx            *buildctx.BuildContext
 	cfg            *config.Config
 	cache          Cache
 	renderer       render.Service
@@ -53,19 +55,30 @@ func NewService(deps Dependencies) Service {
 }
 
 // ReconfigureForBuild updates the sink and source filesystem for a new build.
-func (s *postService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
-	s.sink = sink
-	s.sourceFs = fs
+func (service *postService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
+	service.sink = sink
+	service.sourceFs = fs
 }
 
 // SetAssetsGate sets the assets-ready signal channel.
-func (s *postService) SetAssetsGate(ch <-chan struct{}) { s.assetsReady = ch }
+func (service *postService) SetAssetsGate(assetsReadyChan <-chan struct{}) {
+	service.assetsReady = assetsReadyChan
+}
 
 // ReconfigureWithReporter updates the reporter and logger for subsequent builds.
-func (s *postService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {
-	s.reporter = r
-	s.logger = l
+func (service *postService) ReconfigureWithReporter(reporter ui.Reporter, logger *slog.Logger) {
+	service.reporter = reporter
+	service.logger = logger
 }
 
 // WaitForCacheCommit blocks until cache commits complete.
-func (s *postService) WaitForCacheCommit() { s.cacheWg.Wait() }
+func (service *postService) WaitForCacheCommit() { service.cacheWg.Wait() }
+
+func (service *postService) generateJSONLD(post models.PostMetadata, cardImageURL string) template.HTML {
+	jsonld, err := models.GeneratePostJSONLD(post, service.cfg.Author, cardImageURL)
+	if err != nil {
+		service.logger.Error("Failed to generate JSON-LD", "post", post.Link, "error", err)
+		return ""
+	}
+	return jsonld
+}

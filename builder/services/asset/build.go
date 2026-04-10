@@ -23,67 +23,67 @@ import (
 //
 // Phase 2 (background): Process cache-miss images (decode + resize + WebP encode).
 // Runs concurrently with post rendering. Closes assetsReady when complete.
-func (s *assetService) Build(ctx context.Context) error {
-	return s.BuildWithOptions(ctx, false)
+func (service *assetService) Build(ctx context.Context) error {
+	return service.BuildWithOptions(ctx, false)
 }
 
 // BuildWithOptions executes the asset processing pipeline with optional image processing.
 // When skipImages is true, image processing is skipped but esbuild still runs to produce
 // hashed assets for CSS/JS.
-func (s *assetService) BuildWithOptions(ctx context.Context, skipImages bool) error {
-	g, gCtx := errgroup.WithContext(ctx)
+func (service *assetService) BuildWithOptions(ctx context.Context, skipImages bool) error {
+	errorGroup, groupCtx := errgroup.WithContext(ctx)
 
-	if s.discoveryReady == nil {
-		s.discoveryReady = make(chan struct{})
+	if service.discoveryReady == nil {
+		service.discoveryReady = make(chan struct{})
 	}
 
-	g.Go(func() error {
+	errorGroup.Go(func() error {
 		copyTimer := timeutil.StartPhase("Asset discovery and copy")
 		defer copyTimer.Stop()
 
 		defer func() {
-			if s.discoveryReady != nil {
-				close(s.discoveryReady)
-				s.discoveryReady = nil
+			if service.discoveryReady != nil {
+				close(service.discoveryReady)
+				service.discoveryReady = nil
 			}
 		}()
 
-		imageQueue, err := s.syncStaticAssets(ctx, gCtx, skipImages)
+		imageQueue, err := service.syncStaticAssets(ctx, groupCtx, skipImages)
 		if err != nil {
 			return err
 		}
 
 		// Close discoveryReady so post-processing can start while images are still processing.
-		if s.discoveryReady != nil {
-			close(s.discoveryReady)
-			s.discoveryReady = nil
+		if service.discoveryReady != nil {
+			close(service.discoveryReady)
+			service.discoveryReady = nil
 		}
 
 		if !skipImages && len(imageQueue) > 0 {
-			numWorkers := s.cfg.ImageWorkers
+			numWorkers := service.cfg.ImageWorkers
 			if numWorkers <= 0 {
 				numWorkers = runtime.NumCPU()
 			}
-			imgGroup, imgCtx := errgroup.WithContext(gCtx)
+			imgGroup, imgGroupCtx := errgroup.WithContext(groupCtx)
 			imgGroup.SetLimit(max(numWorkers, 1))
-			imgChan := make(chan imageCopyTask, len(imageQueue))
-			for _, t := range imageQueue {
-				imgChan <- t
+			imageChannel := make(chan imageCopyTask, len(imageQueue))
+			for _, task := range imageQueue {
+				imageChannel <- task
 			}
-			close(imgChan)
+			close(imageChannel)
 
-			processed := atomic.Int32{}
-			total := len(imageQueue)
+			processedCount := atomic.Int32{}
+			totalCount := len(imageQueue)
 
 			for range max(numWorkers, 1) {
 				imgGroup.Go(func() error {
-					for task := range imgChan {
-						if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgCtx.Err() == nil {
+					for task := range imageChannel {
+						if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgGroupCtx.Err() == nil {
 							return err
 						}
-						if s.reporter != nil {
-							curr := int(processed.Add(1))
-							s.reporter.UpdateProgress(ui.PhaseAssets, curr, total, task.opts.SrcPath)
+						if service.reporter != nil {
+							currentCount := int(processedCount.Add(1))
+							service.reporter.UpdateProgress(ui.PhaseAssets, currentCount, totalCount, task.opts.SrcPath)
 						}
 					}
 					return nil
@@ -97,29 +97,29 @@ func (s *assetService) BuildWithOptions(ctx context.Context, skipImages bool) er
 		return nil
 	})
 
-	g.Go(func() error {
+	errorGroup.Go(func() error {
 		esbuildTimer := timeutil.StartPhase("Asset esbuild")
 		defer esbuildTimer.Stop()
-		_, err := s.buildEsbuildAssets(false)
+		_, err := service.buildEsbuildAssets(false)
 		return err
 	})
 
-	err := g.Wait()
+	err := errorGroup.Wait()
 
-	if s.assetsReady != nil {
-		close(s.assetsReady)
-		s.assetsReady = nil
+	if service.assetsReady != nil {
+		close(service.assetsReady)
+		service.assetsReady = nil
 	}
 
 	return err
 }
 
 // BuildForAssetChange rebuilds assets when a static asset change is detected.
-func (s *assetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
+func (service *assetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
 	syncTimer := timeutil.StartPhase("Asset sync")
 	defer syncTimer.Stop()
 
-	imageQueue, err := s.syncStaticAssets(ctx, ctx, false)
+	imageQueue, err := service.syncStaticAssets(ctx, ctx, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sync static assets: %w", err)
 	}
@@ -132,15 +132,15 @@ func (s *assetService) BuildForAssetChange(ctx context.Context) (map[string]stri
 
 	esbuildTimer := timeutil.StartPhase("Asset esbuild")
 	defer esbuildTimer.Stop()
-	return s.buildEsbuildAssets(true)
+	return service.buildEsbuildAssets(true)
 }
 
 // BuildForAssetChangeWithOptions rebuilds assets after changes, optionally forcing images.
-func (s *assetService) BuildForAssetChangeWithOptions(ctx context.Context, forceImages bool) (map[string]string, error) {
+func (service *assetService) BuildForAssetChangeWithOptions(ctx context.Context, forceImages bool) (map[string]string, error) {
 	syncTimer := timeutil.StartPhase("Asset sync")
 	defer syncTimer.Stop()
 
-	imageQueue, err := s.syncStaticAssets(ctx, ctx, !forceImages)
+	imageQueue, err := service.syncStaticAssets(ctx, ctx, !forceImages)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sync static assets: %w", err)
 	}
@@ -155,60 +155,60 @@ func (s *assetService) BuildForAssetChangeWithOptions(ctx context.Context, force
 
 	esbuildTimer := timeutil.StartPhase("Asset esbuild")
 	defer esbuildTimer.Stop()
-	return s.buildEsbuildAssets(true)
+	return service.buildEsbuildAssets(true)
 }
 
-func (s *assetService) buildEsbuildAssets(force bool) (map[string]string, error) {
-	destStaticDir, _ := filepath.Abs(filepath.Join(s.cfg.OutputDir, "static"))
+func (service *assetService) buildEsbuildAssets(forceBuild bool) (map[string]string, error) {
+	destinationStaticDir, _ := filepath.Abs(filepath.Join(service.cfg.OutputDir, "static"))
 
-	srcDir := s.cfg.StaticDir
-	if srcDir == "" {
-		srcDir = "themes/blog/static"
+	sourceDir := service.cfg.StaticDir
+	if sourceDir == "" {
+		sourceDir = "themes/blog/static"
 	}
 
-	var sched scheduler.BuildScheduler
-	if s.ctx != nil {
-		sched = s.ctx.Scheduler
+	var buildScheduler scheduler.BuildScheduler
+	if service.ctx != nil {
+		buildScheduler = service.ctx.Scheduler
 	}
 
 	var onAssetProcessed func()
-	if s.metrics != nil {
-		onAssetProcessed = s.metrics.IncrementAssetsProcessed
+	if service.metrics != nil {
+		onAssetProcessed = service.metrics.IncrementAssetsProcessed
 	}
 
-	assets, assetErr := fspkg.BuildAssetsEsbuild(fspkg.BuildAssetsOptions{
-		SrcFs:            s.sourceFs,
-		Sink:             s.sink,
-		SrcDir:           srcDir,
-		DestDir:          destStaticDir,
-		Minify:           s.cfg.CompressImages,
-		OnWrite:          s.renderer.RegisterFile,
-		CacheDir:         s.cfg.CacheDir + "/assets",
-		Force:            force,
-		Sched:            sched,
+	assetsMap, err := fspkg.BuildAssetsEsbuild(fspkg.BuildAssetsOptions{
+		SrcFs:            service.sourceFs,
+		Sink:             service.sink,
+		SrcDir:           sourceDir,
+		DestDir:          destinationStaticDir,
+		Minify:           service.cfg.ShouldCompressImages,
+		OnWrite:          service.renderer.RegisterFile,
+		CacheDir:         service.cfg.CacheDir + "/assets",
+		Force:            forceBuild,
+		Sched:            buildScheduler,
 		OnAssetProcessed: onAssetProcessed,
 	})
-	if assetErr == nil {
-		s.renderer.SetAssets(assets)
+	if err == nil {
+		service.renderer.SetAssets(assetsMap)
 	}
-	return assets, assetErr
+	return assetsMap, err
 }
 
-func (s *assetService) copyFileOrLink(src, dst string) error {
-	info, err := s.sourceFs.Stat(src)
+func (service *assetService) copyFileOrLink(sourcePath, destinationPath string) error {
+	info, err := service.sourceFs.Stat(sourcePath)
 	if err != nil {
 		return err
 	}
 	err = fspkg.CopyFileVFS(fspkg.CopyFileOptions{
-		SrcFs:   s.sourceFs,
-		Sink:    s.sink,
-		SrcPath: src,
-		DstPath: dst,
+		SrcFs:   service.sourceFs,
+		Sink:    service.sink,
+		SrcPath: sourcePath,
+		DstPath: destinationPath,
 		ModTime: info.ModTime().UnixNano(),
-		OnWrite: s.renderer.RegisterFile,
+		OnWrite: service.renderer.RegisterFile,
 	})
-	if err == nil && s.metrics != nil {
-		s.metrics.IncrementAssetsProcessed()
+	if err == nil && service.metrics != nil {
+		service.metrics.IncrementAssetsProcessed()
 	}
 	return err
 }

@@ -11,7 +11,7 @@ import (
 	"log/slog"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
@@ -86,8 +86,8 @@ func ensureHomeSocialCard(opts PaginationOptions) {
 	}
 
 	if data, err := os.ReadFile(homeCached); err == nil {
-		buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(homeCardPath)), "create home card dir")
-		buildCtx.IgnoreError(sink.WriteFile(homeCardPath, data), "write cached home card")
+		buildctx.IgnoreError(sink.MkdirAll(filepath.Dir(homeCardPath)), "create home card dir")
+		buildctx.IgnoreError(sink.WriteFile(homeCardPath, data), "write cached home card")
 		render.RegisterFile(homeCardPath)
 	}
 }

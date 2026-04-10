@@ -39,73 +39,73 @@ func NewScanner() Scanner {
 }
 
 // Scan performs a full scan and returns aggregated results.
-func (s *metadataScanner) Scan(opts ScanOptions) (*models.MetadataScannerResult, error) {
-	resChan, errChan := s.ScanStreaming(opts)
-	return <-resChan, <-errChan
+func (service *metadataScanner) Scan(options ScanOptions) (*models.MetadataScannerResult, error) {
+	resultChan, errorChan := service.ScanStreaming(options)
+	return <-resultChan, <-errorChan
 }
 
 // ScanStreaming performs a scan and returns result and error channels.
-func (s *metadataScanner) ScanStreaming(opts ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error) {
-	ctx := opts.Ctx
-	contentDir := opts.ContentDir
-	srcFs := opts.SrcFs
-	cfg := opts.Cfg
-	fileChan := opts.FileChan
+func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error) {
+	contextValue := options.Ctx
+	contentDir := options.ContentDir
+	sourceFs := options.SrcFs
+	siteConfig := options.Cfg
+	fileChan := options.FileChan
 
 	resultChan := make(chan *models.MetadataScannerResult, 1)
-	errChan := make(chan error, 1)
+	errorChan := make(chan error, 1)
 
-	if ctx == nil {
-		ctx = context.Background()
+	if contextValue == nil {
+		contextValue = context.Background()
 	}
-	async.FireAndForget(ctx, slog.Default(), "metadata scan stream", func() error {
+	async.FireAndForget(contextValue, slog.Default(), "metadata scan stream", func() error {
 		result := &models.MetadataScannerResult{
 			Files:         make([]models.ScannedFile, 0, scanResultFilesCap),
 			ContentAssets: make([]models.ScannedAsset, 0, scanResultAssetsCap),
 		}
 
-		var mu sync.Mutex
-		g, gCtx := errgroup.WithContext(ctx)
-		g.SetLimit(runtime.NumCPU() * scanConcurrencyMultiplier)
+		var mutex sync.Mutex
+		errorGroup, groupCtx := errgroup.WithContext(contextValue)
+		errorGroup.SetLimit(runtime.NumCPU() * scanConcurrencyMultiplier)
 
-		err := afero.Walk(srcFs, contentDir, func(path string, info fs.FileInfo, err error) error {
+		err := afero.Walk(sourceFs, contentDir, func(path string, info fs.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
 				return nil
 			}
 
 			if filepath.Ext(path) != ".md" {
-				mu.Lock()
+				mutex.Lock()
 				result.ContentAssets = append(result.ContentAssets, models.ScannedAsset{
 					Path: path,
 					Info: info,
 				})
-				mu.Unlock()
+				mutex.Unlock()
 				return nil
 			}
 
 			if filepath.Base(path) == "404.md" {
-				mu.Lock()
+				mutex.Lock()
 				result.Has404 = true
-				mu.Unlock()
+				mutex.Unlock()
 			}
 
-			g.Go(func() error {
-				f, err := s.ScanFile(srcFs, cfg, path)
+			errorGroup.Go(func() error {
+				scannedFile, err := service.ScanFile(sourceFs, siteConfig, path)
 				if err != nil {
 					return nil
 				}
 
 				if fileChan != nil {
 					select {
-					case fileChan <- f:
-					case <-gCtx.Done():
-						return gCtx.Err()
+					case fileChan <- scannedFile:
+					case <-groupCtx.Done():
+						return groupCtx.Err()
 					}
 				}
 
-				mu.Lock()
-				result.Files = append(result.Files, f)
-				mu.Unlock()
+				mutex.Lock()
+				result.Files = append(result.Files, scannedFile)
+				mutex.Unlock()
 				return nil
 			})
 
@@ -114,104 +114,104 @@ func (s *metadataScanner) ScanStreaming(opts ScanOptions) (<-chan *models.Metada
 
 		if err != nil {
 			resultChan <- nil
-			errChan <- err
+			errorChan <- err
 			return err
 		}
 
-		if err := g.Wait(); err != nil {
+		if err := errorGroup.Wait(); err != nil {
 			resultChan <- nil
-			errChan <- err
+			errorChan <- err
 			return err
 		}
 
 		resultChan <- result
-		errChan <- nil
+		errorChan <- nil
 		return nil
 	})
 
-	return resultChan, errChan
+	return resultChan, errorChan
 }
 
 // ScanFile scans a single markdown file for metadata.
-func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error) {
-	file, err := srcFs.Open(path)
+func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.Config, path string) (models.ScannedFile, error) {
+	file, err := sourceFs.Open(path)
 	if err != nil {
 		return models.ScannedFile{}, err
 	}
-	buf := make([]byte, scanBufferSize)
-	n, err := io.ReadFull(file, buf)
+	buffer := make([]byte, scanBufferSize)
+	bytesRead, err := io.ReadFull(file, buffer)
 	_ = file.Close()
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return models.ScannedFile{}, err
 	}
-	data := buf[:n]
+	fileData := buffer[:bytesRead]
 
-	info, err := srcFs.Stat(path)
+	info, err := sourceFs.Stat(path)
 	if err != nil {
 		return models.ScannedFile{}, err
 	}
 
-	relPath, _ := filepath.Rel(cfg.ContentDir, path)
+	relativePath, _ := filepath.Rel(siteConfig.ContentDir, path)
 
 	var frontmatter []byte
 	var bodyOffset int
-	parts := bytes.SplitN(data, hashing.YAMLDelim, frontmatterParts)
-	if len(parts) < frontmatterParts && n == scanBufferSize {
-		fullData, err := afero.ReadFile(srcFs, path)
+	parts := bytes.SplitN(fileData, hashing.YAMLDelim, frontmatterParts)
+	if len(parts) < frontmatterParts && bytesRead == scanBufferSize {
+		fullData, err := afero.ReadFile(sourceFs, path)
 		if err == nil {
-			data = fullData
-			parts = bytes.SplitN(data, hashing.YAMLDelim, frontmatterParts)
+			fileData = fullData
+			parts = bytes.SplitN(fileData, hashing.YAMLDelim, frontmatterParts)
 		}
 	}
 	if len(parts) >= frontmatterParts {
 		frontmatter = bytes.TrimSpace(parts[1])
-		bodyOffset = bytes.Index(data, parts[2])
+		bodyOffset = bytes.Index(fileData, parts[2])
 	} else {
 		bodyOffset = 0
 	}
 
-	preParsedMeta, _ := hashing.ParseFrontmatter(frontmatter)
+	preparsedMetadata, _ := hashing.ParseFrontmatter(frontmatter)
 
-	title := timeutil.ExtractStringFromMap(preParsedMeta, "title")
+	title := timeutil.ExtractStringFromMap(preparsedMetadata, "title")
 	if title == "" {
 		title = strings.TrimSuffix(filepath.Base(path), ".md")
 	}
-	description := timeutil.ExtractStringFromMap(preParsedMeta, "description")
-	date := timeutil.ExtractDateStringFromMap(preParsedMeta, "date")
-	draft := timeutil.ExtractBoolFromMap(preParsedMeta, "draft")
-	pinned := timeutil.ExtractBoolFromMap(preParsedMeta, "pinned")
+	description := timeutil.ExtractStringFromMap(preparsedMetadata, "description")
+	date := timeutil.ExtractDateStringFromMap(preparsedMetadata, "date")
+	isDraft := timeutil.ExtractBoolFromMap(preparsedMetadata, "draft")
+	isPinned := timeutil.ExtractBoolFromMap(preparsedMetadata, "pinned")
 
 	weight := 0
-	if w, ok := preParsedMeta["weight"].(int); ok {
-		weight = w
-	} else if w, ok := preParsedMeta["weight"].(float64); ok {
-		weight = int(w)
+	if weightValue, ok := preparsedMetadata["weight"].(int); ok {
+		weight = weightValue
+	} else if weightValue, ok := preparsedMetadata["weight"].(float64); ok {
+		weight = int(weightValue)
 	}
 
-	tags := timeutil.ExtractSliceFromMap(preParsedMeta, "tags")
+	tags := timeutil.ExtractSliceFromMap(preparsedMetadata, "tags")
 	bodyHash := ""
-	cleanHtmlRelPath := strings.TrimSuffix(relPath, filepath.Ext(relPath)) + ".html"
-	postLink := navigation.BuildAbsoluteURL(cfg.BaseURL, cleanHtmlRelPath)
+	cleanHtmlRelPath := strings.TrimSuffix(relativePath, filepath.Ext(relativePath)) + ".html"
+	postLink := navigation.BuildAbsoluteURL(siteConfig.BaseURL, cleanHtmlRelPath)
 
 	frontmatterHash := hashing.GetFrontmatterHashFromValues(hashing.FrontmatterHashOptions{
 		Title:       title,
 		Description: description,
 		Date:        date,
 		Tags:        tags,
-		Pinned:      pinned,
-		Draft:       draft,
+		IsPinned:    isPinned,
+		IsDraft:     isDraft,
 		Weight:      weight,
-		Other:       preParsedMeta,
+		Other:       preparsedMetadata,
 	})
 
 	return models.ScannedFile{
 		Path:            path,
-		RelPath:         relPath,
+		RelPath:         relativePath,
 		Title:           title,
 		Description:     description,
 		Date:            date,
-		Draft:           draft,
-		Pinned:          pinned,
+		IsDraft:         isDraft,
+		IsPinned:        isPinned,
 		Weight:          weight,
 		Tags:            tags,
 		Info:            info,
@@ -219,7 +219,7 @@ func (s *metadataScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path stri
 		FrontmatterHash: frontmatterHash,
 		BodyOffset:      bodyOffset,
 		Link:            postLink,
-		SourceLoader:    func() ([]byte, error) { return afero.ReadFile(srcFs, path) },
-		PreParsedMeta:   preParsedMeta,
+		SourceLoader:    func() ([]byte, error) { return afero.ReadFile(sourceFs, path) },
+		PreParsedMeta:   preparsedMetadata,
 	}, nil
 }

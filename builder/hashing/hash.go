@@ -39,14 +39,14 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 	date := timeutil.ExtractDateStringFromMap(metadata, "date")
 	tags := timeutil.ExtractSliceFromMap(metadata, "tags")
 
-	pinned := false
+	isPinned := false
 	if p, ok := metadata["pinned"].(bool); ok {
-		pinned = p
+		isPinned = p
 	}
 
-	draft := false
+	isDraft := false
 	if d, ok := metadata["draft"].(bool); ok {
-		draft = d
+		isDraft = d
 	}
 
 	weight := 0
@@ -62,8 +62,8 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 		Description: description,
 		Date:        date,
 		Tags:        tags,
-		Pinned:      pinned,
-		Draft:       draft,
+		IsPinned:    isPinned,
+		IsDraft:     isDraft,
 		Weight:      weight,
 	})
 
@@ -102,8 +102,8 @@ type FrontmatterHashOptions struct {
 	Description string
 	Date        string
 	Tags        []string
-	Pinned      bool
-	Draft       bool
+	IsPinned    bool
+	IsDraft     bool
 	Weight      int
 	// Other contains custom frontmatter fields not in the standard whitelist.
 	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
@@ -121,8 +121,8 @@ func GetFrontmatterHashFromValues(opts FrontmatterHashOptions) string {
 		Description: opts.Description,
 		Date:        opts.Date,
 		Tags:        opts.Tags,
-		Pinned:      opts.Pinned,
-		Draft:       opts.Draft,
+		IsPinned:    opts.IsPinned,
+		IsDraft:     opts.IsDraft,
 		Weight:      opts.Weight,
 	})
 
@@ -160,8 +160,8 @@ type HashStandardFieldsOptions struct {
 	Description string
 	Date        string
 	Tags        []string
-	Pinned      bool
-	Draft       bool
+	IsPinned    bool
+	IsDraft     bool
 	Weight      int
 }
 
@@ -194,12 +194,12 @@ func hashStandardFields(opts HashStandardFieldsOptions) {
 	_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
 
 	// Flags and numeric values
-	if opts.Pinned {
+	if opts.IsPinned {
 		_, _ = opts.Hasher.Write([]byte{hashBoolTrue})
 	} else {
 		_, _ = opts.Hasher.Write([]byte{hashBoolFalse})
 	}
-	if opts.Draft {
+	if opts.IsDraft {
 		_, _ = opts.Hasher.Write([]byte{hashBoolTrue})
 	} else {
 		_, _ = opts.Hasher.Write([]byte{hashBoolFalse})

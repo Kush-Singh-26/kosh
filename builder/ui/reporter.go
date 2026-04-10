@@ -23,8 +23,8 @@ const (
 )
 
 // String returns the display label for a Phase.
-func (p Phase) String() string {
-	switch p {
+func (phase Phase) String() string {
+	switch phase {
 	case PhaseScan:
 		return "Metadata Scan"
 	case PhaseAssets:

@@ -30,7 +30,7 @@ type SWOptions struct {
 	Sink         fspkg.ArtifactSink
 	DestDir      string
 	BuildVersion int64
-	ForceRebuild bool
+	ShouldForceRebuild bool
 	BaseURL      string
 	Assets       map[string]string
 	IsTesting    bool
@@ -41,14 +41,14 @@ func GenerateSW(opts SWOptions) error {
 	sink := opts.Sink
 	destDir := opts.DestDir
 	buildVersion := opts.BuildVersion
-	forceRebuild := opts.ForceRebuild
+	shouldForceRebuild := opts.ShouldForceRebuild
 	baseURL := opts.BaseURL
 	assets := opts.Assets
 	isTesting := opts.IsTesting
 	swPath := filepath.Join(destDir, "sw.js")
 
 	// 1. Smart Check: If not forcing rebuild and SW exists, skip
-	if !forceRebuild && !isTesting {
+	if !shouldForceRebuild && !isTesting {
 		if _, err := os.Stat(swPath); err == nil {
 			sink.Register(swPath)
 			return nil
@@ -110,7 +110,7 @@ type ManifestOptions struct {
 	BaseURL         string
 	SiteTitle       string
 	SiteDescription string
-	ForceRebuild    bool
+	ShouldForceRebuild    bool
 	IsTesting       bool
 }
 
@@ -121,12 +121,12 @@ func GenerateManifest(opts ManifestOptions) error {
 	baseURL := opts.BaseURL
 	siteTitle := opts.SiteTitle
 	siteDescription := opts.SiteDescription
-	forceRebuild := opts.ForceRebuild
+	shouldForceRebuild := opts.ShouldForceRebuild
 	isTesting := opts.IsTesting
 	manifestPath := filepath.Join(destDir, "manifest.json")
 
 	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
-	if !forceRebuild && !isTesting {
+	if !shouldForceRebuild && !isTesting {
 		if _, err := os.Stat(manifestPath); err == nil {
 			sink.Register(manifestPath)
 			return nil

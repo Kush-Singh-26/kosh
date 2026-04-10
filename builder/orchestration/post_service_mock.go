@@ -19,45 +19,53 @@ type mockPostService struct {
 }
 
 // ReconfigureForBuild updates the mock with build-time artifacts.
-func (m *mockPostService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
-	m.Sink = sink
-	m.SourceFs = fs
+func (serviceMock *mockPostService) ReconfigureForBuild(sink fspkg.ArtifactSink, sourceFs afero.Fs) {
+	serviceMock.Sink = sink
+	serviceMock.SourceFs = sourceFs
 }
 
 // SetAssetsGate sets the assets gate for the mock.
-func (m *mockPostService) SetAssetsGate(ch <-chan struct{}) {}
+func (serviceMock *mockPostService) SetAssetsGate(readySignal <-chan struct{}) {}
 
 // ReconfigureWithReporter is a no-op for the mock.
-func (m *mockPostService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {}
+func (serviceMock *mockPostService) ReconfigureWithReporter(reporter ui.Reporter, logger *slog.Logger) {}
 
 // Process returns the configured result for the mock.
-func (m *mockPostService) Process(opts post.ProcessOptions) (*post.PostResult, error) {
-	if m.ProcessResult != nil {
-		return m.ProcessResult, m.ProcessErr
+func (serviceMock *mockPostService) Process(opts post.ProcessOptions) (*post.PostResult, error) {
+	if serviceMock.ProcessResult != nil {
+		return serviceMock.ProcessResult, serviceMock.ProcessErr
 	}
-	return &post.PostResult{}, m.ProcessErr
+	return &post.PostResult{}, serviceMock.ProcessErr
 }
 
 // ProcessStreaming returns the configured result after draining the file channel.
-func (m *mockPostService) ProcessStreaming(opts post.ProcessOptions) (*post.PostResult, error) {
+func (serviceMock *mockPostService) ProcessStreaming(opts post.ProcessOptions) (*post.PostResult, error) {
 	// Drain the channel to simulate consumption
 	for range opts.FileChan {
 	}
-	if m.ProcessResult != nil {
-		return m.ProcessResult, m.ProcessErr
+	if serviceMock.ProcessResult != nil {
+		return serviceMock.ProcessResult, serviceMock.ProcessErr
 	}
-	return &post.PostResult{}, m.ProcessErr
+	return &post.PostResult{}, serviceMock.ProcessErr
 }
 
 // ProcessSingle returns the configured error for the mock.
-func (m *mockPostService) ProcessSingle(ctx context.Context, path string, source []byte) error {
-	return m.ProcessSingleErr
+func (serviceMock *mockPostService) ProcessSingle(ctx context.Context, path string, source []byte) error {
+	return serviceMock.ProcessSingleErr
 }
 
 // ProcessSingleWithResult returns the configured error for the mock.
-func (m *mockPostService) ProcessSingleWithResult(ctx context.Context, path string, source []byte, res *post.ParsedMarkdownResult) error {
-	return m.ProcessSingleErr
+func (serviceMock *mockPostService) ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *post.ParsedMarkdownResult) error {
+	return serviceMock.ProcessSingleErr
 }
 
 // WaitForCacheCommit is a no-op for the mock.
-func (m *mockPostService) WaitForCacheCommit() {}
+func (serviceMock *mockPostService) WaitForCacheCommit() {}
+
+// GetMetadataContext returns the configured metadata context for the mock.
+func (serviceMock *mockPostService) GetMetadataContext(ctx context.Context) (*post.MetadataContext, error) {
+	if serviceMock.ProcessResult != nil {
+		return serviceMock.ProcessResult.ToMetadataContext(), nil
+	}
+	return &post.MetadataContext{}, nil
+}

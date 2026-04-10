@@ -42,8 +42,8 @@ func TestSetupPhase(t *testing.T) {
 		Metrics:  buildMetrics,
 		SourceFs: fs,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	ctx := context.Background()
 	res, err := b.setupPhase(ctx)
@@ -73,10 +73,10 @@ func TestAssetPhase(t *testing.T) {
 	ctx := context.Background()
 
 	res := b.assetPhase(ctx, contentAssetsChan)
-	if res.assetsReady == nil {
+	if res.assetsReadySignal == nil {
 		t.Error("expected assetsReady channel")
 	}
-	if res.assetWg == nil {
+	if res.assetWaitGroup == nil {
 		t.Error("expected assetWg")
 	}
 }
@@ -228,8 +228,8 @@ func TestFinalizePhase(t *testing.T) {
 		Logger:  logger,
 		Metrics: m,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	var wasmWg sync.WaitGroup
 	ctx := context.Background()

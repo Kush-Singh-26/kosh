@@ -49,9 +49,9 @@ func (m *MockCacheService) recordCall(method string) {
 	m.CallCount[method]++
 }
 
-// GetPost returns the cached post by ID.
-func (m *MockCacheService) GetPost(id string) (*cache.PostMeta, error) {
-	m.recordCall("GetPost")
+// GetPostByID returns the cached post by ID.
+func (m *MockCacheService) GetPostByID(id string) (*cache.PostMeta, error) {
+	m.recordCall("GetPostByID")
 	if m.Err != nil {
 		return nil, m.Err
 	}

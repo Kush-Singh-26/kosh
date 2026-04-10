@@ -73,27 +73,27 @@ func New(basePath string) (*Store, error) {
 }
 
 // Close releases store resources.
-func (s *Store) Close() error {
+func (storeInstance *Store) Close() error {
 	var errs []error
-	if err := s.encoder.Close(); err != nil {
+	if err := storeInstance.encoder.Close(); err != nil {
 		errs = append(errs, fmt.Errorf("failed to close encoder: %w", err))
 	}
-	s.decoder.Close()
+	storeInstance.decoder.Close()
 	if len(errs) > 0 {
 		return fmt.Errorf("store close errors: %w", errors.Join(errs...))
 	}
 	return nil
 }
 
-func (s *Store) shardPath(category string, hash string) string {
+func (storeInstance *Store) shardPath(category string, hash string) string {
 	if len(hash) < hashShardPrefixLen {
-		return filepath.Join(s.basePath, category, hash)
+		return filepath.Join(storeInstance.basePath, category, hash)
 	}
-	return filepath.Join(s.basePath, category, hash[0:hashShardPrefixLen], hash)
+	return filepath.Join(storeInstance.basePath, category, hash[0:hashShardPrefixLen], hash)
 }
 
-func extension(ct core.CompressionType) string {
-	if ct == core.CompressionNone {
+func extension(compressionType core.CompressionType) string {
+	if compressionType == core.CompressionNone {
 		return ".raw"
 	}
 	return ".zst"
@@ -114,45 +114,44 @@ func determineCompression(size int) core.CompressionType {
 	return core.CompressionZstdLevel3
 }
 
-func (s *Store) ensureDir(dir string) error {
+func (storeInstance *Store) ensureDir(dir string) error {
 	// Fast path: check if directory already exists in cache
-	if _, ok := s.dirCache.Load(dir); ok {
+	if _, ok := storeInstance.dirCache.Load(dir); ok {
 		return nil
 	}
 
 	// Slow path: create directory with proper locking
-	mu := s.getDirMutex(dir)
-	mu.Lock()
-	defer mu.Unlock()
+	mutex := storeInstance.getDirMutex(dir)
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	// Check again after acquiring lock
-	if _, ok := s.dirCache.Load(dir); ok {
+	if _, ok := storeInstance.dirCache.Load(dir); ok {
 		return nil
 	}
 
 	// Walk up to find missing parents
 	var missing []string
-	curr := filepath.Clean(dir)
+	currentDir := filepath.Clean(dir)
 	for {
-		if _, ok := s.dirCache.Load(curr); ok {
+		if _, ok := storeInstance.dirCache.Load(currentDir); ok {
 			break
 		}
-		parent := filepath.Dir(curr)
-		if curr == parent || curr == "." || curr == string(filepath.Separator) || curr == filepath.VolumeName(curr) {
+		parent := filepath.Dir(currentDir)
+		if currentDir == parent || currentDir == "." || currentDir == string(filepath.Separator) || currentDir == filepath.VolumeName(currentDir) {
 			break
 		}
-		missing = append(missing, curr)
-		curr = parent
+		missing = append(missing, currentDir)
+		currentDir = parent
 	}
 
 	// Create from top to bottom
 	for i := len(missing) - 1; i >= 0; i-- {
-		p := missing[i]
-		if err := os.Mkdir(p, storeDirMode); err != nil && !os.IsExist(err) {
-			mu.Unlock()
+		path := missing[i]
+		if err := os.Mkdir(path, storeDirMode); err != nil && !os.IsExist(err) {
 			return err
 		}
-		s.dirCache.Store(p, struct{}{})
+		storeInstance.dirCache.Store(path, struct{}{})
 	}
 
 	return nil
@@ -160,118 +159,54 @@ func (s *Store) ensureDir(dir string) error {
 
 var dirMutexes [dirMutexBuckets]sync.Mutex
 
-func (s *Store) getDirMutex(path string) *sync.Mutex {
-	h := xxh3.HashString(path)
-	return &dirMutexes[h%dirMutexBuckets]
+func (storeInstance *Store) getDirMutex(path string) *sync.Mutex {
+	hash := xxh3.HashString(path)
+	return &dirMutexes[hash%dirMutexBuckets]
 }
 
 // Put stores content and returns its hash and compression type.
-func (s *Store) Put(category string, content []byte) (string, core.CompressionType, error) {
+func (storeInstance *Store) Put(category string, content []byte) (string, core.CompressionType, error) {
 	hash := core.HashContent(content)
-	ct := determineCompression(len(content))
+	compressionType := determineCompression(len(content))
 
-	path := s.shardPath(category, hash) + extension(ct)
+	path := storeInstance.shardPath(category, hash) + extension(compressionType)
 
 	dir := filepath.Dir(path)
-	if err := s.ensureDir(dir); err != nil {
+	if err := storeInstance.ensureDir(dir); err != nil {
 		return "", 0, fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	if _, err := os.Stat(path); err == nil {
-		return hash, ct, nil
+		return hash, compressionType, nil
 	}
 
-	var data []byte
-	if ct != core.CompressionNone {
-		if ct == core.CompressionZstdLevel3 {
-			enc := level3EncoderPool.Get()
-			var zstdEnc *zstd.Encoder
-			if enc == nil {
-				var encErr error
-				zstdEnc, encErr = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
-				if encErr != nil {
-					return "", 0, fmt.Errorf("failed to create zstd encoder: %w", encErr)
-				}
-			} else if poolErr, ok := enc.(error); ok {
-				if poolErr != nil {
-					var encErr error
-					zstdEnc, encErr = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
-					if encErr != nil {
-						return "", 0, fmt.Errorf("failed to create zstd encoder: %w", encErr)
-					}
-				}
-			} else {
-				zstdEnc = enc.(*zstd.Encoder)
-			}
-			data = zstdEnc.EncodeAll(content, nil)
-			zstdEnc.Reset(nil)
-			level3EncoderPool.Put(zstdEnc)
-		} else {
-			data = s.encoder.EncodeAll(content, nil)
-		}
-	} else {
-		data = content
-	}
-
-	tmpPath := fmt.Sprintf("%s.%s.%d.%d.tmp", path, hash[:hashPrefixLen], os.Getpid(), storeTempCounter.Add(1))
-	f, err := os.Create(tmpPath)
+	data, err := storeInstance.compressContent(content, compressionType)
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to create temp file: %w", err)
+		return "", 0, err
 	}
 
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmpPath)
-		return "", 0, fmt.Errorf("failed to write content: %w", err)
+	if err := storeInstance.writeBlob(path, hash, data); err != nil {
+		return "", 0, err
 	}
 
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return "", 0, fmt.Errorf("failed to close file: %w", err)
-	}
-
-	if fileExists(path) {
-		_ = os.Remove(tmpPath)
-		return hash, ct, nil
-	}
-
-	if _, err := os.Stat(tmpPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return "", 0, fmt.Errorf("temp file missing before rename: %w", err)
-	}
-	if err := retry.RenameWithRetry(retry.RenameOptions{
-		Ctx:        context.Background(),
-		OldPath:    tmpPath,
-		NewPath:    path,
-		MaxRetries: renameMaxRetries,
-		BaseDelay:  renameBaseDelay,
-	}); err != nil {
-		if fileExists(path) {
-			_ = os.Remove(tmpPath)
-			return hash, ct, nil
-		}
-		_ = os.Remove(tmpPath)
-		return "", 0, fmt.Errorf("failed to rename file: %w", err)
-	}
-
-	return hash, ct, nil
+	return hash, compressionType, nil
 }
 
 // Get retrieves content by hash, decompressing when needed.
-func (s *Store) Get(category string, hash string, compressed bool) ([]byte, error) {
+func (storeInstance *Store) Get(category string, hash string, compressed bool) ([]byte, error) {
 	var path string
 	if compressed {
-		path = s.shardPath(category, hash) + ".zst"
+		path = storeInstance.shardPath(category, hash) + ".zst"
 	} else {
-		path = s.shardPath(category, hash) + ".raw"
+		path = storeInstance.shardPath(category, hash) + ".raw"
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if compressed {
-			path = s.shardPath(category, hash) + ".raw"
+			path = storeInstance.shardPath(category, hash) + ".raw"
 		} else {
-			path = s.shardPath(category, hash) + ".zst"
+			path = storeInstance.shardPath(category, hash) + ".zst"
 		}
 		data, err = os.ReadFile(path)
 		if err != nil {
@@ -281,15 +216,15 @@ func (s *Store) Get(category string, hash string, compressed bool) ([]byte, erro
 	}
 
 	if compressed {
-		return s.decoder.DecodeAll(data, nil)
+		return storeInstance.decoder.DecodeAll(data, nil)
 	}
 	return data, nil
 }
 
 // Exists reports whether the blob exists in the store.
-func (s *Store) Exists(category string, hash string) bool {
-	rawPath := s.shardPath(category, hash) + ".raw"
-	zstPath := s.shardPath(category, hash) + ".zst"
+func (storeInstance *Store) Exists(category string, hash string) bool {
+	rawPath := storeInstance.shardPath(category, hash) + ".raw"
+	zstPath := storeInstance.shardPath(category, hash) + ".zst"
 
 	if _, err := os.Stat(rawPath); err == nil {
 		return true
@@ -301,9 +236,9 @@ func (s *Store) Exists(category string, hash string) bool {
 }
 
 // Delete removes a stored blob by hash.
-func (s *Store) Delete(category string, hash string) error {
-	rawPath := s.shardPath(category, hash) + ".raw"
-	zstPath := s.shardPath(category, hash) + ".zst"
+func (storeInstance *Store) Delete(category string, hash string) error {
+	rawPath := storeInstance.shardPath(category, hash) + ".raw"
+	zstPath := storeInstance.shardPath(category, hash) + ".zst"
 
 	_ = os.Remove(rawPath)
 	_ = os.Remove(zstPath)
@@ -311,14 +246,14 @@ func (s *Store) Delete(category string, hash string) error {
 }
 
 // ListHashes lists all hashes stored under a category.
-func (s *Store) ListHashes(category string) ([]string, error) {
-	categoryPath := filepath.Join(s.basePath, category)
+func (storeInstance *Store) ListHashes(category string) ([]string, error) {
+	categoryPath := filepath.Join(storeInstance.basePath, category)
 	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
 		return []string{}, nil
 	}
 
 	var hashes []string
-	var mu sync.Mutex
+	var mutex sync.Mutex
 	err := fspkg.ParallelWalk(fspkg.WalkOptions{
 		Ctx:         context.Background(),
 		SourceFs:    afero.NewOsFs(),
@@ -334,9 +269,9 @@ func (s *Store) ListHashes(category string) ([]string, error) {
 			name := info.Name()
 			if ext := filepath.Ext(name); ext == ".raw" || ext == ".zst" {
 				hash := strings.TrimSuffix(name, ext)
-				mu.Lock()
+				mutex.Lock()
 				hashes = append(hashes, hash)
-				mu.Unlock()
+				mutex.Unlock()
 			}
 			return nil
 		},
@@ -345,8 +280,8 @@ func (s *Store) ListHashes(category string) ([]string, error) {
 }
 
 // Size returns the total byte size for a category.
-func (s *Store) Size(category string) (int64, error) {
-	categoryPath := filepath.Join(s.basePath, category)
+func (storeInstance *Store) Size(category string) (int64, error) {
+	categoryPath := filepath.Join(storeInstance.basePath, category)
 	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
 		return 0, nil
 	}
@@ -371,11 +306,11 @@ func (s *Store) Size(category string) (int64, error) {
 }
 
 // CleanOrphans removes stale blobs not referenced by live hashes.
-func (s *Store) CleanOrphans(category string, liveHashes map[string]bool, maxAge time.Duration) (int, int64, error) {
+func (storeInstance *Store) CleanOrphans(category string, liveHashes map[string]bool, maxAge time.Duration) (int, int64, error) {
 	var deleted int64
 	var freedBytes int64
 	cutoff := time.Now().Add(-maxAge)
-	categoryPath := filepath.Join(s.basePath, category)
+	categoryPath := filepath.Join(storeInstance.basePath, category)
 	if _, err := os.Stat(categoryPath); os.IsNotExist(err) {
 		return 0, 0, nil
 	}
@@ -407,4 +342,77 @@ func (s *Store) CleanOrphans(category string, liveHashes map[string]bool, maxAge
 	})
 
 	return int(deleted), freedBytes, err
+}
+
+func (storeInstance *Store) compressContent(content []byte, compressionType core.CompressionType) ([]byte, error) {
+	if compressionType == core.CompressionNone {
+		return content, nil
+	}
+
+	if compressionType == core.CompressionZstdLevel3 {
+		encoder := level3EncoderPool.Get()
+		var zstdEncoderInstance *zstd.Encoder
+		if encoder == nil {
+			var err error
+			zstdEncoderInstance, err = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create zstd encoder: %w", err)
+			}
+		} else if _, ok := encoder.(error); ok {
+			var err error
+			zstdEncoderInstance, err = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create zstd encoder: %w", err)
+			}
+		} else {
+			zstdEncoderInstance = encoder.(*zstd.Encoder)
+		}
+		defer func() {
+			zstdEncoderInstance.Reset(nil)
+			level3EncoderPool.Put(zstdEncoderInstance)
+		}()
+		return zstdEncoderInstance.EncodeAll(content, nil), nil
+	}
+
+	return storeInstance.encoder.EncodeAll(content, nil), nil
+}
+
+func (storeInstance *Store) writeBlob(path, hash string, data []byte) error {
+	tmpPath := fmt.Sprintf("%s.%s.%d.%d.tmp", path, hash[:hashPrefixLen], os.Getpid(), storeTempCounter.Add(1))
+	file, err := os.Create(tmpPath)
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to write content: %w", err)
+	}
+
+	if err := file.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to close file: %w", err)
+	}
+
+	if fileExists(path) {
+		_ = os.Remove(tmpPath)
+		return nil
+	}
+
+	if err := retry.RenameWithRetry(retry.RenameOptions{
+		Ctx:        context.Background(),
+		OldPath:    tmpPath,
+		NewPath:    path,
+		MaxRetries: renameMaxRetries,
+		BaseDelay:  renameBaseDelay,
+	}); err != nil {
+		_ = os.Remove(tmpPath)
+		if fileExists(path) {
+			return nil
+		}
+		return fmt.Errorf("failed to rename file: %w", err)
+	}
+
+	return nil
 }

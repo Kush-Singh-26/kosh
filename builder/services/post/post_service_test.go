@@ -18,7 +18,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -147,7 +147,7 @@ func (m *mockRenderServiceWithCapture) GetAssets() map[string]string { return ni
 // mockCacheService that can simulate failures
 type mockCacheService struct{}
 
-func (m *mockCacheService) GetPost(id string) (*cache.PostMeta, error)         { return nil, nil }
+func (m *mockCacheService) GetPostByID(id string) (*cache.PostMeta, error)     { return nil, nil }
 func (m *mockCacheService) ListAllPosts() ([]string, error)                    { return nil, nil }
 func (m *mockCacheService) GetPostByPath(path string) (*cache.PostMeta, error) { return nil, nil }
 func (m *mockCacheService) GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error) {
@@ -220,7 +220,7 @@ func setupPostServiceTest(t *testing.T) *postService {
 	}
 
 	return &postService{
-		ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,

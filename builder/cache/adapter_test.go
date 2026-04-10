@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -31,7 +32,7 @@ func TestDiagramCacheAdapter_ConcurrentSameKeyFlush(t *testing.T) {
 	}
 	wg.Wait()
 
-	if err := a.Flush(); err != nil {
+	if err := a.Flush(context.Background()); err != nil {
 		t.Fatalf("flush failed: %v", err)
 	}
 
@@ -72,7 +73,7 @@ func TestDiagramCacheAdapter_SSRThemePair(t *testing.T) {
 	}
 
 	// Flush to BoltDB
-	if err := a.Flush(); err != nil {
+	if err := a.Flush(context.Background()); err != nil {
 		t.Fatalf("flush failed: %v", err)
 	}
 

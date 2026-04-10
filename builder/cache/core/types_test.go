@@ -304,8 +304,8 @@ func TestEncodeDecodeComplex(t *testing.T) {
 		Description:    "A complex post for testing",
 		Link:           "/posts/complex",
 		Weight:         10,
-		Pinned:         true,
-		Draft:          false,
+		IsPinned:       true,
+		IsDraft:        false,
 		Meta:           map[string]any{"author": "test", "category": "tech"},
 		TOC: []models.TOCEntry{
 			{ID: "intro", Text: "Introduction", Level: 1},
@@ -333,8 +333,8 @@ func TestEncodeDecodeComplex(t *testing.T) {
 	if decoded.WordCount != original.WordCount {
 		t.Errorf("WordCount mismatch")
 	}
-	if decoded.Pinned != original.Pinned {
-		t.Errorf("Pinned mismatch")
+	if decoded.IsPinned != original.IsPinned {
+		t.Errorf("IsPinned mismatch")
 	}
 	if len(decoded.Tags) != len(original.Tags) {
 		t.Errorf("Tags length mismatch")

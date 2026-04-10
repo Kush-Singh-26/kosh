@@ -49,25 +49,25 @@ func ComputeStaticFingerprint(sourceFs afero.Fs, dirs []string) (string, error) 
 	}
 
 	hash := hasher.Sum128()
-	b := hash.Bytes()
-	return hex.EncodeToString(b[:]), nil
+	hashBytes := hash.Bytes()
+	return hex.EncodeToString(hashBytes[:]), nil
 }
 
 // GetStaticDirs returns existing static directories based on config.
-func GetStaticDirs(cfg *config.Config) []string {
+func GetStaticDirs(config *config.Config) []string {
 	var dirs []string
 
-	themeStatic := filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
-	if cfg.StaticDir != "" {
-		themeStatic = cfg.StaticDir
+	themeStatic := filepath.Join(config.ThemeDir, config.Theme, "static")
+	if config.StaticDir != "" {
+		themeStatic = config.StaticDir
 	}
 	if _, err := os.Stat(themeStatic); err == nil {
 		dirs = append(dirs, themeStatic)
 	}
 
 	siteStatic := "static"
-	if cfg.SiteRoot != "" {
-		siteStatic = filepath.Join(cfg.SiteRoot, "static")
+	if config.SiteRoot != "" {
+		siteStatic = filepath.Join(config.SiteRoot, "static")
 	}
 	if _, err := os.Stat(siteStatic); err == nil {
 		dirs = append(dirs, siteStatic)

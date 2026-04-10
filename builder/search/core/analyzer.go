@@ -71,14 +71,14 @@ func NewAnalyzer(useStopWords, useStemming bool) *Analyzer {
 var DefaultAnalyzer = NewAnalyzer(true, true)
 
 // Analyze processes text and returns normalized tokens
-func (a *Analyzer) Analyze(text string) []string {
-	tokens, _ := a.AnalyzeWithMapping(text)
+func (analyzer *Analyzer) Analyze(text string) []string {
+	tokens, _ := analyzer.AnalyzeWithMapping(text)
 	return tokens
 }
 
 // AnalyzeWithMapping processes text and returns tokens plus a word->stem mapping
-func (a *Analyzer) AnalyzeWithMapping(text string) ([]string, map[string]string) {
-	tokens, mapping, _, _ := a.AnalyzeWithPositions(text)
+func (analyzer *Analyzer) AnalyzeWithMapping(text string) ([]string, map[string]string) {
+	tokens, mapping, _, _ := analyzer.AnalyzeWithPositions(text)
 	return tokens, mapping
 }
 
@@ -86,14 +86,14 @@ var (
 	// tokenPool stores *[]Token buffers for tokenization.
 	tokenPool = sync.Pool{
 		New: func() any {
-			s := make([]Token, 0, tokenPoolCap)
-			return &s
+			tokens := make([]Token, 0, tokenPoolCap)
+			return &tokens
 		},
 	}
 )
 
 // AnalyzeWithPositions processes text and returns tokens, mapping, and positional data including offsets
-func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]string, map[string][]int, map[string][]int) {
+func (analyzer *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]string, map[string][]int, map[string][]int) {
 	tokensPtr := tokenPool.Get().(*[]Token)
 	tokens := TokenizeWithUnicodeInto(text, (*tokensPtr)[:0])
 	defer func() {
@@ -115,42 +115,42 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 	bufPtr := pools.SharedByteSlicePool.Get()
 	defer pools.SharedByteSlicePool.Put(bufPtr)
 
-	idx := 0
+	tokenIndex := 0
 	for _, token := range tokens {
-		var orig string
+		var original string
 		if isLowerASCII(token.Value) {
-			orig = strings.Clone(token.Value)
+			original = strings.Clone(token.Value)
 		} else {
 			lowered, hasUnicode := toLowerASCII(token.Value, *bufPtr)
 			if hasUnicode {
-				orig = strings.ToLower(token.Value)
+				original = strings.ToLower(token.Value)
 			} else {
 				// We use string(lowered) here for map lookup.
 				// Go compiler optimizes stopWords[string(lowered)] to avoid allocation.
-				if a.useStopWords && stopWords[string(lowered)] {
-					idx++
+				if analyzer.useStopWords && stopWords[string(lowered)] {
+					tokenIndex++
 					continue
 				}
-				orig = string(lowered)
+				original = string(lowered)
 			}
 		}
 
-		if len(orig) < minTokenLength {
-			idx++
+		if len(original) < minTokenLength {
+			tokenIndex++
 			continue
 		}
-		if a.useStopWords && stopWords[orig] {
-			idx++
+		if analyzer.useStopWords && stopWords[original] {
+			tokenIndex++
 			continue
 		}
 
-		stem := orig
-		if a.useStemming {
-			if cached, ok := localStemCache[orig]; ok {
+		stem := original
+		if analyzer.useStemming {
+			if cached, ok := localStemCache[original]; ok {
 				stem = cached
 			} else {
-				stem = strings.Clone(Stem(orig))
-				localStemCache[orig] = stem
+				stem = strings.Clone(Stem(original))
+				localStemCache[original] = stem
 			}
 		}
 
@@ -160,22 +160,22 @@ func (a *Analyzer) AnalyzeWithPositions(text string) ([]string, map[string]strin
 				positions[stem] = make([]int, 0, positionsCap)
 				offsets[stem] = make([]int, 0, offsetsCap)
 			}
-			positions[stem] = append(positions[stem], idx)
+			positions[stem] = append(positions[stem], tokenIndex)
 			offsets[stem] = append(offsets[stem], token.Start, token.End)
-			if a.useStemming {
-				mapping[orig] = stem
+			if analyzer.useStemming {
+				mapping[original] = stem
 			}
 		}
-		idx++
+		tokenIndex++
 	}
 	return result, mapping, positions, offsets
 }
 
 // isLowerASCII returns true if the string is already lowercase ASCII.
-func isLowerASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c&0x80 != 0 || (c >= 'A' && c <= 'Z') {
+func isLowerASCII(text string) bool {
+	for i := 0; i < len(text); i++ {
+		char := text[i]
+		if char&0x80 != 0 || (char >= 'A' && char <= 'Z') {
 			return false
 		}
 	}
@@ -184,17 +184,17 @@ func isLowerASCII(s string) bool {
 
 // toLowerASCII attempts to lowercase a string into buf.
 // Returns (result, hasUnicode)
-func toLowerASCII(s string, buf []byte) ([]byte, bool) {
+func toLowerASCII(text string, buf []byte) ([]byte, bool) {
 	buf = buf[:0]
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c&0x80 != 0 {
+	for i := 0; i < len(text); i++ {
+		char := text[i]
+		if char&0x80 != 0 {
 			return nil, true
 		}
-		if c >= 'A' && c <= 'Z' {
-			buf = append(buf, c|0x20)
+		if char >= 'A' && char <= 'Z' {
+			buf = append(buf, char|0x20)
 		} else {
-			buf = append(buf, c)
+			buf = append(buf, char)
 		}
 	}
 	return buf, false
@@ -202,7 +202,7 @@ func toLowerASCII(s string, buf []byte) ([]byte, bool) {
 
 // AnalyzeWithOriginals returns both stemmed and original forms
 // This enables fuzzy matching on original forms while using stemmed forms for indexing
-func (a *Analyzer) AnalyzeWithOriginals(text string) ([]string, []string) {
+func (analyzer *Analyzer) AnalyzeWithOriginals(text string) ([]string, []string) {
 	tokensPtr := tokenPool.Get().(*[]Token)
 	tokens := TokenizeWithUnicodeInto(text, (*tokensPtr)[:0])
 	defer func() {
@@ -216,31 +216,31 @@ func (a *Analyzer) AnalyzeWithOriginals(text string) ([]string, []string) {
 	var stemmed []string
 	var originals []string
 	for _, token := range tokens {
-		var orig string
+		var original string
 		if isLowerASCII(token.Value) {
-			orig = token.Value
+			original = token.Value
 		} else {
 			lowered, hasUnicode := toLowerASCII(token.Value, *bufPtr)
 			if hasUnicode {
-				orig = strings.ToLower(token.Value)
+				original = strings.ToLower(token.Value)
 			} else {
-				orig = string(lowered)
+				original = string(lowered)
 			}
 		}
 
-		if len(orig) < minTokenLength {
+		if len(original) < minTokenLength {
 			continue
 		}
-		if a.useStopWords && stopWords[orig] {
+		if analyzer.useStopWords && stopWords[original] {
 			continue
 		}
 
-		originals = append(originals, orig)
+		originals = append(originals, original)
 
-		if a.useStemming {
-			stemmed = append(stemmed, StemCached(orig))
+		if analyzer.useStemming {
+			stemmed = append(stemmed, StemCached(original))
 		} else {
-			stemmed = append(stemmed, orig)
+			stemmed = append(stemmed, original)
 		}
 	}
 	return stemmed, originals
@@ -284,15 +284,15 @@ func TokenizeWithUnicodeInto(text string, dst []Token) []Token {
 
 	start := -1
 	for i := 0; i < len(text); {
-		c := text[i]
+		char := text[i]
 		var isWordPart bool
 		var size int
-		if c < asciiBoundary {
-			isWordPart = isWordPartASCII[c]
+		if char < asciiBoundary {
+			isWordPart = isWordPartASCII[char]
 			size = 1
 		} else {
-			r, sz := utf8.DecodeRuneInString(text[i:])
-			isWordPart = unicode.IsLetter(r) || unicode.IsNumber(r)
+			charRune, sz := utf8.DecodeRuneInString(text[i:])
+			isWordPart = unicode.IsLetter(charRune) || unicode.IsNumber(charRune)
 			size = sz
 		}
 

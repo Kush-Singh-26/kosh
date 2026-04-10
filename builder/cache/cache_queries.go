@@ -10,12 +10,12 @@ import (
 )
 
 // ListAllPosts returns all post IDs stored in the cache.
-func (m *Manager) ListAllPosts() ([]string, error) {
+func (manager *Manager) ListAllPosts() ([]string, error) {
 	var ids []string
-	err := m.db.View(func(tx *bbolt.Tx) error {
+	err := manager.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketPosts))
-		return bucket.ForEach(func(k, _ []byte) error {
-			ids = append(ids, string(k))
+		return bucket.ForEach(func(key, _ []byte) error {
+			ids = append(ids, string(key))
 			return nil
 		})
 	})
@@ -23,12 +23,12 @@ func (m *Manager) ListAllPosts() ([]string, error) {
 }
 
 // Stats returns a snapshot of cache statistics.
-func (m *Manager) Stats() (*core.CacheStats, error) {
+func (manager *Manager) Stats() (*core.CacheStats, error) {
 	stats := &core.CacheStats{
 		SchemaVersion: core.SchemaVersion,
 	}
 
-	err := m.db.View(func(tx *bbolt.Tx) error {
+	err := manager.db.View(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		stats.TotalPosts = postsBucket.Stats().KeyN
 
@@ -43,9 +43,9 @@ func (m *Manager) Stats() (*core.CacheStats, error) {
 			stats.LastGC = int64(binary.BigEndian.Uint64(data))
 		}
 
-		return postsBucket.ForEach(func(k, v []byte) error {
+		return postsBucket.ForEach(func(key, value []byte) error {
 			var post core.PostMeta
-			if err := core.Decode(v, &post); err == nil {
+			if err := core.Decode(value, &post); err == nil {
 				if len(post.InlineHTML) > 0 {
 					stats.InlinePosts++
 				} else if post.HTMLHash != "" {
@@ -59,18 +59,18 @@ func (m *Manager) Stats() (*core.CacheStats, error) {
 		return nil, err
 	}
 
-	htmlSize, _ := m.store.Size("html")
-	d2Size, _ := m.store.Size(filepath.Join("ssr", "d2"))
-	katexSize, _ := m.store.Size(filepath.Join("ssr", "katex"))
+	htmlSize, _ := manager.store.Size("html")
+	d2Size, _ := manager.store.Size(filepath.Join("ssr", "d2"))
+	katexSize, _ := manager.store.Size(filepath.Join("ssr", "katex"))
 	stats.StoreBytes = htmlSize + d2Size + katexSize
 
 	return stats, nil
 }
 
 // GetSocialCardHash retrieves the hash for a social card
-func (m *Manager) GetSocialCardHash(path string) (string, error) {
+func (manager *Manager) GetSocialCardHash(path string) (string, error) {
 	var hash string
-	err := m.db.View(func(tx *bbolt.Tx) error {
+	err := manager.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketSocialCard))
 		if bucket == nil {
 			return core.ErrNoContent
@@ -86,8 +86,8 @@ func (m *Manager) GetSocialCardHash(path string) (string, error) {
 }
 
 // SetSocialCardHash stores the hash for a social card
-func (m *Manager) SetSocialCardHash(path, hash string) error {
-	return m.db.Update(func(tx *bbolt.Tx) error {
+func (manager *Manager) SetSocialCardHash(path, hash string) error {
+	return manager.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketSocialCard))
 		if bucket == nil {
 			return nil
@@ -97,11 +97,11 @@ func (m *Manager) SetSocialCardHash(path, hash string) error {
 }
 
 // BatchSetSocialCardHashes stores multiple social card hashes in a single transaction
-func (m *Manager) BatchSetSocialCardHashes(hashes map[string]string) error {
+func (manager *Manager) BatchSetSocialCardHashes(hashes map[string]string) error {
 	if len(hashes) == 0 {
 		return nil
 	}
-	return m.db.Update(func(tx *bbolt.Tx) error {
+	return manager.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketSocialCard))
 		if bucket == nil {
 			return nil
@@ -116,11 +116,11 @@ func (m *Manager) BatchSetSocialCardHashes(hashes map[string]string) error {
 }
 
 // GetGraphHash retrieves the graph data hash
-func (m *Manager) GetGraphHash() (string, error) {
+func (manager *Manager) GetGraphHash() (string, error) {
 	var hash string
-	err := m.db.View(func(tx *bbolt.Tx) error {
-		meta := tx.Bucket([]byte(core.BucketMeta))
-		data := meta.Get([]byte(core.KeyGraphHash))
+	err := manager.db.View(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		data := metaBucket.Get([]byte(core.KeyGraphHash))
 		if data == nil {
 			return core.ErrNoContent
 		}
@@ -131,19 +131,19 @@ func (m *Manager) GetGraphHash() (string, error) {
 }
 
 // SetGraphHash stores the graph data hash
-func (m *Manager) SetGraphHash(hash string) error {
-	return m.db.Update(func(tx *bbolt.Tx) error {
-		meta := tx.Bucket([]byte(core.BucketMeta))
-		return meta.Put([]byte(core.KeyGraphHash), []byte(hash))
+func (manager *Manager) SetGraphHash(hash string) error {
+	return manager.db.Update(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		return metaBucket.Put([]byte(core.KeyGraphHash), []byte(hash))
 	})
 }
 
 // GetWasmHash retrieves the stored WASM source hash
-func (m *Manager) GetWasmHash() (string, error) {
+func (manager *Manager) GetWasmHash() (string, error) {
 	var hash string
-	err := m.db.View(func(tx *bbolt.Tx) error {
-		meta := tx.Bucket([]byte(core.BucketMeta))
-		data := meta.Get([]byte(core.KeyWasmHash))
+	err := manager.db.View(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		data := metaBucket.Get([]byte(core.KeyWasmHash))
 		if data == nil {
 			return core.ErrNoContent
 		}
@@ -154,9 +154,9 @@ func (m *Manager) GetWasmHash() (string, error) {
 }
 
 // SetWasmHash stores the WASM source hash
-func (m *Manager) SetWasmHash(hash string) error {
-	return m.db.Update(func(tx *bbolt.Tx) error {
-		meta := tx.Bucket([]byte(core.BucketMeta))
-		return meta.Put([]byte(core.KeyWasmHash), []byte(hash))
+func (manager *Manager) SetWasmHash(hash string) error {
+	return manager.db.Update(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		return metaBucket.Put([]byte(core.KeyWasmHash), []byte(hash))
 	})
 }

@@ -12,7 +12,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -54,10 +54,10 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		},
 		Features: models.FeaturesConfig{
 			Generators: models.GeneratorsConfig{
-				Sitemap: true,
-				RSS:     true,
-				Search:  true,
-				Graph:   models.GraphConfig{Enabled: true, ShowTags: true},
+				IsSitemapEnabled: true,
+				IsRSSEnabled:     true,
+				IsSearchEnabled:  true,
+				Graph:            models.GraphConfig{IsEnabled: true, ShowsTags: true},
 			},
 		},
 	}
@@ -81,7 +81,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -100,7 +100,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		Logger:      logger,
 	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -116,7 +116,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	postSvc := post.NewService(post.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -150,8 +150,8 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		Cache:          nil,
 		Diagrams:       nil,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	ctx := context.Background()
 	err = b.Build(ctx)
@@ -229,7 +229,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+		Ctx:     buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
@@ -242,7 +242,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		Logger:      logger,
 	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+		Ctx:      buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -252,7 +252,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+		Ctx:            buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -280,8 +280,8 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		Cache:          nil,
 		Diagrams:       nil,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	ctx := context.Background()
 

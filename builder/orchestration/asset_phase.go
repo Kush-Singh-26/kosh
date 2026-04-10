@@ -10,24 +10,24 @@ import (
 
 // buildAssetResult holds synchronization primitives for asset building.
 type buildAssetResult struct {
-	assetsReady    <-chan struct{}
-	discoveryReady <-chan struct{} // signals when image rewrite map is populated
-	assetWg        *sync.WaitGroup
-	assetErrChan   <-chan error
+	assetsReadySignal    <-chan struct{}
+	discoveryReadySignal <-chan struct{} // signals when image rewrite map is populated
+	assetWaitGroup       *sync.WaitGroup
+	assetErrorChan       <-chan error
 }
 
 // assetPhase starts the asset building pipeline.
-func (b *Engine) assetPhase(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) *buildAssetResult {
-	if b.Deps.Reporter != nil {
-		b.Deps.Reporter.StartPhase(ui.PhaseAssets)
+func (engineInstance *Engine) assetPhase(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) *buildAssetResult {
+	if engineInstance.Deps.Reporter != nil {
+		engineInstance.Deps.Reporter.StartPhase(ui.PhaseAssets)
 	}
-	forceAssetBuild := b.Cfg.ForceRebuild
-	assetsReady, discoveryReady, assetWg, assetErrChan := b.Assets.SetupBuilding(ctx, contentAssetsChan, forceAssetBuild)
+	forceAssetBuild := engineInstance.Cfg.ShouldForceRebuild
+	assetsReadySignal, discoveryReadySignal, assetWaitGroup, assetErrorChan := engineInstance.Assets.SetupBuilding(ctx, contentAssetsChan, forceAssetBuild)
 
 	return &buildAssetResult{
-		assetsReady:    assetsReady,
-		discoveryReady: discoveryReady,
-		assetWg:        assetWg,
-		assetErrChan:   assetErrChan,
+		assetsReadySignal:    assetsReadySignal,
+		discoveryReadySignal: discoveryReadySignal,
+		assetWaitGroup:       assetWaitGroup,
+		assetErrorChan:       assetErrorChan,
 	}
 }

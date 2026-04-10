@@ -35,12 +35,12 @@ const (
 	retryWriteDelay                      = 10 * time.Millisecond
 )
 
-func isNil(i any) bool {
-	if i == nil {
+func isNil(value any) bool {
+	if value == nil {
 		return true
 	}
-	v := reflect.ValueOf(i)
-	return v.Kind() == reflect.Pointer && v.IsNil()
+	reflectValue := reflect.ValueOf(value)
+	return reflectValue.Kind() == reflect.Pointer && reflectValue.IsNil()
 }
 
 // ImageMetrics records image processing metrics.
@@ -75,29 +75,29 @@ type MaybeCopyOriginalOptions struct {
 	KeepOriginal bool
 }
 
-func maybeCopyOriginal(opts MaybeCopyOriginalOptions) error {
-	if !opts.KeepOriginal {
+func maybeCopyOriginal(options MaybeCopyOriginalOptions) error {
+	if !options.KeepOriginal {
 		return nil
 	}
-	ext := strings.ToLower(filepath.Ext(opts.SrcPath))
-	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+	extension := strings.ToLower(filepath.Ext(options.SrcPath))
+	if extension != ".jpg" && extension != ".jpeg" && extension != ".png" {
 		return nil
 	}
-	if strings.ToLower(filepath.Ext(opts.DstWebp)) != ".webp" {
+	if strings.ToLower(filepath.Ext(options.DstWebp)) != ".webp" {
 		return nil
 	}
-	origDst := strings.TrimSuffix(opts.DstWebp, filepath.Ext(opts.DstWebp)) + ext
+	originalDestination := strings.TrimSuffix(options.DstWebp, filepath.Ext(options.DstWebp)) + extension
 	modTime := int64(0)
-	if opts.SrcInfo != nil {
-		modTime = opts.SrcInfo.ModTime().UnixNano()
+	if options.SrcInfo != nil {
+		modTime = options.SrcInfo.ModTime().UnixNano()
 	}
 	return fspkg.CopyFileVFS(fspkg.CopyFileOptions{
-		SrcFs:   opts.SrcFs,
-		Sink:    opts.Sink,
-		SrcPath: opts.SrcPath,
-		DstPath: origDst,
+		SrcFs:   options.SrcFs,
+		Sink:    options.Sink,
+		SrcPath: options.SrcPath,
+		DstPath: originalDestination,
 		ModTime: modTime,
-		OnWrite: opts.OnWrite,
+		OnWrite: options.OnWrite,
 	})
 }
 
@@ -105,76 +105,76 @@ func isConvertibleImage(ext string) bool {
 	return ext == ".jpg" || ext == ".jpeg" || ext == ".png"
 }
 
-func copyFileWithMetrics(opts ProcessImageOptions) error {
+func copyFileWithMetrics(options ProcessImageOptions) error {
 	modTime := int64(0)
-	if opts.SrcInfo != nil {
-		modTime = opts.SrcInfo.ModTime().UnixNano()
+	if options.SrcInfo != nil {
+		modTime = options.SrcInfo.ModTime().UnixNano()
 	}
 	err := fspkg.CopyFileVFS(fspkg.CopyFileOptions{
-		SrcFs:   opts.SrcFs,
-		Sink:    opts.Sink,
-		SrcPath: opts.SrcPath,
-		DstPath: opts.DstPath,
+		SrcFs:   options.SrcFs,
+		Sink:    options.Sink,
+		SrcPath: options.SrcPath,
+		DstPath: options.DstPath,
 		ModTime: modTime,
-		OnWrite: opts.Opts.OnWrite,
+		OnWrite: options.Opts.OnWrite,
 	})
-	if err == nil && !isNil(opts.Opts.Metrics) {
-		opts.Opts.Metrics.IncrementAssetsProcessed()
+	if err == nil && !isNil(options.Opts.Metrics) {
+		options.Opts.Metrics.IncrementAssetsProcessed()
 	}
 	return err
 }
 
-func convertImageToWebP(opts ProcessImageOptions) error {
-	dstPath := opts.DstPath[:len(opts.DstPath)-len(filepath.Ext(opts.DstPath))] + ".webp"
-	newOpts := opts
-	newOpts.DstPath = dstPath
-	if opts.Scheduler == nil {
-		newOpts.Scheduler = opts.Opts.Scheduler
+func convertImageToWebP(options ProcessImageOptions) error {
+	destinationPath := options.DstPath[:len(options.DstPath)-len(filepath.Ext(options.DstPath))] + ".webp"
+	newOptions := options
+	newOptions.DstPath = destinationPath
+	if options.Scheduler == nil {
+		newOptions.Scheduler = options.Opts.Scheduler
 	}
-	if err := convertToWebPVFS(newOpts); err != nil {
+	if err := convertToWebPVFS(newOptions); err != nil {
 		return err
 	}
-	if opts.Opts.OnWrite != nil {
-		opts.Opts.OnWrite(dstPath)
+	if options.Opts.OnWrite != nil {
+		options.Opts.OnWrite(destinationPath)
 	}
 	return nil
 }
 
-func maybeMinifySVG(opts ProcessImageOptions) (bool, error) {
-	if !opts.Opts.MinifySVGs || strings.ToLower(filepath.Ext(opts.SrcPath)) != ".svg" {
+func maybeMinifySVG(options ProcessImageOptions) (bool, error) {
+	if !options.Opts.MinifySVGs || strings.ToLower(filepath.Ext(options.SrcPath)) != ".svg" {
 		return false, nil
 	}
 
-	sched := opts.Scheduler
-	if sched == nil {
-		sched = opts.Opts.Scheduler
+	buildScheduler := options.Scheduler
+	if buildScheduler == nil {
+		buildScheduler = options.Opts.Scheduler
 	}
-	if sched != nil {
-		if err := sched.Acquire(opts.Ctx, scheduler.TaskDefault); err != nil {
+	if buildScheduler != nil {
+		if err := buildScheduler.Acquire(options.Ctx, scheduler.TaskDefault); err != nil {
 			return true, err
 		}
-		defer sched.Release(scheduler.TaskDefault)
+		defer buildScheduler.Release(scheduler.TaskDefault)
 	}
 
-	data, err := afero.ReadFile(opts.SrcFs, opts.SrcPath)
+	data, err := afero.ReadFile(options.SrcFs, options.SrcPath)
 	if err != nil {
 		return false, nil
 	}
-	m := koshMinify.GetHTMLMinifier()
-	minified, err := m.Bytes("image/svg+xml", data)
+	minifier := koshMinify.GetHTMLMinifier()
+	minified, err := minifier.Bytes("image/svg+xml", data)
 	if err != nil {
 		return false, nil
 	}
-	if !isNil(opts.Opts.Metrics) {
-		opts.Opts.Metrics.IncrementSVGsMinified()
-		opts.Opts.Metrics.IncrementAssetsProcessed()
+	if !isNil(options.Opts.Metrics) {
+		options.Opts.Metrics.IncrementSVGsMinified()
+		options.Opts.Metrics.IncrementAssetsProcessed()
 	}
-	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+	if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
 		return true, err
 	}
-	if err := opts.Sink.WriteFile(opts.DstPath, minified); err == nil {
-		if opts.Opts.OnWrite != nil {
-			opts.Opts.OnWrite(opts.DstPath)
+	if err := options.Sink.WriteFile(options.DstPath, minified); err == nil {
+		if options.Opts.OnWrite != nil {
+			options.Opts.OnWrite(options.DstPath)
 		}
 		return true, nil
 	}
@@ -183,34 +183,34 @@ func maybeMinifySVG(opts ProcessImageOptions) (bool, error) {
 }
 
 // CopyFileWithOptionalImageProcessing copies or converts an image based on options.
-func CopyFileWithOptionalImageProcessing(opts ProcessImageOptions) error {
-	ext := strings.ToLower(filepath.Ext(opts.SrcPath))
-	if opts.Opts.Compress && isConvertibleImage(ext) {
-		return convertImageToWebP(opts)
+func CopyFileWithOptionalImageProcessing(options ProcessImageOptions) error {
+	extension := strings.ToLower(filepath.Ext(options.SrcPath))
+	if options.Opts.Compress && isConvertibleImage(extension) {
+		return convertImageToWebP(options)
 	}
 
-	if handled, err := maybeMinifySVG(opts); handled {
+	if handled, err := maybeMinifySVG(options); handled {
 		return err
 	}
 
-	return copyFileWithMetrics(opts)
+	return copyFileWithMetrics(options)
 }
 
 // ProcessCacheMissImage processes an image that is known to not be in any cache.
 // Called from the asset service background image workers.
 // Skips cache lookups (memory + disk) and goes directly to decode/encode.
-func ProcessCacheMissImage(opts ProcessImageOptions) error {
-	return convertToWebPVFS(opts)
+func ProcessCacheMissImage(options ProcessImageOptions) error {
+	return convertToWebPVFS(options)
 }
 
 func retryWriteFile(sink fspkg.ArtifactSink, path string, data []byte) error {
 	var lastErr error
-	for i := 0; i < retryWriteAttempts; i++ {
+	for index := 0; index < retryWriteAttempts; index++ {
 		if err := sink.WriteFile(path, data); err == nil {
 			return nil
 		} else {
 			lastErr = err
-			if i < retryWriteAttempts-1 {
+			if index < retryWriteAttempts-1 {
 				select {
 				case <-time.After(retryWriteDelay):
 				default:
@@ -221,15 +221,15 @@ func retryWriteFile(sink fspkg.ArtifactSink, path string, data []byte) error {
 	return fmt.Errorf("failed to write file after retries: %w", lastErr)
 }
 
-func ensureSrcInfo(opts *ProcessImageOptions) error {
-	if opts.SrcInfo != nil {
+func ensureSrcInfo(options *ProcessImageOptions) error {
+	if options.SrcInfo != nil {
 		return nil
 	}
-	info, err := opts.SrcFs.Stat(opts.SrcPath)
+	info, err := options.SrcFs.Stat(options.SrcPath)
 	if err != nil {
-		return fmt.Errorf("failed to stat source image %s: %w", opts.SrcPath, err)
+		return fmt.Errorf("failed to stat source image %s: %w", options.SrcPath, err)
 	}
-	opts.SrcInfo = info
+	options.SrcInfo = info
 	return nil
 }
 
@@ -237,52 +237,52 @@ func registerWebPRelPath(relPath string) {
 	if relPath == "" {
 		return
 	}
-	relSrc := "/" + strings.TrimPrefix(filepath.ToSlash(relPath), "/")
-	relDst := relSrc[:len(relSrc)-len(filepath.Ext(relSrc))] + ".webp"
-	registerImageVariants(relSrc, relDst)
+	relativeSrc := "/" + strings.TrimPrefix(filepath.ToSlash(relPath), "/")
+	relativeDst := relativeSrc[:len(relativeSrc)-len(filepath.Ext(relativeSrc))] + ".webp"
+	registerImageVariants(relativeSrc, relativeDst)
 }
 
-func maybeCopyOriginalBestEffort(opts ProcessImageOptions) {
+func maybeCopyOriginalBestEffort(options ProcessImageOptions) {
 	_ = maybeCopyOriginal(MaybeCopyOriginalOptions{
-		SrcFs:        opts.SrcFs,
-		Sink:         opts.Sink,
-		SrcPath:      opts.SrcPath,
-		DstWebp:      opts.DstPath,
-		SrcInfo:      opts.SrcInfo,
-		OnWrite:      opts.Opts.OnWrite,
-		KeepOriginal: opts.Opts.KeepOriginal,
+		SrcFs:        options.SrcFs,
+		Sink:         options.Sink,
+		SrcPath:      options.SrcPath,
+		DstWebp:      options.DstPath,
+		SrcInfo:      options.SrcInfo,
+		OnWrite:      options.Opts.OnWrite,
+		KeepOriginal: options.Opts.KeepOriginal,
 	})
 }
 
-func tryMemoryCache(opts ProcessImageOptions, key imageCacheKey) (bool, error) {
+func tryMemoryCache(options ProcessImageOptions, key imageCacheKey) (bool, error) {
 	cached, ok := GetImageCache().get(key)
 	if !ok {
 		return false, nil
 	}
-	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+	if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
 		return true, fmt.Errorf("failed to create image directory: %w", err)
 	}
-	if !isNil(opts.Opts.Metrics) {
-		opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cached)))
-		opts.Opts.Metrics.IncrementAssetsProcessed()
+	if !isNil(options.Opts.Metrics) {
+		options.Opts.Metrics.RecordImageOptimization(options.SrcInfo.Size(), int64(len(cached)))
+		options.Opts.Metrics.IncrementAssetsProcessed()
 	}
-	err := retryWriteFile(opts.Sink, opts.DstPath, cached)
+	err := retryWriteFile(options.Sink, options.DstPath, cached)
 	if err == nil {
-		registerWebPRelPath(opts.RelPath)
-		maybeCopyOriginalBestEffort(opts)
+		registerWebPRelPath(options.RelPath)
+		maybeCopyOriginalBestEffort(options)
 	}
 	return true, err
 }
 
-func resolveCacheFile(opts ProcessImageOptions, key imageCacheKey) string {
-	if opts.Opts.CacheDir == "" {
+func resolveCacheFile(options ProcessImageOptions, key imageCacheKey) string {
+	if options.Opts.CacheDir == "" {
 		return ""
 	}
 	hashStr := getImageHash(key)
-	return filepath.Join(opts.Opts.CacheDir, hashStr+".webp")
+	return filepath.Join(options.Opts.CacheDir, hashStr+".webp")
 }
 
-func tryDiskCache(opts ProcessImageOptions, cacheFile string, key imageCacheKey) (bool, error) {
+func tryDiskCache(options ProcessImageOptions, cacheFile string, key imageCacheKey) (bool, error) {
 	if cacheFile == "" {
 		return false, nil
 	}
@@ -292,57 +292,57 @@ func tryDiskCache(opts ProcessImageOptions, cacheFile string, key imageCacheKey)
 		return false, nil
 	}
 
-	f, err := cacheFs.Open(cacheFile)
+	file, err := cacheFs.Open(cacheFile)
 	if err != nil {
 		return true, fmt.Errorf("failed to open cached image %s: %w", cacheFile, err)
 	}
-	defer func() { _ = f.Close() }()
+	defer func() { _ = file.Close() }()
 
-	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+	if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
 		return true, fmt.Errorf("failed to create image directory: %w", err)
 	}
 
-	cachedData, readErr := afero.ReadAll(f)
+	cachedData, readErr := afero.ReadAll(file)
 	if readErr != nil {
 		return true, fmt.Errorf("failed to read cached image %s: %w", cacheFile, readErr)
 	}
 	GetImageCache().set(key, cachedData)
-	if !isNil(opts.Opts.Metrics) {
-		opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cachedData)))
-		opts.Opts.Metrics.IncrementAssetsProcessed()
+	if !isNil(options.Opts.Metrics) {
+		options.Opts.Metrics.RecordImageOptimization(options.SrcInfo.Size(), int64(len(cachedData)))
+		options.Opts.Metrics.IncrementAssetsProcessed()
 	}
-	if err := opts.Sink.WriteFile(opts.DstPath, cachedData); err != nil {
-		return true, fmt.Errorf("failed to write cached image %s: %w", opts.DstPath, err)
+	if err := options.Sink.WriteFile(options.DstPath, cachedData); err != nil {
+		return true, fmt.Errorf("failed to write cached image %s: %w", options.DstPath, err)
 	}
-	registerWebPRelPath(opts.RelPath)
-	maybeCopyOriginalBestEffort(opts)
+	registerWebPRelPath(options.RelPath)
+	maybeCopyOriginalBestEffort(options)
 
-	_ = opts.Sink.SetMtime(opts.DstPath, opts.SrcInfo.ModTime())
+	_ = options.Sink.SetMtime(options.DstPath, options.SrcInfo.ModTime())
 	return true, nil
 }
 
 func decodeSourceImage(srcFs afero.Fs, srcPath string) (image.Image, error) {
-	f, err := srcFs.Open(srcPath)
+	file, err := srcFs.Open(srcPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open image %s: %w", srcPath, err)
 	}
-	defer func() { _ = f.Close() }()
+	defer func() { _ = file.Close() }()
 
-	br := pools.SharedBufioReaderPool.Get(f)
+	reader := pools.SharedBufioReaderPool.Get(file)
 	defer func() {
-		br.Reset(nil)
-		pools.SharedBufioReaderPool.Put(br)
+		reader.Reset(nil)
+		pools.SharedBufioReaderPool.Put(reader)
 	}()
 
-	src, _, err := image.Decode(br)
+	srcImg, _, err := image.Decode(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image %s: %w", srcPath, err)
 	}
-	return src, nil
+	return srcImg, nil
 }
 
-func resizeImageIfNeeded(src image.Image, skipResize bool, metrics ImageMetrics) image.Image {
-	bounds := src.Bounds()
+func resizeImageIfNeeded(sourceImage image.Image, skipResize bool, metrics ImageMetrics) image.Image {
+	bounds := sourceImage.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
 	if width > maxResizeWidth && !skipResize {
@@ -350,38 +350,38 @@ func resizeImageIfNeeded(src image.Image, skipResize bool, metrics ImageMetrics)
 		newHeight := (height * newWidth) / width
 
 		neededSize := newWidth * newHeight * rgbaBytesPerPixel
-		var pix []byte
-		var pixPtr *[]byte
+		var pixelData []byte
+		var pixelDataPointer *[]byte
 		if neededSize <= maxResizeWidth*maxResizeHeight*rgbaBytesPerPixel {
-			pixPtr = rgbaPixPool.Get().(*[]byte)
-			pix = *pixPtr
-			defer rgbaPixPool.Put(pixPtr)
+			pixelDataPointer = rgbaPixPool.Get().(*[]byte)
+			pixelData = *pixelDataPointer
+			defer rgbaPixPool.Put(pixelDataPointer)
 		} else {
-			pix = make([]byte, neededSize)
+			pixelData = make([]byte, neededSize)
 		}
 
-		dst := &image.RGBA{
-			Pix:    pix[:neededSize],
+		destination := &image.RGBA{
+			Pix:    pixelData[:neededSize],
 			Stride: newWidth * rgbaBytesPerPixel,
 			Rect:   image.Rect(0, 0, newWidth, newHeight),
 		}
 
-		draw.BiLinear.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
-		return dst
+		draw.BiLinear.Scale(destination, destination.Bounds(), sourceImage, sourceImage.Bounds(), draw.Over, nil)
+		return destination
 	}
 
 	if skipResize {
-		if _, isYCbCr := src.(*image.YCbCr); isYCbCr {
-			b := src.Bounds()
-			rgba := image.NewRGBA(b)
-			draw.Draw(rgba, b, src, b.Min, draw.Src)
-			src = rgba
+		if _, isYCbCr := sourceImage.(*image.YCbCr); isYCbCr {
+			bounds := sourceImage.Bounds()
+			rgbaImage := image.NewRGBA(bounds)
+			draw.Draw(rgbaImage, bounds, sourceImage, bounds.Min, draw.Src)
+			sourceImage = rgbaImage
 		}
 		if !isNil(metrics) {
 			metrics.RecordImageResizeSkipped()
 		}
 	}
-	return src
+	return sourceImage
 }
 
 func resolveWebPQuality(quality int) int {
@@ -391,97 +391,97 @@ func resolveWebPQuality(quality int) int {
 	return quality
 }
 
-func encodeWebP(img image.Image, quality int) ([]byte, error) {
-	buf := webpBufferPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	defer webpBufferPool.Put(buf)
+func encodeWebP(image image.Image, quality int) ([]byte, error) {
+	buffer := webpBufferPool.Get().(*bytes.Buffer)
+	buffer.Reset()
+	defer webpBufferPool.Put(buffer)
 
-	if err := webp.Encode(buf, img, &webp.Options{Lossless: false, Quality: float32(quality)}); err != nil {
+	if err := webp.Encode(buffer, image, &webp.Options{Lossless: false, Quality: float32(quality)}); err != nil {
 		return nil, err
 	}
 
-	encodedData := buf.Bytes()
+	encodedData := buffer.Bytes()
 	cacheData := make([]byte, len(encodedData))
 	copy(cacheData, encodedData)
 	return cacheData, nil
 }
 
-func writeEncodedWebP(opts ProcessImageOptions, key imageCacheKey, cacheFile string, cacheData []byte) error {
+func writeEncodedWebP(options ProcessImageOptions, key imageCacheKey, cacheFile string, cacheData []byte) error {
 	GetImageCache().set(key, cacheData)
 	if cacheFile != "" {
 		queueImageCacheWrite(cacheFile, cacheData, true)
 	}
 
-	if !isNil(opts.Opts.Metrics) {
-		opts.Opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(cacheData)))
+	if !isNil(options.Opts.Metrics) {
+		options.Opts.Metrics.RecordImageOptimization(options.SrcInfo.Size(), int64(len(cacheData)))
 	}
 
-	if err := opts.Sink.WriteFile(opts.DstPath, cacheData); err != nil {
+	if err := options.Sink.WriteFile(options.DstPath, cacheData); err != nil {
 		return err
 	}
-	_ = opts.Sink.SetMtime(opts.DstPath, opts.SrcInfo.ModTime())
-	if !isNil(opts.Opts.Metrics) {
-		opts.Opts.Metrics.IncrementAssetsProcessed()
+	_ = options.Sink.SetMtime(options.DstPath, options.SrcInfo.ModTime())
+	if !isNil(options.Opts.Metrics) {
+		options.Opts.Metrics.IncrementAssetsProcessed()
 	}
-	registerWebPRelPath(opts.RelPath)
-	maybeCopyOriginalBestEffort(opts)
+	registerWebPRelPath(options.RelPath)
+	maybeCopyOriginalBestEffort(options)
 	return nil
 }
 
-func convertToWebPVFS(opts ProcessImageOptions) error {
-	if err := ensureSrcInfo(&opts); err != nil {
+func convertToWebPVFS(options ProcessImageOptions) error {
+	if err := ensureSrcInfo(&options); err != nil {
 		return err
 	}
-	skipResize := opts.SrcInfo.Size() <= smallImageResizeThresholdBytes
+	skipResize := options.SrcInfo.Size() <= smallImageResizeThresholdBytes
 
 	memCacheKey := imageCacheKey{
-		path:    opts.SrcPath,
-		size:    opts.SrcInfo.Size(),
-		modTime: opts.SrcInfo.ModTime().UnixNano(),
+		path:    options.SrcPath,
+		size:    options.SrcInfo.Size(),
+		modTime: options.SrcInfo.ModTime().UnixNano(),
 	}
 
-	if ok, err := tryMemoryCache(opts, memCacheKey); ok {
+	if ok, err := tryMemoryCache(options, memCacheKey); ok {
 		return err
 	}
 
-	cacheFile := resolveCacheFile(opts, memCacheKey)
-	if ok, err := tryDiskCache(opts, cacheFile, memCacheKey); ok {
+	cacheFile := resolveCacheFile(options, memCacheKey)
+	if ok, err := tryDiskCache(options, cacheFile, memCacheKey); ok {
 		return err
 	}
 
 	select {
-	case <-opts.Ctx.Done():
-		return opts.Ctx.Err()
+	case <-options.Ctx.Done():
+		return options.Ctx.Err()
 	default:
 	}
 
-	sched := opts.Scheduler
-	if sched == nil {
-		sched = opts.Opts.Scheduler
+	buildScheduler := options.Scheduler
+	if buildScheduler == nil {
+		buildScheduler = options.Opts.Scheduler
 	}
-	if sched != nil {
-		if err := sched.Acquire(opts.Ctx, scheduler.TaskImage); err != nil {
+	if buildScheduler != nil {
+		if err := buildScheduler.Acquire(options.Ctx, scheduler.TaskImage); err != nil {
 			return err
 		}
-		defer sched.Release(scheduler.TaskImage)
+		defer buildScheduler.Release(scheduler.TaskImage)
 	}
 
-	src, err := decodeSourceImage(opts.SrcFs, opts.SrcPath)
+	sourceImage, err := decodeSourceImage(options.SrcFs, options.SrcPath)
 	if err != nil {
 		return err
 	}
 
-	finalImg := resizeImageIfNeeded(src, skipResize, opts.Opts.Metrics)
+	finalImg := resizeImageIfNeeded(sourceImage, skipResize, options.Opts.Metrics)
 
-	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+	if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
 		return fmt.Errorf("failed to create image directory: %w", err)
 	}
 
-	webpQuality := resolveWebPQuality(opts.Opts.WebPQuality)
+	webpQuality := resolveWebPQuality(options.Opts.WebPQuality)
 	cacheData, err := encodeWebP(finalImg, webpQuality)
 	if err != nil {
-		return fmt.Errorf("failed to encode webp %s: %w", opts.DstPath, err)
+		return fmt.Errorf("failed to encode webp %s: %w", options.DstPath, err)
 	}
 
-	return writeEncodedWebP(opts, memCacheKey, cacheFile, cacheData)
+	return writeEncodedWebP(options, memCacheKey, cacheFile, cacheData)
 }

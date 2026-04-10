@@ -39,14 +39,14 @@ func getCachedItem[T any](db *bbolt.DB, bucketName string, key []byte) (*T, erro
 }
 
 // memCacheGet retrieves a core.PostMeta from the in-memory cache
-func (m *Manager) memCacheGet(key string) *core.PostMeta {
-	entry, ok := m.memCache.Get(key)
+func (manager *Manager) memCacheGet(key string) *core.PostMeta {
+	entry, ok := manager.memCache.Get(key)
 	if !ok {
 		return nil
 	}
 
 	if time.Now().After(entry.expiresAt) {
-		m.memCache.Remove(key)
+		manager.memCache.Remove(key)
 		return nil
 	}
 
@@ -54,45 +54,45 @@ func (m *Manager) memCacheGet(key string) *core.PostMeta {
 }
 
 // memCacheSet stores a core.PostMeta in the in-memory cache
-func (m *Manager) memCacheSet(key string, meta *core.PostMeta) {
-	m.memCache.Add(key, &memoryCacheEntry{
+func (manager *Manager) memCacheSet(key string, meta *core.PostMeta) {
+	manager.memCache.Add(key, &memoryCacheEntry{
 		meta:      meta,
-		expiresAt: time.Now().Add(m.memCacheTTL),
+		expiresAt: time.Now().Add(manager.memCacheTTL),
 	})
 }
 
 // memCacheDelete removes an entry from the in-memory cache
-func (m *Manager) memCacheDelete(key string) {
-	m.memCache.Remove(key)
+func (manager *Manager) memCacheDelete(key string) {
+	manager.memCache.Remove(key)
 }
 
 // GetPostByPath looks up a post by its file path in a single transaction
-func (m *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
+func (manager *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
 	normalizedPath := fspkg.NormalizePath(path)
 
 	// Check in-memory cache first
-	if cached := m.memCacheGet("path:" + normalizedPath); cached != nil {
+	if cached := manager.memCacheGet("path:" + normalizedPath); cached != nil {
 		return cached, nil
 	}
 
 	var result *core.PostMeta
-	err := m.db.View(func(tx *bbolt.Tx) error {
+	err := manager.db.View(func(tx *bbolt.Tx) error {
 		// First lookup the postID from paths bucket
-		paths := tx.Bucket([]byte(core.BucketPaths))
-		if paths == nil {
+		pathsBucket := tx.Bucket([]byte(core.BucketPaths))
+		if pathsBucket == nil {
 			return core.ErrNoContent
 		}
-		postID := paths.Get([]byte(normalizedPath))
+		postID := pathsBucket.Get([]byte(normalizedPath))
 		if postID == nil {
 			return core.ErrNoContent
 		}
 
 		// Then get the post from posts bucket in the same transaction
-		posts := tx.Bucket([]byte(core.BucketPosts))
-		if posts == nil {
+		postsBucket := tx.Bucket([]byte(core.BucketPosts))
+		if postsBucket == nil {
 			return core.ErrNoContent
 		}
-		data := posts.Get(postID)
+		data := postsBucket.Get(postID)
 		if data == nil {
 			return core.ErrNoContent
 		}
@@ -107,79 +107,62 @@ func (m *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
 
 	if err == nil && result != nil {
 		// Store in memory cache for future lookups
-		m.memCacheSet("path:"+normalizedPath, result)
+		manager.memCacheSet("path:"+normalizedPath, result)
 	}
 
 	return result, err
 }
 
 // GetPostByID retrieves a post by its PostID
-func (m *Manager) GetPostByID(postID string) (*core.PostMeta, error) {
+func (manager *Manager) GetPostByID(postID string) (*core.PostMeta, error) {
 	// Check in-memory cache first
 	cacheKey := "id:" + postID
-	if cached := m.memCacheGet(cacheKey); cached != nil {
+	if cached := manager.memCacheGet(cacheKey); cached != nil {
 		return cached, nil
 	}
 
-	result, err := getCachedItem[core.PostMeta](m.db, core.BucketPosts, []byte(postID))
+	result, err := getCachedItem[core.PostMeta](manager.db, core.BucketPosts, []byte(postID))
 	if err == nil && result != nil {
-		m.memCacheSet(cacheKey, result)
+		manager.memCacheSet(cacheKey, result)
 	}
 	return result, err
 }
 
 // GetPostsByIDs retrieves multiple posts by their PostIDs in a single transaction
 // Uses parallel decoding for better performance with large batches
-func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMeta, error) {
+func (manager *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMeta, error) {
 	result := make(map[string]*core.PostMeta, len(postIDs))
 	if len(postIDs) == 0 {
 		return result, nil
 	}
 
-	// First, fetch all raw data within a single transaction
-	type rawData struct {
-		id   string
-		data []byte
-	}
-	rawItems := make([]rawData, 0, len(postIDs))
-
-	err := m.db.View(func(tx *bbolt.Tx) error {
-		postsBucket := tx.Bucket([]byte(core.BucketPosts))
-
-		for _, id := range postIDs {
-			data := postsBucket.Get([]byte(id))
-			if data != nil {
-				// Copy data out of transaction (BoltDB mmap is valid only during tx)
-				copied := make([]byte, len(data))
-				copy(copied, data)
-				rawItems = append(rawItems, rawData{id: id, data: copied})
-			}
-		}
-		return nil
-	})
+	rawItems, err := manager.fetchRawItems(postIDs)
 	if err != nil {
 		return result, err
 	}
 
 	// core.Decode in parallel for large batches
 	if len(rawItems) > parallelDecodeThreshold {
-		var mu sync.Mutex
-		var g errgroup.Group
-		g.SetLimit(runtime.NumCPU())
+		var mutex sync.Mutex
+		var errorGroup errgroup.Group
+		errorGroup.SetLimit(runtime.NumCPU())
 
 		for _, item := range rawItems {
-			it := item
-			g.Go(func() error {
+			currentItem := item
+			errorGroup.Go(func() error {
 				postMeta := new(core.PostMeta)
-				if err := core.Decode(it.data, postMeta); err == nil {
-					mu.Lock()
-					result[it.id] = postMeta
-					mu.Unlock()
+				if err := core.Decode(currentItem.data, postMeta); err != nil {
+					return err
 				}
+				mutex.Lock()
+				result[currentItem.id] = postMeta
+				mutex.Unlock()
 				return nil
 			})
 		}
-		_ = g.Wait()
+		if err := errorGroup.Wait(); err != nil {
+			return nil, err
+		}
 	} else {
 		// Sequential for small batches (avoids goroutine overhead)
 		for _, item := range rawItems {
@@ -194,18 +177,18 @@ func (m *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMeta, er
 }
 
 // GetPostsByTemplate retrieves all PostIDs associated with a template
-func (m *Manager) GetPostsByTemplate(templatePath string) ([]string, error) {
+func (manager *Manager) GetPostsByTemplate(templatePath string) ([]string, error) {
 	var ids []string
 	key := []byte(templatePath)
 
-	err := m.db.View(func(tx *bbolt.Tx) error {
+	err := manager.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketDepsTemplates))
 		if bucket == nil {
 			return nil
 		}
-		c := bucket.Cursor()
+		cursor := bucket.Cursor()
 		prefix := append(key, '/')
-		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
+		for k, _ := cursor.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = cursor.Next() {
 			postID := string(k[len(prefix):])
 			ids = append(ids, postID)
 		}
@@ -215,13 +198,13 @@ func (m *Manager) GetPostsByTemplate(templatePath string) ([]string, error) {
 }
 
 // GetSearchRecords retrieves multiple search records by PostIDs
-func (m *Manager) GetSearchRecords(postIDs []string) (map[string]*core.SearchRecord, error) {
+func (manager *Manager) GetSearchRecords(postIDs []string) (map[string]*core.SearchRecord, error) {
 	result := make(map[string]*core.SearchRecord, len(postIDs))
 	if len(postIDs) == 0 {
 		return result, nil
 	}
 
-	err := m.db.View(func(tx *bbolt.Tx) error {
+	err := manager.db.View(func(tx *bbolt.Tx) error {
 		searchBucket := tx.Bucket([]byte(core.BucketSearch))
 
 		for _, id := range postIDs {
@@ -243,48 +226,48 @@ func (m *Manager) GetSearchRecords(postIDs []string) (map[string]*core.SearchRec
 }
 
 // GetSearchRecord retrieves the search record for a post
-func (m *Manager) GetSearchRecord(postID string) (*core.SearchRecord, error) {
-	return getCachedItem[core.SearchRecord](m.db, core.BucketSearch, []byte(postID))
+func (manager *Manager) GetSearchRecord(postID string) (*core.SearchRecord, error) {
+	return getCachedItem[core.SearchRecord](manager.db, core.BucketSearch, []byte(postID))
 }
 
 // GetSSRArtifact retrieves an SSR artifact
-func (m *Manager) GetSSRArtifact(ssrType, inputHash string) (*core.SSRArtifact, error) {
+func (manager *Manager) GetSSRArtifact(ssrType, inputHash string) (*core.SSRArtifact, error) {
 	key := ssrType + ":" + inputHash
-	return getCachedItem[core.SSRArtifact](m.db, core.BucketSSR, []byte(key))
+	return getCachedItem[core.SSRArtifact](manager.db, core.BucketSSR, []byte(key))
 }
 
 // GetSSRContent retrieves the actual content for an SSR artifact
-func (m *Manager) GetSSRContent(ssrType string, artifact *core.SSRArtifact) ([]byte, error) {
+func (manager *Manager) GetSSRContent(ssrType string, artifact *core.SSRArtifact) ([]byte, error) {
 	if len(artifact.InlineContent) > 0 {
 		return artifact.InlineContent, nil
 	}
 	category := filepath.Join("ssr", ssrType)
-	return m.store.Get(category, artifact.OutputHash, artifact.Compressed)
+	return manager.store.Get(category, artifact.OutputHash, artifact.IsCompressed)
 }
 
 // GetHTMLContent retrieves HTML content for a post
-func (m *Manager) GetHTMLContent(post *core.PostMeta) ([]byte, error) {
+func (manager *Manager) GetHTMLContent(post *core.PostMeta) ([]byte, error) {
 	if len(post.InlineHTML) > 0 {
 		return post.InlineHTML, nil
 	}
 	if post.HTMLHash == "" {
 		return nil, core.ErrNoContent
 	}
-	return m.store.Get("html", post.HTMLHash, true)
+	return manager.store.Get("html", post.HTMLHash, true)
 }
 
 // GetPostsByTag returns post IDs for a given tag.
-func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
+func (manager *Manager) GetPostsByTag(tag string) ([]string, error) {
 	prefix := []byte(tag + "/")
 	var ids []string
 
-	err := m.db.View(func(tx *bbolt.Tx) error {
+	err := manager.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketTags))
 		if bucket == nil {
 			return nil
 		}
-		c := bucket.Cursor()
-		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
+		cursor := bucket.Cursor()
+		for k, _ := cursor.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = cursor.Next() {
 			postID := string(k[len(prefix):])
 			ids = append(ids, postID)
 		}
@@ -295,18 +278,18 @@ func (m *Manager) GetPostsByTag(tag string) ([]string, error) {
 }
 
 // GetAllPostsMetadata retrieves minimal metadata for all posts
-func (m *Manager) GetAllPostsMetadata() ([]PostListMeta, error) {
+func (manager *Manager) GetAllPostsMetadata() ([]PostListMeta, error) {
 	var result []PostListMeta
 
-	err := m.db.View(func(tx *bbolt.Tx) error {
+	err := manager.db.View(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		if postsBucket == nil {
 			return nil
 		}
 
-		return postsBucket.ForEach(func(k, v []byte) error {
+		return postsBucket.ForEach(func(key, value []byte) error {
 			var meta core.PostMeta
-			if err := core.Decode(v, &meta); err == nil {
+			if err := core.Decode(value, &meta); err == nil {
 				result = append(result, PostListMeta{
 					Title:  meta.Title,
 					Link:   meta.Link,
@@ -320,4 +303,33 @@ func (m *Manager) GetAllPostsMetadata() ([]PostListMeta, error) {
 	})
 
 	return result, err
+}
+
+type rawItem struct {
+	id   string
+	data []byte
+}
+
+func (manager *Manager) fetchRawItems(postIDs []string) ([]rawItem, error) {
+	rawItems := make([]rawItem, 0, len(postIDs))
+
+	err := manager.db.View(func(tx *bbolt.Tx) error {
+		postsBucket := tx.Bucket([]byte(core.BucketPosts))
+		if postsBucket == nil {
+			return core.ErrNoContent
+		}
+
+		for _, id := range postIDs {
+			data := postsBucket.Get([]byte(id))
+			if data != nil {
+				// Copy data out of transaction (BoltDB mmap is valid only during tx)
+				copied := make([]byte, len(data))
+				copy(copied, data)
+				rawItems = append(rawItems, rawItem{id: id, data: copied})
+			}
+		}
+		return nil
+	})
+
+	return rawItems, err
 }

@@ -2,4 +2,4 @@
 package assets
 
 // SearchWasmHash is the XXH3 hash of the uncompressed search.wasm
-const SearchWasmHash = "abd0c4b533a5922f"
+const SearchWasmHash = "59308e988802ab3a"

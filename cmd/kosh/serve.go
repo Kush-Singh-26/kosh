@@ -72,27 +72,27 @@ func runServe(cmd *cobra.Command, args []string) {
 			cfg.BaseURL = "http://localhost:2604"
 		}
 		printStartupBanner("Live Preview", cfg)
-		b := orchestration.NewEngine(orchestration.WithConfig(cfg))
+		engine := orchestration.NewEngine(orchestration.WithConfig(cfg))
 		if reporter != nil {
-			b.SetReporter(reporter)
+			engine.SetReporter(reporter)
 			reporter.Start("Live Preview")
 		}
-		b.OnBuildStart = func() { server.SetBuildActive(true) }
-		b.OnBuildDone = func() { server.SetBuildActive(false) }
+		engine.OnBuildStart = func() { server.SetBuildActive(true) }
+		engine.OnBuildDone = func() { server.SetBuildActive(false) }
 
-		if err := b.Build(ctx); err != nil {
+		if err := engine.Build(ctx); err != nil {
 			orchestration.DevLogError("Build failed: " + err.Error())
 			os.Exit(1)
 		}
 
 		async.FireAndForget(ctx, slog.Default(), "watcher", func() error {
-			watchDirs := []string{b.Cfg.ContentDir, b.Cfg.TemplateDir, b.Cfg.StaticDir, "kosh.yaml"}
+			watchDirs := []string{engine.Cfg.ContentDir, engine.Cfg.TemplateDir, engine.Cfg.StaticDir, "kosh.yaml"}
 			siteStaticDir := "static"
-			if b.Cfg.SiteRoot != "" {
-				siteStaticDir = filepath.Join(b.Cfg.SiteRoot, "static")
+			if engine.Cfg.SiteRoot != "" {
+				siteStaticDir = filepath.Join(engine.Cfg.SiteRoot, "static")
 			}
 			siteAbs, _ := filepath.Abs(siteStaticDir)
-			staticAbs, _ := filepath.Abs(b.Cfg.StaticDir)
+			staticAbs, _ := filepath.Abs(engine.Cfg.StaticDir)
 			sameStatic := false
 			if siteAbs != "" && staticAbs != "" {
 				if runtime.GOOS == "windows" {
@@ -105,24 +105,24 @@ func runServe(cmd *cobra.Command, args []string) {
 				watchDirs = append(watchDirs, siteStaticDir)
 			}
 
-			w, err := watch.New(watchDirs, func(event watch.Event) {
+			watcher, err := watch.New(watchDirs, func(event watch.Event) {
 				orchestration.DevLogChange(event.Name, "watch")
-				b.BuildChanged(ctx, event.Name, event.Op)
+				engine.BuildChanged(ctx, event.Name, event.Op)
 			})
 			if err != nil {
 				orchestration.DevLogError("Watcher failed: " + err.Error())
 				return nil
 			}
-			w.Start()
+			watcher.Start()
 			return nil
 		})
 
 		server.Run(server.ServerOptions{
 			Ctx:         ctx,
 			Args:        filteredArgs,
-			OutputDir:   b.Cfg.OutputDir,
-			BaseURL:     b.Cfg.BaseURL,
-			BuildConfig: b.Cfg.Build,
+			OutputDir:   engine.Cfg.OutputDir,
+			BaseURL:     engine.Cfg.BaseURL,
+			BuildConfig: engine.Cfg.Build,
 			Reporter:    reporter,
 		})
 	} else {

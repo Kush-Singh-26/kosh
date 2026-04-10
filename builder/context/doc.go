@@ -1,2 +1,2 @@
-// Package buildCtx defines build context and shared state.
-package buildCtx
+// Package buildctx defines build context and shared state.
+package buildctx

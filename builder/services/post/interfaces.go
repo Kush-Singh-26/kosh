@@ -9,7 +9,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -61,7 +61,7 @@ type Cache interface {
 
 // Dependencies holds all dependencies for PostService.
 type Dependencies struct {
-	Ctx            *buildCtx.BuildContext
+	Ctx            *buildctx.BuildContext
 	Cfg            *config.Config
 	Cache          Cache
 	Renderer       renderSvc.Service

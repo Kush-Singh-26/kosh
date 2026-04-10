@@ -22,7 +22,7 @@ func TestGenerateSW(t *testing.T) {
 		Sink:         sink,
 		DestDir:      destDir,
 		BuildVersion: buildVersion,
-		ForceRebuild: forceRebuild,
+		ShouldForceRebuild: forceRebuild,
 		BaseURL:      baseURL,
 		Assets:       assets,
 		IsTesting:    true,
@@ -69,7 +69,7 @@ func TestGenerateManifest(t *testing.T) {
 		BaseURL:         baseURL,
 		SiteTitle:       siteTitle,
 		SiteDescription: siteDescription,
-		ForceRebuild:    forceRebuild,
+		ShouldForceRebuild:    forceRebuild,
 		IsTesting:       true,
 	})
 	if err != nil {

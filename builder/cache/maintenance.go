@@ -7,26 +7,26 @@ import (
 )
 
 // Clear removes all cache data
-func (m *Manager) Clear() error {
-	_ = m.db.Close()
+func (manager *Manager) Clear() error {
+	_ = manager.db.Close()
 
-	_ = os.RemoveAll(m.basePath)
+	_ = os.RemoveAll(manager.basePath)
 
-	newManager, err := Open(m.basePath, false)
+	newManager, err := Open(manager.basePath, false)
 	if err != nil {
 		return err
 	}
 
-	m.db = newManager.db
-	m.store = newManager.store
-	m.dirty = make(map[string]bool)
-	m.refCount = gc.NewRefCountManager(m.db)
-	m.memCache.Purge()
+	manager.db = newManager.db
+	manager.store = newManager.store
+	manager.dirty = make(map[string]bool)
+	manager.refCount = gc.NewRefCountManager(manager.db)
+	manager.memCache.Purge()
 
 	return nil
 }
 
 // Rebuild triggers a full cache rebuild by clearing the cache
-func (m *Manager) Rebuild() error {
-	return m.Clear()
+func (manager *Manager) Rebuild() error {
+	return manager.Clear()
 }

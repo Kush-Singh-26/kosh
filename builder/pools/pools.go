@@ -34,17 +34,17 @@ func NewBufferPool() *BufferPool {
 }
 
 // Get returns a buffer from the pool.
-func (p *BufferPool) Get() *bytes.Buffer {
-	return p.pool.Get().(*bytes.Buffer)
+func (pool *BufferPool) Get() *bytes.Buffer {
+	return pool.pool.Get().(*bytes.Buffer)
 }
 
 // Put returns a buffer to the pool.
-func (p *BufferPool) Put(buf *bytes.Buffer) {
+func (pool *BufferPool) Put(buf *bytes.Buffer) {
 	if buf.Cap() > models.MaxBufferSize {
 		return
 	}
 	buf.Reset()
-	p.pool.Put(buf)
+	pool.pool.Put(buf)
 }
 
 // StringBuilderPool manages a pool of reusable strings.Builder objects.
@@ -64,17 +64,17 @@ func NewStringBuilderPool() *StringBuilderPool {
 }
 
 // Get returns a strings.Builder from the pool.
-func (p *StringBuilderPool) Get() *strings.Builder {
-	return p.pool.Get().(*strings.Builder)
+func (pool *StringBuilderPool) Get() *strings.Builder {
+	return pool.pool.Get().(*strings.Builder)
 }
 
 // Put returns a strings.Builder to the pool.
-func (p *StringBuilderPool) Put(sb *strings.Builder) {
-	if sb.Cap() > models.MaxBufferSize {
+func (pool *StringBuilderPool) Put(builder *strings.Builder) {
+	if builder.Cap() > models.MaxBufferSize {
 		return
 	}
-	sb.Reset()
-	p.pool.Put(sb)
+	builder.Reset()
+	pool.pool.Put(builder)
 }
 
 // BufioWriterPool manages a pool of reusable bufio.Writer objects.
@@ -94,8 +94,8 @@ func NewBufioWriterPool() *BufioWriterPool {
 }
 
 // Get returns a bufio.Writer for the provided writer.
-func (p *BufioWriterPool) Get(w io.Writer) *bufio.Writer {
-	if bw := p.pool.Get(); bw != nil {
+func (pool *BufioWriterPool) Get(w io.Writer) *bufio.Writer {
+	if bw := pool.pool.Get(); bw != nil {
 		writer := bw.(*bufio.Writer)
 		writer.Reset(w)
 		return writer
@@ -104,9 +104,9 @@ func (p *BufioWriterPool) Get(w io.Writer) *bufio.Writer {
 }
 
 // Put returns a bufio.Writer to the pool.
-func (p *BufioWriterPool) Put(bw *bufio.Writer) {
-	bw.Reset(nil)
-	p.pool.Put(bw)
+func (pool *BufioWriterPool) Put(bufWriter *bufio.Writer) {
+	bufWriter.Reset(nil)
+	pool.pool.Put(bufWriter)
 }
 
 // BufioReaderPool manages a pool of reusable bufio.Reader objects.
@@ -126,8 +126,8 @@ func NewBufioReaderPool() *BufioReaderPool {
 }
 
 // Get returns a bufio.Reader for the provided reader.
-func (p *BufioReaderPool) Get(r io.Reader) *bufio.Reader {
-	if br := p.pool.Get(); br != nil {
+func (pool *BufioReaderPool) Get(r io.Reader) *bufio.Reader {
+	if br := pool.pool.Get(); br != nil {
 		reader := br.(*bufio.Reader)
 		reader.Reset(r)
 		return reader
@@ -136,9 +136,9 @@ func (p *BufioReaderPool) Get(r io.Reader) *bufio.Reader {
 }
 
 // Put returns a bufio.Reader to the pool.
-func (p *BufioReaderPool) Put(br *bufio.Reader) {
-	br.Reset(nil)
-	p.pool.Put(br)
+func (pool *BufioReaderPool) Put(bufReader *bufio.Reader) {
+	bufReader.Reset(nil)
+	pool.pool.Put(bufReader)
 }
 
 // Global shared pool instances.
@@ -163,25 +163,25 @@ func NewByteSlicePool() *ByteSlicePool {
 	return &ByteSlicePool{
 		pool: sync.Pool{
 			New: func() any {
-				b := make([]byte, 0, byteSlicePoolDefaultCap)
-				return &b
+				buffer := make([]byte, 0, byteSlicePoolDefaultCap)
+				return &buffer
 			},
 		},
 	}
 }
 
 // Get returns a byte slice pointer from the pool.
-func (p *ByteSlicePool) Get() *[]byte {
-	return p.pool.Get().(*[]byte)
+func (pool *ByteSlicePool) Get() *[]byte {
+	return pool.pool.Get().(*[]byte)
 }
 
 // Put returns a byte slice to the pool.
-func (p *ByteSlicePool) Put(b *[]byte) {
-	if b == nil || cap(*b) > byteSlicePoolMaxCap {
+func (pool *ByteSlicePool) Put(buffer *[]byte) {
+	if buffer == nil || cap(*buffer) > byteSlicePoolMaxCap {
 		return
 	}
-	*b = (*b)[:0]
-	p.pool.Put(b)
+	*buffer = (*buffer)[:0]
+	pool.pool.Put(buffer)
 }
 
 // SharedByteSlicePool is the shared byte slice pool instance.

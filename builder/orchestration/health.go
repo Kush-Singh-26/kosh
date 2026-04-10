@@ -37,8 +37,8 @@ const (
 )
 
 // String returns the string label for the health level.
-func (h HealthLevel) String() string {
-	switch h {
+func (level HealthLevel) String() string {
+	switch level {
 	case HealthLevelInfo:
 		return "info"
 	case HealthLevelWarning:
@@ -92,90 +92,90 @@ func NewBuildHealthRegistry() *BuildHealthRegistry {
 }
 
 // Reset clears all recorded events and counters.
-func (r *BuildHealthRegistry) Reset() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.events = nil
-	r.phaseStack = nil
-	r.warnings.Store(0)
-	r.errors.Store(0)
-	r.retries.Store(0)
-	r.rollbacks.Store(0)
-	r.slowPhases.Store(0)
-	r.criticalEvents.Store(0)
-	r.searchDocs.Store(0)
-	r.searchSize.Store(0)
-	r.startTime = time.Now()
+func (registry *BuildHealthRegistry) Reset() {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	registry.events = nil
+	registry.phaseStack = nil
+	registry.warnings.Store(0)
+	registry.errors.Store(0)
+	registry.retries.Store(0)
+	registry.rollbacks.Store(0)
+	registry.slowPhases.Store(0)
+	registry.criticalEvents.Store(0)
+	registry.searchDocs.Store(0)
+	registry.searchSize.Store(0)
+	registry.startTime = time.Now()
 }
 
 // AddEvent records a health event at the given level.
-func (r *BuildHealthRegistry) AddEvent(level HealthLevel, message string) {
+func (registry *BuildHealthRegistry) AddEvent(level HealthLevel, message string) {
 	event := HealthEvent{Level: level, Message: message}
-	r.recordEvent(event)
+	registry.recordEvent(event)
 }
 
 // AddWarning records a warning-level event.
-func (r *BuildHealthRegistry) AddWarning(msg string) {
-	event := HealthEvent{Level: HealthLevelWarning, Message: msg}
-	if len(r.phaseStack) > 0 {
-		event.Phase = r.phaseStack[len(r.phaseStack)-1]
+func (registry *BuildHealthRegistry) AddWarning(message string) {
+	event := HealthEvent{Level: HealthLevelWarning, Message: message}
+	if len(registry.phaseStack) > 0 {
+		event.Phase = registry.phaseStack[len(registry.phaseStack)-1]
 	}
-	r.warnings.Add(1)
-	r.recordEvent(event)
+	registry.warnings.Add(1)
+	registry.recordEvent(event)
 }
 
 // AddError records an error-level event.
-func (r *BuildHealthRegistry) AddError(msg string) {
-	event := HealthEvent{Level: HealthLevelError, Message: msg}
-	if len(r.phaseStack) > 0 {
-		event.Phase = r.phaseStack[len(r.phaseStack)-1]
+func (registry *BuildHealthRegistry) AddError(message string) {
+	event := HealthEvent{Level: HealthLevelError, Message: message}
+	if len(registry.phaseStack) > 0 {
+		event.Phase = registry.phaseStack[len(registry.phaseStack)-1]
 	}
-	r.errors.Add(1)
-	r.recordEvent(event)
+	registry.errors.Add(1)
+	registry.recordEvent(event)
 }
 
 // AddCritical records a critical-level event.
-func (r *BuildHealthRegistry) AddCritical(msg string) {
-	event := HealthEvent{Level: HealthLevelCritical, Message: msg}
-	if len(r.phaseStack) > 0 {
-		event.Phase = r.phaseStack[len(r.phaseStack)-1]
+func (registry *BuildHealthRegistry) AddCritical(message string) {
+	event := HealthEvent{Level: HealthLevelCritical, Message: message}
+	if len(registry.phaseStack) > 0 {
+		event.Phase = registry.phaseStack[len(registry.phaseStack)-1]
 	}
-	r.criticalEvents.Add(1)
-	r.recordEvent(event)
+	registry.criticalEvents.Add(1)
+	registry.recordEvent(event)
 }
 
 // RecordRetry records a retry event and updates counters.
-func (r *BuildHealthRegistry) RecordRetry(msg string, count int) {
+func (registry *BuildHealthRegistry) RecordRetry(message string, count int) {
 	event := HealthEvent{
 		Level:      HealthLevelInfo,
-		Message:    msg,
+		Message:    message,
 		RetryCount: count,
 	}
-	if len(r.phaseStack) > 0 {
-		event.Phase = r.phaseStack[len(r.phaseStack)-1]
+	if len(registry.phaseStack) > 0 {
+		event.Phase = registry.phaseStack[len(registry.phaseStack)-1]
 	}
-	r.retries.Add(int64(count))
-	r.recordEvent(event)
+	registry.retries.Add(int64(count))
+	registry.recordEvent(event)
 }
 
 // RecordRollback records a rollback event.
-func (r *BuildHealthRegistry) RecordRollback(msg string) {
-	event := HealthEvent{Level: HealthLevelWarning, Message: msg}
-	if len(r.phaseStack) > 0 {
-		event.Phase = r.phaseStack[len(r.phaseStack)-1]
+func (registry *BuildHealthRegistry) RecordRollback(message string) {
+	event := HealthEvent{Level: HealthLevelWarning, Message: message}
+	if len(registry.phaseStack) > 0 {
+		event.Phase = registry.phaseStack[len(registry.phaseStack)-1]
 	}
-	r.rollbacks.Add(1)
-	r.recordEvent(event)
+	registry.rollbacks.Add(1)
+	registry.recordEvent(event)
 }
 
 // RecordSearchStats stores the latest search index metrics.
-func (r *BuildHealthRegistry) RecordSearchStats(docs int64, size int64) {
-	r.searchDocs.Store(docs)
-	r.searchSize.Store(size)
+func (registry *BuildHealthRegistry) RecordSearchStats(docs int64, size int64) {
+	registry.searchDocs.Store(docs)
+	registry.searchSize.Store(size)
 }
 
 // RecordSlowPhase records a slow phase event with timing information.
-func (r *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Duration) {
+func (registry *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Duration) {
 	threshold := slowPhaseThreshold
 	event := HealthEvent{
 		Level:    HealthLevelWarning,
@@ -183,8 +183,8 @@ func (r *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Durati
 		Phase:    phase,
 		Duration: duration.String(),
 	}
-	r.slowPhases.Add(1)
-	r.recordEvent(event)
+	registry.slowPhases.Add(1)
+	registry.recordEvent(event)
 	if slog.Default().Enabled(context.TODO(), slog.LevelWarn) {
 		slog.Warn("Slow phase detected",
 			"phase", phase,
@@ -195,25 +195,25 @@ func (r *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Durati
 }
 
 // PushPhase pushes a phase name onto the active phase stack.
-func (r *BuildHealthRegistry) PushPhase(name string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.phaseStack = append(r.phaseStack, name)
+func (registry *BuildHealthRegistry) PushPhase(name string) {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	registry.phaseStack = append(registry.phaseStack, name)
 }
 
 // PopPhase removes the most recent phase name if it matches.
-func (r *BuildHealthRegistry) PopPhase(name string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if len(r.phaseStack) > 0 && r.phaseStack[len(r.phaseStack)-1] == name {
-		r.phaseStack = r.phaseStack[:len(r.phaseStack)-1]
+func (registry *BuildHealthRegistry) PopPhase(name string) {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	if len(registry.phaseStack) > 0 && registry.phaseStack[len(registry.phaseStack)-1] == name {
+		registry.phaseStack = registry.phaseStack[:len(registry.phaseStack)-1]
 	}
 }
 
-func (r *BuildHealthRegistry) recordEvent(event HealthEvent) {
-	r.mu.Lock()
-	r.events = append(r.events, event)
-	r.mu.Unlock()
+func (registry *BuildHealthRegistry) recordEvent(event HealthEvent) {
+	registry.mu.Lock()
+	registry.events = append(registry.events, event)
+	registry.mu.Unlock()
 
 	attrs := []any{
 		"health_level", event.Level.String(),
@@ -259,16 +259,16 @@ type BuildHealthReport struct {
 }
 
 // Report builds a summary report for the current registry state.
-func (r *BuildHealthRegistry) Report() BuildHealthReport {
-	totalDuration := time.Since(r.startTime)
-	warnings := r.warnings.Load()
-	errors := r.errors.Load()
-	critical := r.criticalEvents.Load()
-	retries := r.retries.Load()
-	rollbacks := r.rollbacks.Load()
-	slowPhases := r.slowPhases.Load()
-	searchDocs := r.searchDocs.Load()
-	searchSize := r.searchSize.Load()
+func (registry *BuildHealthRegistry) Report() BuildHealthReport {
+	totalDuration := time.Since(registry.startTime)
+	warnings := registry.warnings.Load()
+	errors := registry.errors.Load()
+	critical := registry.criticalEvents.Load()
+	retries := registry.retries.Load()
+	rollbacks := registry.rollbacks.Load()
+	slowPhases := registry.slowPhases.Load()
+	searchDocs := registry.searchDocs.Load()
+	searchSize := registry.searchSize.Load()
 
 	healthScore := healthScoreStart
 	if rollbacks > 0 {
@@ -296,9 +296,9 @@ func (r *BuildHealthRegistry) Report() BuildHealthReport {
 		healthLevel = "healthy_with_warnings"
 	}
 
-	r.mu.Lock()
-	eventCount := len(r.events)
-	r.mu.Unlock()
+	registry.mu.Lock()
+	eventCount := len(registry.events)
+	registry.mu.Unlock()
 
 	return BuildHealthReport{
 		TotalDuration:  totalDuration,
@@ -317,8 +317,8 @@ func (r *BuildHealthRegistry) Report() BuildHealthReport {
 }
 
 // LogSummary logs a summary of build health metrics.
-func (r *BuildHealthRegistry) LogSummary() {
-	report := r.Report()
+func (registry *BuildHealthRegistry) LogSummary() {
+	report := registry.Report()
 
 	if slog.Default().Enabled(context.TODO(), slog.LevelInfo) {
 		slog.Info("Build health report",

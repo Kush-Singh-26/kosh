@@ -10,7 +10,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
@@ -68,7 +68,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 
 		sink := testutil.NewMemSink()
 		cacheSvc := svcCache.NewService(svcCache.Dependencies{
-			Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+			Ctx:     buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 			Manager: cacheManager,
 			Logger:  logger,
 		})
@@ -81,7 +81,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 			Logger:      logger,
 		})
 		renderSvc := render.NewService(render.Dependencies{
-			Ctx:      buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+			Ctx:      buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 			Renderer: rnd,
 			Logger:   logger,
 		})
@@ -90,7 +90,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		wasmSvc := &mocks.MockWasmService{}
 		metadataScanner := scanner.NewScanner()
 		postSvc := post.NewService(post.Dependencies{
-			Ctx:            buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+			Ctx:            buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 			Cfg:            cfg,
 			Cache:          cacheSvc,
 			Renderer:       renderSvc,
@@ -118,8 +118,8 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 			Cache:          nil,
 			Diagrams:       nil,
 		}))
-		b.Sink = sink
-		b.Tx = tx
+		b.artifactSink = sink
+		b.buildTransaction = tx
 
 		renderSvc.ReconfigureForBuild(sink, fs)
 		postSvc.ReconfigureForBuild(sink, fs)
@@ -200,7 +200,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	t.Cleanup(func() { _ = cacheManager.Close() })
 
 	cacheSvc := svcCache.NewService(svcCache.Dependencies{
-		Ctx:     buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+		Ctx:     buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Manager: cacheManager,
 		Logger:  logger,
 	})
@@ -213,7 +213,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		Logger:      logger,
 	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx:      buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+		Ctx:      buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Renderer: rnd,
 		Logger:   logger,
 	})
@@ -226,7 +226,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
 	postSvc := post.NewService(post.Dependencies{
-		Ctx:            buildCtx.NewBuildContext(buildCtx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
+		Ctx:            buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
 		Renderer:       renderSvc,
@@ -254,8 +254,8 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		Cache:          nil,
 		Diagrams:       nil,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	ctx := context.Background()
 	err := b.Build(ctx)

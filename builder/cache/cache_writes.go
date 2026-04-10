@@ -29,76 +29,36 @@ const (
 	ssrInlineContentLimitSize = 16 * 1024
 )
 
-func encodePosts(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, deps map[string]*core.Dependencies) ([]EncodedPost, error) {
+func encodePosts(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, dependencies map[string]*core.Dependencies) ([]EncodedPost, error) {
 	encoded := make([]EncodedPost, len(posts))
 
-	var encodeMu sync.Mutex
-	var encodeErr error
-	var g errgroup.Group
-	g.SetLimit(runtime.NumCPU())
+	var encodeMutex sync.Mutex
+	var encodeError error
+	var errorGroup errgroup.Group
+	errorGroup.SetLimit(runtime.NumCPU())
 
 	for i, post := range posts {
-		idx, p := i, post
-		g.Go(func() error {
-			postData, err := core.Encode(p)
+		index, currentPost := i, post
+		errorGroup.Go(func() error {
+			encodedPost, err := encodeSinglePost(currentPost, searchRecords[currentPost.PostID], dependencies[currentPost.PostID])
 			if err != nil {
-				encodeMu.Lock()
-				if encodeErr == nil {
-					encodeErr = err
+				encodeMutex.Lock()
+				if encodeError == nil {
+					encodeError = err
 				} else {
 					slog.Warn("Additional encode error suppressed", "error", err)
 				}
-				encodeMu.Unlock()
+				encodeMutex.Unlock()
 				return err
 			}
-
-			ep := EncodedPost{
-				PostID: []byte(p.PostID),
-				Data:   postData,
-				Path:   []byte(fspkg.NormalizePath(p.Path)),
-			}
-
-			if sr, ok := searchRecords[p.PostID]; ok {
-				srData, err := core.Encode(sr)
-				if err != nil {
-					encodeMu.Lock()
-					if encodeErr == nil {
-						encodeErr = err
-					} else {
-						slog.Warn("Additional encode error suppressed", "error", err)
-					}
-					encodeMu.Unlock()
-					return err
-				}
-				ep.SearchData = srData
-			}
-
-			if d, ok := deps[p.PostID]; ok {
-				depsData, err := core.Encode(d)
-				if err != nil {
-					encodeMu.Lock()
-					if encodeErr == nil {
-						encodeErr = err
-					} else {
-						slog.Warn("Additional encode error suppressed", "error", err)
-					}
-					encodeMu.Unlock()
-					return err
-				}
-				ep.DepsData = depsData
-				ep.Tags = d.Tags
-				ep.Templates = d.Templates
-				ep.Includes = d.Includes
-			}
-
-			encoded[idx] = ep
+			encoded[index] = encodedPost
 			return nil
 		})
 	}
-	_ = g.Wait()
+	_ = errorGroup.Wait()
 
-	if encodeErr != nil {
-		return nil, encodeErr
+	if encodeError != nil {
+		return nil, encodeError
 	}
 	return encoded, nil
 }
@@ -108,10 +68,10 @@ func buildBucketOps(encoded []EncodedPost) bucketOps {
 	totalTags := 0
 	totalTemplates := 0
 	totalIncludes := 0
-	for _, ep := range encoded {
-		totalTags += len(ep.Tags)
-		totalTemplates += len(ep.Templates)
-		totalIncludes += len(ep.Includes)
+	for _, encodedPost := range encoded {
+		totalTags += len(encodedPost.Tags)
+		totalTemplates += len(encodedPost.Templates)
+		totalIncludes += len(encodedPost.Includes)
 	}
 
 	ops.posts = make([]batchOp, 0, len(encoded))
@@ -122,29 +82,29 @@ func buildBucketOps(encoded []EncodedPost) bucketOps {
 	ops.templates = make([]batchOp, 0, totalTemplates)
 	ops.includes = make([]batchOp, 0, totalIncludes)
 
-	for _, ep := range encoded {
-		ops.posts = append(ops.posts, batchOp{key: ep.PostID, value: ep.Data})
-		ops.paths = append(ops.paths, batchOp{key: ep.Path, value: ep.PostID})
+	for _, encodedPost := range encoded {
+		ops.posts = append(ops.posts, batchOp{key: encodedPost.PostID, value: encodedPost.Data})
+		ops.paths = append(ops.paths, batchOp{key: encodedPost.Path, value: encodedPost.PostID})
 
-		if ep.SearchData != nil {
-			ops.search = append(ops.search, batchOp{key: ep.PostID, value: ep.SearchData})
+		if encodedPost.SearchData != nil {
+			ops.search = append(ops.search, batchOp{key: encodedPost.PostID, value: encodedPost.SearchData})
 		}
 
-		if ep.DepsData != nil {
-			ops.deps = append(ops.deps, batchOp{key: ep.PostID, value: ep.DepsData})
+		if encodedPost.DepsData != nil {
+			ops.deps = append(ops.deps, batchOp{key: encodedPost.PostID, value: encodedPost.DepsData})
 
-			for _, tag := range ep.Tags {
-				tagKey := []byte(tag + "/" + string(ep.PostID))
+			for _, tag := range encodedPost.Tags {
+				tagKey := []byte(tag + "/" + string(encodedPost.PostID))
 				ops.tags = append(ops.tags, batchOp{key: tagKey, value: nil})
 			}
 
-			for _, tmpl := range ep.Templates {
-				tmplKey := []byte(tmpl + "/" + string(ep.PostID))
+			for _, tmpl := range encodedPost.Templates {
+				tmplKey := []byte(tmpl + "/" + string(encodedPost.PostID))
 				ops.templates = append(ops.templates, batchOp{key: tmplKey, value: nil})
 			}
 
-			for _, inc := range ep.Includes {
-				incKey := []byte(inc + "/" + string(ep.PostID))
+			for _, inc := range encodedPost.Includes {
+				incKey := []byte(inc + "/" + string(encodedPost.PostID))
 				ops.includes = append(ops.includes, batchOp{key: incKey, value: nil})
 			}
 		}
@@ -152,20 +112,20 @@ func buildBucketOps(encoded []EncodedPost) bucketOps {
 	return ops
 }
 
-func invalidateMemCache(m *Manager, encoded []EncodedPost) {
-	for _, ep := range encoded {
-		m.memCacheDelete("id:" + string(ep.PostID))
-		m.memCacheDelete("path:" + string(ep.Path))
+func invalidateMemCache(manager *Manager, encoded []EncodedPost) {
+	for _, encodedPost := range encoded {
+		manager.memCacheDelete("id:" + string(encodedPost.PostID))
+		manager.memCacheDelete("path:" + string(encodedPost.Path))
 	}
 }
 
 func collectOldHashes(postsBucket *bbolt.Bucket, encoded []EncodedPost) map[string]string {
 	oldHashes := make(map[string]string)
-	for _, ep := range encoded {
-		if existing := postsBucket.Get(ep.PostID); existing != nil {
+	for _, encodedPost := range encoded {
+		if existing := postsBucket.Get(encodedPost.PostID); existing != nil {
 			var oldPost core.PostMeta
 			if err := core.Decode(existing, &oldPost); err == nil && oldPost.HTMLHash != "" {
-				oldHashes[string(ep.PostID)] = oldPost.HTMLHash
+				oldHashes[string(encodedPost.PostID)] = oldPost.HTMLHash
 			}
 		}
 	}
@@ -206,12 +166,12 @@ func writeAllOps(tx *bbolt.Tx, ops bucketOps) error {
 }
 
 func updateRefCounts(tx *bbolt.Tx, refCount *gc.RefCountManager, encoded []EncodedPost, oldHashes map[string]string) error {
-	for _, ep := range encoded {
+	for _, encodedPost := range encoded {
 		var newPost core.PostMeta
-		if err := core.Decode(ep.Data, &newPost); err != nil {
+		if err := core.Decode(encodedPost.Data, &newPost); err != nil {
 			continue
 		}
-		oldHash := oldHashes[string(ep.PostID)]
+		oldHash := oldHashes[string(encodedPost.PostID)]
 		newHash := newPost.HTMLHash
 
 		if oldHash != "" && oldHash != newHash {
@@ -260,8 +220,8 @@ func logBatchCommitFailure(err error, encoded []EncodedPost) {
 // BatchCommit is designed for asynchronous fire-and-forget calls from the build pipeline.
 // It is safe to call without checking the error - the caller should log the error for visibility,
 // but the build should continue. On failure, the cache will rebuild on the next run.
-func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, deps map[string]*core.Dependencies) error {
-	encoded, err := encodePosts(posts, searchRecords, deps)
+func (manager *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, dependencies map[string]*core.Dependencies) error {
+	encoded, err := encodePosts(posts, searchRecords, dependencies)
 	if err != nil {
 		return err
 	}
@@ -269,9 +229,9 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 	ops := buildBucketOps(encoded)
 
 	// Invalidate memory cache BEFORE the transaction
-	invalidateMemCache(m, encoded)
+	invalidateMemCache(manager, encoded)
 
-	err = m.db.Update(func(tx *bbolt.Tx) error {
+	err = manager.db.Update(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 
 		// Phase 1: Collect old HTML hashes for refcount delta (inside the tx)
@@ -284,7 +244,7 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 		}
 
 		// Phase 3: Adjust refcounts atomically inside the same transaction
-		if err := updateRefCounts(tx, m.refCount, encoded, oldHashes); err != nil {
+		if err := updateRefCounts(tx, manager.refCount, encoded, oldHashes); err != nil {
 			return err
 		}
 
@@ -300,22 +260,22 @@ func (m *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*
 }
 
 // StoreHTML stores HTML content and returns its hash
-func (m *Manager) StoreHTML(content []byte) (string, error) {
-	hash, _, err := m.store.Put("html", content)
+func (manager *Manager) StoreHTML(content []byte) (string, error) {
+	hash, _, err := manager.store.Put("html", content)
 	return hash, err
 }
 
 // StoreHTMLForPost stores HTML for a specific post, inlining if small.
 // Note: Refcount adjustments are handled atomically inside BatchCommit,
 // not here. This method only sets the HTMLHash/InlineHTML fields on the post struct.
-func (m *Manager) StoreHTMLForPost(post *core.PostMeta, content []byte) error {
+func (manager *Manager) StoreHTMLForPost(post *core.PostMeta, content []byte) error {
 	if len(content) < models.InlineHTMLThreshold {
 		// Small content is inlined directly, no hash needed
 		post.InlineHTML = content
 		post.HTMLHash = ""
 		return nil
 	}
-	hash, _, err := m.store.Put("html", content)
+	hash, _, err := manager.store.Put("html", content)
 	if err != nil {
 		return err
 	}
@@ -327,9 +287,9 @@ func (m *Manager) StoreHTMLForPost(post *core.PostMeta, content []byte) error {
 }
 
 // StoreSSR stores an SSR artifact and its content
-func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*core.SSRArtifact, error) {
+func (manager *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*core.SSRArtifact, error) {
 	category := filepath.Join("ssr", ssrType)
-	outputHash, ct, err := m.store.Put(category, content)
+	outputHash, compressionType, err := manager.store.Put(category, content)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +300,7 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*core.SSR
 		OutputHash: outputHash,
 		Size:       int64(len(content)),
 		CreatedAt:  time.Now().Unix(),
-		Compressed: ct != core.CompressionNone,
+		IsCompressed: compressionType != core.CompressionNone,
 	}
 
 	key := ssrType + ":" + inputHash
@@ -349,7 +309,7 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*core.SSR
 		return nil, err
 	}
 
-	err = m.db.Batch(func(tx *bbolt.Tx) error {
+	err = manager.db.Batch(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketSSR))
 		return bucket.Put([]byte(key), data)
 	})
@@ -361,7 +321,7 @@ func (m *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*core.SSR
 // It uses a single BoltDB transaction for all metadata updates and parallel file writes.
 // Entries values are expected to be string, []byte, or JSON-marshalable types
 // (for example models.SSRThemePair).
-func (m *Manager) BatchStoreSSR(entries map[string]any) error {
+func (manager *Manager) BatchStoreSSR(ctx context.Context, entries map[string]any) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -372,80 +332,36 @@ func (m *Manager) BatchStoreSSR(entries map[string]any) error {
 	}
 
 	results := make([]ssrResult, 0, len(entries))
-	var resMu sync.Mutex
+	var resultsMutex sync.Mutex
 
-	g, _ := errgroup.WithContext(context.Background())
+	errorGroup, groupCtx := errgroup.WithContext(ctx)
 	// Higher concurrency on Windows helps overlap slow file I/O for large diagrams
 	if runtime.GOOS == "windows" {
-		g.SetLimit(windowsSSRIOConcurrency)
+		errorGroup.SetLimit(windowsSSRIOConcurrency)
 	} else {
-		g.SetLimit(runtime.NumCPU() * ssrParallelismMultiplier)
+		errorGroup.SetLimit(runtime.NumCPU() * ssrParallelismMultiplier)
 	}
 
-	for k, v := range entries {
-		key, val := k, v
-		g.Go(func() error {
-			ssrType := "d2"
-			inputHash := key
-			if parts := strings.SplitN(key, ":", ssrKeySplitParts); len(parts) == ssrKeySplitParts {
-				ssrType = parts[0]
-				inputHash = parts[1]
-			}
-
-			var content []byte
-			var err error
-			switch valType := val.(type) {
-			case string:
-				content = []byte(valType)
-			case []byte:
-				content = valType
-			default:
-				content, err = json.Marshal(valType)
-				if err != nil {
-					return fmt.Errorf("failed to marshal SSR value for %s: %w", key, err)
-				}
-			}
-
-			artifact := &core.SSRArtifact{
-				Type:      ssrType,
-				InputHash: inputHash,
-				Size:      int64(len(content)),
-				CreatedAt: time.Now().Unix(),
-			}
-
-			// Inline content under 16KB directly in BoltDB to avoid slow Windows file I/O
-			if len(content) < ssrInlineContentLimitSize {
-				artifact.InlineContent = content
-				artifact.Compressed = false
-				artifact.OutputHash = core.HashContent(content)
-			} else {
-				category := filepath.Join("ssr", ssrType)
-				outputHash, ct, err := m.store.Put(category, content)
-				if err != nil {
-					return fmt.Errorf("failed to store SSR content for %s: %w", key, err)
-				}
-				artifact.OutputHash = outputHash
-				artifact.Compressed = ct != core.CompressionNone
-			}
-
-			data, err := core.Encode(artifact)
+	for key, value := range entries {
+		currentKey, currentValue := key, value
+		errorGroup.Go(func() error {
+			processedKey, data, err := manager.processSSREntry(groupCtx, currentKey, currentValue)
 			if err != nil {
-				return fmt.Errorf("failed to encode SSR artifact for %s: %w", key, err)
+				return err
 			}
-
-			resMu.Lock()
-			results = append(results, ssrResult{key: ssrType + ":" + inputHash, data: data})
-			resMu.Unlock()
+			resultsMutex.Lock()
+			results = append(results, ssrResult{key: processedKey, data: data})
+			resultsMutex.Unlock()
 			return nil
 		})
 	}
 
-	if err := g.Wait(); err != nil {
+	if err := errorGroup.Wait(); err != nil {
 		return err
 	}
 
 	// Single transaction for all metadata
-	return m.db.Batch(func(tx *bbolt.Tx) error {
+	return manager.db.Batch(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketSSR))
 		for _, res := range results {
 			if err := bucket.Put([]byte(res.key), res.data); err != nil {
@@ -456,13 +372,118 @@ func (m *Manager) BatchStoreSSR(entries map[string]any) error {
 	})
 }
 
+func (manager *Manager) processSSREntry(_ context.Context, key string, value any) (string, []byte, error) {
+	ssrType := "d2"
+	inputHash := key
+	if parts := strings.SplitN(key, ":", ssrKeySplitParts); len(parts) == ssrKeySplitParts {
+		ssrType = parts[0]
+		inputHash = parts[1]
+	}
+
+	var content []byte
+	var err error
+	switch valType := value.(type) {
+	case string:
+		content = []byte(valType)
+	case []byte:
+		content = valType
+	default:
+		content, err = json.Marshal(valType)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to marshal SSR value for %s: %w", key, err)
+		}
+	}
+
+	artifact := &core.SSRArtifact{
+		Type:      ssrType,
+		InputHash: inputHash,
+		Size:      int64(len(content)),
+		CreatedAt: time.Now().Unix(),
+	}
+
+	// Inline content under 16KB directly in BoltDB to avoid slow Windows file I/O
+	if len(content) < ssrInlineContentLimitSize {
+		artifact.InlineContent = content
+		artifact.IsCompressed = false
+		artifact.OutputHash = core.HashContent(content)
+	} else {
+		category := filepath.Join("ssr", ssrType)
+		outputHash, compressionType, err := manager.store.Put(category, content)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to store SSR content for %s: %w", key, err)
+		}
+		artifact.OutputHash = outputHash
+		artifact.IsCompressed = compressionType != core.CompressionNone
+	}
+
+	data, err := core.Encode(artifact)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to encode SSR artifact for %s: %w", key, err)
+	}
+
+	return ssrType + ":" + inputHash, data, nil
+}
+
+func encodeSinglePost(p *core.PostMeta, sr *core.SearchRecord, d *core.Dependencies) (EncodedPost, error) {
+	postData, err := core.Encode(p)
+	if err != nil {
+		return EncodedPost{}, err
+	}
+
+	ep := EncodedPost{
+		PostID: []byte(p.PostID),
+		Data:   postData,
+		Path:   []byte(fspkg.NormalizePath(p.Path)),
+	}
+
+	if sr != nil {
+		srData, err := core.Encode(sr)
+		if err != nil {
+			return EncodedPost{}, err
+		}
+		ep.SearchData = srData
+	}
+
+	if d != nil {
+		depsData, err := core.Encode(d)
+		if err != nil {
+			return EncodedPost{}, err
+		}
+		ep.DepsData = depsData
+		ep.Tags = d.Tags
+		ep.Templates = d.Templates
+		ep.Includes = d.Includes
+	}
+
+	return ep, nil
+}
+
 // DeletePost removes a post and its associated data
-func (m *Manager) DeletePost(postID string) error {
+func (manager *Manager) DeletePost(postID string) error {
+	postPath, _, deleteErrors, err := manager.deletePostInTx(postID)
+
+	// Log any delete errors (best effort cleanup)
+	for _, delErr := range deleteErrors {
+		slog.Warn("Cache delete error", "postID", postID, "error", delErr)
+	}
+
+	// Invalidate memory cache
+	if err == nil {
+		manager.memCacheDelete("id:" + postID)
+		if postPath != "" {
+			manager.memCacheDelete("path:" + postPath)
+		}
+	}
+
+	return err
+}
+
+func (manager *Manager) deletePostInTx(postID string) (string, string, []error, error) {
 	var postPath string
 	var htmlHash string
 	var deleteErrors []error
 
-	err := m.db.Update(func(tx *bbolt.Tx) error {
+	err := manager.db.Update(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		pathsBucket := tx.Bucket([]byte(core.BucketPaths))
 		searchBucket := tx.Bucket([]byte(core.BucketSearch))
@@ -502,7 +523,7 @@ func (m *Manager) DeletePost(postID string) error {
 
 		// Decrement refcount inside transaction
 		if htmlHash != "" {
-			if err := m.refCount.DecrementTx(tx, htmlHash, nil); err != nil {
+			if err := manager.refCount.DecrementTx(tx, htmlHash, nil); err != nil {
 				deleteErrors = append(deleteErrors, fmt.Errorf("decrement refcount: %w", err))
 			}
 		}
@@ -510,18 +531,5 @@ func (m *Manager) DeletePost(postID string) error {
 		return nil
 	})
 
-	// Log any delete errors (best effort cleanup)
-	for _, delErr := range deleteErrors {
-		slog.Warn("Cache delete error", "postID", postID, "error", delErr)
-	}
-
-	// Invalidate memory cache
-	if err == nil {
-		m.memCacheDelete("id:" + postID)
-		if postPath != "" {
-			m.memCacheDelete("path:" + postPath)
-		}
-	}
-
-	return err
+	return postPath, htmlHash, deleteErrors, err
 }

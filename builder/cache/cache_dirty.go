@@ -1,15 +1,22 @@
 package cache
 
 // MarkDirty marks a PostID as dirty for batch commit
-func (m *Manager) MarkDirty(postID string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.dirty[postID] = true
+func (manager *Manager) MarkDirty(postID string) {
+	manager.mutex.Lock()
+	defer manager.mutex.Unlock()
+	manager.dirty[postID] = true
 }
 
 // IsDirty checks if a PostID is marked dirty
-func (m *Manager) IsDirty(postID string) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.dirty[postID]
+func (manager *Manager) IsDirty(postID string) bool {
+	manager.mutex.RLock()
+	defer manager.mutex.RUnlock()
+	return manager.dirty[postID]
+}
+
+// ClearDirty clears all dirty flags
+func (manager *Manager) ClearDirty() {
+	manager.mutex.Lock()
+	defer manager.mutex.Unlock()
+	manager.dirty = make(map[string]bool)
 }

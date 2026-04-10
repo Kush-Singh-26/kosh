@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
@@ -51,7 +51,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		Logger:      logger,
 	})
 	renderSvc := render.NewService(render.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -65,7 +65,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
 	postSvc := post.NewService(post.Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,
@@ -97,8 +97,8 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
 	}))
-	b.Sink = sink
-	b.Tx = tx
+	b.artifactSink = sink
+	b.buildTransaction = tx
 
 	if err := b.Build(context.Background()); err != nil {
 		t.Fatalf("Initial build failed: %v", err)
@@ -106,9 +106,9 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 
 	// Now simulate disk full during build
 	// We use a clean build to ensure it hits the sink
-	cfg.ForceRebuild = true
+	cfg.ShouldForceRebuild = true
 	failingSink := &testutil.FailingSink{Err: errors.New("no space left on device")}
-	b.Sink = failingSink
+	b.artifactSink = failingSink
 
 	err := b.Build(context.Background())
 	if err == nil {

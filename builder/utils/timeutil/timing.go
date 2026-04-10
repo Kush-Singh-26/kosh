@@ -37,25 +37,25 @@ func StartPhase(name string) *PhaseTimer {
 }
 
 // Stop stops the timer and records the phase duration.
-func (p *PhaseTimer) Stop() {
-	if p.completed {
+func (timer *PhaseTimer) Stop() {
+	if timer.completed {
 		return
 	}
-	p.completed = true
-	elapsed := time.Since(p.start)
-	TrackPhase(p.name, elapsed)
-	slog.Info("Phase completed", "name", p.name, "duration", formatDuration(elapsed))
+	timer.completed = true
+	elapsed := time.Since(timer.start)
+	TrackPhase(timer.name, elapsed)
+	slog.Info("Phase completed", "name", timer.name, "duration", formatDuration(elapsed))
 }
 
 // StopWithAddendum stops the timer and logs with an addendum.
-func (p *PhaseTimer) StopWithAddendum(addendum string) {
-	if p.completed {
+func (timer *PhaseTimer) StopWithAddendum(addendum string) {
+	if timer.completed {
 		return
 	}
-	p.completed = true
-	elapsed := time.Since(p.start)
-	TrackPhase(p.name, elapsed)
-	slog.Info("Phase completed", "name", p.name, "duration", formatDuration(elapsed), "addendum", addendum)
+	timer.completed = true
+	elapsed := time.Since(timer.start)
+	TrackPhase(timer.name, elapsed)
+	slog.Info("Phase completed", "name", timer.name, "duration", formatDuration(elapsed), "addendum", addendum)
 }
 
 // PhaseTracker accumulates named phase durations.
@@ -153,16 +153,16 @@ func FormatPhaseSummary() string {
 		return ""
 	}
 
-	var sb strings.Builder
-	sb.WriteString("Phase timings:\n")
+	var summary strings.Builder
+	summary.WriteString("Phase timings:\n")
 	for _, phase := range phases {
-		sb.WriteString("  ")
-		sb.WriteString(phase.Name)
-		sb.WriteString(": ")
-		sb.WriteString(phase.Formatted)
-		sb.WriteByte('\n')
+		summary.WriteString("  ")
+		summary.WriteString(phase.Name)
+		summary.WriteString(": ")
+		summary.WriteString(phase.Formatted)
+		summary.WriteByte('\n')
 	}
-	return sb.String()
+	return summary.String()
 }
 
 // WritePhaseDurationsJSON writes phase durations to a JSON file.
@@ -185,20 +185,20 @@ func WritePhaseDurationsJSON(path string) error {
 	return os.WriteFile(path, data, phaseFileMode)
 }
 
-func formatDuration(d time.Duration) string {
-	if d < time.Millisecond {
-		val := float64(d.Nanoseconds()) / unitPerMilli
+func formatDuration(duration time.Duration) string {
+	if duration < time.Millisecond {
+		val := float64(duration.Nanoseconds()) / unitPerMilli
 		return strconv.FormatFloat(val, 'f', floatPrecision, floatBitSize) + "us"
 	}
-	if d < time.Second {
-		val := float64(d.Microseconds()) / unitPerMilli
+	if duration < time.Second {
+		val := float64(duration.Microseconds()) / unitPerMilli
 		return strconv.FormatFloat(val, 'f', floatPrecision, floatBitSize) + "ms"
 	}
-	val := d.Seconds()
+	val := duration.Seconds()
 	return strconv.FormatFloat(val, 'f', floatPrecision, floatBitSize) + "s"
 }
 
 // FormatDurationShort returns a compact duration string.
-func FormatDurationShort(d time.Duration) string {
-	return formatDuration(d)
+func FormatDurationShort(duration time.Duration) string {
+	return formatDuration(duration)
 }

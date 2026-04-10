@@ -75,20 +75,20 @@ func NewConsoleHandler(output io.Writer, reporter ui.Reporter) *consoleHandler {
 }
 
 // Enabled reports whether the handler handles the given level.
-func (h *consoleHandler) Enabled(ctx context.Context, level slog.Level) bool {
+func (handler *consoleHandler) Enabled(workingContext context.Context, level slog.Level) bool {
 	return level >= slog.LevelInfo
 }
 
 // Handle formats and writes a log record.
-func (h *consoleHandler) Handle(ctx context.Context, r slog.Record) error {
-	if h.reporter != nil {
+func (handler *consoleHandler) Handle(workingContext context.Context, record slog.Record) error {
+	if handler.reporter != nil {
 		isHTTP := false
 		// Only handle Warn, Error, and important Info (like HTTP requests)
-		if r.Level < slog.LevelWarn {
+		if record.Level < slog.LevelWarn {
 			// Special handling for HTTP logs
-			r.Attrs(func(a slog.Attr) bool {
-				if a.Key == "http" {
-					if a.Value.Kind() == slog.KindBool && a.Value.Bool() {
+			record.Attrs(func(attribute slog.Attr) bool {
+				if attribute.Key == "http" {
+					if attribute.Value.Kind() == slog.KindBool && attribute.Value.Bool() {
 						isHTTP = true
 					}
 					return false
@@ -97,145 +97,145 @@ func (h *consoleHandler) Handle(ctx context.Context, r slog.Record) error {
 			})
 		}
 
-		var b strings.Builder
+		var logBuilder strings.Builder
 		if isHTTP {
 			// Format HTTP log line manually for a clean look in the UI
 			var method, path string
 			var status int
 			var durationStr string
-			r.Attrs(func(a slog.Attr) bool {
-				switch a.Key {
+			record.Attrs(func(attribute slog.Attr) bool {
+				switch attribute.Key {
 				case "method":
-					if a.Value.Kind() == slog.KindString {
-						method = a.Value.String()
+					if attribute.Value.Kind() == slog.KindString {
+						method = attribute.Value.String()
 					}
 				case "path":
-					if a.Value.Kind() == slog.KindString {
-						path = a.Value.String()
+					if attribute.Value.Kind() == slog.KindString {
+						path = attribute.Value.String()
 					}
 				case "status":
-					if a.Value.Kind() == slog.KindInt64 {
-						status = int(a.Value.Int64())
+					if attribute.Value.Kind() == slog.KindInt64 {
+						status = int(attribute.Value.Int64())
 					}
 				case "duration":
-					if a.Value.Kind() == slog.KindDuration {
-						durationStr = fmt.Sprintf("%dms", a.Value.Duration().Milliseconds())
+					if attribute.Value.Kind() == slog.KindDuration {
+						durationStr = fmt.Sprintf("%dms", attribute.Value.Duration().Milliseconds())
 					} else {
-						durationStr = a.Value.String()
+						durationStr = attribute.Value.String()
 					}
 				}
 				return true
 			})
 
-			fmt.Fprintf(&b, "%s %s %d %s", method, path, status, durationStr)
+			fmt.Fprintf(&logBuilder, "%s %s %d %s", method, path, status, durationStr)
 		} else {
 			// Not an HTTP log - use standard message formatting
-			b.WriteString(r.Message)
-			if r.NumAttrs() > 0 {
-				r.Attrs(func(a slog.Attr) bool {
-					fmt.Fprintf(&b, " %s=%v", a.Key, a.Value.Any())
+			logBuilder.WriteString(record.Message)
+			if record.NumAttrs() > 0 {
+				record.Attrs(func(attribute slog.Attr) bool {
+					fmt.Fprintf(&logBuilder, " %s=%v", attribute.Key, attribute.Value.Any())
 					return true
 				})
 			}
 		}
-		msg := b.String()
+		message := logBuilder.String()
 
 		switch {
-		case r.Level >= slog.LevelError:
-			h.reporter.Error("%s", nil, msg)
-		case r.Level >= slog.LevelWarn:
-			h.reporter.Warn("%s", msg)
+		case record.Level >= slog.LevelError:
+			handler.reporter.Error("%s", nil, message)
+		case record.Level >= slog.LevelWarn:
+			handler.reporter.Warn("%s", message)
 		default:
-			h.reporter.Info("%s", msg)
+			handler.reporter.Info("%s", message)
 		}
 		return nil
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
 
 	// Use fmt.Sprintf to avoid races in fmt package's internal state
-	color := getLevelColor(r.Level)
-	timeStr := r.Time.Format(h.timeFormat)
+	color := getLevelColor(record.Level)
+	timeString := record.Time.Format(handler.timeFormat)
 
-	line := fmt.Sprintf("\033[90m%s\033[0m %s ", timeStr, color)
-	_, _ = fmt.Fprintf(h.output, "%s", line)
-	h.writeMessage(r.Message)
+	line := fmt.Sprintf("\033[90m%s\033[0m %s ", timeString, color)
+	_, _ = fmt.Fprintf(handler.output, "%s", line)
+	handler.writeMessage(record.Message)
 
 	// Write handler attributes
-	for _, a := range h.attrs {
-		h.writeAttr(a)
+	for _, attribute := range handler.attrs {
+		handler.writeAttr(attribute)
 	}
 
 	// Write record attributes
-	if r.NumAttrs() > 0 {
-		r.Attrs(func(a slog.Attr) bool {
-			h.writeAttr(a)
+	if record.NumAttrs() > 0 {
+		record.Attrs(func(attribute slog.Attr) bool {
+			handler.writeAttr(attribute)
 			return true
 		})
 	}
 
-	_, _ = fmt.Fprintf(h.output, "\033[0m\n")
+	_, _ = fmt.Fprintf(handler.output, "\033[0m\n")
 	return nil
 }
 
-func (h *consoleHandler) writeMessage(msg string) {
-	if h.group != "" {
-		_, _ = fmt.Fprintf(h.output, "[\033[1m%s\033[0m] %s", h.group, msg)
+func (handler *consoleHandler) writeMessage(message string) {
+	if handler.group != "" {
+		_, _ = fmt.Fprintf(handler.output, "[\033[1m%s\033[0m] %s", handler.group, message)
 	} else {
-		_, _ = fmt.Fprintf(h.output, "%s", msg)
+		_, _ = fmt.Fprintf(handler.output, "%s", message)
 	}
 }
 
-func (h *consoleHandler) writeAttr(a slog.Attr) {
-	value := a.Value.Resolve()
+func (handler *consoleHandler) writeAttr(attribute slog.Attr) {
+	value := attribute.Value.Resolve()
 	switch value.Kind() {
 	case slog.KindString:
-		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.String())
+		_, _ = fmt.Fprintf(handler.output, " \033[36m%s\033[0m=%s", attribute.Key, value.String())
 	case slog.KindInt64:
-		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%d", a.Key, value.Int64())
+		_, _ = fmt.Fprintf(handler.output, " \033[36m%s\033[0m=%d", attribute.Key, value.Int64())
 	case slog.KindUint64:
-		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%d", a.Key, value.Uint64())
+		_, _ = fmt.Fprintf(handler.output, " \033[36m%s\033[0m=%d", attribute.Key, value.Uint64())
 	case slog.KindFloat64:
-		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%.2f", a.Key, value.Float64())
+		_, _ = fmt.Fprintf(handler.output, " \033[36m%s\033[0m=%.2f", attribute.Key, value.Float64())
 	case slog.KindBool:
-		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%v", a.Key, value.Bool())
+		_, _ = fmt.Fprintf(handler.output, " \033[36m%s\033[0m=%v", attribute.Key, value.Bool())
 	case slog.KindDuration:
-		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.Duration())
+		_, _ = fmt.Fprintf(handler.output, " \033[36m%s\033[0m=%s", attribute.Key, value.Duration())
 	case slog.KindTime:
-		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%s", a.Key, value.Time().Format(time.RFC3339))
+		_, _ = fmt.Fprintf(handler.output, " \033[36m%s\033[0m=%s", attribute.Key, value.Time().Format(time.RFC3339))
 	case slog.KindGroup:
 		attrs := value.Group()
 		for _, ga := range attrs {
-			h.writeAttr(ga)
+			handler.writeAttr(ga)
 		}
 	default:
-		_, _ = fmt.Fprintf(h.output, " \033[36m%s\033[0m=%v", a.Key, value)
+		_, _ = fmt.Fprintf(handler.output, " \033[36m%s\033[0m=%v", attribute.Key, value)
 	}
 }
 
 // WithAttrs returns a handler with additional attributes.
-func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
-	copy(newAttrs, h.attrs)
-	copy(newAttrs[len(h.attrs):], attrs)
+func (handler *consoleHandler) WithAttrs(attributes []slog.Attr) slog.Handler {
+	newAttributes := make([]slog.Attr, len(handler.attrs)+len(attributes))
+	copy(newAttributes, handler.attrs)
+	copy(newAttributes[len(handler.attrs):], attributes)
 	return &consoleHandler{
-		output:     h.output,
-		timeFormat: h.timeFormat,
-		attrs:      newAttrs,
-		group:      h.group,
-		reporter:   h.reporter,
+		output:     handler.output,
+		timeFormat: handler.timeFormat,
+		attrs:      newAttributes,
+		group:      handler.group,
+		reporter:   handler.reporter,
 	}
 }
 
 // WithGroup returns a handler with the given group name.
-func (h *consoleHandler) WithGroup(name string) slog.Handler {
+func (handler *consoleHandler) WithGroup(name string) slog.Handler {
 	return &consoleHandler{
-		output:     h.output,
-		timeFormat: h.timeFormat,
-		attrs:      h.attrs,
+		output:     handler.output,
+		timeFormat: handler.timeFormat,
+		attrs:      handler.attrs,
 		group:      name,
-		reporter:   h.reporter,
+		reporter:   handler.reporter,
 	}
 }
 
@@ -259,9 +259,9 @@ func getLevelColor(level slog.Level) string {
 
 // InitLogger initializes the default logger and optionally wires a reporter.
 func InitLogger(reporters ...ui.Reporter) *slog.Logger {
-	var r ui.Reporter
+	var reporter ui.Reporter
 	if len(reporters) > 0 {
-		r = reporters[0]
+		reporter = reporters[0]
 	}
-	return slog.New(NewConsoleHandler(os.Stdout, r))
+	return slog.New(NewConsoleHandler(os.Stdout, reporter))
 }

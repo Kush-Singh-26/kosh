@@ -18,7 +18,7 @@ type GeneratorOptions struct {
 	SiteDescription string
 	GraphConfig     models.GraphConfig
 	BuildVersion    int64
-	ForceRebuild    bool
+	ShouldForceRebuild bool
 	Assets          map[string]string
 	IsTesting       bool
 }

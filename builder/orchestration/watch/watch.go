@@ -41,8 +41,8 @@ const (
 )
 
 // String returns the display label for a ChangeType.
-func (t ChangeType) String() string {
-	switch t {
+func (changeType ChangeType) String() string {
+	switch changeType {
 	case ChangeTypeContent:
 		return "content"
 	case ChangeTypeAsset:
@@ -66,7 +66,7 @@ type ChangeEvent struct {
 }
 
 // SearchRegenerationCallback is invoked to rebuild the search index.
-type SearchRegenerationCallback func(ctx context.Context)
+type SearchRegenerationCallback func(workingContext context.Context)
 
 // CoordinatorDependencies bundles dependencies for the watch coordinator.
 type CoordinatorDependencies struct {
@@ -79,13 +79,13 @@ type CoordinatorDependencies struct {
 
 // Coordinator manages debounced change handling during watch mode.
 type Coordinator struct {
-	cfg        *config.Config
+	config     *config.Config
 	buildMu    *sync.Mutex // guards build execution in watch mode
 	cache      post.Cache
 	onChange   func(ChangeEvent)
 	onSearch   SearchRegenerationCallback
 	buildQueue chan BuildRequest
-	searchCh   chan struct{}
+	searchChan chan struct{}
 
 	lastSearchReg time.Time
 	closeOnce     sync.Once
@@ -101,114 +101,114 @@ type BuildRequest struct {
 // New constructs a new watch Coordinator.
 func New(deps CoordinatorDependencies) *Coordinator {
 	return &Coordinator{
-		cfg:        deps.Cfg,
+		config:     deps.Cfg,
 		buildMu:    deps.BuildMu,
 		cache:      deps.Cache,
 		onChange:   deps.OnChange,
 		onSearch:   deps.OnSearchRegen,
 		buildQueue: make(chan BuildRequest, buildQueueBuffer),
-		searchCh:   make(chan struct{}, searchQueueBuffer),
+		searchChan: make(chan struct{}, searchQueueBuffer),
 		closed:     make(chan struct{}),
 	}
 }
 
 // Start begins processing of build and search queues.
-func (c *Coordinator) Start() {
+func (coordinatorInstance *Coordinator) Start() {
 	async.FireAndForget(context.Background(), slog.Default(), "watch build queue", func() error {
-		c.processBuildQueue()
+		coordinatorInstance.processBuildQueue()
 		return nil
 	})
 	async.FireAndForget(context.Background(), slog.Default(), "watch search queue", func() error {
-		c.processSearchQueue()
+		coordinatorInstance.processSearchQueue()
 		return nil
 	})
 }
 
 // Close shuts down the coordinator and its queues.
-func (c *Coordinator) Close() {
-	c.closeOnce.Do(func() {
-		close(c.closed)
-		close(c.buildQueue)
-		close(c.searchCh)
+func (coordinatorInstance *Coordinator) Close() {
+	coordinatorInstance.closeOnce.Do(func() {
+		close(coordinatorInstance.closed)
+		close(coordinatorInstance.buildQueue)
+		close(coordinatorInstance.searchChan)
 	})
 }
 
 // EnqueueChange enqueues a path change for debounced processing.
-func (c *Coordinator) EnqueueChange(path string, op fsnotify.Op) {
+func (coordinatorInstance *Coordinator) EnqueueChange(path string, op fsnotify.Op) {
 	select {
-	case c.buildQueue <- BuildRequest{Paths: []string{path}, Op: op}:
+	case coordinatorInstance.buildQueue <- BuildRequest{Paths: []string{path}, Op: op}:
 	default:
 	}
 }
 
 // TriggerSearchRegeneration enqueues a search regeneration request.
-func (c *Coordinator) TriggerSearchRegeneration() {
+func (coordinatorInstance *Coordinator) TriggerSearchRegeneration() {
 	select {
-	case c.searchCh <- struct{}{}:
+	case coordinatorInstance.searchChan <- struct{}{}:
 	default:
 	}
 }
 
 // NormalizeWatchPath normalizes a watch path relative to the working directory.
-func (c *Coordinator) NormalizeWatchPath(path string) string {
-	wd, _ := os.Getwd()
-	return fspkg.NormalizeWatchPath(path, wd)
+func (coordinatorInstance *Coordinator) NormalizeWatchPath(path string) string {
+	workingDir, _ := os.Getwd()
+	return fspkg.NormalizeWatchPath(path, workingDir)
 }
 
 // NormalizeAbsoluteWatchPath normalizes a path to an absolute, stable form.
-func (c *Coordinator) NormalizeAbsoluteWatchPath(path string) string {
-	if abs, err := fspkg.AbsNormalizePath(path); err == nil {
-		return abs
+func (coordinatorInstance *Coordinator) NormalizeAbsoluteWatchPath(path string) string {
+	if absolutePath, absoluteError := fspkg.AbsNormalizePath(path); absoluteError == nil {
+		return absolutePath
 	}
 	return fspkg.NormalizePath(path)
 }
 
 // IsContentPath reports whether a path is within the content directory.
-func (c *Coordinator) IsContentPath(path string) bool {
-	path = c.NormalizeAbsoluteWatchPath(path)
-	contentDir := c.NormalizeAbsoluteWatchPath(c.cfg.ContentDir)
+func (coordinatorInstance *Coordinator) IsContentPath(path string) bool {
+	path = coordinatorInstance.NormalizeAbsoluteWatchPath(path)
+	contentDir := coordinatorInstance.NormalizeAbsoluteWatchPath(coordinatorInstance.config.ContentDir)
 	return fspkg.IsPathInOrSame(path, contentDir)
 }
 
 // IsAssetPath reports whether a path is within asset directories.
-func (c *Coordinator) IsAssetPath(path string) bool {
-	path = c.NormalizeAbsoluteWatchPath(path)
-	staticDir := c.NormalizeAbsoluteWatchPath(c.cfg.StaticDir)
+func (coordinatorInstance *Coordinator) IsAssetPath(path string) bool {
+	path = coordinatorInstance.NormalizeAbsoluteWatchPath(path)
+	staticDir := coordinatorInstance.NormalizeAbsoluteWatchPath(coordinatorInstance.config.StaticDir)
 	siteStaticDir := "static"
-	if c.cfg.SiteRoot != "" {
-		siteStaticDir = filepath.Join(c.cfg.SiteRoot, "static")
+	if coordinatorInstance.config.SiteRoot != "" {
+		siteStaticDir = filepath.Join(coordinatorInstance.config.SiteRoot, "static")
 	}
-	siteStaticDir = c.NormalizeAbsoluteWatchPath(siteStaticDir)
+	siteStaticDir = coordinatorInstance.NormalizeAbsoluteWatchPath(siteStaticDir)
 	return fspkg.IsPathInOrSame(path, staticDir) || fspkg.IsPathInOrSame(path, siteStaticDir)
 }
 
 // IsSearchSourcePath reports whether a path affects search source files.
 func IsSearchSourcePath(path string) bool {
-	path = fspkg.NormalizePath(path)
-	return strings.HasPrefix(path, "cmd/search/") || strings.HasPrefix(path, "builder/search/") || strings.HasPrefix(path, "builder/models/")
+	normalizedPath := fspkg.NormalizePath(path)
+	return strings.HasPrefix(normalizedPath, "cmd/search/") || strings.HasPrefix(normalizedPath, "builder/search/") || strings.HasPrefix(normalizedPath, "builder/models/")
 }
 
 // InvalidateForTemplate returns paths to invalidate for a template change.
-func (c *Coordinator) InvalidateForTemplate(templatePath string) []string {
-	tp := fspkg.NormalizePath(templatePath)
-	templateDir := fspkg.NormalizePath(c.cfg.TemplateDir)
-	staticDir := fspkg.NormalizePath(c.cfg.StaticDir)
-	if strings.HasPrefix(tp, templateDir) {
-		relTmpl, _ := fspkg.SafeRel(c.cfg.TemplateDir, templatePath)
-		relTmpl = fspkg.NormalizePath(relTmpl)
+func (coordinatorInstance *Coordinator) InvalidateForTemplate(templatePath string) []string {
+	normalizedTemplatePath := fspkg.NormalizePath(templatePath)
+	templateDir := fspkg.NormalizePath(coordinatorInstance.config.TemplateDir)
+	staticDir := fspkg.NormalizePath(coordinatorInstance.config.StaticDir)
+	if strings.HasPrefix(normalizedTemplatePath, templateDir) {
+		relativeTemplate, _ := fspkg.SafeRel(coordinatorInstance.config.TemplateDir, templatePath)
+		relativeTemplate = fspkg.NormalizePath(relativeTemplate)
 
-		if relTmpl == "layout.html" {
+		if relativeTemplate == "layout.html" {
 			return nil
 		}
 
-		if c.cache != nil {
-			ids, err := c.cache.GetPostsByTemplate(relTmpl)
-			if err == nil && len(ids) > 0 {
-				posts, err := c.cache.GetPostsByIDs(ids)
-				if err == nil && len(posts) > 0 {
+		if coordinatorInstance.cache != nil {
+			postIdentifiers, cacheError := coordinatorInstance.cache.GetPostsByTemplate(relativeTemplate)
+			if cacheError == nil && len(postIdentifiers) > 0 {
+				posts, postsError := coordinatorInstance.cache.GetPostsByIDs(postIdentifiers)
+				if postsError == nil && len(posts) > 0 {
 					paths := make([]string, 0, len(posts))
-					for _, post := range posts {
-						paths = append(paths, post.Path)
+					for _, postMetadata := range posts {
+						paths = append(paths, postMetadata.Path)
 					}
 					return paths
 				}
@@ -216,11 +216,11 @@ func (c *Coordinator) InvalidateForTemplate(templatePath string) []string {
 		}
 		return []string{}
 	}
-	if strings.HasPrefix(tp, staticDir) {
+	if strings.HasPrefix(normalizedTemplatePath, staticDir) {
 		return nil
 	}
 
-	switch tp {
+	switch normalizedTemplatePath {
 	case "kosh.yaml":
 		return nil
 	case "builder/generators/pwa.go":
@@ -231,77 +231,77 @@ func (c *Coordinator) InvalidateForTemplate(templatePath string) []string {
 }
 
 // ClassifyChange classifies a filesystem change into a ChangeEvent.
-func (c *Coordinator) ClassifyChange(path string, op fsnotify.Op) ChangeEvent {
-	evt := ChangeEvent{Path: path, Op: op}
+func (coordinatorInstance *Coordinator) ClassifyChange(path string, op fsnotify.Op) ChangeEvent {
+	event := ChangeEvent{Path: path, Op: op}
 
 	if op&fsnotify.Remove != 0 {
-		evt.Type = ChangeTypeDelete
-		return evt
+		event.Type = ChangeTypeDelete
+		return event
 	}
 
-	path = c.NormalizeAbsoluteWatchPath(path)
-	ext := strings.ToLower(filepath.Ext(path))
+	path = coordinatorInstance.NormalizeAbsoluteWatchPath(path)
+	extension := strings.ToLower(filepath.Ext(path))
 
-	if ext == ".md" && c.IsContentPath(path) {
-		evt.Type = ChangeTypeContent
-		return evt
+	if extension == ".md" && coordinatorInstance.IsContentPath(path) {
+		event.Type = ChangeTypeContent
+		return event
 	}
 
-	if (ext == ".css" || ext == ".js") && c.IsAssetPath(path) {
-		evt.Type = ChangeTypeAsset
-		return evt
+	if (extension == ".css" || extension == ".js") && coordinatorInstance.IsAssetPath(path) {
+		event.Type = ChangeTypeAsset
+		return event
 	}
 
-	evt.Type = ChangeTypeOther
-	return evt
+	event.Type = ChangeTypeOther
+	return event
 }
 
-func (c *Coordinator) processBuildQueue() {
+func (coordinatorInstance *Coordinator) processBuildQueue() {
 	var mergedPaths map[string]fsnotify.Op
-	debounce := time.NewTimer(debounceDelay)
-	defer debounce.Stop()
+	debounceTimer := time.NewTimer(debounceDelay)
+	defer debounceTimer.Stop()
 
 	for {
 		select {
-		case <-c.closed:
+		case <-coordinatorInstance.closed:
 			if len(mergedPaths) > 0 {
-				c.buildMu.Lock()
+				coordinatorInstance.buildMu.Lock()
 				for path, op := range mergedPaths {
-					c.dispatchChange(path, op)
+					coordinatorInstance.dispatchChange(path, op)
 				}
-				c.buildMu.Unlock()
+				coordinatorInstance.buildMu.Unlock()
 			}
 			return
 
-		case req, ok := <-c.buildQueue:
-			if !ok {
+		case request, isOk := <-coordinatorInstance.buildQueue:
+			if !isOk {
 				if len(mergedPaths) > 0 {
-					c.buildMu.Lock()
+					coordinatorInstance.buildMu.Lock()
 					for path, op := range mergedPaths {
-						c.dispatchChange(path, op)
+						coordinatorInstance.dispatchChange(path, op)
 					}
-					c.buildMu.Unlock()
+					coordinatorInstance.buildMu.Unlock()
 				}
 				return
 			}
 			if mergedPaths == nil {
 				mergedPaths = make(map[string]fsnotify.Op)
 			}
-			for _, path := range req.Paths {
-				mergedPaths[path] = req.Op
+			for _, path := range request.Paths {
+				mergedPaths[path] = request.Op
 			}
-			if !debounce.Stop() {
+			if !debounceTimer.Stop() {
 				select {
-				case <-debounce.C:
+				case <-debounceTimer.C:
 				default:
 				}
 			}
-			debounce.Reset(debounceDelay)
+			debounceTimer.Reset(debounceDelay)
 
-		case <-debounce.C:
+		case <-debounceTimer.C:
 			if len(mergedPaths) > 0 {
 				for path, op := range mergedPaths {
-					c.dispatchChange(path, op)
+					coordinatorInstance.dispatchChange(path, op)
 				}
 				mergedPaths = nil
 			}
@@ -309,60 +309,60 @@ func (c *Coordinator) processBuildQueue() {
 	}
 }
 
-func (c *Coordinator) dispatchChange(path string, op fsnotify.Op) {
-	if c.onChange == nil {
+func (coordinatorInstance *Coordinator) dispatchChange(path string, op fsnotify.Op) {
+	if coordinatorInstance.onChange == nil {
 		return
 	}
-	c.onChange(ChangeEvent{
+	coordinatorInstance.onChange(ChangeEvent{
 		Path: path,
 		Op:   op,
-		Type: c.classify(path, op),
+		Type: coordinatorInstance.classify(path, op),
 	})
 }
 
-func (c *Coordinator) classify(path string, op fsnotify.Op) ChangeType {
+func (coordinatorInstance *Coordinator) classify(path string, op fsnotify.Op) ChangeType {
 	if op&fsnotify.Remove != 0 {
 		return ChangeTypeDelete
 	}
-	path = c.NormalizeAbsoluteWatchPath(path)
-	ext := strings.ToLower(filepath.Ext(path))
-	if ext == ".md" && c.IsContentPath(path) {
+	path = coordinatorInstance.NormalizeAbsoluteWatchPath(path)
+	extension := strings.ToLower(filepath.Ext(path))
+	if extension == ".md" && coordinatorInstance.IsContentPath(path) {
 		return ChangeTypeContent
 	}
-	if (ext == ".css" || ext == ".js") && c.IsAssetPath(path) {
+	if (extension == ".css" || extension == ".js") && coordinatorInstance.IsAssetPath(path) {
 		return ChangeTypeAsset
 	}
 	return ChangeTypeOther
 }
 
-func (c *Coordinator) processSearchQueue() {
+func (coordinatorInstance *Coordinator) processSearchQueue() {
 	var pending bool
 	var timer *time.Timer
 	var timerRunning bool
 
 	for {
 		select {
-		case <-c.closed:
+		case <-coordinatorInstance.closed:
 			if timer != nil && timerRunning {
 				timer.Stop()
 			}
 			return
-		case <-c.searchCh:
+		case <-coordinatorInstance.searchChan:
 			pending = true
 			if !timerRunning {
 				delay := searchDelay
-				if time.Since(c.lastSearchReg) > searchQuickThreshold {
+				if time.Since(coordinatorInstance.lastSearchReg) > searchQuickThreshold {
 					delay = searchQuickDelay
 				}
 				timer = time.AfterFunc(delay, func() {
 					if pending {
 						pending = false
 						async.FireAndForget(context.Background(), slog.Default(), "watch search regen", func() error {
-							c.buildMu.Lock()
-							defer c.buildMu.Unlock()
-							c.lastSearchReg = time.Now()
-							if c.onSearch != nil {
-								c.onSearch(context.Background())
+							coordinatorInstance.buildMu.Lock()
+							defer coordinatorInstance.buildMu.Unlock()
+							coordinatorInstance.lastSearchReg = time.Now()
+							if coordinatorInstance.onSearch != nil {
+								coordinatorInstance.onSearch(context.Background())
 							}
 							return nil
 						})

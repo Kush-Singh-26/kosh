@@ -49,7 +49,7 @@ body {
 			CacheDir:  cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
-			CompressImages: true,
+			ShouldCompressImages: false,
 		},
 	}
 
@@ -141,7 +141,7 @@ func TestAssetService_Build_DoesNotHardlinkSourceStaticFiles(t *testing.T) {
 			CacheDir:   cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
-			CompressImages: false,
+			ShouldCompressImages: false,
 		},
 	}
 
@@ -210,7 +210,7 @@ func TestAssetService_Build_DoesNotCopySourceSearchWasm(t *testing.T) {
 			CacheDir:  cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
-			CompressImages: false,
+			ShouldCompressImages: false,
 		},
 	}
 
@@ -263,7 +263,7 @@ func TestAssetService_Build_ContextCancellationRace(t *testing.T) {
 		},
 		SiteRoot: sourceDir,
 		BuildOptions: config.BuildOptions{
-			CompressImages: false,
+			ShouldCompressImages: false,
 		},
 	}
 	sourceFs := afero.NewOsFs()

@@ -32,7 +32,7 @@ func CreateSamplePostMeta() *cache.PostMeta {
 		Date:        time.Date(sampleYear, sampleMonth, sampleDay, sampleHour, 0, 0, 0, time.UTC),
 		Tags:        []string{"test", "go", "tutorial"},
 		Description: "A test post for testing purposes",
-		Draft:       false,
+		IsDraft:     false,
 		Weight:      sampleWeight,
 		WordCount:   sampleWordCount,
 		ReadingTime: 1,
@@ -98,11 +98,11 @@ func CreateSampleConfig() *config.Config {
 		},
 		Features: models.FeaturesConfig{
 			Generators: models.GeneratorsConfig{
-				Sitemap: true,
-				RSS:     true,
-				Graph:   models.GraphConfig{Enabled: true, ShowTags: true},
-				PWA:     false,
-				Search:  true,
+				IsSitemapEnabled: true,
+				IsRSSEnabled:     true,
+				Graph:           models.GraphConfig{IsEnabled: true, ShowsTags: true},
+				IsPWAEnabled:     false,
+				IsSearchEnabled:  true,
 			},
 		},
 	}

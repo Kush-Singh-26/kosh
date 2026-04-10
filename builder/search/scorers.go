@@ -49,7 +49,7 @@ type Scorer interface {
 type TagScorer struct{}
 
 // Score boosts results that match the active tag filter.
-func (s *TagScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *TagScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.TagFilter != "" && len(ctx.QueryTerms) == 0 {
 		opts.HighlightTerms[ctx.TagFilter] = true
 		for id, post := range ctx.Index.Posts {
@@ -64,20 +64,20 @@ func (s *TagScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 type BM25Scorer struct{}
 
 // Score applies BM25 scoring and fuzzy matching when needed.
-func (s *BM25Scorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *BM25Scorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	for _, term := range ctx.QueryTerms {
 		if posts, ok := ctx.Index.Inverted[term]; ok {
 			opts.Modifier = scoreModifierBase
-			s.applyBM25Score(ctx, posts, term, opts)
+			scorer.applyBM25Score(ctx, posts, term, opts)
 		} else {
-			s.scoreFuzzy(ctx, term, opts)
+			scorer.scoreFuzzy(ctx, term, opts)
 		}
 	}
 }
 
-func (s *BM25Scorer) applyBM25Score(ctx *SearchContext, posts map[string][]uint32, term string, opts *SearchScoringOptions) {
-	df := len(posts)
-	idf := math.Log(1 + (float64(ctx.Index.TotalDocs)-float64(df)+bm25Smoothing)/(float64(df)+bm25Smoothing))
+func (scorer *BM25Scorer) applyBM25Score(ctx *SearchContext, posts map[string][]uint32, term string, opts *SearchScoringOptions) {
+	docFreq := len(posts)
+	invDocFreq := math.Log(1 + (float64(ctx.Index.TotalDocs)-float64(docFreq)+bm25Smoothing)/(float64(docFreq)+bm25Smoothing))
 	avgDocLen := ctx.Index.AvgDocLen
 
 	for postID, positions := range posts {
@@ -88,12 +88,12 @@ func (s *BM25Scorer) applyBM25Score(ctx *SearchContext, posts map[string][]uint3
 
 		freq := len(positions)
 		docLen := float64(ctx.Index.DocLens[postID])
-		score := idf * (float64(freq) * (opts.K1 + 1)) / (float64(freq) + opts.K1*(1-opts.B+opts.B*(docLen/avgDocLen)))
+		score := invDocFreq * (float64(freq) * (opts.K1 + 1)) / (float64(freq) + opts.K1*(1-opts.B+opts.B*(docLen/avgDocLen)))
 		opts.Scores[postID] += score * opts.Modifier
 	}
 }
 
-func (s *BM25Scorer) scoreFuzzy(ctx *SearchContext, term string, opts *SearchScoringOptions) {
+func (scorer *BM25Scorer) scoreFuzzy(ctx *SearchContext, term string, opts *SearchScoringOptions) {
 	var candidates []string
 	if ctx.Index.NgramIndex != nil {
 		candidates = core.FuzzyExpandWithNgrams(term, ctx.Index.NgramIndex, core.MaxEditDistance)
@@ -108,7 +108,7 @@ func (s *BM25Scorer) scoreFuzzy(ctx *SearchContext, term string, opts *SearchSco
 			if strings.HasPrefix(candTerm, term) {
 				opts.Modifier = scoreModifierPrefixMatch
 			}
-			s.applyBM25Score(ctx, posts, candTerm, opts)
+			scorer.applyBM25Score(ctx, posts, candTerm, opts)
 		}
 	}
 }
@@ -117,7 +117,7 @@ func (s *BM25Scorer) scoreFuzzy(ctx *SearchContext, term string, opts *SearchSco
 type PhraseScorer struct{}
 
 // Score boosts results that match phrases or full query terms.
-func (s *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if len(ctx.QueryTerms) > 1 {
 		for id := range opts.Scores {
 			if checkPhraseUnified(ctx.Index, id, ctx.QueryTerms) {
@@ -143,7 +143,7 @@ func (s *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 type TitleScorer struct{}
 
 // Score boosts results that match title or description text.
-func (s *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.OriginalQuery == "" {
 		return
 	}
@@ -175,8 +175,8 @@ func (s *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 		}
 
 		// 5. Description matching (Lower priority)
-		desc := core.ToLower(post.Description)
-		if strings.Contains(desc, query) {
+		description := core.ToLower(post.Description)
+		if strings.Contains(description, query) {
 			score += descriptionContainsBoost
 		}
 
@@ -196,7 +196,7 @@ func (s *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 type BoostScorer struct{}
 
 // Score boosts results that match exact tags.
-func (s *BoostScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *BoostScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.OriginalQuery == "" && ctx.TagFilter == "" {
 		return
 	}
@@ -228,8 +228,8 @@ func NewPipeline(scorers ...Scorer) *Pipeline {
 }
 
 // Execute runs all scorers in order.
-func (p *Pipeline) Execute(ctx *SearchContext, opts *SearchScoringOptions) {
-	for _, scorer := range p.scorers {
+func (pipeline *Pipeline) Execute(ctx *SearchContext, opts *SearchScoringOptions) {
+	for _, scorer := range pipeline.scorers {
 		scorer.Score(ctx, opts)
 	}
 }
@@ -238,7 +238,7 @@ func (p *Pipeline) Execute(ctx *SearchContext, opts *SearchScoringOptions) {
 type FilterScorer struct{}
 
 // Score filters results based on required and excluded query terms.
-func (s *FilterScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *FilterScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if len(opts.TermInfos) == 0 {
 		return
 	}
@@ -270,20 +270,20 @@ func (s *FilterScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 type ProximityScorer struct{}
 
 // Score boosts results where terms appear close together.
-func (s *ProximityScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *ProximityScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if len(ctx.QueryTerms) < 2 {
 		return
 	}
 
 	for id := range opts.Scores {
-		score := s.calculateProximityScore(ctx, id)
+		score := scorer.calculateProximityScore(ctx, id)
 		if score > 0 {
 			opts.Scores[id] += score
 		}
 	}
 }
 
-func (s *ProximityScorer) calculateProximityScore(ctx *SearchContext, id string) float64 {
+func (scorer *ProximityScorer) calculateProximityScore(ctx *SearchContext, id string) float64 {
 	// Find all positions for each term in this document
 	termPositions := make([][]int, 0, len(ctx.QueryTerms))
 	for _, term := range ctx.QueryTerms {
@@ -303,21 +303,21 @@ func (s *ProximityScorer) calculateProximityScore(ctx *SearchContext, id string)
 	var boost float64
 	for i := 0; i < len(termPositions); i++ {
 		for j := i + 1; j < len(termPositions); j++ {
-			p1, p2 := 0, 0
+			pos1, pos2 := 0, 0
 			list1, list2 := termPositions[i], termPositions[j]
-			for p1 < len(list1) && p2 < len(list2) {
-				diff := list1[p1] - list2[p2]
+			for pos1 < len(list1) && pos2 < len(list2) {
+				diff := list1[pos1] - list2[pos2]
 				if diff < 0 {
 					diff = -diff
 				}
 				if diff <= maxProximitySlop {
 					boost += proximityBoost / float64(diff+1)
-					p1++
-					p2++
-				} else if list1[p1] < list2[p2] {
-					p1++
+					pos1++
+					pos2++
+				} else if list1[pos1] < list2[pos2] {
+					pos1++
 				} else {
-					p2++
+					pos2++
 				}
 			}
 		}
@@ -330,7 +330,7 @@ func (s *ProximityScorer) calculateProximityScore(ctx *SearchContext, id string)
 type RecencyScorer struct{}
 
 // Score boosts newer results using an exponential decay.
-func (s *RecencyScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *RecencyScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.Index.TotalDocs == 0 {
 		return
 	}
@@ -395,16 +395,16 @@ func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []
 
 		nextDecoded := models.DecodePositions(nextPositions)
 		var newCandidates []int
-		p1, p2 := 0, 0
-		for p1 < len(posList) && p2 < len(nextDecoded) {
-			if nextDecoded[p2] == posList[p1]+1 {
-				newCandidates = append(newCandidates, nextDecoded[p2])
-				p1++
-				p2++
-			} else if nextDecoded[p2] < posList[p1]+1 {
-				p2++
+		idx1, idx2 := 0, 0
+		for idx1 < len(posList) && idx2 < len(nextDecoded) {
+			if nextDecoded[idx2] == posList[idx1]+1 {
+				newCandidates = append(newCandidates, nextDecoded[idx2])
+				idx1++
+				idx2++
+			} else if nextDecoded[idx2] < posList[idx1]+1 {
+				idx2++
 			} else {
-				p1++
+				idx1++
 			}
 		}
 

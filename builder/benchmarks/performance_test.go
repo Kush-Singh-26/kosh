@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
@@ -66,9 +66,9 @@ This is post number %d.
 
 	cfg := config.LoadFs(fs, []string{})
 	cfg.OutputDir = "public"
-	cfg.Features.Generators.Search = true
-	cfg.Features.Generators.RSS = true
-	cfg.Features.Generators.Sitemap = true
+	cfg.Features.Generators.IsSearchEnabled = true
+	cfg.Features.Generators.IsRSSEnabled = true
+	cfg.Features.Generators.IsSitemapEnabled = true
 
 	logger := orchestration.InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
@@ -97,7 +97,7 @@ This is post number %d.
 			Logger:      logger,
 		})
 		renderSvc := render.NewService(render.Dependencies{
-			Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 				IsTesting:    true,
 				IsDev:        false,
 				IsCleanBuild: false,
@@ -111,7 +111,7 @@ This is post number %d.
 		assetSvc.SetMetrics(buildMetrics)
 		wasmSvc := &mocks.MockWasmService{}
 		postSvc := post.NewService(post.Dependencies{
-			Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+			Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 				IsTesting:    true,
 				IsDev:        false,
 				IsCleanBuild: false,
@@ -142,8 +142,8 @@ This is post number %d.
 			NativeRenderer: nativeRenderer,
 		}))
 
-		engine.Sink = sink
-		engine.Tx = tx
+		engine.SetArtifactSink(sink)
+		engine.SetBuildTransaction(tx)
 
 		if err := engine.Build(context.Background()); err != nil {
 			b.Fatal(err)

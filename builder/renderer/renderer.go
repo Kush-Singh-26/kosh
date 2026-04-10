@@ -83,10 +83,10 @@ func (r *Renderer) SetSink(sink fspkg.ArtifactSink) {
 }
 
 // SetLogger updates the logger used for renderer diagnostics.
-func (r *Renderer) SetLogger(l *slog.Logger) {
+func (r *Renderer) SetLogger(logger *slog.Logger) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.logger = l
+	r.logger = logger
 }
 
 // Has404Template returns true if the 404.html template was successfully loaded from the theme.
@@ -178,30 +178,30 @@ func templateFuncMap() template.FuncMap {
 		"now":       time.Now,
 		"urlEscape": url.PathEscape,
 		"slugify":   timeutil.Slugify,
-		"dateFormat": func(layout string, v any) string {
-			if v == nil {
+		"dateFormat": func(layout string, value any) string {
+			if value == nil {
 				return ""
 			}
-			if t, ok := v.(time.Time); ok {
-				return t.Format(layout)
+			if dateTime, ok := value.(time.Time); ok {
+				return dateTime.Format(layout)
 			}
-			if s, ok := v.(string); ok {
-				if t, err := time.Parse("2006-01-02", s); err == nil {
-					return t.Format(layout)
+			if dateStr, ok := value.(string); ok {
+				if dateTime, err := time.Parse("2006-01-02", dateStr); err == nil {
+					return dateTime.Format(layout)
 				}
-				if t, err := time.Parse("2006-01-02 15:04:05 -0700 MST", s); err == nil {
-					return t.Format(layout)
+				if dateTime, err := time.Parse("2006-01-02 15:04:05 -0700 MST", dateStr); err == nil {
+					return dateTime.Format(layout)
 				}
-				if t, err := time.Parse("2006-01-02 15:04:05 -0700", s); err == nil {
-					return t.Format(layout)
+				if dateTime, err := time.Parse("2006-01-02 15:04:05 -0700", dateStr); err == nil {
+					return dateTime.Format(layout)
 				}
-				return s
+				return dateStr
 			}
-			return fmt.Sprintf("%v", v)
+			return fmt.Sprintf("%v", value)
 		},
-		"jsonify": func(v any) (string, error) {
-			b, err := json.Marshal(v)
-			return string(b), err
+		"jsonify": func(value any) (string, error) {
+			jsonBytes, err := json.Marshal(value)
+			return string(jsonBytes), err
 		},
 	}
 }
@@ -231,56 +231,56 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 		return tmpl, nil
 	}
 
-	g := new(errgroup.Group)
+	eg := new(errgroup.Group)
 
-	g.Go(func() error {
-		t, err := loadTmpl("layout", "layout.html")
+	eg.Go(func() error {
+		tmpl, err := loadTmpl("layout", "layout.html")
 		if err != nil {
 			return fmt.Errorf("failed to read layout template: %w", err)
 		}
 		mu.Lock()
-		layoutTmpl = t
+		layoutTmpl = tmpl
 		mu.Unlock()
 		return nil
 	})
 
-	g.Go(func() error {
-		t, err := loadTmpl("index", "index.html")
+	eg.Go(func() error {
+		tmpl, err := loadTmpl("index", "index.html")
 		if err != nil {
 			r.logger.Warn("Index template not found, falling back to layout", "dir", r.templateDir)
 			return nil
 		}
 		mu.Lock()
-		indexTmpl = t
+		indexTmpl = tmpl
 		mu.Unlock()
 		return nil
 	})
 
-	g.Go(func() error {
-		t, err := loadTmpl("graph", "graph.html")
+	eg.Go(func() error {
+		tmpl, err := loadTmpl("graph", "graph.html")
 		if err != nil {
 			r.logger.Warn("Graph template not found, skipping graph page", "dir", r.templateDir)
 			return nil
 		}
 		mu.Lock()
-		graphTmpl = t
+		graphTmpl = tmpl
 		mu.Unlock()
 		return nil
 	})
 
-	g.Go(func() error {
-		t, err := loadTmpl("404", "404.html")
+	eg.Go(func() error {
+		tmpl, err := loadTmpl("404", "404.html")
 		if err != nil {
 			r.logger.Warn("404 template not found, falling back to layout", "dir", r.templateDir)
 			return nil
 		}
 		mu.Lock()
-		notFoundTmpl = t
+		notFoundTmpl = tmpl
 		mu.Unlock()
 		return nil
 	})
 
-	if err := g.Wait(); err != nil {
+	if err := eg.Wait(); err != nil {
 		return nil, nil, nil, nil, err
 	}
 	return layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl, nil

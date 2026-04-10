@@ -10,59 +10,59 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
 )
 
 // Dependencies holds all dependencies for WasmService.
 type Dependencies struct {
-	Ctx    *buildCtx.BuildContext
+	Ctx    *buildctx.BuildContext
 	Cfg    *config.Config
 	Logger *slog.Logger
-	Fs     afero.Fs
+	SourceFs afero.Fs
 }
 
 type wasmService struct {
-	ctx    *buildCtx.BuildContext
+	ctx    *buildctx.BuildContext
 	cfg    *config.Config
 	logger *slog.Logger
-	fs     afero.Fs
+	sourceFs afero.Fs
 
 	searchSourceDirty atomic.Bool
 }
 
 // NewService creates a new WasmService with the given dependencies.
-func NewService(deps Dependencies) Service {
+func NewService(dependencies Dependencies) Service {
 	return &wasmService{
-		ctx:    deps.Ctx,
-		cfg:    deps.Cfg,
-		logger: deps.Logger,
-		fs:     deps.Fs,
+		ctx:    dependencies.Ctx,
+		cfg:    dependencies.Cfg,
+		logger: dependencies.Logger,
+		sourceFs: dependencies.SourceFs,
 	}
 }
 
 // CheckAndUpdate recompiles WASM if sources are newer or marked dirty.
-func (s *wasmService) CheckAndUpdate(ctx context.Context) (bool, error) {
+func (service *wasmService) CheckAndUpdate(ctx context.Context) (bool, error) {
 	// Skip WASM operations in test mode
-	if s.ctx != nil && s.ctx.IsTesting {
+	if service.ctx != nil && service.ctx.IsTesting {
 		return false, nil
 	}
 
-	wasmBinary := filepath.Join(s.cfg.KoshSourceRoot, "static", "wasm", "search.wasm")
-	if srcMod, err := s.latestSearchSourceModTime(); err == nil {
-		if s.searchSourceDirty.Load() {
-			if err := assets.CompileWASMFromSource(ctx, fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "cmd", "search", "main.go")), wasmBinary, s.cfg.KoshSourceRoot); err != nil {
-				s.logger.Warn("Failed to compile Search WASM", "error", err)
+	wasmBinaryPath := filepath.Join(service.cfg.KoshSourceRoot, "static", "wasm", "search.wasm")
+	if sourceModificationTime, err := service.latestSearchSourceModTime(); err == nil {
+		if service.searchSourceDirty.Load() {
+			if err := assets.CompileWASMFromSource(ctx, fspkg.NormalizePath(filepath.Join(service.cfg.KoshSourceRoot, "cmd", "search", "main.go")), wasmBinaryPath, service.cfg.KoshSourceRoot); err != nil {
+				service.logger.Warn("Failed to compile Search WASM", "error", err)
 				return false, err
 			}
-			s.searchSourceDirty.Store(false)
+			service.searchSourceDirty.Store(false)
 			return true, nil
 		} else {
-			wasmInfo, statErr := os.Stat(wasmBinary)
-			if statErr != nil || srcMod.After(wasmInfo.ModTime()) {
-				if err := assets.CompileWASMFromSource(ctx, fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "cmd", "search", "main.go")), wasmBinary, s.cfg.KoshSourceRoot); err != nil {
-					s.logger.Warn("Failed to compile Search WASM", "error", err)
+			wasmFileInformation, statError := os.Stat(wasmBinaryPath)
+			if statError != nil || sourceModificationTime.After(wasmFileInformation.ModTime()) {
+				if err := assets.CompileWASMFromSource(ctx, fspkg.NormalizePath(filepath.Join(service.cfg.KoshSourceRoot, "cmd", "search", "main.go")), wasmBinaryPath, service.cfg.KoshSourceRoot); err != nil {
+					service.logger.Warn("Failed to compile Search WASM", "error", err)
 					return false, err
 				}
 				return true, nil
@@ -74,14 +74,14 @@ func (s *wasmService) CheckAndUpdate(ctx context.Context) (bool, error) {
 }
 
 // Deploy ensures the search WASM is available in the output sink.
-func (s *wasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) error {
+func (service *wasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) error {
 	// Skip WASM operations in test mode
-	if s.ctx != nil && s.ctx.IsTesting {
+	if service.ctx != nil && service.ctx.IsTesting {
 		return nil
 	}
 
-	wasmBinary := filepath.Join(s.cfg.KoshSourceRoot, "static", "wasm", "search.wasm")
-	_, err := s.fs.Stat(wasmBinary)
+	wasmBinaryPath := filepath.Join(service.cfg.KoshSourceRoot, "static", "wasm", "search.wasm")
+	_, err := service.sourceFs.Stat(wasmBinaryPath)
 	sourceAvailable := err == nil
 
 	// Always ensure embedded WASM is deployed if missing or old.
@@ -89,38 +89,38 @@ func (s *wasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) error
 	// always matches the current search.bin generator.
 	if sourceAvailable {
 		// Use the source WASM (either just rebuilt or already present)
-		assets.DeployWASMFromFile(s.fs, sink, s.cfg.CacheDir, wasmBinary)
+		assets.DeployWASMFromFile(service.sourceFs, sink, service.cfg.CacheDir, wasmBinaryPath)
 	} else {
 		// No source available (standard user), use embedded WASM
-		assets.CheckWASM(sink, s.cfg.CacheDir)
+		assets.CheckWASM(sink, service.cfg.CacheDir)
 	}
 
 	return nil
 }
 
 // SetSearchSourceDirty marks the search source as dirty to force rebuild.
-func (s *wasmService) SetSearchSourceDirty(dirty bool) {
-	s.searchSourceDirty.Store(dirty)
+func (service *wasmService) SetSearchSourceDirty(dirty bool) {
+	service.searchSourceDirty.Store(dirty)
 }
 
-func (s *wasmService) latestSearchSourceModTime() (time.Time, error) {
-	paths := []string{
-		fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "cmd", "search")),
-		fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "builder", "search")),
-		fspkg.NormalizePath(filepath.Join(s.cfg.KoshSourceRoot, "builder", "models")),
+func (service *wasmService) latestSearchSourceModTime() (time.Time, error) {
+	searchPaths := []string{
+		fspkg.NormalizePath(filepath.Join(service.cfg.KoshSourceRoot, "cmd", "search")),
+		fspkg.NormalizePath(filepath.Join(service.cfg.KoshSourceRoot, "builder", "search")),
+		fspkg.NormalizePath(filepath.Join(service.cfg.KoshSourceRoot, "builder", "models")),
 	}
 
-	latest := time.Time{}
-	for _, root := range paths {
-		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	latestModificationTime := time.Time{}
+	for _, searchPath := range searchPaths {
+		err := filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
 			if info.IsDir() || filepath.Ext(path) != ".go" {
 				return nil
 			}
-			if info.ModTime().After(latest) {
-				latest = info.ModTime()
+			if info.ModTime().After(latestModificationTime) {
+				latestModificationTime = info.ModTime()
 			}
 			return nil
 		})
@@ -129,8 +129,8 @@ func (s *wasmService) latestSearchSourceModTime() (time.Time, error) {
 		}
 	}
 
-	if latest.IsZero() {
+	if latestModificationTime.IsZero() {
 		return time.Time{}, os.ErrNotExist
 	}
-	return latest, nil
+	return latestModificationTime, nil
 }

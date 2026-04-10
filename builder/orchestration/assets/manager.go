@@ -45,51 +45,51 @@ func NewManager(deps ManagerDependencies) *Manager {
 }
 
 // Reconfigure updates the manager with fresh build-time artifacts.
-func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, sourceFs afero.Fs) {
-	if m.deps.Asset != nil {
-		m.deps.Asset.ReconfigureForBuild(sink, sourceFs)
+func (managerInstance *Manager) Reconfigure(sink fspkg.ArtifactSink, sourceFs afero.Fs) {
+	if managerInstance.deps.Asset != nil {
+		managerInstance.deps.Asset.ReconfigureForBuild(sink, sourceFs)
 	}
-	m.deps.SourceFs = sourceFs
+	managerInstance.deps.SourceFs = sourceFs
 }
 
 // ReconfigureWithLogger updates the manager logger for the current build pass.
-func (m *Manager) ReconfigureWithLogger(l *slog.Logger) {
-	m.deps.Logger = l
+func (managerInstance *Manager) ReconfigureWithLogger(logger *slog.Logger) {
+	managerInstance.deps.Logger = logger
 }
 
 // SetupBuilding starts the asset building process in a separate goroutine.
 // Returns a signal channel for full readiness, discovery signal, wait group, and error channel.
-func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset, force bool) (<-chan struct{}, <-chan struct{}, *sync.WaitGroup, <-chan error) {
-	m.deps.Logger.Info("Building assets...")
+func (managerInstance *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset, force bool) (<-chan struct{}, <-chan struct{}, *sync.WaitGroup, <-chan error) {
+	managerInstance.deps.Logger.Info("Building assets...")
 	assetTimer := timeutil.StartPhase("Asset building")
 
 	// Reset converted image tracking so rewrite is fresh for this build
 	assets.ResetConvertedImages()
 
 	// Reset rendered assets in memory before starting fresh build pass
-	m.deps.Render.SetAssets(map[string]string{})
+	managerInstance.deps.Render.SetAssets(map[string]string{})
 
 	// Check static fingerprint to potentially skip image processing
 	skipImages := false
-	if !force && m.deps.Cfg.CacheDir != "" {
-		m.deps.Logger.Debug("Checking static fingerprint", "force", force)
-		currentFingerprint, err := asset.ComputeStaticFingerprint(m.deps.SourceFs, asset.GetStaticDirs(m.deps.Cfg))
-		if err != nil {
-			m.deps.Logger.Debug("Failed to compute static fingerprint", "error", err)
+	if !force && managerInstance.deps.Cfg.CacheDir != "" {
+		managerInstance.deps.Logger.Debug("Checking static fingerprint", "force", force)
+		currentFingerprint, fingerprintError := asset.ComputeStaticFingerprint(managerInstance.deps.SourceFs, asset.GetStaticDirs(managerInstance.deps.Cfg))
+		if fingerprintError != nil {
+			managerInstance.deps.Logger.Debug("Failed to compute static fingerprint", "error", fingerprintError)
 		} else {
-			cachedFingerprint, loadErr := asset.LoadStaticFingerprint(m.deps.Cfg.CacheDir)
-			if loadErr != nil || currentFingerprint != cachedFingerprint {
-				m.deps.Logger.Debug("Static fingerprint mismatch or not cached", "current", currentFingerprint, "cached", cachedFingerprint, "loadErr", loadErr)
-				_ = asset.SaveStaticFingerprint(m.deps.Cfg.CacheDir, currentFingerprint)
+			cachedFingerprint, loadError := asset.LoadStaticFingerprint(managerInstance.deps.Cfg.CacheDir)
+			if loadError != nil || currentFingerprint != cachedFingerprint {
+				managerInstance.deps.Logger.Debug("Static fingerprint mismatch or not cached", "current", currentFingerprint, "cached", cachedFingerprint, "loadErr", loadError)
+				_ = asset.SaveStaticFingerprint(managerInstance.deps.Cfg.CacheDir, currentFingerprint)
 			} else {
-				m.deps.Logger.Debug("Static fingerprint matches, will skip image processing")
+				managerInstance.deps.Logger.Debug("Static fingerprint matches, will skip image processing")
 				skipImages = true
 			}
 		}
 	}
 
 	// Link content assets from scanner to asset service
-	if setter, ok := m.deps.Asset.(interface {
+	if setter, ok := managerInstance.deps.Asset.(interface {
 		SetContentAssetsChannel(<-chan []models.ScannedAsset)
 	}); ok {
 		setter.SetContentAssetsChannel(contentAssetsChan)
@@ -97,77 +97,77 @@ func (m *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []mo
 
 	// Create and register a fresh readiness signal for this build pass
 	assetsReady := make(chan struct{})
-	m.deps.Asset.SetAssetsReadySignal(assetsReady)
+	managerInstance.deps.Asset.SetAssetsReadySignal(assetsReady)
 
 	// Ensure RenderService waits for these assets before entering render phase
-	m.deps.Render.SetAssetsGate(assetsReady)
+	managerInstance.deps.Render.SetAssetsGate(assetsReady)
 
 	// Initialize discoveryReady before launching Build goroutine to avoid
 	// race between Build() writing and DiscoveryReady() reading.
 	discoveryCh := make(chan struct{})
-	m.deps.Asset.SetDiscoveryReady(discoveryCh)
+	managerInstance.deps.Asset.SetDiscoveryReady(discoveryCh)
 
 	assetErrChan := make(chan error, 1)
-	var assetWg sync.WaitGroup
-	assetWg.Add(1)
+	var assetWaitGroup sync.WaitGroup
+	assetWaitGroup.Add(1)
 
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 		Ctx:       ctx,
-		Logger:    m.deps.Logger,
+		Logger:    managerInstance.deps.Logger,
 		Operation: "asset build",
 		Fn: func() error {
-			if err := m.deps.Asset.BuildWithOptions(ctx, skipImages); err != nil {
-				assetErrChan <- err
+			if buildError := managerInstance.deps.Asset.BuildWithOptions(ctx, skipImages); buildError != nil {
+				assetErrChan <- buildError
 			}
 			return nil
 		},
 		Cleanup: func() {
 			assetTimer.Stop()
-			assetWg.Done()
+			assetWaitGroup.Done()
 		},
 	})
 
 	// discoveryReady is populated by Build() when the image rewrite map is ready.
-	discoveryReady := m.deps.Asset.DiscoveryReady()
+	discoveryReady := managerInstance.deps.Asset.DiscoveryReady()
 
-	return assetsReady, discoveryReady, &assetWg, assetErrChan
+	return assetsReady, discoveryReady, &assetWaitGroup, assetErrChan
 }
 
 // CheckChanged computes a hash of the current asset map to detect changes since last site-wide render.
-func (m *Manager) CheckChanged(ctx context.Context, assetsReady <-chan struct{}) bool {
-	m.WaitForAvailability(ctx, assetsReady)
-	assets := m.deps.Render.GetAssets()
-	if len(assets) == 0 {
+func (managerInstance *Manager) CheckChanged(ctx context.Context, assetsReady <-chan struct{}) bool {
+	managerInstance.WaitForAvailability(ctx, assetsReady)
+	assetMap := managerInstance.deps.Render.GetAssets()
+	if len(assetMap) == 0 {
 		return false
 	}
 
 	// Compute a simple stable hash of the asset map
-	assetKeys := make([]string, 0, len(assets))
-	for k := range assets {
-		assetKeys = append(assetKeys, k)
+	assetKeys := make([]string, 0, len(assetMap))
+	for assetKey := range assetMap {
+		assetKeys = append(assetKeys, assetKey)
 	}
 	sort.Strings(assetKeys)
 
 	hasher := xxh3.New()
-	for _, k := range assetKeys {
-		_, _ = hasher.WriteString(k)
-		_, _ = hasher.WriteString(assets[k])
+	for _, assetKey := range assetKeys {
+		_, _ = hasher.WriteString(assetKey)
+		_, _ = hasher.WriteString(assetMap[assetKey])
 	}
 	currentAssetHash := hasher.Sum64()
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	managerInstance.mu.Lock()
+	defer managerInstance.mu.Unlock()
 
-	changed := currentAssetHash != m.lastAssetHash
+	changed := currentAssetHash != managerInstance.lastAssetHash
 	if changed {
-		m.lastAssetHash = currentAssetHash
+		managerInstance.lastAssetHash = currentAssetHash
 	}
 	return changed
 }
 
 // WaitForAvailability blocks until assets are ready or context is cancelled.
-func (m *Manager) WaitForAvailability(ctx context.Context, assetsReady <-chan struct{}) {
-	if len(m.deps.Render.GetAssets()) > 0 {
+func (managerInstance *Manager) WaitForAvailability(workingContext context.Context, assetsReady <-chan struct{}) {
+	if len(managerInstance.deps.Render.GetAssets()) > 0 {
 		return
 	}
 	if assetsReady == nil {
@@ -175,43 +175,43 @@ func (m *Manager) WaitForAvailability(ctx context.Context, assetsReady <-chan st
 	}
 	select {
 	case <-assetsReady:
-	case <-ctx.Done():
+	case <-workingContext.Done():
 	}
 }
 
 // BuildAssetOnly handles incremental CSS/JS changes by rebuilding assets and re-triggering post processing.
-func (m *Manager) BuildAssetOnly(ctx context.Context, buildPass func(ctx context.Context) error) error {
-	return m.BuildAssetOnlyWithOptions(ctx, buildPass, true)
+func (managerInstance *Manager) BuildAssetOnly(ctx context.Context, buildPass func(ctx context.Context) error) error {
+	return managerInstance.BuildAssetOnlyWithOptions(ctx, buildPass, true)
 }
 
 // BuildAssetOnlyWithOptions handles incremental CSS/JS changes with options.
 // forceImages: if true, always process images; if false, skip image processing (for CSS/JS-only changes)
-func (m *Manager) BuildAssetOnlyWithOptions(ctx context.Context, buildPass func(ctx context.Context) error, forceImages bool) error {
-	if m.deps.Metrics != nil {
-		m.deps.Metrics.Reset()
+func (managerInstance *Manager) BuildAssetOnlyWithOptions(ctx context.Context, buildPass func(ctx context.Context) error, forceImages bool) error {
+	if managerInstance.deps.Metrics != nil {
+		managerInstance.deps.Metrics.Reset()
 	}
 
-	m.deps.Logger.Info("Building assets...")
+	managerInstance.deps.Logger.Info("Building assets...")
 	assetTimer := timeutil.StartPhase("Asset building")
 
-	newAssets, err := m.deps.Asset.BuildForAssetChangeWithOptions(ctx, forceImages)
+	newAssets, buildError := managerInstance.deps.Asset.BuildForAssetChangeWithOptions(ctx, forceImages)
 	assetTimer.Stop()
-	if err != nil {
-		return fmt.Errorf("failed to build assets: %w", err)
+	if buildError != nil {
+		return fmt.Errorf("failed to build assets: %w", buildError)
 	}
 
 	// Merge with existing assets to preserve image mappings
-	currentAssets := m.deps.Render.GetAssets()
+	currentAssets := managerInstance.deps.Render.GetAssets()
 	if currentAssets == nil {
 		currentAssets = make(map[string]string)
 	}
-	for k, v := range newAssets {
-		currentAssets[k] = v
+	for assetKey, assetValue := range newAssets {
+		currentAssets[assetKey] = assetValue
 	}
 
-	m.deps.Render.SetAssets(currentAssets)
-	m.deps.Render.ClearRenderedFiles()
-	m.deps.Render.SetAssetsGate(nil)
+	managerInstance.deps.Render.SetAssets(currentAssets)
+	managerInstance.deps.Render.ClearRenderedFiles()
+	managerInstance.deps.Render.SetAssetsGate(nil)
 
 	// Delegate the rest of the build pass (scan, process posts, commit) back to Engine
 	return buildPass(ctx)

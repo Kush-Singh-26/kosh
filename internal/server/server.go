@@ -29,15 +29,15 @@ const (
 )
 
 func recoveryMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				slog.Error("Server panic recovered", "error", err, "path", r.URL.Path)
-				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = w.Write([]byte("500 - Internal Server Error"))
+				slog.Error("Server panic recovered", "error", err, "path", request.URL.Path)
+				writer.WriteHeader(http.StatusInternalServerError)
+				_, _ = writer.Write([]byte("500 - Internal Server Error"))
 			}
 		}()
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(writer, request)
 	})
 }
 
@@ -47,27 +47,27 @@ type statusWriter struct {
 }
 
 // WriteHeader records the status and delegates to the underlying writer.
-func (w *statusWriter) WriteHeader(status int) {
-	w.status = status
-	w.ResponseWriter.WriteHeader(status)
+func (writer *statusWriter) WriteHeader(status int) {
+	writer.status = status
+	writer.ResponseWriter.WriteHeader(status)
 }
 
 // Flush forwards the flush to the underlying writer when supported.
-func (w *statusWriter) Flush() {
-	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+func (writer *statusWriter) Flush() {
+	if flusher, ok := writer.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
 	}
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		start := time.Now()
-		sw := &statusWriter{ResponseWriter: w, status: defaultStatusCode}
-		next.ServeHTTP(sw, r)
+		swr := &statusWriter{ResponseWriter: writer, status: defaultStatusCode}
+		next.ServeHTTP(swr, request)
 		duration := time.Since(start)
 		// Skip logging for SSE /events endpoint - not useful to log heartbeats
-		if r.URL.Path != "/events" && (sw.status >= http.StatusBadRequest || duration > slowRequestThreshold) {
-			orchestration.HTTPLog(r.Method, r.URL.Path, sw.status, duration)
+		if request.URL.Path != "/events" && (swr.status >= http.StatusBadRequest || duration > slowRequestThreshold) {
+			orchestration.HTTPLog(request.Method, request.URL.Path, swr.status, duration)
 		}
 	})
 }
@@ -200,24 +200,24 @@ func Run(opts ServerOptions) {
 
 	mux.HandleFunc("/events", handleSSE)
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if !waitForBuildCompletion(w, r) {
+	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		if !waitForBuildCompletion(writer, request) {
 			return
 		}
 
-		rawPath := r.URL.Path
+		rawPath := request.URL.Path
 		normalizedPath := normalizeRequestPath(rawPath, baseURL)
-		r.URL.Path = normalizedPath
+		request.URL.Path = normalizedPath
 
 		fullPath, err := validatePath(cfg.staticDir, normalizedPath)
 		if err != nil {
-			renderError(w, http.StatusForbidden, "403 - Forbidden: Invalid path")
+			renderError(writer, http.StatusForbidden, "403 - Forbidden: Invalid path")
 			return
 		}
 
 		handleFileRequest(fileRequestOptions{
-			writer:         w,
-			request:        r,
+			writer:         writer,
+			request:        request,
 			staticDir:      cfg.staticDir,
 			fullPath:       fullPath,
 			normalizedPath: normalizedPath,
@@ -242,19 +242,19 @@ func Run(opts ServerOptions) {
 	orchestration.DevLogSuccess("Server stopped")
 }
 
-func waitForBuildCompletion(w http.ResponseWriter, r *http.Request) bool {
-	ch := waitForBuild()
-	if ch == nil {
+func waitForBuildCompletion(writer http.ResponseWriter, request *http.Request) bool {
+	buildDone := waitForBuild()
+	if buildDone == nil {
 		return true
 	}
 
 	select {
-	case <-ch:
+	case <-buildDone:
 		return true
-	case <-r.Context().Done():
+	case <-request.Context().Done():
 		return false
 	case <-time.After(buildWaitTimeout):
-		slog.Warn("Wait for build timed out", "path", r.URL.Path)
+		slog.Warn("Wait for build timed out", "path", request.URL.Path)
 		return true
 	}
 }
@@ -287,27 +287,27 @@ func handleFileRequest(opts fileRequestOptions) {
 		}
 	}
 
-	serve := func(w http.ResponseWriter, r *http.Request) {
+	serve := func(writer http.ResponseWriter, request *http.Request) {
 		fileInfo, err := os.Stat(opts.fullPath)
 		if err != nil {
-			handleFileError(w, opts.staticDir, err)
+			handleFileError(writer, opts.staticDir, err)
 			return
 		}
 
 		if fileInfo.IsDir() {
-			if handleDirectory(w, r, opts.fullPath) {
+			if handleDirectory(writer, request, opts.fullPath) {
 				return
 			}
 		}
 
 		setResponseHeaders(responseHeaderOptions{
-			writer:         w,
+			writer:         writer,
 			fullPath:       opts.fullPath,
 			normalizedPath: opts.normalizedPath,
 			fileInfo:       fileInfo,
 			preCompressed:  preCompressed,
 		})
-		http.ServeFile(w, r, opts.fullPath)
+		http.ServeFile(writer, request, opts.fullPath)
 	}
 
 	if preCompressed {
@@ -317,29 +317,29 @@ func handleFileRequest(opts fileRequestOptions) {
 	}
 }
 
-func handleFileError(w http.ResponseWriter, staticDir string, err error) {
+func handleFileError(writer http.ResponseWriter, staticDir string, err error) {
 	if os.IsNotExist(err) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("Expires", "0")
-		w.WriteHeader(http.StatusNotFound)
+		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		writer.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+		writer.Header().Set("Pragma", "no-cache")
+		writer.Header().Set("Expires", "0")
+		writer.WriteHeader(http.StatusNotFound)
 		notFoundPath := filepath.Join(staticDir, "404.html")
 		if content, readErr := os.ReadFile(notFoundPath); readErr == nil {
-			_, _ = w.Write(content)
+			_, _ = writer.Write(content)
 		} else {
-			_, _ = w.Write([]byte("404 - Page Not Found"))
+			_, _ = writer.Write([]byte("404 - Page Not Found"))
 		}
 	} else {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("500 - Internal Server Error"))
+		writer.WriteHeader(http.StatusInternalServerError)
+		_, _ = writer.Write([]byte("500 - Internal Server Error"))
 	}
 }
 
-func handleDirectory(w http.ResponseWriter, r *http.Request, fullPath string) bool {
+func handleDirectory(writer http.ResponseWriter, request *http.Request, fullPath string) bool {
 	indexPath := filepath.Join(fullPath, "index.html")
 	if indexInfo, err := os.Stat(indexPath); err == nil && !indexInfo.IsDir() {
-		http.ServeFile(w, r, indexPath)
+		http.ServeFile(writer, request, indexPath)
 		return true
 	}
 	return false
@@ -377,7 +377,7 @@ func setResponseHeaders(opts responseHeaderOptions) {
 	}
 }
 
-func renderError(w http.ResponseWriter, status int, msg string) {
-	w.WriteHeader(status)
-	_, _ = w.Write([]byte(msg))
+func renderError(writer http.ResponseWriter, status int, msg string) {
+	writer.WriteHeader(status)
+	_, _ = writer.Write([]byte(msg))
 }

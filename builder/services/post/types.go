@@ -9,13 +9,13 @@ import (
 )
 
 type renderTask struct {
-	parseRes    *ParsedMarkdownResult
-	f           models.ScannedFile
-	htmlContent string
-	destPath    string
-	relPath     string
-	htmlRelPath string
-	source      []byte
+	parseResult      *ParsedMarkdownResult
+	file             models.ScannedFile
+	htmlContent      string
+	destinationPath  string
+	relativePath     string
+	htmlRelativePath string
+	source           []byte
 }
 
 type searchTask struct {
@@ -28,16 +28,16 @@ type searchTask struct {
 // workerLocalState accumulates results within a single parse worker,
 // eliminating contention on the shared postProcessContext.
 type workerLocalState struct {
-	allPosts      []models.PostMetadata
-	pinnedPosts   []models.PostMetadata
-	tagEntries    []tagEntry
-	indexedPosts  []models.IndexedPost
-	searchTasks   []deferredSearchTask
-	newPostsMeta  []*models.PostMeta
-	newSearchRecs map[string]*models.SearchRecord
-	newDeps       map[string]*models.Dependencies
-	anyChanged    bool
-	errs          []error
+	allPosts              []models.PostMetadata
+	pinnedPosts           []models.PostMetadata
+	tagEntries            []tagEntry
+	indexedPosts          []models.IndexedPost
+	searchTasks           []deferredSearchTask
+	newPostsMeta          []*models.PostMeta
+	newSearchRecords      map[string]*models.SearchRecord
+	newDependencies       map[string]*models.Dependencies
+	anyChanged            bool
+	errs                  []error
 }
 
 type tagEntry struct {
@@ -46,16 +46,16 @@ type tagEntry struct {
 }
 
 type deferredSearchTask struct {
-	record    models.PostRecord
-	plainText string
-	localIdx  int // index into this worker's indexedPosts
-	cached    *models.SearchRecord
+	record     models.PostRecord
+	plainText  string
+	localIndex int // index into this worker's indexedPosts
+	cached     *models.SearchRecord
 }
 
 // WorkerContext holds shared dependencies and configuration for streaming workers.
 type WorkerContext struct {
 	Ctx                context.Context
-	PC                 *postProcessContext
+	ProcessContext     *postProcessContext
 	CardPool           *async.WorkerPool[socialCardTask]
 	SearchPool         *async.WorkerPool[searchTask]
 	RenderChan         chan<- renderTask
@@ -70,33 +70,33 @@ type postProcessContext struct {
 	anyPostChanged   atomic.Bool
 	newPostsMeta     []*models.PostMeta
 	newSearchRecords map[string]*models.SearchRecord
-	newDeps          map[string]*models.Dependencies
+	newDependencies  map[string]*models.Dependencies
 	indexedPosts     []models.IndexedPost
 	errs             []error
 }
 
 // AggregateContext bundles inputs needed to aggregate a single post result.
 type AggregateContext struct {
-	Ctx         context.Context
-	Res         *ParsedMarkdownResult
-	Post        models.PostMetadata
-	HtmlContent string
-	DestPath    string
-	RelPath     string
-	HtmlRelPath string
-	SSRHashes   []string
-	UseCache    bool
-	WCtx        WorkerContext
-	Local       *workerLocalState
-	SourceBytes []byte
-	ScannedFile models.ScannedFile
+	Ctx              context.Context
+	Result           *ParsedMarkdownResult
+	Post             models.PostMetadata
+	HtmlContent      string
+	DestinationPath  string
+	RelativePath     string
+	HtmlRelativePath string
+	SSRHashes        []string
+	UseCache         bool
+	WorkerContext    WorkerContext
+	Local            *workerLocalState
+	SourceBytes      []byte
+	ScannedFile      models.ScannedFile
 }
 
 // SocialCardOptions configures social card generation for a post.
 type SocialCardOptions struct {
-	RelPath            string
+	RelativePath       string
 	Result             *ParsedMarkdownResult
-	HtmlRelPath        string
+	HtmlRelativePath   string
 	ForceSocialRebuild bool
 	CardPool           *async.WorkerPool[socialCardTask]
 }

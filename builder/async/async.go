@@ -18,10 +18,10 @@ import (
 func FireAndForget(ctx context.Context, logger *slog.Logger, operation string, fn func() error) {
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
+			if rec := recover(); rec != nil {
 				logger.Error("Panic in background goroutine",
 					"operation", operation,
-					"panic", r,
+					"panic", rec,
 					"stack", string(debug.Stack()))
 			}
 		}()
@@ -54,10 +54,10 @@ func FireAndForgetWithResult(ctx context.Context, logger *slog.Logger, operation
 	errCh := make(chan error, 1) // buffered to prevent goroutine leak
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
+			if rec := recover(); rec != nil {
 				logger.Error("Panic in background goroutine",
 					"operation", operation,
-					"panic", r,
+					"panic", rec,
 					"stack", string(debug.Stack()))
 				errCh <- nil // signal completion even on panic
 				return
@@ -113,10 +113,10 @@ func FireAndForgetWithCallback(opts FireAndForgetCallbackOptions) {
 
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
+			if rec := recover(); rec != nil {
 				opts.Logger.Error("Panic in background goroutine",
 					"operation", opts.Operation,
-					"panic", r,
+					"panic", rec,
 					"stack", string(debug.Stack()))
 			}
 		}()
@@ -170,10 +170,10 @@ func FireAndForgetWithMetrics(opts FireAndForgetMetricsOptions) {
 
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
+			if rec := recover(); rec != nil {
 				opts.Logger.Error("Panic in background goroutine",
 					"operation", opts.Operation,
-					"panic", r,
+					"panic", rec,
 					"stack", string(debug.Stack()))
 			}
 		}()
@@ -234,10 +234,10 @@ func FireAndForgetWithCleanup(opts FireAndForgetCleanupOptions) {
 
 		// Panic recovery (registered second, runs before cleanup)
 		defer func() {
-			if r := recover(); r != nil {
+			if rec := recover(); rec != nil {
 				opts.Logger.Error("Panic in background goroutine",
 					"operation", opts.Operation,
-					"panic", r,
+					"panic", rec,
 					"stack", string(debug.Stack()))
 			}
 		}()

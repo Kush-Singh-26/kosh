@@ -88,9 +88,9 @@ func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
 				_ = retry.RemoveAllWithRetry(context.Background(), fullPath, cleanupRetryMax, cleanupRetryDelay)
 			}
 		}
-		ts := fmt.Sprintf("%d-%d", time.Now().UnixNano(), buildTxnCounter.Add(1))
-		stagingDir = fmt.Sprintf("%s.tmp-%s", outputDir, ts)
-		backupDir = fmt.Sprintf("%s.bak-%s", outputDir, ts)
+		timestamp := fmt.Sprintf("%d-%d", time.Now().UnixNano(), buildTxnCounter.Add(1))
+		stagingDir = fmt.Sprintf("%s.tmp-%s", outputDir, timestamp)
+		backupDir = fmt.Sprintf("%s.bak-%s", outputDir, timestamp)
 	} else {
 		stagingDir = outputDir // directly write to output in watch mode
 	}
@@ -104,28 +104,28 @@ func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
 }
 
 // StagingDir returns the current staging directory path.
-func (tx *DirectoryTx) StagingDir() string {
-	return tx.stagingDir
+func (txn *DirectoryTx) StagingDir() string {
+	return txn.stagingDir
 }
 
 // Commit publishes the staging directory to the final output.
-func (tx *DirectoryTx) Commit(ctx context.Context) error {
-	if tx.committed {
+func (txn *DirectoryTx) Commit(ctx context.Context) error {
+	if txn.committed {
 		return nil
 	}
-	if !tx.isCleanBuild {
-		tx.committed = true
+	if !txn.isCleanBuild {
+		txn.committed = true
 		return nil // No swap needed for incremental builds
 	}
 
 	// 1. Rename outputDir -> outputDir.bak (if it exists)
-	backupDir := tx.backupDir
-	if _, err := os.Stat(tx.realOutputDir); err == nil {
+	backupDir := txn.backupDir
+	if _, err := os.Stat(txn.realOutputDir); err == nil {
 		// Try to remove old backup if it somehow exists
 		_ = retry.RemoveAllWithRetry(ctx, backupDir, cleanupRetryMax, cleanupRetryDelay)
 		if err := retry.RenameWithRetry(retry.RenameOptions{
 			Ctx:        ctx,
-			OldPath:    tx.realOutputDir,
+			OldPath:    txn.realOutputDir,
 			NewPath:    backupDir,
 			MaxRetries: renameRetryMax,
 			BaseDelay:  renameRetryDelay,
@@ -137,8 +137,8 @@ func (tx *DirectoryTx) Commit(ctx context.Context) error {
 	// 2. Rename outputDir.tmp -> outputDir
 	if err := retry.RenameWithRetry(retry.RenameOptions{
 		Ctx:        ctx,
-		OldPath:    tx.stagingDir,
-		NewPath:    tx.realOutputDir,
+		OldPath:    txn.stagingDir,
+		NewPath:    txn.realOutputDir,
 		MaxRetries: renameRetryMax,
 		BaseDelay:  renameRetryDelay,
 	}); err != nil {
@@ -148,7 +148,7 @@ func (tx *DirectoryTx) Commit(ctx context.Context) error {
 			rollbackErr = retry.RenameWithRetry(retry.RenameOptions{
 				Ctx:        ctx,
 				OldPath:    backupDir,
-				NewPath:    tx.realOutputDir,
+				NewPath:    txn.realOutputDir,
 				MaxRetries: renameRetryMax,
 				BaseDelay:  renameRetryDelay,
 			})
@@ -156,7 +156,7 @@ func (tx *DirectoryTx) Commit(ctx context.Context) error {
 				slog.Error("CRITICAL: Both publish and rollback failed",
 					"publish_error", err,
 					"rollback_error", rollbackErr,
-					"staging_dir", tx.stagingDir,
+					"staging_dir", txn.stagingDir,
 					"backup_dir", backupDir)
 			}
 		}
@@ -167,25 +167,25 @@ func (tx *DirectoryTx) Commit(ctx context.Context) error {
 	}
 
 	// 3. Commit complete. Remove backup directory as it's no longer needed for rollback.
-	if tx.backupDir != "" {
-		_ = retry.RemoveAllWithRetry(ctx, tx.backupDir, cleanupRetryMax, cleanupRetryDelay)
+	if txn.backupDir != "" {
+		_ = retry.RemoveAllWithRetry(ctx, txn.backupDir, cleanupRetryMax, cleanupRetryDelay)
 	}
-	tx.committed = true
+	txn.committed = true
 	return nil
 }
 
 // Rollback cleans up the staging directory after a failed publish.
-func (tx *DirectoryTx) Rollback() error {
-	if tx.committed || !tx.isCleanBuild {
+func (txn *DirectoryTx) Rollback() error {
+	if txn.committed || !txn.isCleanBuild {
 		return nil
 	}
 	// Clean up staging dir on failure
-	return retry.RemoveAllWithRetry(context.Background(), tx.stagingDir, cleanupRetryMax, cleanupRetryDelay)
+	return retry.RemoveAllWithRetry(context.Background(), txn.stagingDir, cleanupRetryMax, cleanupRetryDelay)
 }
 
 // GetLastBuildTime returns the mod time of the output directory.
-func (tx *DirectoryTx) GetLastBuildTime() time.Time {
-	info, err := os.Stat(tx.realOutputDir)
+func (txn *DirectoryTx) GetLastBuildTime() time.Time {
+	info, err := os.Stat(txn.realOutputDir)
 	if err != nil {
 		return time.Time{}
 	}

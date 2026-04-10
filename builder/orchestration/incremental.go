@@ -8,7 +8,7 @@ import (
 )
 
 // BuildChanged enqueues a change for incremental processing.
-func (b *Engine) BuildChanged(ctx context.Context, changedPath string, op fsnotify.Op) {
+func (engineInstance *Engine) BuildChanged(ctx context.Context, changedPath string, op fsnotify.Op) {
 	select {
 	case <-ctx.Done():
 		return
@@ -17,7 +17,7 @@ func (b *Engine) BuildChanged(ctx context.Context, changedPath string, op fsnoti
 
 	DevLogInfo("Change detected: " + filepath.Base(changedPath) + " " + op.String())
 
-	if b.Watch != nil {
-		b.Watch.EnqueueChange(changedPath, op)
+	if engineInstance.Watch != nil {
+		engineInstance.Watch.EnqueueChange(changedPath, op)
 	}
 }

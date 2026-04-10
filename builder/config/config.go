@@ -16,6 +16,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var _ models.TemplateConfig = (*Config)(nil)
+
 const (
 	DefaultPostsPerPage  = 10
 	DefaultImageWorkers  = 8
@@ -53,9 +55,9 @@ type SiteConfig struct {
 
 // BuildOptions defines build-time tuning parameters.
 type BuildOptions struct {
-	PostsPerPage   int  `yaml:"postsPerPage"`
-	CompressImages bool `yaml:"compressImages"`
-	MinifySVGs     bool `yaml:"minifySVGs"`
+	PostsPerPage         int  `yaml:"postsPerPage"`
+	ShouldCompressImages bool `yaml:"shouldCompressImages"`
+	ShouldMinifySVGs     bool `yaml:"shouldMinifySVGs"`
 	ImageWorkers   int  `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
 	WebPQuality    int  `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
 	ParserWorkers  int  `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
@@ -84,11 +86,11 @@ type Config struct {
 	SocialCards   models.SocialCardsConfig `yaml:"socialCards"`
 
 	// Internal / Runtime fields
-	ForceRebuild   bool   `yaml:"-"`
-	ForceLock      bool   `yaml:"-"`
-	IncludeDrafts  bool   `yaml:"-"`
-	BuildVersion   int64  `yaml:"-"`
-	IsDev          bool   `yaml:"-"`
+	ShouldForceRebuild  bool   `yaml:"-"`
+	ShouldForceLock     bool   `yaml:"-"`
+	ShouldIncludeDrafts bool   `yaml:"-"`
+	BuildVersion        int64  `yaml:"-"`
+	IsDev               bool   `yaml:"-"`
 	KoshSourceRoot string `yaml:"-"` // Repository root for WASM compilation
 	SiteRoot       string `yaml:"-"` // Working directory where kosh.yaml was loaded
 
@@ -108,12 +110,12 @@ func defaultConfig() *Config {
 			BaseURL: "",
 		},
 		BuildOptions: BuildOptions{
-			PostsPerPage:   DefaultPostsPerPage,
-			CompressImages: true,
-			MinifySVGs:     true,
-			ImageWorkers:   DefaultImageWorkers,
-			WebPQuality:    DefaultWebPQuality,
-			ParserWorkers:  DefaultParserWorkers,
+			PostsPerPage:         DefaultPostsPerPage,
+			ShouldCompressImages: true,
+			ShouldMinifySVGs:     true,
+			ImageWorkers:         DefaultImageWorkers,
+			WebPQuality:          DefaultWebPQuality,
+			ParserWorkers:        DefaultParserWorkers,
 		},
 		PathConfig: PathConfig{
 			Theme:      DefaultTheme,
@@ -124,13 +126,13 @@ func defaultConfig() *Config {
 		},
 		BuildVersion: time.Now().Unix(),
 		Features: models.FeaturesConfig{
-			RawMarkdown: false,
+			UseRawMarkdown: false,
 			Generators: models.GeneratorsConfig{
-				Sitemap: true,
-				RSS:     true,
-				Graph:   models.GraphConfig{Enabled: true, ShowTags: true},
-				PWA:     true,
-				Search:  true,
+				IsSitemapEnabled: true,
+				IsRSSEnabled:     true,
+				Graph:            models.GraphConfig{IsEnabled: true, ShowsTags: true},
+				IsPWAEnabled:     true,
+				IsSearchEnabled:  true,
 			},
 		},
 		SocialCards: models.SocialCardsConfig{
@@ -173,16 +175,16 @@ func resolveThemePaths(cfg *Config, isTesting bool) {
 		cfg.ThemeDir = DefaultThemeDir
 	}
 	if !isTesting {
-		if abs, err := filepath.Abs(cfg.ThemeDir); err == nil {
-			cfg.ThemeDir = fspkg.NormalizePath(abs)
+		if absPath, err := filepath.Abs(cfg.ThemeDir); err == nil {
+			cfg.ThemeDir = fspkg.NormalizePath(absPath)
 		}
 	}
 
 	if cfg.TemplateDir == "" {
 		cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 	} else if !filepath.IsAbs(cfg.TemplateDir) && !isTesting {
-		if abs, err := filepath.Abs(cfg.TemplateDir); err == nil {
-			cfg.TemplateDir = fspkg.NormalizePath(abs)
+		if absPath, err := filepath.Abs(cfg.TemplateDir); err == nil {
+			cfg.TemplateDir = fspkg.NormalizePath(absPath)
 		}
 	} else {
 		cfg.TemplateDir = fspkg.NormalizePath(cfg.TemplateDir)
@@ -191,8 +193,8 @@ func resolveThemePaths(cfg *Config, isTesting bool) {
 	if cfg.StaticDir == "" {
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
 	} else if !filepath.IsAbs(cfg.StaticDir) && !isTesting {
-		if abs, err := filepath.Abs(cfg.StaticDir); err == nil {
-			cfg.StaticDir = fspkg.NormalizePath(abs)
+		if absPath, err := filepath.Abs(cfg.StaticDir); err == nil {
+			cfg.StaticDir = fspkg.NormalizePath(absPath)
 		}
 	} else {
 		cfg.StaticDir = fspkg.NormalizePath(cfg.StaticDir)
@@ -204,8 +206,8 @@ func resolveContentPaths(cfg *Config, isTesting bool) {
 		cfg.ContentDir = DefaultContentDir
 	}
 	if !isTesting {
-		if abs, err := filepath.Abs(cfg.ContentDir); err == nil {
-			cfg.ContentDir = fspkg.NormalizePath(abs)
+		if absPath, err := filepath.Abs(cfg.ContentDir); err == nil {
+			cfg.ContentDir = fspkg.NormalizePath(absPath)
 		}
 	}
 
@@ -213,8 +215,8 @@ func resolveContentPaths(cfg *Config, isTesting bool) {
 		cfg.OutputDir = DefaultOutputDir
 	}
 	if !isTesting {
-		if abs, err := filepath.Abs(cfg.OutputDir); err == nil {
-			cfg.OutputDir = fspkg.NormalizePath(abs)
+		if absPath, err := filepath.Abs(cfg.OutputDir); err == nil {
+			cfg.OutputDir = fspkg.NormalizePath(absPath)
 		}
 	}
 
@@ -222,29 +224,29 @@ func resolveContentPaths(cfg *Config, isTesting bool) {
 		cfg.CacheDir = DefaultCacheDir
 	}
 	if !isTesting {
-		if abs, err := filepath.Abs(cfg.CacheDir); err == nil {
-			cfg.CacheDir = fspkg.NormalizePath(abs)
+		if absPath, err := filepath.Abs(cfg.CacheDir); err == nil {
+			cfg.CacheDir = fspkg.NormalizePath(absPath)
 		}
 	}
 }
 
 func applyCLIOverrides(cfg *Config, args []string) {
-	fset := flag.NewFlagSet("config", flag.ContinueOnError)
-	baseUrlFlag := fset.String("baseurl", "", "Base URL (overrides config file)")
-	draftsFlag := fset.Bool("drafts", false, "Include draft posts in the build")
-	themeFlag := fset.String("theme", "", "Theme to use (overrides config file)")
-	forceLockFlag := fset.Bool("force-lock", false, "Acquire build lock even if another build is running")
+	flagSet := flag.NewFlagSet("config", flag.ContinueOnError)
+	baseUrlFlag := flagSet.String("baseurl", "", "Base URL (overrides config file)")
+	draftsFlag := flagSet.Bool("drafts", false, "Include draft posts in the build")
+	themeFlag := flagSet.String("theme", "", "Theme to use (overrides config file)")
+	forceLockFlag := flagSet.Bool("force-lock", false, "Acquire build lock even if another build is running")
 
-	_ = fset.Parse(args)
+	_ = flagSet.Parse(args)
 
 	if *baseUrlFlag != "" {
 		cfg.BaseURL = strings.TrimSuffix(*baseUrlFlag, "/")
 	}
 	if *draftsFlag {
-		cfg.IncludeDrafts = true
+		cfg.ShouldIncludeDrafts = true
 	}
 	if *forceLockFlag {
-		cfg.ForceLock = true
+		cfg.ShouldForceLock = true
 	}
 	if *themeFlag != "" {
 		cfg.Theme = *themeFlag

@@ -27,96 +27,96 @@ const MaxEditDistance = 2
 // intSlicePool stores *[]int buffers for Levenshtein computation.
 var intSlicePool = sync.Pool{
 	New: func() any {
-		s := make([]int, 0, intSlicePoolCap)
-		return &s
+		slice := make([]int, 0, intSlicePoolCap)
+		return &slice
 	},
 }
 
 func getIntSlice(size int) *[]int {
-	p := intSlicePool.Get().(*[]int)
-	if cap(*p) < size {
-		*p = make([]int, size)
+	ptr := intSlicePool.Get().(*[]int)
+	if cap(*ptr) < size {
+		*ptr = make([]int, size)
 	} else {
-		*p = (*p)[:size]
+		*ptr = (*ptr)[:size]
 	}
-	return p
+	return ptr
 }
 
-func putIntSlice(p *[]int) {
-	if cap(*p) > maxPooledSliceCap {
+func putIntSlice(ptr *[]int) {
+	if cap(*ptr) > maxPooledSliceCap {
 		return
 	}
-	intSlicePool.Put(p)
+	intSlicePool.Put(ptr)
 }
 
 // runeSlicePool stores *[]rune buffers for Levenshtein computation.
 var runeSlicePool = sync.Pool{
 	New: func() any {
-		s := make([]rune, 0, runeSlicePoolCap)
-		return &s
+		runes := make([]rune, 0, runeSlicePoolCap)
+		return &runes
 	},
 }
 
 func getRuneSlice(size int) *[]rune {
-	p := runeSlicePool.Get().(*[]rune)
-	if cap(*p) < size {
-		*p = make([]rune, size)
+	ptr := runeSlicePool.Get().(*[]rune)
+	if cap(*ptr) < size {
+		*ptr = make([]rune, size)
 	} else {
-		*p = (*p)[:size]
+		*ptr = (*ptr)[:size]
 	}
-	return p
+	return ptr
 }
 
-func putRuneSlice(p *[]rune) {
-	if cap(*p) > maxPooledSliceCap {
+func putRuneSlice(ptr *[]rune) {
+	if cap(*ptr) > maxPooledSliceCap {
 		return
 	}
-	runeSlicePool.Put(p)
+	runeSlicePool.Put(ptr)
 }
 
-func stringToRunesPool(s string, p *[]rune) {
-	buf := (*p)[:0]
-	for _, r := range s {
-		buf = append(buf, r)
+func stringToRunesPool(text string, target *[]rune) {
+	buf := (*target)[:0]
+	for _, char := range text {
+		buf = append(buf, char)
 	}
-	*p = buf
+	*target = buf
 }
 
 // LevenshteinDistance calculates the edit distance between two strings
-func LevenshteinDistance(a, b string) int {
-	if a == b {
+func LevenshteinDistance(str1, str2 string) int {
+	if str1 == str2 {
 		return 0
 	}
 
 	// We still need the rune count for the slices
-	lenA := utf8.RuneCountInString(a)
-	lenB := utf8.RuneCountInString(b)
+	len1 := utf8.RuneCountInString(str1)
+	len2 := utf8.RuneCountInString(str2)
 
 	// Quick exit for empty strings
-	if lenA == 0 {
-		return lenB
+	if len1 == 0 {
+		return len2
 	}
-	if lenB == 0 {
-		return lenA
+	if len2 == 0 {
+		return len1
 	}
 
-	aRunesPtr := getRuneSlice(lenA)
-	bRunesPtr := getRuneSlice(lenB)
-	stringToRunesPool(a, aRunesPtr)
-	stringToRunesPool(b, bRunesPtr)
+	str1RunesPtr := getRuneSlice(len1)
+	str2RunesPtr := getRuneSlice(len2)
+	stringToRunesPool(str1, str1RunesPtr)
+	stringToRunesPool(str2, str2RunesPtr)
 
-	aRunes := *aRunesPtr
-	bRunes := *bRunesPtr
+	str1Runes := *str1RunesPtr
+	str2Runes := *str2RunesPtr
 
 	defer func() {
-		putRuneSlice(aRunesPtr)
-		putRuneSlice(bRunesPtr)
+		putRuneSlice(str1RunesPtr)
+		putRuneSlice(str2RunesPtr)
 	}()
 
 	// Use single slice optimization
 	// We only need to track the previous row
-	prevPtr := getIntSlice(lenB + 1)
-	currPtr := getIntSlice(lenB + 1)
+	prevPtr := getIntSlice(len2 + 1)
+	currPtr := getIntSlice(len2 + 1)
 	defer func() {
 		putIntSlice(prevPtr)
 		putIntSlice(currPtr)
@@ -124,16 +124,16 @@ func LevenshteinDistance(a, b string) int {
 
 	prev := *prevPtr
 	curr := *currPtr
-	for j := 0; j <= lenB; j++ {
+	for j := 0; j <= len2; j++ {
 		prev[j] = j
 	}
 
-	for i := 1; i <= lenA; i++ {
+	for i := 1; i <= len1; i++ {
 		curr[0] = i
 
-		for j := 1; j <= lenB; j++ {
+		for j := 1; j <= len2; j++ {
 			cost := 1
-			if aRunes[i-1] == bRunes[j-1] {
+			if str1Runes[i-1] == str2Runes[j-1] {
 				cost = 0
 			}
 
@@ -149,7 +149,7 @@ func LevenshteinDistance(a, b string) int {
 		prev, curr = curr, prev
 	}
 
-	return prev[lenB]
+	return prev[len2]
 }
 
 // FuzzyMatch checks if two strings match within maxDist edit distance
@@ -202,24 +202,24 @@ func FuzzyExpandWithNgrams(term string, ngramIndex map[string][]string, maxDist 
 
 	// Count how many trigrams each candidate shares
 	candidateScores := make(map[string]int)
-	for _, tg := range trigrams {
-		if candidates, ok := ngramIndex[tg]; ok {
-			for _, cand := range candidates {
-				candidateScores[cand]++
+	for _, trigram := range trigrams {
+		if candidates, ok := ngramIndex[trigram]; ok {
+			for _, candidate := range candidates {
+				candidateScores[candidate]++
 			}
 		}
 	}
 
 	// Filter candidates by edit distance
 	var results []string
-	for cand, score := range candidateScores {
+	for candidate, score := range candidateScores {
 		// Jaccard-like filtering: need at least some overlap
 		// Optimized: Set minimum score to 1 to avoid matching every term on short queries
 		// A 3-character word generates exactly 1 trigram, so len/2 = 0 would match everything
 		minScore := max(minCandidateScore, len(trigrams)/2)
 		if score >= minScore {
-			if FuzzyMatch(term, cand, maxDist) {
-				results = append(results, cand)
+			if FuzzyMatch(term, candidate, maxDist) {
+				results = append(results, candidate)
 			}
 		}
 	}

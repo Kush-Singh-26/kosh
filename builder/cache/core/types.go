@@ -55,13 +55,13 @@ const (
 // HashContent returns a hex xxh3 hash of the content.
 func HashContent(data []byte) string {
 	hash := xxh3.Hash128(data)
-	b := hash.Bytes()
-	return hex.EncodeToString(b[:])
+	hashBytes := hash.Bytes()
+	return hex.EncodeToString(hashBytes[:])
 }
 
 // HashString returns a hex xxh3 hash of the string.
-func HashString(s string) string {
-	return HashContent([]byte(s))
+func HashString(inputString string) string {
+	return HashContent([]byte(inputString))
 }
 
 // GeneratePostID derives a post ID from UUID or normalized path.
@@ -73,18 +73,18 @@ func GeneratePostID(uuid string, normalizedPath string) string {
 }
 
 // Encode marshals a msgp.Marshaler value.
-func Encode(v any) ([]byte, error) {
-	if m, ok := v.(msgp.Marshaler); ok {
-		return m.MarshalMsg(nil)
+func Encode(value any) ([]byte, error) {
+	if marshaler, ok := value.(msgp.Marshaler); ok {
+		return marshaler.MarshalMsg(nil)
 	}
-	return nil, fmt.Errorf("type %T does not implement msgp.Marshaler", v)
+	return nil, fmt.Errorf("type %T does not implement msgp.Marshaler", value)
 }
 
 // Decode unmarshals data into a msgp.Unmarshaler value.
-func Decode(data []byte, v any) error {
-	if u, ok := v.(msgp.Unmarshaler); ok {
-		_, err := u.UnmarshalMsg(data)
+func Decode(data []byte, value any) error {
+	if unmarshaler, ok := value.(msgp.Unmarshaler); ok {
+		_, err := unmarshaler.UnmarshalMsg(data)
 		return err
 	}
-	return fmt.Errorf("type %T does not implement msgp.Unmarshaler", v)
+	return fmt.Errorf("type %T does not implement msgp.Unmarshaler", value)
 }

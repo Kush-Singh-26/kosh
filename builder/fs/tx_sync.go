@@ -34,58 +34,58 @@ func NewTxSync(logger *slog.Logger) *TxSync {
 
 // TrackWrite records a file about to be written.
 // It performs a lazy backup of the existing file only if it exists.
-func (tx *TxSync) TrackWrite(osPath string) error {
-	tx.mu.Lock()
-	defer tx.mu.Unlock()
+func (syncTx *TxSync) TrackWrite(osPath string) error {
+	syncTx.mu.Lock()
+	defer syncTx.mu.Unlock()
 
-	if tx.writtenSet[osPath] {
+	if syncTx.writtenSet[osPath] {
 		return nil
 	}
-	tx.writtenSet[osPath] = true
+	syncTx.writtenSet[osPath] = true
 
 	if _, err := os.Stat(osPath); err == nil {
 		backupPath := osPath + ".kosh-rollback"
 		if err := StreamCopyFile(osPath, backupPath); err != nil {
 			return fmt.Errorf("backup failed for %s: %w", osPath, err)
 		}
-		tx.backups[osPath] = backupPath
+		syncTx.backups[osPath] = backupPath
 	}
 
-	tx.written = append(tx.written, osPath)
+	syncTx.written = append(syncTx.written, osPath)
 	return nil
 }
 
 // Commit finalizes the transaction, removes all backup files.
 // After Commit, Rollback becomes a no-op.
-func (tx *TxSync) Commit() {
-	tx.mu.Lock()
-	defer tx.mu.Unlock()
+func (syncTx *TxSync) Commit() {
+	syncTx.mu.Lock()
+	defer syncTx.mu.Unlock()
 
-	tx.committed = true
+	syncTx.committed = true
 
-	for _, backup := range tx.backups {
+	for _, backup := range syncTx.backups {
 		_ = os.Remove(backup)
 	}
 
-	if tx.logger != nil && len(tx.written) > 0 {
-		tx.logger.Debug("TxSync committed", "files", len(tx.written))
+	if syncTx.logger != nil && len(syncTx.written) > 0 {
+		syncTx.logger.Debug("TxSync committed", "files", len(syncTx.written))
 	}
 }
 
 // Rollback restores all backed-up files and removes newly created files.
 // This is safe to call after Commit (becomes a no-op).
 // Uses retry logic with context support for Windows robustness.
-func (tx *TxSync) Rollback(ctx context.Context) {
-	tx.mu.Lock()
-	defer tx.mu.Unlock()
+func (syncTx *TxSync) Rollback(ctx context.Context) {
+	syncTx.mu.Lock()
+	defer syncTx.mu.Unlock()
 
-	if tx.committed {
+	if syncTx.committed {
 		return
 	}
 
 	rolled := 0
 
-	for original, backup := range tx.backups {
+	for original, backup := range syncTx.backups {
 		if err := retry.RenameWithRetry(retry.RenameOptions{
 			Ctx:        ctx,
 			OldPath:    backup,
@@ -93,8 +93,8 @@ func (tx *TxSync) Rollback(ctx context.Context) {
 			MaxRetries: txSyncMaxRetries,
 			BaseDelay:  txSyncBaseDelay,
 		}); err != nil {
-			if tx.logger != nil {
-				tx.logger.Warn("TxSync rollback: failed to restore backup",
+			if syncTx.logger != nil {
+				syncTx.logger.Warn("TxSync rollback: failed to restore backup",
 					"path", original, "error", err)
 			}
 		} else {
@@ -102,11 +102,11 @@ func (tx *TxSync) Rollback(ctx context.Context) {
 		}
 	}
 
-	for _, path := range tx.written {
-		if _, hasBackup := tx.backups[path]; !hasBackup {
+	for _, path := range syncTx.written {
+		if _, hasBackup := syncTx.backups[path]; !hasBackup {
 			if err := retry.RemoveAllWithRetry(ctx, path, txSyncMaxRetries, txSyncBaseDelay); err != nil && !os.IsNotExist(err) {
-				if tx.logger != nil {
-					tx.logger.Warn("TxSync rollback: failed to remove new file",
+				if syncTx.logger != nil {
+					syncTx.logger.Warn("TxSync rollback: failed to remove new file",
 						"path", path, "error", err)
 				}
 			} else {
@@ -115,27 +115,27 @@ func (tx *TxSync) Rollback(ctx context.Context) {
 		}
 	}
 
-	for _, backup := range tx.backups {
+	for _, backup := range syncTx.backups {
 		_ = os.Remove(backup)
 	}
 
-	if tx.logger != nil {
-		tx.logger.Info("TxSync rolled back", "restored", rolled, "total_tracked", len(tx.written))
+	if syncTx.logger != nil {
+		syncTx.logger.Info("TxSync rolled back", "restored", rolled, "total_tracked", len(syncTx.written))
 	}
 }
 
 // FileCount returns the number of files tracked in the transaction.
-func (tx *TxSync) FileCount() int {
-	tx.mu.Lock()
-	defer tx.mu.Unlock()
-	return len(tx.written)
+func (syncTx *TxSync) FileCount() int {
+	syncTx.mu.Lock()
+	defer syncTx.mu.Unlock()
+	return len(syncTx.written)
 }
 
 // IsCommitted reports whether the transaction has been committed.
-func (tx *TxSync) IsCommitted() bool {
-	tx.mu.Lock()
-	defer tx.mu.Unlock()
-	return tx.committed
+func (syncTx *TxSync) IsCommitted() bool {
+	syncTx.mu.Lock()
+	defer syncTx.mu.Unlock()
+	return syncTx.committed
 }
 
 const (

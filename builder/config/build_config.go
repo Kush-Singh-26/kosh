@@ -148,71 +148,71 @@ func LoadBuildConfigFs(fs afero.Fs) *BuildConfig {
 }
 
 // validate ensures configuration values are within reasonable bounds
-func (c *BuildConfig) validate() {
+func (buildCfg *BuildConfig) validate() {
 	// Workers
-	if c.MaxWorkers < MinWorkers {
-		c.MaxWorkers = MinWorkers
+	if buildCfg.MaxWorkers < MinWorkers {
+		buildCfg.MaxWorkers = MinWorkers
 	}
-	if c.MaxWorkers > MaxWorkers {
-		c.MaxWorkers = MaxWorkers
+	if buildCfg.MaxWorkers > MaxWorkers {
+		buildCfg.MaxWorkers = MaxWorkers
 	}
-	if c.DefaultWorkers < MinWorkers {
-		c.DefaultWorkers = MinWorkers
+	if buildCfg.DefaultWorkers < MinWorkers {
+		buildCfg.DefaultWorkers = MinWorkers
 	}
-	if c.DefaultWorkers > c.MaxWorkers {
-		c.DefaultWorkers = c.MaxWorkers
+	if buildCfg.DefaultWorkers > buildCfg.MaxWorkers {
+		buildCfg.DefaultWorkers = buildCfg.MaxWorkers
 	}
 	// Buffers
-	if c.MaxBufferSize < MinBufferSize {
-		c.MaxBufferSize = MinBufferSize // Minimum 1KB
+	if buildCfg.MaxBufferSize < MinBufferSize {
+		buildCfg.MaxBufferSize = MinBufferSize // Minimum 1KB
 	}
-	if c.MaxBufferSize > MaxBufferSize {
-		c.MaxBufferSize = MaxBufferSize // Maximum 10MB
+	if buildCfg.MaxBufferSize > MaxBufferSize {
+		buildCfg.MaxBufferSize = MaxBufferSize // Maximum 10MB
 	}
-	if c.InlineHTMLThreshold < MinInlineHTMLThreshold {
-		c.InlineHTMLThreshold = MinInlineHTMLThreshold
+	if buildCfg.InlineHTMLThreshold < MinInlineHTMLThreshold {
+		buildCfg.InlineHTMLThreshold = MinInlineHTMLThreshold
 	}
-	if c.MaxFileSize < MinMaxFileSize {
-		c.MaxFileSize = MinMaxFileSize // Minimum 1MB
+	if buildCfg.MaxFileSize < MinMaxFileSize {
+		buildCfg.MaxFileSize = MinMaxFileSize // Minimum 1MB
 	}
-	if c.MaxFileSize > MaxMaxFileSize {
-		c.MaxFileSize = MaxMaxFileSize // Maximum 500MB
+	if buildCfg.MaxFileSize > MaxMaxFileSize {
+		buildCfg.MaxFileSize = MaxMaxFileSize // Maximum 500MB
 	}
 
 	// Timeouts
-	if c.ShutdownTimeout < MinShutdownTimeout {
-		c.ShutdownTimeout = MinShutdownTimeout
+	if buildCfg.ShutdownTimeout < MinShutdownTimeout {
+		buildCfg.ShutdownTimeout = MinShutdownTimeout
 	}
-	if c.ShutdownTimeout > MaxShutdownTimeout {
-		c.ShutdownTimeout = MaxShutdownTimeout
+	if buildCfg.ShutdownTimeout > MaxShutdownTimeout {
+		buildCfg.ShutdownTimeout = MaxShutdownTimeout
 	}
-	if c.DebounceDuration < MinDebounceDuration {
-		c.DebounceDuration = MinDebounceDuration
+	if buildCfg.DebounceDuration < MinDebounceDuration {
+		buildCfg.DebounceDuration = MinDebounceDuration
 	}
-	if c.DebounceDuration > MaxDebounceDuration {
-		c.DebounceDuration = MaxDebounceDuration
+	if buildCfg.DebounceDuration > MaxDebounceDuration {
+		buildCfg.DebounceDuration = MaxDebounceDuration
 	}
-	if c.CacheDBTimeout < MinCacheDBTimeout {
-		c.CacheDBTimeout = MinCacheDBTimeout
+	if buildCfg.CacheDBTimeout < MinCacheDBTimeout {
+		buildCfg.CacheDBTimeout = MinCacheDBTimeout
 	}
 
 	// Search
-	if c.DefaultSnippetLength < MinSnippetLength {
-		c.DefaultSnippetLength = MinSnippetLength
+	if buildCfg.DefaultSnippetLength < MinSnippetLength {
+		buildCfg.DefaultSnippetLength = MinSnippetLength
 	}
-	if c.DefaultSnippetLength > MaxSnippetLength {
-		c.DefaultSnippetLength = MaxSnippetLength
+	if buildCfg.DefaultSnippetLength > MaxSnippetLength {
+		buildCfg.DefaultSnippetLength = MaxSnippetLength
 	}
-	if c.MaxEditDistance < MinEditDistance {
-		c.MaxEditDistance = MinEditDistance
+	if buildCfg.MaxEditDistance < MinEditDistance {
+		buildCfg.MaxEditDistance = MinEditDistance
 	}
-	if c.MaxEditDistance > MaxEditDistance {
-		c.MaxEditDistance = MaxEditDistance
+	if buildCfg.MaxEditDistance > MaxEditDistance {
+		buildCfg.MaxEditDistance = MaxEditDistance
 	}
-	if c.MaxSearchResults < MinSearchResults {
-		c.MaxSearchResults = MinSearchResults
+	if buildCfg.MaxSearchResults < MinSearchResults {
+		buildCfg.MaxSearchResults = MinSearchResults
 	}
-	if c.MaxSearchResults > MaxSearchResults {
-		c.MaxSearchResults = MaxSearchResults
+	if buildCfg.MaxSearchResults > MaxSearchResults {
+		buildCfg.MaxSearchResults = MaxSearchResults
 	}
 }

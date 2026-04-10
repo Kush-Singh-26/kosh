@@ -650,6 +650,25 @@ func (z *PostListMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Date")
 				return
 			}
+		case "Tags":
+			var zb0002 uint32
+			zb0002, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "Tags")
+				return
+			}
+			if cap(z.Tags) >= int(zb0002) {
+				z.Tags = (z.Tags)[:zb0002]
+			} else {
+				z.Tags = make([]string, zb0002)
+			}
+			for za0001 := range z.Tags {
+				z.Tags[za0001], err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "Tags", za0001)
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -663,9 +682,9 @@ func (z *PostListMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *PostListMeta) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 4
+	// map header, size 5
 	// write "Title"
-	err = en.Append(0x84, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	err = en.Append(0x85, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	if err != nil {
 		return
 	}
@@ -704,15 +723,32 @@ func (z *PostListMeta) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Date")
 		return
 	}
+	// write "Tags"
+	err = en.Append(0xa4, 0x54, 0x61, 0x67, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.Tags)))
+	if err != nil {
+		err = msgp.WrapError(err, "Tags")
+		return
+	}
+	for za0001 := range z.Tags {
+		err = en.WriteString(z.Tags[za0001])
+		if err != nil {
+			err = msgp.WrapError(err, "Tags", za0001)
+			return
+		}
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *PostListMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
+	// map header, size 5
 	// string "Title"
-	o = append(o, 0x84, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	o = append(o, 0x85, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	o = msgp.AppendString(o, z.Title)
 	// string "Link"
 	o = append(o, 0xa4, 0x4c, 0x69, 0x6e, 0x6b)
@@ -723,6 +759,12 @@ func (z *PostListMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Date"
 	o = append(o, 0xa4, 0x44, 0x61, 0x74, 0x65)
 	o = msgp.AppendTime(o, z.Date)
+	// string "Tags"
+	o = append(o, 0xa4, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
+	for za0001 := range z.Tags {
+		o = msgp.AppendString(o, z.Tags[za0001])
+	}
 	return
 }
 
@@ -768,6 +810,25 @@ func (z *PostListMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Date")
 				return
 			}
+		case "Tags":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Tags")
+				return
+			}
+			if cap(z.Tags) >= int(zb0002) {
+				z.Tags = (z.Tags)[:zb0002]
+			} else {
+				z.Tags = make([]string, zb0002)
+			}
+			for za0001 := range z.Tags {
+				z.Tags[za0001], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Tags", za0001)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -782,7 +843,10 @@ func (z *PostListMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PostListMeta) Msgsize() (s int) {
-	s = 1 + 6 + msgp.StringPrefixSize + len(z.Title) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 5 + msgp.TimeSize
+	s = 1 + 6 + msgp.StringPrefixSize + len(z.Title) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 5 + msgp.TimeSize + 5 + msgp.ArrayHeaderSize
+	for za0001 := range z.Tags {
+		s += msgp.StringPrefixSize + len(z.Tags[za0001])
+	}
 	return
 }
 
@@ -926,16 +990,16 @@ func (z *PostMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Weight")
 				return
 			}
-		case "Pinned":
-			z.Pinned, err = dc.ReadBool()
+		case "IsPinned":
+			z.IsPinned, err = dc.ReadBool()
 			if err != nil {
-				err = msgp.WrapError(err, "Pinned")
+				err = msgp.WrapError(err, "IsPinned")
 				return
 			}
-		case "Draft":
-			z.Draft, err = dc.ReadBool()
+		case "IsDraft":
+			z.IsDraft, err = dc.ReadBool()
 			if err != nil {
-				err = msgp.WrapError(err, "Draft")
+				err = msgp.WrapError(err, "IsDraft")
 				return
 			}
 		case "Meta":
@@ -1204,24 +1268,24 @@ func (z *PostMeta) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Weight")
 		return
 	}
-	// write "Pinned"
-	err = en.Append(0xa6, 0x50, 0x69, 0x6e, 0x6e, 0x65, 0x64)
+	// write "IsPinned"
+	err = en.Append(0xa8, 0x49, 0x73, 0x50, 0x69, 0x6e, 0x6e, 0x65, 0x64)
 	if err != nil {
 		return
 	}
-	err = en.WriteBool(z.Pinned)
+	err = en.WriteBool(z.IsPinned)
 	if err != nil {
-		err = msgp.WrapError(err, "Pinned")
+		err = msgp.WrapError(err, "IsPinned")
 		return
 	}
-	// write "Draft"
-	err = en.Append(0xa5, 0x44, 0x72, 0x61, 0x66, 0x74)
+	// write "IsDraft"
+	err = en.Append(0xa7, 0x49, 0x73, 0x44, 0x72, 0x61, 0x66, 0x74)
 	if err != nil {
 		return
 	}
-	err = en.WriteBool(z.Draft)
+	err = en.WriteBool(z.IsDraft)
 	if err != nil {
-		err = msgp.WrapError(err, "Draft")
+		err = msgp.WrapError(err, "IsDraft")
 		return
 	}
 	// write "Meta"
@@ -1361,12 +1425,12 @@ func (z *PostMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Weight"
 	o = append(o, 0xa6, 0x57, 0x65, 0x69, 0x67, 0x68, 0x74)
 	o = msgp.AppendInt(o, z.Weight)
-	// string "Pinned"
-	o = append(o, 0xa6, 0x50, 0x69, 0x6e, 0x6e, 0x65, 0x64)
-	o = msgp.AppendBool(o, z.Pinned)
-	// string "Draft"
-	o = append(o, 0xa5, 0x44, 0x72, 0x61, 0x66, 0x74)
-	o = msgp.AppendBool(o, z.Draft)
+	// string "IsPinned"
+	o = append(o, 0xa8, 0x49, 0x73, 0x50, 0x69, 0x6e, 0x6e, 0x65, 0x64)
+	o = msgp.AppendBool(o, z.IsPinned)
+	// string "IsDraft"
+	o = append(o, 0xa7, 0x49, 0x73, 0x44, 0x72, 0x61, 0x66, 0x74)
+	o = msgp.AppendBool(o, z.IsDraft)
 	// string "Meta"
 	o = append(o, 0xa4, 0x4d, 0x65, 0x74, 0x61)
 	o = msgp.AppendMapHeader(o, uint32(len(z.Meta)))
@@ -1547,16 +1611,16 @@ func (z *PostMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Weight")
 				return
 			}
-		case "Pinned":
-			z.Pinned, bts, err = msgp.ReadBoolBytes(bts)
+		case "IsPinned":
+			z.IsPinned, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Pinned")
+				err = msgp.WrapError(err, "IsPinned")
 				return
 			}
-		case "Draft":
-			z.Draft, bts, err = msgp.ReadBoolBytes(bts)
+		case "IsDraft":
+			z.IsDraft, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Draft")
+				err = msgp.WrapError(err, "IsDraft")
 				return
 			}
 		case "Meta":
@@ -1659,7 +1723,7 @@ func (z *PostMeta) Msgsize() (s int) {
 	for za0002 := range z.Tags {
 		s += msgp.StringPrefixSize + len(z.Tags[za0002])
 	}
-	s += 10 + msgp.IntSize + 12 + msgp.IntSize + 12 + msgp.StringPrefixSize + len(z.Description) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 7 + msgp.BoolSize + 6 + msgp.BoolSize + 5 + msgp.MapHeaderSize
+	s += 10 + msgp.IntSize + 12 + msgp.IntSize + 12 + msgp.StringPrefixSize + len(z.Description) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 9 + msgp.BoolSize + 8 + msgp.BoolSize + 5 + msgp.MapHeaderSize
 	if z.Meta != nil {
 		for za0003, za0004 := range z.Meta {
 			_ = za0004
@@ -1731,10 +1795,10 @@ func (z *SSRArtifact) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "CreatedAt")
 				return
 			}
-		case "Compressed":
-			z.Compressed, err = dc.ReadBool()
+		case "IsCompressed":
+			z.IsCompressed, err = dc.ReadBool()
 			if err != nil {
-				err = msgp.WrapError(err, "Compressed")
+				err = msgp.WrapError(err, "IsCompressed")
 				return
 			}
 		case "InlineContent":
@@ -1817,14 +1881,14 @@ func (z *SSRArtifact) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "CreatedAt")
 		return
 	}
-	// write "Compressed"
-	err = en.Append(0xaa, 0x43, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64)
+	// write "IsCompressed"
+	err = en.Append(0xac, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64)
 	if err != nil {
 		return
 	}
-	err = en.WriteBool(z.Compressed)
+	err = en.WriteBool(z.IsCompressed)
 	if err != nil {
-		err = msgp.WrapError(err, "Compressed")
+		err = msgp.WrapError(err, "IsCompressed")
 		return
 	}
 	// write "InlineContent"
@@ -1862,9 +1926,9 @@ func (z *SSRArtifact) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "CreatedAt"
 	o = append(o, 0xa9, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x41, 0x74)
 	o = msgp.AppendInt64(o, z.CreatedAt)
-	// string "Compressed"
-	o = append(o, 0xaa, 0x43, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64)
-	o = msgp.AppendBool(o, z.Compressed)
+	// string "IsCompressed"
+	o = append(o, 0xac, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64)
+	o = msgp.AppendBool(o, z.IsCompressed)
 	// string "InlineContent"
 	o = append(o, 0xad, 0x49, 0x6e, 0x6c, 0x69, 0x6e, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74)
 	o = msgp.AppendBytes(o, z.InlineContent)
@@ -1925,10 +1989,10 @@ func (z *SSRArtifact) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "CreatedAt")
 				return
 			}
-		case "Compressed":
-			z.Compressed, bts, err = msgp.ReadBoolBytes(bts)
+		case "IsCompressed":
+			z.IsCompressed, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Compressed")
+				err = msgp.WrapError(err, "IsCompressed")
 				return
 			}
 		case "InlineContent":
@@ -1951,7 +2015,7 @@ func (z *SSRArtifact) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *SSRArtifact) Msgsize() (s int) {
-	s = 1 + 5 + msgp.StringPrefixSize + len(z.Type) + 10 + msgp.StringPrefixSize + len(z.InputHash) + 11 + msgp.StringPrefixSize + len(z.OutputHash) + 9 + msgp.IntSize + 5 + msgp.Int64Size + 10 + msgp.Int64Size + 11 + msgp.BoolSize + 14 + msgp.BytesPrefixSize + len(z.InlineContent)
+	s = 1 + 5 + msgp.StringPrefixSize + len(z.Type) + 10 + msgp.StringPrefixSize + len(z.InputHash) + 11 + msgp.StringPrefixSize + len(z.OutputHash) + 9 + msgp.IntSize + 5 + msgp.Int64Size + 10 + msgp.Int64Size + 13 + msgp.BoolSize + 14 + msgp.BytesPrefixSize + len(z.InlineContent)
 	return
 }
 

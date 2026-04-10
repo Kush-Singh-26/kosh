@@ -13,8 +13,8 @@ import (
 const quickVerifySampleSize = 10
 
 // QuickVerify performs a fast integrity check by sampling entries
-func QuickVerify(db *bbolt.DB, s *store.Store) ([]string, error) {
-	var errors []string
+func QuickVerify(db *bbolt.DB, cacheStore *store.Store) ([]string, error) {
+	var verificationErrors []string
 	sampleCount := 0
 
 	err := db.View(func(tx *bbolt.Tx) error {
@@ -24,55 +24,55 @@ func QuickVerify(db *bbolt.DB, s *store.Store) ([]string, error) {
 		}
 
 		cursor := postsBucket.Cursor()
-		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+		for key, value := cursor.First(); key != nil; key, value = cursor.Next() {
 			if sampleCount >= quickVerifySampleSize {
 				break
 			}
 			sampleCount++
 
 			var post core.PostMeta
-			if err := core.Decode(v, &post); err != nil {
-				errors = append(errors, fmt.Sprintf("corrupt post data: %s", string(k)))
+			if err := core.Decode(value, &post); err != nil {
+				verificationErrors = append(verificationErrors, fmt.Sprintf("corrupt post data: %s", string(key)))
 				continue
 			}
 
 			// Check HTML blob exists if referenced
-			if post.HTMLHash != "" && !s.Exists("html", post.HTMLHash) {
-				errors = append(errors, fmt.Sprintf("missing HTML blob: %s for post %s", post.HTMLHash, post.PostID))
+			if post.HTMLHash != "" && !cacheStore.Exists("html", post.HTMLHash) {
+				verificationErrors = append(verificationErrors, fmt.Sprintf("missing HTML blob: %s for post %s", post.HTMLHash, post.PostID))
 			}
 		}
 
 		return nil
 	})
 
-	return errors, err
+	return verificationErrors, err
 }
 
 // Verify checks cache integrity
-func Verify(db *bbolt.DB, s *store.Store) ([]string, error) {
-	var errors []string
+func Verify(db *bbolt.DB, cacheStore *store.Store) ([]string, error) {
+	var verificationErrors []string
 
 	err := db.View(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		pathsBucket := tx.Bucket([]byte(core.BucketPaths))
 
-		return postsBucket.ForEach(func(k, v []byte) error {
+		return postsBucket.ForEach(func(key, value []byte) error {
 			var post core.PostMeta
-			if err := core.Decode(v, &post); err != nil {
-				errors = append(errors, fmt.Sprintf("corrupt post data: %s", string(k)))
+			if err := core.Decode(value, &post); err != nil {
+				verificationErrors = append(verificationErrors, fmt.Sprintf("corrupt post data: %s", string(key)))
 				return nil
 			}
 
 			normalizedPath := fspkg.NormalizePath(post.Path)
 			mappedID := pathsBucket.Get([]byte(normalizedPath))
 			if mappedID == nil {
-				errors = append(errors, fmt.Sprintf("missing path mapping: %s -> %s", normalizedPath, post.PostID))
+				verificationErrors = append(verificationErrors, fmt.Sprintf("missing path mapping: %s -> %s", normalizedPath, post.PostID))
 			} else if string(mappedID) != post.PostID {
-				errors = append(errors, fmt.Sprintf("path mapping mismatch: %s -> %s (expected %s)", normalizedPath, string(mappedID), post.PostID))
+				verificationErrors = append(verificationErrors, fmt.Sprintf("path mapping mismatch: %s -> %s (expected %s)", normalizedPath, string(mappedID), post.PostID))
 			}
 
-			if post.HTMLHash != "" && !s.Exists("html", post.HTMLHash) {
-				errors = append(errors, fmt.Sprintf("missing HTML blob: %s for post %s", post.HTMLHash, post.PostID))
+			if post.HTMLHash != "" && !cacheStore.Exists("html", post.HTMLHash) {
+				verificationErrors = append(verificationErrors, fmt.Sprintf("missing HTML blob: %s for post %s", post.HTMLHash, post.PostID))
 			}
 
 			return nil
@@ -85,21 +85,21 @@ func Verify(db *bbolt.DB, s *store.Store) ([]string, error) {
 
 	err = db.View(func(tx *bbolt.Tx) error {
 		ssrBucket := tx.Bucket([]byte(core.BucketSSR))
-		return ssrBucket.ForEach(func(k, v []byte) error {
+		return ssrBucket.ForEach(func(key, value []byte) error {
 			var artifact core.SSRArtifact
-			if err := core.Decode(v, &artifact); err != nil {
-				errors = append(errors, fmt.Sprintf("corrupt SSR artifact: %s", string(k)))
+			if err := core.Decode(value, &artifact); err != nil {
+				verificationErrors = append(verificationErrors, fmt.Sprintf("corrupt SSR artifact: %s", string(key)))
 				return nil
 			}
 
 			category := filepath.Join("ssr", artifact.Type)
-			if !s.Exists(category, artifact.OutputHash) {
-				errors = append(errors, fmt.Sprintf("missing SSR blob: %s for %s", artifact.OutputHash, string(k)))
+			if !cacheStore.Exists(category, artifact.OutputHash) {
+				verificationErrors = append(verificationErrors, fmt.Sprintf("missing SSR blob: %s for %s", artifact.OutputHash, string(key)))
 			}
 
 			return nil
 		})
 	})
 
-	return errors, err
+	return verificationErrors, err
 }

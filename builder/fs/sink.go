@@ -41,19 +41,19 @@ type DiskSink struct {
 
 // NewDiskSink creates a new DiskSink with staging and real output directories
 func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
-	sDir, err := AbsNormalizePath(stagingDir)
+	stgDir, err := AbsNormalizePath(stagingDir)
 	if err != nil {
-		sDir = NormalizePath(stagingDir)
+		stgDir = NormalizePath(stagingDir)
 	}
-	rDir, err := AbsNormalizePath(realOutputDir)
+	rlDir, err := AbsNormalizePath(realOutputDir)
 	if err != nil {
-		rDir = NormalizePath(realOutputDir)
+		rlDir = NormalizePath(realOutputDir)
 	}
-	s := &DiskSink{
-		stagingDir:         sDir,
-		realOutputDir:      rDir,
-		stagingDirLower:    strings.ToLower(sDir),
-		realOutputDirLower: strings.ToLower(rDir),
+	sink := &DiskSink{
+		stagingDir:         stgDir,
+		realOutputDir:      rlDir,
+		stagingDirLower:    strings.ToLower(stgDir),
+		realOutputDirLower: strings.ToLower(rlDir),
 		bufPool: sync.Pool{
 			New: func() any {
 				// 64KB buffer for streaming writes.
@@ -63,51 +63,51 @@ func NewDiskSink(stagingDir, realOutputDir string) *DiskSink {
 	}
 	// Seed the directory cache with the staging and real output roots.
 	// Use lowercase for case-insensitive matching in the cache.
-	return s
+	return sink
 }
 
-func (s *DiskSink) resolvePathForWrite(p string) (string, error) {
-	if cached, ok := s.pathCache.Load(p); ok {
+func (sink *DiskSink) resolvePathForWrite(path string) (string, error) {
+	if cached, ok := sink.pathCache.Load(path); ok {
 		return cached.(string), nil
 	}
 
-	cleanP := NormalizePath(p)
-	if strings.Contains(cleanP, "..") {
-		return "", fmt.Errorf("refusing to write path with '..': %s", p)
+	cleanPath := NormalizePath(path)
+	if strings.Contains(cleanPath, "..") {
+		return "", fmt.Errorf("refusing to write path with '..': %s", path)
 	}
 
 	// Resolve to absolute path for robust comparison
-	var absP string
-	if filepath.IsAbs(filepath.FromSlash(cleanP)) {
-		absP = cleanP
+	var absPath string
+	if filepath.IsAbs(filepath.FromSlash(cleanPath)) {
+		absPath = cleanPath
 	} else {
 		var err error
-		absP, err = filepath.Abs(filepath.FromSlash(cleanP))
+		absPath, err = filepath.Abs(filepath.FromSlash(cleanPath))
 		if err != nil {
 			return "", err
 		}
-		absP = NormalizePath(absP)
+		absPath = NormalizePath(absPath)
 	}
 
-	absPLower := strings.ToLower(absP)
+	absPathLower := strings.ToLower(absPath)
 	var resolved string
 
-	if isInsideDir(absPLower, s.stagingDirLower) {
-		resolved = absP
-	} else if isInsideDir(absPLower, s.realOutputDirLower) {
-		rel, err := filepath.Rel(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(absP))
+	if isInsideDir(absPathLower, sink.stagingDirLower) {
+		resolved = absPath
+	} else if isInsideDir(absPathLower, sink.realOutputDirLower) {
+		rel, err := filepath.Rel(filepath.FromSlash(sink.realOutputDir), filepath.FromSlash(absPath))
 		if err != nil {
 			return "", err
 		}
-		resolved = s.fastJoinStaging(NormalizePath(rel))
-	} else if !filepath.IsAbs(filepath.FromSlash(cleanP)) {
+		resolved = sink.fastJoinStaging(NormalizePath(rel))
+	} else if !filepath.IsAbs(filepath.FromSlash(cleanPath)) {
 		// If it was relative and NOT inside realOutputDir, we assume it's relative to staging root
-		resolved = s.fastJoinStaging(cleanP)
+		resolved = sink.fastJoinStaging(cleanPath)
 	} else {
-		return "", fmt.Errorf("refusing to write outside output roots: %s", p)
+		return "", fmt.Errorf("refusing to write outside output roots: %s", path)
 	}
 
-	s.pathCache.Store(p, resolved)
+	sink.pathCache.Store(path, resolved)
 	return resolved, nil
 }
 
@@ -123,74 +123,74 @@ func isInsideDir(pathLower, dirLower string) bool {
 	return len(pathLower) > len(dirLower) && (pathLower[len(dirLower)] == '/' || pathLower[len(dirLower)] == '\\')
 }
 
-func (s *DiskSink) fastJoinStaging(rel string) string {
-	sb := pools.SharedStringBuilderPool.Get()
-	defer pools.SharedStringBuilderPool.Put(sb)
-	sb.WriteString(s.stagingDir)
+func (sink *DiskSink) fastJoinStaging(rel string) string {
+	pathBuilder := pools.SharedStringBuilderPool.Get()
+	defer pools.SharedStringBuilderPool.Put(pathBuilder)
+	pathBuilder.WriteString(sink.stagingDir)
 	if len(rel) > 0 && rel[0] != '/' {
-		sb.WriteByte('/')
+		pathBuilder.WriteByte('/')
 	}
-	sb.WriteString(rel)
-	return sb.String()
+	pathBuilder.WriteString(rel)
+	return pathBuilder.String()
 }
 
 // Register records a path as written in the real output directory.
-func (s *DiskSink) Register(p string) {
-	if cached, ok := s.regCache.Load(p); ok {
-		s.writtenPaths.Store(cached.(string), true)
+func (sink *DiskSink) Register(path string) {
+	if cached, ok := sink.regCache.Load(path); ok {
+		sink.writtenPaths.Store(cached.(string), true)
 		return
 	}
 
-	cleanP := NormalizePath(p)
+	cleanPath := NormalizePath(path)
 	var finalPath string
 
 	// Resolve to absolute path for consistent tracking
-	var absP string
-	if filepath.IsAbs(filepath.FromSlash(cleanP)) {
-		absP = cleanP
+	var absPath string
+	if filepath.IsAbs(filepath.FromSlash(cleanPath)) {
+		absPath = cleanPath
 	} else {
 		var err error
-		absP, err = filepath.Abs(filepath.FromSlash(cleanP))
+		absPath, err = filepath.Abs(filepath.FromSlash(cleanPath))
 		if err != nil {
-			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(cleanP)))
+			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(sink.realOutputDir), filepath.FromSlash(cleanPath)))
 		} else {
-			absP = NormalizePath(absP)
+			absPath = NormalizePath(absPath)
 		}
 	}
 
-	if absP != "" {
-		absPLower := strings.ToLower(absP)
-		if isInsideDir(absPLower, s.stagingDirLower) {
-			rel, _ := filepath.Rel(filepath.FromSlash(s.stagingDir), filepath.FromSlash(absP))
-			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(rel)))
-		} else if isInsideDir(absPLower, s.realOutputDirLower) {
-			finalPath = absP
-		} else if !filepath.IsAbs(filepath.FromSlash(cleanP)) {
-			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(s.realOutputDir), filepath.FromSlash(cleanP)))
+	if absPath != "" {
+		absPathLower := strings.ToLower(absPath)
+		if isInsideDir(absPathLower, sink.stagingDirLower) {
+			rel, _ := filepath.Rel(filepath.FromSlash(sink.stagingDir), filepath.FromSlash(absPath))
+			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(sink.realOutputDir), filepath.FromSlash(rel)))
+		} else if isInsideDir(absPathLower, sink.realOutputDirLower) {
+			finalPath = absPath
+		} else if !filepath.IsAbs(filepath.FromSlash(cleanPath)) {
+			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(sink.realOutputDir), filepath.FromSlash(cleanPath)))
 		} else {
-			finalPath = absP
+			finalPath = absPath
 		}
 	}
 
 	finalPathOS := filepath.FromSlash(finalPath)
-	s.regCache.Store(p, finalPathOS)
-	s.writtenPaths.Store(finalPathOS, true)
+	sink.regCache.Store(path, finalPathOS)
+	sink.writtenPaths.Store(finalPathOS, true)
 }
 
-func (s *DiskSink) ensureDir(path string) error {
+func (sink *DiskSink) ensureDir(path string) error {
 	dir := filepath.Dir(path)
-	return s.MkdirAll(dir)
+	return sink.MkdirAll(dir)
 }
 
 // MkdirAll ensures the directory exists inside the sink output roots.
-func (s *DiskSink) MkdirAll(p string) error {
-	target, err := s.resolvePathForWrite(p)
+func (sink *DiskSink) MkdirAll(p string) error {
+	target, err := sink.resolvePathForWrite(p)
 	if err != nil {
 		return err
 	}
 
 	targetLower := strings.ToLower(target)
-	if _, ok := s.dirCache.Load(targetLower); ok {
+	if _, ok := sink.dirCache.Load(targetLower); ok {
 		return nil
 	}
 
@@ -198,77 +198,77 @@ func (s *DiskSink) MkdirAll(p string) error {
 		return err
 	}
 
-	s.dirCache.Store(targetLower, true)
+	sink.dirCache.Store(targetLower, true)
 	return nil
 }
 
 // WriteFile writes a full file into the sink and registers it.
-func (s *DiskSink) WriteFile(p string, data []byte) error {
-	target, err := s.resolvePathForWrite(p)
+func (sink *DiskSink) WriteFile(path string, data []byte) error {
+	target, err := sink.resolvePathForWrite(path)
 	if err != nil {
 		return err
 	}
-	if err := s.ensureDir(target); err != nil {
+	if err := sink.ensureDir(target); err != nil {
 		return err
 	}
 
 	err = os.WriteFile(filepath.FromSlash(target), data, defaultFileMode)
 	if err == nil {
-		s.Register(p)
+		sink.Register(path)
 	}
 	return err
 }
 
 // WriteStream streams content into a file inside the sink and registers it.
-func (s *DiskSink) WriteStream(p string, fn func(io.Writer) error) error {
-	target, err := s.resolvePathForWrite(p)
+func (sink *DiskSink) WriteStream(path string, fn func(io.Writer) error) error {
+	target, err := sink.resolvePathForWrite(path)
 	if err != nil {
 		return err
 	}
-	if err := s.ensureDir(target); err != nil {
+	if err := sink.ensureDir(target); err != nil {
 		return err
 	}
 
-	f, err := os.Create(filepath.FromSlash(target))
+	file, err := os.Create(filepath.FromSlash(target))
 	if err != nil {
 		return err
 	}
 
-	bw := s.bufPool.Get().(*bufio.Writer)
-	bw.Reset(f)
+	bufWriter := sink.bufPool.Get().(*bufio.Writer)
+	bufWriter.Reset(file)
 
 	var panicked bool
 	// Defer cleanup with panic recovery for buffer pool return and partial file removal
 	defer func() {
 		// Always return buffer to pool, even on panic
-		bw.Reset(nil)
-		s.bufPool.Put(bw)
+		bufWriter.Reset(nil)
+		sink.bufPool.Put(bufWriter)
 
 		// Close file handle (ignore error, already tracked)
-		_ = f.Close()
+		_ = file.Close()
 
 		// Recover from panic, clean up partial file, and re-panic
-		if r := recover(); r != nil {
+		if rec := recover(); rec != nil {
 			panicked = true
 			// Try to remove partial file on panic
 			_ = os.Remove(filepath.FromSlash(target))
-			panic(r) // Re-throw the panic
+			panic(rec) // Re-throw the panic
 		}
 	}()
 
-	err = fn(bw)
+	err = fn(bufWriter)
 
-	if flushErr := bw.Flush(); flushErr != nil && err == nil {
+	if flushErr := bufWriter.Flush(); flushErr != nil && err == nil {
 		err = flushErr
 	}
 
 	// Close file explicitly (defer will also close, but that's safe - os.File.Close is idempotent)
-	if closeErr := f.Close(); closeErr != nil && err == nil {
+	if closeErr := file.Close(); closeErr != nil && err == nil {
 		err = closeErr
 	}
 
 	if err == nil && !panicked {
-		s.Register(p)
+		sink.Register(path)
 	} else {
 		// Try to remove partial file on error or panic
 		_ = os.Remove(filepath.FromSlash(target))
@@ -278,9 +278,9 @@ func (s *DiskSink) WriteStream(p string, fn func(io.Writer) error) error {
 }
 
 // GetWrittenFiles returns a snapshot of files registered during the build.
-func (s *DiskSink) GetWrittenFiles() map[string]bool {
+func (sink *DiskSink) GetWrittenFiles() map[string]bool {
 	res := make(map[string]bool)
-	s.writtenPaths.Range(func(key, value any) bool {
+	sink.writtenPaths.Range(func(key, value any) bool {
 		res[key.(string)] = value.(bool)
 		return true
 	})
@@ -288,18 +288,18 @@ func (s *DiskSink) GetWrittenFiles() map[string]bool {
 }
 
 // GetOutputDir returns the staging output directory.
-func (s *DiskSink) GetOutputDir() string {
-	return s.stagingDir
+func (sink *DiskSink) GetOutputDir() string {
+	return sink.stagingDir
 }
 
 // GetRealOutputDir returns the real output directory (non-staging)
-func (s *DiskSink) GetRealOutputDir() string {
-	return s.realOutputDir
+func (sink *DiskSink) GetRealOutputDir() string {
+	return sink.realOutputDir
 }
 
 // SetMtime updates the modification time for a file in the sink.
-func (s *DiskSink) SetMtime(path string, mtime time.Time) error {
-	target, err := s.resolvePathForWrite(path)
+func (sink *DiskSink) SetMtime(path string, mtime time.Time) error {
+	target, err := sink.resolvePathForWrite(path)
 	if err != nil {
 		return err
 	}
@@ -307,8 +307,8 @@ func (s *DiskSink) SetMtime(path string, mtime time.Time) error {
 }
 
 // Stat returns os.FileInfo for a path within the sink.
-func (s *DiskSink) Stat(path string) (os.FileInfo, error) {
-	target, err := s.resolvePathForWrite(path)
+func (sink *DiskSink) Stat(path string) (os.FileInfo, error) {
+	target, err := sink.resolvePathForWrite(path)
 	if err != nil {
 		return nil, err
 	}
@@ -316,12 +316,12 @@ func (s *DiskSink) Stat(path string) (os.FileInfo, error) {
 }
 
 // CopyFile copies a file into the sink and registers it.
-func (s *DiskSink) CopyFile(src, dst string) error {
-	target, err := s.resolvePathForWrite(dst)
+func (sink *DiskSink) CopyFile(src, dst string) error {
+	target, err := sink.resolvePathForWrite(dst)
 	if err != nil {
 		return err
 	}
-	if err := s.ensureDir(target); err != nil {
+	if err := sink.ensureDir(target); err != nil {
 		return err
 	}
 
@@ -330,6 +330,6 @@ func (s *DiskSink) CopyFile(src, dst string) error {
 		return err
 	}
 
-	s.Register(dst)
+	sink.Register(dst)
 	return nil
 }

@@ -101,7 +101,7 @@ func TestCacheService_EmptyBodyHash_Invalidation(t *testing.T) {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 
-	retrieved, err := service.GetPost("test-empty-body")
+	retrieved, err := service.GetPostByID("test-empty-body")
 	if err != nil {
 		t.Fatalf("GetPost failed: %v", err)
 	}

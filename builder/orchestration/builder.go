@@ -10,7 +10,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/minify"
@@ -43,162 +43,162 @@ const (
 )
 
 type buildSetup struct {
-	vfs            afero.Fs
-	cfg            *config.Config
-	logger         *slog.Logger
-	ctx            *buildCtx.BuildContext
-	isCleanBuild   bool
-	buildMetrics   *metrics.BuildMetrics
-	cacheSvc       svcCache.Service
-	nativeRenderer *native.Renderer
-	mdPool         *sync.Pool
-	renderSvc      render.Service
-	assetSvc       asset.Service
-	postSvc        post.Service
-	wasmSvc        wasm.Service
-	metaScanner    scanner.Scanner
-	diagramAdapter *cache.DiagramCacheAdapter
-	reporter       ui.Reporter
+	sourceFs        afero.Fs
+	config          *config.Config
+	logger          *slog.Logger
+	ctx             *buildctx.BuildContext
+	isCleanBuild    bool
+	buildMetrics    *metrics.BuildMetrics
+	cacheSvc        svcCache.Service
+	nativeRenderer  *native.Renderer
+	mdPool          *sync.Pool
+	renderSvc       render.Service
+	assetSvc        asset.Service
+	postSvc         post.Service
+	wasmSvc         wasm.Service
+	metaScanner     scanner.Scanner
+	diagramAdapter  *cache.DiagramCacheAdapter
+	reporter        ui.Reporter
 }
 
-func (s *buildSetup) initLoggerAndContext(cfg *config.Config, r ui.Reporter) {
-	s.cfg = cfg
-	s.reporter = r
-	s.logger = InitLogger(r)
+func (setup *buildSetup) initLoggerAndContext(config *config.Config, reporter ui.Reporter) {
+	setup.config = config
+	setup.reporter = reporter
+	setup.logger = InitLogger(reporter)
 	isTesting := fspkg.DetectTestingMode()
 
-	outputExists, _ := afero.Exists(s.vfs, cfg.OutputDir)
-	s.isCleanBuild = !outputExists
-	sched := scheduler.NewBuildScheduler()
-	s.ctx = buildCtx.NewBuildContext(buildCtx.ContextOptions{
+	outputExists, _ := afero.Exists(setup.sourceFs, config.OutputDir)
+	setup.isCleanBuild = !outputExists
+	buildScheduler := scheduler.NewBuildScheduler()
+	setup.ctx = buildctx.NewBuildContext(buildctx.ContextOptions{
 		IsTesting:    isTesting,
-		IsDev:        cfg.IsDev,
-		IsCleanBuild: s.isCleanBuild,
-		Scheduler:    sched,
-		Logger:       s.logger,
+		IsDev:        config.IsDev,
+		IsCleanBuild: setup.isCleanBuild,
+		Scheduler:    buildScheduler,
+		Logger:       setup.logger,
 	})
-	VerifyThemeFs(s.vfs, cfg, s.logger, isTesting)
+	VerifyThemeFs(setup.sourceFs, config, setup.logger, isTesting)
 
 	// Ensure all packages use the configured repository root
-	fspkg.SetRepoRoot(cfg.KoshSourceRoot)
+	fspkg.SetRepoRoot(config.KoshSourceRoot)
 }
 
-func (s *buildSetup) initDiagnostics() {
-	s.buildMetrics = metrics.NewBuildMetrics()
+func (setup *buildSetup) initDiagnostics() {
+	setup.buildMetrics = metrics.NewBuildMetrics()
 }
 
-func (s *buildSetup) initCache() {
-	SetupCacheDirectoriesFs(s.vfs, s.cfg, s.logger, fspkg.DetectTestingMode())
-	cacheManager, diagramAdapter, err := SetupCacheManager(s.cfg, s.logger)
+func (setup *buildSetup) initCache() {
+	SetupCacheDirectoriesFs(setup.sourceFs, setup.config, setup.logger, fspkg.DetectTestingMode())
+	cacheManager, diagramAdapter, err := SetupCacheManager(setup.config, setup.logger)
 	if err != nil {
-		s.logger.Warn("Failed to open cache database, using in-memory cache", "error", err)
+		setup.logger.Warn("Failed to open cache database, using in-memory cache", "error", err)
 	}
 	if cacheManager != nil {
-		s.cacheSvc = svcCache.NewService(svcCache.Dependencies{
-			Ctx:     s.ctx,
+		setup.cacheSvc = svcCache.NewService(svcCache.Dependencies{
+			Ctx:     setup.ctx,
 			Manager: cacheManager,
-			Logger:  s.logger,
+			Logger:  setup.logger,
 		})
 	}
-	s.diagramAdapter = diagramAdapter
+	setup.diagramAdapter = diagramAdapter
 }
 
-func (s *buildSetup) initNativeRenderer() {
+func (setup *buildSetup) initNativeRenderer() {
 	nativeWorkers := max(runtime.NumCPU(), minNativeWorkers)
 	workers := nativeWorkers
-	if s.cfg.ParserWorkers > 0 {
-		workers = s.cfg.ParserWorkers
+	if setup.config.ParserWorkers > 0 {
+		workers = setup.config.ParserWorkers
 	}
-	sched := s.ctx.Scheduler
-	s.nativeRenderer = native.New(native.WithWorkers(workers), native.WithScheduler(sched))
-	async.FireAndForget(context.Background(), s.logger, "native renderer warmup", func() error {
-		s.nativeRenderer.EnsureInitialized(context.Background())
+	buildScheduler := setup.ctx.Scheduler
+	setup.nativeRenderer = native.New(native.WithWorkers(workers), native.WithScheduler(buildScheduler))
+	async.FireAndForget(context.Background(), setup.logger, "native renderer warmup", func() error {
+		setup.nativeRenderer.EnsureInitialized(context.Background())
 		return nil
 	})
 
 	var ssrMap parser.SSRMap
-	if s.diagramAdapter != nil {
-		ssrMap = s.diagramAdapter
+	if setup.diagramAdapter != nil {
+		ssrMap = setup.diagramAdapter
 	} else {
 		ssrMap = parser.NewMemorySSRMap()
 	}
 
-	d2Group := s.nativeRenderer.GetD2Singleflight()
-	s.mdPool = &sync.Pool{
+	d2Group := setup.nativeRenderer.GetD2Singleflight()
+	setup.mdPool = &sync.Pool{
 		// mdPool stores *parser.Parser instances for markdown parsing.
 		New: func() any {
-			return parser.New(s.cfg, s.nativeRenderer, ssrMap, d2Group)
+			return parser.New(setup.config, setup.nativeRenderer, ssrMap, d2Group)
 		},
 	}
 }
 
-func (s *buildSetup) initServices() {
+func (setup *buildSetup) initServices() {
 	// assetsReady is created per-build and closed by AssetService when assets are ready.
 	// RenderService receives it via SetAssetsGate and waits before rendering pages.
 	// This is a one-way synchronization channel, not a bidirectional dependency.
 	// AssetService owns the channel lifecycle; RenderService only waits on it.
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
-		SourceFs:    s.vfs,
-		Compress:    s.cfg.CompressImages,
+	rendererInstance := renderer.NewWithFs(renderer.RendererOptions{
+		SourceFs:    setup.sourceFs,
+		Compress:    setup.config.ShouldCompressImages,
 		Sink:        nil,
-		TemplateDir: s.cfg.TemplateDir,
-		DevMode:     s.cfg.IsDev,
-		Logger:      s.logger,
+		TemplateDir: setup.config.TemplateDir,
+		DevMode:     setup.config.IsDev,
+		Logger:      setup.logger,
 	})
 
 	assetsReady := make(chan struct{})
 
-	s.renderSvc = render.NewService(render.Dependencies{
-		Ctx:      s.ctx,
-		Renderer: rnd,
-		Logger:   s.logger,
+	setup.renderSvc = render.NewService(render.Dependencies{
+		Ctx:      setup.ctx,
+		Renderer: rendererInstance,
+		Logger:   setup.logger,
 	})
-	s.renderSvc.SetAssetsGate(assetsReady)
+	setup.renderSvc.SetAssetsGate(assetsReady)
 
-	s.assetSvc = asset.NewService(asset.Dependencies{
-		Ctx:      s.ctx,
-		SourceFs: s.vfs,
+	setup.assetSvc = asset.NewService(asset.Dependencies{
+		Ctx:      setup.ctx,
+		SourceFs: setup.sourceFs,
 		Sink:     nil,
-		Cfg:      s.cfg,
-		Renderer: s.renderSvc,
-		Logger:   s.logger,
-		Metrics:  s.buildMetrics,
-		Reporter: s.reporter,
+		Cfg:      setup.config,
+		Renderer: setup.renderSvc,
+		Logger:   setup.logger,
+		Metrics:  setup.buildMetrics,
+		Reporter: setup.reporter,
 	}, asset.WithAssetsReadySignal(assetsReady))
 
-	s.postSvc = post.NewService(post.Dependencies{
-		Ctx:            s.ctx,
-		Cfg:            s.cfg,
-		Cache:          s.cacheSvc,
-		Renderer:       s.renderSvc,
-		Logger:         s.logger,
-		Metrics:        s.buildMetrics,
-		MdPool:         s.mdPool,
-		NativeRenderer: s.nativeRenderer,
-		SourceFs:       s.vfs,
-		DiagramAdapter: s.diagramAdapter,
-		Reporter:       s.reporter,
+	setup.postSvc = post.NewService(post.Dependencies{
+		Ctx:            setup.ctx,
+		Cfg:            setup.config,
+		Cache:          setup.cacheSvc,
+		Renderer:       setup.renderSvc,
+		Logger:         setup.logger,
+		Metrics:        setup.buildMetrics,
+		MdPool:         setup.mdPool,
+		NativeRenderer: setup.nativeRenderer,
+		SourceFs:       setup.sourceFs,
+		DiagramAdapter: setup.diagramAdapter,
+		Reporter:       setup.reporter,
 	})
-	s.metaScanner = scanner.NewScanner()
+	setup.metaScanner = scanner.NewScanner()
 
-	s.wasmSvc = wasm.NewService(wasm.Dependencies{
-		Ctx:    s.ctx,
-		Cfg:    s.cfg,
-		Logger: s.logger,
-		Fs:     s.vfs,
+	setup.wasmSvc = wasm.NewService(wasm.Dependencies{
+		Ctx:    setup.ctx,
+		Cfg:    setup.config,
+		Logger: setup.logger,
+		SourceFs: setup.sourceFs,
 	})
 }
 
-func newEngineWithConfigFs(vfs afero.Fs, cfg *config.Config, r ui.Reporter) *Engine {
-	setup := &buildSetup{vfs: vfs, reporter: r}
+func newEngineWithConfigFs(sourceFs afero.Fs, cfg *config.Config, reporter ui.Reporter) *Engine {
+	setup := &buildSetup{sourceFs: sourceFs, reporter: reporter}
 
-	setup.initLoggerAndContext(cfg, r)
+	setup.initLoggerAndContext(cfg, reporter)
 	setup.initDiagnostics()
 	setup.initCache()
 	setup.initNativeRenderer()
 	setup.initServices()
 
-	b := &Engine{
+	engineInstance := &Engine{
 		Cfg: cfg,
 		Ctx: setup.ctx,
 		Deps: EngineDependencies{
@@ -209,12 +209,12 @@ func newEngineWithConfigFs(vfs afero.Fs, cfg *config.Config, r ui.Reporter) *Eng
 			Wasm:           setup.wasmSvc,
 			Scanner:        setup.metaScanner,
 			Diagrams:       setup.diagramAdapter,
-			SourceFs:       vfs,
+			SourceFs:       sourceFs,
 			Logger:         setup.logger,
 			Metrics:        setup.buildMetrics,
 			MdPool:         setup.mdPool,
 			NativeRenderer: setup.nativeRenderer,
-			Reporter:       r,
+			Reporter:       reporter,
 		},
 		State: EngineState{
 			IsCleanBuild: setup.isCleanBuild,
@@ -222,47 +222,47 @@ func newEngineWithConfigFs(vfs afero.Fs, cfg *config.Config, r ui.Reporter) *Eng
 		Health: NewBuildHealthRegistry(),
 	}
 
-	b.Assets = assets.NewManager(assets.ManagerDependencies{
+	engineInstance.Assets = assets.NewManager(assets.ManagerDependencies{
 		Cfg:      cfg,
 		Asset:    setup.assetSvc,
 		Render:   setup.renderSvc,
 		Logger:   setup.logger,
 		Metrics:  setup.buildMetrics,
-		SourceFs: vfs,
+		SourceFs: sourceFs,
 	})
 
-	b.Search = search.NewManager(search.ManagerDependencies{
+	engineInstance.Search = search.NewManager(search.ManagerDependencies{
 		Cfg:    cfg,
 		Cache:  setup.cacheSvc,
 		Logger: setup.logger,
-		Health: b.Health,
+		Health: engineInstance.Health,
 	})
 
-	b.State.ForceGenerators.Store(true)
-	b.Incremental = incremental.NewManager(incremental.ManagerDependencies{
+	engineInstance.State.ForceGenerators.Store(true)
+	engineInstance.Incremental = incremental.NewManager(incremental.ManagerDependencies{
 		Cfg:      cfg,
 		Logger:   setup.logger,
-		SourceFs: vfs,
+		SourceFs: sourceFs,
 		Deps: incremental.IncrementalDependencies{
 			Cache:    setup.cacheSvc,
 			Post:     setup.postSvc,
 			Render:   setup.renderSvc,
 			Diagrams: setup.diagramAdapter,
 		},
-		Builder:        b,
-		Search:         b.Search,
+		Builder:        engineInstance,
+		Search:         engineInstance.Search,
 		MdPool:         setup.mdPool,
 		NativeRenderer: setup.nativeRenderer,
 	})
 
-	b.Watch = watch.New(watch.CoordinatorDependencies{
+	engineInstance.Watch = watch.New(watch.CoordinatorDependencies{
 		Cfg:           cfg,
-		BuildMu:       &b.State.BuildMu,
+		BuildMu:       &engineInstance.State.BuildMu,
 		Cache:         setup.cacheSvc,
-		OnChange:      b.handleWatchChange,
-		OnSearchRegen: func(ctx context.Context) { _ = b.Search.RegenerateIndex(ctx) },
+		OnChange:      engineInstance.handleWatchChange,
+		OnSearchRegen: func(ctx context.Context) { _ = engineInstance.Search.RegenerateIndex(ctx) },
 	})
-	b.Watch.Start()
+	engineInstance.Watch.Start()
 
-	return b
+	return engineInstance
 }

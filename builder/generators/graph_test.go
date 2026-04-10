@@ -36,7 +36,7 @@ func TestGenerateGraph(t *testing.T) {
 		BaseURL:    baseURL,
 		Posts:      posts,
 		OutputPath: outputPath,
-		Config:     models.GraphConfig{Enabled: true, ShowTags: true},
+		Config:     models.GraphConfig{IsEnabled: true, ShowsTags: true},
 		SiteTitle:  "Test Site",
 	})
 	if err != nil {
@@ -128,7 +128,7 @@ func TestGenerateGraph_Empty(t *testing.T) {
 		BaseURL:    "https://example.com",
 		Posts:      []models.PostMetadata{},
 		OutputPath: "empty.json",
-		Config:     models.GraphConfig{Enabled: true, ShowTags: true},
+		Config:     models.GraphConfig{IsEnabled: true, ShowsTags: true},
 		SiteTitle:  "Test Site",
 	})
 	if err != nil {
@@ -160,7 +160,7 @@ func TestGenerateGraph_DisableTags(t *testing.T) {
 		BaseURL:    "https://example.com",
 		Posts:      posts,
 		OutputPath: "graph.json",
-		Config:     models.GraphConfig{Enabled: true, ShowTags: false},
+		Config:     models.GraphConfig{IsEnabled: true, ShowsTags: false},
 		SiteTitle:  "Test Site",
 	})
 	if err != nil {

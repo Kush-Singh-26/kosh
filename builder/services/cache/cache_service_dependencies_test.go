@@ -26,7 +26,7 @@ func TestCacheService_BatchCommit_WithDependencies(t *testing.T) {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
-	retrieved, err := service.GetPost(post.PostID)
+	retrieved, err := service.GetPostByID(post.PostID)
 	if err != nil {
 		t.Fatalf("GetPost failed: %v", err)
 	}

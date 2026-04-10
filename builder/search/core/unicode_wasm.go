@@ -10,30 +10,30 @@ import (
 )
 
 // NormalizeNFC returns the input unchanged in WASM builds.
-func NormalizeNFC(s string) string {
-	return s
+func NormalizeNFC(text string) string {
+	return text
 }
 
 // ToLower lowercases a string for WASM builds.
-func ToLower(s string) string {
-	return strings.ToLower(s)
+func ToLower(text string) string {
+	return strings.ToLower(text)
 }
 
 // ToTitle title-cases a string for WASM builds.
-func ToTitle(s string) string {
-	if s == "" {
+func ToTitle(text string) string {
+	if text == "" {
 		return ""
 	}
-	r := []rune(s)
-	if len(r) == 1 {
-		return string(unicode.ToUpper(r[0]))
+	runes := []rune(text)
+	if len(runes) == 1 {
+		return string(unicode.ToUpper(runes[0]))
 	}
-	return string(unicode.ToUpper(r[0])) + strings.ToLower(string(r[1:]))
+	return string(unicode.ToUpper(runes[0])) + strings.ToLower(string(runes[1:]))
 }
 
 // HTMLEscape escapes HTML entities in a string.
-func HTMLEscape(s string) string {
-	return html.EscapeString(s)
+func HTMLEscape(text string) string {
+	return html.EscapeString(text)
 }
 
 // NowUnix returns the current Unix timestamp.

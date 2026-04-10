@@ -24,43 +24,43 @@ type buildScanResult struct {
 }
 
 // scanPhase launches the parallel metadata scanner.
-func (b *Engine) scanPhase(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) *buildScanResult {
-	if b.Deps.Reporter != nil {
-		b.Deps.Reporter.StartPhase(ui.PhaseScan)
+func (engineInstance *Engine) scanPhase(ctx context.Context, contentAssetsChan chan []models.ScannedAsset) *buildScanResult {
+	if engineInstance.Deps.Reporter != nil {
+		engineInstance.Deps.Reporter.StartPhase(ui.PhaseScan)
 	}
-	fileChan := make(chan models.ScannedFile, scanFileChanBuffer)
+	fileChannel := make(chan models.ScannedFile, scanFileChanBuffer)
 	scannerReady := make(chan struct{})
 	metadataResultChan := make(chan *models.MetadataScannerResult, scanResultBuffer)
 	scannerErrChan := make(chan error, scanResultBuffer)
 
-	logger := b.Deps.Logger
+	logger := engineInstance.Deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	async.FireAndForget(ctx, logger, "metadata scan", func() error {
+		async.FireAndForget(ctx, logger, "metadata scan", func() error {
 		defer close(scannerReady)
-		defer close(fileChan)
+		defer close(fileChannel)
 		defer close(metadataResultChan)
 		defer close(scannerErrChan)
 
-		metadataResult, scannerErr := b.Deps.Scanner.Scan(scanner.ScanOptions{
+		metadataResult, scannerError := engineInstance.Deps.Scanner.Scan(scanner.ScanOptions{
 			Ctx:        ctx,
-			ContentDir: b.Cfg.ContentDir,
-			SrcFs:      b.Deps.SourceFs,
-			Cfg:        b.Cfg,
-			FileChan:   fileChan,
+			ContentDir: engineInstance.Cfg.ContentDir,
+			SrcFs:      engineInstance.Deps.SourceFs,
+			Cfg:        engineInstance.Cfg,
+			FileChan:   fileChannel,
 		})
-		if scannerErr == nil {
+		if scannerError == nil {
 			contentAssetsChan <- metadataResult.ContentAssets
 		}
 		// Always send result and error (even if nil).
 		metadataResultChan <- metadataResult
-		scannerErrChan <- scannerErr
+		scannerErrChan <- scannerError
 		return nil
 	})
 
 	return &buildScanResult{
-		fileChan:           fileChan,
+		fileChan:           fileChannel,
 		scannerReady:       scannerReady,
 		metadataResultChan: metadataResultChan,
 		scannerErrChan:     scannerErrChan,

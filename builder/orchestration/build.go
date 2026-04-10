@@ -22,129 +22,129 @@ import (
 )
 
 // refreshBuildSession creates a fresh Transaction and Sink for a new build pass.
-func (b *Engine) refreshBuildSession() {
+func (engineInstance *Engine) refreshBuildSession() {
 	// Clear per-file content cache so dev rebuilds don't serve stale data
 	fspkg.ClearSyncCache()
 	// If we already have a sink/tx (e.g. injected in tests), don't overwrite it
-	if b.Sink == nil || !b.Ctx.IsTesting {
-		useStaging := !b.Cfg.IsDev || b.State.IsCleanBuild
+	if engineInstance.artifactSink == nil || !engineInstance.Ctx.IsTesting {
+		useStaging := !engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild
 		// Explicit cleanup before creating new transaction for clean builds
 		if useStaging {
-			tx.CleanupStaleBuildDirs(b.Cfg.OutputDir)
+			tx.CleanupStaleBuildDirs(engineInstance.Cfg.OutputDir)
 		}
-		b.Tx = tx.NewBuildTransaction(b.Cfg.OutputDir, useStaging)
-		b.SetSink(fspkg.NewDiskSink(b.Tx.StagingDir(), b.Cfg.OutputDir))
+		engineInstance.buildTransaction = tx.NewBuildTransaction(engineInstance.Cfg.OutputDir, useStaging)
+		engineInstance.SetSink(fspkg.NewDiskSink(engineInstance.buildTransaction.StagingDir(), engineInstance.Cfg.OutputDir))
 	} else {
 		// Even if sink is already set (e.g. in tests), reconfigure services with current Fs
-		b.SetSink(b.Sink)
+		engineInstance.SetSink(engineInstance.artifactSink)
 	}
 }
 
 // BuildLocked executes the build logic without locking.
 // This is used internally and by the incremental manager when it already holds the build lock.
-func (b *Engine) BuildLocked(ctx context.Context) error {
-	setup, err := b.setupPhase(ctx)
-	if err != nil {
-		return err
+func (engineInstance *Engine) BuildLocked(ctx context.Context) error {
+	setup, setupError := engineInstance.setupPhase(ctx)
+	if setupError != nil {
+		return setupError
 	}
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
-	assets := b.assetPhase(ctx, contentAssetsChan)
-	scan := b.scanPhase(ctx, contentAssetsChan)
+	assetsResult := engineInstance.assetPhase(ctx, contentAssetsChan)
+	scanResult := engineInstance.scanPhase(ctx, contentAssetsChan)
 
-	if err := b.processPhase(ctx, setup, assets, scan); err != nil {
+	if processError := engineInstance.processPhase(ctx, setup, assetsResult, scanResult); processError != nil {
 		close(contentAssetsChan)
-		return err
+		return processError
 	}
 
 	close(contentAssetsChan)
-	return b.finalizePhase(ctx, setup.wasmWg, assets.assetsReady)
+	return engineInstance.finalizePhase(ctx, setup.wasmWg, assetsResult.assetsReadySignal)
 }
 
-func (b *Engine) buildAssetOnly(ctx context.Context) error {
-	b.State.IsAssetOnlyBuild = true
-	defer func() { b.State.IsAssetOnlyBuild = false }()
+func (engineInstance *Engine) buildAssetOnly(ctx context.Context) error {
+	engineInstance.State.IsAssetOnlyBuild = true
+	defer func() { engineInstance.State.IsAssetOnlyBuild = false }()
 
 	// Start fresh session/tracking state
-	b.refreshBuildSession()
+	engineInstance.refreshBuildSession()
 
-	return b.Assets.BuildAssetOnly(ctx, func(ctx context.Context) error {
-		b.Deps.Post.SetAssetsGate(nil)
-		b.State.ForceGenerators.Store(true)
+	return engineInstance.Assets.BuildAssetOnly(ctx, func(ctx context.Context) error {
+		engineInstance.Deps.Post.SetAssetsGate(nil)
+		engineInstance.State.ForceGenerators.Store(true)
 
-		metadataResult, err := b.Deps.Scanner.Scan(scanner.ScanOptions{
+		metadataResult, scanError := engineInstance.Deps.Scanner.Scan(scanner.ScanOptions{
 			Ctx:        ctx,
-			ContentDir: b.Cfg.ContentDir,
-			SrcFs:      b.Deps.SourceFs,
-			Cfg:        b.Cfg,
+			ContentDir: engineInstance.Cfg.ContentDir,
+			SrcFs:      engineInstance.Deps.SourceFs,
+			Cfg:        engineInstance.Cfg,
 			FileChan:   nil,
 		})
-		if err != nil {
-			return fmt.Errorf("metadata scan failed: %w", err)
+		if scanError != nil {
+			return fmt.Errorf("metadata scan failed: %w", scanError)
 		}
 
 		shouldForce := false
 		forceSocialRebuild := false
 		outputMissing := false
-		_, err = b.processPosts(ProcessPostsOptions{
+		_, processError := engineInstance.processPosts(ProcessPostsOptions{
 			Ctx:                ctx,
 			ShouldForce:        shouldForce,
 			ForceSocialRebuild: forceSocialRebuild,
 			OutputMissing:      outputMissing,
 			Files:              metadataResult.Files,
 		})
-		if err != nil {
-			return fmt.Errorf("post processing failed: %w", err)
+		if processError != nil {
+			return fmt.Errorf("post processing failed: %w", processError)
 		}
 
 		// Remove original raster images when .webp equivalents exist
-		assets.CleanupOriginalImages(b.Tx.StagingDir())
+		assets.CleanupOriginalImages(engineInstance.buildTransaction.StagingDir())
 
-		if err := b.Tx.Commit(ctx); err != nil {
-			return fmt.Errorf("failed to publish build transaction: %w", err)
+		if commitError := engineInstance.buildTransaction.Commit(ctx); commitError != nil {
+			return fmt.Errorf("failed to publish build transaction: %w", commitError)
 		}
 
-		b.cleanupOrphans()
+		engineInstance.cleanupOrphans()
 
-		b.Deps.Metrics.RecordEnd()
-		b.Deps.Logger.Info("Build complete")
-		b.Deps.Metrics.Print()
+		engineInstance.Deps.Metrics.RecordEnd()
+		engineInstance.Deps.Logger.Info("Build complete")
+		engineInstance.Deps.Metrics.Print()
 
 		return nil
 	})
 }
 
 // Build runs a full build with concurrency and locking safeguards.
-func (b *Engine) Build(ctx context.Context) error {
+func (engineInstance *Engine) Build(ctx context.Context) error {
 	// Prevent concurrent builds
-	b.State.BuildMu.Lock()
-	defer b.State.BuildMu.Unlock()
+	engineInstance.State.BuildMu.Lock()
+	defer engineInstance.State.BuildMu.Unlock()
 
 	// Reset per-build metrics so watch-mode rebuilds don't accumulate counters.
-	if b.Deps.Metrics != nil {
-		b.Deps.Metrics.Reset()
+	if engineInstance.Deps.Metrics != nil {
+		engineInstance.Deps.Metrics.Reset()
 	}
 
 	// Acquire build lock to prevent concurrent builds (skip in tests)
 	var buildLock *fspkg.FileLock
 	var lockErr error
-	if !b.Ctx.IsTesting {
-		buildLock, lockErr = fspkg.AcquireBuildLock(b.Cfg.OutputDir)
+	if !engineInstance.Ctx.IsTesting {
+		buildLock, lockErr = fspkg.AcquireBuildLock(engineInstance.Cfg.OutputDir)
 		if lockErr != nil {
-			if !b.Cfg.ForceLock {
+			if !engineInstance.Cfg.ShouldForceLock {
 				return fmt.Errorf("could not acquire build lock: %w (use --force-lock to override)", lockErr)
 			}
-			b.Deps.Logger.Warn("Acquiring build lock failed, but continuing due to --force-lock", "error", lockErr)
+			engineInstance.Deps.Logger.Warn("Acquiring build lock failed, but continuing due to --force-lock", "error", lockErr)
 		} else {
 			defer func() {
 				if buildLock != nil {
 					if err := buildLock.Release(); err != nil {
-						b.Deps.Logger.Error("Failed to release build lock", "error", err)
+						engineInstance.Deps.Logger.Error("Failed to release build lock", "error", err)
 					}
 				}
 			}()
 		}
 	}
 
-	return b.BuildLocked(ctx)
+	return engineInstance.BuildLocked(ctx)
 }

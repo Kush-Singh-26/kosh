@@ -86,9 +86,9 @@ func TestFullPipeline(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Enable image compression for the image test
 			if tt.name == "Image Transformation (to .webp)" {
-				cfg.CompressImages = true
+				cfg.ShouldCompressImages = true
 			} else {
-				cfg.CompressImages = false
+				cfg.ShouldCompressImages = false
 			}
 
 			// Set BaseURL for the BaseURL test

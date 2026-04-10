@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
@@ -18,7 +18,7 @@ func setupCacheServiceTest(t *testing.T) (*cacheService, *cache.Manager, func())
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	service := NewService(Dependencies{
-		Ctx: buildCtx.NewBuildContext(buildCtx.ContextOptions{
+		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
 			IsCleanBuild: false,

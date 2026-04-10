@@ -58,8 +58,8 @@ func parseMarkdownWithRecovery(
 
 	func() {
 		defer func() {
-			if r := recover(); r != nil {
-				parseErr = fmt.Errorf("panic during markdown parsing: %v", r)
+			if recovered := recover(); recovered != nil {
+				parseErr = fmt.Errorf("panic during markdown parsing: %v", recovered)
 			}
 		}()
 
@@ -113,10 +113,10 @@ func buildPostMetadata(
 		Description: fm.Description,
 		Tags:        fm.Tags,
 		ReadingTime: readingTime,
-		Pinned:      fm.Pinned,
+		IsPinned:    fm.IsPinned,
 		Weight:      fm.Weight,
 		DateObj:     fm.DateObj,
-		Draft:       fm.Draft,
+		IsDraft:     fm.IsDraft,
 	}
 }
 
@@ -127,8 +127,8 @@ func buildSearchRecord(
 	plainText string,
 ) models.PostRecord {
 	normalizedTags := make([]string, len(post.Tags))
-	for i, t := range post.Tags {
-		normalizedTags[i] = strings.ToLower(t)
+	for i, tag := range post.Tags {
+		normalizedTags[i] = strings.ToLower(tag)
 	}
 
 	return models.PostRecord{
@@ -149,32 +149,32 @@ func tokenizeSearchData(
 	searchRecord models.PostRecord,
 	plainText string,
 ) (map[string]int, int, map[string]string, map[string][]uint32, map[string][]uint32) {
-	sb := pools.SharedStringBuilderPool.Get()
-	defer pools.SharedStringBuilderPool.Put(sb)
+	builder := pools.SharedStringBuilderPool.Get()
+	defer pools.SharedStringBuilderPool.Put(builder)
 
-	sb.Grow(len(searchRecord.Title) + len(searchRecord.Description) + len(plainText) + metadataBuilderExtra)
-	sb.WriteString(searchRecord.Title)
-	sb.WriteByte(' ')
-	sb.WriteString(searchRecord.Description)
-	sb.WriteByte(' ')
-	for _, t := range searchRecord.Tags {
-		sb.WriteString(t)
-		sb.WriteByte(' ')
+	builder.Grow(len(searchRecord.Title) + len(searchRecord.Description) + len(plainText) + metadataBuilderExtra)
+	builder.WriteString(searchRecord.Title)
+	builder.WriteByte(' ')
+	builder.WriteString(searchRecord.Description)
+	builder.WriteByte(' ')
+	for _, tag := range searchRecord.Tags {
+		builder.WriteString(tag)
+		builder.WriteByte(' ')
 	}
-	metaOffset := sb.Len()
-	sb.WriteString(plainText)
+	metaOffset := builder.Len()
+	builder.WriteString(plainText)
 
-	words, freshStemMap, positions, rawOffsets := core.DefaultAnalyzer.AnalyzeWithPositions(sb.String())
+	words, freshStemMap, positions, rawOffsets := core.DefaultAnalyzer.AnalyzeWithPositions(builder.String())
 
 	wordFreqs := make(map[string]int, len(words)/wordFreqMapDivisor)
-	for _, w := range words {
-		wordFreqs[w]++
+	for _, word := range words {
+		wordFreqs[word]++
 	}
 
 	// Apply title boost to frequencies
 	titleTokens := core.DefaultAnalyzer.Analyze(searchRecord.Title)
-	for _, t := range titleTokens {
-		wordFreqs[t] += titleBoost
+	for _, token := range titleTokens {
+		wordFreqs[token] += titleBoost
 	}
 
 	docLen := len(words)

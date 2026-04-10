@@ -10,7 +10,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
@@ -131,8 +131,8 @@ func ensureTagsIndexCard(opts TagOptions, tagsDesc string) {
 	}
 
 	if data, err := afero.ReadFile(afero.NewOsFs(), tagsIndexCache); err == nil {
-		buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(tagsIndexCard)), "create tags index card dir")
-		buildCtx.IgnoreError(sink.WriteFile(tagsIndexCard, data), "write cached tags index card")
+		buildctx.IgnoreError(sink.MkdirAll(filepath.Dir(tagsIndexCard)), "create tags index card dir")
+		buildctx.IgnoreError(sink.WriteFile(tagsIndexCard, data), "write cached tags index card")
 		render.RegisterFile(tagsIndexCard)
 	}
 }
@@ -168,7 +168,7 @@ func stopTagCardPool(pool *async.WorkerPool[TagSocialCardTask], timer *timeutil.
 			slog.Debug("Tag card pool stop recovered", "panic", r)
 		}
 	}()
-	buildCtx.IgnoreError(pool.Stop(), "stop tag card pool")
+	buildctx.IgnoreError(pool.Stop(), "stop tag card pool")
 	timer.Stop()
 }
 
@@ -215,8 +215,8 @@ func RenderTags(opts TagOptions) error {
 			tagCardPool.Submit(TagSocialCardTask{Slug: slug, Title: tagName, Count: len(tagPosts)})
 		} else if data, err := afero.ReadFile(afero.NewOsFs(), cached); err == nil {
 			tagCard := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/tags/%s.webp", slug))
-			buildCtx.IgnoreError(sink.MkdirAll(filepath.Dir(tagCard)), "create tag card dir")
-			buildCtx.IgnoreError(sink.WriteFile(tagCard, data), "write cached tag card")
+			buildctx.IgnoreError(sink.MkdirAll(filepath.Dir(tagCard)), "create tag card dir")
+			buildctx.IgnoreError(sink.WriteFile(tagCard, data), "write cached tag card")
 			render.RegisterFile(tagCard)
 		}
 

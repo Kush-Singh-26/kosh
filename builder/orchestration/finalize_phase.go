@@ -16,44 +16,44 @@ const (
 )
 
 // finalizeBuild writes post-build files and commits the transaction.
-func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup, assetsReady <-chan struct{}) error {
+func (engineInstance *Engine) finalizeBuild(ctx context.Context, wasmWaitGroup *sync.WaitGroup, assetsReadySignal <-chan struct{}) error {
 	// Write .nojekyll file
-	if err := b.Sink.WriteFile(filepath.Join(b.Cfg.OutputDir, ".nojekyll"), []byte{}); err != nil {
+	if err := engineInstance.artifactSink.WriteFile(filepath.Join(engineInstance.Cfg.OutputDir, ".nojekyll"), []byte{}); err != nil {
 		return fmt.Errorf("failed to write .nojekyll: %w", err)
 	}
-	b.Deps.Render.RegisterFile(filepath.Join(b.Cfg.OutputDir, ".nojekyll"))
+	engineInstance.Deps.Render.RegisterFile(filepath.Join(engineInstance.Cfg.OutputDir, ".nojekyll"))
 
 	// Sync/Commit transaction
-	b.Deps.Logger.Info("Publishing output...")
+	engineInstance.Deps.Logger.Info("Publishing output...")
 	syncTimer := timeutil.StartPhase("Publish")
 	// Ensure WASM compilation and PWA generation finished before deploying and publishing
-	wasmWg.Wait()
+	wasmWaitGroup.Wait()
 
-	// Reset ForceRebuild AFTER all async checks have completed
-	b.Cfg.ForceRebuild = false
+	// Reset ShouldForceRebuild AFTER all async checks have completed
+	engineInstance.Cfg.ShouldForceRebuild = false
 
-	if err := b.Deps.Wasm.Deploy(ctx, b.Sink); err != nil {
-		b.Deps.Logger.Warn("Failed to deploy Search WASM", "error", err)
+	if err := engineInstance.Deps.Wasm.Deploy(ctx, engineInstance.artifactSink); err != nil {
+		engineInstance.Deps.Logger.Warn("Failed to deploy Search WASM", "error", err)
 	}
 
 	// Ensure asset pipeline finished so converted-image map is complete.
-	if assetsReady != nil {
+	if assetsReadySignal != nil {
 		select {
-		case <-assetsReady:
+		case <-assetsReadySignal:
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
 
-	if b.Deps.Reporter != nil {
-		b.Deps.Reporter.EndPhase(ui.PhaseAssets, 0)
+	if engineInstance.Deps.Reporter != nil {
+		engineInstance.Deps.Reporter.EndPhase(ui.PhaseAssets, 0)
 	}
 
 	// Remove original raster images (.png/.jpg/.jpeg) when .webp equivalents exist.
 	// This ensures the published output contains only WebP images (except critical assets).
-	assets.CleanupOriginalImages(b.Tx.StagingDir())
+	assets.CleanupOriginalImages(engineInstance.buildTransaction.StagingDir())
 
-	if err := b.Tx.Commit(ctx); err != nil {
+	if err := engineInstance.buildTransaction.Commit(ctx); err != nil {
 		syncTimer.Stop()
 		return fmt.Errorf("failed to publish build transaction: %w", err)
 	}
@@ -63,96 +63,96 @@ func (b *Engine) finalizeBuild(ctx context.Context, wasmWg *sync.WaitGroup, asse
 }
 
 // finalizePhase handles post-build cleanup and commit.
-func (b *Engine) finalizePhase(ctx context.Context, wasmWg *sync.WaitGroup, assetsReady <-chan struct{}) error {
+func (engineInstance *Engine) finalizePhase(ctx context.Context, wasmWaitGroup *sync.WaitGroup, assetsReadySignal <-chan struct{}) error {
 	// Post-build files and commit
-	if err := b.finalizeBuild(ctx, wasmWg, assetsReady); err != nil {
+	if err := engineInstance.finalizeBuild(ctx, wasmWaitGroup, assetsReadySignal); err != nil {
 		return err
 	}
 
-	if b.Deps.Reporter != nil {
-		b.Deps.Reporter.EndPhase(ui.PhasePublish, 0)
+	if engineInstance.Deps.Reporter != nil {
+		engineInstance.Deps.Reporter.EndPhase(ui.PhasePublish, 0)
 	}
 
 	// Cleanup orphans (Dev mode only)
-	b.cleanupOrphans()
+	engineInstance.cleanupOrphans()
 
 	// Clear memory state
-	b.Deps.Render.ClearRenderedFiles()
+	engineInstance.Deps.Render.ClearRenderedFiles()
 
 	// Build complete. Log summary insights.
-	b.Deps.Metrics.RecordEnd()
-	b.printBuildInsights()
-	if b.Health != nil {
-		b.Health.LogSummary()
+	engineInstance.Deps.Metrics.RecordEnd()
+	engineInstance.printBuildInsights()
+	if engineInstance.Health != nil {
+		engineInstance.Health.LogSummary()
 	}
 
-	if b.Deps.Reporter != nil {
-		m := b.Deps.Metrics
-		hits := m.CacheHits.Load()
-		misses := m.CacheMisses.Load()
+	if engineInstance.Deps.Reporter != nil {
+		metricsInstance := engineInstance.Deps.Metrics
+		hits := metricsInstance.CacheHits.Load()
+		misses := metricsInstance.CacheMisses.Load()
 		total := hits + misses
 		hitRate := float64(0)
 		if total > 0 {
 			hitRate = float64(hits) / float64(total)
 		}
 
-		b.Deps.Reporter.Finish(ui.BuildStats{
-			Duration:   m.TotalDuration(),
+		engineInstance.Deps.Reporter.Finish(ui.BuildStats{
+			Duration:   metricsInstance.TotalDuration(),
 			HitRate:    hitRate,
-			Posts:      int(m.PostsProcessed.Load()),
-			Assets:     int(m.AssetsProcessed.Load()),
-			Optimized:  int(m.ImagesOptimized.Load()),
-			SavedBytes: m.OriginalImageSize.Load() - m.OptimizedImageSize.Load(),
+			Posts:      int(metricsInstance.PostsProcessed.Load()),
+			Assets:     int(metricsInstance.AssetsProcessed.Load()),
+			Optimized:  int(metricsInstance.ImagesOptimized.Load()),
+			SavedBytes: metricsInstance.OriginalImageSize.Load() - metricsInstance.OptimizedImageSize.Load(),
 		})
 	} else {
-		b.Deps.Logger.Info("Build complete")
+		engineInstance.Deps.Logger.Info("Build complete")
 	}
 
 	return nil
 }
 
-func (b *Engine) printBuildInsights() {
-	m := b.Deps.Metrics
-	if m == nil {
+func (engineInstance *Engine) printBuildInsights() {
+	metricsInstance := engineInstance.Deps.Metrics
+	if metricsInstance == nil {
 		return
 	}
 
-	hits := m.CacheHits.Load()
-	misses := m.CacheMisses.Load()
+	hits := metricsInstance.CacheHits.Load()
+	misses := metricsInstance.CacheMisses.Load()
 	total := hits + misses
 	hitRate := float64(0)
 	if total > 0 {
 		hitRate = float64(hits) / float64(total) * percentScale
 	}
 
-	origSize := m.OriginalImageSize.Load()
-	optSize := m.OptimizedImageSize.Load()
+	originalSize := metricsInstance.OriginalImageSize.Load()
+	optimizedSize := metricsInstance.OptimizedImageSize.Load()
 	saved := int64(0)
-	if origSize > optSize {
-		saved = origSize - optSize
+	if originalSize > optimizedSize {
+		saved = originalSize - optimizedSize
 	}
 	saveRate := float64(0)
-	if origSize > 0 {
-		saveRate = float64(saved) / float64(origSize) * percentScale
+	if originalSize > 0 {
+		saveRate = float64(saved) / float64(originalSize) * percentScale
 	}
 
-	b.Deps.Logger.Info("Build Insights",
-		"posts", m.PostsProcessed.Load(),
+	engineInstance.Deps.Logger.Info("Build Insights",
+		"posts", metricsInstance.PostsProcessed.Load(),
 		"cache_hit_rate", fmt.Sprintf("%.1f%%", hitRate),
-		"images_optimized", m.ImagesOptimized.Load(),
+		"images_optimized", metricsInstance.ImagesOptimized.Load(),
 		"image_savings", fmt.Sprintf("%.1f%% (%s)", saveRate, formatBytes(saved)),
 	)
 }
 
-func formatBytes(b int64) string {
+func formatBytes(bytes int64) string {
 	const unit = bytesPerKiB
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
 	}
 	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
+	for n := bytes / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

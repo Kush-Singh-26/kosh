@@ -32,13 +32,13 @@ type Watcher struct {
 
 // New creates a new watcher for the specified directories
 func New(dirs []string, onEvent func(Event)) (*Watcher, error) {
-	w, err := fsnotify.NewWatcher()
+	fsWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Watcher{
-		watcher:  w,
+		watcher:  fsWatcher,
 		Dirs:     dirs,
 		OnEvent:  onEvent,
 		duration: watchDebounceDuration, // 50ms debounce for fast dev response
@@ -82,11 +82,11 @@ func (w *Watcher) Start() {
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			continue
 		}
-		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if d.IsDir() {
+			if entry.IsDir() {
 				// Skip hidden directories like .git
 				if filepath.Base(path)[0] == '.' && path != "." {
 					return filepath.SkipDir

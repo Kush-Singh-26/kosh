@@ -108,33 +108,33 @@ func detectTTY() bool {
 	return false
 }
 
-func (r *lineReporter) color(code, text string) string {
-	if !r.isTTY {
+func (rep *lineReporter) color(code, text string) string {
+	if !rep.isTTY {
 		return text
 	}
 	return code + text + reset
 }
 
 // ts returns the current time formatted for log line prefixes.
-func (r *lineReporter) ts() string {
-	return r.color(gray, time.Now().Format("15:04:05"))
+func (rep *lineReporter) ts() string {
+	return rep.color(gray, time.Now().Format("15:04:05"))
 }
 
 // Start initializes the reporter with the given mode.
-func (r *lineReporter) Start(mode string) {
-	r.mode = mode
-	if !r.isTTY {
+func (rep *lineReporter) Start(mode string) {
+	rep.mode = mode
+	if !rep.isTTY {
 		return
 	}
 
 	// Start a background goroutine to animate the spinner at 100ms intervals
-	r.ticker = time.NewTicker(spinnerInterval)
+	rep.ticker = time.NewTicker(spinnerInterval)
 	async.FireAndForget(context.Background(), slog.Default(), "line reporter spinner", func() error {
 		for {
 			select {
-			case <-r.ticker.C:
-				r.renderSpinner()
-			case <-r.done:
+			case <-rep.ticker.C:
+				rep.renderSpinner()
+			case <-rep.done:
 				return nil
 			}
 		}
@@ -142,28 +142,28 @@ func (r *lineReporter) Start(mode string) {
 }
 
 // StartPhase marks a build phase as started.
-func (r *lineReporter) StartPhase(phase Phase) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (rep *lineReporter) StartPhase(phase Phase) {
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
 
-	if _, ok := r.phases[phase]; !ok {
-		r.phaseOrder = append(r.phaseOrder, phase)
+	if _, ok := rep.phases[phase]; !ok {
+		rep.phaseOrder = append(rep.phaseOrder, phase)
 	}
-	r.phases[phase] = &linePhaseState{
+	rep.phases[phase] = &linePhaseState{
 		startTime: time.Now(),
 	}
 
-	if !r.isTTY {
-		fmt.Printf("%s %s %s\n", r.ts(), r.color(cyan, symArrow), phase.String())
+	if !rep.isTTY {
+		fmt.Printf("%s %s %s\n", rep.ts(), rep.color(cyan, symArrow), phase.String())
 	}
 }
 
 // UpdateProgress updates progress numbers for a phase.
-func (r *lineReporter) UpdateProgress(phase Phase, current, total int, detail string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (rep *lineReporter) UpdateProgress(phase Phase, current, total int, detail string) {
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
 
-	if ps, ok := r.phases[phase]; ok {
+	if ps, ok := rep.phases[phase]; ok {
 		ps.current = current
 		ps.total = total
 		ps.detail = detail
@@ -171,11 +171,11 @@ func (r *lineReporter) UpdateProgress(phase Phase, current, total int, detail st
 }
 
 // EndPhase marks a phase as completed.
-func (r *lineReporter) EndPhase(phase Phase, duration time.Duration) {
-	r.mu.Lock()
-	ps, ok := r.phases[phase]
+func (rep *lineReporter) EndPhase(phase Phase, duration time.Duration) {
+	rep.mu.Lock()
+	ps, ok := rep.phases[phase]
 	if !ok {
-		r.mu.Unlock()
+		rep.mu.Unlock()
 		return
 	}
 
@@ -184,75 +184,75 @@ func (r *lineReporter) EndPhase(phase Phase, duration time.Duration) {
 	}
 	ps.duration = duration
 	ps.finished = true
-	r.mu.Unlock()
+	rep.mu.Unlock()
 
 	durationStr := formatDuration(duration)
 	line := fmt.Sprintf("%s %s %-22s %s\n",
-		r.ts(),
-		r.color(green, symCheck),
+		rep.ts(),
+		rep.color(green, symCheck),
 		phase.String(),
-		r.color(gray, durationStr))
+		rep.color(gray, durationStr))
 
-	r.printLine(line)
+	rep.printLine(line)
 }
 
 // Info logs an informational message.
-func (r *lineReporter) Info(msg string, args ...any) {
+func (rep *lineReporter) Info(msg string, args ...any) {
 	content := fmt.Sprintf(msg, args...)
-	if r.shouldSkip(content) {
+	if rep.shouldSkip(content) {
 		return
 	}
-	content = r.shortenPaths(content)
-	line := fmt.Sprintf("%s %s %s\n", r.ts(), r.color(cyan, symInfo), content)
+	content = rep.shortenPaths(content)
+	line := fmt.Sprintf("%s %s %s\n", rep.ts(), rep.color(cyan, symInfo), content)
 
-	r.printLine(line)
+	rep.printLine(line)
 }
 
 // Warn logs a warning message.
-func (r *lineReporter) Warn(msg string, args ...any) {
+func (rep *lineReporter) Warn(msg string, args ...any) {
 	content := fmt.Sprintf(msg, args...)
-	content = r.shortenPaths(content)
-	line := fmt.Sprintf("%s %s %s\n", r.ts(), r.color(yellow, symWarn), content)
+	content = rep.shortenPaths(content)
+	line := fmt.Sprintf("%s %s %s\n", rep.ts(), rep.color(yellow, symWarn), content)
 
-	r.printLine(line)
+	rep.printLine(line)
 }
 
 // Error logs an error message with an optional error value.
-func (r *lineReporter) Error(msg string, err error, args ...any) {
+func (rep *lineReporter) Error(msg string, err error, args ...any) {
 	content := fmt.Sprintf(msg, args...)
 	if err != nil {
 		content = fmt.Sprintf("%s: %v", content, err)
 	}
-	content = r.shortenPaths(content)
-	line := fmt.Sprintf("%s %s %s\n", r.ts(), r.color(red, symCross), content)
+	content = rep.shortenPaths(content)
+	line := fmt.Sprintf("%s %s %s\n", rep.ts(), rep.color(red, symCross), content)
 
-	r.printLine(line)
+	rep.printLine(line)
 }
 
 // Success logs a success message.
-func (r *lineReporter) Success(msg string) {
-	content := r.shortenPaths(msg)
-	line := fmt.Sprintf("%s %s %s\n", r.ts(), r.color(green, symCheck), content)
+func (rep *lineReporter) Success(msg string) {
+	content := rep.shortenPaths(msg)
+	line := fmt.Sprintf("%s %s %s\n", rep.ts(), rep.color(green, symCheck), content)
 
-	r.printLine(line)
+	rep.printLine(line)
 }
 
 // Status prints a status line.
-func (r *lineReporter) Status(msg string) {
-	r.mu.Lock()
-	r.status = msg
-	r.mu.Unlock()
+func (rep *lineReporter) Status(msg string) {
+	rep.mu.Lock()
+	rep.status = msg
+	rep.mu.Unlock()
 
-	line := fmt.Sprintf("\n%s %s %s\n", r.ts(), r.color(cyan, symReady), r.color(bold, msg))
-	r.printLine(line)
+	line := fmt.Sprintf("\n%s %s %s\n", rep.ts(), rep.color(cyan, symReady), rep.color(bold, msg))
+	rep.printLine(line)
 }
 
 // printLine outputs a line, clearing the spinner first if active.
-func (r *lineReporter) printLine(line string) {
-	r.mu.Lock()
-	finished := r.finished
-	isTTY := r.isTTY
-	r.mu.Unlock()
+func (rep *lineReporter) printLine(line string) {
+	rep.mu.Lock()
+	finished := rep.finished
+	isTTY := rep.isTTY
+	rep.mu.Unlock()
 
 	if isTTY && !finished {
 		fmt.Fprint(os.Stdout, "\r\033[K"+line)
@@ -262,32 +262,32 @@ func (r *lineReporter) printLine(line string) {
 }
 
 // Finish renders the final build summary.
-func (r *lineReporter) Finish(stats BuildStats) {
-	r.mu.Lock()
-	r.finished = true
+func (rep *lineReporter) Finish(stats BuildStats) {
+	rep.mu.Lock()
+	rep.finished = true
 
-	if r.ticker != nil {
-		r.ticker.Stop()
+	if rep.ticker != nil {
+		rep.ticker.Stop()
 	}
 	select {
-	case <-r.done:
+	case <-rep.done:
 	default:
-		close(r.done)
+		close(rep.done)
 	}
 
-	if r.isTTY {
-		r.clearLine()
+	if rep.isTTY {
+		rep.clearLine()
 	}
-	r.mu.Unlock()
+	rep.mu.Unlock()
 
 	// Build summary
 	fmt.Println()
 	durationStr := formatDuration(stats.Duration)
 	fmt.Printf("%s %s %s in %s\n",
-		r.ts(),
-		r.color(green+bold, symCheck),
-		r.color(green+bold, "Build Complete"),
-		r.color(bold, durationStr))
+		rep.ts(),
+		rep.color(green+bold, symCheck),
+		rep.color(green+bold, "Build Complete"),
+		rep.color(bold, durationStr))
 	fmt.Println()
 
 	// Stats table
@@ -307,24 +307,24 @@ func (r *lineReporter) Finish(stats BuildStats) {
 
 	for _, l := range statLines {
 		fmt.Printf("         %s %-8s %s\n",
-			r.color(gray, symDot),
-			r.color(cyan, l.label),
+			rep.color(gray, symDot),
+			rep.color(cyan, l.label),
 			l.value)
 	}
 	fmt.Println()
 }
 
 // renderSpinner draws the current active phase on a single line using \r.
-// Must be called with r.mu held.
-func (r *lineReporter) renderSpinner() {
-	r.mu.Lock()
-	finished := r.finished
+// Must be called with rep.mu held.
+func (rep *lineReporter) renderSpinner() {
+	rep.mu.Lock()
+	finished := rep.finished
 
 	// Find the topmost active (unfinished) phase
 	var activePhase Phase
 	var activeState *linePhaseState
-	for _, p := range r.phaseOrder {
-		ps := r.phases[p]
+	for _, p := range rep.phaseOrder {
+		ps := rep.phases[p]
 		if ps != nil && !ps.finished {
 			activePhase = p
 			activeState = ps
@@ -333,7 +333,7 @@ func (r *lineReporter) renderSpinner() {
 	}
 
 	if activeState == nil || finished {
-		r.mu.Unlock()
+		rep.mu.Unlock()
 		return
 	}
 
@@ -342,49 +342,49 @@ func (r *lineReporter) renderSpinner() {
 	frameIdx := (elapsed.Milliseconds() / spinnerFrameIntervalMs) % int64(len(spinnerFrames))
 	frame := spinnerFrames[frameIdx]
 
-	ts := r.color(gray, time.Now().Format("15:04:05"))
+	ts := rep.color(gray, time.Now().Format("15:04:05"))
 	var line string
 	if activeState.total > 0 {
 		line = fmt.Sprintf("\r%s %s %-22s [%d/%d]",
 			ts,
-			r.color(cyan, frame),
+			rep.color(cyan, frame),
 			activePhase.String(),
 			activeState.current,
 			activeState.total)
 		if activeState.detail != "" {
-			detail := r.shortenPaths(activeState.detail)
+			detail := rep.shortenPaths(activeState.detail)
 			if len(detail) > detailMaxLen {
 				detail = "..." + detail[len(detail)-detailTailLen:]
 			}
-			line += " " + r.color(gray, detail)
+			line += " " + rep.color(gray, detail)
 		}
 	} else {
 		line = fmt.Sprintf("\r%s %s %s",
 			ts,
-			r.color(cyan, frame),
+			rep.color(cyan, frame),
 			activePhase.String())
 		if activeState.detail != "" {
-			detail := r.shortenPaths(activeState.detail)
+			detail := rep.shortenPaths(activeState.detail)
 			if len(detail) > detailMaxLen {
 				detail = "..." + detail[len(detail)-detailTailLen:]
 			}
-			line += " " + r.color(gray, detail)
+			line += " " + rep.color(gray, detail)
 		}
 	}
-	r.mu.Unlock()
+	rep.mu.Unlock()
 
 	// Use erase-to-end-of-line to clear any leftover characters
 	fmt.Fprint(os.Stdout, line+"\033[K")
 }
 
-// clearLine clears the current spinner line. Must be called with r.mu held.
-func (r *lineReporter) clearLine() {
+// clearLine clears the current spinner line. Must be called with rep.mu held.
+func (rep *lineReporter) clearLine() {
 	fmt.Fprint(os.Stdout, "\r\033[K")
 }
 
-func (r *lineReporter) shouldSkip(msg string) bool {
+func (rep *lineReporter) shouldSkip(msg string) bool {
 	// In verbose mode, don't skip anything
-	if r.verbose {
+	if rep.verbose {
 		return false
 	}
 
@@ -441,7 +441,7 @@ func (r *lineReporter) shouldSkip(msg string) bool {
 	return false
 }
 
-func (r *lineReporter) shortenPaths(content string) string {
+func (rep *lineReporter) shortenPaths(content string) string {
 	root := fs.RepoRoot()
 	if root != "." {
 		content = strings.ReplaceAll(content, root, ".")
@@ -452,28 +452,28 @@ func (r *lineReporter) shortenPaths(content string) string {
 	return content
 }
 
-func formatDuration(d time.Duration) string {
-	if d < time.Millisecond {
-		return fmt.Sprintf("%dµs", d.Microseconds())
+func formatDuration(duration time.Duration) string {
+	if duration < time.Millisecond {
+		return fmt.Sprintf("%dµs", duration.Microseconds())
 	}
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
+	if duration < time.Second {
+		return fmt.Sprintf("%dms", duration.Milliseconds())
 	}
-	if d < time.Minute {
-		return fmt.Sprintf("%.1fs", d.Seconds())
+	if duration < time.Minute {
+		return fmt.Sprintf("%.1fs", duration.Seconds())
 	}
-	return fmt.Sprintf("%dm%ds", int(d.Minutes()), int(d.Seconds())%secondsPerMinute)
+	return fmt.Sprintf("%dm%ds", int(duration.Minutes()), int(duration.Seconds())%secondsPerMinute)
 }
 
-func formatBytes(b int64) string {
+func formatBytes(bytes int64) string {
 	const unit = bytesPerKiB
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
 	}
 	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
+	for n := bytes / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

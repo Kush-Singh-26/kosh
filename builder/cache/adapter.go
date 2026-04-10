@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"maps"
@@ -19,46 +20,46 @@ type DiagramCacheAdapter struct {
 	// local values are SSR payloads: string (HTML/SVG) or models.SSRThemePair.
 	local map[string]any
 	// dirty values mirror local and are flushed to BoltDB on Flush().
-	dirty   map[string]any
-	mu      sync.RWMutex // protects local and dirty
-	closed  atomic.Bool  // Prevents new operations after Close() is called
+	dirty  map[string]any
+	mutex  sync.RWMutex // protects local and dirty
+	closed atomic.Bool  // Prevents new operations after Close() is called
 	persist atomic.Bool  // Controls whether writes are persisted to disk
 }
 
 // NewDiagramCacheAdapter creates a new adapter.
 func NewDiagramCacheAdapter(manager *Manager) *DiagramCacheAdapter {
-	a := &DiagramCacheAdapter{
+	adapter := &DiagramCacheAdapter{
 		manager: manager,
 		local:   make(map[string]any),
 		dirty:   make(map[string]any),
 	}
-	a.persist.Store(true)
-	return a
+	adapter.persist.Store(true)
+	return adapter
 }
 
 // Start is a no-op kept for interface compatibility.
-func (a *DiagramCacheAdapter) Start() {}
+func (adapter *DiagramCacheAdapter) Start() {}
 
 // Get retrieves a cached diagram.
-func (a *DiagramCacheAdapter) Get(key string) (any, bool) {
-	a.mu.RLock()
-	if val, ok := a.local[key]; ok {
-		a.mu.RUnlock()
-		return val, true
+func (adapter *DiagramCacheAdapter) Get(key string) (any, bool) {
+	adapter.mutex.RLock()
+	if value, ok := adapter.local[key]; ok {
+		adapter.mutex.RUnlock()
+		return value, true
 	}
-	a.mu.RUnlock()
+	adapter.mutex.RUnlock()
 
 	// Try to get from BoltDB if manager is available
-	if a.manager != nil {
+	if adapter.manager != nil {
 		category := "d2"
 		actualKey := key
 		if parts := strings.SplitN(key, ":", 2); len(parts) == 2 {
 			category = parts[0]
 			actualKey = parts[1]
 		}
-		artifact, err := a.manager.GetSSRArtifact(category, actualKey)
+		artifact, err := adapter.manager.GetSSRArtifact(category, actualKey)
 		if err == nil && artifact != nil {
-			content, err := a.manager.GetSSRContent(category, artifact)
+			content, err := adapter.manager.GetSSRContent(category, artifact)
 			if err == nil {
 				var result any
 				// Try to unmarshal as SSRThemePair first if it looks like JSON
@@ -73,9 +74,9 @@ func (a *DiagramCacheAdapter) Get(key string) (any, bool) {
 					result = string(content)
 				}
 
-				a.mu.Lock()
-				a.local[key] = result
-				a.mu.Unlock()
+				adapter.mutex.Lock()
+				adapter.local[key] = result
+				adapter.mutex.Unlock()
 				return result, true
 			}
 		}
@@ -86,102 +87,102 @@ func (a *DiagramCacheAdapter) Get(key string) (any, bool) {
 
 // GetLocal retrieves a cached diagram from in-memory state only.
 // It avoids BoltDB lookups and is intended for hot-path render checks.
-func (a *DiagramCacheAdapter) GetLocal(key string) (any, bool) {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	val, ok := a.local[key]
-	return val, ok
+func (adapter *DiagramCacheAdapter) GetLocal(key string) (any, bool) {
+	adapter.mutex.RLock()
+	defer adapter.mutex.RUnlock()
+	value, ok := adapter.local[key]
+	return value, ok
 }
 
 // Set stores a diagram in the memory cache and marks it dirty for later flushing.
-func (a *DiagramCacheAdapter) Set(key string, value any) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+func (adapter *DiagramCacheAdapter) Set(key string, value any) {
+	adapter.mutex.Lock()
+	defer adapter.mutex.Unlock()
 
-	if a.closed.Load() {
+	if adapter.closed.Load() {
 		return
 	}
 
 	// For simple comparison of equality
-	if existing, ok := a.local[key]; ok && existing == value {
+	if existing, ok := adapter.local[key]; ok && existing == value {
 		return
 	}
-	a.local[key] = value
+	adapter.local[key] = value
 
-	if a.manager != nil && a.persist.Load() {
-		a.dirty[key] = value
+	if adapter.manager != nil && adapter.persist.Load() {
+		adapter.dirty[key] = value
 	}
 }
 
 // Flush writes unresolved dirty entries to BoltDB in a single batch operation.
-func (a *DiagramCacheAdapter) Flush() error {
-	if a.manager == nil {
+func (adapter *DiagramCacheAdapter) Flush(ctx context.Context) error {
+	if adapter.manager == nil {
 		return nil
 	}
 
 	// Copy only dirty entries under lock, then release before I/O.
-	a.mu.RLock()
-	if len(a.dirty) == 0 {
-		a.mu.RUnlock()
+	adapter.mutex.RLock()
+	if len(adapter.dirty) == 0 {
+		adapter.mutex.RUnlock()
 		return nil
 	}
-	dirtyCopy := make(map[string]any, len(a.dirty))
-	maps.Copy(dirtyCopy, a.dirty)
-	a.mu.RUnlock()
+	dirtyCopy := make(map[string]any, len(adapter.dirty))
+	maps.Copy(dirtyCopy, adapter.dirty)
+	adapter.mutex.RUnlock()
 
 	slog.Info("Flushing diagram cache to BoltDB", "entries", len(dirtyCopy))
 
-	if err := a.manager.BatchStoreSSR(dirtyCopy); err != nil {
+	if err := adapter.manager.BatchStoreSSR(ctx, dirtyCopy); err != nil {
 		return err
 	}
 
 	// Success: clear dirty entries that were flushed
-	a.mu.Lock()
+	adapter.mutex.Lock()
 	for k, v := range dirtyCopy {
-		if current, ok := a.dirty[k]; ok && current == v {
-			delete(a.dirty, k)
+		if current, ok := adapter.dirty[k]; ok && current == v {
+			delete(adapter.dirty, k)
 		}
 	}
-	a.mu.Unlock()
+	adapter.mutex.Unlock()
 
 	return nil
 }
 
 // Merge stores a batch of values in the adapter and marks them dirty.
 // Entry values are SSR payloads: string (HTML/SVG) or models.SSRThemePair.
-func (a *DiagramCacheAdapter) Merge(entries map[string]any) {
+func (adapter *DiagramCacheAdapter) Merge(entries map[string]any) {
 	for key, value := range entries {
-		a.Set(key, value)
+		adapter.Set(key, value)
 	}
 }
 
 // Load implements SSRMap for the markdown parser
-func (a *DiagramCacheAdapter) Load(key string) (any, bool) {
-	return a.Get(key)
+func (adapter *DiagramCacheAdapter) Load(key string) (any, bool) {
+	return adapter.Get(key)
 }
 
 // Store implements SSRMap for the markdown parser
-func (a *DiagramCacheAdapter) Store(key string, value any) {
-	a.Set(key, value)
+func (adapter *DiagramCacheAdapter) Store(key string, value any) {
+	adapter.Set(key, value)
 }
 
 // SetPersistenceEnabled controls whether Set() persists entries to disk.
-func (a *DiagramCacheAdapter) SetPersistenceEnabled(enabled bool) {
-	a.persist.Store(enabled)
+func (adapter *DiagramCacheAdapter) SetPersistenceEnabled(enabled bool) {
+	adapter.persist.Store(enabled)
 }
 
 // AsMap returns the local cache as a map (for compatibility)
-func (a *DiagramCacheAdapter) AsMap() map[string]any {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
+func (adapter *DiagramCacheAdapter) AsMap() map[string]any {
+	adapter.mutex.RLock()
+	defer adapter.mutex.RUnlock()
 
-	result := make(map[string]any, len(a.local))
-	maps.Copy(result, a.local)
+	result := make(map[string]any, len(adapter.local))
+	maps.Copy(result, adapter.local)
 	return result
 }
 
 // Close marks the adapter as closed.
-func (a *DiagramCacheAdapter) Close() error {
-	a.closed.Store(true)
+func (adapter *DiagramCacheAdapter) Close() error {
+	adapter.closed.Store(true)
 	return nil
 }

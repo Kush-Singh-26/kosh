@@ -71,13 +71,13 @@ func runBuild(cmd *cobra.Command, args []string) {
 	}
 
 	if buildCPUProfile != "" {
-		f, err := os.Create(buildCPUProfile)
+		profileFile, err := os.Create(buildCPUProfile)
 		if err != nil {
 			fmt.Printf("could not create CPU profile: %v\n", err)
 			os.Exit(1)
 		}
-		defer func() { _ = f.Close() }()
-		if err := pprof.StartCPUProfile(f); err != nil {
+		defer func() { _ = profileFile.Close() }()
+		if err := pprof.StartCPUProfile(profileFile); err != nil {
 			fmt.Printf("could not start CPU profile: %v\n", err)
 			os.Exit(1)
 		}
@@ -92,21 +92,21 @@ func runBuild(cmd *cobra.Command, args []string) {
 	printStartupBanner(mode, cfg)
 
 	if buildWatch {
-		b := orchestration.NewEngine(orchestration.WithArgs(filteredArgs), orchestration.WithReporter(reporter))
+		engine := orchestration.NewEngine(orchestration.WithArgs(filteredArgs), orchestration.WithReporter(reporter))
 		if reporter != nil {
 			reporter.Start("Watch Build")
 		}
-		if err := b.Build(ctx); err != nil {
+		if err := engine.Build(ctx); err != nil {
 			orchestration.DevLogError("Initial build failed: " + err.Error())
 			os.Exit(1)
 		}
 		maybePrintPhaseTimings()
 		maybeWritePhaseTimings()
 
-		w, err := watch.New([]string{"content", b.Cfg.TemplateDir, b.Cfg.StaticDir, "kosh.yaml"}, func(event watch.Event) {
+		watcher, err := watch.New([]string{"content", engine.Cfg.TemplateDir, engine.Cfg.StaticDir, "kosh.yaml"}, func(event watch.Event) {
 			orchestration.DevLogRebuild("Change detected: " + event.Name)
 			timeutil.ResetPhaseTracking()
-			b.BuildChanged(ctx, event.Name, event.Op)
+			engine.BuildChanged(ctx, event.Name, event.Op)
 			maybePrintPhaseTimings()
 			maybeWritePhaseTimings()
 		})
@@ -114,7 +114,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 			orchestration.DevLogError("Watcher failed: " + err.Error())
 			os.Exit(1)
 		}
-		w.Start()
+		watcher.Start()
 	} else {
 		if err := orchestration.Run(filteredArgs, reporter); err != nil {
 			os.Exit(1)
@@ -123,14 +123,14 @@ func runBuild(cmd *cobra.Command, args []string) {
 		maybeWritePhaseTimings()
 
 		if buildMemProfile != "" {
-			f, err := os.Create(buildMemProfile)
+			profileFile, err := os.Create(buildMemProfile)
 			if err != nil {
 				fmt.Printf("could not create memory profile: %v\n", err)
 				os.Exit(1)
 			}
-			defer func() { _ = f.Close() }()
+			defer func() { _ = profileFile.Close() }()
 			runtime.GC()
-			if err := pprof.WriteHeapProfile(f); err != nil {
+			if err := pprof.WriteHeapProfile(profileFile); err != nil {
 				fmt.Printf("could not write memory profile: %v\n", err)
 				os.Exit(1)
 			}

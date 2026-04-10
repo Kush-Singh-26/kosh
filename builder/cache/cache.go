@@ -17,7 +17,14 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.etcd.io/bbolt"
 	bbolterrors "go.etcd.io/bbolt/errors"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
+
+var _ models.PostCache = (*Manager)(nil)
+var _ models.SearchCache = (*Manager)(nil)
+var _ models.SocialCardCache = (*Manager)(nil)
+var _ models.BuildArtifactCache = (*Manager)(nil)
 
 // memoryCacheEntry holds a cached core.PostMeta with expiration
 type memoryCacheEntry struct {
@@ -31,7 +38,7 @@ type Manager struct {
 	store    *store.Store
 	basePath string
 	cacheID  string
-	mu       sync.RWMutex // protects dirty and cacheID
+	mutex    sync.RWMutex // protects dirty and cacheID
 	dirty    map[string]bool
 
 	// In-memory LRU cache for hot PostMeta data
@@ -88,20 +95,20 @@ func openBoltDB(dbPath string, timeout time.Duration, initialSize int) (*bbolt.D
 
 func openStoreWithCleanup(db *bbolt.DB, basePath string) (*store.Store, error) {
 	storePath := filepath.Join(basePath, "store")
-	st, err := store.New(storePath)
+	cacheStore, err := store.New(storePath)
 	if err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			slog.Error("Failed to close DB during cleanup", "error", closeErr)
 		}
 		return nil, err
 	}
-	return st, nil
+	return cacheStore, nil
 }
 
-func newMemCacheWithCleanup(st *store.Store, db *bbolt.DB) (*lru.Cache[string, *memoryCacheEntry], error) {
+func newMemCacheWithCleanup(cacheStore *store.Store, db *bbolt.DB) (*lru.Cache[string, *memoryCacheEntry], error) {
 	cache, err := lru.New[string, *memoryCacheEntry](memCacheMaxEntries)
 	if err != nil {
-		if closeErr := st.Close(); closeErr != nil {
+		if closeErr := cacheStore.Close(); closeErr != nil {
 			slog.Error("Failed to close store during cleanup", "error", closeErr)
 		}
 		if closeErr := db.Close(); closeErr != nil {
@@ -115,11 +122,11 @@ func newMemCacheWithCleanup(st *store.Store, db *bbolt.DB) (*lru.Cache[string, *
 func loadSchemaVersion(db *bbolt.DB) (uint32, error) {
 	var currentVersion uint32
 	err := db.View(func(tx *bbolt.Tx) error {
-		meta := tx.Bucket([]byte(core.BucketMeta))
-		if meta != nil {
-			v := meta.Get([]byte(core.KeySchemaVersion))
-			if v != nil {
-				currentVersion = binary.BigEndian.Uint32(v)
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		if metaBucket != nil {
+			versionBytes := metaBucket.Get([]byte(core.KeySchemaVersion))
+			if versionBytes != nil {
+				currentVersion = binary.BigEndian.Uint32(versionBytes)
 			}
 		}
 		return nil
@@ -156,19 +163,19 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		return nil, fmt.Errorf("failed to open BoltDB: %w", err)
 	}
 
-	store, err := openStoreWithCleanup(db, basePath)
+	cacheStore, err := openStoreWithCleanup(db, basePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store: %w", err)
 	}
 
-	lruCache, err := newMemCacheWithCleanup(store, db)
+	lruCache, err := newMemCacheWithCleanup(cacheStore, db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LRU cache: %w", err)
 	}
 
-	m := &Manager{
+	manager := &Manager{
 		db:          db,
-		store:       store,
+		store:       cacheStore,
 		basePath:    basePath,
 		dirty:       make(map[string]bool),
 		memCache:    lruCache,
@@ -176,42 +183,42 @@ func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manag
 		refCount:    gc.NewRefCountManager(db),
 	}
 
-	if err := m.initSchema(); err != nil {
-		if cleanupErr := m.cleanupOnError(); cleanupErr != nil {
+	if err := manager.initSchema(); err != nil {
+		if cleanupErr := manager.cleanupOnError(); cleanupErr != nil {
 			slog.Error("Failed to cleanup after schema init failure", "error", cleanupErr)
 		}
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
 	// Verify schema and run migrations if needed
-	currentVersion, err := loadSchemaVersion(m.db)
+	currentVersion, err := loadSchemaVersion(manager.db)
 	if err != nil {
-		if cleanupErr := m.cleanupOnError(); cleanupErr != nil {
+		if cleanupErr := manager.cleanupOnError(); cleanupErr != nil {
 			slog.Error("Failed to cleanup after schema version read failure", "error", cleanupErr)
 		}
 		return nil, fmt.Errorf("failed to read schema version: %w", err)
 	}
 
-	if err := ensureSchemaVersion(m.db, currentVersion); err != nil {
-		if cleanupErr := m.cleanupOnError(); cleanupErr != nil {
+	if err := ensureSchemaVersion(manager.db, currentVersion); err != nil {
+		if cleanupErr := manager.cleanupOnError(); cleanupErr != nil {
 			slog.Error("Failed to cleanup after migration failure", "error", cleanupErr)
 		}
 		return nil, err
 	}
 
-	return m, nil
+	return manager, nil
 }
 
 // cleanupOnError closes all resources during initialization failure
-func (m *Manager) cleanupOnError() error {
+func (manager *Manager) cleanupOnError() error {
 	var errs []error
-	if m.store != nil {
-		if err := m.store.Close(); err != nil {
+	if manager.store != nil {
+		if err := manager.store.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	if m.db != nil {
-		if err := m.db.Close(); err != nil {
+	if manager.db != nil {
+		if err := manager.db.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -222,15 +229,15 @@ func (m *Manager) cleanupOnError() error {
 }
 
 // Close closes the cache
-func (m *Manager) Close() error {
+func (manager *Manager) Close() error {
 	var errs []error
-	if m.store != nil {
-		if err := m.store.Close(); err != nil {
+	if manager.store != nil {
+		if err := manager.store.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to close store: %w", err))
 		}
 	}
-	if m.db != nil {
-		if err := m.db.Close(); err != nil {
+	if manager.db != nil {
+		if err := manager.db.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to close db: %w", err))
 		}
 	}
@@ -241,19 +248,19 @@ func (m *Manager) Close() error {
 }
 
 // initSchema creates all buckets if they don't exist
-func (m *Manager) initSchema() error {
-	return m.db.Update(func(tx *bbolt.Tx) error {
+func (manager *Manager) initSchema() error {
+	return manager.db.Update(func(tx *bbolt.Tx) error {
 		for _, name := range core.AllBuckets() {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
 				return fmt.Errorf("failed to create bucket %s: %w", name, err)
 			}
 		}
 
-		meta := tx.Bucket([]byte(core.BucketMeta))
-		if meta.Get([]byte(core.KeySchemaVersion)) == nil {
-			v := make([]byte, uint32Size)
-			binary.BigEndian.PutUint32(v, uint32(core.SchemaVersion))
-			if err := meta.Put([]byte(core.KeySchemaVersion), v); err != nil {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		if metaBucket.Get([]byte(core.KeySchemaVersion)) == nil {
+			versionBytes := make([]byte, uint32Size)
+			binary.BigEndian.PutUint32(versionBytes, uint32(core.SchemaVersion))
+			if err := metaBucket.Put([]byte(core.KeySchemaVersion), versionBytes); err != nil {
 				return err
 			}
 		}
@@ -263,38 +270,43 @@ func (m *Manager) initSchema() error {
 }
 
 // VerifyCacheID checks if the cache ID matches
-func (m *Manager) VerifyCacheID(expectedID string) (bool, error) {
+func (manager *Manager) VerifyCacheID(expectedID string) (bool, error) {
 	var storedID []byte
-	err := m.db.View(func(tx *bbolt.Tx) error {
-		meta := tx.Bucket([]byte(core.BucketMeta))
-		storedID = meta.Get([]byte(core.KeyCacheID))
+	err := manager.db.View(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		storedID = metaBucket.Get([]byte(core.KeyCacheID))
 		return nil
 	})
 	if err != nil {
 		return false, err
 	}
 
+	manager.mutex.Lock()
+	manager.cacheID = expectedID
+	manager.mutex.Unlock()
+
 	if storedID == nil || string(storedID) != expectedID {
-		m.cacheID = expectedID
 		return true, nil
 	}
 
-	m.cacheID = expectedID
 	return false, nil
 }
 
 // SetCacheID updates the cache ID
-func (m *Manager) SetCacheID(id string) error {
-	m.cacheID = id
-	return m.db.Update(func(tx *bbolt.Tx) error {
-		meta := tx.Bucket([]byte(core.BucketMeta))
-		return meta.Put([]byte(core.KeyCacheID), []byte(id))
+func (manager *Manager) SetCacheID(id string) error {
+	manager.mutex.Lock()
+	manager.cacheID = id
+	manager.mutex.Unlock()
+
+	return manager.db.Update(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		return metaBucket.Put([]byte(core.KeyCacheID), []byte(id))
 	})
 }
 
 // ClearAll removes all cached data (used when corruption detected)
-func (m *Manager) ClearAll() error {
-	err := m.db.Update(func(tx *bbolt.Tx) error {
+func (manager *Manager) ClearAll() error {
+	err := manager.db.Update(func(tx *bbolt.Tx) error {
 		for _, name := range core.AllBuckets() {
 			if name == core.BucketMeta {
 				continue // Keep metadata
@@ -311,10 +323,10 @@ func (m *Manager) ClearAll() error {
 	})
 
 	// Clear memory cache
-	m.memCache.Purge()
+	manager.memCache.Purge()
 
 	// Clear filesystem store
-	if err := m.clearFilesystemStore(); err != nil {
+	if err := manager.clearFilesystemStore(); err != nil {
 		// Log but don't fail - the DB clear is the critical part
 		slog.Warn("Failed to clear filesystem store", "error", err)
 	}
@@ -323,7 +335,7 @@ func (m *Manager) ClearAll() error {
 }
 
 // clearFilesystemStore removes all content from the filesystem store
-func (m *Manager) clearFilesystemStore() error {
+func (manager *Manager) clearFilesystemStore() error {
 	// List all categories and delete their contents
 	categories := []string{
 		"html",
@@ -335,36 +347,36 @@ func (m *Manager) clearFilesystemStore() error {
 		"ssr/katex",
 	}
 	for _, category := range categories {
-		hashes, err := m.store.ListHashes(category)
+		hashes, err := manager.store.ListHashes(category)
 		if err != nil {
 			continue // Skip categories that don't exist
 		}
 		for _, hash := range hashes {
-			_ = m.store.Delete(category, hash)
+			_ = manager.store.Delete(category, hash)
 		}
 	}
 	return nil
 }
 
 // Store exposes the underlying content-addressed store.
-func (m *Manager) Store() *store.Store {
-	return m.store
+func (manager *Manager) Store() *store.Store {
+	return manager.store
 }
 
 // DB exposes the underlying BoltDB handle.
-func (m *Manager) DB() *bbolt.DB {
-	return m.db
+func (manager *Manager) DB() *bbolt.DB {
+	return manager.db
 }
 
 // RunGC performs garbage collection
-func (m *Manager) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
-	return gc.RunGC(m.db, m.store, m.refCount, cfg)
+func (manager *Manager) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
+	return gc.RunGC(manager.db, manager.store, manager.refCount, cfg)
 }
 
 // IncrementBuildCount increments the counter used to trigger GC
-func (m *Manager) IncrementBuildCount() (uint32, error) {
+func (manager *Manager) IncrementBuildCount() (uint32, error) {
 	var count uint32
-	err := m.db.Update(func(tx *bbolt.Tx) error {
+	err := manager.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketStats))
 
 		// Increment global build count
@@ -393,11 +405,11 @@ func (m *Manager) IncrementBuildCount() (uint32, error) {
 }
 
 // QuickVerify performs a fast integrity check by sampling entries
-func (m *Manager) QuickVerify() ([]string, error) {
-	return gc.QuickVerify(m.db, m.store)
+func (manager *Manager) QuickVerify() ([]string, error) {
+	return gc.QuickVerify(manager.db, manager.store)
 }
 
 // Verify checks cache integrity
-func (m *Manager) Verify() ([]string, error) {
-	return gc.Verify(m.db, m.store)
+func (manager *Manager) Verify() ([]string, error) {
+	return gc.Verify(manager.db, manager.store)
 }

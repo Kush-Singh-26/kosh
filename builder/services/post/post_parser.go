@@ -32,9 +32,9 @@ type parsedFrontmatter struct {
 	Description string
 	DateObj     time.Time
 	Tags        []string
-	Pinned      bool
+	IsPinned    bool
 	Weight      int
-	Draft       bool
+	IsDraft     bool
 }
 
 func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
@@ -49,9 +49,9 @@ func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
 		Description: timeutil.ExtractStringFromMap(metadata, "description"),
 		DateObj:     dateObj,
 		Tags:        timeutil.ExtractSliceFromMap(metadata, "tags"),
-		Pinned:      timeutil.ExtractBoolFromMap(metadata, "pinned"),
+		IsPinned:    timeutil.ExtractBoolFromMap(metadata, "pinned"),
 		Weight:      weight,
-		Draft:       timeutil.ExtractBoolFromMap(metadata, "draft"),
+		IsDraft:     timeutil.ExtractBoolFromMap(metadata, "draft"),
 	}
 }
 
@@ -104,44 +104,44 @@ type ParseOptions struct {
 
 // ParseMarkdownMetadata handles the semantic parsing and metadata extraction.
 // This is a refactored version using helper functions for better maintainability.
-func ParseMarkdownMetadata(opts ParseOptions) (*ParsedMarkdownResult, error) {
-	res := &ParsedMarkdownResult{}
+func ParseMarkdownMetadata(options ParseOptions) (*ParsedMarkdownResult, error) {
+	result := &ParsedMarkdownResult{}
 
 	// Step 1: Strip frontmatter
-	res.BodyOnly = stripFrontmatter(opts.Source, opts.BodyOffset)
+	result.BodyOnly = stripFrontmatter(options.Source, options.BodyOffset)
 
 	// Step 2: Parse markdown with panic recovery
-	docNode, mdCtx, parseErr := parseMarkdownWithRecovery(res.BodyOnly, opts.Path, opts.MdPool, context.Background())
+	docNode, mdCtx, parseErr := parseMarkdownWithRecovery(result.BodyOnly, options.Path, options.MdPool, context.Background())
 	if parseErr != nil {
 		return nil, parseErr
 	}
 
-	res.AST = docNode
-	res.Context = mdCtx
-	res.SSRHashes = mdParser.GetSSRHashes(mdCtx)
+	result.AST = docNode
+	result.Context = mdCtx
+	result.SSRHashes = mdParser.GetSSRHashes(mdCtx)
 
 	// Step 3: Extract metadata
-	res.Metadata = extractMetadata(mdCtx, opts.Source, opts.PreParsedMeta)
+	result.Metadata = extractMetadata(mdCtx, options.Source, options.PreParsedMeta)
 
 	// Step 4: Extract frontmatter data and build post metadata
-	fm := extractFrontmatter(res.Metadata)
-	res.TOC = mdParser.GetTOC(mdCtx)
+	frontmatter := extractFrontmatter(result.Metadata)
+	result.TOC = mdParser.GetTOC(mdCtx)
 
-	postLink := navigation.BuildAbsoluteURL(opts.Cfg.BaseURL, opts.CleanHtmlRelPath)
-	readingTime := computeReadingTime(opts.Source, opts.KnownReadingTime)
+	postLink := navigation.BuildAbsoluteURL(options.Cfg.BaseURL, options.CleanHtmlRelPath)
+	readingTime := computeReadingTime(options.Source, options.KnownReadingTime)
 
-	res.Post = buildPostMetadata(fm, postLink, readingTime)
+	result.Post = buildPostMetadata(frontmatter, postLink, readingTime)
 
 	// Step 5: Get plain text and build search record
-	res.PlainText = mdParser.GetPlainText(mdCtx)
-	res.SearchRecord = buildSearchRecord(res.Post, opts.HtmlRelPath, res.PlainText)
+	result.PlainText = mdParser.GetPlainText(mdCtx)
+	result.SearchRecord = buildSearchRecord(result.Post, options.HtmlRelPath, result.PlainText)
 
 	// Step 6: Search Analysis (DEFERRED to background worker)
 
 	// Step 7: Compute frontmatter hash
-	res.FrontmatterHash = computeFrontmatterHash(res.Metadata, opts.KnownFrontmatterHash)
+	result.FrontmatterHash = computeFrontmatterHash(result.Metadata, options.KnownFrontmatterHash)
 
-	return res, nil
+	return result, nil
 }
 
 // MarkdownRenderOptions configures HTML rendering for parsed markdown.
@@ -156,18 +156,18 @@ type MarkdownRenderOptions struct {
 var errMissingParsedMarkdownContext = errors.New("missing AST or Context in ParsedMarkdownResult")
 
 // RenderParsedMarkdown converts the AST to HTML and performs Math discovery
-func RenderParsedMarkdown(opts MarkdownRenderOptions) error {
-	source := opts.Source
-	res := opts.Result
-	mdPool := opts.MdPool
+func RenderParsedMarkdown(options MarkdownRenderOptions) error {
+	source := options.Source
+	result := options.Result
+	mdPool := options.MdPool
 	// nativeRenderer and diagramAdapter are currently unused in the body,
 	// but kept for future compatibility or because they were in the signature.
 
-	if res.AST == nil || res.Context == nil {
+	if result.AST == nil || result.Context == nil {
 		return errMissingParsedMarkdownContext
 	}
 
-	body := res.BodyOnly
+	body := result.BodyOnly
 	if len(body) == 0 {
 		body = source
 	}
@@ -181,17 +181,17 @@ func RenderParsedMarkdown(opts MarkdownRenderOptions) error {
 	buf := pools.SharedBufferPool.Get()
 	defer pools.SharedBufferPool.Put(buf)
 
-	if err := mdEngine.Renderer().Render(buf, body, res.AST); err != nil {
+	if err := mdEngine.Renderer().Render(buf, body, result.AST); err != nil {
 		return fmt.Errorf("failed to render markdown: %w", err)
 	}
-	res.HTMLContent = buf.String()
-	res.HasImages = bytes.Contains(body, []byte("![")) || bytes.Contains(body, []byte("<img"))
+	result.HTMLContent = buf.String()
+	result.HasImages = bytes.Contains(body, []byte("![")) || bytes.Contains(body, []byte("<img"))
 
 	// Math discovery (deferred to global orchestration)
 	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) || bytes.Contains(source, []byte("\\[")) {
-		res.MathExpressions = mdParser.GetMathExpressions(res.Context)
-		for _, expr := range res.MathExpressions {
-			res.SSRHashes = append(res.SSRHashes, expr.Hash)
+		result.MathExpressions = mdParser.GetMathExpressions(result.Context)
+		for _, expr := range result.MathExpressions {
+			result.SSRHashes = append(result.SSRHashes, expr.Hash)
 		}
 	}
 
@@ -199,25 +199,25 @@ func RenderParsedMarkdown(opts MarkdownRenderOptions) error {
 }
 
 // ParseMarkdown handles the safe parsing and processing of markdown files
-func ParseMarkdown(opts ParseOptions) (*ParsedMarkdownResult, error) {
-	res, err := ParseMarkdownMetadata(opts)
+func ParseMarkdown(options ParseOptions) (*ParsedMarkdownResult, error) {
+	result, err := ParseMarkdownMetadata(options)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := RenderParsedMarkdown(MarkdownRenderOptions{
-		Source:         opts.Source,
-		Result:         res,
-		MdPool:         opts.MdPool,
-		NativeRenderer: opts.NativeRenderer,
-		DiagramAdapter: opts.DiagramAdapter,
+		Source:         options.Source,
+		Result:         result,
+		MdPool:         options.MdPool,
+		NativeRenderer: options.NativeRenderer,
+		DiagramAdapter: options.DiagramAdapter,
 	}); err != nil {
 		return nil, err
 	}
 
 	// Nil out heavy objects to reduce peak RSS now that HTML is rendered
-	res.AST = nil
-	res.Context = nil
+	result.AST = nil
+	result.Context = nil
 
-	return res, nil
+	return result, nil
 }

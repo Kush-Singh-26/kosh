@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildCtx "github.com/Kush-Singh-26/kosh/builder/context"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -19,23 +19,23 @@ import (
 type Option func(*assetService)
 
 // WithMetrics sets the build metrics collector.
-func WithMetrics(m *metrics.BuildMetrics) Option {
-	return func(s *assetService) { s.metrics = m }
+func WithMetrics(metrics *metrics.BuildMetrics) Option {
+	return func(service *assetService) { service.metrics = metrics }
 }
 
 // WithAssetsReadySignal sets the channel signaled when assets are ready.
-func WithAssetsReadySignal(ch chan struct{}) Option {
-	return func(s *assetService) { s.assetsReady = ch }
+func WithAssetsReadySignal(readySignal chan struct{}) Option {
+	return func(service *assetService) { service.assetsReady = readySignal }
 }
 
 // WithContentAssetsChannel sets the channel for content asset notifications.
-func WithContentAssetsChannel(ch <-chan []models.ScannedAsset) Option {
-	return func(s *assetService) { s.contentAssetsChan = ch }
+func WithContentAssetsChannel(assetsChannel <-chan []models.ScannedAsset) Option {
+	return func(service *assetService) { service.contentAssetsChan = assetsChannel }
 }
 
 // assetService implements AssetService.
 type assetService struct {
-	ctx               *buildCtx.BuildContext
+	ctx               *buildctx.BuildContext
 	sourceFs          afero.Fs
 	sink              fspkg.ArtifactSink
 	cfg               *config.Config
@@ -50,52 +50,56 @@ type assetService struct {
 }
 
 // NewService constructs the AssetService with injected dependencies.
-func NewService(deps Dependencies, opts ...Option) Service {
-	s := &assetService{
-		ctx:      deps.Ctx,
-		sourceFs: deps.SourceFs,
-		sink:     deps.Sink,
-		cfg:      deps.Cfg,
-		renderer: deps.Renderer,
-		logger:   deps.Logger,
-		metrics:  deps.Metrics,
-		reporter: deps.Reporter,
+func NewService(dependencies Dependencies, options ...Option) Service {
+	service := &assetService{
+		ctx:      dependencies.Ctx,
+		sourceFs: dependencies.SourceFs,
+		sink:     dependencies.Sink,
+		cfg:      dependencies.Cfg,
+		renderer: dependencies.Renderer,
+		logger:   dependencies.Logger,
+		metrics:  dependencies.Metrics,
+		reporter: dependencies.Reporter,
 	}
 
-	for _, opt := range opts {
-		opt(s)
+	for _, option := range options {
+		option(service)
 	}
 
-	return s
+	return service
 }
 
 // ReconfigureForBuild updates the sink and source filesystem for a new build.
-func (s *assetService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
-	s.sink = sink
-	s.sourceFs = fs
+func (service *assetService) ReconfigureForBuild(sink fspkg.ArtifactSink, sourceFs afero.Fs) {
+	service.sink = sink
+	service.sourceFs = sourceFs
 }
 
 // SetMetrics sets the build metrics collector.
-func (s *assetService) SetMetrics(m *metrics.BuildMetrics) { s.metrics = m }
+func (service *assetService) SetMetrics(metrics *metrics.BuildMetrics) { service.metrics = metrics }
 
 // SetAssetsReadySignal sets the signal channel for asset completion.
-func (s *assetService) SetAssetsReadySignal(ch chan struct{}) { s.assetsReady = ch }
+func (service *assetService) SetAssetsReadySignal(readySignal chan struct{}) {
+	service.assetsReady = readySignal
+}
 
 // SetDiscoveryReady sets the signal channel for discovery completion.
-func (s *assetService) SetDiscoveryReady(ch chan struct{}) { s.discoveryReady = ch }
+func (service *assetService) SetDiscoveryReady(readySignal chan struct{}) {
+	service.discoveryReady = readySignal
+}
 
 // SetContentAssetsChannel sets the channel for content asset notifications.
-func (s *assetService) SetContentAssetsChannel(ch <-chan []models.ScannedAsset) {
-	s.contentAssetsChan = ch
+func (service *assetService) SetContentAssetsChannel(assetsChannel <-chan []models.ScannedAsset) {
+	service.contentAssetsChan = assetsChannel
 }
 
 // ReconfigureWithReporter updates the reporter and logger for subsequent builds.
-func (s *assetService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {
-	s.reporter = r
-	s.logger = l
+func (service *assetService) ReconfigureWithReporter(reporter ui.Reporter, logger *slog.Logger) {
+	service.reporter = reporter
+	service.logger = logger
 }
 
 // DiscoveryReady returns a channel that is closed when discovery completes.
-func (s *assetService) DiscoveryReady() <-chan struct{} {
-	return s.discoveryReady
+func (service *assetService) DiscoveryReady() <-chan struct{} {
+	return service.discoveryReady
 }

@@ -53,12 +53,12 @@ func restoreAssetsFromCache(opts restoreAssetsOptions) (map[string]string, bool,
 		return nil, false, nil
 	}
 
-	g, _ := errgroup.WithContext(context.Background())
-	g.SetLimit(runtime.NumCPU())
+	eg, _ := errgroup.WithContext(context.Background())
+	eg.SetLimit(runtime.NumCPU())
 
-	for _, v := range assets {
-		rel := v
-		g.Go(func() error {
+	for _, assetRelative := range assets {
+		rel := assetRelative
+		eg.Go(func() error {
 			cacheFile := filepath.Join(opts.cachePath, rel)
 			destPath := filepath.Join(opts.destDir, rel)
 			data, err := os.ReadFile(cacheFile)
@@ -80,7 +80,7 @@ func restoreAssetsFromCache(opts restoreAssetsOptions) (map[string]string, bool,
 			return nil
 		})
 	}
-	if err := g.Wait(); err != nil {
+	if err := eg.Wait(); err != nil {
 		return nil, false, nil
 	}
 
@@ -178,12 +178,12 @@ func buildEsbuildOptions(ctx buildAssetsContext, entryPoints []string, bundle bo
 }
 
 func writeEsbuildOutputs(ctx buildAssetsContext, outFiles []api.OutputFile, cachePath string) error {
-	g, _ := errgroup.WithContext(context.Background())
-	g.SetLimit(runtime.NumCPU())
+	eg, _ := errgroup.WithContext(context.Background())
+	eg.SetLimit(runtime.NumCPU())
 
 	for _, outFile := range outFiles {
 		file := outFile
-		g.Go(func() error {
+		eg.Go(func() error {
 			if len(file.Contents) == 0 && !strings.HasSuffix(strings.ToLower(file.Path), ".map") {
 				return fmt.Errorf("esbuild produced empty output for %s", file.Path)
 			}
@@ -229,7 +229,7 @@ func writeEsbuildOutputs(ctx buildAssetsContext, outFiles []api.OutputFile, cach
 		})
 	}
 
-	return g.Wait()
+	return eg.Wait()
 }
 
 func updateAssetsFromMetafile(metaJSON string, srcDir string, assets map[string]string, assetsMu *sync.Mutex) error {
@@ -279,8 +279,8 @@ func buildEntryPoints(ctx buildAssetsContext, entryPoints []string, bundle bool,
 	buildOptions := buildEsbuildOptions(ctx, entryPoints, bundle)
 	result := api.Build(buildOptions)
 	if len(result.Errors) > 0 {
-		for _, e := range result.Errors {
-			slog.Error("esbuild error", "message", e.Text)
+		for _, errEntry := range result.Errors {
+			slog.Error("esbuild error", "message", errEntry.Text)
 		}
 		return fmt.Errorf("esbuild failed with %d errors", len(result.Errors))
 	}
@@ -381,8 +381,8 @@ func isAlphanumericHash(s string) bool {
 	if len(s) < assetHashMinLen || len(s) > assetHashMaxLen {
 		return false
 	}
-	for _, c := range s {
-		if (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+	for _, char := range s {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') {
 			return false
 		}
 	}

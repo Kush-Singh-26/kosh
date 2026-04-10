@@ -40,10 +40,10 @@ func TestFullBuildIntegration(t *testing.T) {
 	cfg.TemplateDir = absTemplateDir
 	cfg.StaticDir = absStaticDir
 
-	cfg.Features.Generators.Search = true
-	cfg.Features.Generators.RSS = true
-	cfg.Features.Generators.Sitemap = true
-	cfg.Features.Generators.Graph = models.GraphConfig{Enabled: true, ShowTags: true}
+	cfg.Features.Generators.IsSearchEnabled = true
+	cfg.Features.Generators.IsRSSEnabled = true
+	cfg.Features.Generators.IsSitemapEnabled = true
+	cfg.Features.Generators.Graph = models.GraphConfig{IsEnabled: true, ShowsTags: true}
 
 	// Create Builder
 	b := orchestration.NewEngine(orchestration.WithFs(fs), orchestration.WithConfig(cfg))

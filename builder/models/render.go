@@ -1,0 +1,101 @@
+package models
+
+import (
+	"html/template"
+	"time"
+)
+
+// TOCEntry represents a table of contents entry
+type TOCEntry struct {
+	ID    string `json:"id"`
+	Text  string `json:"text"`
+	Level int    `json:"level"`
+}
+
+// Breadcrumb represents a single breadcrumb item for navigation.
+type Breadcrumb struct {
+	Title     string
+	Link      string
+	IsCurrent bool
+}
+
+// NavPage represents a previous or next navigation page.
+type NavPage struct {
+	Title string
+	Link  string
+}
+
+// PostMetadata represents the frontmatter and derived data of a markdown post
+// for template rendering. It is the primary data structure passed to HTML templates
+// for displaying post lists, navigation, and page content.
+type PostMetadata struct {
+	Title       string
+	Link        string
+	Description string
+	Tags        []string
+	Weight      int
+	ReadingTime int
+	IsPinned    bool
+	IsDraft     bool
+	DateObj     time.Time
+}
+
+// TagData contains display data for a tag.
+type TagData struct {
+	Name  string
+	Link  string
+	Count int
+}
+
+// Paginator describes pagination state for templates.
+type Paginator struct {
+	CurrentPage int
+	TotalPages  int
+	PrevURL     string
+	NextURL     string
+	FirstURL    string
+	LastURL     string
+	HasPrev     bool
+	HasNext     bool
+}
+
+// PageData is the context passed to HTML templates.
+type PageData struct {
+	Title       string
+	TabTitle    string
+	Description string
+	BaseURL     string
+	Content     template.HTML
+	// Meta contains template-accessible frontmatter values.
+	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
+	Meta         map[string]any
+	IsIndex      bool
+	IsTagsIndex  bool
+	IsGraphPage  bool
+	Posts        []PostMetadata
+	PinnedPosts  []PostMetadata
+	AllTags      []TagData
+	BuildVersion int64
+	Permalink    string
+	Image        string
+	TOC          []TOCEntry
+	Paginator    Paginator
+	Assets       map[string]string
+	Weight       int
+	ReadingTime  int
+	HasImages    bool
+
+	// Navigation
+	Breadcrumbs []Breadcrumb
+	PrevPage    *NavPage
+	NextPage    *NavPage
+
+	// Depth-aware pathing
+	RelativePrefix string // e.g., "../" for depth 1
+
+	// Config-driven fields
+	Config TemplateConfig // To access Config fields in templates (Menu, Author, etc.)
+
+	// SEO
+	JSONLD template.HTML
+}

@@ -55,55 +55,55 @@ func NewManager(deps ManagerDependencies) *Manager {
 }
 
 // Reconfigure updates build-time sink and render dependencies.
-func (m *Manager) Reconfigure(sink fspkg.ArtifactSink, render render.Service) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.sink = sink
-	m.render = render
+func (managerInstance *Manager) Reconfigure(sink fspkg.ArtifactSink, renderSvc render.Service) {
+	managerInstance.mu.Lock()
+	defer managerInstance.mu.Unlock()
+	managerInstance.sink = sink
+	managerInstance.render = renderSvc
 }
 
 // ReconfigureWithLogger updates the logger for the manager.
-func (m *Manager) ReconfigureWithLogger(l *slog.Logger) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.logger = l
+func (managerInstance *Manager) ReconfigureWithLogger(logger *slog.Logger) {
+	managerInstance.mu.Lock()
+	defer managerInstance.mu.Unlock()
+	managerInstance.logger = logger
 }
 
 // SetIndexedPosts replaces the in-memory indexed posts cache.
-func (m *Manager) SetIndexedPosts(posts []models.IndexedPost) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.indexedPosts = posts
+func (managerInstance *Manager) SetIndexedPosts(posts []models.IndexedPost) {
+	managerInstance.mu.Lock()
+	defer managerInstance.mu.Unlock()
+	managerInstance.indexedPosts = posts
 }
 
 // GetIndexedPosts returns the current indexed posts cache.
-func (m *Manager) GetIndexedPosts() []models.IndexedPost {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.indexedPosts
+func (managerInstance *Manager) GetIndexedPosts() []models.IndexedPost {
+	managerInstance.mu.RLock()
+	defer managerInstance.mu.RUnlock()
+	return managerInstance.indexedPosts
 }
 
 // UpdateIndexedPostCache updates or inserts a single indexed post entry.
-func (m *Manager) UpdateIndexedPostCache(relPath string, parseRes *post.ParsedMarkdownResult) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (managerInstance *Manager) UpdateIndexedPostCache(relativePath string, parseResult *post.ParsedMarkdownResult) {
+	managerInstance.mu.Lock()
+	defer managerInstance.mu.Unlock()
 
-	if len(m.indexedPosts) == 0 {
+	if len(managerInstance.indexedPosts) == 0 {
 		return
 	}
 
 	found := false
-	targetKey := fspkg.NormalizePath(relPath)
-	for i, ip := range m.indexedPosts {
-		if indexedPostStableKey(ip) == targetKey {
-			m.indexedPosts[i] = models.IndexedPost{
-				Record:          parseRes.SearchRecord,
+	targetKey := fspkg.NormalizePath(relativePath)
+	for index, indexedPost := range managerInstance.indexedPosts {
+		if indexedPostStableKey(indexedPost) == targetKey {
+			managerInstance.indexedPosts[index] = models.IndexedPost{
+				Record:          parseResult.SearchRecord,
 				SourcePath:      targetKey,
-				WordFreqs:       parseRes.WordFreqs,
-				DocLen:          parseRes.DocLen,
-				StemMap:         parseRes.StemMap,
-				PositionalIndex: parseRes.PositionalIndex,
-				ByteOffsets:     parseRes.ByteOffsets,
+				WordFreqs:       parseResult.WordFreqs,
+				DocLen:          parseResult.DocLen,
+				StemMap:         parseResult.StemMap,
+				PositionalIndex: parseResult.PositionalIndex,
+				ByteOffsets:     parseResult.ByteOffsets,
 			}
 			found = true
 			break
@@ -111,47 +111,47 @@ func (m *Manager) UpdateIndexedPostCache(relPath string, parseRes *post.ParsedMa
 	}
 
 	if !found {
-		m.indexedPosts = append(m.indexedPosts, models.IndexedPost{
-			Record:          parseRes.SearchRecord,
+		managerInstance.indexedPosts = append(managerInstance.indexedPosts, models.IndexedPost{
+			Record:          parseResult.SearchRecord,
 			SourcePath:      targetKey,
-			WordFreqs:       parseRes.WordFreqs,
-			DocLen:          parseRes.DocLen,
-			StemMap:         parseRes.StemMap,
-			PositionalIndex: parseRes.PositionalIndex,
-			ByteOffsets:     parseRes.ByteOffsets,
+			WordFreqs:       parseResult.WordFreqs,
+			DocLen:          parseResult.DocLen,
+			StemMap:         parseResult.StemMap,
+			PositionalIndex: parseResult.PositionalIndex,
+			ByteOffsets:     parseResult.ByteOffsets,
 		})
 	}
 }
 
 // PruneDeletedPost removes a post from the indexed cache.
-func (m *Manager) PruneDeletedPost(relPath string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (managerInstance *Manager) PruneDeletedPost(relativePath string) {
+	managerInstance.mu.Lock()
+	defer managerInstance.mu.Unlock()
 
-	targetKey := fspkg.NormalizePath(relPath)
-	newIndexed := make([]models.IndexedPost, 0, len(m.indexedPosts))
-	for _, ip := range m.indexedPosts {
-		if indexedPostStableKey(ip) != targetKey {
-			newIndexed = append(newIndexed, ip)
+	targetKey := fspkg.NormalizePath(relativePath)
+	newIndexed := make([]models.IndexedPost, 0, len(managerInstance.indexedPosts))
+	for _, indexedPost := range managerInstance.indexedPosts {
+		if indexedPostStableKey(indexedPost) != targetKey {
+			newIndexed = append(newIndexed, indexedPost)
 		}
 	}
-	m.indexedPosts = newIndexed
+	managerInstance.indexedPosts = newIndexed
 }
 
 // RegenerateIndex rebuilds and writes the search index.
-func (m *Manager) RegenerateIndex(ctx context.Context) error {
-	m.mu.Lock()
-	sink := m.sink
-	render := m.render
-	m.mu.Unlock()
+func (managerInstance *Manager) RegenerateIndex(workingContext context.Context) error {
+	managerInstance.mu.Lock()
+	sink := managerInstance.sink
+	renderSvc := managerInstance.render
+	managerInstance.mu.Unlock()
 
-	if sink == nil || render == nil {
+	if sink == nil || renderSvc == nil {
 		return nil
 	}
 
-	indexedPosts, err := m.ensureIndexedPosts()
-	if err != nil {
-		return err
+	indexedPosts, searchError := managerInstance.ensureIndexedPosts()
+	if searchError != nil {
+		return searchError
 	}
 
 	if len(indexedPosts) == 0 {
@@ -159,91 +159,91 @@ func (m *Manager) RegenerateIndex(ctx context.Context) error {
 	}
 
 	indexedPosts = dedupeIndexedPosts(indexedPosts)
-	m.mu.Lock()
-	m.indexedPosts = indexedPosts
-	m.mu.Unlock()
+	managerInstance.mu.Lock()
+	managerInstance.indexedPosts = indexedPosts
+	managerInstance.mu.Unlock()
 
-	path, size, err := generators.GenerateSearchIndex(sink, indexedPosts)
-	if err != nil {
-		return err
+	indexPath, indexSize, generateError := generators.GenerateSearchIndex(sink, indexedPosts)
+	if generateError != nil {
+		return generateError
 	}
-	render.RegisterFile(path)
+	renderSvc.RegisterFile(indexPath)
 
-	if m.health != nil {
-		m.health.RecordSearchStats(int64(len(indexedPosts)), size)
+	if managerInstance.health != nil {
+		managerInstance.health.RecordSearchStats(int64(len(indexedPosts)), indexSize)
 	}
 
 	return nil
 }
 
-func (m *Manager) ensureIndexedPosts() ([]models.IndexedPost, error) {
-	m.mu.RLock()
-	if len(m.indexedPosts) > 0 {
-		posts := m.indexedPosts
-		m.mu.RUnlock()
+func (managerInstance *Manager) ensureIndexedPosts() ([]models.IndexedPost, error) {
+	managerInstance.mu.RLock()
+	if len(managerInstance.indexedPosts) > 0 {
+		posts := managerInstance.indexedPosts
+		managerInstance.mu.RUnlock()
 		return posts, nil
 	}
-	m.mu.RUnlock()
+	managerInstance.mu.RUnlock()
 
-	if m.cache == nil {
+	if managerInstance.cache == nil {
 		return nil, nil
 	}
 
-	postIDs, err := m.cache.ListAllPosts()
-	if err != nil {
-		return nil, err
+	postIDs, cacheError := managerInstance.cache.ListAllPosts()
+	if cacheError != nil {
+		return nil, cacheError
 	}
 	if len(postIDs) == 0 {
 		return nil, nil
 	}
 
-	posts, err := m.cache.GetPostsByIDs(postIDs)
-	if err != nil {
-		return nil, err
+	posts, postsError := managerInstance.cache.GetPostsByIDs(postIDs)
+	if postsError != nil {
+		return nil, postsError
 	}
-	searchRecords, err := m.cache.GetSearchRecords(postIDs)
-	if err != nil {
-		return nil, err
+	searchRecords, recordsError := managerInstance.cache.GetSearchRecords(postIDs)
+	if recordsError != nil {
+		return nil, recordsError
 	}
 
 	sort.Strings(postIDs)
 	indexedPosts := make([]models.IndexedPost, 0, len(posts))
 	for _, postID := range postIDs {
-		postMeta, ok := posts[postID]
-		if !ok || postMeta == nil {
+		postMetadata, ok := posts[postID]
+		if !ok || postMetadata == nil {
 			continue
 		}
-		searchRec, ok := searchRecords[postID]
-		if !ok || searchRec == nil {
+		searchRecord, ok := searchRecords[postID]
+		if !ok || searchRecord == nil {
 			continue
 		}
-		htmlRelPath := fspkg.MarkdownToHTMLPath(postMeta.Path)
+		htmlRelativePath := fspkg.MarkdownToHTMLPath(postMetadata.Path)
 		indexedPosts = append(indexedPosts, models.IndexedPost{
 			Record: models.PostRecord{
-				ID:              xxh3.HashString(htmlRelPath),
-				Title:           postMeta.Title,
-				NormalizedTitle: searchRec.NormalizedTitle,
-				Link:            htmlRelPath,
-				Description:     postMeta.Description,
-				Tags:            postMeta.Tags,
-				NormalizedTags:  searchRec.NormalizedTags,
+				ID:              xxh3.HashString(htmlRelativePath),
+				Title:           postMetadata.Title,
+				NormalizedTitle: searchRecord.NormalizedTitle,
+				Link:            htmlRelativePath,
+				Description:     postMetadata.Description,
+				Tags:            postMetadata.Tags,
+				NormalizedTags:  searchRecord.NormalizedTags,
 			},
-			SourcePath:      postMeta.Path,
-			WordFreqs:       searchRec.BM25Data,
-			DocLen:          searchRec.DocLen,
-			StemMap:         searchRec.StemMap,
-			PositionalIndex: searchRec.PositionalIndex,
-			ByteOffsets:     searchRec.ByteOffsets,
+			SourcePath:      postMetadata.Path,
+			WordFreqs:       searchRecord.BM25Data,
+			DocLen:          searchRecord.DocLen,
+			StemMap:         searchRecord.StemMap,
+			PositionalIndex: searchRecord.PositionalIndex,
+			ByteOffsets:     searchRecord.ByteOffsets,
 		})
 	}
 	return indexedPosts, nil
 }
 
-func indexedPostStableKey(ip models.IndexedPost) string {
-	if ip.SourcePath != "" {
-		return fspkg.NormalizePath(ip.SourcePath)
+func indexedPostStableKey(indexedPost models.IndexedPost) string {
+	if indexedPost.SourcePath != "" {
+		return fspkg.NormalizePath(indexedPost.SourcePath)
 	}
-	return fspkg.NormalizePath(ip.Record.Link)
+	return fspkg.NormalizePath(indexedPost.Record.Link)
 }
 
 func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
@@ -252,14 +252,14 @@ func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
 	}
 	seen := make(map[string]int, len(posts))
 	result := make([]models.IndexedPost, 0, len(posts))
-	for _, ip := range posts {
-		key := indexedPostStableKey(ip)
-		if idx, ok := seen[key]; ok {
-			result[idx] = ip
+	for _, indexedPost := range posts {
+		key := indexedPostStableKey(indexedPost)
+		if index, ok := seen[key]; ok {
+			result[index] = indexedPost
 			continue
 		}
 		seen[key] = len(result)
-		result = append(result, ip)
+		result = append(result, indexedPost)
 	}
 	return result
 }

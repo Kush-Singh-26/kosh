@@ -11,189 +11,189 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
-func (s *postService) loadCachedPost(relPath, htmlRelPath string, f models.ScannedFile, cachedMeta *models.PostMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
+func (service *postService) loadCachedPost(relPath, htmlRelPath string, file models.ScannedFile, cachedMeta *models.PostMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
 	var parseRes *ParsedMarkdownResult
 	var htmlContent string
 	var finalSSRHashes []string
 
 	if useCache {
-		parseRes, htmlContent, useCache = s.loadFromCache(cachedMeta, htmlRelPath)
+		parseRes, htmlContent, useCache = service.loadFromCache(cachedMeta, htmlRelPath)
 		if useCache {
 			finalSSRHashes = cachedMeta.SSRInputHashes
-			if s.metrics != nil {
-				s.metrics.IncrementCacheHit()
+			if service.metrics != nil {
+				service.metrics.IncrementCacheHit()
 			}
 		}
 	}
 
 	if useCache && htmlContent != "" && len(parseRes.MathExpressions) > 0 {
 		var mathOk bool
-		htmlContent, mathOk = s.processCachedMath(htmlContent, parseRes.MathExpressions)
+		htmlContent, mathOk = service.processCachedMath(htmlContent, parseRes.MathExpressions)
 		useCache = useCache && mathOk
 	}
 
 	return parseRes, htmlContent, finalSSRHashes, useCache
 }
 
-func (s *postService) loadSourceIfNeeded(f models.ScannedFile, useCache bool) ([]byte, error) {
-	if useCache && !s.cfg.Features.RawMarkdown {
+func (service *postService) loadSourceIfNeeded(file models.ScannedFile, useCache bool) ([]byte, error) {
+	if useCache && !service.cfg.Features.UseRawMarkdown {
 		return nil, nil
 	}
-	if f.SourceLoader == nil {
+	if file.SourceLoader == nil {
 		return nil, nil
 	}
-	return f.SourceLoader()
+	return file.SourceLoader()
 }
 
-func (s *postService) parseIfNeeded(ctx context.Context, f models.ScannedFile, cachedMeta *models.PostMeta, htmlRelPath string, sourceBytes []byte, useCache bool) (*ParsedMarkdownResult, string, []string, bool, error) {
+func (service *postService) parseIfNeeded(ctx context.Context, file models.ScannedFile, cachedMeta *models.PostMeta, htmlRelPath string, sourceBytes []byte, useCache bool) (*ParsedMarkdownResult, string, []string, bool, error) {
 	if useCache {
 		return nil, "", nil, true, nil
 	}
 
-	if s.metrics != nil {
-		s.metrics.IncrementCacheMiss()
+	if service.metrics != nil {
+		service.metrics.IncrementCacheMiss()
 	}
 
-	readingTime := f.ReadingTime
-	if cachedMeta != nil && cachedMeta.BodyHash == f.BodyHash && cachedMeta.ReadingTime > 0 {
+	readingTime := file.ReadingTime
+	if cachedMeta != nil && cachedMeta.BodyHash == file.BodyHash && cachedMeta.ReadingTime > 0 {
 		readingTime = cachedMeta.ReadingTime
 	}
 
 	parseRes, err := ParseMarkdown(ParseOptions{
-		Path:                 f.Path,
-		RelPath:              f.RelPath,
+		Path:                 file.Path,
+		RelPath:              file.RelPath,
 		Source:               sourceBytes,
-		Info:                 f.Info,
-		Renderer:             s.renderer,
-		NativeRenderer:       s.nativeRenderer,
-		MdPool:               s.mdPool,
-		DiagramAdapter:       s.diagramAdapter,
-		Metrics:              s.metrics,
-		Cfg:                  s.cfg,
+		Info:                 file.Info,
+		Renderer:             service.renderer,
+		NativeRenderer:       service.nativeRenderer,
+		MdPool:               service.mdPool,
+		DiagramAdapter:       service.diagramAdapter,
+		Metrics:              service.metrics,
+		Cfg:                  service.cfg,
 		CleanHtmlRelPath:     htmlRelPath,
 		HtmlRelPath:          htmlRelPath,
-		KnownFrontmatterHash: f.FrontmatterHash,
+		KnownFrontmatterHash: file.FrontmatterHash,
 		KnownReadingTime:     readingTime,
-		BodyOffset:           f.BodyOffset,
-		PreParsedMeta:        f.PreParsedMeta,
+		BodyOffset:           file.BodyOffset,
+		PreParsedMeta:        file.PreParsedMeta,
 	})
 	if err != nil {
 		return nil, "", nil, false, err
 	}
 
 	if parseRes.Post.Title == "" {
-		parseRes.Post.Title = f.Title
+		parseRes.Post.Title = file.Title
 	}
 
-	htmlContent := s.renderMath(ctx, f.Path, parseRes)
+	htmlContent := service.renderMath(ctx, file.Path, parseRes)
 	finalSSRHashes := parseRes.SSRHashes
 	return parseRes, htmlContent, finalSSRHashes, false, nil
 }
 
-func (s *postService) parseWorkerTaskLocal(f models.ScannedFile, wCtx WorkerContext, local *workerLocalState) {
-	path := f.Path
-	relPath := f.RelPath
+func (service *postService) parseWorkerTaskLocal(file models.ScannedFile, workerContext WorkerContext, local *workerLocalState) {
+	path := file.Path
+	relativePath := file.RelPath
 
-	htmlRelPath, _, destPath := navigation.ComputePathVars(s.cfg.OutputDir, relPath)
+	htmlRelativePath, _, destinationPath := navigation.ComputePathVars(service.cfg.OutputDir, relativePath)
 
 	// 1. Check Cache
-	cachedMeta, useCache := s.checkCache(relPath, f, wCtx.ShouldForce)
+	cachedMeta, useCache := service.checkCache(relativePath, file, workerContext.ShouldForce)
 
-	parseRes, htmlContent, finalSSRHashes, useCache := s.loadCachedPost(relPath, htmlRelPath, f, cachedMeta, useCache)
+	parseResult, htmlContent, finalSSRHashes, useCache := service.loadCachedPost(relativePath, htmlRelativePath, file, cachedMeta, useCache)
 
 	// 3. Full Parse if needed
-	sourceBytes, err := s.loadSourceIfNeeded(f, useCache)
+	sourceBytes, err := service.loadSourceIfNeeded(file, useCache)
 	if err != nil {
-		s.logger.Error("Failed to load source", "path", path, "error", err)
+		service.logger.Error("Failed to load source", "path", path, "error", err)
 		local.errs = append(local.errs, err)
 		return
 	}
 
 	if !useCache {
 		var parseErr error
-		parseRes, htmlContent, finalSSRHashes, useCache, parseErr = s.parseIfNeeded(wCtx.Ctx, f, cachedMeta, htmlRelPath, sourceBytes, useCache)
+		parseResult, htmlContent, finalSSRHashes, useCache, parseErr = service.parseIfNeeded(workerContext.Ctx, file, cachedMeta, htmlRelativePath, sourceBytes, useCache)
 		if parseErr != nil {
-			s.logger.Error("Failed to parse markdown", "path", path, "error", parseErr)
+			service.logger.Error("Failed to parse markdown", "path", path, "error", parseErr)
 			local.errs = append(local.errs, parseErr)
 			return
 		}
 		local.anyChanged = true
 	}
 
-	post := parseRes.Post
-	if post.Draft && !s.cfg.IncludeDrafts {
+	post := parseResult.Post
+	if post.IsDraft && !service.cfg.ShouldIncludeDrafts {
 		return
 	}
 
 	// 4. Social Card
-	s.queueSocialCard(SocialCardOptions{
-		RelPath:            relPath,
-		Result:             parseRes,
-		HtmlRelPath:        htmlRelPath,
-		ForceSocialRebuild: wCtx.ForceSocialRebuild,
-		CardPool:           wCtx.CardPool,
+	service.queueSocialCard(SocialCardOptions{
+		RelativePath:       relativePath,
+		Result:             parseResult,
+		HtmlRelativePath:   htmlRelativePath,
+		ForceSocialRebuild: workerContext.ForceSocialRebuild,
+		CardPool:           workerContext.CardPool,
 	})
 
 	// 5. Aggregate and stream
-	s.aggregateLocal(AggregateContext{
-		ScannedFile: f,
-		Res:         parseRes,
-		Post:        post,
-		HtmlContent: htmlContent,
-		DestPath:    destPath,
-		RelPath:     relPath,
-		HtmlRelPath: htmlRelPath,
-		SSRHashes:   finalSSRHashes,
-		UseCache:    useCache,
-		WCtx:        wCtx,
-		Local:       local,
-		SourceBytes: sourceBytes,
+	service.aggregateLocal(AggregateContext{
+		ScannedFile:      file,
+		Result:           parseResult,
+		Post:             post,
+		HtmlContent:      htmlContent,
+		DestinationPath:  destinationPath,
+		RelativePath:     relativePath,
+		HtmlRelativePath: htmlRelativePath,
+		SSRHashes:        finalSSRHashes,
+		UseCache:         useCache,
+		WorkerContext:    workerContext,
+		Local:            local,
+		SourceBytes:      sourceBytes,
 	})
-	if s.metrics != nil {
-		s.metrics.IncrementPostsProcessed()
+	if service.metrics != nil {
+		service.metrics.IncrementPostsProcessed()
 	}
 }
 
-func (s *postService) aggregateLocal(ac AggregateContext) {
-	f := ac.ScannedFile
-	res := ac.Res
-	post := ac.Post
-	htmlContent := ac.HtmlContent
-	destPath := ac.DestPath
-	relPath := ac.RelPath
-	htmlRelPath := ac.HtmlRelPath
-	ssrHashes := ac.SSRHashes
-	useCache := ac.UseCache
-	wCtx := ac.WCtx
-	local := ac.Local
-	sourceBytes := ac.SourceBytes
+func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
+	file := aggregateContext.ScannedFile
+	renderResult := aggregateContext.Result
+	post := aggregateContext.Post
+	htmlContent := aggregateContext.HtmlContent
+	destinationPath := aggregateContext.DestinationPath
+	relativePath := aggregateContext.RelativePath
+	htmlRelativePath := aggregateContext.HtmlRelativePath
+	ssrHashes := aggregateContext.SSRHashes
+	useCache := aggregateContext.UseCache
+	workerContext := aggregateContext.WorkerContext
+	local := aggregateContext.Local
+	sourceBytes := aggregateContext.SourceBytes
 
-	searchRecord := res.SearchRecord
+	searchRecord := renderResult.SearchRecord
 	searchRecord.ID = xxh3.HashString(searchRecord.Link)
 
-	localIdx := len(local.indexedPosts)
+	localIndex := len(local.indexedPosts)
 	local.indexedPosts = append(local.indexedPosts, models.IndexedPost{
-		Record: searchRecord, WordFreqs: res.WordFreqs, DocLen: res.DocLen,
-		StemMap: res.StemMap, PositionalIndex: res.PositionalIndex, ByteOffsets: res.ByteOffsets,
+		Record: searchRecord, WordFreqs: renderResult.WordFreqs, DocLen: renderResult.DocLen,
+		StemMap: renderResult.StemMap, PositionalIndex: renderResult.PositionalIndex, ByteOffsets: renderResult.ByteOffsets,
 	})
 
-	if !useCache && s.cache != nil {
+	if !useCache && service.cache != nil {
 		newSearch := &models.SearchRecord{
-			Title: post.Title, NormalizedTitle: res.SearchRecord.NormalizedTitle,
-			Content: res.SearchRecord.Content, NormalizedTags: res.SearchRecord.NormalizedTags,
+			Title: post.Title, NormalizedTitle: renderResult.SearchRecord.NormalizedTitle,
+			Content: renderResult.SearchRecord.Content, NormalizedTags: renderResult.SearchRecord.NormalizedTags,
 		}
-		postID := cache.GeneratePostID("", relPath)
-		local.newSearchRecs[postID] = newSearch
+		postID := cache.GeneratePostID("", relativePath)
+		local.newSearchRecords[postID] = newSearch
 
-		if s.cfg.Features.Generators.Search {
+		if service.cfg.Features.Generators.IsSearchEnabled {
 			local.searchTasks = append(local.searchTasks, deferredSearchTask{
-				record: searchRecord, plainText: res.PlainText, localIdx: localIdx, cached: newSearch,
+				record: searchRecord, plainText: renderResult.PlainText, localIndex: localIndex, cached: newSearch,
 			})
 		}
 	}
 
 	local.allPosts = append(local.allPosts, post)
-	if post.Pinned {
+	if post.IsPinned {
 		local.pinnedPosts = append(local.pinnedPosts, post)
 	}
 	for _, tag := range post.Tags {
@@ -203,64 +203,64 @@ func (s *postService) aggregateLocal(ac AggregateContext) {
 	}
 
 	// Stream to renderer // No locks needed for channel write
-	wCtx.RenderChan <- renderTask{
-		parseRes:    res,
-		f:           f,
-		htmlContent: htmlContent,
-		destPath:    destPath,
-		relPath:     relPath,
-		htmlRelPath: htmlRelPath,
-		source:      sourceBytes,
+	workerContext.RenderChan <- renderTask{
+		parseResult:      renderResult,
+		file:             file,
+		htmlContent:      htmlContent,
+		destinationPath:  destinationPath,
+		relativePath:     relativePath,
+		htmlRelativePath: htmlRelativePath,
+		source:           sourceBytes,
 	}
 
-	if !useCache && s.cache != nil {
-		postID := cache.GeneratePostID("", relPath)
+	if !useCache && service.cache != nil {
+		postID := cache.GeneratePostID("", relativePath)
 		newMeta := &models.PostMeta{
-			PostID: postID, Path: relPath, ModTime: f.Info.ModTime().UnixNano(),
-			ContentHash: res.FrontmatterHash, BodyHash: f.BodyHash, Title: post.Title, Date: post.DateObj,
-			WordCount: int(f.Info.Size()), // Use WordCount as size for quick comparison
+			PostID: postID, Path: relativePath, ModTime: file.Info.ModTime().UnixNano(),
+			ContentHash: renderResult.FrontmatterHash, BodyHash: file.BodyHash, Title: post.Title, Date: post.DateObj,
+			WordCount: int(file.Info.Size()), // Use WordCount as size for quick comparison
 			Tags:      post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
-			Link: post.Link, Pinned: post.Pinned, Weight: post.Weight, Draft: post.Draft,
-			Meta: res.Metadata, TOC: res.TOC, SSRInputHashes: ssrHashes,
-			CardHash: res.FrontmatterHash, HasImages: res.HasImages, MathExpressions: res.MathExpressions,
+			Link: post.Link, IsPinned: post.IsPinned, Weight: post.Weight, IsDraft: post.IsDraft,
+			Meta: renderResult.Metadata, TOC: renderResult.TOC, SSRInputHashes: ssrHashes,
+			CardHash: renderResult.FrontmatterHash, HasImages: renderResult.HasImages, MathExpressions: renderResult.MathExpressions,
 		}
-		if err := s.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
-			s.logger.Warn("Failed to store HTML for post", "path", relPath, "error", err)
+		if err := service.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
+			service.logger.Warn("Failed to store HTML for post", "path", relativePath, "error", err)
 		}
 		local.newPostsMeta = append(local.newPostsMeta, newMeta)
-		local.newDeps[postID] = &models.Dependencies{Tags: post.Tags}
+		local.newDependencies[postID] = &models.Dependencies{Tags: post.Tags}
 	}
 }
 
-func (s *postService) mergeWorkerStates(locals []*workerLocalState, wCtx WorkerContext) {
-	pc := wCtx.PC
+func (service *postService) mergeWorkerStates(locals []*workerLocalState, workerContext WorkerContext) {
+	processContext := workerContext.ProcessContext
 	for _, local := range locals {
 		if local.anyChanged {
-			pc.anyPostChanged.Store(true)
+			processContext.anyPostChanged.Store(true)
 		}
-		baseIdx := len(pc.indexedPosts)
-		pc.allPosts = append(pc.allPosts, local.allPosts...)
-		pc.pinnedPosts = append(pc.pinnedPosts, local.pinnedPosts...)
-		pc.indexedPosts = append(pc.indexedPosts, local.indexedPosts...)
-		pc.newPostsMeta = append(pc.newPostsMeta, local.newPostsMeta...)
-		for k, v := range local.newSearchRecs {
-			pc.newSearchRecords[k] = v
+		baseIndex := len(processContext.indexedPosts)
+		processContext.allPosts = append(processContext.allPosts, local.allPosts...)
+		processContext.pinnedPosts = append(processContext.pinnedPosts, local.pinnedPosts...)
+		processContext.indexedPosts = append(processContext.indexedPosts, local.indexedPosts...)
+		processContext.newPostsMeta = append(processContext.newPostsMeta, local.newPostsMeta...)
+		for k, v := range local.newSearchRecords {
+			processContext.newSearchRecords[k] = v
 		}
-		for k, v := range local.newDeps {
-			pc.newDeps[k] = v
+		for k, v := range local.newDependencies {
+			processContext.newDependencies[k] = v
 		}
-		for _, te := range local.tagEntries {
-			pc.tagMap[te.tag] = append(pc.tagMap[te.tag], te.post)
+		for _, entry := range local.tagEntries {
+			processContext.tagMap[entry.tag] = append(processContext.tagMap[entry.tag], entry.post)
 		}
-		pc.errs = append(pc.errs, local.errs...)
+		processContext.errs = append(processContext.errs, local.errs...)
 
-		for _, st := range local.searchTasks {
-			globalIdx := baseIdx + st.localIdx
-			wCtx.SearchPool.Submit(searchTask{
-				record:    st.record,
-				plainText: st.plainText,
-				indexed:   &pc.indexedPosts[globalIdx],
-				cached:    st.cached,
+		for _, task := range local.searchTasks {
+			globalIndex := baseIndex + task.localIndex
+			workerContext.SearchPool.Submit(searchTask{
+				record:    task.record,
+				plainText: task.plainText,
+				indexed:   &processContext.indexedPosts[globalIndex],
+				cached:    task.cached,
 			})
 		}
 	}

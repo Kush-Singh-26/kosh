@@ -6,18 +6,18 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 )
 
-func (s *postService) finalizeBuild(pc *postProcessContext) {
-	if len(pc.newPostsMeta) > 0 && s.cache != nil {
-		s.cacheWg.Add(1)
+func (service *postService) finalizeBuild(processContext *postProcessContext) {
+	if len(processContext.newPostsMeta) > 0 && service.cache != nil {
+		service.cacheWg.Add(1)
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 			Ctx:       context.Background(),
-			Logger:    s.logger,
+			Logger:    service.logger,
 			Operation: "cache commit",
 			Fn: func() error {
-				return s.cache.BatchCommit(pc.newPostsMeta, pc.newSearchRecords, pc.newDeps)
+				return service.cache.BatchCommit(processContext.newPostsMeta, processContext.newSearchRecords, processContext.newDependencies)
 			},
 			Cleanup: func() {
-				s.cacheWg.Done()
+				service.cacheWg.Done()
 			},
 		})
 	}

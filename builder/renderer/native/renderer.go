@@ -76,10 +76,10 @@ type mathRequest struct {
 type RendererOption func(*Renderer)
 
 // WithWorkers sets the worker pool size for the renderer.
-func WithWorkers(n int) RendererOption {
+func WithWorkers(numWorkers int) RendererOption {
 	return func(r *Renderer) {
-		if n > 0 {
-			r.numWorkers = n
+		if numWorkers > 0 {
+			r.numWorkers = numWorkers
 		}
 	}
 }
@@ -92,10 +92,10 @@ func WithScheduler(s scheduler.BuildScheduler) RendererOption {
 }
 
 // WithMathBatchSize sets the batch size for math rendering.
-func WithMathBatchSize(n int) RendererOption {
+func WithMathBatchSize(batchSize int) RendererOption {
 	return func(r *Renderer) {
-		if n > 0 {
-			r.mathBatchSize = n
+		if batchSize > 0 {
+			r.mathBatchSize = batchSize
 		}
 	}
 }
@@ -159,8 +159,8 @@ func (r *Renderer) mathBatchWorker() {
 		}
 
 		exprs := make([]models.MathExpression, len(batch))
-		for i, b := range batch {
-			exprs[i] = b.expr
+		for idx, item := range batch {
+			exprs[idx] = item.expr
 		}
 
 		results, err := r.RenderMathBatch(context.Background(), exprs)
@@ -180,25 +180,25 @@ func (r *Renderer) mathBatchWorker() {
 	}
 }
 
-func (r *Renderer) validateBytecode(bc []byte) ([]byte, bool) {
-	if len(bc) < bytecodeHeaderSize {
+func (r *Renderer) validateBytecode(bytecode []byte) ([]byte, bool) {
+	if len(bytecode) < bytecodeHeaderSize {
 		return nil, false
 	}
-	if string(bc[0:bytecodeMagicSize]) != bytecodeMagic {
+	if string(bytecode[0:bytecodeMagicSize]) != bytecodeMagic {
 		return nil, false
 	}
 	// Check hash of source JS
-	sourceHash := binary.LittleEndian.Uint64(bc[bytecodeSourceHashStart:bytecodeSourceHashEnd])
+	sourceHash := binary.LittleEndian.Uint64(bytecode[bytecodeSourceHashStart:bytecodeSourceHashEnd])
 	actualHash := xxh3.Hash([]byte(katexJS))
 	if sourceHash != actualHash {
 		return nil, false
 	}
 	// Check size integrity
-	expectedSize := binary.LittleEndian.Uint64(bc[bytecodeSizeStart:bytecodeSizeEnd])
-	if uint64(len(bc)-bytecodeHeaderSize) != expectedSize {
+	expectedSize := binary.LittleEndian.Uint64(bytecode[bytecodeSizeStart:bytecodeSizeEnd])
+	if uint64(len(bytecode)-bytecodeHeaderSize) != expectedSize {
 		return nil, false
 	}
-	return bc[bytecodePayloadOffset:], true
+	return bytecode[bytecodePayloadOffset:], true
 }
 
 // ensureInitialized lazily creates worker instances on first use
@@ -207,9 +207,9 @@ func (r *Renderer) ensureInitialized() {
 		slog.Info("Initializing QuickJS Renderer Pool", "workers", r.numWorkers)
 
 		// Validate embedded bytecode
-		if bc, ok := r.validateBytecode(katexBytecode); ok {
-			slog.Info("Using validated KaTeX bytecode", "size", len(bc))
-			r.katexBytecode = bc
+		if bytecode, ok := r.validateBytecode(katexBytecode); ok {
+			slog.Info("Using validated KaTeX bytecode", "size", len(bytecode))
+			r.katexBytecode = bytecode
 		} else {
 			if len(katexBytecode) > 0 {
 				slog.Warn("KaTeX bytecode validation failed (stale or invalid), recompiling...")
@@ -217,17 +217,17 @@ func (r *Renderer) ensureInitialized() {
 				slog.Info("No KaTeX bytecode found, compiling from source...")
 			}
 
-			rt, err := qjs.New(qjs.Option{
+			jsRuntime, err := qjs.New(qjs.Option{
 				MaxExecutionTime: maxExecutionTimeMs,
 			})
 			if err == nil {
-				bc, err := rt.Compile("katex.min.js", qjs.Code(katexJS))
+				bytecode, err := jsRuntime.Compile("katex.min.js", qjs.Code(katexJS))
 				if err == nil {
-					r.katexBytecode = bc
+					r.katexBytecode = bytecode
 				} else {
 					slog.Warn("Failed to compile KaTeX to bytecode", "error", err)
 				}
-				rt.Close()
+				jsRuntime.Close()
 			} else {
 				slog.Warn("Failed to create temporary runtime for compilation", "error", err)
 			}
@@ -323,11 +323,11 @@ func (r *Renderer) Close() error {
 
 // HashContent generates a XXH3 hash for cache keys
 func HashContent(contentType, content string) string {
-	h := xxh3.New()
-	_, _ = h.WriteString(contentType + ":" + content)
-	sum := h.Sum128()
-	b := sum.Bytes()
-	return hex.EncodeToString(b[:])[:hashPrefixLength]
+	hasher := xxh3.New()
+	_, _ = hasher.WriteString(contentType + ":" + content)
+	sum := hasher.Sum128()
+	hashBytes := sum.Bytes()
+	return hex.EncodeToString(hashBytes[:])[:hashPrefixLength]
 }
 
 // GetD2Singleflight returns the shared singleflight group for D2 rendering
