@@ -56,6 +56,8 @@ Rules for agents:
   - Pipelined parse+render with streaming workers
   - Overlapping asset discovery and copying via channels
   - Decoupled search analysis via background worker pool
+  - Global SSR batching for Math and D2 (discover-batch-render-replace flow)
+  - Image priority queue (fat-tail optimization) for cold builds
   - SEO suite: JSON-LD structured data + sitemap generator (robots.txt moved to root)
   - SVG minification via tdewolff/minify
   - A11y linting: build-time warnings for missing image alt text

@@ -26,12 +26,13 @@ const (
 )
 
 type partialResult struct {
-	posts    map[string]models.PostRecord
-	inverted map[string]map[string][]uint32
-	offsets  map[string]map[string][]uint32
-	docLens  map[string]int64
-	stemMap  map[string]map[string]bool
-	totalLen int64
+	posts         map[string]models.PostRecord
+	inverted      map[string]map[string][]uint32
+	offsets       map[string]map[string][]uint32
+	docLens       map[string]int64
+	stemMap       map[string]map[string]bool
+	titleInverted map[string][]uint64
+	totalLen      int64
 }
 
 func emptySearchIndex() *models.SearchIndex {
@@ -39,6 +40,7 @@ func emptySearchIndex() *models.SearchIndex {
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         make(map[string]models.PostRecord),
 		Inverted:      make(map[string]map[string][]uint32),
+		TitleInverted: make(map[string][]uint64),
 		DocLens:       make(map[string]int64),
 		StemMap:       make(map[string][]string),
 		TotalDocs:     0,
@@ -83,6 +85,7 @@ func buildPartialResults(indexedPosts []models.IndexedPost, numWorkers int) []pa
 				localOffsets := make(map[string]map[string][]uint32, workerCap)
 				localDocLens := make(map[string]int64, end-start)
 				localStemMap := make(map[string]map[string]bool, workerCap/2)
+				localTitleInverted := make(map[string][]uint64, workerCap/2)
 				var localTotalLen int64
 
 				for j := start; j < end; j++ {
@@ -97,6 +100,11 @@ func buildPartialResults(indexedPosts []models.IndexedPost, numWorkers int) []pa
 
 					localDocLens[idStr] = int64(ip.DocLen)
 					localTotalLen += int64(ip.DocLen)
+
+					titleTokens := core.DefaultAnalyzer.Analyze(ip.Record.NormalizedTitle)
+					for _, word := range titleTokens {
+						localTitleInverted[word] = append(localTitleInverted[word], ip.Record.ID)
+					}
 
 					for word, positions := range ip.PositionalIndex {
 						if _, ok := localInverted[word]; !ok {
@@ -120,12 +128,13 @@ func buildPartialResults(indexedPosts []models.IndexedPost, numWorkers int) []pa
 					}
 				}
 				results[workerID] = partialResult{
-					posts:    localPosts,
-					inverted: localInverted,
-					offsets:  localOffsets,
-					docLens:  localDocLens,
-					stemMap:  localStemMap,
-					totalLen: localTotalLen,
+					posts:         localPosts,
+					inverted:      localInverted,
+					offsets:       localOffsets,
+					docLens:       localDocLens,
+					stemMap:       localStemMap,
+					titleInverted: localTitleInverted,
+					totalLen:      localTotalLen,
 				}
 				return nil
 			},
@@ -154,6 +163,13 @@ func mergePartialResults(index *models.SearchIndex, results []partialResult) int
 				index.Offsets[word] = docs
 			} else {
 				maps.Copy(index.Offsets[word], docs)
+			}
+		}
+		for word, ids := range r.titleInverted {
+			if _, ok := index.TitleInverted[word]; !ok {
+				index.TitleInverted[word] = ids
+			} else {
+				index.TitleInverted[word] = append(index.TitleInverted[word], ids...)
 			}
 		}
 	}
@@ -202,6 +218,7 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         make(map[string]models.PostRecord, totalDocs),
 		Inverted:      make(map[string]map[string][]uint32, globalCap),
+		TitleInverted: make(map[string][]uint64, globalCap/2),
 		DocLens:       make(map[string]int64, totalDocs),
 		StemMap:       make(map[string][]string, globalCap/2),
 		TotalDocs:     int64(totalDocs),

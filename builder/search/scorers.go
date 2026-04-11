@@ -3,6 +3,7 @@ package search
 import (
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -149,45 +150,51 @@ func (scorer *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions)
 	}
 
 	query := ctx.OriginalQuery
-	for id, post := range ctx.Index.Posts {
-		title := post.NormalizedTitle
-		var score float64
+	queryLower := core.ToLower(query)
 
-		// 1. Exact Title Match (Highest priority)
-		if title == query {
-			score += exactTitleBoost
-		} else if strings.HasPrefix(title, query) {
-			// 2. Prefix Title Match
-			score += prefixTitleBoost
-		} else if strings.Contains(title, query) {
-			// 3. Substring Title Match
-			score += substringTitleBoost
-		}
+	titleMatches := make(map[uint64]float64)
 
-		// 4. Word-level matching within title
-		titleWords := strings.Fields(title)
-		for _, word := range titleWords {
-			if word == query {
-				score += exactTitleWordBoost
-			} else if strings.HasPrefix(word, query) {
-				score += prefixTitleWordBoost
-			}
-		}
-
-		// 5. Description matching (Lower priority)
-		description := core.ToLower(post.Description)
-		if strings.Contains(description, query) {
-			score += descriptionContainsBoost
-		}
-
-		if score > 0 {
-			opts.Scores[id] += score
-			// Add terms to highlight
-			for _, word := range strings.Fields(query) {
-				if len(word) > minHighlightTermLength {
-					opts.HighlightTerms[word] = true
+	if ctx.Index.TitleInverted != nil {
+		for _, term := range ctx.QueryTerms {
+			if ids, ok := ctx.Index.TitleInverted[term]; ok {
+				for _, id := range ids {
+					titleMatches[id] += exactTitleWordBoost
 				}
+				opts.HighlightTerms[term] = true
 			}
+		}
+	}
+
+	for id := range ctx.Index.Posts {
+		post := ctx.Index.Posts[id]
+		if post.NormalizedTitle == queryLower {
+			idNum, _ := strconv.ParseUint(id, 10, 64)
+			titleMatches[idNum] += exactTitleBoost
+		} else if strings.HasPrefix(post.NormalizedTitle, queryLower) {
+			idNum, _ := strconv.ParseUint(id, 10, 64)
+			titleMatches[idNum] += prefixTitleBoost
+		} else if strings.Contains(post.NormalizedTitle, queryLower) {
+			idNum, _ := strconv.ParseUint(id, 10, 64)
+			titleMatches[idNum] += substringTitleBoost
+		}
+
+		description := core.ToLower(post.Description)
+		if strings.Contains(description, queryLower) {
+			idNum, _ := strconv.ParseUint(id, 10, 64)
+			titleMatches[idNum] += descriptionContainsBoost
+		}
+	}
+
+	for idNum, score := range titleMatches {
+		if score > 0 {
+			idStr := strconv.FormatUint(idNum, 10)
+			opts.Scores[idStr] += score
+		}
+	}
+
+	for _, word := range strings.Fields(query) {
+		if len(word) > minHighlightTermLength {
+			opts.HighlightTerms[word] = true
 		}
 	}
 }

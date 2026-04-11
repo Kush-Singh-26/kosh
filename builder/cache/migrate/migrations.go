@@ -18,10 +18,14 @@ const (
 	schemaV8          = 8
 	schemaV9          = 9
 	schemaV10         = 10
+	schemaV11         = 11
+	schemaV12         = 12
+	schemaV13         = 13
+	schemaV14         = 14
+	schemaV15         = 15
 	schemaVersionSize = 4
 )
 
-// Migration represents a schema migration step
 type Migration struct {
 	FromVersion uint32
 	ToVersion   uint32
@@ -37,7 +41,6 @@ var registeredMigrations = []Migration{
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to hash algorithm change (BLAKE3 -> XXH3)")
 			for _, bucketName := range core.AllBuckets() {
-				// Don't delete the meta bucket itself, just its contents
 				if bucketName == core.BucketMeta {
 					continue
 				}
@@ -52,72 +55,11 @@ var registeredMigrations = []Migration{
 		},
 	},
 	{
-		FromVersion: schemaV7,
-		ToVersion:   schemaV10,
-		Description: "Migration to align cache schema with search schema (v10)",
+		FromVersion: schemaV10,
+		ToVersion:   schemaV15,
+		Description: "Migration to align cache schema with search schema (v15: TitleInverted)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
-			logger.Info("Purging all cache buckets due to schema version alignment (v7 -> v10)")
-			// Purge all cache buckets except meta bucket
-			for _, bucketName := range core.AllBuckets() {
-				if bucketName == core.BucketMeta {
-					continue
-				}
-				if err := tx.DeleteBucket([]byte(bucketName)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
-					return err
-				}
-				if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-	},
-	{
-		FromVersion: schemaV6,
-		ToVersion:   schemaV10,
-		Description: "Migration to align cache schema with search schema (v6 -> v10)",
-		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
-			logger.Info("Purging all cache buckets due to schema version alignment (v6 -> v10)")
-			for _, bucketName := range core.AllBuckets() {
-				if bucketName == core.BucketMeta {
-					continue
-				}
-				if err := tx.DeleteBucket([]byte(bucketName)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
-					return err
-				}
-				if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-	},
-	{
-		FromVersion: schemaV8,
-		ToVersion:   schemaV10,
-		Description: "Migration to align cache schema with search schema (v8 -> v10)",
-		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
-			logger.Info("Purging all cache buckets due to schema version alignment (v8 -> v10)")
-			for _, bucketName := range core.AllBuckets() {
-				if bucketName == core.BucketMeta {
-					continue
-				}
-				if err := tx.DeleteBucket([]byte(bucketName)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
-					return err
-				}
-				if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-	},
-	{
-		FromVersion: schemaV9,
-		ToVersion:   schemaV10,
-		Description: "Migration to align cache schema with search schema (v9 -> v10)",
-		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
-			logger.Info("Purging all cache buckets due to schema version alignment (v9 -> v10)")
+			logger.Info("Purging all cache buckets due to schema version alignment (v10 -> v15)")
 			for _, bucketName := range core.AllBuckets() {
 				if bucketName == core.BucketMeta {
 					continue
@@ -134,7 +76,6 @@ var registeredMigrations = []Migration{
 	},
 }
 
-// RunMigrations runs all pending migrations for the current schema
 func RunMigrations(db *bbolt.DB, currentVersion uint32, logger *slog.Logger) (uint32, error) {
 	if logger == nil {
 		logger = slog.Default()
@@ -150,7 +91,6 @@ func RunMigrations(db *bbolt.DB, currentVersion uint32, logger *slog.Logger) (ui
 			}
 			currentVersion = migration.ToVersion
 
-			// Update the version in the database
 			if err := db.Update(func(tx *bbolt.Tx) error {
 				meta := tx.Bucket([]byte(core.BucketMeta))
 				if meta == nil {

@@ -48,8 +48,8 @@ const (
 const (
 	// SchemaVersion is the current cache schema version.
 	// This should be kept in sync with models.CurrentSchemaVersion (search index schema).
-	// Both are currently at version 12.
-	SchemaVersion = 12
+	// Both are currently at version 15.
+	SchemaVersion = 15
 )
 
 // HashContent returns a hex xxh3 hash of the content.
