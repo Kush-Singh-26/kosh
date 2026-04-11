@@ -51,10 +51,10 @@ const (
 )
 
 type lineReporter struct {
-	mode    string
-	mu      sync.Mutex // protects phases, phaseOrder, status, finished
-	verbose bool
-	isTTY   bool
+	mode      string
+	mu        sync.Mutex // protects phases, phaseOrder, status, isFinished
+	isVerbose bool
+	isTTY     bool
 
 	// Active spinner state
 	phases     map[Phase]*linePhaseState
@@ -62,7 +62,7 @@ type lineReporter struct {
 	ticker     *time.Ticker
 	done       chan struct{}
 	status     string
-	finished   bool
+	isFinished bool
 }
 
 type linePhaseState struct {
@@ -77,10 +77,10 @@ type linePhaseState struct {
 // NewReporter returns a Reporter that renders a single-line UI.
 func NewReporter(verbose bool) Reporter {
 	return &lineReporter{
-		phases:  make(map[Phase]*linePhaseState),
-		verbose: verbose,
-		isTTY:   detectTTY() && !verbose,
-		done:    make(chan struct{}),
+		phases:    make(map[Phase]*linePhaseState),
+		isVerbose: verbose,
+		isTTY:     detectTTY() && !verbose,
+		done:      make(chan struct{}),
 	}
 }
 
@@ -250,7 +250,7 @@ func (rep *lineReporter) Status(msg string) {
 // printLine outputs a line, clearing the spinner first if active.
 func (rep *lineReporter) printLine(line string) {
 	rep.mu.Lock()
-	finished := rep.finished
+	finished := rep.isFinished
 	isTTY := rep.isTTY
 	rep.mu.Unlock()
 
@@ -264,7 +264,7 @@ func (rep *lineReporter) printLine(line string) {
 // Finish renders the final build summary.
 func (rep *lineReporter) Finish(stats BuildStats) {
 	rep.mu.Lock()
-	rep.finished = true
+	rep.isFinished = true
 
 	if rep.ticker != nil {
 		rep.ticker.Stop()
@@ -318,7 +318,7 @@ func (rep *lineReporter) Finish(stats BuildStats) {
 // Must be called with rep.mu held.
 func (rep *lineReporter) renderSpinner() {
 	rep.mu.Lock()
-	finished := rep.finished
+	finished := rep.isFinished
 
 	// Find the topmost active (unfinished) phase
 	var activePhase Phase
@@ -384,7 +384,7 @@ func (rep *lineReporter) clearLine() {
 
 func (rep *lineReporter) shouldSkip(msg string) bool {
 	// In verbose mode, don't skip anything
-	if rep.verbose {
+	if rep.isVerbose {
 		return false
 	}
 

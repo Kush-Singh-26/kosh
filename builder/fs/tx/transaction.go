@@ -37,7 +37,7 @@ type DirectoryTx struct {
 	stagingDir    string
 	backupDir     string
 	isCleanBuild  bool
-	committed     bool
+	isCommitted   bool
 }
 
 var buildTxnCounter atomic.Uint64
@@ -110,11 +110,11 @@ func (txn *DirectoryTx) StagingDir() string {
 
 // Commit publishes the staging directory to the final output.
 func (txn *DirectoryTx) Commit(ctx context.Context) error {
-	if txn.committed {
+	if txn.isCommitted {
 		return nil
 	}
 	if !txn.isCleanBuild {
-		txn.committed = true
+		txn.isCommitted = true
 		return nil // No swap needed for incremental builds
 	}
 
@@ -170,13 +170,13 @@ func (txn *DirectoryTx) Commit(ctx context.Context) error {
 	if txn.backupDir != "" {
 		_ = retry.RemoveAllWithRetry(ctx, txn.backupDir, cleanupRetryMax, cleanupRetryDelay)
 	}
-	txn.committed = true
+	txn.isCommitted = true
 	return nil
 }
 
 // Rollback cleans up the staging directory after a failed publish.
 func (txn *DirectoryTx) Rollback() error {
-	if txn.committed || !txn.isCleanBuild {
+	if txn.isCommitted || !txn.isCleanBuild {
 		return nil
 	}
 	// Clean up staging dir on failure

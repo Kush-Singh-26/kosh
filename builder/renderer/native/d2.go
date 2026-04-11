@@ -159,7 +159,7 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 	r.ensureInitialized()
 
 	r.mu.Lock()
-	if r.closed {
+	if r.isClosed {
 		r.mu.Unlock()
 		return "", errRendererClosed
 	}

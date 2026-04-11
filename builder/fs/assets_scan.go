@@ -57,7 +57,7 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 			ext := strings.ToLower(filepath.Ext(path))
 			baseName := filepath.Base(path)
 
-			if baseName == "wasm_engine.js" || baseName == "wasm_exec.js" || baseName == "engine.js" || baseName == "force-graph.js" {
+			if baseName == "wasm_engine.js" || baseName == "wasm_exec.js" || baseName == "engine.js" {
 				return nil
 			}
 

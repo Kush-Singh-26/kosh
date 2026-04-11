@@ -373,7 +373,6 @@ Current notes:
 
 - schema validation exists and browser errors if stale
 - search snippets rely on stored content and offsets
-- search-analysis restructuring remains deferred because it is high risk
 
 ### Math and D2 SSR
 
@@ -425,10 +424,7 @@ imageWorkers: 8
 - font decode failures caused by zero-byte source fonts in site repo
 - absolute watcher path mismatch for markdown incremental rebuilds
 - Windows clean-build publish rename failures from fixed temp dir reuse
-
-### Still intentionally deferred / optional
-
-- search-analysis restructure
+- scheduler tuning: TaskImage weight reduced from 400 to 300 for higher image concurrency
 
 ## Safe Change Boundaries
 

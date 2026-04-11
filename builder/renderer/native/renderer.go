@@ -61,7 +61,7 @@ type Renderer struct {
 	initReady      chan struct{}
 	taskWg         sync.WaitGroup
 	mu             sync.Mutex // protects closed during pool initialization
-	closed         bool
+	isClosed       bool
 	D2Singleflight singleflight.Group // Shared group to deduplicate D2 diagram rendering across posts
 	scheduler      scheduler.BuildScheduler
 	mathQueue      chan mathRequest
@@ -261,7 +261,7 @@ func (r *Renderer) ensureInitialized() {
 					instance.ensureInitialized(r.katexBytecode)
 
 					r.mu.Lock()
-					isClosed := r.closed
+					isClosed := r.isClosed
 					r.mu.Unlock()
 
 					if !isClosed {
@@ -295,11 +295,11 @@ func (r *Renderer) EnsureInitialized(ctx context.Context) {
 // Close shuts down the renderer and cleans up worker resources.
 func (r *Renderer) Close() error {
 	r.mu.Lock()
-	if r.closed {
+	if r.isClosed {
 		r.mu.Unlock()
 		return nil
 	}
-	r.closed = true
+	r.isClosed = true
 	r.mu.Unlock()
 
 	// Stop math batchers

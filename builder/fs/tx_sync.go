@@ -15,12 +15,12 @@ import (
 // It tracks files written during a sync pass and can undo them if any
 // part of the sync fails, preventing partially-written output directories.
 type TxSync struct {
-	mu         sync.Mutex        // protects written, writtenSet, backups, committed
-	written    []string          // new files created in this transaction
-	writtenSet map[string]bool   // O(1) duplicate detection
-	backups    map[string]string // original path -> backup path (for overwrites)
-	committed  bool
-	logger     *slog.Logger
+	mu          sync.Mutex        // protects written, writtenSet, backups, isCommitted
+	written     []string          // new files created in this transaction
+	writtenSet  map[string]bool   // O(1) duplicate detection
+	backups     map[string]string // original path -> backup path (for overwrites)
+	isCommitted bool
+	logger      *slog.Logger
 }
 
 // NewTxSync creates a new transactional sync tracker.
@@ -61,7 +61,7 @@ func (syncTx *TxSync) Commit() {
 	syncTx.mu.Lock()
 	defer syncTx.mu.Unlock()
 
-	syncTx.committed = true
+	syncTx.isCommitted = true
 
 	for _, backup := range syncTx.backups {
 		_ = os.Remove(backup)
@@ -79,7 +79,7 @@ func (syncTx *TxSync) Rollback(ctx context.Context) {
 	syncTx.mu.Lock()
 	defer syncTx.mu.Unlock()
 
-	if syncTx.committed {
+	if syncTx.isCommitted {
 		return
 	}
 
@@ -135,7 +135,7 @@ func (syncTx *TxSync) FileCount() int {
 func (syncTx *TxSync) IsCommitted() bool {
 	syncTx.mu.Lock()
 	defer syncTx.mu.Unlock()
-	return syncTx.committed
+	return syncTx.isCommitted
 }
 
 const (

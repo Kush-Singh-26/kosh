@@ -39,7 +39,8 @@ const (
 const (
 	WeightLight    = 50  // Minimal resource usage (markdown parsing)
 	WeightModerate = 200 // Moderate resource usage (math rendering, search indexing)
-	WeightHeavy    = 400 // Heavy resource usage (image processing, D2 diagrams, esbuild)
+	WeightHeavy    = 400 // Heavy resource usage (D2 diagrams, esbuild)
+	WeightImage    = 300 // Image processing - tuned for higher concurrency
 	WeightDefault  = 100 // Default weight for unclassified tasks
 )
 
@@ -72,7 +73,7 @@ func NewBuildScheduler() BuildScheduler {
 		weights: map[TaskType]int64{
 			TaskDefault:    WeightDefault,
 			TaskMarkdown:   WeightLight,    // Very light - text parsing only
-			TaskImage:      WeightHeavy,    // Heavy - image decode/encode
+			TaskImage:      WeightImage,    // Tuned - allows higher concurrency
 			TaskMath:       WeightModerate, // Moderate - JS rendering
 			TaskD2:         WeightHeavy,    // Heavy - SVG diagram rendering
 			TaskSearch:     WeightModerate, // Moderate - indexing operations

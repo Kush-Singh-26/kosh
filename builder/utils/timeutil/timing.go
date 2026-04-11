@@ -23,9 +23,9 @@ const (
 
 // PhaseTimer measures the duration of a named build phase.
 type PhaseTimer struct {
-	name      string
-	start     time.Time
-	completed bool
+	name        string
+	start       time.Time
+	isCompleted bool
 }
 
 // StartPhase starts timing for a named phase.
@@ -38,10 +38,10 @@ func StartPhase(name string) *PhaseTimer {
 
 // Stop stops the timer and records the phase duration.
 func (timer *PhaseTimer) Stop() {
-	if timer.completed {
+	if timer.isCompleted {
 		return
 	}
-	timer.completed = true
+	timer.isCompleted = true
 	elapsed := time.Since(timer.start)
 	TrackPhase(timer.name, elapsed)
 	slog.Info("Phase completed", "name", timer.name, "duration", formatDuration(elapsed))
@@ -49,10 +49,10 @@ func (timer *PhaseTimer) Stop() {
 
 // StopWithAddendum stops the timer and logs with an addendum.
 func (timer *PhaseTimer) StopWithAddendum(addendum string) {
-	if timer.completed {
+	if timer.isCompleted {
 		return
 	}
-	timer.completed = true
+	timer.isCompleted = true
 	elapsed := time.Since(timer.start)
 	TrackPhase(timer.name, elapsed)
 	slog.Info("Phase completed", "name", timer.name, "duration", formatDuration(elapsed), "addendum", addendum)
@@ -60,28 +60,28 @@ func (timer *PhaseTimer) StopWithAddendum(addendum string) {
 
 // PhaseTracker accumulates named phase durations.
 type PhaseTracker struct {
-	mu      sync.Mutex // protects phases and enabled
-	phases  map[string]time.Duration
-	enabled bool
+	mu        sync.Mutex // protects phases and isEnabled
+	phases    map[string]time.Duration
+	isEnabled bool
 }
 
 var globalTracker = &PhaseTracker{
-	phases:  make(map[string]time.Duration),
-	enabled: false,
+	phases:    make(map[string]time.Duration),
+	isEnabled: false,
 }
 
 // EnablePhaseTracking enables global phase tracking.
 func EnablePhaseTracking() {
 	globalTracker.mu.Lock()
 	defer globalTracker.mu.Unlock()
-	globalTracker.enabled = true
+	globalTracker.isEnabled = true
 }
 
 // DisablePhaseTracking disables global phase tracking.
 func DisablePhaseTracking() {
 	globalTracker.mu.Lock()
 	defer globalTracker.mu.Unlock()
-	globalTracker.enabled = false
+	globalTracker.isEnabled = false
 }
 
 // ResetPhaseTracking clears all recorded phase durations.
@@ -93,7 +93,7 @@ func ResetPhaseTracking() {
 
 // TrackPhase records a phase duration when tracking is enabled.
 func TrackPhase(name string, duration time.Duration) {
-	if !globalTracker.enabled {
+	if !globalTracker.isEnabled {
 		return
 	}
 	globalTracker.mu.Lock()
@@ -114,7 +114,7 @@ func GetPhaseDurations() map[string]time.Duration {
 func IsPhaseTrackingEnabled() bool {
 	globalTracker.mu.Lock()
 	defer globalTracker.mu.Unlock()
-	return globalTracker.enabled
+	return globalTracker.isEnabled
 }
 
 // PhaseDurationSnapshot holds a formatted phase duration.

@@ -118,7 +118,7 @@ func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode boo
 	r.ensureInitialized()
 
 	r.mu.Lock()
-	if r.closed {
+	if r.isClosed {
 		r.mu.Unlock()
 		return "", errRendererClosed
 	}
@@ -131,7 +131,7 @@ func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode boo
 	instance := <-r.pool
 	defer func() {
 		r.mu.Lock()
-		isClosed := r.closed
+		isClosed := r.isClosed
 		r.mu.Unlock()
 		if !isClosed {
 			r.pool <- instance
@@ -179,7 +179,7 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 	r.ensureInitialized()
 
 	r.mu.Lock()
-	if r.closed {
+	if r.isClosed {
 		r.mu.Unlock()
 		return nil, errRendererClosed
 	}
@@ -192,7 +192,7 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 	instance := <-r.pool
 	defer func() {
 		r.mu.Lock()
-		isClosed := r.closed
+		isClosed := r.isClosed
 		r.mu.Unlock()
 		if !isClosed {
 			r.pool <- instance

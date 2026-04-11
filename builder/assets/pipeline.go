@@ -159,16 +159,16 @@ func validateCopyDirOptions(ctx context.Context, options CopyDirOptions) (contex
 		ctx = context.Background()
 	}
 	if options.SrcFs == nil {
-		return nil, copyDirContext{}, errors.New("CopyDirVFS: SrcFs is nil")
+		return nil, copyDirContext{}, errors.New("copydirvfs: srcfs is nil")
 	}
 	if options.Sink == nil {
-		return nil, copyDirContext{}, errors.New("CopyDirVFS: Sink is nil")
+		return nil, copyDirContext{}, errors.New("copydirvfs: sink is nil")
 	}
 	if options.SrcDir == "" {
-		return nil, copyDirContext{}, errors.New("CopyDirVFS: SrcDir is empty")
+		return nil, copyDirContext{}, errors.New("copydirvfs: srcdir is empty")
 	}
 	if options.DstDir == "" {
-		return nil, copyDirContext{}, errors.New("CopyDirVFS: DstDir is empty")
+		return nil, copyDirContext{}, errors.New("copydirvfs: dstdir is empty")
 	}
 
 	directoryCtx := copyDirContext{
@@ -321,7 +321,7 @@ func shouldSkipAsset(path string, options CopyDirOptions) bool {
 	if baseName == "search.wasm" {
 		return true
 	}
-	if baseName != "wasm_engine.js" && baseName != "engine.js" && baseName != "force-graph.js" && baseName != "wasm_exec.js" {
+	if baseName != "wasm_engine.js" && baseName != "engine.js" && baseName != "wasm_exec.js" {
 		if slices.Contains(options.ExcludeExts, ext) {
 			return true
 		}
