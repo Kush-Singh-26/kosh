@@ -188,8 +188,11 @@ func tokenizeSearchData(
 
 	// Shift and encode offsets using delta format
 	byteOffsets := make(map[string][]uint32, len(rawOffsets))
+	bodyOffsetsPtr := pools.SharedIntSlicePool.Get()
+	defer pools.SharedIntSlicePool.Put(bodyOffsetsPtr)
+
 	for term, termOffsets := range rawOffsets {
-		bodyOffsets := make([]int, 0, len(termOffsets))
+		bodyOffsets := (*bodyOffsetsPtr)[:0]
 		for i := 0; i < len(termOffsets); i += offsetPairSize {
 			start := termOffsets[i]
 			end := termOffsets[i+1]
@@ -200,6 +203,8 @@ func tokenizeSearchData(
 		if len(bodyOffsets) > 0 {
 			byteOffsets[term] = models.EncodeOffsets(bodyOffsets)
 		}
+		// Update the pointer's slice for the next iteration (though append might have changed capacity)
+		*bodyOffsetsPtr = bodyOffsets
 	}
 
 	return wordFreqs, docLen, stemMap, positionalIndex, byteOffsets

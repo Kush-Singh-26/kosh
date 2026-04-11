@@ -338,7 +338,7 @@ func enqueueTask(ctx context.Context, queue chan<- fileTask, task fileTask) erro
 	}
 }
 
-func buildWalkFn(ctx context.Context, directoryCtx copyDirContext, options CopyDirOptions, imageQueue chan<- fileTask, nonImageQueue chan<- fileTask) func(string, fs.FileInfo, error) error {
+func buildWalkFn(ctx context.Context, directoryCtx copyDirContext, options CopyDirOptions, imageTasks *[]fileTask, imageTasksMu *sync.Mutex, nonImageQueue chan<- fileTask) func(string, fs.FileInfo, error) error {
 	return func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -374,12 +374,15 @@ func buildWalkFn(ctx context.Context, directoryCtx copyDirContext, options CopyD
 		finalRelPath := relPath
 		if options.Compress && isImage {
 			finalRelPath = relPath[:len(relPath)-len(ext)] + ".webp"
-			return enqueueTask(ctx, imageQueue, fileTask{
+			imageTasksMu.Lock()
+			*imageTasks = append(*imageTasks, fileTask{
 				path:            path,
 				relPath:         finalRelPath,
 				originalRelPath: relPath,
 				info:            info,
 			})
+			imageTasksMu.Unlock()
+			return nil
 		}
 
 		return enqueueTask(ctx, nonImageQueue, fileTask{
@@ -409,9 +412,13 @@ func CopyDirVFS(ctx context.Context, options CopyDirOptions) error {
 	imageQueue, imageWg := startImageWorkers(ctx, directoryCtx, options, workerCount, &errorMutex, &errorsList)
 	nonImageQueue, nonImageWg := startNonImageWorkers(ctx, directoryCtx, options, nonImageWorkers, &errorMutex, &errorsList)
 
+	// Collect images and sort by size (fat tail optimization)
+	var imageTasks []fileTask
+	var imageTasksMu sync.Mutex
+
 	// Use higher concurrency for discovery walk on modern SSDs
 	walkConcurrency := max(workerCount/2, minWalkConcurrency)
-	walkFn := buildWalkFn(ctx, directoryCtx, options, imageQueue, nonImageQueue)
+	walkFn := buildWalkFn(ctx, directoryCtx, options, &imageTasks, &imageTasksMu, nonImageQueue)
 	walkErr := fspkg.ParallelWalk(fspkg.WalkOptions{
 		Ctx:         ctx,
 		SourceFs:    directoryCtx.srcFs,
@@ -419,6 +426,27 @@ func CopyDirVFS(ctx context.Context, options CopyDirOptions) error {
 		Concurrency: walkConcurrency,
 		WalkFn:      walkFn,
 	})
+
+	if walkErr == nil {
+		// Sort images by size descending
+		slices.SortFunc(imageTasks, func(a, b fileTask) int {
+			if a.info.Size() > b.info.Size() {
+				return -1
+			}
+			if a.info.Size() < b.info.Size() {
+				return 1
+			}
+			return 0
+		})
+
+		// Enqueue sorted images
+		for _, task := range imageTasks {
+			if err := enqueueTask(ctx, imageQueue, task); err != nil {
+				walkErr = err
+				break
+			}
+		}
+	}
 
 	close(imageQueue)
 	close(nonImageQueue)

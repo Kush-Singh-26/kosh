@@ -11,12 +11,12 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-	"github.com/Kush-Singh-26/kosh/builder/generators"
 )
 
 const (
@@ -154,11 +154,15 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, 
 	defer func() { buildctx.IgnoreError(searchPool.Stop(), "stop search pool") }()
 
 	// Create a channel for navInfo to be sent once scanner finishes
+	totalFiles := len(opts.Files)
 	processCtx := &postProcessContext{
+		allPosts:         make([]models.PostMetadata, 0, totalFiles),
+		pinnedPosts:      make([]models.PostMetadata, 0, totalFiles/4),
 		tagMap:           make(map[string][]models.PostMetadata),
 		newSearchRecords: make(map[string]*models.SearchRecord),
 		newDependencies:  make(map[string]*models.Dependencies),
-		indexedPosts:     make([]models.IndexedPost, 0, indexedPostsCap),
+		indexedPosts:     make([]models.IndexedPost, 0, totalFiles),
+		newPostsMeta:     make([]*models.PostMeta, 0, totalFiles),
 	}
 
 	// Internal channel to collect all files for navigation calculation
@@ -198,6 +202,9 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, 
 	// Once scanner is done and navReady is filled, signal the render phase
 	close(renderCollector.renderChan) // No more render tasks will be produced
 	renderTasks := waitForRenderTasks(renderCollector)
+
+	// Global SSR render pass (Math and D2)
+	service.renderSSRGlobal(ctx, renderTasks)
 
 	// Now start the render pool with complete navInfo
 	nav := <-navReady
@@ -287,8 +294,14 @@ func (service *postService) runStreamingParsePhase(numWorkers int, fileChan <-ch
 	defer timer.Stop()
 
 	locals := make([]*workerLocalState, numWorkers)
+	expectedPerWorker := (len(fileChan) / numWorkers) + 1
 	for i := range locals {
 		locals[i] = &workerLocalState{
+			allPosts:         make([]models.PostMetadata, 0, expectedPerWorker),
+			pinnedPosts:      make([]models.PostMetadata, 0, expectedPerWorker/4),
+			indexedPosts:     make([]models.IndexedPost, 0, expectedPerWorker),
+			searchTasks:      make([]deferredSearchTask, 0, expectedPerWorker),
+			newPostsMeta:     make([]*models.PostMeta, 0, expectedPerWorker),
 			newSearchRecords: make(map[string]*models.SearchRecord),
 			newDependencies:  make(map[string]*models.Dependencies),
 		}

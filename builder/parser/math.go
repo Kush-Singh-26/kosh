@@ -104,3 +104,8 @@ func GetMathExpressions(pc parser.Context) []models.MathExpression {
 	}
 	return nil
 }
+
+// HasMathPlaceholders checks if the HTML content has math placeholders.
+func HasMathPlaceholders(html string) bool {
+	return strings.Contains(html, "<!--KOSH_MATH:")
+}

@@ -98,7 +98,6 @@ func (state *walkState) handleEntry(parent string, entry fs.FileInfo) bool {
 		}
 		if errors.Is(walkErr, fs.SkipAll) {
 			state.setErr(walkErr)
-			state.cancelOnce.Do(func() {})
 			return false
 		}
 		state.setErr(walkErr)

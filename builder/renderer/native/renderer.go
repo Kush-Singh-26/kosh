@@ -53,6 +53,7 @@ var katexBytecode []byte
 type Renderer struct {
 	pool           chan *instance
 	rulerPool      sync.Pool // stores *textmeasure.Ruler instances
+	mathBatchPool  sync.Pool // stores *[]mathRequest
 	numWorkers     int
 	mathBatchSize  int
 	initOnce       sync.Once
@@ -112,6 +113,12 @@ func New(opts ...RendererOption) *Renderer {
 				return ruler
 			},
 		},
+		mathBatchPool: sync.Pool{
+			New: func() any {
+				b := make([]mathRequest, 0, defaultMathBatchSize)
+				return &b
+			},
+		},
 		numWorkers:    numWorkers,
 		mathBatchSize: defaultMathBatchSize,
 		initReady:     make(chan struct{}),
@@ -142,7 +149,10 @@ func New(opts ...RendererOption) *Renderer {
 func (r *Renderer) mathBatchWorker() {
 	for req := range r.mathQueue {
 		// Collect a small batch
-		batch := []mathRequest{req}
+		batchPtr := r.mathBatchPool.Get().(*[]mathRequest)
+		batch := (*batchPtr)[:0]
+		batch = append(batch, req)
+
 		timeout := time.After(mathBatchTimeout)
 
 	loop:
@@ -171,12 +181,17 @@ func (r *Renderer) mathBatchWorker() {
 				case <-time.After(mathBatchErrTimeout):
 				}
 			}
+			*batchPtr = batch[:0]
+			r.mathBatchPool.Put(batchPtr)
 			continue
 		}
 
 		for i, res := range results {
 			batch[i].res <- res
 		}
+
+		*batchPtr = batch[:0]
+		r.mathBatchPool.Put(batchPtr)
 	}
 }
 

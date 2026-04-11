@@ -57,7 +57,7 @@ func TestFullPipeline(t *testing.T) {
 		{
 			name:     "D2 Diagram (SSR Marker)",
 			markdown: "```d2\ndir: right\nA -> B\n```",
-			contains: []string{"class=\"d2-container\"", "data-diagram=\"true\""},
+			contains: []string{"<!--KOSH_D2:", "-->"},
 		},
 		{
 			name:     "URL Transformation (.md to .html)",

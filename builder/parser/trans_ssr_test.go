@@ -132,7 +132,7 @@ func TestD2ASTReplacement(t *testing.T) {
 		t.Fatalf("Render failed: %v", err)
 	}
 
-	if !strings.Contains(buf.String(), "d2-container") {
-		t.Errorf("Rendered HTML missing d2-container, got: %s", buf.String())
+	if !strings.Contains(buf.String(), "<!--KOSH_D2:") {
+		t.Errorf("Rendered HTML missing d2 placeholder, got: %s", buf.String())
 	}
 }

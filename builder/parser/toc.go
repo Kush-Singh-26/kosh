@@ -8,10 +8,11 @@ import (
 
 // Package-level context keys, isolated by being unexported.
 var (
-	tocKey          = parser.NewContextKey()
-	plainTextKey    = parser.NewContextKey()
-	ssrHashesKey    = parser.NewContextKey()
-	contextKeyBuild = parser.NewContextKey()
+	tocKey           = parser.NewContextKey()
+	plainTextKey     = parser.NewContextKey()
+	ssrHashesKey     = parser.NewContextKey()
+	contextKeyBuild  = parser.NewContextKey()
+	d2ExpressionsKey = parser.NewContextKey()
 )
 
 // GetTOC returns the table of contents from the parser context.
@@ -54,4 +55,14 @@ func AddSSRHash(pc parser.Context, hash string) {
 	}
 	hashes = append(hashes, hash)
 	pc.Set(ssrHashesKey, hashes)
+}
+
+// GetD2Expressions returns all unique D2 diagrams from the parser context.
+func GetD2Expressions(pc parser.Context) []models.D2Expression {
+	if v := pc.Get(d2ExpressionsKey); v != nil {
+		if expressions, ok := v.([]models.D2Expression); ok {
+			return expressions
+		}
+	}
+	return nil
 }

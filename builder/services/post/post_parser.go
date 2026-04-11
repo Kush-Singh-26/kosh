@@ -75,6 +75,7 @@ type ParsedMarkdownResult struct {
 	PositionalIndex map[string][]uint32
 	ByteOffsets     map[string][]uint32
 	MathExpressions []models.MathExpression
+	D2Expressions   []models.D2Expression
 	HasImages       bool
 	BodyOnly        []byte
 }
@@ -191,6 +192,14 @@ func RenderParsedMarkdown(options MarkdownRenderOptions) error {
 	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) || bytes.Contains(source, []byte("\\[")) {
 		result.MathExpressions = mdParser.GetMathExpressions(result.Context)
 		for _, expr := range result.MathExpressions {
+			result.SSRHashes = append(result.SSRHashes, expr.Hash)
+		}
+	}
+
+	// D2 discovery (deferred to global orchestration)
+	if bytes.Contains(source, []byte("```d2")) {
+		result.D2Expressions = mdParser.GetD2Expressions(result.Context)
+		for _, expr := range result.D2Expressions {
 			result.SSRHashes = append(result.SSRHashes, expr.Hash)
 		}
 	}

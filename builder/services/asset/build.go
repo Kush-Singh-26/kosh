@@ -64,7 +64,42 @@ func (service *assetService) BuildWithOptions(ctx context.Context, skipImages bo
 			}
 		}()
 
-		imageQueue, err := service.syncStaticAssets(ctx, groupCtx, skipImages)
+		var imageChannel chan imageCopyTask
+		var imgGroup *errgroup.Group
+		var imgGroupCtx context.Context
+
+		if !skipImages {
+			numWorkers := service.cfg.ImageWorkers
+			if numWorkers <= 0 {
+				numWorkers = runtime.NumCPU()
+			}
+			imgGroup, imgGroupCtx = errgroup.WithContext(groupCtx)
+			imgGroup.SetLimit(max(numWorkers, 1))
+			imageChannel = make(chan imageCopyTask, 1024) // Buffer to allow walk to proceed
+
+			processedCount := atomic.Int32{}
+
+			for range max(numWorkers, 1) {
+				imgGroup.Go(func() error {
+					for task := range imageChannel {
+						if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgGroupCtx.Err() == nil {
+							return err
+						}
+						if service.reporter != nil {
+							// Note: totalCount is unknown during discovery, using -1 or approximate
+							currentCount := int(processedCount.Add(1))
+							service.reporter.UpdateProgress(ui.PhaseAssets, currentCount, 0, task.opts.SrcPath)
+						}
+					}
+					return nil
+				})
+			}
+		}
+
+		err := service.syncStaticAssets(ctx, groupCtx, skipImages, imageChannel)
+		if imageChannel != nil {
+			close(imageChannel)
+		}
 		if err != nil {
 			return err
 		}
@@ -75,36 +110,7 @@ func (service *assetService) BuildWithOptions(ctx context.Context, skipImages bo
 			service.discoveryReady = nil
 		}
 
-		if !skipImages && len(imageQueue) > 0 {
-			numWorkers := service.cfg.ImageWorkers
-			if numWorkers <= 0 {
-				numWorkers = runtime.NumCPU()
-			}
-			imgGroup, imgGroupCtx := errgroup.WithContext(groupCtx)
-			imgGroup.SetLimit(max(numWorkers, 1))
-			imageChannel := make(chan imageCopyTask, len(imageQueue))
-			for _, task := range imageQueue {
-				imageChannel <- task
-			}
-			close(imageChannel)
-
-			processedCount := atomic.Int32{}
-			totalCount := len(imageQueue)
-
-			for range max(numWorkers, 1) {
-				imgGroup.Go(func() error {
-					for task := range imageChannel {
-						if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgGroupCtx.Err() == nil {
-							return err
-						}
-						if service.reporter != nil {
-							currentCount := int(processedCount.Add(1))
-							service.reporter.UpdateProgress(ui.PhaseAssets, currentCount, totalCount, task.opts.SrcPath)
-						}
-					}
-					return nil
-				})
-			}
+		if imgGroup != nil {
 			if err := imgGroup.Wait(); err != nil {
 				return err
 			}
@@ -135,15 +141,27 @@ func (service *assetService) BuildForAssetChange(ctx context.Context) (map[strin
 	syncTimer := timeutil.StartPhase("Asset sync")
 	defer syncTimer.Stop()
 
-	imageQueue, err := service.syncStaticAssets(ctx, ctx, false)
+	imageChannel := make(chan imageCopyTask, 64)
+	imgGroup, imgGroupCtx := errgroup.WithContext(ctx)
+	imgGroup.SetLimit(max(service.cfg.ImageWorkers, 1))
+
+	imgGroup.Go(func() error {
+		for task := range imageChannel {
+			if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgGroupCtx.Err() == nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	err := service.syncStaticAssets(ctx, ctx, false, imageChannel)
+	close(imageChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sync static assets: %w", err)
 	}
 
-	for _, task := range imageQueue {
-		if err := assets.ProcessCacheMissImage(task.opts); err != nil {
-			return nil, fmt.Errorf("failed to process cache-miss image: %w", err)
-		}
+	if err := imgGroup.Wait(); err != nil {
+		return nil, fmt.Errorf("failed to process images: %w", err)
 	}
 
 	esbuildTimer := timeutil.StartPhase("Asset esbuild")
@@ -156,17 +174,27 @@ func (service *assetService) BuildForAssetChangeWithOptions(ctx context.Context,
 	syncTimer := timeutil.StartPhase("Asset sync")
 	defer syncTimer.Stop()
 
-	imageQueue, err := service.syncStaticAssets(ctx, ctx, !forceImages)
+	imageChannel := make(chan imageCopyTask, 64)
+	imgGroup, imgGroupCtx := errgroup.WithContext(ctx)
+	imgGroup.SetLimit(max(service.cfg.ImageWorkers, 1))
+
+	imgGroup.Go(func() error {
+		for task := range imageChannel {
+			if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgGroupCtx.Err() == nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	err := service.syncStaticAssets(ctx, ctx, !forceImages, imageChannel)
+	close(imageChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sync static assets: %w", err)
 	}
 
-	if forceImages || len(imageQueue) > 0 {
-		for _, task := range imageQueue {
-			if err := assets.ProcessCacheMissImage(task.opts); err != nil {
-				return nil, fmt.Errorf("failed to process cache-miss image: %w", err)
-			}
-		}
+	if err := imgGroup.Wait(); err != nil {
+		return nil, fmt.Errorf("failed to process images: %w", err)
 	}
 
 	esbuildTimer := timeutil.StartPhase("Asset esbuild")

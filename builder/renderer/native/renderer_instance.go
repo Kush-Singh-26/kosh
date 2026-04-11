@@ -44,11 +44,12 @@ func (i *instance) ensureInitialized(bytecode []byte) {
 					};
 				}
 			};
-			var renderBatch = function(latexs, modes) {
-				return latexs.map(function(latex, i) {
+			var renderBatch = function(jsonInput) {
+				var input = JSON.parse(jsonInput);
+				return input.map(function(item) {
 					try {
-						return katex.renderToString(latex, {
-							displayMode: !!modes[i],
+						return katex.renderToString(item.l, {
+							displayMode: !!item.d,
 							throwOnError: false,
 							output: 'html'
 						});

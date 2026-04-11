@@ -2,16 +2,23 @@ package native
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/fastschema/qjs"
 )
+
+type mathInput struct {
+	LaTeX       string `json:"l"`
+	DisplayMode bool   `json:"d"`
+}
 
 // RenderGlobalBatch renders all unique math expressions across the entire site
 // in large parallel chunks to minimize Go-to-JS bridge overhead.
@@ -196,27 +203,26 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 		return nil, errRenderBatchNotInit
 	}
 
-	// Create parallel JS arrays
-	jsLatexs := instance.ctx.NewArray()
-	defer jsLatexs.Free()
-	jsModes := instance.ctx.NewArray()
-	defer jsModes.Free()
-
-	for _, expr := range expressions {
-		jsLatex := instance.ctx.NewString(expr.LaTeX)
-		jsLatexs.Push(jsLatex)
-		jsLatex.Free()
-
-		mode := 0
-		if expr.DisplayMode {
-			mode = 1
+	// Prepare input for JSON encoding
+	input := make([]mathInput, len(expressions))
+	for i, expr := range expressions {
+		input[i] = mathInput{
+			LaTeX:       expr.LaTeX,
+			DisplayMode: expr.DisplayMode,
 		}
-		jsMode := instance.ctx.NewInt32(int32(mode))
-		jsModes.Push(jsMode)
-		jsMode.Free()
 	}
 
-	res, err := instance.ctx.Invoke(instance.renderBatchFn, instance.ctx.Global(), jsLatexs.Value, jsModes.Value)
+	buf := pools.SharedBufferPool.Get()
+	defer pools.SharedBufferPool.Put(buf)
+
+	if err := json.NewEncoder(buf).Encode(input); err != nil {
+		return nil, fmt.Errorf("failed to encode math batch: %w", err)
+	}
+
+	jsInput := instance.ctx.NewString(buf.String())
+	defer jsInput.Free()
+
+	res, err := instance.ctx.Invoke(instance.renderBatchFn, instance.ctx.Global(), jsInput)
 	if err != nil {
 		return nil, fmt.Errorf("KaTeX batch render failed: %w", err)
 	}

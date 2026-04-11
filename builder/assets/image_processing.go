@@ -3,18 +3,22 @@ package assets
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/chai2010/webp"
 	"github.com/spf13/afero"
+	"github.com/zeebo/xxh3"
 	"golang.org/x/image/draw"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -140,9 +144,45 @@ func convertImageToWebP(options ProcessImageOptions) error {
 	return nil
 }
 
+func getSVGCachePath(srcPath string, size int64, modTime int64) string {
+	hash := xxh3.Hash128([]byte(srcPath + strconv.FormatInt(size, 10) + strconv.FormatInt(modTime, 10)))
+	hashBytes := hash.Bytes()
+	return hex.EncodeToString(hashBytes[:])
+}
+
 func maybeMinifySVG(options ProcessImageOptions) (bool, error) {
 	if !options.Opts.MinifySVGs || strings.ToLower(filepath.Ext(options.SrcPath)) != ".svg" {
 		return false, nil
+	}
+
+	cacheDir := options.Opts.CacheDir
+	if cacheDir != "" {
+		cacheDir = filepath.Join(cacheDir, "svg-cache")
+	}
+
+	srcInfo := options.SrcInfo
+	if srcInfo == nil {
+		if f, err := options.SrcFs.Stat(options.SrcPath); err == nil {
+			srcInfo = f
+		}
+	}
+	if srcInfo == nil {
+		return false, nil
+	}
+
+	if cacheDir != "" {
+		cacheFile := filepath.Join(cacheDir, getSVGCachePath(options.SrcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())+".svg")
+		if cachedData, err := afero.ReadFile(afero.NewOsFs(), cacheFile); err == nil {
+			if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
+				return true, err
+			}
+			if err := options.Sink.WriteFile(options.DstPath, cachedData); err == nil {
+				if options.Opts.OnWrite != nil {
+					options.Opts.OnWrite(options.DstPath)
+				}
+				return true, nil
+			}
+		}
 	}
 
 	buildScheduler := options.Scheduler
@@ -173,6 +213,11 @@ func maybeMinifySVG(options ProcessImageOptions) (bool, error) {
 		return true, err
 	}
 	if err := options.Sink.WriteFile(options.DstPath, minified); err == nil {
+		if cacheDir != "" {
+			cacheFile := filepath.Join(cacheDir, getSVGCachePath(options.SrcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())+".svg")
+			_ = os.MkdirAll(filepath.Dir(cacheFile), 0755)
+			_ = os.WriteFile(cacheFile, minified, 0644)
+		}
 		if options.Opts.OnWrite != nil {
 			options.Opts.OnWrite(options.DstPath)
 		}
@@ -341,7 +386,7 @@ func decodeSourceImage(srcFs afero.Fs, srcPath string) (image.Image, error) {
 	return srcImg, nil
 }
 
-func resizeImageIfNeeded(sourceImage image.Image, skipResize bool, metrics ImageMetrics) image.Image {
+func resizeImageIfNeeded(sourceImage image.Image, skipResize bool, metrics ImageMetrics) (image.Image, *[]byte) {
 	bounds := sourceImage.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
@@ -355,7 +400,6 @@ func resizeImageIfNeeded(sourceImage image.Image, skipResize bool, metrics Image
 		if neededSize <= maxResizeWidth*maxResizeHeight*rgbaBytesPerPixel {
 			pixelDataPointer = rgbaPixPool.Get().(*[]byte)
 			pixelData = *pixelDataPointer
-			defer rgbaPixPool.Put(pixelDataPointer)
 		} else {
 			pixelData = make([]byte, neededSize)
 		}
@@ -367,21 +411,15 @@ func resizeImageIfNeeded(sourceImage image.Image, skipResize bool, metrics Image
 		}
 
 		draw.BiLinear.Scale(destination, destination.Bounds(), sourceImage, sourceImage.Bounds(), draw.Over, nil)
-		return destination
+		return destination, pixelDataPointer
 	}
 
 	if skipResize {
-		if _, isYCbCr := sourceImage.(*image.YCbCr); isYCbCr {
-			bounds := sourceImage.Bounds()
-			rgbaImage := image.NewRGBA(bounds)
-			draw.Draw(rgbaImage, bounds, sourceImage, bounds.Min, draw.Src)
-			sourceImage = rgbaImage
-		}
 		if !isNil(metrics) {
 			metrics.RecordImageResizeSkipped()
 		}
 	}
-	return sourceImage
+	return sourceImage, nil
 }
 
 func resolveWebPQuality(quality int) int {
@@ -471,7 +509,10 @@ func convertToWebPVFS(options ProcessImageOptions) error {
 		return err
 	}
 
-	finalImg := resizeImageIfNeeded(sourceImage, skipResize, options.Opts.Metrics)
+	finalImg, pooledBuffer := resizeImageIfNeeded(sourceImage, skipResize, options.Opts.Metrics)
+	if pooledBuffer != nil {
+		defer rgbaPixPool.Put(pooledBuffer)
+	}
 
 	if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
 		return fmt.Errorf("failed to create image directory: %w", err)

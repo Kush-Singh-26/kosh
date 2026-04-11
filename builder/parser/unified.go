@@ -110,9 +110,21 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 
 	_ = ast.Walk(node, state.walkFunc)
 
-	// Post-walk: Perform D2 rendering and node replacements
+	// Post-walk: Collect D2 expressions and add placeholders
 	if len(state.d2Blocks) > 0 {
-		t.renderD2Blocks(state.d2Blocks, pc, &state.toReplace)
+		d2Exprs := make([]models.D2Expression, len(state.d2Blocks))
+		for i, block := range state.d2Blocks {
+			d2Exprs[i] = models.D2Expression{
+				Code: block.code,
+				Hash: block.hash,
+			}
+			placeholder := "<!--KOSH_D2:" + block.hash + "-->"
+			state.toReplace = append(state.toReplace, replacement{
+				old: block.node,
+				new: &RawHTMLBlock{Content: []byte(placeholder)},
+			})
+		}
+		pc.Set(d2ExpressionsKey, d2Exprs)
 	}
 
 	// Apply all replacements

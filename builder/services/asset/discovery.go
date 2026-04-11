@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -41,10 +42,7 @@ type imageCopyTask struct {
 }
 
 type syncContext struct {
-	imageQueue []imageCopyTask
-	seen       sync.Map
-
-	imageQueueMu sync.Mutex // protects imageQueue
+	seen sync.Map
 
 	siteFiles     int64
 	themeFiles    int64
@@ -55,6 +53,9 @@ type syncContext struct {
 	siteSamples  []string
 	themeSamples []string
 	sampleMu     sync.Mutex // protects siteSamples and themeSamples
+
+	imageTasks  []imageCopyTask
+	imageTaskMu sync.Mutex
 }
 
 func (service *assetService) isWebPCandidate(path string) bool {
@@ -80,8 +81,9 @@ func (service *assetService) isWebPCandidate(path string) bool {
 	return true
 }
 
-// syncStaticAssets discovers and copies all static assets to the sink synchronously.
-func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx context.Context, skipImages bool) ([]imageCopyTask, error) {
+// syncStaticAssets discovers and copies all static assets to the sink.
+// Concurrent image processing is enabled by providing a non-nil imageChan.
+func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx context.Context, skipImages bool, imageChan chan<- imageCopyTask) error {
 	dirs := service.getStaticSourceDirs()
 	debugAssets := service.cfg.Debug
 
@@ -102,7 +104,7 @@ func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx
 	discoveryGroup, discoveryContext := errgroup.WithContext(ctx)
 	walkConcurrency := max(workerCount/assetWalkConcurrencyDiv, assetMinWalkConcurrency)
 
-	enqueue := service.setupImageEnqueue(backgroundCtx, skipImages, syncContextInstance, assetChan)
+	enqueue := service.setupImageEnqueue(backgroundCtx, skipImages, syncContextInstance, assetChan, imageChan)
 	walkFunc := service.setupDiscoveryWalk(discoveryWalkOptions{
 		walkerWg:        &walkerWg,
 		walkConcurrency: walkConcurrency,
@@ -124,6 +126,34 @@ func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx
 
 	err := discoveryGroup.Wait()
 	walkerWg.Wait()
+
+	// 5. Image Priority Queue (Fat tail optimization)
+	// Larger images are enqueued first to ensure they start processing as early as possible.
+	if imageChan != nil {
+		syncContextInstance.imageTaskMu.Lock()
+		tasks := syncContextInstance.imageTasks
+		syncContextInstance.imageTasks = nil // Free memory
+		syncContextInstance.imageTaskMu.Unlock()
+
+		slices.SortFunc(tasks, func(a, b imageCopyTask) int {
+			if a.task.info.Size() > b.task.info.Size() {
+				return -1
+			}
+			if a.task.info.Size() < b.task.info.Size() {
+				return 1
+			}
+			return 0
+		})
+
+		for _, t := range tasks {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case imageChan <- t:
+			}
+		}
+	}
+
 	close(assetChan)
 	workerWg.Wait()
 
@@ -132,16 +162,12 @@ func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx
 	}
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	service.copyCriticalAssets()
 
-	if err := copyGroup.Wait(); err != nil {
-		return nil, err
-	}
-
-	return syncContextInstance.imageQueue, nil
+	return copyGroup.Wait()
 }
 
 func (service *assetService) getStaticSourceDirs() []string {
@@ -240,7 +266,7 @@ func (service *assetService) setupAssetWorker(assetChan <-chan assetTask, group 
 	return waitGroupInstance
 }
 
-func (service *assetService) setupImageEnqueue(backgroundCtx context.Context, skipImages bool, syncContextInstance *syncContext, assetChan chan<- assetTask) func(assetTask) {
+func (service *assetService) setupImageEnqueue(backgroundCtx context.Context, skipImages bool, syncContextInstance *syncContext, assetChan chan<- assetTask, imageChan chan<- imageCopyTask) func(assetTask) {
 	return func(task assetTask) {
 		if service.cfg.ShouldCompressImages && service.isWebPCandidate(task.sourcePath) {
 			relativeSource := "/" + strings.TrimPrefix(filepath.ToSlash(task.relativePath), "/")
@@ -282,34 +308,38 @@ func (service *assetService) setupImageEnqueue(backgroundCtx context.Context, sk
 					service.logger.Warn("Disk cache lookup failed", "path", task.sourcePath, "error", err)
 				}
 			}
-			imageOptions := assets.ProcessImageOptions{
-				Ctx:     backgroundCtx,
-				SrcFs:   service.sourceFs,
-				Sink:    service.sink,
-				SrcPath: task.sourcePath,
-				DstPath: destinationWebPPath,
-				RelPath: task.relativePath,
-				SrcInfo: task.info,
-				Opts: assets.CopyOptions{
-					Compress:     service.cfg.ShouldCompressImages,
-					MinifySVGs:   service.cfg.ShouldMinifySVGs,
-					KeepOriginal: false,
-					CacheDir:     service.cfg.CacheDir + "/images",
-					WebPQuality:  service.cfg.WebPQuality,
-					Metrics:      service.metrics,
-					OnWrite:      service.renderer.RegisterFile,
-					ImageWorkers: service.cfg.ImageWorkers,
-					Scheduler: func() scheduler.BuildScheduler {
-						if service.ctx != nil {
-							return service.ctx.Scheduler
-						}
-						return nil
-					}(),
-				},
+
+			if imageChan != nil {
+				imageOptions := assets.ProcessImageOptions{
+					Ctx:     backgroundCtx,
+					SrcFs:   service.sourceFs,
+					Sink:    service.sink,
+					SrcPath: task.sourcePath,
+					DstPath: destinationWebPPath,
+					RelPath: task.relativePath,
+					SrcInfo: task.info,
+					Opts: assets.CopyOptions{
+						Compress:     service.cfg.ShouldCompressImages,
+						MinifySVGs:   service.cfg.ShouldMinifySVGs,
+						KeepOriginal: false,
+						CacheDir:     service.cfg.CacheDir + "/images",
+						WebPQuality:  service.cfg.WebPQuality,
+						Metrics:      service.metrics,
+						OnWrite:      service.renderer.RegisterFile,
+						ImageWorkers: service.cfg.ImageWorkers,
+						Scheduler: func() scheduler.BuildScheduler {
+							if service.ctx != nil {
+								return service.ctx.Scheduler
+							}
+							return nil
+						}(),
+					},
+				}
+
+				syncContextInstance.imageTaskMu.Lock()
+				syncContextInstance.imageTasks = append(syncContextInstance.imageTasks, imageCopyTask{task: task, opts: imageOptions})
+				syncContextInstance.imageTaskMu.Unlock()
 			}
-			syncContextInstance.imageQueueMu.Lock()
-			syncContextInstance.imageQueue = append(syncContextInstance.imageQueue, imageCopyTask{task: task, opts: imageOptions})
-			syncContextInstance.imageQueueMu.Unlock()
 			return
 		}
 		assetChan <- task

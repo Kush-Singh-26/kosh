@@ -39,6 +39,16 @@ func ParseSSRType(s string) SSRArtifactType {
 	}
 }
 
+// D2Expression represents a D2 diagram with its metadata.
+// This structure is used by both the cache layer and renderer to store
+// and retrieve server-side rendered D2 diagrams.
+type D2Expression struct {
+	// Code is the raw D2 source code
+	Code string `json:"code" msg:"code"`
+	// Hash is the content hash used for caching and deduplication
+	Hash string `json:"-" msg:"hash"`
+}
+
 // MathExpression represents a LaTeX expression with its metadata.
 // This structure is used by both the cache layer and renderer to store
 // and retrieve server-side rendered math expressions.

@@ -32,6 +32,12 @@ func (service *postService) loadCachedPost(relPath, htmlRelPath string, file mod
 		useCache = useCache && mathOk
 	}
 
+	if useCache && htmlContent != "" && len(parseRes.D2Expressions) > 0 {
+		var d2Ok bool
+		htmlContent, d2Ok = service.processCachedD2(htmlContent, parseRes.D2Expressions)
+		useCache = useCache && d2Ok
+	}
+
 	return parseRes, htmlContent, finalSSRHashes, useCache
 }
 
@@ -85,7 +91,7 @@ func (service *postService) parseIfNeeded(ctx context.Context, file models.Scann
 		parseRes.Post.Title = file.Title
 	}
 
-	htmlContent := service.renderMath(ctx, file.Path, parseRes)
+	htmlContent := parseRes.HTMLContent
 	finalSSRHashes := parseRes.SSRHashes
 	return parseRes, htmlContent, finalSSRHashes, false, nil
 }

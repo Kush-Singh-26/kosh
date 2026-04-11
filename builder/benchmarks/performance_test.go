@@ -1,7 +1,6 @@
 package benchmarks
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
@@ -43,10 +43,12 @@ func BenchmarkMarkdownParsing(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var buf bytes.Buffer
-		if err := parser.Convert(markdown, &buf); err != nil {
+		buf := pools.SharedBufferPool.Get()
+		if err := parser.Convert(markdown, buf); err != nil {
+			pools.SharedBufferPool.Put(buf)
 			b.Fatal(err)
 		}
+		pools.SharedBufferPool.Put(buf)
 	}
 }
 

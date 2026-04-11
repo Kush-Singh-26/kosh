@@ -12,11 +12,11 @@ import (
 const (
 	tokenPoolCap           = 512
 	minTokenLength         = 2
-	estUniqueDivisor       = 2
+	estUniqueDivisor       = 4
 	minEstUnique           = 4
 	positionsCap           = 1
 	offsetsCap             = 2
-	localStemCacheDivisor  = 2
+	localStemCacheDivisor  = 4
 	asciiWordTableSize     = 256
 	estimatedTokensDivisor = 5
 	minEstimatedTokens     = 8

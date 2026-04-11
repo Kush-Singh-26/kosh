@@ -186,3 +186,37 @@ func (pool *ByteSlicePool) Put(buffer *[]byte) {
 
 // SharedByteSlicePool is the shared byte slice pool instance.
 var SharedByteSlicePool = NewByteSlicePool()
+
+// IntSlicePool manages a pool of int slices.
+type IntSlicePool struct {
+	pool sync.Pool // stores *[]int
+}
+
+// NewIntSlicePool returns a new IntSlicePool.
+func NewIntSlicePool() *IntSlicePool {
+	return &IntSlicePool{
+		pool: sync.Pool{
+			New: func() any {
+				buffer := make([]int, 0, 128)
+				return &buffer
+			},
+		},
+	}
+}
+
+// Get returns an int slice pointer from the pool.
+func (pool *IntSlicePool) Get() *[]int {
+	return pool.pool.Get().(*[]int)
+}
+
+// Put returns an int slice to the pool.
+func (pool *IntSlicePool) Put(buffer *[]int) {
+	if buffer == nil || cap(*buffer) > 1024*1024 { // max 1M ints (approx 4-8MB)
+		return
+	}
+	*buffer = (*buffer)[:0]
+	pool.pool.Put(buffer)
+}
+
+// SharedIntSlicePool is the shared int slice pool instance.
+var SharedIntSlicePool = NewIntSlicePool()

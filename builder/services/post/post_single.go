@@ -79,42 +79,74 @@ func (service *postService) resolveNavigation(post models.PostMetadata) *navResu
 	return &navResult{prev: prev, next: next, allTags: allTags}
 }
 
-func (service *postService) renderMathSSR(ctx context.Context, html string, expressions []models.MathExpression) string {
-	if len(expressions) == 0 {
+func (service *postService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
+	if len(result.MathExpressions) == 0 && len(result.D2Expressions) == 0 {
 		return html
 	}
 
-	cached := make(map[string]string)
-	if service.diagramAdapter != nil {
-		for _, expr := range expressions {
-			key := "math:" + expr.Hash
-			if val, ok := service.diagramAdapter.GetLocal(key); ok {
-				if renderedStr, ok := val.(string); ok {
-					cached[expr.Hash] = renderedStr
+	// 1. Math
+	if len(result.MathExpressions) > 0 {
+		cached := make(map[string]string)
+		if service.diagramAdapter != nil {
+			for _, expr := range result.MathExpressions {
+				key := "math:" + expr.Hash
+				if val, ok := service.diagramAdapter.GetLocal(key); ok {
+					if renderedStr, ok := val.(string); ok {
+						cached[expr.Hash] = renderedStr
+					}
 				}
 			}
 		}
+
+		rendered, err := service.nativeRenderer.RenderAllMath(ctx, result.MathExpressions, cached)
+		if err == nil {
+			if service.diagramAdapter != nil && len(rendered) > 0 {
+				newMath := make(map[string]any)
+				for hash, content := range rendered {
+					if _, ok := cached[hash]; !ok {
+						newMath["math:"+hash] = content
+					}
+				}
+				if len(newMath) > 0 {
+					service.diagramAdapter.Merge(newMath)
+				}
+			}
+			html = mdParser.ReplaceMathExpressions(html, result.MathExpressions, rendered)
+		}
 	}
 
-	rendered, err := service.nativeRenderer.RenderAllMath(ctx, expressions, cached)
-	if err != nil {
-		service.logger.Warn("Math render failed", "error", err)
-		return html
-	}
-
-	if service.diagramAdapter != nil && len(rendered) > 0 {
-		newMath := make(map[string]any) // values are rendered HTML/SVG strings.
-		for hash, content := range rendered {
-			if _, ok := cached[hash]; !ok {
-				newMath["math:"+hash] = content
+	// 2. D2
+	if len(result.D2Expressions) > 0 {
+		cached := make(map[string]models.SSRThemePair)
+		if service.diagramAdapter != nil {
+			for _, expr := range result.D2Expressions {
+				key := "d2:" + expr.Hash
+				if val, ok := service.diagramAdapter.GetLocal(key); ok {
+					if pair, ok := val.(models.SSRThemePair); ok {
+						cached[expr.Hash] = pair
+					}
+				}
 			}
 		}
-		if len(newMath) > 0 {
-			service.diagramAdapter.Merge(newMath)
+
+		rendered, err := service.nativeRenderer.RenderAllD2(ctx, result.D2Expressions, cached)
+		if err == nil {
+			if service.diagramAdapter != nil && len(rendered) > 0 {
+				newD2 := make(map[string]any)
+				for hash, pair := range rendered {
+					if _, ok := cached[hash]; !ok {
+						newD2["d2:"+hash] = pair
+					}
+				}
+				if len(newD2) > 0 {
+					service.diagramAdapter.Merge(newD2)
+				}
+			}
+			html = mdParser.ReplaceD2Expressions(html, result.D2Expressions, rendered)
 		}
 	}
 
-	return mdParser.ReplaceMathExpressions(html, expressions, rendered)
+	return html
 }
 
 // ProcessSingleWithResult processes and renders a single markdown file using an optional pre-parse result.
@@ -147,17 +179,17 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 	} else {
 		var err error
 		parseRes, err = ParseMarkdown(ParseOptions{
-			Path:            path,
-			RelPath:         relPath,
-			Source:          source,
-			Info:            info,
-			Renderer:        service.renderer,
-			NativeRenderer:  service.nativeRenderer,
-			MdPool:          service.mdPool,
-			DiagramAdapter:  service.diagramAdapter,
-			Metrics:         service.metrics,
-			Cfg:             service.cfg,
-			HtmlRelPath:     htmlRelPath,
+			Path:             path,
+			RelPath:          relPath,
+			Source:           source,
+			Info:             info,
+			Renderer:         service.renderer,
+			NativeRenderer:   service.nativeRenderer,
+			MdPool:           service.mdPool,
+			DiagramAdapter:   service.diagramAdapter,
+			Metrics:          service.metrics,
+			Cfg:              service.cfg,
+			HtmlRelPath:      htmlRelPath,
 			CleanHtmlRelPath: strings.TrimSuffix(htmlRelPath, "index.html"),
 		})
 		if err != nil {
@@ -165,7 +197,7 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		}
 	}
 
-	htmlContent := service.renderMathSSR(ctx, parseRes.HTMLContent, parseRes.MathExpressions)
+	htmlContent := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
 	post := parseRes.Post
 	nav := service.resolveNavigation(post)
 	cardRelPath, cardDestPath, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
