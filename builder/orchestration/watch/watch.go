@@ -174,12 +174,20 @@ func (coordinatorInstance *Coordinator) IsContentPath(path string) bool {
 func (coordinatorInstance *Coordinator) IsAssetPath(path string) bool {
 	path = coordinatorInstance.NormalizeAbsoluteWatchPath(path)
 	staticDir := coordinatorInstance.NormalizeAbsoluteWatchPath(coordinatorInstance.config.StaticDir)
+
 	siteStaticDir := "static"
 	if coordinatorInstance.config.SiteRoot != "" {
 		siteStaticDir = filepath.Join(coordinatorInstance.config.SiteRoot, "static")
 	}
 	siteStaticDir = coordinatorInstance.NormalizeAbsoluteWatchPath(siteStaticDir)
-	return fspkg.IsPathInOrSame(path, staticDir) || fspkg.IsPathInOrSame(path, siteStaticDir)
+
+	assetsDir := "assets"
+	if coordinatorInstance.config.SiteRoot != "" {
+		assetsDir = filepath.Join(coordinatorInstance.config.SiteRoot, "assets")
+	}
+	assetsDir = coordinatorInstance.NormalizeAbsoluteWatchPath(assetsDir)
+
+	return fspkg.IsPathInOrSame(path, staticDir) || fspkg.IsPathInOrSame(path, siteStaticDir) || fspkg.IsPathInOrSame(path, assetsDir)
 }
 
 // IsSearchSourcePath reports whether a path affects search source files.

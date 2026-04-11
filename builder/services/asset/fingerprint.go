@@ -73,6 +73,21 @@ func GetStaticDirs(config *config.Config) []string {
 		dirs = append(dirs, siteStatic)
 	}
 
+	assetsDir := "assets"
+	if config.SiteRoot != "" {
+		assetsDir = filepath.Join(config.SiteRoot, "assets")
+	}
+	if _, err := os.Stat(assetsDir); err == nil {
+		dirs = append(dirs, assetsDir)
+	}
+
+	if config.Server.RootDirectory != "" {
+		parentAssets := filepath.Join(config.Server.RootDirectory, "assets")
+		if _, err := os.Stat(parentAssets); err == nil {
+			dirs = append(dirs, parentAssets)
+		}
+	}
+
 	return dirs
 }
 

@@ -47,7 +47,8 @@ func (engineInstance *Engine) cleanupOrphans() {
 
 		// Skip specific files that are managed elsewhere or should persist
 		baseName := fileInfo.Name()
-		if baseName == ".nojekyll" || baseName == "search.wasm" || baseName == "search.wasm.br" || baseName == "search.bin" || baseName == "manifest.json" || baseName == "icon-192.png" || baseName == "icon-512.png" || baseName == "sw.js" {
+		if baseName == ".nojekyll" || baseName == "search.wasm" || baseName == "search.wasm.br" || baseName == "search.bin" || baseName == "manifest.json" || baseName == "icon-192.png" || baseName == "icon-512.png" || baseName == "sw.js" ||
+			baseName == "graph.json" || baseName == "graph.html" || baseName == "rss.xml" || baseName == "sitemap.xml" || baseName == "404.html" {
 			return nil
 		}
 		if strings.HasPrefix(baseName, ".") {

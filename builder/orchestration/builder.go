@@ -43,22 +43,22 @@ const (
 )
 
 type buildSetup struct {
-	sourceFs        afero.Fs
-	config          *config.Config
-	logger          *slog.Logger
-	ctx             *buildctx.BuildContext
-	isCleanBuild    bool
-	buildMetrics    *metrics.BuildMetrics
-	cacheSvc        svcCache.Service
-	nativeRenderer  *native.Renderer
-	mdPool          *sync.Pool
-	renderSvc       render.Service
-	assetSvc        asset.Service
-	postSvc         post.Service
-	wasmSvc         wasm.Service
-	metaScanner     scanner.Scanner
-	diagramAdapter  *cache.DiagramCacheAdapter
-	reporter        ui.Reporter
+	sourceFs       afero.Fs
+	config         *config.Config
+	logger         *slog.Logger
+	ctx            *buildctx.BuildContext
+	isCleanBuild   bool
+	buildMetrics   *metrics.BuildMetrics
+	cacheSvc       svcCache.Service
+	nativeRenderer *native.Renderer
+	mdPool         *sync.Pool
+	renderSvc      render.Service
+	assetSvc       asset.Service
+	postSvc        post.Service
+	wasmSvc        wasm.Service
+	metaScanner    scanner.Scanner
+	diagramAdapter *cache.DiagramCacheAdapter
+	reporter       ui.Reporter
 }
 
 func (setup *buildSetup) initLoggerAndContext(config *config.Config, reporter ui.Reporter) {
@@ -182,9 +182,9 @@ func (setup *buildSetup) initServices() {
 	setup.metaScanner = scanner.NewScanner()
 
 	setup.wasmSvc = wasm.NewService(wasm.Dependencies{
-		Ctx:    setup.ctx,
-		Cfg:    setup.config,
-		Logger: setup.logger,
+		Ctx:      setup.ctx,
+		Cfg:      setup.config,
+		Logger:   setup.logger,
 		SourceFs: setup.sourceFs,
 	})
 }
@@ -260,7 +260,7 @@ func newEngineWithConfigFs(sourceFs afero.Fs, cfg *config.Config, reporter ui.Re
 		BuildMu:       &engineInstance.State.BuildMu,
 		Cache:         setup.cacheSvc,
 		OnChange:      engineInstance.handleWatchChange,
-		OnSearchRegen: func(ctx context.Context) { _ = engineInstance.Search.RegenerateIndex(ctx) },
+		OnSearchRegen: engineInstance.handleSearchRegen,
 	})
 	engineInstance.Watch.Start()
 

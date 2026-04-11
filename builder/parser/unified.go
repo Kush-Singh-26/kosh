@@ -72,6 +72,7 @@ type unifiedTransformer struct {
 	Cache    SSRMap
 	D2Group  *singleflight.Group
 	A11yMap  sync.Map // key: string, value: string (a11y warning)
+	IsDev    bool
 }
 
 type replacement struct {
@@ -249,6 +250,9 @@ func (s *transformState) handleLinkOrImage(n ast.Node, kind ast.NodeKind) {
 }
 
 func (s *transformState) checkLinkA11y(ln *ast.Link) {
+	if s.transformer.IsDev {
+		return
+	}
 	ariaLabel := getAttrValue(ln, "aria-label")
 	hasText := hasTextChild(ln, s.source)
 	if strings.TrimSpace(ariaLabel) == "" && !hasText {
@@ -262,6 +266,9 @@ func (s *transformState) checkLinkA11y(ln *ast.Link) {
 }
 
 func (s *transformState) checkImageA11y(img *ast.Image) {
+	if s.transformer.IsDev {
+		return
+	}
 	alt := string(img.Title)
 	hasAlt := hasTextChild(img, s.source)
 	if !hasAlt && strings.TrimSpace(alt) == "" {

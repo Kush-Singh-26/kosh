@@ -84,3 +84,4 @@ __pycache__/
 builder/services/social-cards/*.webp
 
 .qwen
+.impeccable.md

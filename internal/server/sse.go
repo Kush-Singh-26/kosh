@@ -12,13 +12,18 @@ const (
 	clientChannelBuffer = 5
 )
 
-// clientSlicePool stores *[]chan<- struct{} slices for broadcast snapshots.
+// clientSlicePool stores *[]chan<- string slices for broadcast snapshots.
 var clientSlicePool = sync.Pool{
 	New: func() any {
-		s := make([]chan<- struct{}, 0, clientSliceCap)
+		s := make([]chan<- string, 0, clientSliceCap)
 		return &s
 	},
 }
+
+var (
+	clientMu sync.Mutex
+	clients  = make(map[chan string]struct{})
+)
 
 func handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
@@ -31,8 +36,7 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// Increased buffer to 5 to handle rapid reload events
-	clientChan := make(chan struct{}, clientChannelBuffer)
+	clientChan := make(chan string, clientChannelBuffer)
 	clientMu.Lock()
 	clients[clientChan] = struct{}{}
 	clientMu.Unlock()
@@ -46,50 +50,50 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, "data: connected\n\n")
 	flusher.Flush()
 
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
+
 	for {
 		select {
 		case <-r.Context().Done():
 			return
-		case <-clientChan:
-			_, _ = fmt.Fprintf(w, "data: reload\n\n")
+		case target := <-clientChan:
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", target)
+			flusher.Flush()
+		case <-heartbeat.C:
+			// Send SSE comment as a heartbeat to keep connection alive
+			_, _ = fmt.Fprintf(w, ": heartbeat\n\n")
 			flusher.Flush()
 		}
 	}
 }
 
-func broadcastReload(ch <-chan struct{}) {
-	var lastReload time.Time
-	for range ch {
-		// Throttling: only reload once every 500ms to avoid refresh loops during rapid changes
-		if time.Since(lastReload) < 500*time.Millisecond {
-			continue
-		}
-		lastReload = time.Now()
-
-		// Wait for active build to complete before broadcasting
+func BroadcastReload(target, path string) {
+	// Wait for active build to complete before broadcasting for 'site' or 'all'
+	if target != "root" {
 		if waitCh := waitForBuild(); waitCh != nil {
 			<-waitCh
 		}
-
-		clientMu.Lock()
-		// Use pooled slice for snapshot
-		slicePtr := clientSlicePool.Get().(*[]chan<- struct{})
-		clientsSnapshot := (*slicePtr)[:0]
-		for client := range clients {
-			clientsSnapshot = append(clientsSnapshot, client)
-		}
-		clientMu.Unlock()
-
-		for _, clientChan := range clientsSnapshot {
-			select {
-			case clientChan <- struct{}{}:
-			default:
-				// Client channel full; skip — channel already has buffer 5
-			}
-		}
-
-		// Return slice to pool (safe to reuse after clearing)
-		*slicePtr = (*slicePtr)[:0]
-		clientSlicePool.Put(slicePtr)
 	}
+
+	clientMu.Lock()
+	// Use pooled slice for snapshot
+	slicePtr := clientSlicePool.Get().(*[]chan<- string)
+	clientsSnapshot := (*slicePtr)[:0]
+	for client := range clients {
+		clientsSnapshot = append(clientsSnapshot, client)
+	}
+	clientMu.Unlock()
+
+	for _, clientChan := range clientsSnapshot {
+		select {
+		case clientChan <- target:
+		default:
+			// Client channel full; skip
+		}
+	}
+
+	// Return slice to pool
+	*slicePtr = (*slicePtr)[:0]
+	clientSlicePool.Put(slicePtr)
 }

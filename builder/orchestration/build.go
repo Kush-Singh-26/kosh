@@ -83,7 +83,8 @@ func (engineInstance *Engine) buildAssetOnly(ctx context.Context) error {
 			return fmt.Errorf("metadata scan failed: %w", scanError)
 		}
 
-		shouldForce := false
+		// For asset-only builds, we FORCE post re-rendering to update asset hashes in HTML.
+		shouldForce := true
 		forceSocialRebuild := false
 		outputMissing := false
 		_, processError := engineInstance.processPosts(ProcessPostsOptions{

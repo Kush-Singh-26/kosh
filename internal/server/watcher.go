@@ -9,16 +9,15 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/fsnotify/fsnotify"
 )
 
 var (
 	watcher        *fsnotify.Watcher
 	watcherMu      sync.RWMutex // Protects watcher variable
-	reloadChan     chan struct{}
+	reloadChan     chan string
 	reloadMu       sync.RWMutex
-	clientMu       sync.Mutex
-	clients        = make(map[chan struct{}]struct{})
 	watcherWg      sync.WaitGroup
 	debounceConfig time.Duration
 	timerMu        sync.Mutex
@@ -28,7 +27,32 @@ var (
 	buildMu       sync.Mutex
 	buildActive   bool
 	buildWaitChan chan struct{}
+
+	// Watch directory mapping
+	watchTargets   = make(map[string]string) // Normalized path -> target
+	watchTargetsMu sync.RWMutex
+
+	// Exclusions for active event filtering
+	watchExclusions   []string
+	watchExclusionsMu sync.RWMutex
 )
+
+func isPathExcluded(path string) bool {
+	absPath, err := fspkg.AbsNormalizePath(path)
+	if err != nil {
+		return false
+	}
+
+	watchExclusionsMu.RLock()
+	defer watchExclusionsMu.RUnlock()
+
+	for _, ex := range watchExclusions {
+		if fspkg.IsPathInOrSame(absPath, ex) {
+			return true
+		}
+	}
+	return false
+}
 
 // SetBuildActive marks the build as active or inactive
 func SetBuildActive(active bool) {
@@ -60,19 +84,12 @@ func waitForBuild() chan struct{} {
 }
 
 // resetDebounceTimer safely stops and resets the debounce timer.
-// This function is thread-safe and must be called while holding timerMu.
-func resetDebounceTimer() {
+func resetDebounceTimer(target, path string) {
 	timerMu.Lock()
 	defer timerMu.Unlock()
 
 	if debounceTimer != nil {
-		if !debounceTimer.Stop() {
-			// Timer already fired, drain the channel
-			select {
-			case <-debounceTimer.C:
-			default:
-			}
-		}
+		debounceTimer.Stop()
 	}
 
 	debounceTimer = time.AfterFunc(debounceConfig, func() {
@@ -82,14 +99,20 @@ func resetDebounceTimer() {
 			return
 		}
 		select {
-		case reloadChan <- struct{}{}:
+		case reloadChan <- target + ":" + path:
 		default:
 		}
 	})
 }
 
-func startWatcherWithConfig(dirs []string, debounce time.Duration) chan struct{} {
-	debounceConfig = debounce
+type watchConfig struct {
+	Dirs       map[string]string // dir -> target
+	Debounce   time.Duration
+	Exclusions []string
+}
+
+func startWatcherWithConfig(cfg watchConfig) chan string {
+	debounceConfig = cfg.Debounce
 
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -97,10 +120,32 @@ func startWatcherWithConfig(dirs []string, debounce time.Duration) chan struct{}
 		return nil
 	}
 
-	for _, dir := range dirs {
+	watchExclusionsMu.Lock()
+	watchExclusions = make([]string, 0, len(cfg.Exclusions))
+	for _, ex := range cfg.Exclusions {
+		if abs, err := fspkg.AbsNormalizePath(ex); err == nil {
+			watchExclusions = append(watchExclusions, abs)
+		}
+	}
+	watchExclusionsMu.Unlock()
+
+	watchTargetsMu.Lock()
+	for dir, target := range cfg.Dirs {
+		absDir, _ := fspkg.AbsNormalizePath(dir)
+		watchTargets[absDir] = target
+
 		err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
+			}
+			absPath, _ := fspkg.AbsNormalizePath(path)
+			// Never exclude the watch root itself, even if it matches an exclusion pattern
+			// This allows us to watch the site-root but exclude subdirectories.
+			if absPath != absDir && isPathExcluded(absPath) {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 			if d.IsDir() {
 				if err := w.Add(path); err != nil {
@@ -113,14 +158,15 @@ func startWatcherWithConfig(dirs []string, debounce time.Duration) chan struct{}
 			slog.Warn("Failed to walk directory for watching", "dir", dir, "error", err)
 		}
 	}
+	watchTargetsMu.Unlock()
 
 	watcherMu.Lock()
 	watcher = w
 	watcherMu.Unlock()
 
-	var currentReloadChan chan struct{}
+	var currentReloadChan chan string
 	reloadMu.Lock()
-	reloadChan = make(chan struct{}, 1)
+	reloadChan = make(chan string, 1)
 	currentReloadChan = reloadChan
 	reloadMu.Unlock()
 
@@ -135,9 +181,7 @@ func startWatcherWithConfig(dirs []string, debounce time.Duration) chan struct{}
 				w := watcher
 				watcherMu.RUnlock()
 				if w != nil {
-					if err := w.Close(); err != nil {
-						slog.Warn("Failed to close file watcher", "error", err)
-					}
+					_ = w.Close()
 				}
 			}()
 
@@ -155,8 +199,13 @@ func startWatcherWithConfig(dirs []string, debounce time.Duration) chan struct{}
 						continue
 					}
 
-					// Safely reset the debounce timer
-					resetDebounceTimer()
+					// Skip excluded paths in the active event loop
+					if isPathExcluded(event.Name) {
+						continue
+					}
+
+					target := resolveTarget(event.Name)
+					resetDebounceTimer(target, event.Name)
 
 				case err, ok := <-w.Errors:
 					if !ok {
@@ -172,8 +221,30 @@ func startWatcherWithConfig(dirs []string, debounce time.Duration) chan struct{}
 	return currentReloadChan
 }
 
+func resolveTarget(path string) string {
+	absPath, err := fspkg.AbsNormalizePath(path)
+	if err != nil {
+		return "site"
+	}
+
+	watchTargetsMu.RLock()
+	defer watchTargetsMu.RUnlock()
+
+	bestTarget := "site"
+	maxLen := -1
+
+	for dir, target := range watchTargets {
+		if fspkg.IsPathInOrSame(absPath, dir) {
+			if len(dir) > maxLen {
+				maxLen = len(dir)
+				bestTarget = target
+			}
+		}
+	}
+	return bestTarget
+}
+
 func stopWatcher() {
-	// Stop the debounce timer to prevent goroutine leaks
 	timerMu.Lock()
 	if debounceTimer != nil {
 		debounceTimer.Stop()
@@ -186,16 +257,16 @@ func stopWatcher() {
 	watcherMu.Unlock()
 
 	if w != nil {
-		if err := w.Close(); err != nil {
-			slog.Warn("Failed to close file watcher", "error", err)
-		}
+		_ = w.Close()
 	}
 	watcherWg.Wait()
 
 	reloadMu.Lock()
-	if reloadChan != nil {
-		close(reloadChan)
-		reloadChan = nil
+	if reloadChan == nil {
+		reloadMu.Unlock()
+		return
 	}
+	close(reloadChan)
+	reloadChan = nil
 	reloadMu.Unlock()
 }

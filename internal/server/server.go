@@ -14,6 +14,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
@@ -78,9 +79,11 @@ type ServerOptions struct {
 	Args          []string
 	OutputDir     string
 	RootDirectory string
+	SiteRoot      string
 	BaseURL       string
 	BuildConfig   *config.BuildConfig
 	Reporter      ui.Reporter
+	IsDev         bool
 }
 
 type serveConfig struct {
@@ -90,6 +93,7 @@ type serveConfig struct {
 	rootDirectory    string
 	shutdownTimeout  time.Duration
 	debounceDuration time.Duration
+	isDev            bool
 }
 
 func parseServeFlags(args []string) (string, string) {
@@ -126,8 +130,8 @@ func resolveDebounceDuration(buildCfg *config.BuildConfig) time.Duration {
 	return buildCfg.DebounceDuration
 }
 
-func startWatcher(ctx context.Context, dirs []string, debounce time.Duration) <-chan struct{} {
-	reloadEvents := startWatcherWithConfig(dirs, debounce)
+func startWatcher(ctx context.Context, watchConfig watchConfig) chan string {
+	reloadEvents := startWatcherWithConfig(watchConfig)
 	async.FireAndForget(ctx, slog.Default(), "server watcher shutdown", func() error {
 		<-ctx.Done()
 		orchestration.DevLogInfo("Shutting down server...")
@@ -137,13 +141,27 @@ func startWatcher(ctx context.Context, dirs []string, debounce time.Duration) <-
 	return reloadEvents
 }
 
-func startReloadBroadcast(ctx context.Context, reloadEvents <-chan struct{}) {
+func startReloadBroadcast(ctx context.Context, reloadEvents chan string) {
 	if reloadEvents == nil {
 		return
 	}
 	async.FireAndForget(ctx, slog.Default(), "reload broadcast", func() error {
-		broadcastReload(reloadEvents)
-		return nil
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case msg, ok := <-reloadEvents:
+				if !ok {
+					return nil
+				}
+				parts := strings.SplitN(msg, ":", 2)
+				if len(parts) == 2 {
+					BroadcastReload(parts[0], parts[1])
+				} else {
+					BroadcastReload(msg, "")
+				}
+			}
+		}
 	})
 }
 
@@ -155,6 +173,7 @@ func buildServeConfig(opts ServerOptions, host, port string) serveConfig {
 		rootDirectory:    opts.RootDirectory,
 		shutdownTimeout:  resolveShutdownTimeout(opts.BuildConfig),
 		debounceDuration: resolveDebounceDuration(opts.BuildConfig),
+		isDev:            opts.IsDev,
 	}
 }
 
@@ -201,7 +220,42 @@ func Run(opts ServerOptions) {
 		watchDirs = append(watchDirs, cfg.rootDirectory)
 	}
 
-	reloadEvents := startWatcher(ctx, watchDirs, cfg.debounceDuration)
+	// Watch site-root assets directory if it exists
+	assetsDir := "assets"
+	if cfg.rootDirectory != "" {
+		assetsDir = filepath.Join(cfg.rootDirectory, "assets")
+	}
+	if _, err := os.Stat(assetsDir); err == nil {
+		watchDirs = append(watchDirs, assetsDir)
+	}
+
+	var exclusions []string
+	if cfg.rootDirectory != "" {
+		// Exclude blog output directory from root watch to avoid infinite reload loops
+		exclusions = append(exclusions, cfg.staticDir)
+		if opts.SiteRoot != "" {
+			// Exclude the entire Kosh project root from the portfolio's watcher
+			exclusions = append(exclusions, opts.SiteRoot)
+		}
+		// Exclude noisy VCS and dependency directories
+		exclusions = append(exclusions, filepath.Join(cfg.rootDirectory, ".git"))
+		exclusions = append(exclusions, filepath.Join(cfg.rootDirectory, "node_modules"))
+	}
+
+	dirs := make(map[string]string)
+	dirs[cfg.staticDir] = "site"
+	if cfg.rootDirectory != "" {
+		dirs[cfg.rootDirectory] = "root"
+	}
+	if _, err := os.Stat(assetsDir); err == nil {
+		dirs[assetsDir] = "all"
+	}
+
+	reloadEvents := startWatcher(ctx, watchConfig{
+		Dirs:       dirs,
+		Debounce:   cfg.debounceDuration,
+		Exclusions: exclusions,
+	})
 	defer stopWatcher()
 
 	mux := http.NewServeMux()
@@ -253,8 +307,10 @@ func Run(opts ServerOptions) {
 			writer:         writer,
 			request:        request,
 			staticDir:      effectiveStaticDir,
+			blogOutputDir:  cfg.staticDir,
 			fullPath:       fullPath,
 			normalizedPath: normalizedPath,
+			isDev:          cfg.isDev,
 		})
 	})
 
@@ -296,9 +352,11 @@ func waitForBuildCompletion(writer http.ResponseWriter, request *http.Request) b
 type fileRequestOptions struct {
 	writer         http.ResponseWriter
 	request        *http.Request
-	staticDir      string
+	staticDir      string // Directory being served for this request
+	blogOutputDir  string // The blog's output directory
 	fullPath       string
 	normalizedPath string
+	isDev          bool
 }
 
 type responseHeaderOptions struct {
@@ -307,6 +365,7 @@ type responseHeaderOptions struct {
 	normalizedPath string
 	fileInfo       os.FileInfo
 	preCompressed  bool
+	isDev          bool
 }
 
 func handleFileRequest(opts fileRequestOptions) {
@@ -329,7 +388,34 @@ func handleFileRequest(opts fileRequestOptions) {
 		}
 
 		if fileInfo.IsDir() {
-			if handleDirectory(writer, request, opts.fullPath) {
+			indexPath := filepath.Join(opts.fullPath, "index.html")
+			if indexInfo, err := os.Stat(indexPath); err == nil && !indexInfo.IsDir() {
+				opts.fullPath = indexPath
+				fileInfo = indexInfo
+			} else {
+				handleFileError(writer, opts.staticDir, os.ErrNotExist)
+				return
+			}
+		}
+
+		// Inject live-reload script if serving HTML from rootDirectory (not the blog output)
+		isRootHTML := strings.HasSuffix(strings.ToLower(opts.fullPath), ".html") &&
+			opts.staticDir != "" &&
+			fspkg.NormalizePath(opts.staticDir) != fspkg.NormalizePath(opts.blogOutputDir)
+
+		if isRootHTML {
+			slog.Debug("Injecting live-reload script into root HTML", "path", opts.normalizedPath)
+			data, err := os.ReadFile(opts.fullPath)
+			if err == nil {
+				html := InjectLiveReload(string(data))
+				setResponseHeaders(responseHeaderOptions{
+					writer:         writer,
+					fullPath:       opts.fullPath,
+					normalizedPath: opts.normalizedPath,
+					fileInfo:       fileInfo,
+					preCompressed:  false,
+				})
+				_, _ = writer.Write([]byte(html))
 				return
 			}
 		}
@@ -340,6 +426,7 @@ func handleFileRequest(opts fileRequestOptions) {
 			normalizedPath: opts.normalizedPath,
 			fileInfo:       fileInfo,
 			preCompressed:  preCompressed,
+			isDev:          opts.isDev,
 		})
 		http.ServeFile(writer, request, opts.fullPath)
 	}
@@ -360,23 +447,14 @@ func handleFileError(writer http.ResponseWriter, staticDir string, err error) {
 		writer.WriteHeader(http.StatusNotFound)
 		notFoundPath := filepath.Join(staticDir, "404.html")
 		if content, readErr := os.ReadFile(notFoundPath); readErr == nil {
-			_, _ = writer.Write(content)
+			_, _ = writer.Write([]byte(InjectLiveReload(string(content))))
 		} else {
-			_, _ = writer.Write([]byte("404 - Page Not Found"))
+			_, _ = writer.Write([]byte(InjectLiveReload("404 - Page Not Found")))
 		}
 	} else {
 		writer.WriteHeader(http.StatusInternalServerError)
 		_, _ = writer.Write([]byte("500 - Internal Server Error"))
 	}
-}
-
-func handleDirectory(writer http.ResponseWriter, request *http.Request, fullPath string) bool {
-	indexPath := filepath.Join(fullPath, "index.html")
-	if indexInfo, err := os.Stat(indexPath); err == nil && !indexInfo.IsDir() {
-		http.ServeFile(writer, request, indexPath)
-		return true
-	}
-	return false
 }
 
 func setResponseHeaders(opts responseHeaderOptions) {
@@ -385,7 +463,7 @@ func setResponseHeaders(opts responseHeaderOptions) {
 	// Set Cache-Control
 	if isHashedAsset(filename) {
 		opts.writer.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", cacheMaxAgeHashed))
-	} else if opts.fileInfo.IsDir() || strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".wasm") || strings.HasSuffix(filename, ".bin") {
+	} else if opts.isDev || opts.fileInfo.IsDir() || strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".wasm") || strings.HasSuffix(filename, ".bin") {
 		opts.writer.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
 		opts.writer.Header().Set("Pragma", "no-cache")
 		opts.writer.Header().Set("Expires", "0")

@@ -56,7 +56,7 @@ Rules for agents:
   - Pipelined parse+render with streaming workers
   - Overlapping asset discovery and copying via channels
   - Decoupled search analysis via background worker pool
-  - SEO suite: JSON-LD structured data + robots.txt generator
+  - SEO suite: JSON-LD structured data + sitemap generator (robots.txt moved to root)
   - SVG minification via tdewolff/minify
   - A11y linting: build-time warnings for missing image alt text
 - Current recommended image settings:

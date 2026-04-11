@@ -19,6 +19,47 @@ const (
 	hashedAssetMaxLength = 12
 )
 
+const liveReloadScript = `
+<script>
+(function() {
+    const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+    if (hosts.includes(window.location.hostname)) {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(regs => {
+                regs.forEach(r => r.unregister());
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                names.forEach(n => caches.delete(n));
+            });
+        }
+        let reloadTimeout;
+        const source = new EventSource("/events");
+        source.onopen = function() { console.log("🚀 Kosh Live Reload connected"); };
+        source.onmessage = function(e) {
+            if (e.data === "site" || e.data === "root" || e.data === "all" || e.data === "reload") {
+                console.log("♻️ Change detected: " + e.data);
+                if (reloadTimeout) clearTimeout(reloadTimeout);
+                reloadTimeout = setTimeout(() => {
+                    window.location.reload(true);
+                }, 250);
+            }
+        };
+        source.onerror = function() { source.close(); };
+    }
+})();
+</script>
+`
+
+// InjectLiveReload injects the live-reload script before the </body> tag or at the end of the HTML.
+func InjectLiveReload(html string) string {
+	if strings.Contains(html, "</body>") {
+		return strings.Replace(html, "</body>", liveReloadScript+"</body>", 1)
+	}
+	return html + liveReloadScript
+}
+
 var (
 	errAbsolutePath  = errors.New("absolute path attempt detected")
 	errPathTraversal = errors.New("path traversal attempt detected")

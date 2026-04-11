@@ -33,7 +33,7 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 
 	// Rewrite PNG/JPG/JPEG image references to WebP if compression is enabled
 	if r.Compress {
-		finalBytes = rewriteImageRefs(finalBytes, path)
+		finalBytes = rewriteImageRefs(finalBytes, path, r.devMode)
 	}
 
 	// Final Write with Streaming Minification
@@ -74,7 +74,7 @@ func (r *Renderer) RenderPage(path string, data models.PageData) error {
 	return r.executeTemplateAndWrite(path, layout, data, "layout")
 }
 
-func rewriteImageRefs(html []byte, path string) []byte {
+func rewriteImageRefs(html []byte, path string, isDev bool) []byte {
 	converted := assets.GetConvertedImages()
 	// Short-circuit if no images to rewrite AND no img tags to check for A11y
 	if len(converted) == 0 && !strings.Contains(strings.ToLower(string(html)), "<img") {
@@ -102,7 +102,7 @@ func rewriteImageRefs(html []byte, path string) []byte {
 		if isImgTag(html, i) {
 			tagContent := html[tagStart : end+1]
 			// A11y Check: Look for alt attribute
-			if !hasAltAttribute(tagContent) {
+			if !isDev && !hasAltAttribute(tagContent) {
 				slog.Warn("A11y Lint: Image missing alt text",
 					"file", path,
 					"tag", string(tagContent))

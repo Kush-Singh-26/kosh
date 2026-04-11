@@ -41,35 +41,9 @@ func TestHandleSSERequiresFlusher(t *testing.T) {
 	}
 }
 
-func TestBroadcastReloadStopsWhenChannelCloses(t *testing.T) {
-	done := make(chan struct{})
-	ch := make(chan struct{})
-
-	go func() {
-		broadcastReload(ch)
-		close(done)
-	}()
-
-	close(ch)
-
-	select {
-	case <-done:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("broadcastReload did not exit after channel close")
-	}
-}
-
 func TestBroadcastReload_Functional(t *testing.T) {
-	ch := make(chan struct{})
-	go func() {
-		// Wait a bit to ensure clients are registered
-		time.Sleep(50 * time.Millisecond)
-		ch <- struct{}{}
-		close(ch)
-	}()
-
 	// Register a mock client
-	clientChan := make(chan struct{}, 1)
+	clientChan := make(chan string, 1)
 	clientMu.Lock()
 	clients[clientChan] = struct{}{}
 	clientMu.Unlock()
@@ -80,11 +54,13 @@ func TestBroadcastReload_Functional(t *testing.T) {
 		clientMu.Unlock()
 	}()
 
-	broadcastReload(ch)
+	broadcastReload("site")
 
 	select {
-	case <-clientChan:
-		// Success
+	case target := <-clientChan:
+		if target != "site" {
+			t.Errorf("Expected target 'site', got %s", target)
+		}
 	case <-time.After(500 * time.Millisecond):
 		t.Error("Timed out waiting for reload broadcast")
 	}

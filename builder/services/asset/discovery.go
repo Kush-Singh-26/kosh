@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -81,7 +82,7 @@ func (service *assetService) isWebPCandidate(path string) bool {
 
 // syncStaticAssets discovers and copies all static assets to the sink synchronously.
 func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx context.Context, skipImages bool) ([]imageCopyTask, error) {
-	themeDir, siteStaticDir := service.getStaticSourceDirs()
+	dirs := service.getStaticSourceDirs()
 	debugAssets := service.cfg.Debug
 
 	syncContextInstance := &syncContext{}
@@ -110,18 +111,10 @@ func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx
 		enqueue:         enqueue,
 	})
 
-	themeDirNorm := fspkg.NormalizePath(themeDir)
-	siteStaticNorm := fspkg.NormalizePath(siteStaticDir)
-	sameStatic := themeDirNorm == siteStaticNorm
-	if runtime.GOOS == "windows" {
-		sameStatic = strings.EqualFold(themeDirNorm, siteStaticNorm)
+	for _, dir := range dirs {
+		d := dir
+		discoveryGroup.Go(func() error { return walkFunc(ctx, d, true) })
 	}
-
-	if !sameStatic {
-		discoveryGroup.Go(func() error { return walkFunc(ctx, siteStaticDir, true) })
-	}
-
-	discoveryGroup.Go(func() error { return walkFunc(ctx, themeDir, false) })
 
 	if service.contentAssetsChan != nil {
 		discoveryGroup.Go(func() error {
@@ -135,7 +128,7 @@ func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx
 	workerWg.Wait()
 
 	if debugAssets {
-		service.logDiscoveryStats(siteStaticDir, themeDir, syncContextInstance)
+		service.logDiscoveryStats(dirs, syncContextInstance)
 	}
 
 	if err != nil {
@@ -151,16 +144,41 @@ func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx
 	return syncContextInstance.imageQueue, nil
 }
 
-func (service *assetService) getStaticSourceDirs() (string, string) {
+func (service *assetService) getStaticSourceDirs() []string {
+	var dirs []string
+
 	themeDir := service.cfg.StaticDir
 	if themeDir == "" {
 		themeDir = "themes/blog/static"
 	}
+	if _, err := os.Stat(themeDir); err == nil {
+		dirs = append(dirs, themeDir)
+	}
+
 	siteStaticDir := "static"
 	if service.cfg.SiteRoot != "" {
 		siteStaticDir = filepath.Join(service.cfg.SiteRoot, "static")
 	}
-	return themeDir, siteStaticDir
+	if _, err := os.Stat(siteStaticDir); err == nil {
+		dirs = append(dirs, siteStaticDir)
+	}
+
+	assetsDir := "assets"
+	if service.cfg.SiteRoot != "" {
+		assetsDir = filepath.Join(service.cfg.SiteRoot, "assets")
+	}
+	if _, err := os.Stat(assetsDir); err == nil {
+		dirs = append(dirs, assetsDir)
+	}
+
+	if service.cfg.Server.RootDirectory != "" {
+		parentAssets := filepath.Join(service.cfg.Server.RootDirectory, "assets")
+		if _, err := os.Stat(parentAssets); err == nil {
+			dirs = append(dirs, parentAssets)
+		}
+	}
+
+	return dirs
 }
 
 func (service *assetService) setupAssetWorker(assetChan <-chan assetTask, group *errgroup.Group, ctx context.Context) *sync.WaitGroup {
@@ -416,10 +434,9 @@ func (service *assetService) discoverContentAssets(ctx context.Context, syncCont
 	return nil
 }
 
-func (service *assetService) logDiscoveryStats(siteStaticDir, themeDir string, syncCtx *syncContext) {
+func (service *assetService) logDiscoveryStats(dirs []string, syncCtx *syncContext) {
 	service.logger.Info("Static discovery stats",
-		"site_dir", siteStaticDir,
-		"theme_dir", themeDir,
+		"dirs", dirs,
 		"site_files", atomic.LoadInt64(&syncCtx.siteFiles),
 		"theme_files", atomic.LoadInt64(&syncCtx.themeFiles),
 		"site_enqueued", atomic.LoadInt64(&syncCtx.siteEnqueued),

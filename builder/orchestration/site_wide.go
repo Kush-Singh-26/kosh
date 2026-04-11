@@ -134,16 +134,6 @@ func (engineInstance *Engine) generateSitemap(options MetadataRenderOptions) err
 	return nil
 }
 
-func (engineInstance *Engine) generateRobotsTxt() error {
-	_, err := generators.GenerateRobotsTxt(engineInstance.artifactSink, engineInstance.Cfg.BaseURL, filepath.Join(engineInstance.Cfg.OutputDir, "robots.txt"))
-	if err != nil {
-		engineInstance.Deps.Logger.Error("Failed to generate robots.txt", "error", err)
-		return err
-	}
-	engineInstance.Deps.Render.RegisterFile(filepath.Join(engineInstance.Cfg.OutputDir, "robots.txt"))
-	return nil
-}
-
 func (engineInstance *Engine) generateRSS(options MetadataRenderOptions) error {
 	_, err := generators.GenerateRSS(generators.RSSOptions{
 		Sink:        engineInstance.artifactSink,
@@ -210,10 +200,6 @@ func (engineInstance *Engine) renderSiteMetadata(options MetadataRenderOptions) 
 		errorGroup.Go(func() error {
 			return engineInstance.generateSitemap(options)
 		})
-
-		errorGroup.Go(func() error {
-			return engineInstance.generateRobotsTxt()
-		})
 	}
 
 	if engineInstance.Cfg.Features.Generators.IsRSSEnabled && options.AllPosts != nil && options.IndexedPosts == nil {
@@ -257,6 +243,24 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 			allTags:        metadataContext.AllTags,
 		})
 	})
+
+	// Also render site-wide metadata (graph, RSS, sitemap) during incremental builds
+	// if a change was detected.
+	errorGroup.Go(func() error {
+		return engineInstance.renderSiteMetadata(MetadataRenderOptions{
+			AllPosts: metadataContext.AllPosts,
+			TagMap:   metadataContext.TagMap,
+			AllTags:  metadataContext.AllTags,
+		})
+	})
+
+	if metadataContext.IndexedPosts != nil {
+		errorGroup.Go(func() error {
+			return engineInstance.renderSiteMetadata(MetadataRenderOptions{
+				IndexedPosts: metadataContext.IndexedPosts,
+			})
+		})
+	}
 
 	return errorGroup.Wait()
 }

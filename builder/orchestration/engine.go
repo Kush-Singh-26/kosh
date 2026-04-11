@@ -92,9 +92,9 @@ type Engine struct {
 	flushWaitGroup sync.WaitGroup
 
 	// Build output
-	artifactMu         sync.Mutex
-	artifactSink       fspkg.ArtifactSink
-	buildTransaction   tx.BuildTransaction
+	artifactMu       sync.Mutex
+	artifactSink     fspkg.ArtifactSink
+	buildTransaction tx.BuildTransaction
 
 	// Watch coordinator for incremental builds
 	Watch *watch.Coordinator
@@ -117,6 +117,10 @@ type Engine struct {
 	// Optional callbacks for build lifecycle synchronization
 	OnBuildStart func()
 	OnBuildDone  func()
+
+	// Optional callbacks for search index regeneration lifecycle
+	OnSearchStart func()
+	OnSearchDone  func()
 }
 
 // newEngineFromManual creates a builder with manual dependency injection (for testing/benchmarks).
@@ -187,7 +191,7 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 		BuildMu:       &engineInstance.State.BuildMu,
 		Cache:         engineInstance.Deps.Cache,
 		OnChange:      engineInstance.handleWatchChange,
-		OnSearchRegen: func(ctx context.Context) { _ = engineInstance.Search.RegenerateIndex(ctx) },
+		OnSearchRegen: engineInstance.handleSearchRegen,
 	})
 
 	return engineInstance
@@ -418,7 +422,8 @@ func (engineInstance *Engine) BuildAssetOnlyWithOptions(ctx context.Context, for
 			ForceSocialRebuild: false,
 		})
 
-		shouldForce := false
+		// For asset-only builds, we FORCE post re-rendering to update asset hashes in HTML.
+		shouldForce := true
 		forceSocialRebuild := false
 		outputMissing := false
 		postResult, processError := engineInstance.Deps.Post.Process(post.ProcessOptions{
@@ -507,6 +512,23 @@ func (engineInstance *Engine) handleWatchChange(evt watch.ChangeEvent) {
 
 	if engineInstance.Incremental != nil {
 		engineInstance.Incremental.BuildSingleFileChange(context.Background(), evt.Path, evt.Op)
+	}
+}
+
+// handleSearchRegen is the callback invoked by WatchCoordinator when a search
+// index regeneration is requested.
+func (engineInstance *Engine) handleSearchRegen(ctx context.Context) {
+	if engineInstance.OnSearchStart != nil {
+		engineInstance.OnSearchStart()
+	}
+	defer func() {
+		if engineInstance.OnSearchDone != nil {
+			engineInstance.OnSearchDone()
+		}
+	}()
+
+	if engineInstance.Search != nil {
+		_ = engineInstance.Search.RegenerateIndex(ctx)
 	}
 }
 

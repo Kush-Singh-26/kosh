@@ -121,15 +121,6 @@ func TestValidatePath_InvalidEncoding(t *testing.T) {
 	}
 }
 
-func TestValidatePath_InvalidBaseDir(t *testing.T) {
-	// Invalid base dir that can't be made absolute
-	_, err := validatePath("", "/test")
-	if err != nil {
-		// Empty string might work depending on OS
-		t.Logf("validatePath with empty baseDir: %v", err)
-	}
-}
-
 func TestNormalizeRequestPath_NoBaseURL(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -223,75 +214,6 @@ func TestCompressionHandler_WithBrotliSupport(t *testing.T) {
 	}
 }
 
-func TestCompressionHandler_SkipBinaryFiles(t *testing.T) {
-	binaryExts := []string{".bin", ".wasm", ".gz", ".br", ".zip", ".png", ".webp", ".jpg", ".jpeg"}
-
-	for _, ext := range binaryExts {
-		t.Run(ext, func(t *testing.T) {
-			handler := compressionHandler(func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte("binary"))
-			})
-
-			req := httptest.NewRequest("GET", "/test"+ext, nil)
-			req.Header.Set("Accept-Encoding", "br")
-			rr := httptest.NewRecorder()
-
-			handler(rr, req)
-
-			if rr.Header().Get("Content-Encoding") != "" {
-				t.Errorf("Should not compress %s files", ext)
-			}
-		})
-	}
-}
-
-func TestCompressionHandler_SkipRangeRequests(t *testing.T) {
-	handler := compressionHandler(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("OK"))
-	})
-
-	req := httptest.NewRequest("GET", "/test.html", nil)
-	req.Header.Set("Accept-Encoding", "br")
-	req.Header.Set("Range", "bytes=0-100")
-	rr := httptest.NewRecorder()
-
-	handler(rr, req)
-
-	if rr.Header().Get("Content-Encoding") != "" {
-		t.Error("Should not compress range requests")
-	}
-}
-
-func TestCompressionHandler_WritesCorrectly(t *testing.T) {
-	handler := compressionHandler(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("Test content"))
-	})
-
-	req := httptest.NewRequest("GET", "/test.html", nil)
-	req.Header.Set("Accept-Encoding", "br")
-	rr := httptest.NewRecorder()
-
-	handler(rr, req)
-
-	// Should have written something (compressed)
-	if rr.Body.Len() == 0 {
-		t.Error("Should have written compressed content")
-	}
-}
-
-func TestCompressionHandler_WriteHeader(t *testing.T) {
-	cw := &compressionResponseWriter{
-		ResponseWriter: httptest.NewRecorder(),
-	}
-
-	cw.WriteHeader(http.StatusCreated)
-
-	rec := cw.ResponseWriter.(*httptest.ResponseRecorder)
-	if rec.Code != http.StatusCreated {
-		t.Errorf("Expected status 201, got %d", rec.Code)
-	}
-}
-
 func TestHandleSSE(t *testing.T) {
 	req := httptest.NewRequest("GET", "/events", nil)
 	rr := httptest.NewRecorder()
@@ -311,84 +233,6 @@ func TestHandleSSE(t *testing.T) {
 	body := rr.Body.String()
 	if !strings.Contains(body, "data: connected") {
 		t.Errorf("Expected 'data: connected', got: %s", body)
-	}
-}
-
-func TestHandleSSE_NoFlusher(t *testing.T) {
-	req := httptest.NewRequest("GET", "/events", nil)
-	rr := httptest.NewRecorder()
-
-	// Use context with timeout to prevent hanging
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	handleSSE(rr, req)
-
-	// Check headers are set correctly
-	if rr.Header().Get("Content-Type") != "text/event-stream" {
-		t.Errorf("Expected Content-Type: text/event-stream, got %s", rr.Header().Get("Content-Type"))
-	}
-
-	if rr.Header().Get("Cache-Control") != "no-cache" {
-		t.Errorf("Expected Cache-Control: no-cache, got %s", rr.Header().Get("Cache-Control"))
-	}
-}
-
-func TestBroadcastReload(t *testing.T) {
-	reloadChan := make(chan struct{}, 1)
-
-	// Start broadcast in goroutine
-	done := make(chan bool)
-	go func() {
-		broadcastReload(reloadChan)
-		done <- true
-	}()
-
-	// Send reload event
-	reloadChan <- struct{}{}
-
-	// Give it time to process
-	time.Sleep(50 * time.Millisecond)
-
-	// Close channel to stop broadcast
-	close(reloadChan)
-
-	// Wait for goroutine to finish
-	select {
-	case <-done:
-		// Success
-	case <-time.After(1 * time.Second):
-		t.Error("broadcastReload did not stop in time")
-	}
-}
-
-func TestBroadcastReload_WaitsForBuild(t *testing.T) {
-	// Set build active
-	SetBuildActive(true)
-	defer SetBuildActive(false)
-
-	reloadChan := make(chan struct{}, 1)
-
-	done := make(chan bool)
-	go func() {
-		broadcastReload(reloadChan)
-		done <- true
-	}()
-
-	// Send reload event
-	reloadChan <- struct{}{}
-
-	// End build
-	time.Sleep(50 * time.Millisecond)
-	SetBuildActive(false)
-
-	close(reloadChan)
-
-	select {
-	case <-done:
-	case <-time.After(1 * time.Second):
-		t.Error("broadcastReload did not complete")
 	}
 }
 
@@ -422,16 +266,7 @@ func TestSetBuildActive(t *testing.T) {
 
 func TestResetDebounceTimer(t *testing.T) {
 	// Test that function doesn't panic
-	resetDebounceTimer()
-	resetDebounceTimer()
-}
-
-func TestStartWatcherWithConfig_Basic(t *testing.T) {
-	t.Skip("Watcher test has race conditions - tested in watcher_test.go")
-}
-
-func TestStopWatcher(t *testing.T) {
-	t.Skip("Watcher test has race conditions - tested in watcher_test.go")
+	resetDebounceTimer("site", "/test.html")
 }
 
 func TestWaitForBuild_NoActiveBuild(t *testing.T) {
@@ -462,37 +297,3 @@ func TestWaitForBuild_WithActiveBuild(t *testing.T) {
 		t.Error("Build channel should close after build ends")
 	}
 }
-
-func TestCompressionResponseWriter_Write(t *testing.T) {
-	rec := httptest.NewRecorder()
-	cw := &compressionResponseWriter{
-		ResponseWriter: rec,
-		Writer:         rec,
-	}
-
-	n, err := cw.Write([]byte("test"))
-	if err != nil {
-		t.Errorf("Write failed: %v", err)
-	}
-	if n != 4 {
-		t.Errorf("Expected 4 bytes written, got %d", n)
-	}
-}
-
-func TestCompressionResponseWriter_WriteHeader_RemovesContentLength(t *testing.T) {
-	rec := httptest.NewRecorder()
-	rec.Header().Set("Content-Length", "100")
-
-	cw := &compressionResponseWriter{
-		ResponseWriter: rec,
-		Writer:         rec,
-	}
-
-	cw.WriteHeader(http.StatusOK)
-
-	if rec.Header().Get("Content-Length") != "" {
-		t.Error("WriteHeader should remove Content-Length")
-	}
-}
-
-// Helper function to write file

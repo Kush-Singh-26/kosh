@@ -402,7 +402,6 @@ func (rep *lineReporter) shouldSkip(msg string) bool {
 		"pagination",
 		"rendering graph",
 		"sitemap",
-		"robots.txt",
 		"pwa",
 		"rss",
 		"atom",

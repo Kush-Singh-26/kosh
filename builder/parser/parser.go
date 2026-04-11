@@ -83,6 +83,7 @@ func New(cfg *config.Config, renderer *native.Renderer, diagramCache SSRMap, d2G
 					Renderer: renderer,
 					Cache:    diagramCache,
 					D2Group:  d2Group,
+					IsDev:    cfg.IsDev,
 				}, unifiedTransformerPriority),
 			),
 			parser.WithAutoHeadingID(),

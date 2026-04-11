@@ -3,9 +3,6 @@ package main
 import (
 	"log/slog"
 	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -71,6 +68,7 @@ func runServe(cmd *cobra.Command, args []string) {
 
 	if serveDev {
 		cfg := config.Load(filteredArgs)
+		config.SetDevMode(cfg, true)
 		if cfg.BaseURL == "" {
 			cfg.BaseURL = "http://localhost:2604"
 		}
@@ -81,7 +79,15 @@ func runServe(cmd *cobra.Command, args []string) {
 			reporter.Start("Live Preview")
 		}
 		engine.OnBuildStart = func() { server.SetBuildActive(true) }
-		engine.OnBuildDone = func() { server.SetBuildActive(false) }
+		engine.OnBuildDone = func() {
+			server.SetBuildActive(false)
+			server.BroadcastReload("site", "")
+		}
+		engine.OnSearchStart = func() { server.SetBuildActive(true) }
+		engine.OnSearchDone = func() {
+			server.SetBuildActive(false)
+			server.BroadcastReload("site", "")
+		}
 
 		if err := engine.Build(ctx); err != nil {
 			orchestration.DevLogError("Build failed: " + err.Error())
@@ -90,23 +96,6 @@ func runServe(cmd *cobra.Command, args []string) {
 
 		async.FireAndForget(ctx, slog.Default(), "watcher", func() error {
 			watchDirs := []string{engine.Cfg.ContentDir, engine.Cfg.TemplateDir, engine.Cfg.StaticDir, "kosh.yaml"}
-			siteStaticDir := "static"
-			if engine.Cfg.SiteRoot != "" {
-				siteStaticDir = filepath.Join(engine.Cfg.SiteRoot, "static")
-			}
-			siteAbs, _ := filepath.Abs(siteStaticDir)
-			staticAbs, _ := filepath.Abs(engine.Cfg.StaticDir)
-			sameStatic := false
-			if siteAbs != "" && staticAbs != "" {
-				if runtime.GOOS == "windows" {
-					sameStatic = strings.EqualFold(siteAbs, staticAbs)
-				} else {
-					sameStatic = siteAbs == staticAbs
-				}
-			}
-			if !sameStatic {
-				watchDirs = append(watchDirs, siteStaticDir)
-			}
 
 			watcher, err := watch.New(watchDirs, func(event watch.Event) {
 				orchestration.DevLogChange(event.Name, "watch")
@@ -125,9 +114,11 @@ func runServe(cmd *cobra.Command, args []string) {
 			Args:          filteredArgs,
 			OutputDir:     engine.Cfg.OutputDir,
 			RootDirectory: engine.Cfg.Server.RootDirectory,
+			SiteRoot:      engine.Cfg.SiteRoot,
 			BaseURL:       engine.Cfg.BaseURL,
 			BuildConfig:   engine.Cfg.Build,
 			Reporter:      reporter,
+			IsDev:         true,
 		})
 	} else {
 		cfg := config.Load(filteredArgs)
@@ -137,6 +128,7 @@ func runServe(cmd *cobra.Command, args []string) {
 			Args:          filteredArgs,
 			OutputDir:     cfg.OutputDir,
 			RootDirectory: cfg.Server.RootDirectory,
+			SiteRoot:      cfg.SiteRoot,
 			BaseURL:       cfg.BaseURL,
 			BuildConfig:   cfg.Build,
 			Reporter:      reporter,
