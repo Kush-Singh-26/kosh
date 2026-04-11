@@ -331,3 +331,23 @@ func IsStopWord(word string) bool {
 	}
 	return stopWords[strings.ToLower(word)]
 }
+
+// TruncateToLength truncates string text to maxLen and aligns to rune boundaries
+func TruncateToLength(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
+
+	text = text[:maxLen]
+	// Align to rune boundary to avoid invalid UTF-8
+	for len(text) > 0 && !utf8.RuneStart(text[len(text)-1]) {
+		text = text[:len(text)-1]
+	}
+	// If the last byte is the start of a multi-byte rune but we don't have the rest,
+	// we should also trim it.
+	char, size := utf8.DecodeLastRuneInString(text)
+	if char == utf8.RuneError && size == 1 {
+		text = text[:len(text)-1]
+	}
+	return text
+}

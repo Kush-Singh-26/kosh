@@ -37,7 +37,11 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {
-			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
+			return mdParser.New(cfg,
+				mdParser.WithRenderer(nativeRenderer),
+				mdParser.WithDiagramCache(diagramCache),
+				mdParser.WithD2Group(d2Group),
+			)
 		},
 	}
 

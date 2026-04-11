@@ -215,7 +215,11 @@ func setupPostServiceTest(t *testing.T) *postService {
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {
-			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
+			return mdParser.New(cfg,
+				mdParser.WithRenderer(nativeRenderer),
+				mdParser.WithDiagramCache(diagramCache),
+				mdParser.WithD2Group(d2Group),
+			)
 		},
 	}
 
@@ -369,7 +373,7 @@ func TestDecoupledPipeline(t *testing.T) {
 	}
 	mdPool := &sync.Pool{
 		New: func() any {
-			return mdParser.New(cfg, nil, mdParser.NewMemorySSRMap(), nil)
+			return mdParser.New(cfg, mdParser.WithDiagramCache(mdParser.NewMemorySSRMap()))
 		},
 	}
 

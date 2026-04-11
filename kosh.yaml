@@ -1,5 +1,5 @@
 # Site Configuration
-title: "Kush Singh | Blog"
+title: "Kush Blogs"
 description: "Deep dives into Machine Learning, Systems Engineering, and LLMs by Kush Singh."
 logo: "static/images/kush3.png"
 baseURL: "" # Empty for local dev, GitHub Actions will override this via CLI flag

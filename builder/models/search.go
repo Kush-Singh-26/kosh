@@ -30,7 +30,7 @@ type IndexedPost struct {
 }
 
 // CurrentSchemaVersion is the active search schema version.
-const CurrentSchemaVersion = 13
+const CurrentSchemaVersion = 14
 
 // SearchIndex stores the serialized search index.
 type SearchIndex struct {
@@ -41,7 +41,7 @@ type SearchIndex struct {
 	TotalDocs     int64
 	StemMap       map[string][]string // stemmed -> original forms
 	NgramIndex    map[string][]string // trigram -> terms (for fuzzy search)
- 
+
 	// Inverted Index: word -> postID (string) -> delta-encoded positions
 	// Deltas: [pos1, pos2-pos1, pos3-pos2, ...] (v11+)
 	Inverted map[string]map[string][]uint32

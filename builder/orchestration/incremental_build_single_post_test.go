@@ -70,7 +70,15 @@ Initial body.
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
 	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
-	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
+	mdPool := &sync.Pool{
+		New: func() any {
+			return mdParser.New(cfg,
+				mdParser.WithRenderer(nativeRenderer),
+				mdParser.WithDiagramCache(diagramCache),
+				mdParser.WithD2Group(d2Group),
+			)
+		},
+	}
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()
@@ -197,7 +205,15 @@ date: "2026-03-06"
 	t.Cleanup(func() { _ = nativeRenderer.Close() })
 	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
-	mdPool := &sync.Pool{New: func() any { return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group) }}
+	mdPool := &sync.Pool{
+		New: func() any {
+			return mdParser.New(cfg,
+				mdParser.WithRenderer(nativeRenderer),
+				mdParser.WithDiagramCache(diagramCache),
+				mdParser.WithD2Group(d2Group),
+			)
+		},
+	}
 
 	cm, _ := cache.OpenWithTimeout(t.TempDir(), true, 0)
 	defer func() { _ = cm.Close() }()

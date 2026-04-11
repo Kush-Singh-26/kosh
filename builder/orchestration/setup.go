@@ -28,7 +28,13 @@ func VerifyTheme(configInstance *config.Config, logger *slog.Logger) {
 // VerifyThemeFs checks if the theme directories exist using the provided filesystem
 func VerifyThemeFs(sourceFs afero.Fs, configInstance *config.Config, logger *slog.Logger, isTesting bool) {
 	themePath := filepath.Join(configInstance.ThemeDir, configInstance.Theme)
-	if exists, _ := afero.Exists(sourceFs, themePath); !exists {
+	if exists, err := afero.Exists(sourceFs, themePath); err != nil {
+		logger.Error("Failed to check theme directory", "path", themePath, "error", err)
+		if !isTesting {
+			os.Exit(1)
+		}
+		return
+	} else if !exists {
 		logger.Error("Theme not found",
 			"theme", configInstance.Theme,
 			"path", themePath,
@@ -41,7 +47,13 @@ func VerifyThemeFs(sourceFs afero.Fs, configInstance *config.Config, logger *slo
 	}
 
 	templatePath := configInstance.TemplateDir
-	if exists, _ := afero.Exists(sourceFs, templatePath); !exists {
+	if exists, err := afero.Exists(sourceFs, templatePath); err != nil {
+		logger.Error("Failed to check theme templates directory", "path", templatePath, "error", err)
+		if !isTesting {
+			os.Exit(1)
+		}
+		return
+	} else if !exists {
 		logger.Error("Theme templates directory not found",
 			"theme", configInstance.Theme,
 			"path", templatePath,
@@ -53,11 +65,15 @@ func VerifyThemeFs(sourceFs afero.Fs, configInstance *config.Config, logger *slo
 	}
 
 	staticPath := configInstance.StaticDir
-	if exists, _ := afero.Exists(sourceFs, staticPath); !exists {
+	if exists, err := afero.Exists(sourceFs, staticPath); err != nil {
+		logger.Warn("Failed to check theme static directory", "path", staticPath, "error", err)
+	} else if !exists {
 		logger.Warn("Theme static directory not found, creating empty",
 			"theme", configInstance.Theme,
 			"path", staticPath)
-		_ = sourceFs.MkdirAll(staticPath, cacheDirMode)
+		if err := sourceFs.MkdirAll(staticPath, cacheDirMode); err != nil {
+			logger.Warn("Failed to create empty static directory", "path", staticPath, "error", err)
+		}
 	}
 }
 
@@ -100,21 +116,33 @@ func SetupCacheManager(configInstance *config.Config, logger *slog.Logger) (*cac
 
 	if cacheErrors, verifyErr := cacheManager.QuickVerify(); verifyErr != nil || len(cacheErrors) > 0 {
 		logger.Warn("Cache integrity issues detected, forcing rebuild", "errors", len(cacheErrors))
+		if verifyErr != nil {
+			logger.Debug("Verification failed", "error", verifyErr)
+		}
 		if len(cacheErrors) > 0 && len(cacheErrors) <= cacheErrorLogLimit {
 			for _, detail := range cacheErrors {
 				logger.Debug("Cache error", "detail", detail)
 			}
 		}
 		configInstance.ShouldForceRebuild = true
-		_ = cacheManager.ClearAll()
+		if err := cacheManager.ClearAll(); err != nil {
+			logger.Warn("Failed to clear cache", "error", err)
+		}
 	}
 
 	cacheID := generateCacheID()
-	needsRebuild, _ := cacheManager.VerifyCacheID(cacheID)
+	needsRebuild, err := cacheManager.VerifyCacheID(cacheID)
+	if err != nil {
+		logger.Warn("Failed to verify cache ID", "error", err)
+		needsRebuild = true // Force rebuild on error
+	}
+
 	if needsRebuild {
 		logger.Info("Cache fingerprint changed, triggering rebuild")
 		configInstance.ShouldForceRebuild = true
-		_ = cacheManager.SetCacheID(cacheID)
+		if err := cacheManager.SetCacheID(cacheID); err != nil {
+			logger.Warn("Failed to set cache ID", "error", err)
+		}
 	}
 
 	diagramAdapter := cache.NewDiagramCacheAdapter(cacheManager)

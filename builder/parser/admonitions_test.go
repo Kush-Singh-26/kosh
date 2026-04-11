@@ -15,7 +15,7 @@ func TestAdmonitions(t *testing.T) {
 	t.Cleanup(func() { _ = r.Close() })
 	diagramCache := NewMemorySSRMap()
 	d2Group := r.GetD2Singleflight()
-	md := New(cfg, r, diagramCache, d2Group)
+	md := New(cfg, WithRenderer(r), WithDiagramCache(diagramCache), WithD2Group(d2Group))
 
 	tests := []struct {
 		name     string

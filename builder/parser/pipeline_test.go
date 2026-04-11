@@ -98,7 +98,7 @@ func TestFullPipeline(t *testing.T) {
 				cfg.BaseURL = ""
 			}
 
-			p := New(cfg, r, diagramCache, d2Group)
+			p := New(cfg, WithRenderer(r), WithDiagramCache(diagramCache), WithD2Group(d2Group))
 
 			pc := parser.NewContext()
 			if tt.filePath != "" {
@@ -121,7 +121,7 @@ func TestFullPipeline(t *testing.T) {
 
 func TestTOCAndPlainText(t *testing.T) {
 	cfg := &config.Config{}
-	p := New(cfg, nil, nil, nil)
+	p := New(cfg)
 
 	markdown := []byte(`# Title 1
 ## Section 1

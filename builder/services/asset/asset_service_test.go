@@ -37,7 +37,7 @@ body {
     color: black;
 }
 `
-	cssPath := filepath.Join(sourceDir, "css", "main.css")
+	cssPath := filepath.Join(sourceDir, "css", "layout.css")
 	if err := os.WriteFile(cssPath, []byte(cssContent), 0644); err != nil {
 		t.Fatalf("Failed to write test CSS: %v", err)
 	}
@@ -76,7 +76,7 @@ body {
 	// or it might use absolute paths based on our sink call
 	foundCSS := false
 	for path := range sink.Files {
-		if strings.Contains(path, "main") && strings.HasSuffix(path, ".css") {
+		if strings.Contains(path, "layout") && strings.HasSuffix(path, ".css") {
 			foundCSS = true
 			break
 		}

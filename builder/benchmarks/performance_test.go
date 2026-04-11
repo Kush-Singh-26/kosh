@@ -30,7 +30,11 @@ func BenchmarkMarkdownParsing(b *testing.B) {
 	defer func() { _ = r.Close() }()
 	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := r.GetD2Singleflight()
-	parser := mdParser.New(cfg, r, diagramCache, d2Group)
+	parser := mdParser.New(cfg,
+		mdParser.WithRenderer(r),
+		mdParser.WithDiagramCache(diagramCache),
+		mdParser.WithD2Group(d2Group),
+	)
 
 	// Create a large markdown content (approx 10,000 words)
 	word := "word "
@@ -78,7 +82,11 @@ This is post number %d.
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
 		New: func() any {
-			return mdParser.New(cfg, nativeRenderer, diagramCache, d2Group)
+			return mdParser.New(cfg,
+				mdParser.WithRenderer(nativeRenderer),
+				mdParser.WithDiagramCache(diagramCache),
+				mdParser.WithD2Group(d2Group),
+			)
 		},
 	}
 

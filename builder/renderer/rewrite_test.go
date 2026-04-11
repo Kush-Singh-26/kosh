@@ -87,7 +87,7 @@ func TestRewriteImageRefs(t *testing.T) {
 			for k, v := range tt.converted {
 				assets.RecordConvertedImage(k, v)
 			}
-			result := rewriteImageRefs([]byte(tt.html), "test.html")
+			result := rewriteImageRefs([]byte(tt.html), "test.html", false)
 			if string(result) != tt.expected {
 				t.Errorf("\ninput:    %q\ngot:      %q\nwant:     %q", tt.html, string(result), tt.expected)
 			}
@@ -100,7 +100,7 @@ func TestRewriteImageRefs_Specific(t *testing.T) {
 	html := `<img src="/test.png" alt="test">`
 	assets.ResetConvertedImages()
 	assets.RecordConvertedImage("/test.png", "/test.webp")
-	result := rewriteImageRefs([]byte(html), "test.html")
+	result := rewriteImageRefs([]byte(html), "test.html", false)
 	t.Logf("html=%q result=%q", html, string(result))
 	if string(result) != `<img src="/test.webp" alt="test" loading="lazy" decoding="async">` {
 		t.Errorf("got %q want %q", string(result), `<img src="/test.webp" alt="test" loading="lazy" decoding="async">`)

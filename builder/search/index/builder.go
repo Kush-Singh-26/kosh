@@ -14,14 +14,15 @@ import (
 )
 
 const (
-	maxIndexWorkers = 8
-	globalCapScale  = 0.5
-	minGlobalCap    = 500
-	workerCapScale  = 0.7
-	minWorkerCap    = 64
-	perWordMapCap   = 4
-	minStemMapCap   = 100
-	decimalBase     = 10
+	maxIndexWorkers             = 8
+	globalCapScale              = 0.5
+	minGlobalCap                = 500
+	workerCapScale              = 0.7
+	minWorkerCap                = 64
+	perWordMapCap               = 4
+	minStemMapCap               = 100
+	decimalBase                 = 10
+	maxSearchIndexContentLength = 2048
 )
 
 type partialResult struct {
@@ -87,7 +88,13 @@ func buildPartialResults(indexedPosts []models.IndexedPost, numWorkers int) []pa
 				for j := start; j < end; j++ {
 					ip := indexedPosts[j]
 					idStr := strconv.FormatUint(ip.Record.ID, decimalBase)
-					localPosts[idStr] = ip.Record
+
+					rec := ip.Record
+					if len(rec.Content) > maxSearchIndexContentLength {
+						rec.Content = core.TruncateToLength(rec.Content, maxSearchIndexContentLength)
+					}
+					localPosts[idStr] = rec
+
 					localDocLens[idStr] = int64(ip.DocLen)
 					localTotalLen += int64(ip.DocLen)
 

@@ -54,7 +54,7 @@ func TestBroadcastReload_Functional(t *testing.T) {
 		clientMu.Unlock()
 	}()
 
-	broadcastReload("site")
+	BroadcastReload("site", "")
 
 	select {
 	case target := <-clientChan:

@@ -17,7 +17,7 @@ func TestDateParsingFidelity(t *testing.T) {
 	}
 	mdPool := &sync.Pool{
 		New: func() any {
-			return mdParser.New(cfg, nil, mdParser.NewMemorySSRMap(), nil)
+			return mdParser.New(cfg, mdParser.WithDiagramCache(mdParser.NewMemorySSRMap()))
 		},
 	}
 

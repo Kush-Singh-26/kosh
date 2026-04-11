@@ -2,10 +2,12 @@ package assets
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -23,7 +25,83 @@ const (
 	maxNonImageWorkers = 32
 	fileTaskQueueSize  = 1024
 	minWalkConcurrency = 4
+	manifestFile       = "manifest.json"
 )
+
+// AssetManifest tracks metadata for assets to enable incremental skipping.
+type AssetManifest struct {
+	Entries map[string]AssetManifestEntry `json:"entries"`
+	mu      sync.RWMutex
+}
+
+// AssetManifestEntry stores metadata for a single asset.
+type AssetManifestEntry struct {
+	Size    int64 `json:"size"`
+	ModTime int64 `json:"mtime"`
+}
+
+// NewAssetManifest initializes an empty manifest.
+func NewAssetManifest() *AssetManifest {
+	return &AssetManifest{
+		Entries: make(map[string]AssetManifestEntry),
+	}
+}
+
+// Get returns the entry for a given path.
+func (m *AssetManifest) Get(path string) (AssetManifestEntry, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	entry, ok := m.Entries[path]
+	return entry, ok
+}
+
+// Set updates the entry for a given path.
+func (m *AssetManifest) Set(path string, entry AssetManifestEntry) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Entries[path] = entry
+}
+
+// LoadManifest loads the asset manifest from the cache directory.
+func LoadManifest(cacheDir string) (*AssetManifest, error) {
+	manifestPath := filepath.Join(cacheDir, manifestFile)
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return NewAssetManifest(), nil
+		}
+		return nil, fmt.Errorf("failed to read asset manifest at %s: %w", manifestPath, err)
+	}
+
+	manifest := NewAssetManifest()
+	if err := json.Unmarshal(data, &manifest.Entries); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal asset manifest from %s: %w", manifestPath, err)
+	}
+	return manifest, nil
+}
+
+// SaveManifest saves the asset manifest to the cache directory.
+func SaveManifest(cacheDir string, manifest *AssetManifest) error {
+	if manifest == nil {
+		return nil
+	}
+	manifestPath := filepath.Join(cacheDir, manifestFile)
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return fmt.Errorf("failed to create cache directory %s: %w", cacheDir, err)
+	}
+
+	manifest.mu.RLock()
+	data, err := json.MarshalIndent(manifest.Entries, "", "  ")
+	manifest.mu.RUnlock()
+	if err != nil {
+		return fmt.Errorf("failed to marshal asset manifest: %w", err)
+	}
+
+	if err := os.WriteFile(manifestPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write asset manifest to %s: %w", manifestPath, err)
+	}
+	return nil
+}
 
 type fileTask struct {
 	path            string
@@ -61,6 +139,7 @@ type CopyOptions struct {
 	WebPQuality  int
 	Metrics      ImageMetrics
 	Scheduler    scheduler.BuildScheduler
+	Manifest     *AssetManifest
 }
 
 // CopyDirOptions configures CopyDirVFS.
@@ -169,6 +248,12 @@ func handleNonImageTask(directoryCtx copyDirContext, task fileTask, options Copy
 		appendWorkerError(errorMutex, errorsList, err)
 		return
 	}
+	if options.Manifest != nil {
+		options.Manifest.Set(task.path, AssetManifestEntry{
+			Size:    task.info.Size(),
+			ModTime: task.info.ModTime().UnixNano(),
+		})
+	}
 	if options.Metrics != nil {
 		options.Metrics.IncrementAssetsProcessed()
 	}
@@ -263,6 +348,24 @@ func buildWalkFn(ctx context.Context, directoryCtx copyDirContext, options CopyD
 		}
 		if shouldSkipAsset(path, options) {
 			return nil
+		}
+
+		// Incremental skip based on manifest
+		if options.Manifest != nil {
+			if entry, ok := options.Manifest.Get(path); ok {
+				if entry.Size == info.Size() && entry.ModTime == info.ModTime().UnixNano() {
+					// Check if file exists in sink
+					relPath, _ := fspkg.SafeRel(directoryCtx.srcDir, path)
+					destPath := filepath.Join(directoryCtx.dstDir, relPath)
+					if _, err := directoryCtx.sink.Stat(destPath); err == nil {
+						// Register with renderer if skip is successful
+						if options.OnWrite != nil {
+							options.OnWrite(destPath)
+						}
+						return nil
+					}
+				}
+			}
 		}
 
 		relPath, _ := fspkg.SafeRel(directoryCtx.srcDir, path)

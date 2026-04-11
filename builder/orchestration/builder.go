@@ -127,7 +127,11 @@ func (setup *buildSetup) initNativeRenderer() {
 	setup.mdPool = &sync.Pool{
 		// mdPool stores *parser.Parser instances for markdown parsing.
 		New: func() any {
-			return parser.New(setup.config, setup.nativeRenderer, ssrMap, d2Group)
+			return parser.New(setup.config,
+				parser.WithRenderer(setup.nativeRenderer),
+				parser.WithDiagramCache(ssrMap),
+				parser.WithD2Group(d2Group),
+			)
 		},
 	}
 }

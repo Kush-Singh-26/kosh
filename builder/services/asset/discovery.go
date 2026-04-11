@@ -202,8 +202,9 @@ func (service *assetService) setupAssetWorker(assetChan <-chan assetTask, group 
 						Metrics:      service.metrics,
 						OnWrite:      service.renderer.RegisterFile,
 						ImageWorkers: service.cfg.ImageWorkers,
+						Manifest:     service.manifest,
 					}
-					return assets.CopyFileWithOptionalImageProcessing(assets.ProcessImageOptions{
+					if err := assets.CopyFileWithOptionalImageProcessing(assets.ProcessImageOptions{
 						Ctx:     ctx,
 						SrcFs:   service.sourceFs,
 						Sink:    service.sink,
@@ -218,7 +219,18 @@ func (service *assetService) setupAssetWorker(assetChan <-chan assetTask, group 
 							}
 							return nil
 						}(),
-					})
+					}); err != nil {
+						return err
+					}
+
+					// Update manifest for non-image assets (images are handled by image cache)
+					if service.manifest != nil && !service.isWebPCandidate(currentTask.sourcePath) {
+						service.manifest.Set(currentTask.sourcePath, assets.AssetManifestEntry{
+							Size:    currentTask.info.Size(),
+							ModTime: currentTask.info.ModTime().UnixNano(),
+						})
+					}
+					return nil
 				})
 			}
 			return nil
@@ -355,6 +367,26 @@ func (service *assetService) setupDiscoveryWalk(walkOptions discoveryWalkOptions
 						}
 						if filepath.Base(path) == "search.wasm" {
 							return nil
+						}
+
+						// Incremental skip based on manifest
+						if service.manifest != nil {
+							if entry, ok := service.manifest.Get(path); ok {
+								if entry.Size == info.Size() && entry.ModTime == info.ModTime().UnixNano() {
+									relative, _ := fspkg.SafeRel(dir, path)
+									fullRelativePath := "static/" + relative
+									destPath := filepath.Join(service.cfg.OutputDir, fullRelativePath)
+									if _, err := service.sink.Stat(destPath); err == nil {
+										if service.renderer != nil {
+											service.renderer.RegisterFile(destPath)
+										}
+										if service.metrics != nil {
+											service.metrics.IncrementAssetsProcessed()
+										}
+										return nil
+									}
+								}
+							}
 						}
 
 						relative, relativeErrorInstance := fspkg.SafeRel(dir, path)

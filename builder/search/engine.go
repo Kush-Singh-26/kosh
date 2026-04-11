@@ -13,7 +13,7 @@ import (
 // Constants for snippet extraction optimization.
 const (
 	// MaxSnippetContentLength caps content scanned for snippets.
-	MaxSnippetContentLength = 10000
+	MaxSnippetContentLength = 2048
 	// DefaultSnippetLength is the default snippet size.
 	DefaultSnippetLength = 150
 	// SnippetContextBefore is the prefix context size for snippets.

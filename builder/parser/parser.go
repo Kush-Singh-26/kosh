@@ -53,8 +53,44 @@ func codeBlockWrapper(writer util.BufWriter, codeCtx highlighting.CodeBlockConte
 	}
 }
 
+// ParserOptions controls the configuration of the markdown parser.
+type ParserOptions struct {
+	Renderer     *native.Renderer
+	DiagramCache SSRMap
+	D2Group      *singleflight.Group
+}
+
+// Option is a functional option for configuring the parser.
+type Option func(*ParserOptions)
+
+// WithRenderer sets the native renderer for the parser.
+func WithRenderer(renderer *native.Renderer) Option {
+	return func(o *ParserOptions) {
+		o.Renderer = renderer
+	}
+}
+
+// WithDiagramCache sets the diagram cache for the parser.
+func WithDiagramCache(cache SSRMap) Option {
+	return func(o *ParserOptions) {
+		o.DiagramCache = cache
+	}
+}
+
+// WithD2Group sets the singleflight group for D2 rendering.
+func WithD2Group(group *singleflight.Group) Option {
+	return func(o *ParserOptions) {
+		o.D2Group = group
+	}
+}
+
 // New creates a new Goldmark markdown parser with SSR support for diagrams
-func New(cfg *config.Config, renderer *native.Renderer, diagramCache SSRMap, d2Group *singleflight.Group) goldmark.Markdown {
+func New(cfg *config.Config, opts ...Option) goldmark.Markdown {
+	options := &ParserOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	baseURL := cfg.BaseURL
 	compress := cfg.ShouldCompressImages
 
@@ -80,9 +116,9 @@ func New(cfg *config.Config, renderer *native.Renderer, diagramCache SSRMap, d2G
 				util.Prioritized(&unifiedTransformer{
 					BaseURL:  baseURL,
 					Compress: compress,
-					Renderer: renderer,
-					Cache:    diagramCache,
-					D2Group:  d2Group,
+					Renderer: options.Renderer,
+					Cache:    options.DiagramCache,
+					D2Group:  options.D2Group,
 					IsDev:    cfg.IsDev,
 				}, unifiedTransformerPriority),
 			),

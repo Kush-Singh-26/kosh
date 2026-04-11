@@ -28,29 +28,11 @@ type snippetMatch struct {
 	term string
 }
 
-// truncateToLength truncates string text to maxLen and aligns to rune boundaries
-func truncateToLength(text string, maxLen int) string {
-	if len(text) <= maxLen {
-		return text
-	}
-
-	text = text[:maxLen]
-	// Align to rune boundary to avoid invalid UTF-8
-	for len(text) > 0 && !utf8.RuneStart(text[len(text)-1]) {
-		text = text[:len(text)-1]
-	}
-	// If the last byte is the start of a multi-byte rune but we don't have the rest,
-	// we should also trim it.
-	char, size := utf8.DecodeLastRuneInString(text)
-	if char == utf8.RuneError && size == 1 {
-		text = text[:len(text)-1]
-	}
-	return text
-}
+// truncateToLength is removed in favor of core.TruncateToLength
 
 // truncateContent truncates content to MaxSnippetContentLength and aligns to rune boundaries
 func truncateContent(content string) string {
-	return truncateToLength(content, MaxSnippetContentLength)
+	return core.TruncateToLength(content, MaxSnippetContentLength)
 }
 
 // findMatches finds all term matches in the content
@@ -280,7 +262,7 @@ func buildSimpleSnippet(content string) string {
 	if len(content) > DefaultSnippetLength {
 		b := pools.SharedStringBuilderPool.Get()
 		defer pools.SharedStringBuilderPool.Put(b)
-		truncated := truncateToLength(content, DefaultSnippetLength)
+		truncated := core.TruncateToLength(content, DefaultSnippetLength)
 		escapeToBuilder(b, truncated)
 		b.WriteString("...")
 		return b.String()

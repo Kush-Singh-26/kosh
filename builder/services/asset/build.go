@@ -41,10 +41,26 @@ func (service *assetService) BuildWithOptions(ctx context.Context, skipImages bo
 		copyTimer := timeutil.StartPhase("Asset discovery and copy")
 		defer copyTimer.Stop()
 
+		// Load asset manifest
+		if service.cfg.CacheDir != "" {
+			manifest, err := assets.LoadManifest(service.cfg.CacheDir + "/assets")
+			if err != nil {
+				service.logger.Warn("Failed to load asset manifest", "error", err)
+			} else {
+				service.manifest = manifest
+			}
+		}
+
 		defer func() {
 			if service.discoveryReady != nil {
 				close(service.discoveryReady)
 				service.discoveryReady = nil
+			}
+			// Save asset manifest
+			if service.manifest != nil && service.cfg.CacheDir != "" {
+				if err := assets.SaveManifest(service.cfg.CacheDir+"/assets", service.manifest); err != nil {
+					service.logger.Warn("Failed to save asset manifest", "error", err)
+				}
 			}
 		}()
 
