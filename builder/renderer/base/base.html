@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="dark light">
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .TabTitle }}</title>
+    <meta name="description" content="{{ .Description }}">
+    
+    <link rel="preconnect" href="{{ .BaseURL }}">
+    <link rel="dns-prefetch" href="{{ .BaseURL }}">
+
+    <link rel="canonical" href="{{ .Permalink }}">
+    <link rel="alternate" type="application/rss+xml" title="{{ .Title }} RSS Feed" href="{{ relativize .BaseURL .RelativePrefix "/rss.xml" }}" />
+    <meta name="theme-color" content="#111113">
+
+    {{ if and .Config.GetFeatures.Generators.IsPWAEnabled (not .Config.IsDevMode) }}
+    <link rel="apple-touch-icon" href="{{ relativize .BaseURL .RelativePrefix "/static/images/icon-192.png" }}">
+    <link rel="manifest" href="{{ relativize .BaseURL .RelativePrefix "/manifest.json" }}">
+    {{ end }}
+
+    <meta property="og:type" content="{{ if .IsIndex }}website{{ else }}article{{ end }}">
+    <meta property="og:url" content="{{ .Permalink }}">
+    <meta property="og:title" content="{{ .Title }}">
+    <meta property="og:description" content="{{ .Description }}">
+    <meta property="og:image" content="{{ .Image }}">
+    <meta name="image" property="og:image" content="{{ .Image }}">
+
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self';">
+    
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ .Permalink }}">
+    <meta name="twitter:title" content="{{ .Title }}">
+    <meta name="twitter:description" content="{{ .Description }}">
+    <meta name="twitter:image" content="{{ .Image }}"> 
+    
+    {{ if .IsGraphPage }}
+    <style>html, body { overflow: hidden; margin: 0; padding: 0; max-width: none; }
+    main { padding: 0; margin: 0; max-width: none; }
+    header { max-width: 1024px; margin-left: auto; margin-right: auto; }
+    </style>
+    {{ end }}
+
+    {{ if .Assets }}
+    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/css/layout.css") }}">
+    {{ if .IsGraphPage }}
+    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/css/graph.css") }}">
+    {{ end }}
+    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/main.js") }}">
+    {{ if .IsGraphPage }}
+    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/graph.js") }}">
+    {{ end }}
+    {{ else }}
+    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/layout.css" }}">
+    {{ if .IsGraphPage }}
+    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/graph.css" }}">
+    {{ end }}
+    {{ end }}
+
+    {{ if and .Config.GetFeatures.Generators.IsSearchEnabled (not .Config.IsDevMode) }}
+    <link rel="prefetch" href="{{ relativize .BaseURL .RelativePrefix "/static/wasm/search.wasm" }}" as="fetch" crossorigin fetchpriority="low">
+    {{ end }}
+
+    <script>
+        window.siteBaseURL = "{{ .BaseURL }}";
+        window.buildVersion = "{{ .BuildVersion }}";
+        window.blogTags = {{ .AllTags | jsonify }};
+    </script>
+    {{ if .Config.GetLogo }}
+    <link rel="icon" type="image/png" href="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}">
+    {{ end }}
+
+    {{ if not .IsIndex }}
+    <script type="application/ld+json">{{ .JSONLD }}</script>
+    {{ end }}
+
+    {{ if not .Config.IsDevMode }}
+    <script type="speculationrules">
+    {
+      "prerender": [{
+        "source": "document",
+        "where": {
+          "and": [
+            {"href_matches": "/*"},
+            {"not": {"href_matches": "/rss.xml"}},
+            {"not": {"href_matches": "/manifest.json"}},
+            {"not": {"href_matches": "/search.bin"}},
+            {"not": {"href_matches": "/*.js"}},
+            {"not": {"href_matches": "/*.css"}},
+            {"not": {"href_matches": "/*.wasm"}}
+          ]
+        },
+        "eagerness": "moderate"
+      }]
+    }
+    </script>
+    {{ end }}
+
+    {{ block "head-extra" . }}{{ end }}
+</head>
+<body{{ if .IsGraphPage }} class="graph-mode"{{ end }}>
+    {{ if not .IsGraphPage }}
+    <div id="progress-bar"></div>
+    <div id="scroll-ghost"><div id="scroll-ghost-fill"></div></div>
+    {{ end }}
+
+    <header>
+        <a href="{{ relativize .BaseURL .RelativePrefix "/" }}" class="site-title">
+            {{ if .Config.GetLogo }}
+            <img src="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}" alt="Logo" class="site-logo" width="35" height="35" fetchpriority="high" loading="eager">
+            {{ end }}
+            {{ .Config.GetSiteTitle }}
+        </a>
+        <nav>
+            <div class="desktop-nav">
+                {{ range .Config.GetMenu }}
+                {{ if .URL }}
+                <a href="{{ if hasPrefix .URL "http" }}{{ .URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix .URL }}{{ end }}" {{ if .Target }}target="{{ .Target }}"{{ end }} {{ if .ID }}id="{{ .ID }}"{{ end }} {{ if .Class }}class="{{ .Class }}"{{ end }} aria-label="{{ .Name }}" title="{{ .Name }}">
+                    {{ .Name }}
+                </a>
+                {{ else }}
+                <button {{ if .ID }}id="{{ .ID }}"{{ end }} {{ if .Class }}class="{{ .Class }}"{{ end }} aria-label="{{ .Name }}" title="{{ .Name }}">
+                    {{ .Name }}
+                </button>
+                {{ end }}
+                {{ end }}
+                <button id="theme-toggle" aria-label="Toggle Theme">
+                    <svg class="theme-icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    <svg class="theme-icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                </button>
+            </div>
+            
+            <button id="search-btn-mobile" class="nav-btn mobile-search-btn" aria-label="Search">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </button>
+            
+            <button id="theme-toggle-mobile" class="mobile-theme-toggle" aria-label="Toggle Theme">
+                <svg class="theme-icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <svg class="theme-icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+            
+            <button id="menu-toggle" class="menu-toggle" aria-label="Toggle Menu" aria-expanded="false">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+        </nav>
+    </header>
+
+    <div id="mobile-menu" class="mobile-menu" aria-hidden="true">
+        <div class="mobile-menu-header">
+            <span class="mobile-menu-title">Menu</span>
+            <button id="menu-close" class="menu-close" aria-label="Close Menu">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-menu-content">
+            {{ range .Config.GetMenu }}
+            {{ if .URL }}
+            <a href="{{ if hasPrefix .URL "http" }}{{ .URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix .URL }}{{ end }}" 
+               {{ if .Target }}target="{{ .Target }}"{{ end }} 
+               {{ if .ID }}id="mobile-{{ .ID }}"{{ end }} 
+               {{ if .Class }}class="mobile-nav-link {{ .Class }}"{{ else }}class="mobile-nav-link"{{ end }}>
+                {{ .Name }}
+            </a>
+            {{ else }}
+            <button {{ if .ID }}id="mobile-{{ .ID }}"{{ end }} 
+                    {{ if .Class }}class="mobile-nav-link {{ .Class }}"{{ else }}class="mobile-nav-link"{{ end }} 
+                    aria-label="{{ .Name }}">{{ .Name }}</button>
+            {{ end }}
+            {{ end }}
+        </div>
+    </div>
+    <div id="mobile-menu-backdrop" class="mobile-menu-backdrop"></div>
+
+    <main>
+    {{ if .IsGraphPage }}
+        <div id="graph-app">
+            <canvas id="graph-canvas"></canvas>
+        </div>
+        <div class="graph-ui">
+            <div class="graph-bottom-left">
+                <div class="graph-stats">
+                    <div class="graph-node-count">Nodes: <span id="graph-count">—</span></div>
+                </div>
+                <div class="graph-legend">
+                    <div class="graph-legend-item"><span class="graph-legend-dot" style="background: var(--accent-primary)"></span>Hub</div>
+                    <div class="graph-legend-item"><span class="graph-legend-dot" style="background: var(--accent-link)"></span>Tag</div>
+                    <div class="graph-legend-item"><span class="graph-legend-dot" style="background: var(--accent-secondary)"></span>Article</div>
+                </div>
+            </div>
+            <div class="graph-controls">
+                <div class="graph-control-btn" id="graph-zi" title="Zoom In">+</div>
+                <div class="graph-control-btn" id="graph-zo" title="Zoom Out">−</div>
+                <div class="graph-control-btn" id="graph-re" title="Reset View">⌖</div>
+            </div>
+        </div>
+        <div id="graph-panel" class="graph-panel">
+            <div class="graph-panel-close" id="graph-panel-close">✕</div>
+            <div class="graph-panel-type" id="graph-p-type">Article</div>
+            <div class="graph-panel-title" id="graph-p-title">Node</div>
+            <div class="graph-panel-date" id="graph-p-date"></div>
+            <div class="graph-panel-desc" id="graph-p-desc"></div>
+            <div class="graph-panel-url" id="graph-p-url"></div>
+            <div class="graph-panel-divider"></div>
+            <div class="graph-panel-sub">Linked nodes</div>
+            <div class="graph-pills" id="graph-pills"></div>
+            <div class="graph-hint">Double-click to open • Click pills to navigate</div>
+        </div>
+    {{ else }}
+        {{ block "content" . }}{{ end }}
+    {{ end }}
+    </main>
+
+    {{ if and .TOC (not .IsGraphPage) }}
+    <button id="floating-toc-btn" class="floating-btn" aria-label="Open Table of Contents">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+    </button>
+
+    <div id="toc-modal" class="toc-modal-overlay">
+        <div class="toc-modal-content">
+            <div class="toc-modal-header">
+                <span>Table of Contents</span>
+                <button id="toc-modal-close" class="toc-modal-close">&times;</button>
+            </div>
+            <nav class="toc-modal-nav">
+                <ul>
+                    {{ range .TOC }}
+                    <li class="toc-level-{{ .Level }}">
+                        <a href="#{{ .ID }}" class="toc-modal-link">{{ .Text }}</a>
+                    </li>
+                    {{ end }}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {{ end }}
+
+    <div id="search-modal" class="modal">
+        <div class="modal-content">
+            <div class="search-header">
+                <input type="text" id="search-input" placeholder="Search posts..." autocomplete="off">
+                <span class="close-search">&times;</span>
+            </div>
+            <div id="search-suggestions" class="search-suggestions"></div>
+            <div id="search-results"></div>
+            <div class="search-footer">
+                <div class="search-help">
+                    <span><kbd>+</kbd> required</span>
+                    <span><kbd>-</kbd> exclude</span>
+                    <span><kbd>"phrase"</kbd> exact</span>
+                </div>
+                <div class="search-controls">
+                    <kbd>Esc</kbd> close | <kbd>↑↓</kbd> navigate
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{ if not .IsGraphPage }}
+    <footer class="colophon">
+        <div class="colophon-grid">
+            <div class="colophon-left">
+                <span class="colophon-title">{{ .Config.GetSiteTitle }}</span>
+                <span class="colophon-tagline">&copy; {{ now.Year }} &bull; {{ .Config.GetSiteTitle }}</span>
+            </div>
+            <div class="colophon-center">
+                <div class="scholar-seal">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="2" y="2" width="36" height="36" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M10 10 L30 10 M10 20 L30 20 M10 30 L30 30 M20 10 L20 30" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="colophon-right">
+                <div class="colophon-social">
+                    {{ range $index, $item := .Config.GetFooterMenu }}
+                    {{ if $index }}<span class="social-dot">&bull;</span>{{ end }}
+                    <a href="{{ if hasPrefix $item.URL "http" }}{{ $item.URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix $item.URL }}{{ end }}" {{ if $item.Target }}target="{{ $item.Target }}"{{ end }} rel="noopener">{{ $item.Name }}</a>
+                    {{ end }}
+                </div>
+                <div class="colophon-meta">
+                    <a href="https://github.com/Kush-Singh-26/kosh" target="_blank" rel="noopener">Built with Kosh</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <button id="back-to-top" class="back-to-top" aria-label="Back to Top">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+    </button>
+    {{ end }}
+
+    {{ if .Assets }}
+    <script defer src="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/main.js") }}"></script>
+    <script defer src="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/search.js") }}"></script>
+    {{ if .IsGraphPage }}
+    <script defer src="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/graph.js") }}"></script>
+    {{ end }}
+    {{ else }}
+    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/main.js" }}?v={{ .BuildVersion }}"></script>
+    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/search.js" }}?v={{ .BuildVersion }}"></script>
+    {{ if .IsGraphPage }}
+    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ .BuildVersion }}"></script>
+    {{ end }}
+    {{ end }}
+
+    <script>
+        (function () {
+            const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+            if (hosts.includes(window.location.hostname)) {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(registration => {
+                            registration.unregister();
+                            console.log('🚧 Service Worker unregistered');
+                        });
+                    });
+                }
+                if ('caches' in window) {
+                    caches.keys().then(cacheNames => {
+                        cacheNames.forEach(cacheName => {
+                            caches.delete(cacheName);
+                            console.log('🗑️ Cache cleared:', cacheName);
+                        });
+                    });
+                }
+                let reloadTimeout;
+                const source = new EventSource("/events");
+                source.onmessage = function (event) {
+                    if (event.data === "site" || event.data === "root" || event.data === "all" || event.data === "reload") {
+                        console.log("♻️ Change detected: " + event.data + ". Waiting for build to complete...");
+                        if (reloadTimeout) clearTimeout(reloadTimeout);
+                        reloadTimeout = setTimeout(() => {
+                            console.log("🔄 Reloading now...");
+                            window.location.reload(true);
+                        }, 250);
+                    }
+                };
+                source.onerror = function () {
+                    source.close();
+                };
+            } else {
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => {
+                        const swPath = '{{ relativize .BaseURL .RelativePrefix "/sw.js" }}';
+                        navigator.serviceWorker.register(swPath)
+                            .then(registration => {
+                                console.log('✅ ServiceWorker registration successful with scope: ', registration.scope);
+                            })
+                            .catch(err => {
+                                console.error('❌ ServiceWorker registration failed: ', err);
+                            });
+                    });
+                }
+            }
+        })();
+    </script>
+    {{ block "scripts-extra" . }}{{ end }}
+</body>
+</html>

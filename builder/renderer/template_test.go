@@ -2,9 +2,11 @@ package renderer
 
 import (
 	"bytes"
+	"html/template"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -18,10 +20,10 @@ func TestRenderer_ReloadTemplates(t *testing.T) {
 	templateDir := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	// Create dummy template files
+	// Create dummy template files in slot format
 	_ = fs.MkdirAll(templateDir, 0755)
-	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ .Title }}`), 0644)
-	_ = afero.WriteFile(fs, filepath.Join(templateDir, "index.html"), []byte(`Index: {{ .Title }}`), 0644)
+	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ define "content" }}{{ .Title }}{{ end }}`), 0644)
+	_ = afero.WriteFile(fs, filepath.Join(templateDir, "index.html"), []byte(`{{ define "content" }}Index: {{ .Title }}{{ end }}`), 0644)
 
 	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
 
@@ -32,11 +34,11 @@ func TestRenderer_ReloadTemplates(t *testing.T) {
 		t.Fatal("Index template should not be nil")
 	}
 
-	// Verify template execution
+	// Verify template execution - now it contains the base chrome
 	buf := new(bytes.Buffer)
-	_ = r.Layout.Execute(buf, map[string]string{"Title": "My Page"})
-	if buf.String() != "My Page" {
-		t.Errorf("Expected My Page, got %s", buf.String())
+	_ = r.Layout.Execute(buf, map[string]any{"Title": "My Page", "TabTitle": "Tab", "Description": "Desc"})
+	if !strings.Contains(buf.String(), "My Page") {
+		t.Errorf("Expected output to contain 'My Page', got %s", buf.String())
 	}
 }
 
@@ -48,7 +50,7 @@ func TestRenderer_ReloadTemplates_Missing(t *testing.T) {
 
 	// Create only layout.html (minimal required)
 	_ = fs.MkdirAll(templateDir, 0755)
-	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`Layout`), 0644)
+	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ define "content" }}Layout{{ end }}`), 0644)
 
 	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
 
@@ -61,17 +63,9 @@ func TestRenderer_ReloadTemplates_Missing(t *testing.T) {
 }
 
 func TestRenderer_FuncMap_Relativize(t *testing.T) {
-	// Helper functions are inside FuncMap in ReloadTemplates
-	// I'll test them by executing a small template
-	fs := afero.NewMemMapFs()
-	sink := testutil.NewMemSink()
-	templateDir := t.TempDir()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-
-	_ = fs.MkdirAll(templateDir, 0755)
-	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ relativize .BaseURL .RelativePrefix .Link }}`), 0644)
-
-	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
+	// Test the function in isolation to avoid base.html field requirements
+	funcMap := templateFuncMap()
+	tmpl := template.Must(template.New("test").Funcs(funcMap).Parse(`{{ relativize .BaseURL .RelativePrefix .Link }}`))
 
 	tests := []struct {
 		baseURL  string
@@ -95,7 +89,7 @@ func TestRenderer_FuncMap_Relativize(t *testing.T) {
 			Link           string
 		}{tt.baseURL, tt.prefix, tt.link}
 
-		err := r.Layout.Execute(buf, data)
+		err := tmpl.Execute(buf, data)
 		if err != nil {
 			t.Errorf("Template execution failed for %v: %v", tt, err)
 			continue
@@ -108,18 +102,12 @@ func TestRenderer_FuncMap_Relativize(t *testing.T) {
 }
 
 func TestRenderer_FuncMap_Slugify(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	sink := testutil.NewMemSink()
-	templateDir := t.TempDir()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-
-	_ = fs.MkdirAll(templateDir, 0755)
-	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ slugify .Title }}`), 0644)
-
-	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
+	// Test the function in isolation
+	funcMap := templateFuncMap()
+	tmpl := template.Must(template.New("test").Funcs(funcMap).Parse(`{{ slugify .Title }}`))
 
 	buf := new(bytes.Buffer)
-	_ = r.Layout.Execute(buf, map[string]string{"Title": "Hello World!"})
+	_ = tmpl.Execute(buf, map[string]string{"Title": "Hello World!"})
 	if buf.String() != "hello-world" {
 		t.Errorf("Expected hello-world, got %s", buf.String())
 	}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/minify"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/base"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
@@ -19,26 +20,18 @@ func setupTestRenderer(t *testing.T) *Renderer {
 	sink := testutil.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	layoutTmpl := template.Must(template.New("layout").Parse(`<!DOCTYPE html>
-<html>
-<head><title>{{.Title}}</title></head>
-<body>{{.Content}}</body>
-</html>`))
+	baseTmpl := template.Must(template.New("base.html").Funcs(templateFuncMap()).Parse(base.BaseTemplate))
 
-	indexTmpl := template.Must(template.New("index").Parse(`<!DOCTYPE html>
-<html><head><title>Index: {{.Title}}</title></head>
-<body><h1>Index</h1>{{range .Posts}}<p>{{.Title}}</p>{{end}}</body>
-</html>`))
+	loadStub := func(content string) *template.Template {
+		cloned := template.Must(baseTmpl.Clone())
+		template.Must(cloned.New("stub").Parse(content))
+		return cloned
+	}
 
-	graphTmpl := template.Must(template.New("graph").Parse(`<!DOCTYPE html>
-<html><head><title>Graph</title></head>
-<body><div id="graph"></div></body>
-</html>`))
-
-	notFoundTmpl := template.Must(template.New("404").Parse(`<!DOCTYPE html>
-<html><head><title>404 Not Found</title></head>
-<body><h1>404 - Page Not Found</h1></body>
-</html>`))
+	layoutTmpl := loadStub(`{{define "content"}}{{.Content}}{{end}}`)
+	indexTmpl := loadStub(`{{define "content"}}<h1>Index</h1>{{range .Posts}}<p>{{.Title}}</p>{{end}}{{end}}`)
+	graphTmpl := template.Must(baseTmpl.Clone()) // Graph is base-only
+	notFoundTmpl := loadStub(`{{define "content"}}<h1>404 - Page Not Found</h1>{{end}}`)
 
 	r := &Renderer{
 		Sink:     sink,

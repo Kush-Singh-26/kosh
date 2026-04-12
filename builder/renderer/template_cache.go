@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/spf13/afero"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -61,7 +62,7 @@ func getGlobalCache(templateDir string, devMode bool) *templateCache {
 	return globalCache
 }
 
-func (tc *templateCache) hasTemplatesChanged() bool {
+func (tc *templateCache) hasTemplatesChanged(fs afero.Fs) bool {
 	now := time.Now()
 	nowNs := now.UnixNano()
 	checkTTLNs := tc.checkTTL.Nanoseconds()
@@ -86,7 +87,7 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 		// Update last check time
 		tc.lastCheckNs.Store(nowNs)
 
-		changed, _ := tc.checkTemplatesOnDisk()
+		changed, _ := tc.checkTemplatesOnDisk(fs)
 		return changed, nil
 	})
 
@@ -101,9 +102,25 @@ func (tc *templateCache) hasTemplatesChanged() bool {
 	return changed
 }
 
-func (tc *templateCache) checkTemplatesOnDisk() (bool, error) {
-	templateFiles := []string{"layout.html", "index.html", "graph.html", "404.html"}
+func (tc *templateCache) checkTemplatesOnDisk(fs afero.Fs) (bool, error) {
+	templateFiles := []string{"layout.html", "index.html", "404.html"}
 	changed := false
+
+	// Add partials to the list of files to check
+	partialsDir := filepath.Join(tc.templateDir, "partials")
+	if info, err := fs.Stat(partialsDir); err == nil && info.IsDir() {
+		// Walk partials to detect changes in snippets
+		err = afero.Walk(fs, partialsDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".html") {
+				return nil
+			}
+			rel, err := filepath.Rel(tc.templateDir, path)
+			if err == nil {
+				templateFiles = append(templateFiles, rel)
+			}
+			return nil
+		})
+	}
 
 	// Use read lock to check metadata first
 	tc.mu.RLock()
@@ -111,12 +128,18 @@ func (tc *templateCache) checkTemplatesOnDisk() (bool, error) {
 
 	for _, fname := range templateFiles {
 		path := filepath.Join(tc.templateDir, fname)
-		info, err := os.Stat(path)
+		info, err := fs.Stat(path)
 		if err != nil {
+			// If a previously tracked template is gone, that's a change
+			name := strings.TrimSuffix(filepath.ToSlash(fname), ".html")
+			if _, exists := tc.mtimes[name]; exists {
+				changed = true
+				break
+			}
 			continue
 		}
 
-		name := strings.TrimSuffix(fname, ".html")
+		name := strings.TrimSuffix(filepath.ToSlash(fname), ".html")
 		cachedMtime, exists := tc.mtimes[name]
 
 		if !exists || !info.ModTime().Equal(cachedMtime) {

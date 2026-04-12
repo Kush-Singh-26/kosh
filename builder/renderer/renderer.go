@@ -21,6 +21,7 @@ import (
 	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
 
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/base"
 )
 
 // Renderer loads templates and renders site pages.
@@ -29,6 +30,7 @@ type Renderer struct {
 	Index          *template.Template
 	Graph          *template.Template
 	NotFound       *template.Template
+	baseTemplate   *template.Template
 	assetsSnapshot atomic.Pointer[map[string]string]
 	Compress       bool
 	Sink           fspkg.ArtifactSink
@@ -106,7 +108,7 @@ func (r *Renderer) ReloadTemplates() {
 	tc.mu.RUnlock()
 
 	// Do not hold any locks when calling hasTemplatesChanged() to avoid deadlock
-	cacheValid := hasTemplates && !tc.hasTemplatesChanged()
+	cacheValid := hasTemplates && !tc.hasTemplatesChanged(r.SourceFs)
 
 	if cacheValid {
 		r.applyTemplateCache(tc)
@@ -222,29 +224,46 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 		mu                                             sync.Mutex
 	)
 
-	loadTmpl := func(name, fileName string) (*template.Template, error) {
+	baseTmpl, err := template.New("base.html").Funcs(funcMap).Parse(base.BaseTemplate)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to parse embedded base template: %w", err)
+	}
+
+	loadSlotTmpl := func(name, fileName string) (*template.Template, error) {
 		path := filepath.Join(r.templateDir, fileName)
 		content, err := afero.ReadFile(r.SourceFs, path)
 		if err != nil {
 			return nil, err
 		}
-		tmpl, err := template.New(fileName).Funcs(funcMap).Parse(string(content))
+
+		// Clone base and parse theme slot on top
+		t, err := baseTmpl.Clone()
 		if err != nil {
 			return nil, err
 		}
+
+		// Load partials into the clone
+		if _, err := r.loadPartials(t); err != nil {
+			return nil, err
+		}
+
+		if _, err := t.New(fileName).Parse(string(content)); err != nil {
+			return nil, err
+		}
+
 		info, _ := r.SourceFs.Stat(path)
 		mu.Lock()
 		if info != nil {
-			tc.setTemplate(name, tmpl, info.ModTime(), content)
+			tc.setTemplate(name, t, info.ModTime(), content)
 		}
 		mu.Unlock()
-		return tmpl, nil
+		return t, nil
 	}
 
 	eg := new(errgroup.Group)
 
 	eg.Go(func() error {
-		tmpl, err := loadTmpl("layout", "layout.html")
+		tmpl, err := loadSlotTmpl("layout", "layout.html")
 		if err != nil {
 			return fmt.Errorf("failed to read layout template: %w", err)
 		}
@@ -255,7 +274,7 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 	})
 
 	eg.Go(func() error {
-		tmpl, err := loadTmpl("index", "index.html")
+		tmpl, err := loadSlotTmpl("index", "index.html")
 		if err != nil {
 			r.logger.Warn("Index template not found, falling back to layout", "dir", r.templateDir)
 			return nil
@@ -267,19 +286,24 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 	})
 
 	eg.Go(func() error {
-		tmpl, err := loadTmpl("graph", "graph.html")
+		// Graph is now base-only clone
+		t, err := baseTmpl.Clone()
 		if err != nil {
-			r.logger.Warn("Graph template not found, skipping graph page", "dir", r.templateDir)
-			return nil
+			return err
+		}
+		// Load partials into the clone
+		if _, err := r.loadPartials(t); err != nil {
+			return err
 		}
 		mu.Lock()
-		graphTmpl = tmpl
+		graphTmpl = t
+		tc.setTemplate("graph", t, time.Now(), []byte(base.BaseTemplate))
 		mu.Unlock()
 		return nil
 	})
 
 	eg.Go(func() error {
-		tmpl, err := loadTmpl("404", "404.html")
+		tmpl, err := loadSlotTmpl("404", "404.html")
 		if err != nil {
 			r.logger.Warn("404 template not found, falling back to layout", "dir", r.templateDir)
 			return nil
@@ -294,4 +318,50 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 		return nil, nil, nil, nil, err
 	}
 	return layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl, nil
+}
+
+// loadPartials discovers and parses all files under templates/partials/ into t.
+// Partials are registered as named templates "partials/<filename>" on t.
+func (r *Renderer) loadPartials(t *template.Template) (int, error) {
+	partialsDir := filepath.Join(r.templateDir, "partials")
+	exists, err := afero.DirExists(r.SourceFs, partialsDir)
+	if err != nil || !exists {
+		return 0, nil // No partials directory is fine
+	}
+
+	count := 0
+	err = afero.Walk(r.SourceFs, partialsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(info.Name(), ".html") {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(partialsDir, path)
+		if err != nil {
+			return err
+		}
+
+		content, err := afero.ReadFile(r.SourceFs, path)
+		if err != nil {
+			return err
+		}
+
+		// Register as "partials/filename.html"
+		// Using filepath.ToSlash for consistent template names across OSes
+		name := "partials/" + filepath.ToSlash(relPath)
+		if _, err := t.New(name).Parse(string(content)); err != nil {
+			return fmt.Errorf("failed to parse partial %s: %w", name, err)
+		}
+
+		count++
+		return nil
+	})
+
+	if err != nil {
+		return count, fmt.Errorf("failed to walk partials directory: %w", err)
+	}
+
+	return count, nil
 }

@@ -324,6 +324,9 @@ func SetDevMode(cfg *Config, isDev bool) {
 // GetMenu returns the configured menu entries.
 func (cfg *Config) GetMenu() []models.MenuEntry { return cfg.Menu }
 
+// GetFooterMenu returns the configured footer menu entries.
+func (cfg *Config) GetFooterMenu() []models.MenuEntry { return cfg.FooterMenu }
+
 // GetAuthor returns the configured author metadata.
 func (cfg *Config) GetAuthor() models.AuthorConfig { return cfg.Author }
 
@@ -335,6 +338,9 @@ func (cfg *Config) GetFeatures() models.FeaturesConfig { return cfg.Features }
 
 // GetSiteTitle returns the site title.
 func (cfg *Config) GetSiteTitle() string { return cfg.Title }
+
+// GetLogo returns the path to the site logo.
+func (cfg *Config) GetLogo() string { return cfg.Logo }
 
 // GetBaseURL returns the configured base URL.
 func (cfg *Config) GetBaseURL() string { return cfg.BaseURL }

@@ -153,32 +153,12 @@ This is a test post.
 	themeDir := "themes/test-theme/templates"
 	_ = fs.MkdirAll(themeDir, testDirMode)
 
-	layoutTmpl := `
-<!DOCTYPE html>
-<html>
-<head><title>{{ .Title }}</title></head>
-<body>
-    {{ .Content }}
-</body>
-</html>
-`
-	indexTmpl := `
-<!DOCTYPE html>
-<html>
-<head><title>{{ .Title }}</title></head>
-<body>
-    {{ range .Posts }}
-        <h2>{{ .Title }}</h2>
-    {{ end }}
-    {{ .Content }}
-</body>
-</html>
-`
+	layoutTmpl := `{{ define "content" }}{{ .Content }}{{ end }}`
+	indexTmpl := `{{ define "content" }}{{ range .Posts }}<h2>{{ .Title }}</h2>{{ end }}{{ .Content }}{{ end }}`
+
 	_ = afero.WriteFile(fs, filepath.Join(themeDir, "layout.html"), []byte(layoutTmpl), testFileMode)
 	_ = afero.WriteFile(fs, filepath.Join(themeDir, "index.html"), []byte(indexTmpl), testFileMode)
-	_ = afero.WriteFile(fs, filepath.Join(themeDir, "post.html"), []byte(layoutTmpl), testFileMode)
 	_ = afero.WriteFile(fs, filepath.Join(themeDir, "404.html"), []byte(layoutTmpl), testFileMode)
-	_ = afero.WriteFile(fs, filepath.Join(themeDir, "graph.html"), []byte(layoutTmpl), testFileMode)
 }
 
 // WaitForCondition polls a condition until it's met or a timeout occurs

@@ -7,6 +7,20 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+type MockConfig struct{}
+
+func (m MockConfig) GetMenu() []models.MenuEntry       { return nil }
+func (m MockConfig) GetFooterMenu() []models.MenuEntry { return nil }
+func (m MockConfig) GetAuthor() models.AuthorConfig   { return models.AuthorConfig{} }
+func (m MockConfig) GetSocial() models.SocialCardsConfig {
+	return models.SocialCardsConfig{Gradient: []string{"#000", "#fff"}}
+}
+func (m MockConfig) GetFeatures() models.FeaturesConfig { return models.FeaturesConfig{} }
+func (m MockConfig) GetSiteTitle() string               { return "Kosh Blog" }
+func (m MockConfig) GetLogo() string                    { return "" }
+func (m MockConfig) GetBaseURL() string                 { return "" }
+func (m MockConfig) IsDevMode() bool                    { return false }
+
 // SetAssets snapshots the asset map for template rendering.
 func (r *Renderer) SetAssets(assets map[string]string) {
 	// Create snapshot
@@ -26,6 +40,13 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 
 // PreparePageData performs common optimizations like asset map relativization
 func (r *Renderer) PreparePageData(data *models.PageData) {
+	if data.Config == nil {
+		data.Config = MockConfig{}
+	}
+	if data.TabTitle == "" && data.Title != "" {
+		data.TabTitle = data.Title
+	}
+
 	if data.Assets == nil {
 		data.Assets = r.GetAssets()
 	}

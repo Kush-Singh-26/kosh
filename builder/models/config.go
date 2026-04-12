@@ -43,10 +43,12 @@ type SocialCardsConfig struct {
 // models and the main config package while restoring type safety.
 type TemplateConfig interface {
 	GetMenu() []MenuEntry
+	GetFooterMenu() []MenuEntry
 	GetAuthor() AuthorConfig
 	GetSocial() SocialCardsConfig
 	GetFeatures() FeaturesConfig
 	GetSiteTitle() string
+	GetLogo() string
 	GetBaseURL() string
 	IsDevMode() bool
 }

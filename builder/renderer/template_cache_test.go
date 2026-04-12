@@ -8,17 +8,19 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/spf13/afero"
 )
 
 func TestRenderer_MutexProtection(t *testing.T) {
 	templateDir := t.TempDir()
 
-	layoutContent := `<html><body>{{ template "content" . }}</body></html>`
+	layoutContent := `{{ define "content" }}Layout{{ end }}`
 	if err := os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte(layoutContent), 0644); err != nil {
 		t.Fatalf("Failed to write layout: %v", err)
 	}
 
-	indexContent := `<html><body>Index</body></html>`
+	indexContent := `{{ define "content" }}Index{{ end }}`
 	if err := os.WriteFile(filepath.Join(templateDir, "index.html"), []byte(indexContent), 0644); err != nil {
 		t.Fatalf("Failed to write index: %v", err)
 	}
@@ -48,9 +50,9 @@ func TestRenderer_MutexProtection(t *testing.T) {
 func TestTemplateCache_HasTemplatesChanged_StampedePrevention(t *testing.T) {
 	templateDir := t.TempDir()
 
-	layoutContent := `<html><body>{{ .Title }}</body></html>`
+	layoutContent := `{{ define "content" }}{{ .Title }}{{ end }}`
 	_ = os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte(layoutContent), 0644)
-	_ = os.WriteFile(filepath.Join(templateDir, "index.html"), []byte("<html>Index</html>"), 0644)
+	_ = os.WriteFile(filepath.Join(templateDir, "index.html"), []byte(`{{ define "content" }}Index{{ end }}`), 0644)
 
 	tc := &templateCache{
 		templates:   make(map[string]*template.Template),
@@ -67,7 +69,7 @@ func TestTemplateCache_HasTemplatesChanged_StampedePrevention(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			results[idx] = tc.hasTemplatesChanged()
+			results[idx] = tc.hasTemplatesChanged(afero.NewOsFs())
 		}(i)
 	}
 
@@ -78,7 +80,7 @@ func TestTemplateCache_HasTemplatesChanged_StampedePrevention(t *testing.T) {
 
 func TestTemplateCache_SetAndGet(t *testing.T) {
 	templateDir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte("<html></html>"), 0644)
+	_ = os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte(`{{ define "content" }}Layout{{ end }}`), 0644)
 
 	tc := &templateCache{
 		templates:   make(map[string]*template.Template),
@@ -88,8 +90,8 @@ func TestTemplateCache_SetAndGet(t *testing.T) {
 		checkTTL:    2 * time.Second,
 	}
 
-	tmpl, _ := template.New("layout").Parse("<html></html>")
-	tc.setTemplate("layout", tmpl, time.Now(), []byte("<html></html>"))
+	tmpl, _ := template.New("layout").Parse(`{{ define "content" }}Layout{{ end }}`)
+	tc.setTemplate("layout", tmpl, time.Now(), []byte(`{{ define "content" }}Layout{{ end }}`))
 
 	tc.mu.RLock()
 	_, exists := tc.templates["layout"]
@@ -104,8 +106,8 @@ func TestTemplateCache_SetAndGet(t *testing.T) {
 
 func TestTemplateCache_ConcurrentAccess(t *testing.T) {
 	templateDir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte("<html></html>"), 0644)
-	_ = os.WriteFile(filepath.Join(templateDir, "index.html"), []byte("<html></html>"), 0644)
+	_ = os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte(`{{ define "content" }}Layout{{ end }}`), 0644)
+	_ = os.WriteFile(filepath.Join(templateDir, "index.html"), []byte(`{{ define "content" }}Index{{ end }}`), 0644)
 
 	tc := &templateCache{
 		templates:   make(map[string]*template.Template),
@@ -122,7 +124,7 @@ func TestTemplateCache_ConcurrentAccess(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for range 50 {
-				_ = tc.hasTemplatesChanged()
+				_ = tc.hasTemplatesChanged(afero.NewOsFs())
 				time.Sleep(1 * time.Millisecond)
 			}
 		}()
@@ -133,7 +135,7 @@ func TestTemplateCache_ConcurrentAccess(t *testing.T) {
 	t.Log("Template cache concurrent access test passed")
 }
 
-func TestGraphTemplate_FuncMapAvailable(t *testing.T) {
+func TestGraphTemplate_LoadedAutomatically(t *testing.T) {
 	// Reset the global cache for this test
 	globalCacheMu.Lock()
 	globalCache = nil
@@ -141,20 +143,9 @@ func TestGraphTemplate_FuncMapAvailable(t *testing.T) {
 
 	templateDir := t.TempDir()
 
-	layoutContent := `<html><body>{{ template "content" . }}</body></html>`
+	layoutContent := `{{ define "content" }}Layout{{ end }}`
 	if err := os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte(layoutContent), 0644); err != nil {
 		t.Fatalf("Failed to write layout: %v", err)
-	}
-
-	graphContent := `<html><body>
-Title: {{ .Title }}
-Lower: {{ lower .Title }}
-HasPrefix: {{ hasPrefix .Title "Test" }}
-Replace: {{ replace "old" "new" .Title }}
-Now: {{ now }}
-</body></html>`
-	if err := os.WriteFile(filepath.Join(templateDir, "graph.html"), []byte(graphContent), 0644); err != nil {
-		t.Fatalf("Failed to write graph: %v", err)
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -163,40 +154,8 @@ Now: {{ now }}
 	r.ReloadTemplates()
 
 	if r.Graph == nil {
-		t.Fatal("Graph template should be loaded")
+		t.Fatal("Graph template should be loaded automatically from base chrome")
 	}
 
-	t.Log("Graph template funcMap available test passed")
-}
-
-func TestGraphTemplate_WithData(t *testing.T) {
-	// Reset the global cache for this test
-	globalCacheMu.Lock()
-	globalCache = nil
-	globalCacheMu.Unlock()
-
-	templateDir := t.TempDir()
-
-	layoutContent := `<html><body>{{ template "content" . }}</body></html>`
-	if err := os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte(layoutContent), 0644); err != nil {
-		t.Fatalf("Failed to write layout: %v", err)
-	}
-
-	graphContent := `<html><body>
-Title: {{ .Title | lower }}
-</body></html>`
-	if err := os.WriteFile(filepath.Join(templateDir, "graph.html"), []byte(graphContent), 0644); err != nil {
-		t.Fatalf("Failed to write graph: %v", err)
-	}
-
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	r := New(RendererOptions{Compress: true, Sink: nil, TemplateDir: templateDir, DevMode: true, Logger: logger})
-
-	r.ReloadTemplates()
-
-	if r.Graph == nil {
-		t.Fatal("Graph template should be loaded")
-	}
-
-	t.Log("Graph template with data test passed")
+	t.Log("Graph template automatic load test passed")
 }
