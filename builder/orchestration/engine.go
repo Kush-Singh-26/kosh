@@ -439,7 +439,7 @@ func (engineInstance *Engine) BuildAssetOnlyWithOptions(ctx context.Context, for
 
 		// Run site-wide generators
 		assetsChanged := true // Assets definitely changed in an asset-only build
-		metadataContext := postResult.ToMetadataContext()
+		metadataContext := postResult.ToContentContext()
 		siteWideGroup, siteTimer := runSiteWide(metadataContext, assetsChanged)
 
 		if siteWideGroup != nil {

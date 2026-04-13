@@ -45,7 +45,7 @@ func (m *MockScanner) ScanStreaming(opts scanner.ScanOptions) (<-chan *models.Me
 	return resChan, errChan
 }
 
-// ScanFile scans a single file and returns a scanned file record.
-func (m *MockScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedFile, error) {
-	return models.ScannedFile{}, nil
+// ScanFile scans a single file and returns a scanned resource record.
+func (m *MockScanner) ScanFile(srcFs afero.Fs, cfg *config.Config, path string) (models.ScannedResource, error) {
+	return models.ScannedResource{}, nil
 }

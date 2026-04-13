@@ -6,7 +6,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-func (s *postService) checkCache(relPath string, f models.ScannedFile, shouldForce bool) (*models.PostMeta, bool) {
+func (s *postService) checkCache(relPath string, f models.ScannedResource, shouldForce bool) (*models.PostMeta, bool) {
 	if s.cache == nil || shouldForce {
 		return nil, false
 	}

@@ -9,7 +9,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
-	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
@@ -23,7 +22,7 @@ type SiteWideOptions struct {
 	ForceSocialRebuild bool
 }
 
-func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (func(*post.MetadataContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
+func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (func(*post.ContentContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
 	workingContext := options.Ctx
 	assetsReadySignal := options.AssetsReadySignal
 	wasmWaitGroup := options.WasmWaitGroup
@@ -34,7 +33,7 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 	var siteTimer *timeutil.PhaseTimer
 	var siteWideOnce sync.Once
 
-	runSiteWide := func(metadataContext *post.MetadataContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
+	runSiteWide := func(metadataContext *post.ContentContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
 		if engineInstance.Search != nil && metadataContext.IndexedPosts != nil {
 			engineInstance.Search.SetIndexedPosts(metadataContext.IndexedPosts)
 		}
@@ -60,13 +59,12 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 			})
 			siteWideGroup.Go(func() error {
 				engineInstance.Assets.WaitForAvailability(siteWideCtx, assetsReadySignal)
-				return engineInstance.renderTags(siteWideCtx, metadataContext.TagMap, forceSocialRebuild)
+				return engineInstance.renderTaxonomies(siteWideCtx, metadataContext.TaxonomyMap, forceSocialRebuild)
 			})
 			siteWideGroup.Go(func() error {
 				return engineInstance.renderSiteMetadata(MetadataRenderOptions{
 					AllPosts:          metadataContext.AllPosts,
-					TagMap:            metadataContext.TagMap,
-					AllTags:           metadataContext.AllTags,
+					TaxonomyMap:       metadataContext.TaxonomyMap,
 					AssetsReadySignal: assetsReadySignal,
 				})
 			})
@@ -100,7 +98,7 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 	return runSiteWide, nil
 }
 
-func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *post.MetadataContext, assetsChanged bool) bool {
+func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *post.ContentContext, assetsChanged bool) bool {
 	useStaging := !engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild
 	if metadataContext.AnyPostChanged || engineInstance.State.IsCleanBuild || useStaging || engineInstance.State.ForceGenerators.Load() || assetsChanged {
 		engineInstance.State.ForceGenerators.Store(false)
@@ -112,8 +110,7 @@ func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *post.
 // MetadataRenderOptions configures site-wide metadata generation.
 type MetadataRenderOptions struct {
 	AllPosts          []models.PostMetadata
-	TagMap            map[string][]models.PostMetadata
-	AllTags           []models.TagData
+	TaxonomyMap       map[string]map[string][]models.PostMetadata
 	IndexedPosts      []models.IndexedPost
 	AssetsReadySignal <-chan struct{}
 }
@@ -229,7 +226,7 @@ func (engineInstance *Engine) renderSiteMetadata(options MetadataRenderOptions) 
 // RenderSiteWide triggers a subset of site-wide generators suitable for incremental builds.
 // In dev mode, this focuses on pagination (index.html) to maintain consistency without
 // the overhead of full metadata (RSS/Sitemap) or PWA regeneration.
-func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContext *post.MetadataContext) error {
+func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContext *post.ContentContext) error {
 	if engineInstance.shouldSkipSiteWideRendering(metadataContext, false) {
 		return nil
 	}
@@ -251,9 +248,8 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 	// if a change was detected.
 	errorGroup.Go(func() error {
 		return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-			AllPosts: metadataContext.AllPosts,
-			TagMap:   metadataContext.TagMap,
-			AllTags:  metadataContext.AllTags,
+			AllPosts:    metadataContext.AllPosts,
+			TaxonomyMap: metadataContext.TaxonomyMap,
 		})
 	})
 

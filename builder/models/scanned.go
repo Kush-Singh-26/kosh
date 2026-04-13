@@ -5,10 +5,10 @@ import (
 	"time"
 )
 
-// LightPostMetadata is a minimal post metadata structure for site-wide discovery
-// and scanning. It contains the basic fields needed to identify a post and
+// LightResourceMetadata is a minimal resource metadata structure for site-wide discovery
+// and scanning. It contains the basic fields needed to identify a resource and
 // determine if it needs a full rebuild.
-type LightPostMetadata struct {
+type LightResourceMetadata struct {
 	Path        string
 	Title       string
 	DateObj     time.Time
@@ -20,19 +20,20 @@ type LightPostMetadata struct {
 	Description string
 	Link        string
 	HTMLPath    string
+	Layout      string
 }
 
 // MetadataScannerResult captures the results of a metadata scan.
 type MetadataScannerResult struct {
-	Metadata      []LightPostMetadata
-	TagMap        map[string][]LightPostMetadata
-	Files         []ScannedFile
+	Metadata      []LightResourceMetadata
+	TagMap        map[string][]LightResourceMetadata
+	Files         []ScannedResource
 	ContentAssets []ScannedAsset
 	Has404        bool
 }
 
-// ScannedFile carries minimal file info to avoid a second filesystem walk in post processing.
-type ScannedFile struct {
+// ScannedResource carries minimal resource info to avoid a second filesystem walk in processing.
+type ScannedResource struct {
 	Path            string
 	RelPath         string
 	Title           string
@@ -41,6 +42,7 @@ type ScannedFile struct {
 	IsDraft         bool
 	IsPinned        bool
 	Weight          int
+	Layout          string
 	Tags            []string
 	Info            fs.FileInfo
 	BodyHash        string

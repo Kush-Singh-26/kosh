@@ -178,7 +178,7 @@ func TestShouldSkipSiteWideRendering(t *testing.T) {
 		Logger: logger,
 	}))
 
-	cb := &post.MetadataContext{
+	cb := &post.ContentContext{
 		AnyPostChanged: false,
 	}
 

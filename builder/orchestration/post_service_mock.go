@@ -13,7 +13,7 @@ import (
 type mockPostService struct {
 	Sink             fspkg.ArtifactSink
 	SourceFs         afero.Fs
-	ProcessResult    *post.PostResult
+	ProcessResult    *post.ContentResult
 	ProcessErr       error
 	ProcessSingleErr error
 }
@@ -31,22 +31,22 @@ func (serviceMock *mockPostService) SetAssetsGate(readySignal <-chan struct{}) {
 func (serviceMock *mockPostService) ReconfigureWithReporter(reporter ui.Reporter, logger *slog.Logger) {}
 
 // Process returns the configured result for the mock.
-func (serviceMock *mockPostService) Process(opts post.ProcessOptions) (*post.PostResult, error) {
+func (serviceMock *mockPostService) Process(opts post.ProcessOptions) (*post.ContentResult, error) {
 	if serviceMock.ProcessResult != nil {
 		return serviceMock.ProcessResult, serviceMock.ProcessErr
 	}
-	return &post.PostResult{}, serviceMock.ProcessErr
+	return &post.ContentResult{}, serviceMock.ProcessErr
 }
 
 // ProcessStreaming returns the configured result after draining the file channel.
-func (serviceMock *mockPostService) ProcessStreaming(opts post.ProcessOptions) (*post.PostResult, error) {
+func (serviceMock *mockPostService) ProcessStreaming(opts post.ProcessOptions) (*post.ContentResult, error) {
 	// Drain the channel to simulate consumption
 	for range opts.FileChan {
 	}
 	if serviceMock.ProcessResult != nil {
 		return serviceMock.ProcessResult, serviceMock.ProcessErr
 	}
-	return &post.PostResult{}, serviceMock.ProcessErr
+	return &post.ContentResult{}, serviceMock.ProcessErr
 }
 
 // ProcessSingle returns the configured error for the mock.
@@ -63,9 +63,9 @@ func (serviceMock *mockPostService) ProcessSingleWithResult(ctx context.Context,
 func (serviceMock *mockPostService) WaitForCacheCommit() {}
 
 // GetMetadataContext returns the configured metadata context for the mock.
-func (serviceMock *mockPostService) GetMetadataContext(ctx context.Context) (*post.MetadataContext, error) {
+func (serviceMock *mockPostService) GetMetadataContext(ctx context.Context) (*post.ContentContext, error) {
 	if serviceMock.ProcessResult != nil {
-		return serviceMock.ProcessResult.ToMetadataContext(), nil
+		return serviceMock.ProcessResult.ToContentContext(), nil
 	}
-	return &post.MetadataContext{}, nil
+	return &post.ContentContext{}, nil
 }

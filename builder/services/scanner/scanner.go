@@ -59,8 +59,27 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 		contextValue = context.Background()
 	}
 	async.FireAndForget(contextValue, slog.Default(), "metadata scan stream", func() error {
+		// Pass 1: Discover sections (_index.md files) to build the Data Cascade.
+		sections := make(map[string]map[string]any)
+		_ = afero.Walk(sourceFs, contentDir, func(path string, info fs.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			if filepath.Base(path) == "_index.md" {
+				scanned, err := service.ScanFile(sourceFs, siteConfig, path)
+				if err == nil {
+					relDir := filepath.Dir(scanned.RelPath)
+					if relDir == "." {
+						relDir = ""
+					}
+					sections[relDir] = scanned.PreParsedMeta
+				}
+			}
+			return nil
+		})
+
 		result := &models.MetadataScannerResult{
-			Files:         make([]models.ScannedFile, 0, scanResultFilesCap),
+			Files:         make([]models.ScannedResource, 0, scanResultFilesCap),
 			ContentAssets: make([]models.ScannedAsset, 0, scanResultAssetsCap),
 		}
 
@@ -73,6 +92,11 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 				return nil
 			}
 
+			filename := filepath.Base(path)
+			if filename == "_index.md" {
+				return nil // Already handled in Pass 1
+			}
+
 			if filepath.Ext(path) != ".md" {
 				mutex.Lock()
 				result.ContentAssets = append(result.ContentAssets, models.ScannedAsset{
@@ -83,7 +107,7 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 				return nil
 			}
 
-			if filepath.Base(path) == "404.md" {
+			if filename == "404.md" {
 				mutex.Lock()
 				result.Has404 = true
 				mutex.Unlock()
@@ -93,6 +117,60 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 				scannedFile, err := service.ScanFile(sourceFs, siteConfig, path)
 				if err != nil {
 					return nil
+				}
+
+				// Apply Data Cascade: merge section metadata into page metadata.
+				relDir := filepath.Dir(scannedFile.RelPath)
+				if relDir == "." {
+					relDir = ""
+				}
+
+				// Resolve cascaded metadata by walking up the directory tree to the root.
+				// We merge both global root metadata and 'cascade' blocks.
+				merged := make(map[string]any)
+				pathParts := strings.Split(relDir, string(filepath.Separator))
+				currentPath := ""
+				for i := 0; i <= len(pathParts); i++ {
+					if i > 0 && pathParts[i-1] == "" {
+						continue
+					}
+					if sectionMeta, ok := sections[currentPath]; ok {
+						// Cascade Block: Only propagate fields inside the 'cascade' key
+						if cascade, ok := sectionMeta["cascade"].(map[string]any); ok {
+							for k, v := range cascade {
+								merged[k] = v
+							}
+						}
+
+						// Specific handling for root metadata (optional: allow some root fields to cascade)
+						if currentPath == "" {
+							// If we want root title/description to cascade by default, we can add them here.
+							// For Kosh 2.0, we prefer explicit 'cascade' block.
+							if desc, ok := sectionMeta["description"].(string); ok {
+								merged["description"] = desc
+							}
+						}
+					}
+					if i < len(pathParts) {
+						if currentPath != "" {
+							currentPath += string(filepath.Separator)
+						}
+						currentPath += pathParts[i]
+					}
+				}
+
+				// Finally merge the page's own metadata (overwrites cascaded values)
+				for k, v := range scannedFile.PreParsedMeta {
+					merged[k] = v
+				}
+				scannedFile.PreParsedMeta = merged
+
+				// Re-evaluate core fields from the merged metadata
+				if layout, ok := merged["layout"].(string); ok {
+					scannedFile.Layout = layout
+				}
+				if title, ok := merged["title"].(string); ok && scannedFile.Title == "" {
+					scannedFile.Title = title
 				}
 
 				if fileChan != nil {
@@ -133,22 +211,22 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 }
 
 // ScanFile scans a single markdown file for metadata.
-func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.Config, path string) (models.ScannedFile, error) {
+func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.Config, path string) (models.ScannedResource, error) {
 	file, err := sourceFs.Open(path)
 	if err != nil {
-		return models.ScannedFile{}, err
+		return models.ScannedResource{}, err
 	}
 	buffer := make([]byte, scanBufferSize)
 	bytesRead, err := io.ReadFull(file, buffer)
 	_ = file.Close()
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
-		return models.ScannedFile{}, err
+		return models.ScannedResource{}, err
 	}
 	fileData := buffer[:bytesRead]
 
 	info, err := sourceFs.Stat(path)
 	if err != nil {
-		return models.ScannedFile{}, err
+		return models.ScannedResource{}, err
 	}
 
 	relativePath, _ := filepath.Rel(siteConfig.ContentDir, path)
@@ -204,7 +282,7 @@ func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.C
 		Other:       preparsedMetadata,
 	})
 
-	return models.ScannedFile{
+	return models.ScannedResource{
 		Path:            path,
 		RelPath:         relativePath,
 		Title:           title,

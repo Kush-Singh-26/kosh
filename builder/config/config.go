@@ -51,6 +51,7 @@ type SiteConfig struct {
 	Author      models.AuthorConfig `yaml:"author"`
 	Menu        []models.MenuEntry  `yaml:"menu"`
 	FooterMenu  []models.MenuEntry  `yaml:"footerMenu"`
+	Taxonomies  map[string]string   `yaml:"taxonomies"` // Maps frontmatter key to plural folder name
 }
 
 // BuildOptions defines build-time tuning parameters.
@@ -125,6 +126,9 @@ func defaultConfig() *Config {
 		SiteConfig: SiteConfig{
 			Title:   "Kosh Blog",
 			BaseURL: "",
+			Taxonomies: map[string]string{
+				"tags": "tags",
+			},
 		},
 		BuildOptions: BuildOptions{
 			PostsPerPage:         DefaultPostsPerPage,

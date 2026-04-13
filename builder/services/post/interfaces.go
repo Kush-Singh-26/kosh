@@ -18,34 +18,31 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
-// PostResult contains the aggregated results of post processing
-type PostResult struct {
+// ContentResult contains the aggregated results of content processing
+type ContentResult struct {
 	AllPosts       []models.PostMetadata
 	PinnedPosts    []models.PostMetadata
-	TagMap         map[string][]models.PostMetadata
-	AllTags        []models.TagData
+	TaxonomyMap    map[string]map[string][]models.PostMetadata // New generalized taxonomies
 	IndexedPosts   []models.IndexedPost
 	AnyPostChanged bool
 	Has404         bool
 }
 
-// MetadataContext holds aggregated post metadata ready for site-wide generators.
-type MetadataContext struct {
+// ContentContext holds aggregated content metadata ready for site-wide generators.
+type ContentContext struct {
 	AllPosts       []models.PostMetadata
 	PinnedPosts    []models.PostMetadata
-	TagMap         map[string][]models.PostMetadata
-	AllTags        []models.TagData
+	TaxonomyMap    map[string]map[string][]models.PostMetadata
 	IndexedPosts   []models.IndexedPost
 	AnyPostChanged bool
 }
 
-// ToMetadataContext converts a PostResult into its MetadataContext subset.
-func (pr *PostResult) ToMetadataContext() *MetadataContext {
-	return &MetadataContext{
+// ToContentContext converts a ContentResult into its ContentContext subset.
+func (pr *ContentResult) ToContentContext() *ContentContext {
+	return &ContentContext{
 		AllPosts:       pr.AllPosts,
 		PinnedPosts:    pr.PinnedPosts,
-		TagMap:         pr.TagMap,
-		AllTags:        pr.AllTags,
+		TaxonomyMap:    pr.TaxonomyMap,
 		IndexedPosts:   pr.IndexedPosts,
 		AnyPostChanged: pr.AnyPostChanged,
 	}
@@ -88,19 +85,19 @@ type ProcessOptions struct {
 	ShouldForce        bool
 	ForceSocialRebuild bool
 	OutputMissing      bool
-	Files              []models.ScannedFile
-	FileChan           <-chan models.ScannedFile
+	Files              []models.ScannedResource
+	FileChan           <-chan models.ScannedResource
 }
 
-// Service handles markdown parsing and post processing.
+// Service handles markdown parsing and content processing.
 type Service interface {
 	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 	SetAssetsGate(ch <-chan struct{})
 	ReconfigureWithReporter(r ui.Reporter, l *slog.Logger)
-	Process(opts ProcessOptions) (*PostResult, error)
-	ProcessStreaming(opts ProcessOptions) (*PostResult, error)
+	Process(opts ProcessOptions) (*ContentResult, error)
+	ProcessStreaming(opts ProcessOptions) (*ContentResult, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
-	GetMetadataContext(ctx context.Context) (*MetadataContext, error)
+	GetMetadataContext(ctx context.Context) (*ContentContext, error)
 	WaitForCacheCommit()
 }

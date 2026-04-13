@@ -29,7 +29,7 @@ func (service *postService) ProcessSingle(ctx context.Context, path string, sour
 
 type navResult struct {
 	prev, next *models.NavPage
-	allTags    []models.TagData
+	taxonomies map[string]models.TaxonomyData
 }
 
 func (service *postService) resolveNavigation(post models.PostMetadata) *navResult {
@@ -38,13 +38,21 @@ func (service *postService) resolveNavigation(post models.PostMetadata) *navResu
 		if metas, err := service.cache.GetAllPostsMetadata(); err == nil {
 			posts = make([]models.PostMetadata, len(metas))
 			for idx, meta := range metas {
-				posts[idx] = models.PostMetadata{
-					Title:   meta.Title,
-					Link:    meta.Link,
-					Weight:  meta.Weight,
-					DateObj: meta.Date,
-					Tags:    meta.Tags,
+				p := models.PostMetadata{
+					Title:      meta.Title,
+					Link:       meta.Link,
+					Weight:     meta.Weight,
+					DateObj:    meta.Date,
+					Taxonomies: meta.Taxonomies,
 				}
+				// Fallback for tags if Taxonomies map is empty (e.g. older cache entries)
+				if len(p.Taxonomies["tags"]) == 0 && len(meta.Tags) > 0 {
+					if p.Taxonomies == nil {
+						p.Taxonomies = make(map[string][]string)
+					}
+					p.Taxonomies["tags"] = meta.Tags
+				}
+				posts[idx] = p
 			}
 		}
 	}
@@ -64,19 +72,34 @@ func (service *postService) resolveNavigation(post models.PostMetadata) *navResu
 	timeutil.SortPosts(posts)
 	prev, next, _ := navigation.FindPrevNext(post, posts)
 
-	// Build all tags for the search modal even in incremental mode
-	tagMap := make(map[string][]models.PostMetadata)
+	// Build all taxonomies
+	taxonomyMap := make(map[string]map[string][]models.PostMetadata)
 	for _, p := range posts {
 		if p.IsDraft && !service.cfg.ShouldIncludeDrafts {
 			continue
 		}
-		for _, t := range p.Tags {
-			tagMap[t] = append(tagMap[t], p)
+		for taxKey, terms := range p.Taxonomies {
+			if taxonomyMap[taxKey] == nil {
+				taxonomyMap[taxKey] = make(map[string][]models.PostMetadata)
+			}
+			for _, t := range terms {
+				taxonomyMap[taxKey][t] = append(taxonomyMap[taxKey][t], p)
+			}
 		}
 	}
-	allTags := generators.BuildAllTags(tagMap)
+	
+	taxonomies := make(map[string]models.TaxonomyData)
+	for taxKey, plural := range service.cfg.Taxonomies {
+		if termMap, ok := taxonomyMap[taxKey]; ok {
+			taxonomies[taxKey] = models.TaxonomyData{
+				Name:   taxKey,
+				Plural: plural,
+				Terms:  generators.BuildTaxonomyData(plural, termMap),
+			}
+		}
+	}
 
-	return &navResult{prev: prev, next: next, allTags: allTags}
+	return &navResult{prev: prev, next: next, taxonomies: taxonomies}
 }
 
 func (service *postService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
@@ -253,7 +276,7 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		Meta: parseRes.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 		TabTitle: post.Title + " | " + service.cfg.Title, Permalink: post.Link, Image: cardImageURL,
 		TOC: parseRes.TOC, Config: service.cfg, ReadingTime: post.ReadingTime,
-		AllTags:  nav.allTags,
+		Taxonomies: nav.taxonomies,
 		PrevPage: nav.prev, NextPage: nav.next, RelativePrefix: relPrefix,
 		HasImages: parseRes.HasImages, Context: pageContext,
 		BlogPrefix:   service.cfg.BlogPrefix,

@@ -46,7 +46,7 @@ type PostMetadata struct {
 	Title       string
 	Link        string
 	Description string
-	Tags        []string
+	Taxonomies  map[string][]string // Generalized taxonomy terms
 	Weight      int
 	ReadingTime int
 	IsPinned    bool
@@ -55,12 +55,20 @@ type PostMetadata struct {
 	ContentHTML string
 }
 
-// TagData contains display data for a tag.
-type TagData struct {
+// TermData contains display data for a single term in a taxonomy (e.g., a specific tag).
+type TermData struct {
 	Name  string
 	Link  string
 	Count int
 }
+
+// TaxonomyData represents an entire taxonomy (e.g., 'tags' or 'categories').
+type TaxonomyData struct {
+	Name  string
+	Plural string
+	Terms []TermData
+}
+
 
 // Paginator describes pagination state for templates.
 type Paginator struct {
@@ -87,15 +95,13 @@ type PageData struct {
 	IsIndex      bool
 	IsTagsIndex  bool
 	IsGraphPage  bool
-	IsBlog       bool
-	IsHome       bool
 	Context      PageContext
 	Navbar       Navbar
 	BlogPrefix   string
 	BlogIndexURL string
 	Posts        []PostMetadata
 	PinnedPosts  []PostMetadata
-	AllTags      []TagData
+	Taxonomies   map[string]TaxonomyData // All aggregated taxonomies
 	BuildVersion int64
 	Permalink    string
 	Image        string
@@ -110,9 +116,10 @@ type PageData struct {
 	SiteData map[string]any
 
 	// Navigation
-	Breadcrumbs []Breadcrumb
-	PrevPage    *NavPage
-	NextPage    *NavPage
+	Breadcrumbs    []Breadcrumb
+	NavigationTree *NodeTree
+	PrevPage       *NavPage
+	NextPage       *NavPage
 
 	// Depth-aware pathing
 	RelativePrefix string // e.g., "../" for depth 1

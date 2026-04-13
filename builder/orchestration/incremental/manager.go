@@ -51,7 +51,7 @@ type SiteBuilder interface {
 	GetPost() post.Service
 	LockBuild()
 	UnlockBuild()
-	RenderSiteWide(ctx context.Context, cb *post.MetadataContext) error
+	RenderSiteWide(ctx context.Context, cb *post.ContentContext) error
 }
 
 // SearchManager provides hooks for search index updates during incremental builds.

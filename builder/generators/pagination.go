@@ -14,6 +14,7 @@ import (
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
@@ -116,6 +117,8 @@ func pageWindow(pageIdx, postsPerPage, totalPosts int) (int, int) {
 }
 
 func pagePaths(cfg *config.Config, sink models.ArtifactSink, pageIdx int) (string, string, string) {
+	// For now, pagination remains at the root or blog prefix as configured.
+	// In the future, every section will have its own pagination.
 	prefix := strings.Trim(cfg.BlogPrefix, "/")
 	if prefix != "" {
 		prefix = "/" + prefix
@@ -187,13 +190,7 @@ func RenderPagination(opts PaginationOptions) error {
 			}
 
 			relPrefix := fspkg.GetRelativePrefix(relPath)
-			blogPrefix := strings.Trim(cfg.BlogPrefix, "/")
-			blogIndexURL := "index.html"
-			if blogPrefix != "" {
-				blogIndexURL = "/" + blogPrefix + "/"
-			} else if relPrefix != "" {
-				blogIndexURL = relPrefix + "index.html"
-			}
+			blogIndexURL := navigation.ResolveSectionIndex(relPath)
 			if err := render.RenderIndex(destPath, models.PageData{
 				Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,

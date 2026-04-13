@@ -1,0 +1,250 @@
+package generators
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"runtime"
+	"sort"
+
+	"github.com/Kush-Singh-26/kosh/builder/async"
+	"github.com/Kush-Singh-26/kosh/builder/config"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+	"github.com/spf13/afero"
+	"golang.org/x/sync/errgroup"
+)
+
+// TaxonomySocialCardTask holds data for taxonomy term social card generation
+type TaxonomySocialCardTask struct {
+	Taxonomy string
+	Plural   string
+	Slug     string
+	Title    string
+	Count    int
+}
+
+const maxTaxonomySocialCardWorkers = 4
+
+// BoundedTaxonomySocialCardWorkers returns the number of workers for taxonomy social card generation
+func BoundedTaxonomySocialCardWorkers() int {
+	workers := max(runtime.NumCPU(), 1)
+	if workers > maxTaxonomySocialCardWorkers {
+		workers = maxTaxonomySocialCardWorkers
+	}
+	return workers
+}
+
+// TaxonomyOptions holds dependencies for taxonomies rendering
+type TaxonomyOptions struct {
+	Ctx                context.Context
+	Cfg                *config.Config
+	Sink               fspkg.ArtifactSink
+	Render             models.RenderService
+	Cache              models.SocialCardCache
+	SourceFs           afero.Fs
+	TaxonomyMap        map[string]map[string][]models.PostMetadata
+	ForceSocialRebuild bool
+	LogoPath           string
+}
+
+// BuildTaxonomyData builds a list of TermData from a term map for a specific taxonomy.
+func BuildTaxonomyData(plural string, termMap map[string][]models.PostMetadata) []models.TermData {
+	allTerms := make([]models.TermData, 0, len(termMap))
+	for t, posts := range termMap {
+		slug := timeutil.Slugify(t)
+		allTerms = append(allTerms, models.TermData{
+			Name:  t,
+			Count: len(posts),
+			Link:  fmt.Sprintf("/%s/%s.html", plural, slug),
+		})
+	}
+	sort.Slice(allTerms, func(i, j int) bool { return allTerms[i].Name < allTerms[j].Name })
+	return allTerms
+}
+
+
+func startTaxonomyCardPool(opts TaxonomyOptions, workers int) *async.WorkerPool[TaxonomySocialCardTask] {
+	cfg := opts.Cfg
+	sink := opts.Sink
+	render := opts.Render
+
+	pool := async.NewWorkerPool(opts.Ctx, workers, func(task TaxonomySocialCardTask) error {
+		cardPath := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/%s/%s.webp", task.Plural, task.Slug))
+		ProvideSocialCard(ProvideSocialCardOptions{
+			Sink:        sink,
+			Cache:       opts.Cache,
+			SourceFs:    opts.SourceFs,
+			OutputDir:   cfg.OutputDir,
+			CacheDir:    cfg.CacheDir,
+			Title:       cfg.Title,
+			DestPath:    cardPath,
+			CacheKey:    fmt.Sprintf("%s/%s", task.Plural, task.Slug),
+			CardTitle:   task.Title,
+			Description: fmt.Sprintf("%d items in %s: %s", task.Count, task.Plural, task.Title),
+			Badge:       task.Taxonomy,
+			Force:       opts.ForceSocialRebuild,
+			SocialCfg:   &cfg.SocialCards,
+			Render:      render,
+			LogoPath:    opts.LogoPath,
+		})
+		return nil
+	})
+	pool.Start()
+	return pool
+}
+
+func ensureTaxonomyIndexCard(opts TaxonomyOptions, taxonomy, plural, desc string) {
+	cfg := opts.Cfg
+	sink := opts.Sink
+	render := opts.Render
+
+	title := fmt.Sprintf("All %s", plural)
+	indexHash := SocialCardHash(title, desc)
+	indexCache := filepath.Join(cfg.CacheDir, "social-cards", indexHash+".webp")
+	indexCard := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/%s/index.webp", plural))
+
+	if ShouldGenerateSocialCard(CheckSocialCardOptions{
+		Cache:          opts.Cache,
+		CacheKey:       fmt.Sprintf("%s/index", plural),
+		CurrentHash:    indexHash,
+		CachedCardPath: indexCache,
+		Force:          opts.ForceSocialRebuild,
+	}) {
+		ProvideSocialCard(ProvideSocialCardOptions{
+			Sink:        sink,
+			Cache:       opts.Cache,
+			SourceFs:    opts.SourceFs,
+			OutputDir:   cfg.OutputDir,
+			CacheDir:    cfg.CacheDir,
+			Title:       cfg.Title,
+			DestPath:    indexCard,
+			CacheKey:    fmt.Sprintf("%s/index", plural),
+			CardTitle:   title,
+			Description: desc,
+			Badge:       plural,
+			Force:       opts.ForceSocialRebuild,
+			SocialCfg:   &cfg.SocialCards,
+			Render:      render,
+			LogoPath:    opts.LogoPath,
+		})
+		return
+	}
+
+	if data, err := afero.ReadFile(afero.NewOsFs(), indexCache); err == nil {
+		buildctx.IgnoreError(sink.MkdirAll(filepath.Dir(indexCard)), "create taxonomy index card dir")
+		buildctx.IgnoreError(sink.WriteFile(indexCard, data), "write cached taxonomy index card")
+		render.RegisterFile(indexCard)
+	}
+}
+
+func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxonomy, plural string, terms []models.TermData) error {
+	indexPath := fmt.Sprintf("%s/index.html", plural)
+	blogIndexURL := navigation.ResolveSectionIndex(indexPath)
+
+	return render.RenderPage(filepath.Join(cfg.OutputDir, indexPath), models.PageData{
+		Title: fmt.Sprintf("All %s", plural), IsTagsIndex: true, Context: models.ContextBlog,
+		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
+		Permalink: cfg.BaseURL + "/" + indexPath,
+		Image:     fmt.Sprintf("%s/static/images/cards/%s/index.webp", cfg.BaseURL, plural),
+		TabTitle:  fmt.Sprintf("All %s | %s", plural, cfg.Title), Config: cfg,
+		Weight:         0,
+		RelativePrefix: "../../", BlogPrefix: cfg.BlogPrefix,
+		BlogIndexURL: blogIndexURL,
+	})
+}
+
+func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, plural, termName, slug string, posts []models.PostMetadata) error {
+	timeutil.SortPosts(posts)
+	termPath := fmt.Sprintf("%s/%s.html", plural, slug)
+	blogIndexURL := navigation.ResolveSectionIndex(termPath)
+	return render.RenderPage(filepath.Join(cfg.OutputDir, termPath), models.PageData{
+		Title: termName, IsIndex: true, Context: models.ContextBlog, Posts: posts,
+		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
+		Permalink: fmt.Sprintf("%s/%s", cfg.BaseURL, termPath),
+		Image:     fmt.Sprintf("%s/static/images/cards/%s/%s.webp", cfg.BaseURL, plural, slug),
+		TabTitle:  termName + " | " + cfg.Title, Config: cfg,
+		Weight:         0,
+		RelativePrefix: "../../", BlogPrefix: cfg.BlogPrefix,
+		BlogIndexURL: blogIndexURL,
+	})
+}
+
+// RenderTaxonomies orchestrates the generation of all taxonomy index and term pages.
+func RenderTaxonomies(opts TaxonomyOptions) error {
+	cfg := opts.Cfg
+	render := opts.Render
+
+	workers := BoundedTaxonomySocialCardWorkers()
+	cardPool := startTaxonomyCardPool(opts, workers)
+	defer buildctx.IgnoreError(cardPool.Stop(), "stop taxonomy card pool")
+
+	g, _ := errgroup.WithContext(opts.Ctx)
+	g.SetLimit(runtime.NumCPU())
+
+	for taxonomy, plural := range cfg.Taxonomies {
+		taxKey := taxonomy
+		taxPlural := plural
+		termMap := opts.TaxonomyMap[taxKey]
+		if termMap == nil {
+			continue
+		}
+
+		allTerms := BuildTaxonomyData(taxPlural, termMap)
+		
+		desc := fmt.Sprintf("Browse all %d %s", lenAll(termMap), taxPlural)
+		ensureTaxonomyIndexCard(opts, taxKey, taxPlural, desc)
+
+		if err := renderTaxonomyIndex(cfg, render, taxKey, taxPlural, allTerms); err != nil {
+			return fmt.Errorf("failed to render taxonomy index %s: %w", taxKey, err)
+		}
+
+		for t, posts := range termMap {
+			termName := t
+			termPosts := make([]models.PostMetadata, len(posts))
+			copy(termPosts, posts)
+			slug := timeutil.Slugify(termName)
+			
+			termDesc := fmt.Sprintf("%d items in %s: %s", len(termPosts), taxPlural, termName)
+			hash := SocialCardHash(termName, termDesc)
+			cached := filepath.Join(cfg.CacheDir, "social-cards", hash+".webp")
+
+			if ShouldGenerateSocialCard(CheckSocialCardOptions{
+				Cache:          opts.Cache,
+				CacheKey:       fmt.Sprintf("%s/%s", taxPlural, slug),
+				CurrentHash:    hash,
+				CachedCardPath: cached,
+				Force:          opts.ForceSocialRebuild,
+			}) {
+				cardPool.Submit(TaxonomySocialCardTask{
+					Taxonomy: taxKey,
+					Plural:   taxPlural,
+					Slug:     slug,
+					Title:    termName,
+					Count:    len(termPosts),
+				})
+			} else if data, err := afero.ReadFile(afero.NewOsFs(), cached); err == nil {
+				cardPath := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/%s/%s.webp", taxPlural, slug))
+				buildctx.IgnoreError(opts.Sink.MkdirAll(filepath.Dir(cardPath)), "create taxonomy card dir")
+				buildctx.IgnoreError(opts.Sink.WriteFile(cardPath, data), "write cached taxonomy card")
+				render.RegisterFile(cardPath)
+			}
+
+			g.Go(func() error {
+				if err := renderTermPage(cfg, render, taxKey, taxPlural, termName, slug, termPosts); err != nil {
+					return fmt.Errorf("failed to render term page %s/%s: %w", taxPlural, slug, err)
+				}
+				return nil
+			})
+		}
+	}
+
+	return g.Wait()
+}
+
+func lenAll(m map[string][]models.PostMetadata) int {
+	return len(m)
+}

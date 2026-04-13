@@ -11,7 +11,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
-func (service *postService) loadCachedPost(relPath, htmlRelPath string, file models.ScannedFile, cachedMeta *models.PostMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
+func (service *postService) loadCachedPost(relPath, htmlRelPath string, file models.ScannedResource, cachedMeta *models.PostMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
 	var parseRes *ParsedMarkdownResult
 	var htmlContent string
 	var finalSSRHashes []string
@@ -41,7 +41,7 @@ func (service *postService) loadCachedPost(relPath, htmlRelPath string, file mod
 	return parseRes, htmlContent, finalSSRHashes, useCache
 }
 
-func (service *postService) loadSourceIfNeeded(file models.ScannedFile, useCache bool) ([]byte, error) {
+func (service *postService) loadSourceIfNeeded(file models.ScannedResource, useCache bool) ([]byte, error) {
 	if useCache && !service.cfg.Features.UseRawMarkdown {
 		return nil, nil
 	}
@@ -51,7 +51,7 @@ func (service *postService) loadSourceIfNeeded(file models.ScannedFile, useCache
 	return file.SourceLoader()
 }
 
-func (service *postService) parseIfNeeded(ctx context.Context, file models.ScannedFile, cachedMeta *models.PostMeta, htmlRelPath string, sourceBytes []byte, useCache bool) (*ParsedMarkdownResult, string, []string, bool, error) {
+func (service *postService) parseIfNeeded(ctx context.Context, file models.ScannedResource, cachedMeta *models.PostMeta, htmlRelPath string, sourceBytes []byte, useCache bool) (*ParsedMarkdownResult, string, []string, bool, error) {
 	if useCache {
 		return nil, "", nil, true, nil
 	}
@@ -106,7 +106,7 @@ func (service *postService) parseIfNeeded(ctx context.Context, file models.Scann
 	return parseRes, htmlContent, finalSSRHashes, false, nil
 }
 
-func (service *postService) parseWorkerTaskLocal(file models.ScannedFile, workerContext WorkerContext, local *workerLocalState) {
+func (service *postService) parseWorkerTaskLocal(file models.ScannedResource, workerContext WorkerContext, local *workerLocalState) {
 	path := file.Path
 	relativePath := file.RelPath
 
@@ -212,10 +212,39 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 	if post.IsPinned {
 		local.pinnedPosts = append(local.pinnedPosts, post)
 	}
-	for _, tag := range post.Tags {
-		local.tagEntries = append(local.tagEntries, tagEntry{
-			tag: strings.ToLower(strings.TrimSpace(tag)), post: post,
-		})
+	// 6. Extract all configured taxonomies
+	for taxKey := range service.cfg.Taxonomies {
+		var terms []string
+		if val, ok := renderResult.Metadata[taxKey]; ok {
+			switch v := val.(type) {
+			case string:
+				terms = []string{v}
+			case []any:
+				for _, item := range v {
+					if s, ok := item.(string); ok {
+						terms = append(terms, s)
+					}
+				}
+			case []string:
+				terms = v
+			}
+		}
+
+		// Store terms in the post metadata for this taxonomy
+		if post.Taxonomies == nil {
+			post.Taxonomies = make(map[string][]string)
+		}
+		post.Taxonomies[taxKey] = terms
+
+
+		// Add to local registry for aggregation
+		for _, term := range terms {
+			local.taxonomyEntries = append(local.taxonomyEntries, taxonomyEntry{
+				taxonomy: taxKey,
+				term:     strings.ToLower(strings.TrimSpace(term)),
+				post:     post,
+			})
+		}
 	}
 
 	// Stream to renderer // No locks needed for channel write
@@ -265,8 +294,11 @@ func (service *postService) mergeWorkerStates(locals []*workerLocalState, worker
 		for k, v := range local.newDependencies {
 			processContext.newDependencies[k] = v
 		}
-		for _, entry := range local.tagEntries {
-			processContext.tagMap[entry.tag] = append(processContext.tagMap[entry.tag], entry.post)
+		for _, entry := range local.taxonomyEntries {
+			if processContext.taxonomyMap[entry.taxonomy] == nil {
+				processContext.taxonomyMap[entry.taxonomy] = make(map[string][]models.PostMetadata)
+			}
+			processContext.taxonomyMap[entry.taxonomy][entry.term] = append(processContext.taxonomyMap[entry.taxonomy][entry.term], entry.post)
 		}
 		processContext.errs = append(processContext.errs, local.errs...)
 

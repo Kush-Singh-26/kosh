@@ -38,15 +38,15 @@ func (engineInstance *Engine) renderPagination(options renderPaginationOptions) 
 	})
 }
 
-func (engineInstance *Engine) renderTags(workingContext context.Context, tagMap map[string][]models.PostMetadata, forceSocialRebuild bool) error {
-	return generators.RenderTags(generators.TagOptions{
+func (engineInstance *Engine) renderTaxonomies(workingContext context.Context, taxonomyMap map[string]map[string][]models.PostMetadata, forceSocialRebuild bool) error {
+	return generators.RenderTaxonomies(generators.TaxonomyOptions{
 		Ctx:                workingContext,
 		Cfg:                engineInstance.Cfg,
 		Sink:               engineInstance.artifactSink,
 		Render:             engineInstance.Deps.Render,
 		Cache:              engineInstance.Deps.Cache,
 		SourceFs:           engineInstance.Deps.SourceFs,
-		TagMap:             tagMap,
+		TaxonomyMap:        taxonomyMap,
 		ForceSocialRebuild: forceSocialRebuild,
 		LogoPath:           engineInstance.GetLogoPath(),
 	})

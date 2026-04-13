@@ -14,7 +14,7 @@ type ShortcodeProcessor interface {
 
 type renderTask struct {
 	parseResult      *ParsedMarkdownResult
-	file             models.ScannedFile
+	file             models.ScannedResource
 	htmlContent      string
 	destinationPath  string
 	relativePath     string
@@ -34,7 +34,7 @@ type searchTask struct {
 type workerLocalState struct {
 	allPosts              []models.PostMetadata
 	pinnedPosts           []models.PostMetadata
-	tagEntries            []tagEntry
+	taxonomyEntries       []taxonomyEntry
 	indexedPosts          []models.IndexedPost
 	searchTasks           []deferredSearchTask
 	newPostsMeta          []*models.PostMeta
@@ -44,9 +44,10 @@ type workerLocalState struct {
 	errs                  []error
 }
 
-type tagEntry struct {
-	tag  string
-	post models.PostMetadata
+type taxonomyEntry struct {
+	taxonomy string
+	term     string
+	post     models.PostMetadata
 }
 
 type deferredSearchTask struct {
@@ -70,7 +71,7 @@ type WorkerContext struct {
 type postProcessContext struct {
 	allPosts         []models.PostMetadata
 	pinnedPosts      []models.PostMetadata
-	tagMap           map[string][]models.PostMetadata
+	taxonomyMap      map[string]map[string][]models.PostMetadata // Taxonomy -> Term -> Posts
 	anyPostChanged   atomic.Bool
 	newPostsMeta     []*models.PostMeta
 	newSearchRecords map[string]*models.SearchRecord
@@ -93,7 +94,7 @@ type AggregateContext struct {
 	WorkerContext    WorkerContext
 	Local            *workerLocalState
 	SourceBytes      []byte
-	ScannedFile      models.ScannedFile
+	ScannedFile      models.ScannedResource
 }
 
 // SocialCardOptions configures social card generation for a post.

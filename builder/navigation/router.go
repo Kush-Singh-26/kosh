@@ -42,3 +42,19 @@ func CardPaths(baseURL, outputDir, htmlRelPath string) (string, string, string) 
 	cardImageURL := baseURL + "/static/images/cards/" + cardRelPath
 	return cardRelPath, cardDestPath, cardImageURL
 }
+// ResolveSectionIndex finds the nearest index URL for a given relative path.
+// This replaces the hardcoded blogPrefix logic by following the directory hierarchy.
+func ResolveSectionIndex(relPath string) string {
+	relPath = filepath.ToSlash(relPath)
+	dir := filepath.Dir(relPath)
+	if dir == "." || dir == "/" {
+		return "index.html"
+	}
+	// In the future, this will check if there's an _index.md in the parent folders.
+	// For now, it returns the relative path to the root index.html.
+	prefix := fs.GetRelativePrefix(relPath)
+	if prefix == "" {
+		return "index.html"
+	}
+	return prefix + "index.html"
+}

@@ -17,7 +17,7 @@ const (
 
 // buildScanResult holds channels for the parallel metadata scan.
 type buildScanResult struct {
-	fileChan           <-chan models.ScannedFile
+	fileChan           <-chan models.ScannedResource
 	scannerReady       <-chan struct{}
 	metadataResultChan <-chan *models.MetadataScannerResult
 	scannerErrChan     <-chan error
@@ -28,7 +28,7 @@ func (engineInstance *Engine) scanPhase(ctx context.Context, contentAssetsChan c
 	if engineInstance.Deps.Reporter != nil {
 		engineInstance.Deps.Reporter.StartPhase(ui.PhaseScan)
 	}
-	fileChannel := make(chan models.ScannedFile, scanFileChanBuffer)
+	fileChannel := make(chan models.ScannedResource, scanFileChanBuffer)
 	scannerReady := make(chan struct{})
 	metadataResultChan := make(chan *models.MetadataScannerResult, scanResultBuffer)
 	scannerErrChan := make(chan error, scanResultBuffer)

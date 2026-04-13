@@ -93,8 +93,6 @@ func (r *Renderer) RenderPage(path string, data models.PageData) error {
 		layout = r.Index
 	}
 
-	data.IsHome = isRoot
-	data.IsBlog = !isRoot
 	r.mu.RUnlock()
 
 	if layout == nil {

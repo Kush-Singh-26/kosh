@@ -12,7 +12,7 @@ import (
 )
 
 type postStreamResult struct {
-	result *post.PostResult
+	result *post.ContentResult
 	error  error
 }
 
@@ -48,7 +48,7 @@ func waitForDiscovery(ctx context.Context, discoverySignal <-chan struct{}) erro
 	}
 }
 
-func waitForPostProcessing(ctx context.Context, postResultChan chan postStreamResult) (*post.PostResult, error) {
+func waitForPostProcessing(ctx context.Context, postResultChan chan postStreamResult) (*post.ContentResult, error) {
 	select {
 	case postStreamRes := <-postResultChan:
 		return postStreamRes.result, postStreamRes.error
@@ -127,7 +127,7 @@ func (engineInstance *Engine) processPhase(
 	}
 
 	// Site-wide generators.
-	metadataCtx := postResult.ToMetadataContext()
+	metadataCtx := postResult.ToContentContext()
 	assetsChanged := engineInstance.Assets.CheckChanged(ctx, assetsRes.assetsReadySignal)
 	siteWideGroup, siteTimer := runSiteWide(metadataCtx, assetsChanged)
 
@@ -135,17 +135,17 @@ func (engineInstance *Engine) processPhase(
 	return engineInstance.waitForSiteWideRendering(siteWideGroup, siteTimer, siteWideHas404 || engineInstance.Deps.Render.Has404Template(), metadataCtx)
 }
 
-// ProcessPostsOptions configures post processing for a build pass.
+// ProcessPostsOptions configures content processing for a build pass.
 type ProcessPostsOptions struct {
 	Ctx                context.Context
 	ShouldForce        bool
 	ForceSocialRebuild bool
 	OutputMissing      bool
-	Files              []models.ScannedFile
+	Files              []models.ScannedResource
 }
 
-// processPosts executes post processing and returns the result.
-func (engineInstance *Engine) processPosts(opts ProcessPostsOptions) (*post.PostResult, error) {
+// processPosts executes content processing and returns the result.
+func (engineInstance *Engine) processPosts(opts ProcessPostsOptions) (*post.ContentResult, error) {
 	return engineInstance.Deps.Post.Process(post.ProcessOptions{
 		Ctx:                opts.Ctx,
 		ShouldForce:        opts.ShouldForce,

@@ -12,7 +12,7 @@ import (
 )
 
 // waitForSiteWideRendering waits for site-wide generators and renders 404 if needed.
-func (engineInstance *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTimer *timeutil.PhaseTimer, siteWideHas404 bool, metadataContext *post.MetadataContext) error {
+func (engineInstance *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTimer *timeutil.PhaseTimer, siteWideHas404 bool, metadataContext *post.ContentContext) error {
 	if siteWideGroup == nil {
 		return nil
 	}

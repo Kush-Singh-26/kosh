@@ -12,7 +12,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
@@ -28,8 +27,8 @@ const (
 )
 
 // Process processes a set of files with a buffered channel.
-func (service *postService) Process(opts ProcessOptions) (*PostResult, error) {
-	fileChan := make(chan models.ScannedFile, len(opts.Files))
+func (service *postService) Process(opts ProcessOptions) (*ContentResult, error) {
+	fileChan := make(chan models.ScannedResource, len(opts.Files))
 	for _, file := range opts.Files {
 		fileChan <- file
 	}
@@ -70,10 +69,10 @@ func (service *postService) startSearchPool(ctx context.Context, numWorkers int)
 	return pool
 }
 
-func startNavCollector(ctx context.Context, logger *slog.Logger, prepare func([]models.ScannedFile) navInfo) (chan models.ScannedFile, chan navInfo, *sync.WaitGroup) {
-	collectedFilesChan := make(chan models.ScannedFile, collectedFilesBuffer)
+func startNavCollector(ctx context.Context, logger *slog.Logger, prepare func([]models.ScannedResource) navInfo) (chan models.ScannedResource, chan navInfo, *sync.WaitGroup) {
+	collectedFilesChan := make(chan models.ScannedResource, collectedFilesBuffer)
 	navReady := make(chan navInfo, navReadyBuffer)
-	var allFiles []models.ScannedFile
+	var allFiles []models.ScannedResource
 	var collectWg sync.WaitGroup
 
 	collectWg.Add(1)
@@ -133,13 +132,15 @@ func waitForRenderTasks(collector *renderTaskCollector) []renderTask {
 func finalizePostProcessing(processCtx *postProcessContext) {
 	timeutil.SortPosts(processCtx.allPosts)
 	timeutil.SortPosts(processCtx.pinnedPosts)
-	for _, posts := range processCtx.tagMap {
-		timeutil.SortPosts(posts)
+	for _, termMap := range processCtx.taxonomyMap {
+		for _, posts := range termMap {
+			timeutil.SortPosts(posts)
+		}
 	}
 }
 
 // ProcessStreaming processes posts using streaming parse and render phases.
-func (service *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, error) {
+func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResult, error) {
 	ctx := opts.Ctx
 	shouldForce := opts.ShouldForce
 	forceSocialRebuild := opts.ForceSocialRebuild
@@ -159,7 +160,7 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, 
 	processCtx := &postProcessContext{
 		allPosts:         make([]models.PostMetadata, 0, totalFiles),
 		pinnedPosts:      make([]models.PostMetadata, 0, totalFiles/4),
-		tagMap:           make(map[string][]models.PostMetadata),
+		taxonomyMap:      make(map[string]map[string][]models.PostMetadata),
 		newSearchRecords: make(map[string]*models.SearchRecord),
 		newDependencies:  make(map[string]*models.Dependencies),
 		indexedPosts:     make([]models.IndexedPost, 0, totalFiles),
@@ -227,17 +228,16 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*PostResult, 
 	// Sort allPosts to ensure deterministic ordering across builds
 	finalizePostProcessing(processCtx)
 
-	return &PostResult{
-		AllPosts: processCtx.allPosts, PinnedPosts: processCtx.pinnedPosts, TagMap: processCtx.tagMap,
-		AllTags:      nav.allTags,
+	return &ContentResult{
+		AllPosts: processCtx.allPosts, PinnedPosts: processCtx.pinnedPosts, TaxonomyMap: processCtx.taxonomyMap,
 		IndexedPosts: processCtx.indexedPosts, AnyPostChanged: processCtx.anyPostChanged.Load(), Has404: false,
 	}, nil
 }
 
 // GetMetadataContext retrieves the full site metadata context from the post cache.
-func (service *postService) GetMetadataContext(ctx context.Context) (*MetadataContext, error) {
+func (service *postService) GetMetadataContext(ctx context.Context) (*ContentContext, error) {
 	if service.cache == nil {
-		return &MetadataContext{}, nil
+		return &ContentContext{}, nil
 	}
 
 	ids, err := service.cache.ListAllPosts()
@@ -252,7 +252,7 @@ func (service *postService) GetMetadataContext(ctx context.Context) (*MetadataCo
 
 	var allPosts []models.PostMetadata
 	pinnedPosts := make([]models.PostMetadata, 0)
-	tagMap := make(map[string][]models.PostMetadata)
+	taxonomyMap := make(map[string]map[string][]models.PostMetadata)
 
 	for _, meta := range metas {
 		if meta.IsDraft && !service.cfg.ShouldIncludeDrafts {
@@ -263,33 +263,69 @@ func (service *postService) GetMetadataContext(ctx context.Context) (*MetadataCo
 			Tags: meta.Tags, IsPinned: meta.IsPinned, Weight: meta.Weight,
 			ReadingTime: meta.ReadingTime, DateObj: meta.Date,
 			IsDraft: meta.IsDraft,
+			Taxonomies:  make(map[string][]string),
 		}
+
+		// Re-extract taxonomies from meta (if stored in metadata) or just use Tags for legacy
+		// In a real build, worker.go would have populated Taxonomies.
+		// For cache retrieval, we look at the meta map.
+		if meta.Meta != nil {
+			for taxKey := range service.cfg.Taxonomies {
+				if val, ok := meta.Meta[taxKey]; ok {
+					switch v := val.(type) {
+					case string:
+						postMeta.Taxonomies[taxKey] = []string{v}
+					case []any:
+						var terms []string
+						for _, item := range v {
+							if s, ok := item.(string); ok {
+								terms = append(terms, s)
+							}
+						}
+						postMeta.Taxonomies[taxKey] = terms
+					}
+				}
+			}
+		}
+
+		// Backward compatibility fallback for tags
+		if len(postMeta.Taxonomies["tag"]) == 0 && len(postMeta.Tags) > 0 {
+			postMeta.Taxonomies["tag"] = postMeta.Tags
+		}
+
 		allPosts = append(allPosts, postMeta)
 		if postMeta.IsPinned {
 			pinnedPosts = append(pinnedPosts, postMeta)
 		}
-		for _, tag := range postMeta.Tags {
-			tagMap[tag] = append(tagMap[tag], postMeta)
+
+		// Aggregate into taxonomyMap
+		for taxKey, terms := range postMeta.Taxonomies {
+			if taxonomyMap[taxKey] == nil {
+				taxonomyMap[taxKey] = make(map[string][]models.PostMetadata)
+			}
+			for _, term := range terms {
+				normTerm := strings.ToLower(strings.TrimSpace(term))
+				taxonomyMap[taxKey][normTerm] = append(taxonomyMap[taxKey][normTerm], postMeta)
+			}
 		}
 	}
 
 	timeutil.SortPosts(allPosts)
 	timeutil.SortPosts(pinnedPosts)
-	for _, posts := range tagMap {
-		timeutil.SortPosts(posts)
+	for _, termMap := range taxonomyMap {
+		for _, posts := range termMap {
+			timeutil.SortPosts(posts)
+		}
 	}
 
-	allTags := generators.BuildAllTags(tagMap)
-
-	return &MetadataContext{
+	return &ContentContext{
 		AllPosts:    allPosts,
 		PinnedPosts: pinnedPosts,
-		TagMap:      tagMap,
-		AllTags:     allTags,
+		TaxonomyMap: taxonomyMap,
 	}, nil
 }
 
-func (service *postService) runStreamingParsePhase(numWorkers int, fileChan <-chan models.ScannedFile, collector chan<- models.ScannedFile, workerCtx WorkerContext) error {
+func (service *postService) runStreamingParsePhase(numWorkers int, fileChan <-chan models.ScannedResource, collector chan<- models.ScannedResource, workerCtx WorkerContext) error {
 	service.logger.Info("Processing posts (streaming mode)")
 	timer := timeutil.StartPhase("Process posts (stream)")
 	defer timer.Stop()
@@ -309,7 +345,7 @@ func (service *postService) runStreamingParsePhase(numWorkers int, fileChan <-ch
 	}
 	var workerIdx atomic.Int32
 
-	parsePool := async.NewWorkerPool(workerCtx.Ctx, numWorkers, func(file models.ScannedFile) error {
+	parsePool := async.NewWorkerPool(workerCtx.Ctx, numWorkers, func(file models.ScannedResource) error {
 		idx := int(workerIdx.Add(1)-1) % numWorkers
 		service.parseWorkerTaskLocal(file, workerCtx, locals[idx])
 		return nil
@@ -359,25 +395,19 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			}
 		}
 
-		blogPrefix := strings.Trim(service.cfg.BlogPrefix, "/")
-		blogIndexURL := "index.html"
-		if blogPrefix != "" {
-			blogIndexURL = "/" + blogPrefix + "/"
-		} else if relPrefix != "" {
-			blogIndexURL = relPrefix + "index.html"
+		blogIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
+
+		// Determine node type and layout
+		layoutVal := strings.ToLower(renderTaskInstance.file.Layout)
+		if layoutVal == "" {
+			// Fallback to frontmatter if not set by Data Cascade
+			if l, ok := renderTaskInstance.parseResult.Metadata["layout"].(string); ok {
+				layoutVal = strings.ToLower(l)
+			}
 		}
 
-		// Determine if this is a blog page or a custom layout page
-		// Pages with layout: "home" (portfolio) should NOT be treated as blog pages
-		layoutVal := ""
-		if l, ok := renderTaskInstance.parseResult.Metadata["layout"].(string); ok {
-			layoutVal = strings.ToLower(l)
-		} else if l, ok := renderTaskInstance.parseResult.Metadata["Layout"].(string); ok {
-			layoutVal = strings.ToLower(l)
-		}
-		isBlog := layoutVal != "home"
 		pageContext := models.ContextBlog
-		if !isBlog {
+		if layoutVal == "home" {
 			pageContext = models.ContextHome
 		}
 
@@ -386,7 +416,7 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			Meta: renderTaskInstance.parseResult.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 			TabTitle: post.Title + " | " + service.cfg.Title, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
 			TOC: renderTaskInstance.parseResult.TOC, Config: service.cfg, ReadingTime: post.ReadingTime,
-			AllTags:  nav.allTags,
+			Taxonomies: nav.taxonomies,
 			PrevPage: prev, NextPage: next, RelativePrefix: relPrefix,
 			HasImages: renderTaskInstance.parseResult.HasImages, Context: pageContext,
 			BlogPrefix:   service.cfg.BlogPrefix,

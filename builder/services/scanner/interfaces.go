@@ -15,12 +15,12 @@ type ScanOptions struct {
 	ContentDir string
 	SrcFs      afero.Fs
 	Cfg        *config.Config
-	FileChan   chan<- models.ScannedFile
+	FileChan   chan<- models.ScannedResource
 }
 
 // Scanner scans content directory for markdown files and extracts metadata.
 type Scanner interface {
 	Scan(options ScanOptions) (*models.MetadataScannerResult, error)
 	ScanStreaming(options ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error)
-	ScanFile(srcFs afero.Fs, config *config.Config, path string) (models.ScannedFile, error)
+	ScanFile(srcFs afero.Fs, config *config.Config, path string) (models.ScannedResource, error)
 }

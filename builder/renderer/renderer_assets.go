@@ -94,12 +94,8 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 	// Determine context
 	ctx := data.Context
 	if ctx == "" {
-		// Default based on BlogPrefix if not explicitly set
-		if blogPrefix == "" || data.IsHome {
-			ctx = models.ContextHome
-		} else {
-			ctx = models.ContextBlog
-		}
+		// Default to Home if not explicitly set
+		ctx = models.ContextHome
 	}
 
 	// Set Navbar Title
