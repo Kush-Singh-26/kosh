@@ -141,6 +141,8 @@ func (engineInstance *Engine) generateRSS(options MetadataRenderOptions) error {
 		Posts:       options.AllPosts,
 		Title:       engineInstance.Cfg.Title,
 		Description: engineInstance.Cfg.Description,
+		Author:      engineInstance.Cfg.Author.Name,
+		LogoURL:     engineInstance.Cfg.BaseURL + engineInstance.Cfg.Logo,
 		OutputPath:  filepath.Join(engineInstance.Cfg.OutputDir, "rss.xml"),
 	})
 	if err != nil {
@@ -187,6 +189,7 @@ func (engineInstance *Engine) generateGraph(options MetadataRenderOptions) error
 		AllTags:        options.AllTags,
 		RelativePrefix: "",
 		IsGraphPage:    true,
+		Context:        models.ContextHome,
 	}); err != nil {
 		return fmt.Errorf("failed to render graph page: %w", err)
 	}

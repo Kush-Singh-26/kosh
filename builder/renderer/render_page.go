@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"path/filepath"
 	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
@@ -65,6 +66,35 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 func (r *Renderer) RenderPage(path string, data models.PageData) error {
 	r.mu.RLock()
 	layout := r.Layout
+
+	// Case-insensitive check for layout in metadata
+	layoutReq := ""
+	if l, ok := data.Meta["layout"].(string); ok {
+		layoutReq = strings.ToLower(l)
+	} else if l, ok := data.Meta["Layout"].(string); ok {
+		layoutReq = strings.ToLower(l)
+	}
+
+	// Determine if this is the root index file
+	isRoot := false
+	if (data.RelativePrefix == "" || data.RelativePrefix == "./") && strings.HasSuffix(filepath.Base(path), "index.html") {
+		// Only consider it root if it's not in a subfolder like /blogs/
+		if !strings.Contains(path, "blogs") && !strings.Contains(path, "tags") {
+			isRoot = true
+		}
+	}
+
+	// Choose layout
+	if layoutReq == "home" && r.Home != nil {
+		layout = r.Home
+	} else if isRoot && r.Home != nil {
+		layout = r.Home
+	} else if layoutReq == "index" && r.Index != nil {
+		layout = r.Index
+	}
+
+	data.IsHome = isRoot
+	data.IsBlog = !isRoot
 	r.mu.RUnlock()
 
 	if layout == nil {

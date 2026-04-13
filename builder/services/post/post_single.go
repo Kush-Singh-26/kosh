@@ -223,15 +223,40 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
 	}
 
+	relPrefix := fspkg.GetRelativePrefix(htmlRelPath)
+	blogPrefix := strings.Trim(service.cfg.BlogPrefix, "/")
+	blogIndexURL := "index.html"
+	if blogPrefix != "" {
+		blogIndexURL = "/" + blogPrefix + "/"
+	} else if relPrefix != "" {
+		blogIndexURL = relPrefix + "index.html"
+	}
+
+	// Determine if this is a blog page or a custom layout page
+	// Pages with layout: "home" (portfolio) should NOT be treated as blog pages
+	layoutVal := ""
+	if l, ok := parseRes.Metadata["layout"].(string); ok {
+		layoutVal = strings.ToLower(l)
+	} else if l, ok := parseRes.Metadata["Layout"].(string); ok {
+		layoutVal = strings.ToLower(l)
+	}
+	isBlog := layoutVal != "home"
+	pageContext := models.ContextBlog
+	if !isBlog {
+		pageContext = models.ContextHome
+	}
+
 	return service.renderer.RenderPage(destPath, models.PageData{
 		Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
 		Meta: parseRes.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 		TabTitle: post.Title + " | " + service.cfg.Title, Permalink: post.Link, Image: cardImageURL,
 		TOC: parseRes.TOC, Config: service.cfg, ReadingTime: post.ReadingTime,
 		AllTags:  nav.allTags,
-		PrevPage: nav.prev, NextPage: nav.next, RelativePrefix: fspkg.GetRelativePrefix(htmlRelPath),
-		HasImages: parseRes.HasImages,
-		JSONLD:    service.generateJSONLD(post, cardImageURL),
+		PrevPage: nav.prev, NextPage: nav.next, RelativePrefix: relPrefix,
+		HasImages: parseRes.HasImages, Context: pageContext,
+		BlogPrefix:   service.cfg.BlogPrefix,
+		BlogIndexURL: blogIndexURL,
+		JSONLD:       service.generateJSONLD(post, cardImageURL),
 	})
 }
 

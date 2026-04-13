@@ -113,54 +113,61 @@
     {{ end }}
 
     <header>
-        <a href="{{ relativize .BaseURL .RelativePrefix "/" }}" class="site-title">
-            {{ if .Config.GetLogo }}
-            <img src="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}" alt="Logo" class="site-logo" width="35" height="35" fetchpriority="high" loading="eager">
-            {{ end }}
-            {{ .Config.GetSiteTitle }}
-        </a>
-        <nav>
-            <div class="desktop-nav">
-                {{ range .Config.GetMenu }}
-                {{ if .URL }}
-                <a href="{{ if hasPrefix .URL "http" }}{{ .URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix .URL }}{{ end }}" {{ if .Target }}target="{{ .Target }}"{{ end }} {{ if .ID }}id="{{ .ID }}"{{ end }} {{ if .Class }}class="{{ .Class }}"{{ end }} aria-label="{{ .Name }}" title="{{ .Name }}">
-                    {{ .Name }}
-                </a>
-                {{ else }}
-                <button {{ if .ID }}id="{{ .ID }}"{{ end }} {{ if .Class }}class="{{ .Class }}"{{ end }} aria-label="{{ .Name }}" title="{{ .Name }}">
-                    {{ .Name }}
+        <div class="nav-container">
+            <a href="{{ if .Navbar.BtnURL }}{{ .Navbar.BtnURL }}{{ else }}{{ relativize .BaseURL .RelativePrefix "/" }}{{ end }}" class="site-title">
+                {{ if .Config.GetLogo }}
+                <img src="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}" alt="Logo" class="site-logo" width="32" height="32" fetchpriority="high" loading="eager">
+                {{ end }}
+                {{ .Navbar.Title }}
+            </a>
+            <nav>
+                <div class="desktop-nav">
+                    {{ if .Navbar.BtnLabel }}
+                    <a href="{{ .Navbar.BtnURL }}" class="nav-btn" aria-label="{{ .Navbar.BtnLabel }}" title="{{ .Navbar.BtnLabel }}">
+                        {{ .Navbar.BtnLabel }}
+                    </a>
+                    {{ end }}
+                    {{ range .Config.GetMenu }}
+                    {{ if .URL }}
+                    <a href="{{ if or (hasPrefix .URL "http") (hasPrefix .URL "/") }}{{ .URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix .URL }}{{ end }}" {{ if .Target }}target="{{ .Target }}"{{ end }} {{ if .ID }}id="{{ .ID }}"{{ end }} {{ if .Class }}class="{{ .Class }}"{{ end }} aria-label="{{ .Name }}" title="{{ .Name }}">
+                        {{ .Name }}
+                    </a>
+                    {{ else }}
+                    <button {{ if .ID }}id="{{ .ID }}"{{ end }} {{ if .Class }}class="{{ .Class }}"{{ end }} aria-label="{{ .Name }}" title="{{ .Name }}">
+                        {{ .Name }}
+                    </button>
+                    {{ end }}
+                    {{ end }}
+                    <button id="theme-toggle" aria-label="Toggle Theme">
+                        <svg class="theme-icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                        <svg class="theme-icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    </button>
+                </div>
+                
+                <button id="search-btn-mobile" class="nav-btn mobile-search-btn" aria-label="Search">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
                 </button>
-                {{ end }}
-                {{ end }}
-                <button id="theme-toggle" aria-label="Toggle Theme">
+                
+                <button id="theme-toggle-mobile" class="mobile-theme-toggle" aria-label="Toggle Theme">
                     <svg class="theme-icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                     <svg class="theme-icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
                 </button>
-            </div>
-            
-            <button id="search-btn-mobile" class="nav-btn mobile-search-btn" aria-label="Search">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                </svg>
-            </button>
-            
-            <button id="theme-toggle-mobile" class="mobile-theme-toggle" aria-label="Toggle Theme">
-                <svg class="theme-icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-                <svg class="theme-icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-            </button>
-            
-            <button id="menu-toggle" class="menu-toggle" aria-label="Toggle Menu" aria-expanded="false">
-                <span class="hamburger-line"></span>
-                <span class="hamburger-line"></span>
-                <span class="hamburger-line"></span>
-            </button>
-        </nav>
+                
+                <button id="menu-toggle" class="menu-toggle" aria-label="Toggle Menu" aria-expanded="false">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+            </nav>
+        </div>
     </header>
 
     <div id="mobile-menu" class="mobile-menu" aria-hidden="true">
         <div class="mobile-menu-header">
-            <span class="mobile-menu-title">Menu</span>
+            <span class="mobile-menu-title">{{ .Navbar.Title }}</span>
             <button id="menu-close" class="menu-close" aria-label="Close Menu">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -169,17 +176,22 @@
             </button>
         </div>
         <div class="mobile-menu-content">
+            {{ if .Navbar.BtnLabel }}
+            <a href="{{ .Navbar.BtnURL }}" class="mobile-nav-link">
+                {{ .Navbar.BtnLabel }}
+            </a>
+            {{ end }}
             {{ range .Config.GetMenu }}
             {{ if .URL }}
-            <a href="{{ if hasPrefix .URL "http" }}{{ .URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix .URL }}{{ end }}" 
-               {{ if .Target }}target="{{ .Target }}"{{ end }} 
-               {{ if .ID }}id="mobile-{{ .ID }}"{{ end }} 
+            <a href="{{ if or (hasPrefix .URL "http") (hasPrefix .URL "/") }}{{ .URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix .URL }}{{ end }}"
+               {{ if .Target }}target="{{ .Target }}"{{ end }}
+               {{ if .ID }}id="mobile-{{ .ID }}"{{ end }}
                {{ if .Class }}class="mobile-nav-link {{ .Class }}"{{ else }}class="mobile-nav-link"{{ end }}>
                 {{ .Name }}
             </a>
             {{ else }}
-            <button {{ if .ID }}id="mobile-{{ .ID }}"{{ end }} 
-                    {{ if .Class }}class="mobile-nav-link {{ .Class }}"{{ else }}class="mobile-nav-link"{{ end }} 
+            <button {{ if .ID }}id="mobile-{{ .ID }}"{{ end }}
+                    {{ if .Class }}class="mobile-nav-link {{ .Class }}"{{ else }}class="mobile-nav-link"{{ end }}
                     aria-label="{{ .Name }}">{{ .Name }}</button>
             {{ end }}
             {{ end }}
@@ -294,7 +306,7 @@
                 <div class="colophon-social">
                     {{ range $index, $item := .Config.GetFooterMenu }}
                     {{ if $index }}<span class="social-dot">&bull;</span>{{ end }}
-                    <a href="{{ if hasPrefix $item.URL "http" }}{{ $item.URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix $item.URL }}{{ end }}" {{ if $item.Target }}target="{{ $item.Target }}"{{ end }} rel="noopener">{{ $item.Name }}</a>
+                    <a href="{{ if or (hasPrefix $item.URL "http") (hasPrefix $item.URL "/") }}{{ $item.URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix $item.URL }}{{ end }}" {{ if $item.Target }}target="{{ $item.Target }}"{{ end }} rel="noopener">{{ $item.Name }}</a>
                     {{ end }}
                 </div>
                 <div class="colophon-meta">

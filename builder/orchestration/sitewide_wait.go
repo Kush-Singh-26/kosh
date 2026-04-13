@@ -38,7 +38,7 @@ func (engineInstance *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.G
 		}
 		if err := engineInstance.Deps.Render.Render404(filepath.Join(engineInstance.Cfg.OutputDir, "404.html"), models.PageData{
 			Title: "404 Not Found", BaseURL: engineInstance.Cfg.BaseURL, TabTitle: "404 Not Found",
-			Config: engineInstance.Cfg, RelativePrefix: "", AllTags: allTags,
+			Config: engineInstance.Cfg, RelativePrefix: "", AllTags: allTags, Context: models.ContextHome,
 		}); err != nil {
 			return fmt.Errorf("failed to render 404 page: %w", err)
 		}

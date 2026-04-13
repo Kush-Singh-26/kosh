@@ -5,6 +5,19 @@ import (
 	"time"
 )
 
+type PageContext string
+
+const (
+	ContextHome PageContext = "home"
+	ContextBlog PageContext = "blog"
+)
+
+type Navbar struct {
+	Title    string
+	BtnLabel string
+	BtnURL   string
+}
+
 // TOCEntry represents a table of contents entry
 type TOCEntry struct {
 	ID    string `json:"id"`
@@ -38,6 +51,7 @@ type PostMetadata struct {
 	IsPinned    bool
 	IsDraft     bool
 	DateObj     time.Time
+	ContentHTML string
 }
 
 // TagData contains display data for a tag.
@@ -72,6 +86,12 @@ type PageData struct {
 	IsIndex      bool
 	IsTagsIndex  bool
 	IsGraphPage  bool
+	IsBlog       bool
+	IsHome       bool
+	Context      PageContext
+	Navbar       Navbar
+	BlogPrefix   string
+	BlogIndexURL string
 	Posts        []PostMetadata
 	PinnedPosts  []PostMetadata
 	AllTags      []TagData
@@ -84,6 +104,9 @@ type PageData struct {
 	Weight       int
 	ReadingTime  int
 	HasImages    bool
+
+	// SiteData holds structured data from the data/ directory
+	SiteData map[string]any
 
 	// Navigation
 	Breadcrumbs []Breadcrumb

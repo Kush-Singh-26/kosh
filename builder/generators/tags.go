@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -57,7 +58,7 @@ func BuildAllTags(tagMap map[string][]models.PostMetadata) []models.TagData {
 		allTags = append(allTags, models.TagData{
 			Name:  t,
 			Count: len(posts),
-			Link:  fmt.Sprintf("/tags/%s.html", slug),
+			Link:  fmt.Sprintf("/blogs/tags/%s.html", slug),
 		})
 	}
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
@@ -138,27 +139,39 @@ func ensureTagsIndexCard(opts TagOptions, tagsDesc string) {
 }
 
 func renderTagsIndex(cfg *config.Config, render models.RenderService, allTags []models.TagData) error {
-	return render.RenderPage(filepath.Join(cfg.OutputDir, "tags/index.html"), models.PageData{
-		Title: "All Tags", IsTagsIndex: true, AllTags: allTags,
+	blogPrefix := strings.Trim(cfg.BlogPrefix, "/")
+	blogIndexURL := "index.html"
+	if blogPrefix != "" {
+		blogIndexURL = "/" + blogPrefix + "/"
+	}
+	return render.RenderPage(filepath.Join(cfg.OutputDir, "blogs/tags/index.html"), models.PageData{
+		Title: "All Tags", IsTagsIndex: true, Context: models.ContextBlog, AllTags: allTags,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
-		Permalink: cfg.BaseURL + "/tags/index.html",
+		Permalink: cfg.BaseURL + "/blogs/tags/index.html",
 		Image:     cfg.BaseURL + "/static/images/cards/tags/index.webp",
 		TabTitle:  "All Topics | " + cfg.Title, Config: cfg,
 		Weight:         0,
-		RelativePrefix: "../",
+		RelativePrefix: "../../", BlogPrefix: cfg.BlogPrefix,
+		BlogIndexURL: blogIndexURL,
 	})
 }
 
 func renderTagPage(cfg *config.Config, render models.RenderService, tagName, slug string, posts []models.PostMetadata) error {
 	timeutil.SortPosts(posts)
-	return render.RenderPage(filepath.Join(cfg.OutputDir, fmt.Sprintf("tags/%s.html", slug)), models.PageData{
-		Title: "#" + tagName, IsIndex: true, Posts: posts,
+	blogPrefix := strings.Trim(cfg.BlogPrefix, "/")
+	blogIndexURL := "index.html"
+	if blogPrefix != "" {
+		blogIndexURL = "/" + blogPrefix + "/"
+	}
+	return render.RenderPage(filepath.Join(cfg.OutputDir, fmt.Sprintf("blogs/tags/%s.html", slug)), models.PageData{
+		Title: "#" + tagName, IsIndex: true, Context: models.ContextBlog, Posts: posts,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
-		Permalink: fmt.Sprintf("%s/tags/%s.html", cfg.BaseURL, slug),
+		Permalink: fmt.Sprintf("%s/blogs/tags/%s.html", cfg.BaseURL, slug),
 		Image:     fmt.Sprintf("%s/static/images/cards/tags/%s.webp", cfg.BaseURL, slug),
 		TabTitle:  "#" + tagName + " | " + cfg.Title, Config: cfg,
 		Weight:         0,
-		RelativePrefix: "../",
+		RelativePrefix: "../../", BlogPrefix: cfg.BlogPrefix,
+		BlogIndexURL: blogIndexURL,
 	})
 }
 

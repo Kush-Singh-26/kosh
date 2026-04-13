@@ -3,6 +3,7 @@ package renderer
 import (
 	"log/slog"
 	"path/filepath"
+	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
@@ -11,7 +12,7 @@ type MockConfig struct{}
 
 func (m MockConfig) GetMenu() []models.MenuEntry       { return nil }
 func (m MockConfig) GetFooterMenu() []models.MenuEntry { return nil }
-func (m MockConfig) GetAuthor() models.AuthorConfig   { return models.AuthorConfig{} }
+func (m MockConfig) GetAuthor() models.AuthorConfig    { return models.AuthorConfig{} }
 func (m MockConfig) GetSocial() models.SocialCardsConfig {
 	return models.SocialCardsConfig{Gradient: []string{"#000", "#fff"}}
 }
@@ -19,7 +20,9 @@ func (m MockConfig) GetFeatures() models.FeaturesConfig { return models.Features
 func (m MockConfig) GetSiteTitle() string               { return "Kosh Blog" }
 func (m MockConfig) GetLogo() string                    { return "" }
 func (m MockConfig) GetBaseURL() string                 { return "" }
+func (m MockConfig) GetBlogPrefix() string              { return "" }
 func (m MockConfig) IsDevMode() bool                    { return false }
+func (m MockConfig) GetSiteData() map[string]any        { return nil }
 
 // SetAssets snapshots the asset map for template rendering.
 func (r *Renderer) SetAssets(assets map[string]string) {
@@ -73,6 +76,71 @@ func (r *Renderer) PreparePageData(data *models.PageData) {
 			data.Assets = relativizedAssets
 		}
 	}
+
+	if data.SiteData == nil {
+		data.SiteData = data.Config.GetSiteData()
+	}
+
+	// Setup Navbar based on Context
+	if data.Navbar.Title == "" {
+		setupNavbar(data, r.logger)
+	}
+}
+
+func setupNavbar(data *models.PageData, logger *slog.Logger) {
+	cfg := data.Config
+	blogPrefix := strings.Trim(cfg.GetBlogPrefix(), "/")
+
+	// Determine context
+	ctx := data.Context
+	if ctx == "" {
+		// Default based on BlogPrefix if not explicitly set
+		if blogPrefix == "" || data.IsHome {
+			ctx = models.ContextHome
+		} else {
+			ctx = models.ContextBlog
+		}
+	}
+
+	// Set Navbar Title
+	if ctx == models.ContextHome {
+		data.Navbar.Title = cfg.GetSiteTitle()
+	} else {
+		data.Navbar.Title = "Kush Blogs"
+	}
+
+	// Set Navbar Button
+	if ctx == models.ContextHome {
+		data.Navbar.BtnLabel = "Blogs"
+		if blogPrefix != "" {
+			data.Navbar.BtnURL = "/" + blogPrefix + "/"
+		} else {
+			data.Navbar.BtnURL = "/blogs/"
+		}
+	} else {
+		data.Navbar.BtnLabel = "Home"
+		data.Navbar.BtnURL = "/"
+	}
+
+	// Apply RelativePrefix to button URL only if it's a relative path (doesn't start with /)
+	// Absolute root paths (/) should stay as / and be treated as root in the browser
+	if data.RelativePrefix != "" && !strings.HasPrefix(data.Navbar.BtnURL, "/") && !strings.HasPrefix(data.Navbar.BtnURL, "http") {
+		prefix := data.RelativePrefix
+		if !strings.HasSuffix(prefix, "/") {
+			prefix += "/"
+		}
+		url := data.Navbar.BtnURL
+		if strings.HasPrefix(url, "/") {
+			url = url[1:]
+		}
+		data.Navbar.BtnURL = prefix + url
+	}
+
+	logger.Debug("Navbar setup",
+		"context", ctx,
+		"title", data.Navbar.Title,
+		"btnLabel", data.Navbar.BtnLabel,
+		"btnURL", data.Navbar.BtnURL)
 }
 
 // isExternalURL returns true if the URL is an absolute/external URL.

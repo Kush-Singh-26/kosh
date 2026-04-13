@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -332,8 +333,25 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 	processed := atomic.Int32{}
 	totalFiles := len(tasks)
 
+	// Build a map to update post metadata with finalized HTML for RSS
+	postMap := make(map[string]*models.PostMetadata)
+	if service.cfg.Features.Generators.IsRSSEnabled {
+		for i := range nav.allPosts {
+			postMap[nav.allPosts[i].Link] = &nav.allPosts[i]
+		}
+	}
+
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(renderTaskInstance renderTask) error {
 		post := renderTaskInstance.parseResult.Post
+		htmlContent := renderTaskInstance.htmlContent
+
+		// Update metadata with finalized HTML for RSS if needed
+		if service.cfg.Features.Generators.IsRSSEnabled {
+			if pm, ok := postMap[renderTaskInstance.file.Link]; ok {
+				pm.ContentHTML = htmlContent
+			}
+		}
+
 		_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, renderTaskInstance.htmlRelativePath)
 		var prev, next *models.NavPage
 		if position, ok := nav.postPos[renderTaskInstance.file.Link]; ok {
@@ -346,15 +364,41 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			}
 		}
 
+		relPrefix := fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath)
+		blogPrefix := strings.Trim(service.cfg.BlogPrefix, "/")
+		blogIndexURL := "index.html"
+		if blogPrefix != "" {
+			blogIndexURL = "/" + blogPrefix + "/"
+		} else if relPrefix != "" {
+			blogIndexURL = relPrefix + "index.html"
+		}
+
+		// Determine if this is a blog page or a custom layout page
+		// Pages with layout: "home" (portfolio) should NOT be treated as blog pages
+		layoutVal := ""
+		if l, ok := renderTaskInstance.parseResult.Metadata["layout"].(string); ok {
+			layoutVal = strings.ToLower(l)
+		} else if l, ok := renderTaskInstance.parseResult.Metadata["Layout"].(string); ok {
+			layoutVal = strings.ToLower(l)
+		}
+		isBlog := layoutVal != "home"
+		pageContext := models.ContextBlog
+		if !isBlog {
+			pageContext = models.ContextHome
+		}
+
 		if err := service.renderer.RenderPage(renderTaskInstance.destinationPath, models.PageData{
 			Title: post.Title, Description: post.Description, Content: template.HTML(renderTaskInstance.htmlContent),
 			Meta: renderTaskInstance.parseResult.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 			TabTitle: post.Title + " | " + service.cfg.Title, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
 			TOC: renderTaskInstance.parseResult.TOC, Config: service.cfg, ReadingTime: post.ReadingTime,
 			AllTags:  nav.allTags,
-			PrevPage: prev, NextPage: next, RelativePrefix: fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath),
-			HasImages: renderTaskInstance.parseResult.HasImages,
-			JSONLD:    service.generateJSONLD(post, cardImageURL),
+			PrevPage: prev, NextPage: next, RelativePrefix: relPrefix,
+			HasImages: renderTaskInstance.parseResult.HasImages, Context: pageContext,
+			BlogPrefix:   service.cfg.BlogPrefix,
+			BlogIndexURL: blogIndexURL,
+			SiteData:     service.cfg.SiteData,
+			JSONLD:       service.generateJSONLD(post, cardImageURL),
 		}); err != nil {
 			return err
 		}

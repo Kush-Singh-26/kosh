@@ -3,12 +3,12 @@ package generators
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
 	"runtime"
-
-	"log/slog"
+	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
@@ -116,33 +116,44 @@ func pageWindow(pageIdx, postsPerPage, totalPosts int) (int, int) {
 }
 
 func pagePaths(cfg *config.Config, sink models.ArtifactSink, pageIdx int) (string, string, string) {
-	destPath, permalink := filepath.Join(cfg.OutputDir, "index.html"), cfg.BaseURL+"/"
-	relPath := "index.html"
+	prefix := strings.Trim(cfg.BlogPrefix, "/")
+	if prefix != "" {
+		prefix = "/" + prefix
+	}
+
+	destPath, permalink := filepath.Join(cfg.OutputDir, prefix, "index.html"), cfg.BaseURL+prefix+"/"
+	relPath := filepath.Join(prefix, "index.html")
+
 	if pageIdx > firstPageIndex {
-		destPath = filepath.Join(cfg.OutputDir, fmt.Sprintf("page/%d/index.html", pageIdx))
-		permalink = fmt.Sprintf("%s/page/%d/", cfg.BaseURL, pageIdx)
-		relPath = fmt.Sprintf("page/%d/index.html", pageIdx)
+		destPath = filepath.Join(cfg.OutputDir, prefix, fmt.Sprintf("page/%d/index.html", pageIdx))
+		permalink = fmt.Sprintf("%s%s/page/%d/", cfg.BaseURL, prefix, pageIdx)
+		relPath = filepath.Join(prefix, fmt.Sprintf("page/%d/index.html", pageIdx))
 		_ = sink.MkdirAll(filepath.Dir(destPath))
 	}
-	return destPath, permalink, relPath
+	return destPath, permalink, filepath.ToSlash(relPath)
 }
 
 func buildPaginator(cfg *config.Config, pageIdx, totalPages int) models.Paginator {
+	prefix := strings.Trim(cfg.BlogPrefix, "/")
+	if prefix != "" {
+		prefix = "/" + prefix
+	}
+
 	paginator := models.Paginator{
 		CurrentPage: pageIdx,
 		TotalPages:  totalPages,
 		HasPrev:     pageIdx > firstPageIndex,
 		HasNext:     pageIdx < totalPages,
-		FirstURL:    cfg.BaseURL + "/#latest",
-		LastURL:     fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, totalPages),
+		FirstURL:    cfg.BaseURL + prefix + "/#latest",
+		LastURL:     fmt.Sprintf("%s%s/page/%d/#latest", cfg.BaseURL, prefix, totalPages),
 	}
 	if pageIdx > secondPageIndex {
-		paginator.PrevURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, pageIdx-1)
+		paginator.PrevURL = fmt.Sprintf("%s%s/page/%d/#latest", cfg.BaseURL, prefix, pageIdx-1)
 	} else if pageIdx == secondPageIndex {
-		paginator.PrevURL = cfg.BaseURL + "/#latest"
+		paginator.PrevURL = cfg.BaseURL + prefix + "/#latest"
 	}
 	if pageIdx < totalPages {
-		paginator.NextURL = fmt.Sprintf("%s/page/%d/#latest", cfg.BaseURL, pageIdx+1)
+		paginator.NextURL = fmt.Sprintf("%s%s/page/%d/#latest", cfg.BaseURL, prefix, pageIdx+1)
 	}
 	return paginator
 }
@@ -175,13 +186,23 @@ func RenderPagination(opts PaginationOptions) error {
 				curPinned = opts.PinnedPosts
 			}
 
+			relPrefix := fspkg.GetRelativePrefix(relPath)
+			blogPrefix := strings.Trim(cfg.BlogPrefix, "/")
+			blogIndexURL := "index.html"
+			if blogPrefix != "" {
+				blogIndexURL = "/" + blogPrefix + "/"
+			} else if relPrefix != "" {
+				blogIndexURL = relPrefix + "index.html"
+			}
 			if err := render.RenderIndex(destPath, models.PageData{
 				Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
-				Paginator: paginator, Config: cfg,
-				RelativePrefix: fspkg.GetRelativePrefix(relPath),
-				AllTags:        opts.AllTags,
+				Paginator: paginator, Config: cfg, Context: models.ContextBlog,
+				RelativePrefix: relPrefix, BlogPrefix: cfg.BlogPrefix,
+				BlogIndexURL: blogIndexURL,
+				AllTags:      opts.AllTags,
+				SiteData:     cfg.SiteData,
 			}); err != nil {
 				return fmt.Errorf("failed to render index page %d: %w", pageIdx, err)
 			}
