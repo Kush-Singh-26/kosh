@@ -178,6 +178,11 @@ func templateFuncMap() template.FuncMap {
 				return filepath.ToSlash(strings.TrimSuffix(baseURL, "/") + link)
 			}
 
+			// Handle root-relative prefix specifically
+			if prefix == "/" {
+				return filepath.ToSlash(link)
+			}
+
 			if prefix == "" || prefix == "." || prefix == "./" {
 				if isHome {
 					return "index.html"

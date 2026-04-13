@@ -198,6 +198,9 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 	}
 
 	htmlContent := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
+	relPrefix := fspkg.GetRelativePrefix(htmlRelPath)
+	htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
+
 	post := parseRes.Post
 	nav := service.resolveNavigation(post)
 	cardRelPath, cardDestPath, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
@@ -223,7 +226,6 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
 	}
 
-	relPrefix := fspkg.GetRelativePrefix(htmlRelPath)
 	blogPrefix := strings.Trim(service.cfg.BlogPrefix, "/")
 	blogIndexURL := "index.html"
 	if blogPrefix != "" {

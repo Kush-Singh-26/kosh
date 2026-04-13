@@ -3,6 +3,7 @@ package post
 import (
 	"context"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -225,4 +226,16 @@ func (service *postService) renderSSRGlobal(ctx context.Context, tasks []renderT
 		}(chunk)
 	}
 	replaceWg.Wait()
+}
+
+func rewriteStaticAssetPaths(htmlContent, relativePrefix string) string {
+	if relativePrefix == "" {
+		return htmlContent
+	}
+
+	htmlContent = strings.ReplaceAll(htmlContent, "src=\"static/", "src=\""+relativePrefix+"static/")
+	htmlContent = strings.ReplaceAll(htmlContent, "src=static/", "src="+relativePrefix+"static/")
+	htmlContent = strings.ReplaceAll(htmlContent, "src=\"static/wasm/", "src=\""+relativePrefix+"static/wasm/")
+	htmlContent = strings.ReplaceAll(htmlContent, "src=static/wasm/", "src="+relativePrefix+"static/wasm/")
+	return htmlContent
 }

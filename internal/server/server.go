@@ -373,7 +373,7 @@ func handleFileRequest(opts fileRequestOptions) {
 	ext := strings.ToLower(filepath.Ext(opts.normalizedPath))
 	preCompressed := false
 
-	if ext != ".wasm" && ext != ".bin" && strings.Contains(acceptEncoding, "br") {
+	if ext != ".bin" && strings.Contains(acceptEncoding, "br") {
 		if _, err := os.Stat(opts.fullPath + ".br"); err == nil {
 			opts.fullPath += ".br"
 			preCompressed = true

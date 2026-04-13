@@ -155,10 +155,10 @@ func defaultConfig() *Config {
 			},
 		},
 		SocialCards: models.SocialCardsConfig{
-			Background: "#faf8f5",
-			Gradient:   []string{"#e8e0d0", "#d4c4a8"},
+			Background: "#fafafa",
+			Gradient:   []string{"#e0d8c0", "#c0b090"},
 			Angle:      DefaultSocialCardAngle,
-			TextColor:  "#1a1a1a",
+			TextColor:  "#262626",
 		},
 	}
 }

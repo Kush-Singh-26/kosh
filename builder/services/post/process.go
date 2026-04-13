@@ -344,13 +344,8 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(renderTaskInstance renderTask) error {
 		post := renderTaskInstance.parseResult.Post
 		htmlContent := renderTaskInstance.htmlContent
-
-		// Update metadata with finalized HTML for RSS if needed
-		if service.cfg.Features.Generators.IsRSSEnabled {
-			if pm, ok := postMap[renderTaskInstance.file.Link]; ok {
-				pm.ContentHTML = htmlContent
-			}
-		}
+		relPrefix := fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath)
+		htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
 
 		_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, renderTaskInstance.htmlRelativePath)
 		var prev, next *models.NavPage
@@ -364,7 +359,6 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			}
 		}
 
-		relPrefix := fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath)
 		blogPrefix := strings.Trim(service.cfg.BlogPrefix, "/")
 		blogIndexURL := "index.html"
 		if blogPrefix != "" {
@@ -388,7 +382,7 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 		}
 
 		if err := service.renderer.RenderPage(renderTaskInstance.destinationPath, models.PageData{
-			Title: post.Title, Description: post.Description, Content: template.HTML(renderTaskInstance.htmlContent),
+			Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
 			Meta: renderTaskInstance.parseResult.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 			TabTitle: post.Title + " | " + service.cfg.Title, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
 			TOC: renderTaskInstance.parseResult.TOC, Config: service.cfg, ReadingTime: post.ReadingTime,

@@ -105,8 +105,14 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 	// Set Navbar Title
 	if ctx == models.ContextHome {
 		data.Navbar.Title = cfg.GetSiteTitle()
+		data.Navbar.TitleURL = "/"
 	} else {
 		data.Navbar.Title = "Kush Blogs"
+		if blogPrefix != "" {
+			data.Navbar.TitleURL = "/" + blogPrefix + "/"
+		} else {
+			data.Navbar.TitleURL = "/blogs/"
+		}
 	}
 
 	// Set Navbar Button
@@ -170,6 +176,11 @@ func relativizeAsset(assetPath, baseURL, relativePrefix string) string {
 	// If baseURL is provided, prepend it
 	if baseURL != "" {
 		return baseURL + assetPath
+	}
+
+	// Handle root-relative prefix specifically
+	if relativePrefix == "/" {
+		return assetPath
 	}
 
 	// If relativePrefix is provided, prepend it (for moving up directories)

@@ -20,7 +20,7 @@
 
     <link rel="canonical" href="{{ .Permalink }}">
     <link rel="alternate" type="application/rss+xml" title="{{ .Title }} RSS Feed" href="{{ relativize .BaseURL .RelativePrefix "/rss.xml" }}" />
-    <meta name="theme-color" content="#111113">
+    <meta name="theme-color" content="#262626">
 
     {{ if and .Config.GetFeatures.Generators.IsPWAEnabled (not .Config.IsDevMode) }}
     <link rel="apple-touch-icon" href="{{ relativize .BaseURL .RelativePrefix "/static/images/icon-192.png" }}">
@@ -34,7 +34,7 @@
     <meta property="og:image" content="{{ .Image }}">
     <meta name="image" property="og:image" content="{{ .Image }}">
 
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://github-contributions-api.jogruber.de; object-src 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self';">
     
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="{{ .Permalink }}">
@@ -108,13 +108,12 @@
 </head>
 <body{{ if .IsGraphPage }} class="graph-mode"{{ end }}>
     {{ if not .IsGraphPage }}
-    <div id="progress-bar"></div>
     <div id="scroll-ghost"><div id="scroll-ghost-fill"></div></div>
     {{ end }}
 
     <header>
         <div class="nav-container">
-            <a href="{{ if .Navbar.BtnURL }}{{ .Navbar.BtnURL }}{{ else }}{{ relativize .BaseURL .RelativePrefix "/" }}{{ end }}" class="site-title">
+            <a href="{{ if .Navbar.TitleURL }}{{ .Navbar.TitleURL }}{{ else }}{{ relativize .BaseURL .RelativePrefix "/" }}{{ end }}" class="site-title">
                 {{ if .Config.GetLogo }}
                 <img src="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}" alt="Logo" class="site-logo" width="32" height="32" fetchpriority="high" loading="eager">
                 {{ end }}

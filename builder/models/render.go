@@ -14,6 +14,7 @@ const (
 
 type Navbar struct {
 	Title    string
+	TitleURL string
 	BtnLabel string
 	BtnURL   string
 }
