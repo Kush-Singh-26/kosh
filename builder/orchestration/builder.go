@@ -3,6 +3,7 @@ package orchestration
 import (
 	"context"
 	"log/slog"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -28,6 +29,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/services/wasm"
+	"github.com/Kush-Singh-26/kosh/builder/shortcodes"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/spf13/afero"
 )
@@ -170,6 +172,12 @@ func (setup *buildSetup) initServices() {
 		Reporter: setup.reporter,
 	}, asset.WithAssetsReadySignal(assetsReady))
 
+	themeShortcodesDir := filepath.Join(setup.config.TemplateDir, "shortcodes")
+	shortcodeProc, err := shortcodes.New(setup.sourceFs, themeShortcodesDir)
+	if err != nil {
+		setup.logger.Warn("Failed to initialize shortcodes", "error", err)
+	}
+
 	setup.postSvc = post.NewService(post.Dependencies{
 		Ctx:            setup.ctx,
 		Cfg:            setup.config,
@@ -182,6 +190,7 @@ func (setup *buildSetup) initServices() {
 		SourceFs:       setup.sourceFs,
 		DiagramAdapter: setup.diagramAdapter,
 		Reporter:       setup.reporter,
+		Shortcodes:     shortcodeProc,
 	})
 	setup.metaScanner = scanner.NewScanner()
 

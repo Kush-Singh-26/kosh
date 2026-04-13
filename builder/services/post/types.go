@@ -8,6 +8,10 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+type ShortcodeProcessor interface {
+	Process(markdown []byte) ([]byte, error)
+}
+
 type renderTask struct {
 	parseResult      *ParsedMarkdownResult
 	file             models.ScannedFile

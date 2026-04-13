@@ -73,6 +73,7 @@ type Dependencies struct {
 	Sink           fspkg.ArtifactSink
 	DiagramAdapter *cache.DiagramCacheAdapter
 	Reporter       ui.Reporter
+	Shortcodes     ShortcodeProcessor
 }
 
 // Parser handles markdown parsing and processing

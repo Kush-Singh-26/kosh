@@ -181,6 +181,7 @@ func (service *assetService) getStaticSourceDirs() []string {
 		dirs = append(dirs, themeDir)
 	}
 
+	// 1. Check SiteRoot (current working directory)
 	siteStaticDir := "static"
 	if service.cfg.SiteRoot != "" {
 		siteStaticDir = filepath.Join(service.cfg.SiteRoot, "static")
@@ -195,6 +196,21 @@ func (service *assetService) getStaticSourceDirs() []string {
 	}
 	if _, err := os.Stat(assetsDir); err == nil {
 		dirs = append(dirs, assetsDir)
+	}
+
+	// 2. Fallback: Check parent of ContentDir (handles blogs-src/static style layouts)
+	if service.cfg.ContentDir != "" {
+		contentParent := filepath.Dir(service.cfg.ContentDir)
+		if contentParent != service.cfg.SiteRoot {
+			fallbackStatic := filepath.Join(contentParent, "static")
+			if _, err := os.Stat(fallbackStatic); err == nil {
+				dirs = append(dirs, fallbackStatic)
+			}
+			fallbackAssets := filepath.Join(contentParent, "assets")
+			if _, err := os.Stat(fallbackAssets); err == nil {
+				dirs = append(dirs, fallbackAssets)
+			}
+		}
 	}
 
 	if service.cfg.Server.RootDirectory != "" {
@@ -427,6 +443,7 @@ func (service *assetService) setupDiscoveryWalk(walkOptions discoveryWalkOptions
 							}
 						}
 						fullRelativePath := "static/" + relative
+
 						if _, loaded := walkOptions.syncCtx.seen.LoadOrStore(fullRelativePath, true); !loaded {
 							if walkOptions.debugAssets {
 								service.recordDiscoverySample(isSite, fullRelativePath, walkOptions.syncCtx)

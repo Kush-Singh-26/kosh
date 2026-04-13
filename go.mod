@@ -18,7 +18,6 @@ require (
 	github.com/klauspost/compress v1.18.4
 	github.com/spf13/afero v1.15.0
 	github.com/spf13/cobra v1.10.2
-	github.com/stefanfritsch/goldmark-admonitions v1.1.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tdewolff/minify/v2 v2.24.10
 	github.com/tinylib/msgp v1.6.3

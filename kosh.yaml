@@ -4,6 +4,7 @@ description: "Deep dives into Machine Learning, Systems Engineering, and LLMs by
 logo: "static/images/kush3.png"
 baseURL: "" # Empty for local dev, GitHub Actions will override this via CLI flag
 language: "en"
+blogPrefix: "blogs"
 
 # Author
 author:
@@ -19,7 +20,7 @@ menu:
     id: "search-btn"
     class: "nav-btn"
   - name: "Tags"
-    url: "/tags/index.html"
+    url: "/blogs/tags/"
   - name: "Graph"
     url: "/graph.html"
 
@@ -27,6 +28,8 @@ footerMenu:
   - name: "Portfolio"
     url: "https://kush-singh-26.github.io/"
     target: "_blank"
+  - name: "Blogs"
+    url: "/blogs/"
   - name: "GitHub"
     url: "https://github.com/Kush-Singh-26"
     target: "_blank"

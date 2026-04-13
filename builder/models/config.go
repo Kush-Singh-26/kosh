@@ -50,5 +50,7 @@ type TemplateConfig interface {
 	GetSiteTitle() string
 	GetLogo() string
 	GetBaseURL() string
+	GetBlogPrefix() string
 	IsDevMode() bool
+	GetSiteData() map[string]any
 }

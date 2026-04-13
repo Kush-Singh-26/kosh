@@ -21,7 +21,7 @@ func TestRunFs_CleanAll(t *testing.T) {
 	_ = afero.WriteFile(fs, filepath.Join(outputDir, "index.html"), []byte("test"), 0644)
 	_ = fs.MkdirAll(cacheDir, 0755)
 
-	RunFs(fs, true, true)
+	_ = RunFs(fs, []string{}, true)
 
 	exists, _ := afero.DirExists(fs, outputDir)
 	if exists {

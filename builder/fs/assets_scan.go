@@ -69,11 +69,9 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 				// For JS, we keep all as entry points for now
 				js = append(js, path)
 			case ".css":
-				// For CSS, we only bundle layout.css and graph.css
-				// All other CSS should be imported via these entry points
-				if baseName == "layout.css" || baseName == "graph.css" {
-					css = append(css, path)
-				}
+				// Bundle all CSS files from static directory (layout.css, graph.css, portfolio CSS)
+				// This ensures all theme CSS is properly minified and hashed
+				css = append(css, path)
 			}
 
 			metas = append(metas, fileMeta{

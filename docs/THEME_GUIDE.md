@@ -125,7 +125,65 @@ To use a partial, call it by its path relative to the `templates` directory, whi
 > [!NOTE]
 > **Context Passing**: The second argument (the `.` in the example above) is the data context passed to the partial. Inside the partial, `.` will refer precisely to what you passed (in this case, a single Post object).
 
-### 4. Adding Extra Assets (`head-extra`)
+### 4. Data Files
+
+Kosh allows you to store structured data in a `data/` directory at the project root. This data is automatically loaded and made available to all templates via `.SiteData`.
+
+#### Example
+1. Create `data/projects.yaml`:
+```yaml
+- name: "Kosh SSG"
+  stars: 420
+- name: "Go"
+  stars: 120000
+```
+
+2. Use it in any template:
+```html
+<ul>
+{{ range .SiteData.projects }}
+    <li>{{ .name }} ({{ .stars }} stars)</li>
+{{ end }}
+</ul>
+```
+
+Supported formats: `.yaml`, `.yml`, `.json`. The filename (minus extension) becomes the key in `.SiteData`.
+
+### 5. Shortcodes
+
+Shortcodes are reusable snippets used inside your Markdown files. They follow the Hugo-style `{{< name args >}}` syntax.
+
+#### Built-in Shortcodes
+
+- `{{< youtube id="VIDEO_ID" >}}`: Embeds a responsive YouTube video.
+- `{{< figure src="/img.jpg" caption="Description" size="400px" >}}`: Images with captions and custom sizing.
+- `{{< callout type="tip" title="Pro Tip" >}} Content... {{< /callout >}}`: Admonition boxes. Types: `note`, `tip`, `warning`, `caution`.
+- `{{< details summary="Click to expand" >}} Hidden content... {{< /details >}}`: Collapsible sections.
+
+#### Custom Shortcodes
+
+To create a custom shortcode, add an HTML file to `templates/shortcodes/name.html`.
+
+**Example: `templates/shortcodes/alert.html`**
+```html
+<div class="alert alert-{{ .Args.type }}">
+    {{ .Inner }}
+</div>
+```
+
+**Usage:**
+```markdown
+{{< alert type="danger" >}}
+This is a custom alert!
+{{< /alert >}}
+```
+
+Available variables in shortcode templates:
+- `.Args`: A map of string arguments.
+- `.Inner`: The nested content (for block shortcodes).
+- `.Name`: The name of the shortcode.
+
+### 6. Adding Extra Assets (`head-extra`)
 
 If your theme requires third-party fonts (like Google Fonts) or additional stylesheets, use the `head-extra` block. This block is injected at the end of the `<head>` tag in the shell.
 

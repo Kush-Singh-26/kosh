@@ -25,6 +25,7 @@ var (
 	buildForceLock        bool
 	buildPhaseTimings     bool
 	buildPhaseTimingsFile string
+	buildNoStaging        bool
 )
 
 var buildCmd = &cobra.Command{
@@ -46,6 +47,7 @@ func init() {
 	buildCmd.Flags().BoolVar(&buildForceLock, "force-lock", false, "Acquire build lock even if another build is running")
 	buildCmd.Flags().BoolVar(&buildPhaseTimings, "phase-timings", false, "Print per-phase build timings")
 	buildCmd.Flags().StringVar(&buildPhaseTimingsFile, "phase-timings-file", "", "Write per-phase timings to a JSON file")
+	buildCmd.Flags().BoolVar(&buildNoStaging, "no-staging", false, "Disable atomic staging (overwrites output in place)")
 }
 
 func runBuild(cmd *cobra.Command, args []string) {
@@ -71,6 +73,9 @@ func runBuild(cmd *cobra.Command, args []string) {
 	}
 	if debug {
 		filteredArgs = append(filteredArgs, "-debug")
+	}
+	if buildNoStaging {
+		filteredArgs = append(filteredArgs, "-no-staging")
 	}
 
 	if buildCPUProfile != "" {

@@ -20,14 +20,15 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
 
-	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/base"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 // Renderer loads templates and renders site pages.
 type Renderer struct {
 	Layout         *template.Template
 	Index          *template.Template
+	Home           *template.Template
 	Graph          *template.Template
 	NotFound       *template.Template
 	baseTemplate   *template.Template
@@ -116,7 +117,7 @@ func (r *Renderer) ReloadTemplates() {
 	}
 
 	funcMap := templateFuncMap()
-	layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl, err := r.loadTemplates(tc, funcMap)
+	layoutTmpl, indexTmpl, homeTmpl, graphTmpl, notFoundTmpl, err := r.loadTemplates(tc, funcMap)
 	if err != nil {
 		r.logger.Error("Template parsing failed", "error", err)
 		os.Exit(1)
@@ -125,6 +126,7 @@ func (r *Renderer) ReloadTemplates() {
 	r.mu.Lock()
 	r.Layout = layoutTmpl
 	r.Index = indexTmpl
+	r.Home = homeTmpl
 	r.Graph = graphTmpl
 	r.NotFound = notFoundTmpl
 	r.mu.Unlock()
@@ -134,6 +136,7 @@ func (r *Renderer) applyTemplateCache(tc *templateCache) {
 	r.mu.Lock()
 	r.Layout = tc.templates["layout"]
 	r.Index = tc.templates["index"]
+	r.Home = tc.templates["home"]
 	r.Graph = tc.templates["graph"]
 	r.NotFound = tc.templates["404"]
 	r.mu.Unlock()
@@ -215,18 +218,30 @@ func templateFuncMap() template.FuncMap {
 			jsonBytes, err := json.Marshal(value)
 			return string(jsonBytes), err
 		},
+		"default": func(defaultValue, value any) any {
+			if value == nil {
+				return defaultValue
+			}
+			if s, ok := value.(string); ok && s == "" {
+				return defaultValue
+			}
+			return value
+		},
+		"add": func(a, b int) int {
+			return a + b
+		},
 	}
 }
 
-func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*template.Template, *template.Template, *template.Template, *template.Template, error) {
+func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*template.Template, *template.Template, *template.Template, *template.Template, *template.Template, error) {
 	var (
-		layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl *template.Template
-		mu                                             sync.Mutex
+		layoutTmpl, indexTmpl, homeTmpl, graphTmpl, notFoundTmpl *template.Template
+		mu                                                       sync.Mutex
 	)
 
 	baseTmpl, err := template.New("base.html").Funcs(funcMap).Parse(base.BaseTemplate)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to parse embedded base template: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to parse embedded base template: %w", err)
 	}
 
 	loadSlotTmpl := func(name, fileName string) (*template.Template, error) {
@@ -303,6 +318,18 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 	})
 
 	eg.Go(func() error {
+		tmpl, err := loadSlotTmpl("home", "home.html")
+		if err != nil {
+			r.logger.Debug("Home template not found (optional)", "dir", r.templateDir)
+			return nil
+		}
+		mu.Lock()
+		homeTmpl = tmpl
+		mu.Unlock()
+		return nil
+	})
+
+	eg.Go(func() error {
 		tmpl, err := loadSlotTmpl("404", "404.html")
 		if err != nil {
 			r.logger.Warn("404 template not found, falling back to layout", "dir", r.templateDir)
@@ -315,9 +342,9 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 	})
 
 	if err := eg.Wait(); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
-	return layoutTmpl, indexTmpl, graphTmpl, notFoundTmpl, nil
+	return layoutTmpl, indexTmpl, homeTmpl, graphTmpl, notFoundTmpl, nil
 }
 
 // loadPartials discovers and parses all files under templates/partials/ into t.

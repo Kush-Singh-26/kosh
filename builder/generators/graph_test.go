@@ -92,8 +92,8 @@ func TestGenerateGraph(t *testing.T) {
 		if tagGo.Group != 2 {
 			t.Errorf("Expected group 2 for tag, got %d", tagGo.Group)
 		}
-		if !strings.Contains(tagGo.URL, "/tags/go.html") {
-			t.Errorf("Expected tag URL to contain /tags/go.html, got %s", tagGo.URL)
+		if !strings.Contains(tagGo.URL, "/blogs/tags/go.html") {
+			t.Errorf("Expected tag URL to contain /blogs/tags/go.html, got %s", tagGo.URL)
 		}
 	}
 

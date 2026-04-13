@@ -95,7 +95,7 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 				if !nodeExists[tagID] {
 					tagNodes[tagID] = models.GraphNode{
 						ID: tagID, Label: "#" + t, Group: graphTagGroup, Value: graphTagValue,
-						URL: fmt.Sprintf("%s/tags/%s.html", baseURL, slug),
+						URL: fmt.Sprintf("%s/blogs/tags/%s.html", baseURL, slug),
 					}
 					nodeExists[tagID] = true
 				}

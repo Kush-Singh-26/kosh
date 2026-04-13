@@ -28,7 +28,7 @@ menu:
   - name: "Home"
     url: "/"
   - name: "Tags"
-    url: "/tags/index.html"
+    url: "/blogs/tags/index.html"
 
 # Features
 postsPerPage: 10

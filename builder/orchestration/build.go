@@ -27,7 +27,7 @@ func (engineInstance *Engine) refreshBuildSession() {
 	fspkg.ClearSyncCache()
 	// If we already have a sink/tx (e.g. injected in tests), don't overwrite it
 	if engineInstance.artifactSink == nil || !engineInstance.Ctx.IsTesting {
-		useStaging := !engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild
+		useStaging := (!engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild) && !engineInstance.Cfg.NoStaging
 		// Explicit cleanup before creating new transaction for clean builds
 		if useStaging {
 			tx.CleanupStaleBuildDirs(engineInstance.Cfg.OutputDir)

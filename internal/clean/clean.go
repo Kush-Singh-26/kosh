@@ -1,96 +1,48 @@
+// Package clean handles the removal of build artifacts.
 package clean
 
 import (
-	"context"
-	"fmt"
 	"log/slog"
-	"path/filepath"
-	"sync"
-	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	buildFs "github.com/Kush-Singh-26/kosh/builder/fs"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/spf13/afero"
 )
 
-// cleanupWg tracks background deletion goroutines for proper shutdown
-var cleanupWg sync.WaitGroup
+// Run removes the build output directory and potentially the cache.
+func Run(args []string, cleanCache bool) error {
+	fs := afero.NewOsFs()
+	cfg := config.Load(args)
 
-// Run performs a clean operation using the OS filesystem.
-func Run(cleanCache bool) {
-	RunFs(afero.NewOsFs(), cleanCache, buildFs.DetectTestingMode())
-}
-
-// RunFs performs a clean operation using the provided filesystem.
-func RunFs(fs afero.Fs, cleanCache bool, isTesting bool) {
-	start := time.Now()
-
-	// Get outputDir from config (fallback to "public")
-	outputDir := "public"
-	cfg := config.Load([]string{})
-	if cfg != nil && cfg.OutputDir != "" {
-		outputDir = cfg.OutputDir
-	}
-
-	cleanDirAsync(fs, outputDir, isTesting)
-
-	if cleanCache {
-		cacheDir := ".kosh-cache"
-		if cfg != nil && cfg.CacheDir != "" {
-			cacheDir = cfg.CacheDir
+	// Remove output directory
+	if cfg.OutputDir != "" {
+		slog.Info("Cleaning output directory", "path", cfg.OutputDir)
+		if err := fs.RemoveAll(cfg.OutputDir); err != nil {
+			slog.Warn("Failed to remove output directory", "error", err)
 		}
-		cleanDirAsync(fs, cacheDir, isTesting)
 	}
 
-	orchestration.DevLogInfo(fmt.Sprintf("Clean initiated in %v.", time.Since(start)))
-}
-
-// WaitForCleanup blocks until all background cleanup goroutines complete.
-// Call this before program exit if you need to ensure cleanup completes.
-func WaitForCleanup() {
-	cleanupWg.Wait()
-}
-
-func cleanDirAsync(fs afero.Fs, path string, isTesting bool) {
-	exists, _ := afero.Exists(fs, path)
-	if !exists {
-		return
-	}
-
-	if isTesting {
-		_ = fs.RemoveAll(path)
-		return
-	}
-
-	removePathAsync(fs, path)
-}
-
-func removePathAsync(fs afero.Fs, path string) {
-	dir := filepath.Dir(path)
-	base := filepath.Base(path)
-	tempName := fmt.Sprintf("%s_deleting_%d", base, time.Now().UnixNano())
-	tempPath := filepath.Join(dir, tempName)
-
-	slog.Info("Moving to trash", "path", path)
-	if err := fs.Rename(path, tempPath); err != nil {
-		slog.Warn("Rename failed, deleting synchronously", "error", err)
-		if err := fs.RemoveAll(path); err != nil {
-			slog.Error("Failed to remove path", "path", path, "error", err)
+	// Remove cache directory if requested
+	if cleanCache && cfg.CacheDir != "" {
+		slog.Info("Cleaning cache directory", "path", cfg.CacheDir)
+		if err := fs.RemoveAll(cfg.CacheDir); err != nil {
+			slog.Warn("Failed to remove cache directory", "error", err)
 		}
-		return
 	}
 
-	cleanupWg.Add(1)
-	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-		Ctx:       context.Background(),
-		Logger:    slog.Default(),
-		Operation: "clean remove",
-		Fn: func() error {
-			_ = fs.RemoveAll(tempPath)
-			return nil
-		},
-		Cleanup: cleanupWg.Done,
-	})
+	return nil
+}
+
+// RunFs is a testing entry point that allows providing a custom filesystem.
+func RunFs(fs afero.Fs, args []string, cleanCache bool) error {
+	cfg := config.Load(args)
+
+	if cfg.OutputDir != "" {
+		_ = fs.RemoveAll(cfg.OutputDir)
+	}
+
+	if cleanCache && cfg.CacheDir != "" {
+		_ = fs.RemoveAll(cfg.CacheDir)
+	}
+
+	return nil
 }

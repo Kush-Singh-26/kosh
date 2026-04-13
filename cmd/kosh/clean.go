@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"github.com/spf13/cobra"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -9,7 +10,8 @@ import (
 )
 
 var (
-	cleanCache bool
+	cleanCache     bool
+	cleanNoStaging bool
 )
 
 var cleanCmd = &cobra.Command{
@@ -25,6 +27,7 @@ func init() {
 	rootCmd.AddCommand(cleanCmd)
 
 	cleanCmd.Flags().BoolVar(&cleanCache, "cache", false, "Also clean .kosh-cache directory")
+	cleanCmd.Flags().BoolVar(&cleanNoStaging, "no-staging", false, "Disable atomic staging (overwrites output in place)")
 }
 
 func runClean(cmd *cobra.Command, args []string) {
@@ -32,11 +35,21 @@ func runClean(cmd *cobra.Command, args []string) {
 	if cleanCache {
 		mode = "Cold Rebuild"
 	}
-	printStartupBanner(mode, config.Load([]string{}))
-	clean.Run(cleanCache)
+	var filteredArgs []string
+	if cleanNoStaging {
+		filteredArgs = append(filteredArgs, "-no-staging")
+	}
+	if debug {
+		filteredArgs = append(filteredArgs, "-debug")
+	}
+
+	printStartupBanner(mode, config.Load(filteredArgs))
+	if err := clean.Run(os.Args, cleanCache); err != nil {
+		orchestration.DevLogError("Clean failed: " + err.Error())
+	}
 
 	orchestration.DevLogInfo("Rebuilding site...")
-	if err := orchestration.Run([]string{}, reporter); err != nil {
+	if err := orchestration.Run(filteredArgs, reporter); err != nil {
 		orchestration.DevLogError("Rebuild failed: " + err.Error())
 	}
 }

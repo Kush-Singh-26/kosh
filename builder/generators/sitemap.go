@@ -61,7 +61,7 @@ func GenerateSitemap(opts SitemapOptions) (string, error) {
 		}
 
 		urls = append(urls, models.URL{
-			Loc:     fmt.Sprintf("%s/tags/%s.html", baseURL, url.PathEscape(t)),
+			Loc:     fmt.Sprintf("%s/blogs/tags/%s.html", baseURL, url.PathEscape(t)),
 			LastMod: latest.Format("2006-01-02"),
 		})
 	}

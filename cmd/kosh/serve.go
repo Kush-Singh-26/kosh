@@ -20,6 +20,7 @@ var (
 	serveDrafts    bool
 	serveBaseURL   string
 	serveForceLock bool
+	serveNoStaging bool
 )
 
 var serveCmd = &cobra.Command{
@@ -41,6 +42,7 @@ func init() {
 	serveCmd.Flags().BoolVarP(&serveDrafts, "drafts", "", false, "Include draft posts in development mode")
 	serveCmd.Flags().StringVarP(&serveBaseURL, "baseurl", "", "", "Override base URL from config")
 	serveCmd.Flags().BoolVar(&serveForceLock, "force-lock", false, "Acquire build lock even if another build is running")
+	serveCmd.Flags().BoolVar(&serveNoStaging, "no-staging", false, "Disable atomic staging (overwrites output in place)")
 }
 
 func runServe(cmd *cobra.Command, args []string) {
@@ -49,6 +51,9 @@ func runServe(cmd *cobra.Command, args []string) {
 	var filteredArgs []string
 	if serveBaseURL != "" {
 		filteredArgs = append(filteredArgs, "-baseurl", serveBaseURL)
+	}
+	if serveNoStaging {
+		filteredArgs = append(filteredArgs, "-no-staging")
 	}
 	if serveDrafts {
 		filteredArgs = append(filteredArgs, "-drafts")
@@ -64,6 +69,9 @@ func runServe(cmd *cobra.Command, args []string) {
 	}
 	if debug {
 		filteredArgs = append(filteredArgs, "-debug")
+	}
+	if serveNoStaging {
+		filteredArgs = append(filteredArgs, "-no-staging")
 	}
 
 	if serveDev {

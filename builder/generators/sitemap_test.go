@@ -48,7 +48,7 @@ func TestGenerateSitemap(t *testing.T) {
 	if !strings.Contains(sitemapStr, "<loc>https://example.com/post1</loc>") {
 		t.Error("Sitemap missing post link")
 	}
-	if !strings.Contains(sitemapStr, "<loc>https://example.com/tags/go.html</loc>") {
+	if !strings.Contains(sitemapStr, "<loc>https://example.com/blogs/tags/go.html</loc>") {
 		t.Error("Sitemap missing tag link")
 	}
 }

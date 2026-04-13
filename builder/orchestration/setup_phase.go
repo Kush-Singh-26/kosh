@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
+	"github.com/Kush-Singh-26/kosh/builder/data"
 )
 
 // buildSetupResult holds data from the initial setup phase.
@@ -55,6 +56,15 @@ func (engineInstance *Engine) setupPhase(ctx context.Context) (*buildSetupResult
 	if err := engineInstance.createOutputDirectories(); err != nil {
 		return nil, err
 	}
+
+	// Load site data from data/ directory
+	dataDir := filepath.Join(engineInstance.Cfg.SiteRoot, "data")
+	siteData, err := data.Load(engineInstance.Deps.SourceFs, dataDir)
+	if err != nil {
+		engineInstance.Deps.Logger.Error("Failed to load site data", "dir", dataDir, "error", err)
+		// We continue even if data loading fails, it might be empty or optional
+	}
+	engineInstance.Cfg.SiteData = siteData
 
 	return &buildSetupResult{
 		wasmWg:             wasmWaitGroup,

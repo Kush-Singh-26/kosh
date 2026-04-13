@@ -1,0 +1,45 @@
+:root {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --accent: #0066cc;
+    --muted: #666666;
+    --border: #eeeeee;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1a1a1a;
+        --fg: #eeeeee;
+        --accent: #4da3ff;
+        --muted: #999999;
+        --border: #333333;
+    }
+}
+
+body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.code-block-container {
+    margin: 1.5rem 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #2e3440; /* Nord theme base */
+}
+
+.code-header {
+    background: #3b4252;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    color: #d8dee9;
+    border-bottom: 1px solid #434c5e;
+}
+
+.code-wrapper {
+    padding: 1rem;
+    overflow-x: auto;
+}

@@ -1,0 +1,7 @@
+<div class="post-card">
+    <h3><a href="{{ .Link }}">{{ .Title }}</a></h3>
+    <div class="post-meta">
+        {{ .DateObj.Format "Jan 02, 2006" }} • {{ .ReadingTime }} min read
+    </div>
+    <p>{{ .Description }}</p>
+</div>

@@ -1,0 +1,24 @@
+{{ define "content" }}
+<section class="hero">
+    <h1>Welcome to {{ .Config.GetSiteTitle }}</h1>
+    <p>{{ .Description }}</p>
+</section>
+
+<div class="post-list">
+    {{ range .Posts }}
+        {{ template "partials/post-card.html" . }}
+    {{ end }}
+</div>
+
+{{ if or .Paginator.HasPrev .Paginator.HasNext }}
+<nav class="pagination">
+    {{ if .Paginator.HasPrev }}
+    <a href="{{ .Paginator.PrevURL }}">← Newer</a>
+    {{ end }}
+    <span>Page {{ .Paginator.CurrentPage }} of {{ .Paginator.TotalPages }}</span>
+    {{ if .Paginator.HasNext }}
+    <a href="{{ .Paginator.NextURL }}">Older →</a>
+    {{ end }}
+</nav>
+{{ end }}
+{{ end }}

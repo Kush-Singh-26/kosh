@@ -65,6 +65,16 @@ func (service *postService) parseIfNeeded(ctx context.Context, file models.Scann
 		readingTime = cachedMeta.ReadingTime
 	}
 
+	// Apply shortcode processing if processor is available
+	if service.shortcodes != nil && len(sourceBytes) > 0 {
+		processed, err := service.shortcodes.Process(sourceBytes)
+		if err == nil {
+			sourceBytes = processed
+		} else {
+			service.logger.Warn("Shortcode processing failed", "path", file.Path, "error", err)
+		}
+	}
+
 	parseRes, err := ParseMarkdown(ParseOptions{
 		Path:                 file.Path,
 		RelPath:              file.RelPath,

@@ -59,8 +59,10 @@ type BuildOptions struct {
 	ShouldCompressImages bool `yaml:"shouldCompressImages"`
 	ShouldMinifySVGs     bool `yaml:"shouldMinifySVGs"`
 	ImageWorkers         int  `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
-	WebPQuality          int  `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
-	ParserWorkers        int  `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
+	WebPQuality          int    `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
+	ParserWorkers        int    `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
+	BlogPrefix           string `yaml:"blogPrefix"`    // Prefix for blog-related output (default: "")
+	NoStaging            bool   `yaml:"-"`             // Disable atomic staging
 }
 
 // ServerConfig defines development server parameters.
@@ -103,6 +105,14 @@ type Config struct {
 
 	// Build configuration (loaded from kosh.build.yaml)
 	Build *BuildConfig `yaml:"-"`
+
+	// SiteData holds structured data from the data/ directory
+	SiteData map[string]any `yaml:"-"`
+}
+
+// GetSiteData returns the structured site data.
+func (c *Config) GetSiteData() map[string]any {
+	return c.SiteData
 }
 
 // Load loads configuration using the OS filesystem.
@@ -123,6 +133,8 @@ func defaultConfig() *Config {
 			ImageWorkers:         DefaultImageWorkers,
 			WebPQuality:          DefaultWebPQuality,
 			ParserWorkers:        DefaultParserWorkers,
+			BlogPrefix:           "",
+			NoStaging:            true,
 		},
 		PathConfig: PathConfig{
 			Theme:      DefaultTheme,
@@ -244,6 +256,8 @@ func applyCLIOverrides(cfg *Config, args []string) {
 	themeFlag := flagSet.String("theme", "", "Theme to use (overrides config file)")
 	forceLockFlag := flagSet.Bool("force-lock", false, "Acquire build lock even if another build is running")
 	debugFlag := flagSet.Bool("debug", false, "Enable debug output")
+	staging := flagSet.Bool("staging", false, "Use atomic staging for build (disables direct output writing)")
+	noStaging := flagSet.Bool("no-staging", true, "Disable atomic staging (overwrites output in place)")
 
 	_ = flagSet.Parse(args)
 
@@ -263,6 +277,11 @@ func applyCLIOverrides(cfg *Config, args []string) {
 	}
 	if *debugFlag {
 		cfg.Build.Debug = true
+	}
+	if *staging {
+		cfg.NoStaging = false
+	} else {
+		cfg.NoStaging = *noStaging
 	}
 }
 
@@ -344,6 +363,9 @@ func (cfg *Config) GetLogo() string { return cfg.Logo }
 
 // GetBaseURL returns the configured base URL.
 func (cfg *Config) GetBaseURL() string { return cfg.BaseURL }
+
+// GetBlogPrefix returns the blog prefix path.
+func (cfg *Config) GetBlogPrefix() string { return cfg.BlogPrefix }
 
 // IsDevMode returns whether the build is running in development mode.
 func (cfg *Config) IsDevMode() bool { return cfg.IsDev }
