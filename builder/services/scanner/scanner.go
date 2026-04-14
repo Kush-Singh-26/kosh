@@ -313,7 +313,7 @@ func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.C
 		weight = int(weightValue)
 	}
 
-	dateObj, _ := time.Parse("2006-01-02", date)
+	dateObj, _ := time.ParseInLocation("2006-01-02", date, time.UTC)
 
 	// Extract ALL taxonomies: check for "tags" and "categories" etc. based on config.
 	taxonomies := make(map[string][]string)

@@ -124,6 +124,7 @@ date: "2026-03-15"
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 	})
 	metadataScanner := scanner.NewScanner()
@@ -142,6 +143,7 @@ date: "2026-03-15"
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 	}))
 	b.artifactSink = sink
 	b.buildTransaction = tx

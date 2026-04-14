@@ -45,22 +45,23 @@ const (
 )
 
 type buildSetup struct {
-	sourceFs       afero.Fs
-	config         *config.Config
-	logger         *slog.Logger
-	ctx            *buildctx.BuildContext
-	isCleanBuild   bool
-	buildMetrics   *metrics.BuildMetrics
-	cacheSvc       svcCache.Service
-	nativeRenderer *native.Renderer
-	mdPool         *sync.Pool
-	renderSvc      render.Service
-	assetSvc       asset.Service
-	postSvc        post.Service
-	wasmSvc        wasm.Service
-	metaScanner    scanner.Scanner
-	diagramAdapter *cache.DiagramCacheAdapter
-	reporter       ui.Reporter
+	sourceFs        afero.Fs
+	config          *config.Config
+	logger          *slog.Logger
+	ctx             *buildctx.BuildContext
+	isCleanBuild    bool
+	buildMetrics    *metrics.BuildMetrics
+	cacheSvc        svcCache.Service
+	nativeRenderer  *native.Renderer
+	mdPool          *sync.Pool
+	renderSvc       render.Service
+	assetSvc        asset.Service
+	postSvc         post.Service
+	wasmSvc         wasm.Service
+	metaScanner     scanner.Scanner
+	diagramAdapter  *cache.DiagramCacheAdapter
+	fragmentAdapter *cache.FragmentCacheAdapter
+	reporter        ui.Reporter
 }
 
 func (setup *buildSetup) initLoggerAndContext(config *config.Config, reporter ui.Reporter) {
@@ -103,6 +104,9 @@ func (setup *buildSetup) initCache() {
 		})
 	}
 	setup.diagramAdapter = diagramAdapter
+	if cacheManager != nil {
+		setup.fragmentAdapter = cache.NewFragmentCacheAdapter(cacheManager)
+	}
 }
 
 func (setup *buildSetup) initNativeRenderer() {
@@ -146,11 +150,12 @@ func (setup *buildSetup) initServices() {
 	rendererInstance := renderer.NewWithFs(renderer.RendererOptions{
 		SourceFs:    setup.sourceFs,
 		Compress:    setup.config.ShouldCompressImages,
+		Minify:      setup.config.ShouldMinify,
 		Sink:        nil,
 		TemplateDir: setup.config.TemplateDir,
 		DevMode:     setup.config.IsDev,
 		Logger:      setup.logger,
-		Cache:       setup.cacheSvc,
+		Cache:       setup.fragmentAdapter,
 	})
 
 	assetsReady := make(chan struct{})
@@ -223,6 +228,7 @@ func newEngineWithConfigFs(sourceFs afero.Fs, cfg *config.Config, reporter ui.Re
 			Wasm:           setup.wasmSvc,
 			Scanner:        setup.metaScanner,
 			Diagrams:       setup.diagramAdapter,
+			Fragments:      setup.fragmentAdapter,
 			SourceFs:       sourceFs,
 			Logger:         setup.logger,
 			Metrics:        setup.buildMetrics,

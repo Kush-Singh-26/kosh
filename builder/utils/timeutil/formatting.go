@@ -64,10 +64,10 @@ func ExtractStringFromMap(m map[string]any, k string) string {
 func ExtractDateStringFromMap(m map[string]any, k string) string {
 	if v, ok := m[k]; ok {
 		if t, ok := v.(time.Time); ok {
-			return t.Format("2006-01-02")
+			return t.UTC().Format("2006-01-02")
 		}
 		if s, ok := v.(string); ok {
-			if t, err := time.Parse("2006-01-02", s); err == nil {
+			if t, err := time.ParseInLocation("2006-01-02", s, time.UTC); err == nil {
 				return t.Format("2006-01-02")
 			}
 			return s

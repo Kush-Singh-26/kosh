@@ -7,6 +7,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/search/index"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
@@ -16,7 +17,7 @@ type postStreamResult struct {
 	error  error
 }
 
-func (engineInstance *Engine) startPostProcessingStream(ctx context.Context, setup *buildSetupResult, scan *buildScanResult) chan postStreamResult {
+func (engineInstance *Engine) startPostProcessingStream(ctx context.Context, setup *buildSetupResult, scan *buildScanResult, searchIngestor models.SearchIngestor) chan postStreamResult {
 	postResultChan := make(chan postStreamResult, 1)
 	logger := engineInstance.Deps.Logger
 	if logger == nil {
@@ -25,6 +26,7 @@ func (engineInstance *Engine) startPostProcessingStream(ctx context.Context, set
 	async.FireAndForget(ctx, logger, "post processing stream", func() error {
 		result, processError := engineInstance.Deps.Post.ProcessStreaming(post.ProcessOptions{
 			Ctx:                ctx,
+			SearchIngestor:     searchIngestor,
 			ShouldForce:        engineInstance.Cfg.ShouldForceRebuild,
 			ForceSocialRebuild: setup.forceSocialRebuild,
 			OutputMissing:      engineInstance.State.IsCleanBuild,
@@ -66,8 +68,11 @@ func (engineInstance *Engine) processPhase(
 	assetsRes *buildAssetResult,
 	scan *buildScanResult,
 ) error {
+	// Initialize Search Stream Builder early
+	searchStream := index.NewStreamBuilder(0) // Will refine expectedDocs when scanner finishes if needed
+
 	// Start streaming post processing (ingesting from the scanner's fileChan).
-	postResultChan := engineInstance.startPostProcessingStream(ctx, setup, scan)
+	postResultChan := engineInstance.startPostProcessingStream(ctx, setup, scan, searchStream)
 
 	// Wait for scanner and discovery metadata (needed for ContentAssets and site-wide state).
 	// This ensures the image/WebP rewrite map is populated so HTML can reference
@@ -104,19 +109,14 @@ func (engineInstance *Engine) processPhase(
 		siteWideHas404 = true
 	}
 
-	// Set up site-wide generators (need full asset completion).
-	runSiteWide, _ := engineInstance.setupSiteWideRendering(SiteWideOptions{
-		Ctx:                ctx,
-		AssetsReadySignal:  assetsRes.assetsReadySignal,
-		WasmWaitGroup:      setup.wasmWg,
-		ForceSocialRebuild: setup.forceSocialRebuild,
-	})
-
 	// Wait for post processing to finish (it was started as a stream).
 	postResult, processError := waitForPostProcessing(ctx, postResultChan)
 	if processError != nil {
 		return fmt.Errorf("post processing failed: %w", processError)
 	}
+
+	// Finalize search index construction (pipelined)
+	finalSearchIndex := searchStream.Complete()
 
 	if engineInstance.Deps.Reporter != nil {
 		engineInstance.Deps.Reporter.EndPhase(ui.PhasePosts, 0)
@@ -126,13 +126,39 @@ func (engineInstance *Engine) processPhase(
 		siteWideHas404 = true
 	}
 
+	// Set up site-wide generators (need full asset completion).
+	runSiteWide, _ := engineInstance.setupSiteWideRendering(SiteWideOptions{
+		Ctx:                ctx,
+		AssetsReadySignal:  assetsRes.assetsReadySignal,
+		WasmWaitGroup:      setup.wasmWg,
+		ForceSocialRebuild: setup.forceSocialRebuild,
+		SearchIndex:        finalSearchIndex,
+	})
+
 	// Site-wide generators.
 	metadataCtx := postResult.ToContentContext()
 	assetsChanged := engineInstance.Assets.CheckChanged(ctx, assetsRes.assetsReadySignal)
 	siteWideGroup, siteTimer := runSiteWide(metadataCtx, assetsChanged)
 
 	// Wait for site-wide rendering.
-	return engineInstance.waitForSiteWideRendering(siteWideGroup, siteTimer, siteWideHas404 || engineInstance.Deps.Render.Has404Template(), metadataCtx)
+	if err := engineInstance.waitForSiteWideRendering(siteWideGroup, siteTimer, siteWideHas404 || engineInstance.Deps.Render.Has404Template(), metadataCtx); err != nil {
+		return fmt.Errorf("site-wide rendering failed: %w", err)
+	}
+
+	// Persist cached objects (fragments, diagrams) for reuse in next build.
+	// We flush here to ensure data is committed even if SaveCaches is interrupted later.
+	if engineInstance.Deps.Fragments != nil {
+		if err := engineInstance.Deps.Fragments.Flush(ctx); err != nil {
+			engineInstance.Deps.Logger.Warn("Fragment cache flush failed", "error", err)
+		}
+	}
+	if engineInstance.Deps.Diagrams != nil {
+		if err := engineInstance.Deps.Diagrams.Flush(ctx); err != nil {
+			engineInstance.Deps.Logger.Warn("Diagram cache flush failed", "error", err)
+		}
+	}
+
+	return nil
 }
 
 // ProcessPostsOptions configures content processing for a build pass.

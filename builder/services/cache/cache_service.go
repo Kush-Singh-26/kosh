@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 
@@ -150,6 +151,11 @@ func (service *cacheService) GetFragment(key string) (string, error) {
 // StoreFragment stores a fragment in the cache.
 func (service *cacheService) StoreFragment(key string, html string) error {
 	return service.manager.StoreFragment(key, html)
+}
+
+// Flush flushes the fragment cache. No-op for direct service as it writes immediately.
+func (service *cacheService) Flush(_ context.Context) error {
+	return nil
 }
 
 // IsDirty reports whether a post is marked dirty.

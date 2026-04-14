@@ -66,6 +66,9 @@ func (managerInstance *Manager) SetupBuilding(ctx context.Context, contentAssets
 	// Reset converted image tracking so rewrite is fresh for this build
 	assets.ResetConvertedImages()
 
+	// Reset wasm_exec.js deployment flag to ensure it's deployed in dev mode
+	assets.ResetWasmExecForBuild()
+
 	// Reset rendered assets in memory before starting fresh build pass
 	managerInstance.deps.Render.SetAssets(map[string]string{})
 

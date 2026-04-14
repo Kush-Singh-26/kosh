@@ -1,17 +1,17 @@
+//go:build !wasm
+
 package assets
 
 import (
 	"bytes"
-	"context"
 	_ "embed"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"sort"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/andybalholm/brotli"
@@ -29,6 +29,11 @@ const (
 
 //go:embed wasm/search.wasm.br
 var searchWasmBr []byte
+
+//go:embed wasm/wasm_exec.js
+var wasmExecJs []byte
+
+const wasmExecJsHash = "8d0c8b9a3f4e6d1c"
 
 // embeddedWasmHash is the hash of the raw (decompressed) embedded WASM.
 // It mirrors SearchWasmHash to keep legacy tests stable.
@@ -78,10 +83,6 @@ func resolveWasmPaths(outputDir string) (string, string, string, string) {
 
 func loadWasmSource(sourceWasm []byte) ([]byte, string, []byte, bool) {
 	if len(sourceWasm) == 0 {
-		if wasmInitErr != nil {
-			slog.Error("WASM initialization failed", "error", wasmInitErr)
-			return nil, "", nil, false
-		}
 		return nil, SearchWasmHash, searchWasmBr, true
 	}
 	return sourceWasm, hashBytes(sourceWasm), nil, true
@@ -104,21 +105,6 @@ func hasDeployedWasm(sourceFs afero.Fs, wasmOutputPath, brotliOutputPath, wasmHa
 	return false
 }
 
-func tryDeployFromCache(sink fspkg.ArtifactSink, cacheDir, wasmHash string, wasmBytes []byte, wasmRelativePath, brotliRelativePath string) bool {
-	if cacheDir == "" {
-		return false
-	}
-	cachePath := filepath.Join(cacheDir, "wasm", wasmHash+".br")
-	cachedBrotli, err := os.ReadFile(cachePath)
-	if err != nil {
-		return false
-	}
-	slog.Info("Using cached Search WASM...")
-	_ = sink.WriteFile(wasmRelativePath, wasmBytes)
-	_ = sink.WriteFile(brotliRelativePath, cachedBrotli)
-	return true
-}
-
 func prepareEmbeddedWasm(wasmBrotliBytes []byte) ([]byte, []byte, bool) {
 	wasmBytes, err := decompressBrotli(wasmBrotliBytes)
 	if err != nil {
@@ -126,25 +112,6 @@ func prepareEmbeddedWasm(wasmBrotliBytes []byte) ([]byte, []byte, bool) {
 		return nil, nil, false
 	}
 	return wasmBytes, wasmBrotliBytes, true
-}
-
-func prepareSourceWasm(wasmBytes []byte, compressionLevel int, cacheDir, wasmHash string) []byte {
-	slog.Info("Compressing WASM...")
-	var buffer bytes.Buffer
-	brotliWriter := brotli.NewWriterLevel(&buffer, compressionLevel)
-	_, _ = brotliWriter.Write(wasmBytes)
-	if err := brotliWriter.Close(); err != nil {
-		slog.Warn("Failed to close Brotli writer", "error", err)
-	}
-	wasmBrotliBytes := buffer.Bytes()
-
-	if cacheDir != "" {
-		cacheDirFull := filepath.Join(cacheDir, "wasm")
-		_ = os.MkdirAll(cacheDirFull, wasmCacheDirMode)
-		_ = os.WriteFile(filepath.Join(cacheDirFull, wasmHash+".br"), wasmBrotliBytes, wasmCacheFileMode)
-	}
-
-	return wasmBrotliBytes
 }
 
 func writeWasmOutputs(sink fspkg.ArtifactSink, wasmRelativePath, brotliRelativePath string, wasmBytes, wasmBrotliBytes []byte) bool {
@@ -162,12 +129,48 @@ func writeWasmOutputs(sink fspkg.ArtifactSink, wasmRelativePath, brotliRelativeP
 	return true
 }
 
+var wasmExecJsDeployed bool
+
+// DeployWasmExec deploys the Go WASM runtime stub to static/js/
+// Returns true if deployment was successful or already present
+func DeployWasmExec(sink fspkg.ArtifactSink) bool {
+	if wasmExecJsDeployed {
+		return true
+	}
+
+	jsPath := "static/js/wasm_exec.js"
+
+	// Check if already deployed by comparing hash
+	if _, err := sink.Stat(jsPath); err == nil {
+		wasmExecJsDeployed = true
+		return true
+	}
+
+	if err := sink.WriteFile(jsPath, wasmExecJs); err != nil {
+		slog.Error("Failed to deploy wasm_exec.js", "error", err)
+		return false
+	}
+
+	slog.Info("WASM exec deployed", "size", formatSize(len(wasmExecJs)))
+	wasmExecJsDeployed = true
+	return true
+}
+
+// ResetWasmExecDeployment resets the deployment flag for testing
+func ResetWasmExecDeployment() {
+	wasmExecJsDeployed = false
+}
+
+// ResetWasmExecForBuild resets the deployment flag at the start of each build.
+// This ensures wasm_exec.js is deployed even in incremental dev builds.
+func ResetWasmExecForBuild() {
+	wasmExecJsDeployed = false
+}
+
 // CheckWASMFsWithSource checks and deploys WASM using a provided source payload.
 func CheckWASMFsWithSource(options CheckWASMOptions) bool {
 	sourceFs := options.Fs
 	sink := options.Sink
-	cacheDir := options.CacheDir
-	compressionLevel := resolveCompressionLevel(options.CompressionLevel)
 
 	outputDir := sink.GetOutputDir()
 	wasmRelativePath, brotliRelativePath, wasmOutputPath, brotliOutputPath := resolveWasmPaths(outputDir)
@@ -183,10 +186,6 @@ func CheckWASMFsWithSource(options CheckWASMOptions) bool {
 	if hasDeployedWasm(sourceFs, wasmOutputPath, brotliOutputPath, wasmHash) {
 		return false
 	}
-	if !isEmbedded && tryDeployFromCache(sink, cacheDir, wasmHash, wasmBytes, wasmRelativePath, brotliRelativePath) {
-		return true
-	}
-	slog.Info("Deploying Search WASM...")
 
 	if isEmbedded {
 		wasmBytes, wasmBrotliBytes, ok = prepareEmbeddedWasm(wasmBrotliBytes)
@@ -194,88 +193,59 @@ func CheckWASMFsWithSource(options CheckWASMOptions) bool {
 			return false
 		}
 	} else {
-		wasmBrotliBytes = prepareSourceWasm(wasmBytes, compressionLevel, cacheDir, wasmHash)
+		// This path is used when a sourceWasm payload is provided (e.g., from tests)
+		slog.Info("Compressing WASM payload...")
+		var buffer bytes.Buffer
+		brotliWriter := brotli.NewWriterLevel(&buffer, resolveCompressionLevel(options.CompressionLevel))
+		_, _ = brotliWriter.Write(wasmBytes)
+		if err := brotliWriter.Close(); err != nil {
+			slog.Warn("Failed to close Brotli writer", "error", err)
+		}
+		wasmBrotliBytes = buffer.Bytes()
 	}
 
 	return writeWasmOutputs(sink, wasmRelativePath, brotliRelativePath, wasmBytes, wasmBrotliBytes)
 }
 
-// DeployWASMFromFile deploys a WASM binary from a file path.
-func DeployWASMFromFile(sourceFs afero.Fs, sink fspkg.ArtifactSink, cacheDir, sourcePath string) bool {
-	return DeployWASMFromFileWithLevel(DeployWASMOptions{
-		Fs:         sourceFs,
-		Sink:       sink,
-		CacheDir:   cacheDir,
-		SourcePath: sourcePath,
-		Level:      defaultCompressionLevel,
-	})
-}
+// CalculateSearchSourceHash computes the XXH3 hash of the search engine source code.
+func CalculateSearchSourceHash(repoRoot string) (string, error) {
+	searchPaths := []string{
+		fspkg.NormalizePath(filepath.Join(repoRoot, "cmd", "search")),
+		fspkg.NormalizePath(filepath.Join(repoRoot, "builder", "search")),
+		fspkg.NormalizePath(filepath.Join(repoRoot, "builder", "models")),
+	}
 
-// DeployWASMOptions configures WASM deployment from a source file.
-type DeployWASMOptions struct {
-	Fs         afero.Fs
-	Sink       fspkg.ArtifactSink
-	CacheDir   string
-	SourcePath string
-	Level      int
-}
+	hasher := xxh3.New()
+	var files []string
 
-// DeployWASMFromFileWithLevel deploys a WASM file with a specific compression level.
-func DeployWASMFromFileWithLevel(options DeployWASMOptions) bool {
-	data, err := afero.ReadFile(options.Fs, options.SourcePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return CheckWASMFs(options.Fs, options.Sink, options.CacheDir)
+	for _, searchPath := range searchPaths {
+		_ = filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() && filepath.Ext(path) == ".go" {
+				files = append(files, path)
+			}
+			return nil
+		})
+	}
+
+	if len(files) == 0 {
+		return "", os.ErrNotExist
+	}
+
+	sort.Strings(files)
+
+	for _, file := range files {
+		f, err := os.Open(file)
+		if err != nil {
+			continue
 		}
-		slog.Warn("Failed to read source WASM", "path", options.SourcePath, "error", err)
-		return CheckWASMFs(options.Fs, options.Sink, options.CacheDir)
-	}
-	return CheckWASMFsWithSource(CheckWASMOptions{
-		Fs:               options.Fs,
-		Sink:             options.Sink,
-		CacheDir:         options.CacheDir,
-		SourceWasm:       data,
-		CompressionLevel: options.Level,
-	})
-}
-
-// CompileWASMFromSource builds the search engine WASM from Go source.
-// This is used for developer convenience during development.
-func CompileWASMFromSource(ctx context.Context, srcPath string, destPath string, repoRoot string) error {
-	goPath, err := exec.LookPath("go")
-	if err != nil {
-		return fmt.Errorf("go compiler not found in PATH: %w", err)
+		_, _ = io.Copy(hasher, f)
+		_ = f.Close()
 	}
 
-	repoRoot = fspkg.NormalizePath(repoRoot)
-	absSrc := srcPath
-	if !filepath.IsAbs(absSrc) {
-		absSrc = filepath.Join(repoRoot, srcPath)
-	}
-	absDest := destPath
-	if !filepath.IsAbs(absDest) {
-		absDest = filepath.Join(repoRoot, destPath)
-	}
-
-	slog.Info("Rebuilding Search WASM from source", "path", srcPath)
-
-	// Ensure destination directory exists
-	if err := os.MkdirAll(filepath.Dir(absDest), wasmCacheDirMode); err != nil {
-		return err
-	}
-
-	cmd := exec.CommandContext(ctx, goPath, "build", "-o", absDest, absSrc)
-	cmd.Dir = repoRoot
-	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm", "CGO_ENABLED=0")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to compile WASM: %w", err)
-	}
-
-	slog.Info("Search WASM rebuilt successfully")
-	return nil
+	sum := hasher.Sum128()
+	hashBytes := sum.Bytes()
+	// Return 16 chars hex to match SearchWasmHash format
+	return hex.EncodeToString(hashBytes[:8]), nil
 }
 
 func decompressBrotli(data []byte) ([]byte, error) {

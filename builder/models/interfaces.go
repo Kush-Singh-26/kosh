@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"html/template"
 	"io"
 	"time"
@@ -78,4 +79,5 @@ type BuildArtifactCache interface {
 type FragmentCache interface {
 	GetFragment(key string) (string, error)
 	StoreFragment(key string, html string) error
+	Flush(ctx context.Context) error
 }

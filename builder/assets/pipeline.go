@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package assets
 
 import (
@@ -116,16 +118,6 @@ type copyDirContext struct {
 	srcDir string
 	dstDir string
 }
-
-var (
-	// rgbaPixPool stores *[]byte buffers sized for maxResizeWidth x maxResizeHeight RGBA images.
-	rgbaPixPool = sync.Pool{
-		New: func() any {
-			buffer := make([]byte, maxResizeWidth*maxResizeHeight*rgbaBytesPerPixel)
-			return &buffer
-		},
-	}
-)
 
 // CopyOptions controls how assets are copied and processed.
 type CopyOptions struct {

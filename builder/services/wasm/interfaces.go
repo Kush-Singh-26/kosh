@@ -10,5 +10,4 @@ import (
 type Service interface {
 	CheckAndUpdate(ctx context.Context) (bool, error)
 	Deploy(ctx context.Context, sink fspkg.ArtifactSink) error
-	SetSearchSourceDirty(dirty bool)
 }

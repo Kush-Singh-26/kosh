@@ -33,6 +33,7 @@ type postService struct {
 	reporter       ui.Reporter
 	assetsReady    <-chan struct{}
 	diagramAdapter *cache.DiagramCacheAdapter
+	fragments      *cache.FragmentCacheAdapter
 	shortcodes     ShortcodeProcessor
 	cacheWg        sync.WaitGroup
 }
@@ -52,6 +53,7 @@ func NewService(deps Dependencies) Service {
 		sink:           deps.Sink,
 		reporter:       deps.Reporter,
 		diagramAdapter: deps.DiagramAdapter,
+		fragments:      deps.Fragments,
 		shortcodes:     deps.Shortcodes,
 	}
 }

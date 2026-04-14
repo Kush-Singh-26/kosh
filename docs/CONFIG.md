@@ -9,7 +9,6 @@ This document provides a comprehensive reference for the `kosh.yaml` configurati
 | `title` | The global site title. | `Kosh Blog` |
 | `description` | Site description used for SEO and meta tags. | `A Kosh site` |
 | `baseURL` | The root URL for your site (no trailing slash). | `""` (root-relative) |
-| `repoRoot` | Path to the source repository (Developer use ONLY). | `.` |
 
 ## Navigation & Branding
 
@@ -40,8 +39,8 @@ navbar:
 | `staticDir` | Directory containing global static assets. | `static` |
 | `outputDir` | Directory where the site will be built. | `public` |
 | `postsPerPage` | Number of posts to show per page on indices. | `10` |
-| `compressImages` | Convert raster images to WebP. | `true` |
-| `minifySVGs` | Minify SVG assets during build. | `true` |
+| `shouldCompressImages` | Convert raster images to WebP. | `true` |
+| `shouldMinifySVGs` | Minify SVG assets during build. | `true` |
 | `imageWorkers` | Number of parallel image processing workers. | `8` |
 
 ## Features & Generators
@@ -72,4 +71,4 @@ Define custom taxonomies for your content.
 | Field | Description | Default |
 | :--- | :--- | :--- |
 | `parserWorkers` | Parallel markdown parser workers. | `NumCPU` |
-| `webPQuality` | Quality setting for WebP conversion (0-100). | `75` |
+| `webpQuality` | Quality setting for WebP conversion (1-100). | `80` |

@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package fs_test
 
 import (

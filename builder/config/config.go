@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -44,23 +43,23 @@ type ThemeConfig struct {
 
 // SiteConfig defines site-level configuration.
 type SiteConfig struct {
-	Title       string              `yaml:"title"`
-	Description string              `yaml:"description"`
-	BaseURL     string              `yaml:"baseURL"`
-	Language    string              `yaml:"language"`
-	Author      models.AuthorConfig `yaml:"author"`
-	Menu        []models.MenuEntry  `yaml:"menu"`
-	FooterMenu  []models.MenuEntry  `yaml:"footerMenu"`
-	Taxonomies  map[string]string   `yaml:"taxonomies"` // Maps frontmatter key to plural folder name
+	Title       string                      `yaml:"title"`
+	Description string                      `yaml:"description"`
+	BaseURL     string                      `yaml:"baseURL"`
+	Language    string                      `yaml:"language"`
+	Author      models.AuthorConfig         `yaml:"author"`
+	Menu        []models.MenuEntry          `yaml:"menu"`
+	FooterMenu  []models.MenuEntry          `yaml:"footerMenu"`
+	Taxonomies  map[string]string           `yaml:"taxonomies"` // Maps frontmatter key to plural folder name
 	Navbar      models.NavbarIdentityConfig `yaml:"navbar"`     // Context-aware branding
 }
 
 // BuildOptions defines build-time tuning parameters.
 type BuildOptions struct {
-	PostsPerPage         int  `yaml:"postsPerPage"`
-	ShouldCompressImages bool `yaml:"shouldCompressImages"`
-	ShouldMinifySVGs     bool `yaml:"shouldMinifySVGs"`
-	ImageWorkers         int  `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
+	PostsPerPage         int    `yaml:"postsPerPage"`
+	ShouldCompressImages bool   `yaml:"shouldCompressImages"`
+	ShouldMinify         bool   `yaml:"shouldMinify"`
+	ImageWorkers         int    `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
 	WebPQuality          int    `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
 	ParserWorkers        int    `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
 	BlogPrefix           string `yaml:"blogPrefix"`    // Prefix for blog-related output (default: "")
@@ -138,7 +137,7 @@ func defaultConfig() *Config {
 		BuildOptions: BuildOptions{
 			PostsPerPage:         DefaultPostsPerPage,
 			ShouldCompressImages: true,
-			ShouldMinifySVGs:     true,
+			ShouldMinify:         true,
 			ImageWorkers:         DefaultImageWorkers,
 			WebPQuality:          DefaultWebPQuality,
 			ParserWorkers:        DefaultParserWorkers,
@@ -152,7 +151,7 @@ func defaultConfig() *Config {
 			OutputDir:  DefaultOutputDir,
 			CacheDir:   DefaultCacheDir,
 		},
-		BuildVersion: time.Now().Unix(),
+		BuildVersion: 0,
 		Features: models.FeaturesConfig{
 			UseRawMarkdown: false,
 			Generators: models.GeneratorsConfig{

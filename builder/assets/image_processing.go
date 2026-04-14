@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package assets
 
 import (
@@ -38,6 +40,8 @@ const (
 	retryWriteAttempts                   = 3
 	retryWriteDelay                      = 10 * time.Millisecond
 )
+
+var rgbaPixPool = pools.SharedImageSlicePool
 
 func isNil(value any) bool {
 	if value == nil {
@@ -398,7 +402,7 @@ func resizeImageIfNeeded(sourceImage image.Image, skipResize bool, metrics Image
 		var pixelData []byte
 		var pixelDataPointer *[]byte
 		if neededSize <= maxResizeWidth*maxResizeHeight*rgbaBytesPerPixel {
-			pixelDataPointer = rgbaPixPool.Get().(*[]byte)
+			pixelDataPointer = rgbaPixPool.Get()
 			pixelData = *pixelDataPointer
 		} else {
 			pixelData = make([]byte, neededSize)

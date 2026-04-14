@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package renderer
 
 import (
@@ -17,13 +19,13 @@ func (m MockConfig) GetAuthor() models.AuthorConfig    { return models.AuthorCon
 func (m MockConfig) GetSocial() models.SocialCardsConfig {
 	return models.SocialCardsConfig{Gradient: []string{"#000", "#fff"}}
 }
-func (m MockConfig) GetFeatures() models.FeaturesConfig { return models.FeaturesConfig{} }
-func (m MockConfig) GetSiteTitle() string               { return "Kosh Blog" }
-func (m MockConfig) GetLogo() string                    { return "" }
-func (m MockConfig) GetBaseURL() string                 { return "" }
-func (m MockConfig) GetBlogPrefix() string              { return "" }
-func (m MockConfig) IsDevMode() bool                    { return false }
-func (m MockConfig) GetSiteData() map[string]any        { return nil }
+func (m MockConfig) GetFeatures() models.FeaturesConfig     { return models.FeaturesConfig{} }
+func (m MockConfig) GetSiteTitle() string                   { return "Kosh Blog" }
+func (m MockConfig) GetLogo() string                        { return "" }
+func (m MockConfig) GetBaseURL() string                     { return "" }
+func (m MockConfig) GetBlogPrefix() string                  { return "" }
+func (m MockConfig) IsDevMode() bool                        { return false }
+func (m MockConfig) GetSiteData() map[string]any            { return nil }
 func (m MockConfig) GetNavbar() models.NavbarIdentityConfig { return models.NavbarIdentityConfig{} }
 
 // SetAssets snapshots the asset map for template rendering.

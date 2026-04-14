@@ -48,8 +48,8 @@ func (engineInstance *Engine) setupPhase(ctx context.Context) (*buildSetupResult
 	// Warm up the JS renderer pool.
 	engineInstance.initializeNativeRenderer(ctx)
 
-	// Set dev build version.
-	if engineInstance.Cfg.IsDev {
+	// Set dev build version if not already set.
+	if engineInstance.Cfg.IsDev && engineInstance.Cfg.BuildVersion == 0 {
 		engineInstance.Cfg.BuildVersion = time.Now().UnixNano()
 	}
 

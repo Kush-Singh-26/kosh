@@ -132,21 +132,21 @@ func TestPerformSearch(t *testing.T) {
 			Title:           "Go Guide",
 			NormalizedTitle: "go guide",
 			Description:     "A guide to Go programming language",
-			NormalizedTags:  []string{"go", "programming"},
+			NormalizedTaxs:  map[string][]string{"tags": {"go", "programming"}},
 		},
 		"1": {
 			ID:              1,
 			Title:           "Rust Guide",
 			NormalizedTitle: "rust guide",
 			Description:     "A guide to Rust programming",
-			NormalizedTags:  []string{"rust", "programming"},
+			NormalizedTaxs:  map[string][]string{"tags": {"rust", "programming"}},
 		},
 		"2": {
 			ID:              2,
 			Title:           "Python Intro",
 			NormalizedTitle: "python intro",
 			Description:     "Introduction to Python",
-			NormalizedTags:  []string{"python"},
+			NormalizedTaxs:  map[string][]string{"tags": {"python"}},
 		},
 	}
 

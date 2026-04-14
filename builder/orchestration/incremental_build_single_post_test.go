@@ -128,6 +128,7 @@ Initial body.
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 	})
 	metadataScanner := scanner.NewScanner()
@@ -146,6 +147,7 @@ Initial body.
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 	}))
 	b.artifactSink = sink
 	b.buildTransaction = tx
@@ -261,6 +263,7 @@ date: "2026-03-06"
 		MdPool:         mdPool,
 		SourceFs:       fs,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 	})
 
 	b := NewEngine(WithDeps(EngineDependencies{
@@ -276,6 +279,7 @@ date: "2026-03-06"
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 	}))
 	b.SetSink(testutil.NewMemSink())
 	b.buildTransaction = testutil.NewMockTransaction("public")

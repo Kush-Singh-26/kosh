@@ -102,9 +102,14 @@ func (p *Processor) Process(markdown []byte) ([]byte, error) {
 		}
 
 		args := p.parseArgs(rawArgs)
+		processedInner, err := p.Process([]byte(inner))
+		if err != nil {
+			processedInner = []byte(inner)
+		}
+
 		data := map[string]any{
 			"Args":  args,
-			"Inner": template.HTML(inner),
+			"Inner": template.HTML(processedInner),
 			"Name":  name,
 		}
 

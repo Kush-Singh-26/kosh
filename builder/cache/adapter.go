@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"maps"
 	"strings"
@@ -20,9 +21,9 @@ type DiagramCacheAdapter struct {
 	// local values are SSR payloads: string (HTML/SVG) or models.SSRThemePair.
 	local map[string]any
 	// dirty values mirror local and are flushed to BoltDB on Flush().
-	dirty  map[string]any
-	mutex  sync.RWMutex // protects local and dirty
-	closed atomic.Bool  // Prevents new operations after Close() is called
+	dirty   map[string]any
+	mutex   sync.RWMutex // protects local and dirty
+	closed  atomic.Bool  // Prevents new operations after Close() is called
 	persist atomic.Bool  // Controls whether writes are persisted to disk
 }
 
@@ -185,4 +186,52 @@ func (adapter *DiagramCacheAdapter) AsMap() map[string]any {
 func (adapter *DiagramCacheAdapter) Close() error {
 	adapter.closed.Store(true)
 	return nil
+}
+
+// FragmentCacheAdapter provides a write-buffered FragmentCache implementation.
+type FragmentCacheAdapter struct {
+	manager *Manager
+	dirty   map[string]string
+	mutex   sync.Mutex
+}
+
+// NewFragmentCacheAdapter creates a new adapter.
+func NewFragmentCacheAdapter(manager *Manager) *FragmentCacheAdapter {
+	return &FragmentCacheAdapter{
+		manager: manager,
+		dirty:   make(map[string]string),
+	}
+}
+
+// GetFragment retrieves a fragment from BoltDB.
+func (adapter *FragmentCacheAdapter) GetFragment(key string) (string, error) {
+	if adapter == nil || adapter.manager == nil {
+		return "", fmt.Errorf("no cache manager available")
+	}
+	return adapter.manager.GetFragment(key)
+}
+
+// StoreFragment buffers a fragment for later flushing.
+func (adapter *FragmentCacheAdapter) StoreFragment(key string, html string) error {
+	if adapter == nil {
+		return nil
+	}
+	adapter.mutex.Lock()
+	defer adapter.mutex.Unlock()
+	adapter.dirty[key] = html
+	return nil
+}
+
+// Flush writes all dirty fragments to BoltDB in a single transaction.
+func (adapter *FragmentCacheAdapter) Flush(ctx context.Context) error {
+	if adapter == nil || adapter.manager == nil || len(adapter.dirty) == 0 {
+		return nil
+	}
+
+	adapter.mutex.Lock()
+	dirty := adapter.dirty
+	adapter.dirty = make(map[string]string)
+	adapter.mutex.Unlock()
+
+	return adapter.manager.BatchStoreFragments(ctx, dirty)
 }

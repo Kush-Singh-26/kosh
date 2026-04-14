@@ -243,4 +243,4 @@ When a lift is applied, data points (red & blue dots) rise based on ($z = x^2 + 
 
 With this the post on mappings from low to high dimension (where data is easy to separate) to calculate similarity & making the process efficient by staying in the lower dimension using kernel tricks is complete!
 
-<script src="static/js/wasm_engine.js"></script>
+<script src="/static/js/animation-loader.js"></script>

@@ -2,6 +2,7 @@
 package mocks
 
 import (
+	"context"
 	"maps"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -368,6 +369,12 @@ func (m *MockCacheService) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
 func (m *MockCacheService) Close() error {
 	m.recordCall("Close")
 	return m.Err
+}
+
+// Flush flushes the fragment cache.
+func (m *MockCacheService) Flush(_ context.Context) error {
+	m.recordCall("Flush")
+	return nil
 }
 
 // GetAllPostsMetadata returns a lightweight list of post metadata.

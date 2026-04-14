@@ -21,6 +21,7 @@ type SiteWideOptions struct {
 	AssetsReadySignal  <-chan struct{}
 	WasmWaitGroup      *sync.WaitGroup
 	ForceSocialRebuild bool
+	SearchIndex        *models.SearchIndex
 }
 
 func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (func(*post.ContentContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
@@ -28,6 +29,7 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 	assetsReadySignal := options.AssetsReadySignal
 	wasmWaitGroup := options.WasmWaitGroup
 	forceSocialRebuild := options.ForceSocialRebuild
+	psearchIndex := options.SearchIndex
 
 	var siteWideGroup *errgroup.Group
 	var siteWideCtx context.Context
@@ -37,6 +39,10 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 	runSiteWide := func(metadataContext *post.ContentContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
 		if engineInstance.Search != nil && metadataContext.IndexedPosts != nil {
 			engineInstance.Search.SetIndexedPosts(metadataContext.IndexedPosts)
+		}
+		if psearchIndex != nil {
+			// If we have a pipelined index, use it instead of building it from IndexedPosts
+			metadataContext.PrebuiltSearchIndex = psearchIndex
 		}
 
 		if engineInstance.shouldSkipSiteWideRendering(metadataContext, assetsChanged) {
@@ -64,9 +70,9 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 			})
 			siteWideGroup.Go(func() error {
 				return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-					AllPosts:               metadataContext.AllPosts,
-					TaxonomyMapSummarized:  metadataContext.Taxonomies,
-					AssetsReadySignal:      assetsReadySignal,
+					AllPosts:              metadataContext.AllPosts,
+					TaxonomyMapSummarized: metadataContext.Taxonomies,
+					AssetsReadySignal:     assetsReadySignal,
 				})
 			})
 			wasmWaitGroup.Add(1)
@@ -85,10 +91,11 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 			})
 		})
 
-		if metadataContext.IndexedPosts != nil {
+		if metadataContext.IndexedPosts != nil || metadataContext.PrebuiltSearchIndex != nil {
 			siteWideGroup.Go(func() error {
 				return engineInstance.renderSiteMetadata(MetadataRenderOptions{
 					IndexedPosts: metadataContext.IndexedPosts,
+					SearchIndex:  metadataContext.PrebuiltSearchIndex,
 				})
 			})
 		}
@@ -114,6 +121,7 @@ type MetadataRenderOptions struct {
 	TaxonomyMapSummarized map[string]models.TaxonomyData
 	TaxonomyMap           map[string]map[string][]models.PostMetadata
 	IndexedPosts          []models.IndexedPost
+	SearchIndex           *models.SearchIndex
 	AssetsReadySignal     <-chan struct{}
 }
 
@@ -153,10 +161,30 @@ func (engineInstance *Engine) generateRSS(options MetadataRenderOptions) error {
 }
 
 func (engineInstance *Engine) generateSearchIndex(options MetadataRenderOptions) error {
-	searchPath, size, err := generators.GenerateSearchIndex(engineInstance.artifactSink, options.IndexedPosts)
+	var searchPath string
+	var size int64
+	var err error
+
+	if options.SearchIndex != nil {
+		searchPath, size, err = generators.GenerateSearchIndexFromObject(engineInstance.artifactSink, options.SearchIndex)
+	} else {
+		searchPath, size, err = generators.GenerateSearchIndex(engineInstance.artifactSink, options.IndexedPosts)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to generate search index: %w", err)
 	}
+
+	if engineInstance.Health != nil {
+		var docs int64
+		if options.SearchIndex != nil {
+			docs = options.SearchIndex.TotalDocs
+		} else {
+			docs = int64(len(options.IndexedPosts))
+		}
+		engineInstance.Health.RecordSearchStats(docs, size)
+	}
+
 	engineInstance.Deps.Logger.Debug("Search index generated", "path", searchPath, "size", size)
 	return nil
 }
@@ -210,7 +238,7 @@ func (engineInstance *Engine) renderSiteMetadata(options MetadataRenderOptions) 
 		})
 	}
 
-	if engineInstance.Cfg.Features.Generators.IsSearchEnabled && options.IndexedPosts != nil {
+	if engineInstance.Cfg.Features.Generators.IsSearchEnabled && (options.IndexedPosts != nil || options.SearchIndex != nil) {
 		errorGroup.Go(func() error {
 			return engineInstance.generateSearchIndex(options)
 		})

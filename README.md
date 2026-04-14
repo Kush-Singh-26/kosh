@@ -51,6 +51,7 @@ kosh serve --dev
 kosh clean
 kosh clean --cache
 kosh new "My Post"
+go run scripts/rebuild_search.go
 kosh version --info
 ```
 

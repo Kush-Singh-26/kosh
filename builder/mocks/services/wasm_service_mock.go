@@ -10,7 +10,6 @@ import (
 type MockWasmService struct {
 	CheckAndUpdateFunc func(ctx context.Context) (bool, error)
 	DeployFunc         func(ctx context.Context, sink fspkg.ArtifactSink) error
-	SetDirtyFunc       func(dirty bool)
 }
 
 // CheckAndUpdate runs the mock check/update hook.
@@ -27,11 +26,4 @@ func (m *MockWasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) e
 		return m.DeployFunc(ctx, sink)
 	}
 	return nil
-}
-
-// SetSearchSourceDirty runs the mock dirty flag hook.
-func (m *MockWasmService) SetSearchSourceDirty(dirty bool) {
-	if m.SetDirtyFunc != nil {
-		m.SetDirtyFunc(dirty)
-	}
 }

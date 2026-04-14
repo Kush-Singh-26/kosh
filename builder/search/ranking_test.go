@@ -17,7 +17,7 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Go Programming Guide",
 			NormalizedTitle: "go programming guide",
 			Description:     "Learn Go programming language basics",
-			NormalizedTags:  []string{"go", "programming"},
+			NormalizedTaxs:  map[string][]string{"tags": {"go", "programming"}},
 			Content:         "Go is a programming language created at Google. This guide covers Go basics.",
 		},
 		"1": {
@@ -25,7 +25,7 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Rust Programming Tutorial",
 			NormalizedTitle: "rust programming tutorial",
 			Description:     "Learn Rust programming from scratch",
-			NormalizedTags:  []string{"rust", "programming"},
+			NormalizedTaxs:  map[string][]string{"tags": {"rust", "programming"}},
 			Content:         "Rust is a systems programming language. This tutorial covers Rust fundamentals.",
 		},
 		"2": {
@@ -33,7 +33,7 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Machine Learning With Go",
 			NormalizedTitle: "machine learning with go",
 			Description:     "Using machine learning in Go applications",
-			NormalizedTags:  []string{"ml", "go"},
+			NormalizedTaxs:  map[string][]string{"tags": {"ml", "go"}},
 			Content:         "Machine learning can be implemented in Go. This article explores ML with Go.",
 		},
 		"3": {
@@ -41,7 +41,7 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Neural Network Fundamentals",
 			NormalizedTitle: "neural network fundamentals",
 			Description:     "Understanding neural networks and deep learning",
-			NormalizedTags:  []string{"ml", "ai"},
+			NormalizedTaxs:  map[string][]string{"tags": {"ml", "ai"}},
 			Content:         "Neural networks are the foundation of deep learning. This guide explains neural networks.",
 		},
 		"4": {
@@ -49,7 +49,7 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Go Concurrency Patterns",
 			NormalizedTitle: "go concurrency patterns",
 			Description:     "Advanced Go concurrency and parallelism",
-			NormalizedTags:  []string{"go", "concurrency"},
+			NormalizedTaxs:  map[string][]string{"tags": {"go", "concurrency"}},
 			Content:         "Go has excellent concurrency support with goroutines and channels. Learn patterns here.",
 		},
 		"5": {
@@ -57,7 +57,7 @@ func buildRankingIndex() *models.SearchIndex {
 			Title:           "Web Development with Rust",
 			NormalizedTitle: "web development with rust",
 			Description:     "Building web applications in Rust",
-			NormalizedTags:  []string{"rust", "web"},
+			NormalizedTaxs:  map[string][]string{"tags": {"rust", "web"}},
 			Content:         "Rust can be used for web development using frameworks like Actix and Axum.",
 		},
 	}
@@ -143,7 +143,7 @@ func TestRanking_TagBoost(t *testing.T) {
 
 	tagMatches := 0
 	for _, r := range results {
-		if slices.Contains(index.Posts[strconv.FormatUint(r.ID, 10)].NormalizedTags, "programming") {
+		if slices.Contains(index.Posts[strconv.FormatUint(r.ID, 10)].NormalizedTaxs["tags"], "programming") {
 			tagMatches++
 		}
 	}
@@ -160,14 +160,14 @@ func TestRanking_PhraseMatch(t *testing.T) {
 			Title:           "Neural Network Basics",
 			NormalizedTitle: "neural network basics",
 			Content:         "A neural network consists of layers.",
-			NormalizedTags:  []string{},
+			NormalizedTaxs:  map[string][]string{},
 		},
 		"1": {
 			ID:              1,
 			Title:           "Network Security",
 			NormalizedTitle: "network security",
 			Content:         "Networks are important for security.",
-			NormalizedTags:  []string{},
+			NormalizedTaxs:  map[string][]string{},
 		},
 	}
 
@@ -222,7 +222,7 @@ func TestRanking_TagPrefixQuery(t *testing.T) {
 	}
 
 	for _, r := range results {
-		if !slices.Contains(index.Posts[strconv.FormatUint(r.ID, 10)].NormalizedTags, "rust") {
+		if !slices.Contains(index.Posts[strconv.FormatUint(r.ID, 10)].NormalizedTaxs["tags"], "rust") {
 			t.Errorf("Result ID %d does not have 'rust' tag", r.ID)
 		}
 	}
@@ -255,14 +255,14 @@ func TestRanking_FuzzyMatch(t *testing.T) {
 			Title:           "Programming Guide",
 			NormalizedTitle: "programming guide",
 			Content:         "Learn programming today.",
-			NormalizedTags:  []string{},
+			NormalizedTaxs:  map[string][]string{},
 		},
 		"1": {
 			ID:              1,
 			Title:           "Other Content",
 			NormalizedTitle: "other content",
 			Content:         "Something completely different.",
-			NormalizedTags:  []string{},
+			NormalizedTaxs:  map[string][]string{},
 		},
 	}
 
@@ -299,14 +299,14 @@ func TestRanking_ScoreOrdering(t *testing.T) {
 			Title:           "Title Has Word",
 			NormalizedTitle: "title has word",
 			Content:         "Content body.",
-			NormalizedTags:  []string{},
+			NormalizedTaxs:  map[string][]string{},
 		},
 		"1": {
 			ID:              1,
 			Title:           "Other Title",
 			NormalizedTitle: "other title",
 			Content:         "Content has word in body.",
-			NormalizedTags:  []string{},
+			NormalizedTaxs:  map[string][]string{},
 		},
 	}
 
@@ -340,13 +340,13 @@ func TestRanking_TopKLimit(t *testing.T) {
 	inverted := map[string]map[string][]uint32{}
 
 	for i := 0; i < 50; i++ {
-		pid := string(rune(i))
+		pid := strconv.Itoa(i)
 		posts[pid] = models.PostRecord{
 			ID:              uint64(i),
 			Title:           "Post",
 			NormalizedTitle: "post",
 			Content:         "test content",
-			NormalizedTags:  []string{},
+			NormalizedTaxs:  map[string][]string{},
 		}
 		inverted["test"] = map[string][]uint32{pid: {0}}
 	}
@@ -363,7 +363,7 @@ func TestRanking_TopKLimit(t *testing.T) {
 	}
 
 	for i := 0; i < 50; i++ {
-		index.DocLens[string(rune(i))] = 5
+		index.DocLens[strconv.Itoa(i)] = 5
 	}
 
 	results := PerformSearch(index, "test")
@@ -383,7 +383,7 @@ func TestRanking_TagOnlyQuery(t *testing.T) {
 	}
 
 	for _, r := range results {
-		if !slices.Contains(index.Posts[strconv.FormatUint(r.ID, 10)].NormalizedTags, "ml") {
+		if !slices.Contains(index.Posts[strconv.FormatUint(r.ID, 10)].NormalizedTaxs["tags"], "ml") {
 			t.Errorf("Result ID %d does not have 'ml' tag", r.ID)
 		}
 	}
@@ -396,14 +396,14 @@ func TestRanking_PhraseWithQuotes(t *testing.T) {
 			Title:           "Neural Networks",
 			NormalizedTitle: "neural networks",
 			Content:         "Neural networks are a key technology.",
-			NormalizedTags:  []string{},
+			NormalizedTaxs:  map[string][]string{},
 		},
 		"1": {
 			ID:              1,
 			Title:           "Neural Networks Security",
 			NormalizedTitle: "neural networks security",
 			Content:         "Security in neural networks applications.",
-			NormalizedTags:  []string{},
+			NormalizedTaxs:  map[string][]string{},
 		},
 	}
 
@@ -437,7 +437,7 @@ func TestRanking_SnippetPopulated(t *testing.T) {
 	results := PerformSearch(index, "go")
 
 	for _, r := range results {
-		if r.Snippet == "" && strings.TrimSpace(index.Posts[string(rune(r.ID))].Content) != "" {
+		if r.Snippet == "" && strings.TrimSpace(index.Posts[strconv.FormatUint(r.ID, 10)].Content) != "" {
 			t.Logf("Result ID %d has empty snippet but non-empty content", r.ID)
 		}
 	}

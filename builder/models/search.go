@@ -1,5 +1,10 @@
 package models
 
+// SearchIngestor defines an interface for pipelined search indexing.
+type SearchIngestor interface {
+	Add(post IndexedPost)
+}
+
 // PostRecord represents a search-optimized record for BM25 indexing and
 // search functionality. It contains normalized fields for efficient text
 // matching and version-aware search.

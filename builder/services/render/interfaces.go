@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"html/template"
 	"log/slog"
 
@@ -36,4 +37,5 @@ type Service interface {
 	ClearRenderedFiles()
 	ReloadTemplates()
 	Has404Template() bool
+	FlushFragments(ctx context.Context) error
 }

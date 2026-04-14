@@ -207,4 +207,4 @@ Toggle the variance mode to see how statistics changes geometry.
 With this, the notes on Norms and distances conclude.
 
 
-<script src="static/js/wasm_engine.js"></script>
+<script src="/static/js/animation-loader.js"></script>

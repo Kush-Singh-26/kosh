@@ -1,0 +1,27 @@
+title: "Mock Site"
+baseURL: "https://example.com"
+theme: "blog"
+themeDir: "../../themes"
+outputDir: "public"
+staticDir: "static"
+contentDir: "content"
+imageWorkers: 2
+shouldCompressImages: true
+shouldMinifySVGs: true
+blogPrefix: "blogs"
+menu:
+  - name: "Search"
+    id: "search-btn"
+features:
+  generators:
+    isSitemapEnabled: true
+    isRSSEnabled: true
+    graph:
+      isEnabled: true
+    isPWAEnabled: true
+    isSearchEnabled: true
+socialCards:
+  background: "#fafafa"
+  gradient: ["#e0d8c0", "#c0b090"]
+  angle: 135
+  textColor: "#262626"

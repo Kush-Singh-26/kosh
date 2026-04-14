@@ -271,12 +271,32 @@ func (manager *Manager) StoreHTML(content []byte) (string, error) {
 
 // StoreFragment persists a pre-rendered UI fragment in the cache.
 func (manager *Manager) StoreFragment(key string, html string) error {
-	return manager.db.Update(func(tx *bbolt.Tx) error {
+	return manager.db.Batch(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketFragments))
 		if bucket == nil {
 			return fmt.Errorf("fragment bucket not found")
 		}
 		return bucket.Put([]byte(key), []byte(html))
+	})
+}
+
+// BatchStoreFragments persists multiple UI fragments in a single transaction.
+func (manager *Manager) BatchStoreFragments(ctx context.Context, entries map[string]string) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	return manager.db.Batch(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(core.BucketFragments))
+		if bucket == nil {
+			return fmt.Errorf("fragment bucket not found")
+		}
+		for key, html := range entries {
+			if err := bucket.Put([]byte(key), []byte(html)); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

@@ -371,4 +371,5 @@ All the points on the smiley face undergo the respective transformation :
 
 With this, the post on determinants and eigenvectors, their geometric implications and how diagonalization works and simplifies the task is complete.
 
-<script src="static/js/wasm_engine.js"></script>
+<script src="/static/js/animation-loader.js"></script>
+</content>

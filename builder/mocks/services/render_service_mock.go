@@ -1,6 +1,7 @@
 package mocks
 
 import (
+	"context"
 	"html/template"
 	"log/slog"
 	"sync"
@@ -148,4 +149,10 @@ func (m *MockRenderService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afer
 func (m *MockRenderService) Has404Template() bool {
 	m.recordCall("Has404Template")
 	return true
+}
+
+// FlushFragments flushes the fragment cache.
+func (m *MockRenderService) FlushFragments(_ context.Context) error {
+	m.recordCall("FlushFragments")
+	return nil
 }

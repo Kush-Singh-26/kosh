@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package renderer
 
 import (
@@ -39,7 +41,7 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 
 	// Final Write with Streaming Minification
 	if err := r.Sink.WriteStream(path, func(w io.Writer) error {
-		if r.Compress {
+		if r.Minify {
 			minifier := r.Minifier
 			if minifier == nil {
 				minifier = koshMinify.GetHTMLMinifier()

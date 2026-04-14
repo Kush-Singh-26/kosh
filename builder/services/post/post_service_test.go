@@ -55,9 +55,9 @@ func (m *mockRenderService) RenderPage(path string, data models.PageData) error 
 	return nil
 }
 
-func (m *mockRenderService) RenderIndex(path string, data models.PageData) error      { return nil }
-func (m *mockRenderService) Render404(path string, data models.PageData) error        { return nil }
-func (m *mockRenderService) RenderGraph(path string, data models.PageData) error      { return nil }
+func (m *mockRenderService) RenderIndex(path string, data models.PageData) error { return nil }
+func (m *mockRenderService) Render404(path string, data models.PageData) error   { return nil }
+func (m *mockRenderService) RenderGraph(path string, data models.PageData) error { return nil }
 func (m *mockRenderService) RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error) {
 	return template.HTML(""), nil
 }
@@ -70,6 +70,7 @@ func (m *mockRenderService) ReloadTemplates()                                   
 func (m *mockRenderService) ConsumeErrors() []error                                   { return nil }
 func (m *mockRenderService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {}
 func (m *mockRenderService) Has404Template() bool                                     { return true }
+func (m *mockRenderService) FlushFragments(ctx context.Context) error                 { return nil }
 
 // mockArtifactSink is a mock ArtifactSink for testing
 type mockArtifactSink struct {
@@ -192,6 +193,9 @@ func setupPostServiceTest(t *testing.T) *postService {
 	cfg := &config.Config{
 		SiteConfig: config.SiteConfig{
 			BaseURL: "http://localhost:8080",
+			Taxonomies: map[string]string{
+				"tags": "tags",
+			},
 		},
 		PathConfig: config.PathConfig{
 			ContentDir:  "content",

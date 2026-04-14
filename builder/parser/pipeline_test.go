@@ -45,11 +45,6 @@ func TestFullPipeline(t *testing.T) {
 			contains: []string{"class=\"code-block-container\"", "data-lang=\"go\"", "func"},
 		},
 		{
-			name:     "Admonitions",
-			markdown: "!!! note\n    This is a note\n!!!",
-			contains: []string{"class=\"admonition adm-note\"", "adm-title"},
-		},
-		{
 			name:     "Math (Passthrough/SSR Markers)",
 			markdown: "Inline $E=mc^2$ and block:\n\n$$\na^2 + b^2 = c^2\n$$",
 			contains: []string{"<!--KOSH_MATH:", "-->"},

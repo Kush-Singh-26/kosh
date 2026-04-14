@@ -302,4 +302,4 @@ When the <span class="green">green</span> arrow aligns with <span class="red">re
 
 With this this post on matrices and their geometric implementation, types of matrices and different operations using matrices is completed.
 
-<script src="static/js/wasm_engine.js"></script>
+<script src="/static/js/animation-loader.js"></script>

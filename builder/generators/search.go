@@ -14,11 +14,14 @@ import (
 
 const searchIndexBrotliLevel = 4
 
-// GenerateSearchIndex builds and writes the compressed search index.
 func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedPost) (string, int64, error) {
-	outputDir := sink.GetOutputDir()
-
 	idx := index.Build(indexedPosts)
+	return GenerateSearchIndexFromObject(sink, idx)
+}
+
+// GenerateSearchIndexFromObject writes a pre-built search index to the sink.
+func GenerateSearchIndexFromObject(sink fspkg.ArtifactSink, idx *models.SearchIndex) (string, int64, error) {
+	outputDir := sink.GetOutputDir()
 
 	outputPath := "search.bin"
 	var size int64

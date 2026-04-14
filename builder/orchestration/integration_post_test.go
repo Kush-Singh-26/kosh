@@ -123,6 +123,7 @@ Content 3
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 		Sink:           sink,
 	})

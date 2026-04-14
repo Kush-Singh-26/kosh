@@ -132,6 +132,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 		Sink:           sink,
 	})
@@ -149,6 +150,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		Cache:          nil,
 		Diagrams:       nil,
 	}))
@@ -265,6 +267,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 		Sink:           sink,
 	})
@@ -282,6 +285,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		Cache:          nil,
 		Diagrams:       nil,
 	}))

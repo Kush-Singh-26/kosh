@@ -188,10 +188,17 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 	searchRecord.ID = xxh3.HashString(searchRecord.Link)
 
 	localIndex := len(local.indexedPosts)
-	local.indexedPosts = append(local.indexedPosts, models.IndexedPost{
+	indexed := models.IndexedPost{
 		Record: searchRecord, WordFreqs: renderResult.WordFreqs, DocLen: renderResult.DocLen,
 		StemMap: renderResult.StemMap, PositionalIndex: renderResult.PositionalIndex, ByteOffsets: renderResult.ByteOffsets,
-	})
+	}
+	local.indexedPosts = append(local.indexedPosts, indexed)
+
+	// If using cache or indexing is simple, stream immediately.
+	// Otherwise it goes through SearchPool which feeds ingestor upon completion.
+	if useCache && workerContext.SearchIngestor != nil {
+		workerContext.SearchIngestor.Add(indexed)
+	}
 
 	if !useCache && service.cache != nil {
 		newSearch := &models.SearchRecord{
@@ -284,10 +291,11 @@ func (service *postService) mergeWorkerStates(locals []*workerLocalState, worker
 		for _, task := range local.searchTasks {
 			globalIndex := baseIndex + task.localIndex
 			workerContext.SearchPool.Submit(searchTask{
-				record:    task.record,
-				plainText: task.plainText,
-				indexed:   &processContext.indexedPosts[globalIndex],
-				cached:    task.cached,
+				record:         task.record,
+				plainText:      task.plainText,
+				indexed:        &processContext.indexedPosts[globalIndex],
+				cached:         task.cached,
+				SearchIngestor: workerContext.SearchIngestor,
 			})
 		}
 	}

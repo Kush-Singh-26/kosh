@@ -113,6 +113,7 @@ Important behavior:
 - `kosh serve --dev`
 - `kosh clean`
 - `kosh clean --cache`
+- `kosh search "Query"`
 - `kosh new "Title"`
 - `kosh version`
 
@@ -233,8 +234,8 @@ go build -o kosh ./cmd/kosh
 # Install to $GOPATH/bin
 go install ./cmd/kosh
 
-# Cross-compilation
-GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
+# Cross-compilation (WASM)
+go run scripts/rebuild_search.go
 ```
 
 ### Prerequisites
@@ -273,8 +274,8 @@ Rebuild the search WASM when:
 ### Rebuild Commands
 
 ```bash
-# Using the unified rebuild script (Recommended)
-go run scripts/rebuild-search.go
+# Using the standalone rebuild script (Recommended)
+go run scripts/rebuild_search.go
 
 # Manual cross-compilation (if needed)
 GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
@@ -284,8 +285,8 @@ GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
 
 1. **Embedded by default**: The WASM is pre-compiled and embedded in `builder/assets/wasm.go` via `search.wasm.br`.
 2. **Schema versioning**: `models.CurrentSchemaVersion` must match between build and runtime.
-3. **Hash comparison**: Uses xxh3 to avoid unnecessary redeployments.
-4. **Caching**: Source-built WASM is cached in `.kosh-cache/wasm/<hash>.br`.
+3. **Content hashing**: Uses **XXH3** content hashing of `cmd/search`, `builder/search`, and `builder/models` to detect source changes.
+4. **Developer Guardrails**: If the current source hash differs from the embedded `SearchSourceHash`, a warning reminds the developer to run `go run scripts/rebuild_search.go` before release.
 
 ### Important Files
 
@@ -293,7 +294,8 @@ GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
 - `builder/search/` - Search algorithm implementation
 - `builder/models/models.go` - Schema version definition
 - `builder/assets/wasm.go` - WASM embedding and deployment
-- `scripts/rebuild-search.go` - Unified build and compression script
+- `builder/assets/wasm_rebuild.go` - Integrated rebuild logic
+- `builder/assets/search_hash.go` - Generated hashes for embedded binary and source
 
 ## Cache & Schema Versioning
 

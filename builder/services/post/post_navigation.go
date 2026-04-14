@@ -35,7 +35,7 @@ func (service *postService) prepareNavigationInfo(files []models.ScannedResource
 			Taxonomies:  make(map[string][]string),
 		}
 
-		// Pull taxonomies from metadata if available, fallback to file.Tags
+		// Pull taxonomies from metadata if available, fallback to file.Taxonomies
 		if file.PreParsedMeta != nil {
 			for taxKey := range service.cfg.Taxonomies {
 				if val, ok := file.PreParsedMeta[taxKey]; ok {
@@ -57,7 +57,7 @@ func (service *postService) prepareNavigationInfo(files []models.ScannedResource
 			}
 		}
 
-		// Backward compatibility for file.Tags if taxonomy mapping didn't find anything
+		// Backward compatibility for file.Taxonomies if taxonomy mapping didn't find anything
 		if len(post.Taxonomies["tags"]) == 0 && len(file.Taxonomies["tags"]) > 0 {
 			post.Taxonomies["tags"] = file.Taxonomies["tags"]
 		}

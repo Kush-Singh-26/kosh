@@ -100,6 +100,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 			Metrics:        buildMetrics,
 			MdPool:         mdPool,
 			NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 			SourceFs:       fs,
 			Sink:           sink,
 		})
@@ -117,6 +118,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 			SourceFs:       fs,
 			MdPool:         mdPool,
 			NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 			Cache:          nil,
 			Diagrams:       nil,
 		}))
@@ -239,6 +241,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 		Sink:           sink,
 	})
@@ -256,6 +259,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		Cache:          nil,
 		Diagrams:       nil,
 	}))

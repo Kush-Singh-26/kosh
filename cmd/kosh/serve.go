@@ -131,6 +131,19 @@ func runServe(cmd *cobra.Command, args []string) {
 	} else {
 		cfg := config.Load(filteredArgs)
 		printStartupBanner("Static Preview", cfg)
+
+		// Run a build first to ensure images are processed
+		orchestration.DevLogInfo("Building site...")
+		buildEngine := orchestration.NewEngine(orchestration.WithConfig(cfg))
+		if reporter != nil {
+			buildEngine.SetReporter(reporter)
+			reporter.Start("Static Preview")
+		}
+		if err := buildEngine.Build(ctx); err != nil {
+			orchestration.DevLogError("Build failed: " + err.Error())
+			os.Exit(1)
+		}
+
 		server.Run(server.ServerOptions{
 			Ctx:           ctx,
 			Args:          filteredArgs,

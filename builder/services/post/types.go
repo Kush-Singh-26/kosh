@@ -23,10 +23,11 @@ type renderTask struct {
 }
 
 type searchTask struct {
-	record    models.PostRecord
-	plainText string
-	indexed   *models.IndexedPost
-	cached    *models.SearchRecord
+	record         models.PostRecord
+	plainText      string
+	indexed        *models.IndexedPost
+	cached         *models.SearchRecord
+	SearchIngestor models.SearchIngestor
 }
 
 // workerLocalState accumulates results within a single parse worker,
@@ -63,6 +64,7 @@ type WorkerContext struct {
 	ProcessContext     *postProcessContext
 	CardPool           *async.WorkerPool[socialCardTask]
 	SearchPool         *async.WorkerPool[searchTask]
+	SearchIngestor     models.SearchIngestor
 	RenderChan         chan<- renderTask
 	ShouldForce        bool
 	ForceSocialRebuild bool

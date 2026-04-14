@@ -35,8 +35,9 @@ type ContentContext struct {
 	PinnedPosts    []models.PostMetadata
 	Taxonomies     map[string]models.TaxonomyData
 	TaxonomyMap    map[string]map[string][]models.PostMetadata
-	IndexedPosts   []models.IndexedPost
-	AnyPostChanged bool
+	IndexedPosts        []models.IndexedPost
+	PrebuiltSearchIndex *models.SearchIndex
+	AnyPostChanged      bool
 }
 
 // ToContentContext converts a ContentResult into its ContentContext subset.
@@ -46,8 +47,9 @@ func (pr *ContentResult) ToContentContext() *ContentContext {
 		PinnedPosts:    pr.PinnedPosts,
 		Taxonomies:     pr.Taxonomies,
 		TaxonomyMap:    pr.TaxonomyMap,
-		IndexedPosts:   pr.IndexedPosts,
-		AnyPostChanged: pr.AnyPostChanged,
+		IndexedPosts:        pr.IndexedPosts,
+		PrebuiltSearchIndex: nil, // Will be set by orchestration if needed
+		AnyPostChanged:      pr.AnyPostChanged,
 	}
 }
 
@@ -72,6 +74,7 @@ type Dependencies struct {
 	SourceFs       afero.Fs
 	Sink           fspkg.ArtifactSink
 	DiagramAdapter *cache.DiagramCacheAdapter
+	Fragments      *cache.FragmentCacheAdapter
 	Reporter       ui.Reporter
 	Shortcodes     ShortcodeProcessor
 }
@@ -84,6 +87,7 @@ type Parser interface {
 
 // ProcessOptions configures post processing operations.
 type ProcessOptions struct {
+	SearchIngestor     models.SearchIngestor
 	Ctx                context.Context
 	ShouldForce        bool
 	ForceSocialRebuild bool

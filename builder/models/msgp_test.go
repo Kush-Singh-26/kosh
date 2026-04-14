@@ -36,8 +36,8 @@ func TestPostRecord_Msgp(t *testing.T) {
 		NormalizedTitle: "title",
 		Link:            "/link",
 		Description:     "Desc",
-		Tags:            []string{"a", "b"},
-		NormalizedTags:  []string{"a", "b"},
+		Taxonomies:      map[string][]string{"tags": {"a", "b"}},
+		NormalizedTaxs:  map[string][]string{"tags": {"a", "b"}},
 		Content:         "Content",
 	}
 

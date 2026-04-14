@@ -48,7 +48,7 @@ const (
 const (
 	// SchemaVersion is the current cache schema version.
 	// This should be kept in sync with models.CurrentSchemaVersion (search index schema).
-	// Both are currently at version 15.
+	// Both are currently at version 20.
 	SchemaVersion = 20
 )
 

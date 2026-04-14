@@ -12,6 +12,7 @@ require (
 	github.com/fastschema/qjs v0.0.6
 	github.com/fogleman/gg v1.3.0
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/go-rod/rod v0.116.2
 	github.com/gohugoio/hugo-goldmark-extensions/passthrough v0.4.0
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -69,6 +70,11 @@ require (
 	github.com/tdewolff/parse/v2 v2.8.10 // indirect
 	github.com/tetratelabs/wazero v1.11.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	github.com/ysmood/fetchup v0.2.3 // indirect
+	github.com/ysmood/goob v0.4.0 // indirect
+	github.com/ysmood/got v0.40.0 // indirect
+	github.com/ysmood/gson v0.7.3 // indirect
+	github.com/ysmood/leakless v0.9.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect

@@ -80,6 +80,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 	})
 	metadataScanner := scanner.NewScanner()
@@ -98,6 +99,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 	}))
 	b.artifactSink = sink
 	b.buildTransaction = tx

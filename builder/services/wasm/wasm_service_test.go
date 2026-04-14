@@ -27,9 +27,9 @@ func TestWasmService_SkipInTestMode(t *testing.T) {
 	})
 
 	svc := NewService(Dependencies{
-		Ctx:    ctx,
-		Cfg:    cfg,
-		Logger: logger,
+		Ctx:      ctx,
+		Cfg:      cfg,
+		Logger:   logger,
 		SourceFs: fs,
 	})
 
@@ -44,17 +44,5 @@ func TestWasmService_SkipInTestMode(t *testing.T) {
 	err = svc.Deploy(context.Background(), nil)
 	if err != nil {
 		t.Errorf("Deploy returned error in test mode: %v", err)
-	}
-}
-
-func TestWasmService_SetSearchSourceDirty(t *testing.T) {
-	svc := &wasmService{}
-	svc.SetSearchSourceDirty(true)
-	if !svc.searchSourceDirty.Load() {
-		t.Error("SetSearchSourceDirty(true) failed")
-	}
-	svc.SetSearchSourceDirty(false)
-	if svc.searchSourceDirty.Load() {
-		t.Error("SetSearchSourceDirty(false) failed")
 	}
 }

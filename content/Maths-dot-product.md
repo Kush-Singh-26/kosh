@@ -103,4 +103,4 @@ Drag the white arrow (vector A) or adjust the sliders to change its length and d
 ---
 
 With this, dot product and its geometric meaning is covered.
-<script src="static/js/wasm_engine.js"></script>
+<script src="/static/js/animation-loader.js"></script>

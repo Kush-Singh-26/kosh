@@ -278,11 +278,12 @@ func createMockSearchIndex(size int) *models.SearchIndex {
 	for i := range size {
 		idStr := strconv.Itoa(i)
 		index.Posts[idStr] = models.PostRecord{
-			ID:          uint64(i),
-			Title:       fmt.Sprintf("Post %d", i),
-			Link:        fmt.Sprintf("/posts/post-%d", i),
-			Description: fmt.Sprintf("Description for post %d", i),
-			Tags:        []string{"go", "ssg", "web"},
+			ID:             uint64(i),
+			Title:          fmt.Sprintf("Post %d", i),
+			Link:           fmt.Sprintf("/posts/post-%d", i),
+			Description:    fmt.Sprintf("Description for post %d", i),
+			Taxonomies:     map[string][]string{"tags": {"go", "ssg", "web"}},
+			NormalizedTaxs: map[string][]string{"tags": {"go", "ssg", "web"}},
 		}
 
 		// Add some inverted index entries
@@ -315,8 +316,8 @@ func createMockPosts(count int) []models.PostMetadata {
 	posts := make([]models.PostMetadata, count)
 	for i := range count {
 		posts[i] = models.PostMetadata{
-			Title:   fmt.Sprintf("Post %d", i),
-			DateObj: time.Now().Add(-time.Duration(i) * time.Hour),
+			Title:    fmt.Sprintf("Post %d", i),
+			DateObj:  time.Now().Add(-time.Duration(i) * time.Hour),
 			IsPinned: i%5 == 0,
 		}
 	}

@@ -15,6 +15,9 @@ const (
 	bytesPerMiB             = 1024 * bytesPerKiB
 	byteSlicePoolDefaultCap = 10 * bytesPerKiB
 	byteSlicePoolMaxCap     = 5 * bytesPerMiB
+	MaxImageResizeWidth     = 1200
+	MaxImageResizeHeight    = 1600
+	RGBABytesPerPixel       = 4
 )
 
 // BufferPool manages a pool of reusable bytes.Buffer objects.
@@ -254,3 +257,36 @@ func (pool *RuneSlicePool) Put(buffer *[]rune) {
 
 // SharedRuneSlicePool is the shared rune slice pool instance.
 var SharedRuneSlicePool = NewRuneSlicePool()
+
+// ImageSlicePool manages a pool of byte slices sized for RGBA images.
+type ImageSlicePool struct {
+	pool sync.Pool // stores *[]byte
+}
+
+// NewImageSlicePool returns a new ImageSlicePool.
+func NewImageSlicePool() *ImageSlicePool {
+	return &ImageSlicePool{
+		pool: sync.Pool{
+			New: func() any {
+				buffer := make([]byte, MaxImageResizeWidth*MaxImageResizeHeight*RGBABytesPerPixel)
+				return &buffer
+			},
+		},
+	}
+}
+
+// Get returns an image slice pointer from the pool.
+func (pool *ImageSlicePool) Get() *[]byte {
+	return pool.pool.Get().(*[]byte)
+}
+
+// Put returns an image slice to the pool.
+func (pool *ImageSlicePool) Put(buffer *[]byte) {
+	if buffer == nil || cap(*buffer) > MaxImageResizeWidth*MaxImageResizeHeight*RGBABytesPerPixel*2 {
+		return
+	}
+	pool.pool.Put(buffer)
+}
+
+// SharedImageSlicePool is the shared image slice pool instance.
+var SharedImageSlicePool = NewImageSlicePool()

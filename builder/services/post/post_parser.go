@@ -39,7 +39,7 @@ type parsedFrontmatter struct {
 
 func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
 	dateStr := timeutil.ExtractDateStringFromMap(metadata, "date")
-	dateObj, _ := time.Parse("2006-01-02", dateStr)
+	dateObj, _ := time.ParseInLocation("2006-01-02", dateStr, time.UTC)
 	weight, _ := metadata["weight"].(int)
 	if w, ok := metadata["weight"].(float64); ok && weight == 0 {
 		weight = int(w)

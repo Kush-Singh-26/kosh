@@ -169,4 +169,4 @@ Others wise, the the vectors *span* the entire plane as it possible to reach eve
 
 $ \therefore $ Provided 2 vectors $\vec{v}$ & $\vec{w}$ are linearly independent, they will **span** the entire 2D plane ($\mathbb{R}^2$), i.e., it is possible to reach any point in space by sliding the sliders above.
 
-<script src="static/js/wasm_engine.js"></script>
+<script src="/static/js/animation-loader.js"></script>

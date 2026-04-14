@@ -50,9 +50,10 @@ type EngineDependencies struct {
 	Asset    asset.Service
 	Render   render.Service
 	Wasm     wasm.Service
-	Scanner  scanner.Scanner
-	Diagrams *cache.DiagramCacheAdapter
-	Reporter ui.Reporter
+	Scanner   scanner.Scanner
+	Diagrams  *cache.DiagramCacheAdapter
+	Fragments *cache.FragmentCacheAdapter
+	Reporter  ui.Reporter
 
 	// Config & runtime
 	Config         *config.Config
@@ -333,6 +334,21 @@ func (engineInstance *Engine) SaveCaches() {
 			Fn: func() error {
 				if err := engineInstance.Deps.Diagrams.Flush(context.Background()); err != nil {
 					engineInstance.Deps.Logger.Warn("Diagram cache flush failed", "error", err)
+				}
+				return nil
+			},
+			Cleanup: engineInstance.flushWaitGroup.Done,
+		})
+	}
+	if engineInstance.Deps.Fragments != nil {
+		engineInstance.flushWaitGroup.Add(1)
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       context.Background(),
+			Logger:    engineInstance.Deps.Logger,
+			Operation: "fragment cache flush",
+			Fn: func() error {
+				if err := engineInstance.Deps.Fragments.Flush(context.Background()); err != nil {
+					engineInstance.Deps.Logger.Warn("Fragment cache flush failed", "error", err)
 				}
 				return nil
 			},

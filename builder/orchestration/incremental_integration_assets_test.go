@@ -120,6 +120,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 	})
 	metadataScanner := scanner.NewScanner()
@@ -138,6 +139,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 	}))
 	b.artifactSink = sink
 	b.buildTransaction = tx
@@ -253,6 +255,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 	})
 	metadataScanner := scanner.NewScanner()
@@ -271,6 +274,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 	}))
 	b.artifactSink = sink
 	b.buildTransaction = tx

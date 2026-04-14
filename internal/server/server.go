@@ -272,7 +272,10 @@ func Run(opts ServerOptions) {
 		effectiveStaticDir := cfg.staticDir
 		var normalizedPath string
 
-		if HasPathPrefix(rawPath, blogPrefix) {
+		if strings.HasPrefix(rawPath, "/static/") {
+			// Always prioritize consolidated blog assets for /static/ requests
+			normalizedPath = normalizeRequestPath(rawPath, baseURL)
+		} else if HasPathPrefix(rawPath, blogPrefix) {
 			normalizedPath = normalizeRequestPath(rawPath, baseURL)
 		} else if cfg.rootDirectory != "" {
 			effectiveStaticDir = cfg.rootDirectory

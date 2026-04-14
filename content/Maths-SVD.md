@@ -472,4 +472,4 @@ To prove that quite patterns can be muted without losing the meaning, let's look
 
 With this, the post on different types of matrix decomposition and their uses, then SVD and how it works is completed.
 
-<script src="static/js/wasm_engine.js"></script>
+<script src="/static/js/animation-loader.js"></script>

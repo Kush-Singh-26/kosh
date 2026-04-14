@@ -99,14 +99,36 @@ type transformState struct {
 	transformer     *unifiedTransformer
 }
 
+var (
+	transformStatePool = sync.Pool{
+		New: func() any {
+			return &transformState{
+				ctx: &transformContext{},
+			}
+		},
+	}
+)
+
+func (s *transformState) reset(transformer *unifiedTransformer, source []byte, pc parser.Context) {
+	s.source = source
+	s.transformer = transformer
+	s.pc = pc
+	s.toc = s.toc[:0]
+	s.d2Blocks = s.d2Blocks[:0]
+	s.mathExpressions = s.mathExpressions[:0]
+	s.toReplace = s.toReplace[:0]
+	s.plainText.Reset()
+	s.ctx.inHeading = false
+	s.ctx.headingLevel = 0
+	s.ctx.headingID = ""
+	s.ctx.headingText.Reset()
+}
+
 // Transform walks the AST and extracts TOC, plaintext, math, and D2 data.
 func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
-	state := &transformState{
-		source:      reader.Source(),
-		ctx:         &transformContext{},
-		pc:          pc,
-		transformer: t,
-	}
+	state := transformStatePool.Get().(*transformState)
+	state.reset(t, reader.Source(), pc)
+	defer transformStatePool.Put(state)
 
 	_ = ast.Walk(node, state.walkFunc)
 

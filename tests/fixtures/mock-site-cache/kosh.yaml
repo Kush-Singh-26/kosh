@@ -1,0 +1,8 @@
+
+title: "Cache Site"
+baseURL: "https://example.com"
+theme: "blog"
+themeDir: "../../themes"
+outputDir: "public"
+staticDir: "static"
+contentDir: "content"

@@ -1,8 +1,13 @@
+//go:build !wasm
+
 package asset
 
 import (
 	"bytes"
 	"context"
+	"image"
+	"image/color"
+	"image/png"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,6 +21,7 @@ import (
 
 	"github.com/spf13/afero"
 
+	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
@@ -300,5 +306,75 @@ func TestAssetService_Build_ContextCancellationRace(t *testing.T) {
 
 	if count != numFiles {
 		t.Errorf("Race condition detected: expected %d images to be processed, got %d", numFiles, count)
+	}
+}
+
+func TestAssetService_Build_ImageCompression(t *testing.T) {
+	tmpDir := t.TempDir()
+	sourceDir := filepath.Join(tmpDir, "source")
+	outputDir := filepath.Join(tmpDir, "output")
+	cacheDir := filepath.Join(tmpDir, "cache")
+
+	staticDir := filepath.Join(sourceDir, "static")
+	if err := os.MkdirAll(filepath.Join(staticDir, "images"), 0755); err != nil {
+		t.Fatalf("failed to create static dir: %v", err)
+	}
+
+	imagePath := filepath.Join(staticDir, "images", "test.png")
+	// Create a real 1x1 PNG image
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.RGBA{255, 0, 0, 255}) // Red pixel
+	f, err := os.Create(imagePath)
+	if err != nil {
+		t.Fatalf("failed to create image file: %v", err)
+	}
+	if err := png.Encode(f, img); err != nil {
+		f.Close()
+		t.Fatalf("failed to encode png: %v", err)
+	}
+	f.Close()
+
+	cfg := &config.Config{
+		PathConfig: config.PathConfig{
+			StaticDir: sourceDir,
+			OutputDir: outputDir,
+			CacheDir:  cacheDir,
+		},
+		SiteRoot: sourceDir,
+		BuildOptions: config.BuildOptions{
+			ShouldCompressImages: true,
+			WebPQuality:          80,
+		},
+	}
+	sourceFs := afero.NewOsFs()
+	sink := fspkg.NewDiskSink(outputDir, outputDir)
+	mockRend := mocks.NewMockRenderService()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	svc := NewService(Dependencies{
+		SourceFs: sourceFs,
+		Sink:     sink,
+		Cfg:      cfg,
+		Renderer: mockRend,
+		Logger:   logger,
+	})
+
+	ctx := context.Background()
+	if err := svc.Build(ctx); err != nil {
+		t.Fatalf("Asset Build failed: %v", err)
+	}
+
+	// Verify .webp exists and original .png is gone after cleanup
+	webpPath := filepath.Join(outputDir, "static", "images", "test.webp")
+	if _, err := os.Stat(webpPath); os.IsNotExist(err) {
+		t.Errorf("Expected WebP image to be generated at %s", webpPath)
+	}
+
+	// Manually trigger cleanup as orchestration would do
+	assets.CleanupOriginalImages(outputDir)
+
+	originalOutputPath := filepath.Join(outputDir, "static", "images", "test.png")
+	if _, err := os.Stat(originalOutputPath); err == nil {
+		t.Errorf("Original image %s should have been cleaned up", originalOutputPath)
 	}
 }

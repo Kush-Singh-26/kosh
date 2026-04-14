@@ -129,6 +129,7 @@ This is the initial body.
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 	})
 	metadataScanner := scanner.NewScanner()
@@ -147,6 +148,7 @@ This is the initial body.
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 	}))
 	b.artifactSink = sink
 	b.buildTransaction = tx
@@ -297,6 +299,7 @@ Body content.
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 	})
 	metadataScanner := scanner.NewScanner()
@@ -315,6 +318,7 @@ Body content.
 		SourceFs:       fs,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 	}))
 	b.artifactSink = sink
 	b.buildTransaction = tx

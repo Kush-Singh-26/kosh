@@ -292,5 +292,26 @@ func ParseFrontmatter(data []byte) (map[string]any, error) {
 	if err := yaml.Unmarshal(data, &metadata); err != nil {
 		return nil, err
 	}
+	NormalizeMetadata(metadata)
 	return metadata, nil
+}
+
+// NormalizeMetadata recursively converts all time.Time values in a map to UTC.
+func NormalizeMetadata(m map[string]any) {
+	for k, v := range m {
+		switch val := v.(type) {
+		case time.Time:
+			m[k] = val.UTC()
+		case map[string]any:
+			NormalizeMetadata(val)
+		case []any:
+			for i, item := range val {
+				if t, ok := item.(time.Time); ok {
+					val[i] = t.UTC()
+				} else if mm, ok := item.(map[string]any); ok {
+					NormalizeMetadata(mm)
+				}
+			}
+		}
+	}
 }

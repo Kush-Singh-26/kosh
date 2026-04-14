@@ -134,6 +134,7 @@ This is post number %d.
 			Metrics:        buildMetrics,
 			MdPool:         mdPool,
 			NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 			SourceFs:       fs,
 		})
 		metadataScanner := scanner.NewScanner()
@@ -150,6 +151,7 @@ This is post number %d.
 			SourceFs:       fs,
 			MdPool:         mdPool,
 			NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		}))
 
 		engine.SetArtifactSink(sink)

@@ -204,35 +204,135 @@ func buildStemOrigins(results []partialResult, globalCap int) map[string][]strin
 
 // Build constructs an in-memory search index from a list of indexed posts.
 func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
-	totalDocs := len(indexedPosts)
+	sb := NewStreamBuilder(len(indexedPosts))
+	for _, ip := range indexedPosts {
+		sb.Add(ip)
+	}
+	return sb.Complete()
+}
+
+// StreamBuilder manages concurrent search index building from a stream of posts.
+// It implements the models.SearchIngestor interface.
+type StreamBuilder struct {
+	postChan   chan models.IndexedPost
+	results    []partialResult
+	numWorkers int
+	wg         sync.WaitGroup
+	totalDocs  int
+}
+
+// NewStreamBuilder initializes a new pipelined search index builder.
+func NewStreamBuilder(expectedDocs int) *StreamBuilder {
+	numWorkers := min(runtime.NumCPU(), maxIndexWorkers)
+	sb := &StreamBuilder{
+		postChan:   make(chan models.IndexedPost, max(expectedDocs, 32)),
+		results:    make([]partialResult, numWorkers),
+		numWorkers: numWorkers,
+		totalDocs:  expectedDocs,
+	}
+
+	for i := 0; i < numWorkers; i++ {
+		sb.wg.Add(1)
+		workerID := i
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       context.Background(),
+			Logger:    slog.Default(),
+			Operation: "search index stream build",
+			Fn: func() error {
+				workerCap := minWorkerCap
+				if sb.totalDocs > 0 {
+					workerCap = max(sb.totalDocs/sb.numWorkers, minWorkerCap)
+				}
+				res := partialResult{
+					posts:         make(map[string]models.PostRecord, workerCap),
+					inverted:      make(map[string]map[string][]uint32, workerCap*2),
+					offsets:       make(map[string]map[string][]uint32, workerCap*2),
+					docLens:       make(map[string]int64, workerCap),
+					stemMap:       make(map[string]map[string]bool, workerCap),
+					titleInverted: make(map[string][]uint64, workerCap),
+				}
+
+				for ip := range sb.postChan {
+					idStr := strconv.FormatUint(ip.Record.ID, decimalBase)
+					rec := ip.Record
+					if len(rec.Content) > maxSearchIndexContentLength {
+						rec.Content = core.TruncateToLength(rec.Content, maxSearchIndexContentLength)
+					}
+					res.posts[idStr] = rec
+					res.docLens[idStr] = int64(ip.DocLen)
+					res.totalLen += int64(ip.DocLen)
+
+					titleTokens := core.DefaultAnalyzer.Analyze(ip.Record.NormalizedTitle)
+					for _, word := range titleTokens {
+						res.titleInverted[word] = append(res.titleInverted[word], ip.Record.ID)
+					}
+
+					for word, positions := range ip.PositionalIndex {
+						if _, ok := res.inverted[word]; !ok {
+							res.inverted[word] = make(map[string][]uint32, perWordMapCap)
+						}
+						res.inverted[word][idStr] = positions
+					}
+
+					for word, off := range ip.ByteOffsets {
+						if _, ok := res.offsets[word]; !ok {
+							res.offsets[word] = make(map[string][]uint32, perWordMapCap)
+						}
+						res.offsets[word][idStr] = off
+					}
+
+					for orig, stem := range ip.StemMap {
+						if _, ok := res.stemMap[stem]; !ok {
+							res.stemMap[stem] = make(map[string]bool, perWordMapCap)
+						}
+						res.stemMap[stem][orig] = true
+					}
+				}
+				sb.results[workerID] = res
+				return nil
+			},
+			Cleanup: sb.wg.Done,
+		})
+	}
+	return sb
+}
+
+// Add enqueues a post for background indexing.
+func (sb *StreamBuilder) Add(ip models.IndexedPost) {
+	sb.postChan <- ip
+}
+
+// Complete closes the input stream and merges the results into a single index.
+func (sb *StreamBuilder) Complete() *models.SearchIndex {
+	close(sb.postChan)
+	sb.wg.Wait()
+
+	totalDocs := 0
+	for _, r := range sb.results {
+		totalDocs += len(r.posts)
+	}
 
 	if totalDocs == 0 {
 		return emptySearchIndex()
 	}
 
-	numWorkers := min(runtime.NumCPU(), maxIndexWorkers)
-
-	globalCap := computeGlobalCap(indexedPosts)
-
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
 		Posts:         make(map[string]models.PostRecord, totalDocs),
-		Inverted:      make(map[string]map[string][]uint32, globalCap),
-		TitleInverted: make(map[string][]uint64, globalCap/2),
+		Inverted:      make(map[string]map[string][]uint32, totalDocs*2),
+		TitleInverted: make(map[string][]uint64, totalDocs),
 		DocLens:       make(map[string]int64, totalDocs),
-		StemMap:       make(map[string][]string, globalCap/2),
+		StemMap:       make(map[string][]string, totalDocs),
 		TotalDocs:     int64(totalDocs),
-		Offsets:       make(map[string]map[string][]uint32, globalCap),
+		Offsets:       make(map[string]map[string][]uint32, totalDocs*2),
 	}
 
-	results := buildPartialResults(indexedPosts, numWorkers)
-	totalLen := mergePartialResults(index, results)
+	totalLen := mergePartialResults(index, sb.results)
 	if index.TotalDocs > 0 {
 		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
 	}
 
-	index.StemMap = buildStemOrigins(results, globalCap)
-
+	index.StemMap = buildStemOrigins(sb.results, totalDocs*2)
 	index.NgramIndex = core.BuildNgramIndex(index.Inverted)
 	return index
 }

@@ -2,7 +2,6 @@ package assets
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,7 +11,6 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/spf13/afero"
 
-	"github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
@@ -346,41 +344,6 @@ func TestCheckWASMFsNoChange(t *testing.T) {
 	}
 }
 
-// TestCheckWASMFsCacheHit tests cache hit scenario
-func TestCheckWASMFsCacheHit(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	outputDir := "/output"
-	cacheDir := "/cache"
-	sink := newFsSink(outputDir, fs)
-
-	// Create test WASM
-	sourceWasm := []byte("test wasm content")
-
-	// First call to populate cache
-	CheckWASMFsWithSource(CheckWASMOptions{
-		Fs:               fs,
-		Sink:             sink,
-		CacheDir:         cacheDir,
-		SourceWasm:       sourceWasm,
-		CompressionLevel: 0,
-	})
-
-	// Clear output directory
-	_ = fs.RemoveAll(outputDir)
-
-	// Second call should use cache
-	result := CheckWASMFsWithSource(CheckWASMOptions{
-		Fs:               fs,
-		Sink:             sink,
-		CacheDir:         cacheDir,
-		SourceWasm:       sourceWasm,
-		CompressionLevel: 0,
-	})
-	if !result {
-		t.Error("CheckWASMFsWithSource() with cache hit should return true")
-	}
-}
-
 func TestCheckWASMFsDirectoryCreation(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outputDir := "/deep/nested/output/path"
@@ -406,71 +369,6 @@ func TestCheckWASMFsDirectoryCreation(t *testing.T) {
 	if !exists {
 		t.Errorf("WASM file not created at %s", wasmPath)
 	}
-}
-
-func TestDeployWASMFromFile(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	outputDir := "/output"
-	cacheDir := "/cache"
-	sink := newFsSink(outputDir, fs)
-
-	// Create source WASM file
-	sourcePath := "/source/search.wasm"
-	sourceContent := []byte("test wasm content from file")
-	_ = afero.WriteFile(fs, sourcePath, sourceContent, 0644)
-
-	result := DeployWASMFromFile(fs, sink, cacheDir, sourcePath)
-
-	if !result {
-		t.Error("DeployWASMFromFile() should return true on success")
-	}
-
-	// Verify file was deployed
-	wasmPath := filepath.Join(outputDir, "static/wasm/search.wasm")
-	exists, _ := afero.Exists(fs, wasmPath)
-	if !exists {
-		t.Errorf("WASM file not deployed to %s", wasmPath)
-	}
-}
-
-func TestDeployWASMFromFileNotFound(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	outputDir := "/output"
-	cacheDir := "/cache"
-	sink := newFsSink(outputDir, fs)
-
-	// Non-existent source path
-	sourcePath := "/nonexistent/search.wasm"
-
-	// Should fall back to CheckWASMFs (embedded)
-	result := DeployWASMFromFile(fs, sink, cacheDir, sourcePath)
-
-	// Should still succeed using embedded WASM
-	if !result {
-		t.Error("DeployWASMFromFile() with non-existent source should fall back to embedded WASM")
-	}
-}
-
-// TestCompileWASMFromSource tests WASM compilation (skipped if go not available)
-func TestCompileWASMFromSource(t *testing.T) {
-	t.Skip("WASM compilation test requires go toolchain and is environment-dependent")
-
-	ctx := context.Background()
-	srcPath := "cmd/search/main.go"
-	destPath := "/tmp/test-search.wasm"
-
-	err := CompileWASMFromSource(ctx, srcPath, destPath, fs.RepoRoot())
-	if err != nil {
-		t.Errorf("CompileWASMFromSource() error = %v", err)
-	}
-
-	// Verify output file exists
-	if _, err := os.Stat(destPath); os.IsNotExist(err) {
-		t.Error("Compiled WASM file not created")
-	}
-
-	// Cleanup
-	_ = os.Remove(destPath)
 }
 
 // TestHashFileFs tests the hashFileFs function

@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package asset
 
 import (
@@ -79,6 +81,14 @@ func (service *assetService) isWebPCandidate(path string) bool {
 	}
 
 	return true
+}
+
+func (service *assetService) computeWebPDestination(relativePath string) string {
+	ext := strings.ToLower(filepath.Ext(relativePath))
+	if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
+		return relativePath[:len(relativePath)-len(ext)] + ".webp"
+	}
+	return ""
 }
 
 // syncStaticAssets discovers and copies all static assets to the sink.
@@ -237,7 +247,7 @@ func (service *assetService) setupAssetWorker(assetChan <-chan assetTask, group 
 					destinationPath := filepath.Join(service.cfg.OutputDir, currentTask.relativePath)
 					options := assets.CopyOptions{
 						Compress:     service.cfg.ShouldCompressImages,
-						MinifySVGs:   service.cfg.ShouldMinifySVGs,
+						MinifySVGs:   service.cfg.ShouldMinify,
 						KeepOriginal: false,
 						CacheDir:     service.cfg.CacheDir + "/images",
 						WebPQuality:  service.cfg.WebPQuality,
@@ -336,7 +346,7 @@ func (service *assetService) setupImageEnqueue(backgroundCtx context.Context, sk
 					SrcInfo: task.info,
 					Opts: assets.CopyOptions{
 						Compress:     service.cfg.ShouldCompressImages,
-						MinifySVGs:   service.cfg.ShouldMinifySVGs,
+						MinifySVGs:   service.cfg.ShouldMinify,
 						KeepOriginal: false,
 						CacheDir:     service.cfg.CacheDir + "/images",
 						WebPQuality:  service.cfg.WebPQuality,
@@ -416,20 +426,40 @@ func (service *assetService) setupDiscoveryWalk(walkOptions discoveryWalkOptions
 						}
 
 						// Incremental skip based on manifest
-						if service.manifest != nil {
+						// In dev mode, skip manifest optimization for non-image assets
+						// to ensure files like animation-loader.js are always available
+						skipManifestCheck := service.cfg.IsDev && !service.isWebPCandidate(path)
+						if !skipManifestCheck && service.manifest != nil {
 							if entry, ok := service.manifest.Get(path); ok {
 								if entry.Size == info.Size() && entry.ModTime == info.ModTime().UnixNano() {
 									relative, _ := fspkg.SafeRel(dir, path)
 									fullRelativePath := "static/" + relative
-									destPath := filepath.Join(service.cfg.OutputDir, fullRelativePath)
-									if _, err := service.sink.Stat(destPath); err == nil {
-										if service.renderer != nil {
-											service.renderer.RegisterFile(destPath)
+
+									// For WebP candidates, check if .webp version exists in sink
+									webpPath := service.computeWebPDestination(fullRelativePath)
+									if webpPath != "" {
+										destPath := filepath.Join(service.cfg.OutputDir, webpPath)
+										if _, err := service.sink.Stat(destPath); err == nil {
+											if service.renderer != nil {
+												service.renderer.RegisterFile(destPath)
+											}
+											if service.metrics != nil {
+												service.metrics.IncrementAssetsProcessed()
+											}
+											return nil
 										}
-										if service.metrics != nil {
-											service.metrics.IncrementAssetsProcessed()
+									} else {
+										// Non-WebP asset - use original logic
+										destPath := filepath.Join(service.cfg.OutputDir, fullRelativePath)
+										if _, err := service.sink.Stat(destPath); err == nil {
+											if service.renderer != nil {
+												service.renderer.RegisterFile(destPath)
+											}
+											if service.metrics != nil {
+												service.metrics.IncrementAssetsProcessed()
+											}
+											return nil
 										}
-										return nil
 									}
 								}
 							}

@@ -199,7 +199,7 @@ func TestEncodeDecode(t *testing.T) {
 				PostID:      "test-id",
 				Title:       "Test Title",
 				Description: "Test Description",
-				Tags:        []string{"go", "testing"},
+				Taxonomies:  map[string][]string{"tags": {"go", "testing"}},
 				Date:        time.Now(),
 				WordCount:   100,
 				ReadingTime: 5,
@@ -229,7 +229,7 @@ func TestEncodeDecode(t *testing.T) {
 			data: &Dependencies{
 				Templates: []string{"layout.html", "post.html"},
 				Includes:  []string{"header.html"},
-				Tags:      []string{"go", "ssg"},
+				Taxonomies: map[string][]string{"tags": {"go", "ssg"}},
 			},
 		},
 	}
@@ -298,7 +298,7 @@ func TestEncodeDecodeComplex(t *testing.T) {
 		SSRInputHashes: []string{"hash1", "hash2"},
 		Title:          "Complex Post",
 		Date:           time.Now().UTC(),
-		Tags:           []string{"go", "testing", "cache"},
+		Taxonomies:     map[string][]string{"tags": {"go", "testing", "cache"}},
 		WordCount:      1500,
 		ReadingTime:    8,
 		Description:    "A complex post for testing",
@@ -336,8 +336,8 @@ func TestEncodeDecodeComplex(t *testing.T) {
 	if decoded.IsPinned != original.IsPinned {
 		t.Errorf("IsPinned mismatch")
 	}
-	if len(decoded.Tags) != len(original.Tags) {
-		t.Errorf("Tags length mismatch")
+	if len(decoded.Taxonomies) != len(original.Taxonomies) {
+		t.Errorf("Taxonomies length mismatch")
 	}
 	if len(decoded.TOC) != len(original.TOC) {
 		t.Errorf("TOC length mismatch")

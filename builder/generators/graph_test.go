@@ -18,16 +18,16 @@ func TestGenerateGraph(t *testing.T) {
 
 	posts := []models.PostMetadata{
 		{
-			Title:   "Post 1",
-			Link:    "https://example.com/post1.html",
-			Tags:    []string{"Go", "Testing"},
-			DateObj: time.Now(),
+			Title:      "Post 1",
+			Link:       "https://example.com/post1.html",
+			Taxonomies: map[string][]string{"tags": {"Go", "Testing"}},
+			DateObj:    time.Now(),
 		},
 		{
-			Title:   "Post 2",
-			Link:    "https://example.com/post2.html",
-			Tags:    []string{"Go", "Web"},
-			DateObj: time.Now(),
+			Title:      "Post 2",
+			Link:       "https://example.com/post2.html",
+			Taxonomies: map[string][]string{"tags": {"Go", "Web"}},
+			DateObj:    time.Now(),
 		},
 	}
 
@@ -82,7 +82,7 @@ func TestGenerateGraph(t *testing.T) {
 	}
 
 	// Check tag node
-	tagGo, ok := nodeMap["tag-go"]
+	tagGo, ok := nodeMap["term-tags-go"]
 	if !ok {
 		t.Error("Tag 'go' node missing")
 	} else {
@@ -108,10 +108,10 @@ func TestGenerateGraph(t *testing.T) {
 
 	foundLink := false
 	for _, link := range data.Links {
-		if link.Source == "https://example.com/post1.html" && link.Target == "tag-testing" {
+		if link.Source == "https://example.com/post1.html" && link.Target == "term-tags-testing" {
 			foundLink = true
-			if link.Type != "tag" {
-				t.Errorf("Expected link type 'tag', got %s", link.Type)
+			if link.Type != "tags" {
+				t.Errorf("Expected link type 'tags', got %s", link.Type)
 			}
 			break
 		}
@@ -148,10 +148,10 @@ func TestGenerateGraph_DisableTags(t *testing.T) {
 	sink := testutil.NewMemSink()
 	posts := []models.PostMetadata{
 		{
-			Title:   "Post 1",
-			Link:    "https://example.com/post1.html",
-			Tags:    []string{"Go"},
-			DateObj: time.Now(),
+			Title:      "Post 1",
+			Link:       "https://example.com/post1.html",
+			Taxonomies: map[string][]string{"tags": {"Go"}},
+			DateObj:    time.Now(),
 		},
 	}
 
@@ -183,13 +183,13 @@ func TestGenerateGraph_DisableTags(t *testing.T) {
 
 func TestComputeGraphHash_DifferentPosts(t *testing.T) {
 	postsA := []models.PostMetadata{
-		{Title: "Post 1", Link: "/post1.html", Tags: []string{"Go"}},
-		{Title: "Post 2", Link: "/post2.html", Tags: []string{"Go"}},
+		{Title: "Post 1", Link: "/post1.html", Taxonomies: map[string][]string{"tags": {"Go"}}},
+		{Title: "Post 2", Link: "/post2.html", Taxonomies: map[string][]string{"tags": {"Go"}}},
 	}
 
 	postsB := []models.PostMetadata{
-		{Title: "Post 1", Link: "/post1.html", Tags: []string{"Go", "Testing"}},
-		{Title: "Post 2", Link: "/post2.html", Tags: []string{"Go"}},
+		{Title: "Post 1", Link: "/post1.html", Taxonomies: map[string][]string{"tags": {"Go", "Testing"}}},
+		{Title: "Post 2", Link: "/post2.html", Taxonomies: map[string][]string{"tags": {"Go"}}},
 	}
 
 	hashA, err := ComputeGraphHash(postsA)

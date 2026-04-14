@@ -63,6 +63,10 @@ func (service *postService) startSearchPool(ctx context.Context, numWorkers int)
 			task.cached.PositionalIndex = posIndex
 			task.cached.ByteOffsets = byteOffsets
 		}
+
+		if task.SearchIngestor != nil {
+			task.SearchIngestor.Add(*task.indexed)
+		}
 		return nil
 	}).WithScheduler(service.ctx.Scheduler, scheduler.TaskMarkdown)
 	pool.Start()
@@ -142,6 +146,7 @@ func finalizePostProcessing(processCtx *postProcessContext) {
 // ProcessStreaming processes posts using streaming parse and render phases.
 func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResult, error) {
 	ctx := opts.Ctx
+	searchIngestor := opts.SearchIngestor
 	shouldForce := opts.ShouldForce
 	forceSocialRebuild := opts.ForceSocialRebuild
 	fileChan := opts.FileChan
@@ -193,7 +198,8 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResul
 
 	workerCtx := WorkerContext{
 		Ctx: ctx, ProcessContext: processCtx, CardPool: cardPool, SearchPool: searchPool,
-		RenderChan: renderCollector.renderChan, ShouldForce: shouldForce, ForceSocialRebuild: forceSocialRebuild,
+		SearchIngestor: searchIngestor,
+		RenderChan:     renderCollector.renderChan, ShouldForce: shouldForce, ForceSocialRebuild: forceSocialRebuild,
 	}
 
 	// Stream from original channel to both parse workers and our navigation collector

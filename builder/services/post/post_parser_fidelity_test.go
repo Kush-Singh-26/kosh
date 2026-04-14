@@ -1,6 +1,7 @@
 package post
 
 import (
+	"strings"
 	"sync"
 	"testing"
 
@@ -65,5 +66,47 @@ func TestDateParsingFidelity(t *testing.T) {
 				t.Errorf("Expected year %d, got %d", wantYear, res.Post.DateObj.Year())
 			}
 		})
+	}
+}
+
+func TestShortcodeIntegration(t *testing.T) {
+	cfg := &config.Config{}
+	mdPool := &sync.Pool{
+		New: func() any {
+			return mdParser.New(cfg, mdParser.WithDiagramCache(mdParser.NewMemorySSRMap()))
+		},
+	}
+
+	// We need to simulate the shortcode processing that happens in worker.go
+	// Since ParseMarkdown doesn't take the processor, it takes the ALREADY processed source.
+	// This test verifies that if we pass processed source to ParseMarkdown, it renders correctly.
+
+	processedSource := []byte(`---
+title: Shortcode Test
+---
+<div class="shortcode-callout callout-warning">
+    
+    <div class="callout-content">Beware of bugs</div>
+</div>`)
+
+	res, err := ParseMarkdown(ParseOptions{
+		Source:           processedSource,
+		Path:             "content/test.md",
+		CleanHtmlRelPath: "test.html",
+		HtmlRelPath:      "test.html",
+		MdPool:           mdPool,
+		Cfg:              cfg,
+		BodyOffset:       24, // length of frontmatter + delimiters
+	})
+
+	if err != nil {
+		t.Fatalf("ParseMarkdown failed: %v", err)
+	}
+
+	if !strings.Contains(res.HTMLContent, "shortcode-callout") {
+		t.Errorf("HTML content missing shortcode output. Got: %s", res.HTMLContent)
+	}
+	if !strings.Contains(res.HTMLContent, "callout-warning") {
+		t.Errorf("HTML content missing callout type. Got: %s", res.HTMLContent)
 	}
 }

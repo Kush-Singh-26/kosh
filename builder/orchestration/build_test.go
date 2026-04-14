@@ -132,6 +132,7 @@ func TestFullBuild(t *testing.T) {
 		Metrics:        buildMetrics,
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
+		Fragments:      nil,
 		SourceFs:       fs,
 	})
 	metadataScanner := scanner.NewScanner()
@@ -145,6 +146,7 @@ func TestFullBuild(t *testing.T) {
 		Post:           postSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
+		Fragments:      nil, // Fragments adapter not required for this test
 		Logger:         logger,
 		Metrics:        buildMetrics,
 		SourceFs:       fs,

@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package renderer
 
 import (
@@ -37,6 +39,7 @@ type Renderer struct {
 	baseTemplate   *template.Template
 	assetsSnapshot atomic.Pointer[map[string]string]
 	Compress       bool
+	Minify         bool
 	Sink           fspkg.ArtifactSink
 	SourceFs       afero.Fs
 	renderedFiles  sync.Map // path string -> struct{}{}
@@ -48,14 +51,15 @@ type Renderer struct {
 	errMu          sync.Mutex // protects renderErrors
 	assetCache     sync.Map   // cacheKey string -> map[string]string
 	Minifier       *minify.M
-	fragmentCache sync.Map // context string -> template.HTML
-	Cache         models.FragmentCache
+	fragmentCache  sync.Map // context string -> template.HTML
+	Cache          models.FragmentCache
 }
 
 // RendererOptions configures a Renderer instance.
 type RendererOptions struct {
 	SourceFs    afero.Fs
 	Compress    bool
+	Minify      bool
 	Sink        fspkg.ArtifactSink
 	TemplateDir string
 	DevMode     bool
@@ -75,6 +79,7 @@ func New(opts RendererOptions) *Renderer {
 func NewWithFs(opts RendererOptions) *Renderer {
 	r := &Renderer{
 		Compress:    opts.Compress,
+		Minify:      opts.Minify,
 		Sink:        opts.Sink,
 		SourceFs:    opts.SourceFs,
 		logger:      opts.Logger,
@@ -272,16 +277,16 @@ func templateFuncMap() template.FuncMap {
 				return ""
 			}
 			if dateTime, ok := value.(time.Time); ok {
-				return dateTime.Format(layout)
+				return dateTime.UTC().Format(layout)
 			}
 			if dateStr, ok := value.(string); ok {
-				if dateTime, err := time.Parse("2006-01-02", dateStr); err == nil {
+				if dateTime, err := time.ParseInLocation("2006-01-02", dateStr, time.UTC); err == nil {
 					return dateTime.Format(layout)
 				}
-				if dateTime, err := time.Parse("2006-01-02 15:04:05 -0700 MST", dateStr); err == nil {
+				if dateTime, err := time.ParseInLocation("2006-01-02 15:04:05 -0700 MST", dateStr, time.UTC); err == nil {
 					return dateTime.Format(layout)
 				}
-				if dateTime, err := time.Parse("2006-01-02 15:04:05 -0700", dateStr); err == nil {
+				if dateTime, err := time.ParseInLocation("2006-01-02 15:04:05 -0700", dateStr, time.UTC); err == nil {
 					return dateTime.Format(layout)
 				}
 				return dateStr

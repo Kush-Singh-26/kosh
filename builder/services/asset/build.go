@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package asset
 
 import (
@@ -225,7 +227,7 @@ func (service *assetService) buildEsbuildAssets(forceBuild bool) (map[string]str
 		Sink:             service.sink,
 		SrcDir:           sourceDir,
 		DestDir:          destinationStaticDir,
-		Minify:           service.cfg.ShouldCompressImages,
+		Minify:           service.cfg.ShouldMinify,
 		OnWrite:          service.renderer.RegisterFile,
 		CacheDir:         service.cfg.CacheDir + "/assets",
 		Force:            forceBuild,

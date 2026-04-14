@@ -6,6 +6,7 @@ package render
 // - Fire-and-forget errors: Log only (cache writes, social card generation)
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -144,4 +145,12 @@ func (service *renderService) ReloadTemplates() {
 // Has404Template reports whether a 404 template was loaded.
 func (service *renderService) Has404Template() bool {
 	return service.renderer.Has404Template()
+}
+
+// FlushFragments flushes the fragment cache to BoltDB.
+func (service *renderService) FlushFragments(ctx context.Context) error {
+	if service.renderer.Cache == nil {
+		return nil
+	}
+	return service.renderer.Cache.Flush(ctx)
 }
