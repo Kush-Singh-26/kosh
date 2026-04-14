@@ -6,13 +6,13 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 )
 
-func TestBoundedTagSocialCardWorkers(t *testing.T) {
-	workers := BoundedTagSocialCardWorkers()
+func TestBoundedTaxonomySocialCardWorkers(t *testing.T) {
+	workers := BoundedTaxonomySocialCardWorkers()
 	if workers < 1 {
 		t.Fatalf("workers should be at least 1, got %d", workers)
 	}
-	if workers > maxTagSocialCardWorkers {
-		t.Fatalf("workers should be bounded to %d, got %d", maxTagSocialCardWorkers, workers)
+	if workers > maxTaxonomySocialCardWorkers {
+		t.Fatalf("workers should be bounded to %d, got %d", maxTaxonomySocialCardWorkers, workers)
 	}
 }
 

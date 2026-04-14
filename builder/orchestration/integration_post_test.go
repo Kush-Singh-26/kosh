@@ -15,7 +15,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
-	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
@@ -75,8 +74,7 @@ Content 3
 
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
-	nativeRenderer := native.New()
-	t.Cleanup(func() { _ = nativeRenderer.Close() })
+	nativeRenderer := getSharedRenderer()
 	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
@@ -134,11 +132,11 @@ Content 3
 
 	ctx := context.Background()
 
-	var files []models.ScannedFile
+	var files []models.ScannedResource
 	for path := range postContents {
 		info, _ := fs.Stat(path)
 		source, _ := afero.ReadFile(fs, path)
-		files = append(files, models.ScannedFile{Path: path, Info: info, SourceLoader: func() ([]byte, error) { return source, nil }})
+		files = append(files, models.ScannedResource{Path: path, Info: info, SourceLoader: func() ([]byte, error) { return source, nil }})
 	}
 
 	errChan := make(chan error, 1)

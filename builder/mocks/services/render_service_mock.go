@@ -1,6 +1,7 @@
 package mocks
 
 import (
+	"html/template"
 	"log/slog"
 	"sync"
 
@@ -58,6 +59,12 @@ func (m *MockRenderService) ReloadTemplates() {
 // ReconfigureWithLogger sets the logger on the mock render service.
 func (m *MockRenderService) ReconfigureWithLogger(l *slog.Logger) {
 	m.recordCall("ReconfigureWithLogger")
+}
+
+// RenderFragment records a fragment rendering call.
+func (m *MockRenderService) RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error) {
+	m.recordCall("RenderFragment")
+	return template.HTML("mock fragment"), nil
 }
 
 // RenderPage records a rendered page.

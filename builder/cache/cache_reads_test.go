@@ -156,7 +156,7 @@ func TestGetSearchRecord(t *testing.T) {
 		NormalizedTitle: "test post",
 		BM25Data:        map[string]int{"test": 1, "post": 2},
 		DocLen:          10,
-		NormalizedTags:  []string{"test", "go"},
+		NormalizedTaxs:  map[string][]string{"tags": {"test", "go"}},
 	}
 
 	records := map[string]*core.SearchRecord{
@@ -286,19 +286,19 @@ func TestGetPostsByTag(t *testing.T) {
 	// Create posts with tags
 	post1 := createSamplePostMeta()
 	post1.PostID = "post-1"
-	post1.Tags = []string{"go", "tutorial"}
+	post1.Taxonomies = map[string][]string{"tags": {"go", "tutorial"}}
 
 	post2 := createSamplePostMeta()
 	post2.PostID = "post-2"
-	post2.Tags = []string{"go", "advanced"}
+	post2.Taxonomies = map[string][]string{"tags": {"go", "advanced"}}
 
 	post3 := createSamplePostMeta()
 	post3.PostID = "post-3"
-	post3.Tags = []string{"python", "tutorial"}
+	post3.Taxonomies = map[string][]string{"tags": {"python", "tutorial"}}
 
-	deps1 := &core.Dependencies{Tags: post1.Tags}
-	deps2 := &core.Dependencies{Tags: post2.Tags}
-	deps3 := &core.Dependencies{Tags: post3.Tags}
+	deps1 := &core.Dependencies{Taxonomies: post1.Taxonomies}
+	deps2 := &core.Dependencies{Taxonomies: post2.Taxonomies}
+	deps3 := &core.Dependencies{Taxonomies: post3.Taxonomies}
 
 	depsMap := map[string]*core.Dependencies{
 		"post-1": deps1,
@@ -311,9 +311,9 @@ func TestGetPostsByTag(t *testing.T) {
 	}
 
 	// Get posts by tag
-	posts, err := m.GetPostsByTag("go")
+	posts, err := m.GetPostsByTaxonomy("tags", "go")
 	if err != nil {
-		t.Fatalf("GetPostsByTag failed: %v", err)
+		t.Fatalf("GetPostsByTaxonomy failed: %v", err)
 	}
 
 	// Should find post-1 and post-2
@@ -336,9 +336,9 @@ func TestGetPostsByTag_NotFound(t *testing.T) {
 	defer cleanup()
 
 	// Get posts by non-existent tag
-	posts, err := m.GetPostsByTag("non-existent-tag")
+	posts, err := m.GetPostsByTaxonomy("tags", "non-existent-tag")
 	if err != nil {
-		t.Fatalf("GetPostsByTag failed: %v", err)
+		t.Fatalf("GetPostsByTaxonomy failed: %v", err)
 	}
 
 	if len(posts) != 0 {

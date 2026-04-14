@@ -196,7 +196,9 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 	if !useCache && service.cache != nil {
 		newSearch := &models.SearchRecord{
 			Title: post.Title, NormalizedTitle: renderResult.SearchRecord.NormalizedTitle,
-			Content: renderResult.SearchRecord.Content, NormalizedTags: renderResult.SearchRecord.NormalizedTags,
+			Content: renderResult.SearchRecord.Content,
+			Taxonomies:     renderResult.SearchRecord.Taxonomies,
+			NormalizedTaxs: renderResult.SearchRecord.NormalizedTaxs,
 		}
 		postID := cache.GeneratePostID("", relativePath)
 		local.newSearchRecords[postID] = newSearch
@@ -212,32 +214,9 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 	if post.IsPinned {
 		local.pinnedPosts = append(local.pinnedPosts, post)
 	}
-	// 6. Extract all configured taxonomies
-	for taxKey := range service.cfg.Taxonomies {
-		var terms []string
-		if val, ok := renderResult.Metadata[taxKey]; ok {
-			switch v := val.(type) {
-			case string:
-				terms = []string{v}
-			case []any:
-				for _, item := range v {
-					if s, ok := item.(string); ok {
-						terms = append(terms, s)
-					}
-				}
-			case []string:
-				terms = v
-			}
-		}
-
-		// Store terms in the post metadata for this taxonomy
-		if post.Taxonomies == nil {
-			post.Taxonomies = make(map[string][]string)
-		}
-		post.Taxonomies[taxKey] = terms
-
-
-		// Add to local registry for aggregation
+	// 6. Aggregate taxonomies for site-wide discovery
+	for taxKey, terms := range post.Taxonomies {
+		// Add to local registry for site-wide aggregation (tags, categories, etc.)
 		for _, term := range terms {
 			local.taxonomyEntries = append(local.taxonomyEntries, taxonomyEntry{
 				taxonomy: taxKey,
@@ -264,7 +243,7 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 			PostID: postID, Path: relativePath, ModTime: file.Info.ModTime().UnixNano(),
 			ContentHash: renderResult.FrontmatterHash, BodyHash: file.BodyHash, Title: post.Title, Date: post.DateObj,
 			WordCount: int(file.Info.Size()), // Use WordCount as size for quick comparison
-			Tags:      post.Tags, ReadingTime: post.ReadingTime, Description: post.Description,
+			Taxonomies:  post.Taxonomies, ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, IsPinned: post.IsPinned, Weight: post.Weight, IsDraft: post.IsDraft,
 			Meta: renderResult.Metadata, TOC: renderResult.TOC, SSRInputHashes: ssrHashes,
 			CardHash: renderResult.FrontmatterHash, HasImages: renderResult.HasImages, MathExpressions: renderResult.MathExpressions,
@@ -273,7 +252,7 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 			service.logger.Warn("Failed to store HTML for post", "path", relativePath, "error", err)
 		}
 		local.newPostsMeta = append(local.newPostsMeta, newMeta)
-		local.newDependencies[postID] = &models.Dependencies{Tags: post.Tags}
+		local.newDependencies[postID] = &models.Dependencies{Taxonomies: post.Taxonomies}
 	}
 }
 

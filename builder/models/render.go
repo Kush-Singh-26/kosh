@@ -13,10 +13,11 @@ const (
 )
 
 type Navbar struct {
-	Title    string
-	TitleURL string
-	BtnLabel string
-	BtnURL   string
+	Title        string
+	TitleURL     string
+	BtnLabel     string
+	BtnURL       string
+	IdentityHTML template.HTML // Pre-rendered fragment
 }
 
 // TOCEntry represents a table of contents entry
@@ -102,6 +103,7 @@ type PageData struct {
 	Posts        []PostMetadata
 	PinnedPosts  []PostMetadata
 	Taxonomies   map[string]TaxonomyData // All aggregated taxonomies
+	ItemTaxonomies map[string][]string   // Specific taxonomy terms for the current page (e.g. current post's tags)
 	BuildVersion int64
 	Permalink    string
 	Image        string
@@ -129,4 +131,8 @@ type PageData struct {
 
 	// SEO
 	JSONLD template.HTML
+
+	// Universal Fragment Cache
+	Fragments map[string]template.HTML
+	IsCleanBuild bool
 }

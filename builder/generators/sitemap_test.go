@@ -20,8 +20,10 @@ func TestGenerateSitemap(t *testing.T) {
 			DateObj: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC),
 		},
 	}
-	tags := map[string][]models.PostMetadata{
-		"go": posts,
+	taxonomies := map[string]map[string][]models.PostMetadata{
+		"tags": {
+			"go": posts,
+		},
 	}
 	outputPath := "sitemap.xml"
 
@@ -29,7 +31,7 @@ func TestGenerateSitemap(t *testing.T) {
 		Sink:       sink,
 		BaseURL:    baseURL,
 		Posts:      posts,
-		Tags:       tags,
+		Taxonomies: taxonomies,
 		OutputPath: outputPath,
 	})
 	if err != nil {
@@ -59,7 +61,7 @@ func TestGenerateSitemap_EmptyPosts(t *testing.T) {
 		Sink:       sink,
 		BaseURL:    "https://example.com",
 		Posts:      []models.PostMetadata{},
-		Tags:       nil,
+		Taxonomies: nil,
 		OutputPath: "sitemap.xml",
 	})
 	if err != nil {

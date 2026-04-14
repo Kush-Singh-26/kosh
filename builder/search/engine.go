@@ -49,6 +49,7 @@ type Result struct {
 	Title       string
 	Link        string
 	Description string
+	Taxonomies  map[string][]string
 	Snippet     string
 	Score       float64
 }
@@ -129,7 +130,8 @@ func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Re
 		idNum, _ := strconv.ParseUint(id, decimalBase, uint64Bits)
 		results = append(results, Result{
 			ID: idNum, Title: title, Link: post.Link,
-			Description: post.Description, Score: score,
+			Description: post.Description, Taxonomies: post.Taxonomies,
+			Score: score,
 		})
 	}
 

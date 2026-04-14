@@ -58,8 +58,8 @@ func (service *postService) prepareNavigationInfo(files []models.ScannedResource
 		}
 
 		// Backward compatibility for file.Tags if taxonomy mapping didn't find anything
-		if len(post.Taxonomies["tags"]) == 0 && len(file.Tags) > 0 {
-			post.Taxonomies["tags"] = file.Tags
+		if len(post.Taxonomies["tags"]) == 0 && len(file.Taxonomies["tags"]) > 0 {
+			post.Taxonomies["tags"] = file.Taxonomies["tags"]
 		}
 
 		allPosts = append(allPosts, post)

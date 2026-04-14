@@ -72,7 +72,7 @@
     <script>
         window.siteBaseURL = "{{ .BaseURL }}";
         window.buildVersion = "{{ .BuildVersion }}";
-        window.blogTags = {{ .AllTags | jsonify }};
+        window.blogTags = {{ with index .Taxonomies "tags" }}{{ .Terms | jsonify }}{{ else }}[]{{ end }};
     </script>
     {{ if .Config.GetLogo }}
     <link rel="icon" type="image/png" href="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}">
@@ -113,12 +113,18 @@
 
     <header>
         <div class="nav-container">
-            <a href="{{ if .Navbar.TitleURL }}{{ .Navbar.TitleURL }}{{ else }}{{ relativize .BaseURL .RelativePrefix "/" }}{{ end }}" class="site-title">
-                {{ if .Config.GetLogo }}
-                <img src="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}" alt="Logo" class="site-logo" width="32" height="32" fetchpriority="high" loading="eager">
+            {{ block "navbar-identity" . }}
+                {{ if index .Fragments "navbar-identity" }}
+                    {{ index .Fragments "navbar-identity" }}
+                {{ else }}
+                    <a href="{{ if or (hasPrefix .Navbar.TitleURL "http") (hasPrefix .Navbar.TitleURL "/") }}{{ .Navbar.TitleURL }}{{ else }}{{ relativize .BaseURL .RelativePrefix "/" }}{{ end }}" class="site-title">
+                        {{ if .Config.GetLogo }}
+                        <img src="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}" alt="Logo" class="site-logo" width="32" height="32" fetchpriority="high" loading="eager">
+                        {{ end }}
+                        {{ .Navbar.Title }}
+                    </a>
                 {{ end }}
-                {{ .Navbar.Title }}
-            </a>
+            {{ end }}
             <nav>
                 <div class="desktop-nav">
                     {{ if .Navbar.BtnLabel }}
@@ -289,29 +295,35 @@
     {{ if not .IsGraphPage }}
     <footer class="colophon">
         <div class="colophon-grid">
-            <div class="colophon-left">
-                <span class="colophon-title">{{ .Config.GetSiteTitle }}</span>
-                <span class="colophon-tagline">&copy; {{ now.Year }} &bull; {{ .Config.GetSiteTitle }}</span>
-            </div>
-            <div class="colophon-center">
-                <div class="scholar-seal">
-                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="2" y="2" width="36" height="36" rx="2" stroke="currentColor" stroke-width="1.5"/>
-                        <path d="M10 10 L30 10 M10 20 L30 20 M10 30 L30 30 M20 10 L20 30" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                    </svg>
-                </div>
-            </div>
-            <div class="colophon-right">
-                <div class="colophon-social">
-                    {{ range $index, $item := .Config.GetFooterMenu }}
-                    {{ if $index }}<span class="social-dot">&bull;</span>{{ end }}
-                    <a href="{{ if or (hasPrefix $item.URL "http") (hasPrefix $item.URL "/") }}{{ $item.URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix $item.URL }}{{ end }}" {{ if $item.Target }}target="{{ $item.Target }}"{{ end }} rel="noopener">{{ $item.Name }}</a>
-                    {{ end }}
-                </div>
-                <div class="colophon-meta">
-                    <a href="https://github.com/Kush-Singh-26/kosh" target="_blank" rel="noopener">Built with Kosh</a>
-                </div>
-            </div>
+            {{ block "footer" . }}
+                {{ if index .Fragments "footer" }}
+                    {{ index .Fragments "footer" }}
+                {{ else }}
+                    <div class="colophon-left">
+                        <span class="colophon-title">{{ .Config.GetSiteTitle }}</span>
+                        <span class="colophon-tagline">&copy; {{ now.Year }} &bull; {{ .Config.GetSiteTitle }}</span>
+                    </div>
+                    <div class="colophon-center">
+                        <div class="scholar-seal">
+                            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="2" y="2" width="36" height="36" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                                <path d="M10 10 L30 10 M10 20 L30 20 M10 30 L30 30 M20 10 L20 30" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="colophon-right">
+                        <div class="colophon-social">
+                            {{ range $index, $item := .Config.GetFooterMenu }}
+                            {{ if $index }}<span class="social-dot">&bull;</span>{{ end }}
+                            <a href="{{ if or (hasPrefix $item.URL "http") (hasPrefix $item.URL "/") }}{{ $item.URL }}{{ else }}{{ relativize $.BaseURL $.RelativePrefix $item.URL }}{{ end }}" {{ if $item.Target }}target="{{ $item.Target }}"{{ end }} rel="noopener">{{ $item.Name }}</a>
+                            {{ end }}
+                        </div>
+                        <div class="colophon-meta">
+                            <a href="https://github.com/Kush-Singh-26/kosh" target="_blank" rel="noopener">Built with Kosh</a>
+                        </div>
+                    </div>
+                {{ end }}
+            {{ end }}
         </div>
     </footer>
 

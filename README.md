@@ -90,17 +90,15 @@ title: "My Site"
 description: "A Kosh site"
 baseURL: "https://example.com"
 theme: "blog"
-themeDir: "themes"
-contentDir: "content"
-outputDir: "public"
-cacheDir: ".kosh-cache"
-
-postsPerPage: 10
-compressImages: true
-imageWorkers: 8
+navbar:
+  home:
+    title: "Kush Singh"
+    btnLabel: "Read Blogs"
+  blog:
+    title: "Kush Blogs"
+    btnLabel: "Home"
 
 features:
-  rawMarkdown: true
   generators:
     sitemap: true
     rss: true
@@ -108,6 +106,10 @@ features:
     pwa: true
     search: true
 ```
+
+### Configuration Reference
+
+For a full list of all configuration options, see [docs/CONFIG.md](docs/CONFIG.md).
 
 ### Important Config Notes
 

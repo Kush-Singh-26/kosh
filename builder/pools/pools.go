@@ -220,3 +220,37 @@ func (pool *IntSlicePool) Put(buffer *[]int) {
 
 // SharedIntSlicePool is the shared int slice pool instance.
 var SharedIntSlicePool = NewIntSlicePool()
+
+// RuneSlicePool manages a pool of rune slices.
+type RuneSlicePool struct {
+	pool sync.Pool // stores *[]rune
+}
+
+// NewRuneSlicePool returns a new RuneSlicePool.
+func NewRuneSlicePool() *RuneSlicePool {
+	return &RuneSlicePool{
+		pool: sync.Pool{
+			New: func() any {
+				buffer := make([]rune, 0, 128)
+				return &buffer
+			},
+		},
+	}
+}
+
+// Get returns a rune slice pointer from the pool.
+func (pool *RuneSlicePool) Get() *[]rune {
+	return pool.pool.Get().(*[]rune)
+}
+
+// Put returns a rune slice to the pool.
+func (pool *RuneSlicePool) Put(buffer *[]rune) {
+	if buffer == nil || cap(*buffer) > 1024*1024 { // max 1M runes (approx 4MB)
+		return
+	}
+	*buffer = (*buffer)[:0]
+	pool.pool.Put(buffer)
+}
+
+// SharedRuneSlicePool is the shared rune slice pool instance.
+var SharedRuneSlicePool = NewRuneSlicePool()

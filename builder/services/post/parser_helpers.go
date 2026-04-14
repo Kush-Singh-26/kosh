@@ -111,7 +111,7 @@ func buildPostMetadata(
 		Title:       fm.Title,
 		Link:        postLink,
 		Description: fm.Description,
-		Tags:        fm.Tags,
+		Taxonomies:  fm.Taxonomies,
 		ReadingTime: readingTime,
 		IsPinned:    fm.IsPinned,
 		Weight:      fm.Weight,
@@ -126,9 +126,13 @@ func buildSearchRecord(
 	htmlRelPath string,
 	plainText string,
 ) models.PostRecord {
-	normalizedTags := make([]string, len(post.Tags))
-	for i, tag := range post.Tags {
-		normalizedTags[i] = strings.ToLower(tag)
+	normTaxs := make(map[string][]string, len(post.Taxonomies))
+	for k, terms := range post.Taxonomies {
+		norm := make([]string, len(terms))
+		for i, t := range terms {
+			norm[i] = strings.ToLower(t)
+		}
+		normTaxs[k] = norm
 	}
 
 	return models.PostRecord{
@@ -137,8 +141,8 @@ func buildSearchRecord(
 		NormalizedTitle: strings.ToLower(post.Title),
 		Link:            htmlRelPath,
 		Description:     post.Description,
-		Tags:            post.Tags,
-		NormalizedTags:  normalizedTags,
+		Taxonomies:      post.Taxonomies,
+		NormalizedTaxs:  normTaxs,
 		Content:         plainText,
 		Date:            post.DateObj.Unix(),
 	}
@@ -157,9 +161,11 @@ func tokenizeSearchData(
 	builder.WriteByte(' ')
 	builder.WriteString(searchRecord.Description)
 	builder.WriteByte(' ')
-	for _, tag := range searchRecord.Tags {
-		builder.WriteString(tag)
-		builder.WriteByte(' ')
+	for _, terms := range searchRecord.Taxonomies {
+		for _, t := range terms {
+			builder.WriteString(t)
+			builder.WriteByte(' ')
+		}
 	}
 	metaOffset := builder.Len()
 	builder.WriteString(plainText)

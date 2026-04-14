@@ -416,8 +416,9 @@ func CopyDirVFS(ctx context.Context, options CopyDirOptions) error {
 	var imageTasks []fileTask
 	var imageTasksMu sync.Mutex
 
-	// Use higher concurrency for discovery walk on modern SSDs
-	walkConcurrency := max(workerCount/2, minWalkConcurrency)
+	// Use higher concurrency for discovery walk on modern SSDs.
+	// Decouple from image worker count to maximize I/O throughput.
+	walkConcurrency := max(runtime.NumCPU()*2, 8)
 	walkFn := buildWalkFn(ctx, directoryCtx, options, &imageTasks, &imageTasksMu, nonImageQueue)
 	walkErr := fspkg.ParallelWalk(fspkg.WalkOptions{
 		Ctx:         ctx,

@@ -2,9 +2,13 @@ package search
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sort"
 	"sync"
+
+	"golang.org/x/sync/errgroup"
+	"runtime"
 
 	"github.com/zeebo/xxh3"
 
@@ -159,6 +163,16 @@ func (managerInstance *Manager) RegenerateIndex(workingContext context.Context) 
 	}
 
 	indexedPosts = dedupeIndexedPosts(indexedPosts)
+
+	// Optimization: Skip generation if search searchable content remains unchanged.
+	newHash := managerInstance.calculateSearchHash(indexedPosts)
+	if !managerInstance.cfg.ShouldForceRebuild {
+		if cachedHash, err := managerInstance.cache.GetSearchHash(); err == nil && cachedHash == newHash {
+			managerInstance.logger.Debug("Search index unchanged, skipping generation", "hash", newHash)
+			return nil
+		}
+	}
+
 	managerInstance.mu.Lock()
 	managerInstance.indexedPosts = indexedPosts
 	managerInstance.mu.Unlock()
@@ -169,11 +183,40 @@ func (managerInstance *Manager) RegenerateIndex(workingContext context.Context) 
 	}
 	renderSvc.RegisterFile(indexPath)
 
+	// Persist the new hash for future builds.
+	if err := managerInstance.cache.SetSearchHash(newHash); err != nil {
+		managerInstance.logger.Warn("Failed to persist search hash", "error", err)
+	}
+
 	if managerInstance.health != nil {
 		managerInstance.health.RecordSearchStats(int64(len(indexedPosts)), indexSize)
 	}
 
 	return nil
+}
+
+func (managerInstance *Manager) calculateSearchHash(posts []models.IndexedPost) string {
+	if len(posts) == 0 {
+		return ""
+	}
+
+	// Sort copy to ensure deterministic hash.
+	sorted := make([]models.IndexedPost, len(posts))
+	copy(sorted, posts)
+	sort.Slice(sorted, func(i, j int) bool {
+		return indexedPostStableKey(sorted[i]) < indexedPostStableKey(sorted[j])
+	})
+
+	hasher := xxh3.New()
+	for _, p := range sorted {
+		hasher.WriteString(indexedPostStableKey(p))
+		// Use the Title and some content-based field for hashing.
+		// Since BM25Data (WordFreqs) represents the searchable content, it's a good proxy.
+		hasher.WriteString(p.Record.Title)
+		hasher.WriteString(p.Record.Description)
+	}
+
+	return fmt.Sprintf("%x", hasher.Sum64())
 }
 
 func (managerInstance *Manager) ensureIndexedPosts() ([]models.IndexedPost, error) {
@@ -208,33 +251,53 @@ func (managerInstance *Manager) ensureIndexedPosts() ([]models.IndexedPost, erro
 
 	sort.Strings(postIDs)
 	indexedPosts := make([]models.IndexedPost, 0, len(posts))
-	for _, postID := range postIDs {
-		postMetadata, ok := posts[postID]
-		if !ok || postMetadata == nil {
-			continue
-		}
-		searchRecord, ok := searchRecords[postID]
-		if !ok || searchRecord == nil {
-			continue
-		}
-		htmlRelativePath := fspkg.MarkdownToHTMLPath(postMetadata.Path)
-		indexedPosts = append(indexedPosts, models.IndexedPost{
-			Record: models.PostRecord{
-				ID:              xxh3.HashString(htmlRelativePath),
-				Title:           postMetadata.Title,
-				NormalizedTitle: searchRecord.NormalizedTitle,
-				Link:            htmlRelativePath,
-				Description:     postMetadata.Description,
-				Tags:            postMetadata.Tags,
-				NormalizedTags:  searchRecord.NormalizedTags,
-			},
-			SourcePath:      postMetadata.Path,
-			WordFreqs:       searchRecord.BM25Data,
-			DocLen:          searchRecord.DocLen,
-			StemMap:         searchRecord.StemMap,
-			PositionalIndex: searchRecord.PositionalIndex,
-			ByteOffsets:     searchRecord.ByteOffsets,
+	var mu sync.Mutex
+
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(runtime.NumCPU())
+
+	for _, id := range postIDs {
+		postID := id
+		g.Go(func() error {
+			metadata, ok := posts[postID]
+			if !ok || metadata == nil {
+				return nil
+			}
+			record, ok := searchRecords[postID]
+			if !ok || record == nil {
+				return nil
+			}
+
+			htmlRelativePath := fspkg.MarkdownToHTMLPath(metadata.Path)
+			indexed := models.IndexedPost{
+				Record: models.PostRecord{
+					ID:              xxh3.HashString(htmlRelativePath),
+					Title:           metadata.Title,
+					NormalizedTitle: record.NormalizedTitle,
+					Link:            htmlRelativePath,
+					Description:     metadata.Description,
+					Taxonomies:      metadata.Taxonomies,
+					NormalizedTaxs:  record.NormalizedTaxs,
+					Content:         record.Content,
+					Date:            metadata.Date.Unix(),
+				},
+				SourcePath:      metadata.Path,
+				WordFreqs:       record.BM25Data,
+				DocLen:          record.DocLen,
+				StemMap:         record.StemMap,
+				PositionalIndex: record.PositionalIndex,
+				ByteOffsets:     record.ByteOffsets,
+			}
+
+			mu.Lock()
+			indexedPosts = append(indexedPosts, indexed)
+			mu.Unlock()
+			return nil
 		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 	return indexedPosts, nil
 }

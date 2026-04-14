@@ -151,6 +151,13 @@ func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxono
 		Permalink: cfg.BaseURL + "/" + indexPath,
 		Image:     fmt.Sprintf("%s/static/images/cards/%s/index.webp", cfg.BaseURL, plural),
 		TabTitle:  fmt.Sprintf("All %s | %s", plural, cfg.Title), Config: cfg,
+		Taxonomies: map[string]models.TaxonomyData{
+			taxonomy: {
+				Name:   taxonomy,
+				Plural: plural,
+				Terms:  terms,
+			},
+		},
 		Weight:         0,
 		RelativePrefix: "../../", BlogPrefix: cfg.BlogPrefix,
 		BlogIndexURL: blogIndexURL,
@@ -167,6 +174,13 @@ func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, p
 		Permalink: fmt.Sprintf("%s/%s", cfg.BaseURL, termPath),
 		Image:     fmt.Sprintf("%s/static/images/cards/%s/%s.webp", cfg.BaseURL, plural, slug),
 		TabTitle:  termName + " | " + cfg.Title, Config: cfg,
+		Taxonomies: map[string]models.TaxonomyData{
+			taxonomy: {
+				Name:   taxonomy,
+				Plural: plural,
+				Terms:  BuildTaxonomyData(plural, map[string][]models.PostMetadata{termName: posts}),
+			},
+		},
 		Weight:         0,
 		RelativePrefix: "../../", BlogPrefix: cfg.BlogPrefix,
 		BlogIndexURL: blogIndexURL,

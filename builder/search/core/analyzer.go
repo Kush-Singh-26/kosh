@@ -119,14 +119,19 @@ func (analyzer *Analyzer) AnalyzeWithPositions(text string) ([]string, map[strin
 	for _, token := range tokens {
 		var original string
 		if isLowerASCII(token.Value) {
+			// Avoid cloning if it's a stop word
+			if analyzer.useStopWords && stopWords[token.Value] {
+				tokenIndex++
+				continue
+			}
 			original = strings.Clone(token.Value)
 		} else {
 			lowered, hasUnicode := toLowerASCII(token.Value, *bufPtr)
 			if hasUnicode {
+				// strings.ToLower handles Unicode and returns a new allocation
 				original = strings.ToLower(token.Value)
 			} else {
-				// We use string(lowered) here for map lookup.
-				// Go compiler optimizes stopWords[string(lowered)] to avoid allocation.
+				// Go compiler optimizes stopWords[string(lowered)] here
 				if analyzer.useStopWords && stopWords[string(lowered)] {
 					tokenIndex++
 					continue
@@ -149,7 +154,8 @@ func (analyzer *Analyzer) AnalyzeWithPositions(text string) ([]string, map[strin
 			if cached, ok := localStemCache[original]; ok {
 				stem = cached
 			} else {
-				stem = strings.Clone(Stem(original))
+				// Stem already returns a new string allocation (string(runes))
+				stem = Stem(original)
 				localStemCache[original] = stem
 			}
 		}

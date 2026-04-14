@@ -38,6 +38,17 @@ type SocialCardsConfig struct {
 	TextColor  string   `yaml:"textColor"`
 }
 
+// NavbarIdentityConfig defines context-aware branding for the navbar.
+type NavbarContextConfig struct {
+	Title    string `yaml:"title"`
+	BtnLabel string `yaml:"btnLabel"`
+}
+
+type NavbarIdentityConfig struct {
+	Home NavbarContextConfig `yaml:"home"`
+	Blog NavbarContextConfig `yaml:"blog"`
+}
+
 // TemplateConfig defines the strictly-typed subset of project configuration
 // accessible within HTML templates. This prevents tight coupling between
 // models and the main config package while restoring type safety.
@@ -53,4 +64,5 @@ type TemplateConfig interface {
 	GetBlogPrefix() string
 	IsDevMode() bool
 	GetSiteData() map[string]any
+	GetNavbar() NavbarIdentityConfig
 }

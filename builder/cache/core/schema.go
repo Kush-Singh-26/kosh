@@ -9,9 +9,10 @@ const (
 	BucketPostDeps   = "post_deps"   // {PostID} -> Dependencies
 	BucketSSR        = "ssr"         // {type}:{inputHash} -> SSRArtifact
 	BucketSocialCard = "social_card" // {path} -> hash
+	BucketFragments  = "fragments"   // {blockName:context:prefix} -> HTML
 
 	// Index buckets (set-based, value is empty)
-	BucketTags          = "tags"           // {tag}/{PostID} -> empty
+	BucketTaxonomies    = "taxonomies"     // {taxonomy}/{term}/{PostID} -> empty
 	BucketDepsTemplates = "deps_templates" // {template}/{PostID} -> empty
 	BucketDepsIncludes  = "deps_includes"  // {include}/{PostID} -> empty
 
@@ -29,6 +30,7 @@ const (
 	KeyBuildCount    = "build_count"
 	KeyGraphHash     = "graph_hash"
 	KeyWasmHash      = "wasm_hash"
+	KeySearchHash    = "search_hash"
 )
 
 // AllBuckets returns the list of BoltDB bucket names used by the cache.
@@ -40,11 +42,12 @@ func AllBuckets() []string {
 		BucketPostDeps,
 		BucketSSR,
 		BucketSocialCard,
-		BucketTags,
+		BucketTaxonomies,
 		BucketDepsTemplates,
 		BucketDepsIncludes,
 		BucketMeta,
 		BucketStats,
 		BucketRefCount,
+		BucketFragments,
 	}
 }

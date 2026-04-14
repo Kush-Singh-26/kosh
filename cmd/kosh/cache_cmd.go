@@ -227,7 +227,7 @@ func runCacheInspect(cmd *cobra.Command, args []string) {
 	fmt.Printf("ContentHash:  %s\n", truncateHash(post.ContentHash))
 	fmt.Printf("HTMLHash:     %s\n", truncateHash(post.HTMLHash))
 	fmt.Printf("Date:         %s\n", post.Date.Format("2006-01-02"))
-	fmt.Printf("Tags:         %v\n", post.Tags)
+	fmt.Printf("Taxonomies:   %v\n", post.Taxonomies)
 	fmt.Printf("WordCount:    %d\n", post.WordCount)
 	fmt.Printf("Reading Time:  %v min\n", post.ReadingTime)
 	fmt.Printf("Is Draft:      %v\n", post.IsDraft)

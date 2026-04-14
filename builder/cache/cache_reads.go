@@ -236,6 +236,24 @@ func (manager *Manager) GetSSRArtifact(ssrType, inputHash string) (*core.SSRArti
 	return getCachedItem[core.SSRArtifact](manager.db, core.BucketSSR, []byte(key))
 }
 
+// GetFragment retrieves a pre-rendered UI fragment from the cache.
+func (manager *Manager) GetFragment(key string) (string, error) {
+	var result string
+	err := manager.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(core.BucketFragments))
+		if bucket == nil {
+			return core.ErrNoContent
+		}
+		data := bucket.Get([]byte(key))
+		if data == nil {
+			return core.ErrNoContent
+		}
+		result = string(data)
+		return nil
+	})
+	return result, err
+}
+
 // GetSSRContent retrieves the actual content for an SSR artifact
 func (manager *Manager) GetSSRContent(ssrType string, artifact *core.SSRArtifact) ([]byte, error) {
 	if len(artifact.InlineContent) > 0 {
@@ -256,13 +274,13 @@ func (manager *Manager) GetHTMLContent(post *core.PostMeta) ([]byte, error) {
 	return manager.store.Get("html", post.HTMLHash, true)
 }
 
-// GetPostsByTag returns post IDs for a given tag.
-func (manager *Manager) GetPostsByTag(tag string) ([]string, error) {
-	prefix := []byte(tag + "/")
+// GetPostsByTaxonomy returns post IDs for a given taxonomy and term.
+func (manager *Manager) GetPostsByTaxonomy(taxonomy, term string) ([]string, error) {
+	prefix := []byte(taxonomy + "/" + term + "/")
 	var ids []string
 
 	err := manager.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(core.BucketTags))
+		bucket := tx.Bucket([]byte(core.BucketTaxonomies))
 		if bucket == nil {
 			return nil
 		}
@@ -291,11 +309,11 @@ func (manager *Manager) GetAllPostsMetadata() ([]PostListMeta, error) {
 			var meta core.PostMeta
 			if err := core.Decode(value, &meta); err == nil {
 				result = append(result, PostListMeta{
-					Title:  meta.Title,
-					Link:   meta.Link,
-					Weight: meta.Weight,
-					Date:   meta.Date,
-					Tags:   meta.Tags,
+					Title:      meta.Title,
+					Link:       meta.Link,
+					Weight:     meta.Weight,
+					Date:       meta.Date,
+					Taxonomies: meta.Taxonomies,
 				})
 			}
 			return nil

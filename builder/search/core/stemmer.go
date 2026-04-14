@@ -3,6 +3,7 @@ package core
 import (
 	"sync"
 
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
@@ -80,8 +81,14 @@ func stem(word string) string {
 		return word
 	}
 
-	// Convert to rune slice for manipulation
-	runes := []rune(word)
+	// Use pooled rune slice for manipulation
+	runesPtr := pools.SharedRuneSlicePool.Get()
+	defer pools.SharedRuneSlicePool.Put(runesPtr)
+
+	runes := (*runesPtr)[:0]
+	for _, r := range word {
+		runes = append(runes, r)
+	}
 
 	// Step 1a: Handle plurals and past participles
 	runes = step1a(runes)

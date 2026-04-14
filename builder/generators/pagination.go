@@ -41,7 +41,7 @@ type PaginationOptions struct {
 	Force       bool
 	Logger      *slog.Logger
 	LogoPath    string
-	AllTags     []models.TagData
+	Taxonomies  map[string]models.TaxonomyData
 }
 
 func ensureHomeSocialCard(opts PaginationOptions) {
@@ -189,16 +189,22 @@ func RenderPagination(opts PaginationOptions) error {
 				curPinned = opts.PinnedPosts
 			}
 
+			context := models.ContextBlog
+			// If this is the main site index (root), use Home context
+			if pageIdx == firstPageIndex && (relPath == "" || relPath == "index.html" || relPath == "./") {
+				context = models.ContextHome
+			}
+
 			relPrefix := fspkg.GetRelativePrefix(relPath)
 			blogIndexURL := navigation.ResolveSectionIndex(relPath)
 			if err := render.RenderIndex(destPath, models.PageData{
 				Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
-				Paginator: paginator, Config: cfg, Context: models.ContextBlog,
+				Paginator: paginator, Config: cfg, Context: context,
 				RelativePrefix: relPrefix, BlogPrefix: cfg.BlogPrefix,
 				BlogIndexURL: blogIndexURL,
-				AllTags:      opts.AllTags,
+				Taxonomies:   opts.Taxonomies,
 				SiteData:     cfg.SiteData,
 			}); err != nil {
 				return fmt.Errorf("failed to render index page %d: %w", pageIdx, err)

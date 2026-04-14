@@ -45,13 +45,6 @@ func (service *postService) resolveNavigation(post models.PostMetadata) *navResu
 					DateObj:    meta.Date,
 					Taxonomies: meta.Taxonomies,
 				}
-				// Fallback for tags if Taxonomies map is empty (e.g. older cache entries)
-				if len(p.Taxonomies["tags"]) == 0 && len(meta.Tags) > 0 {
-					if p.Taxonomies == nil {
-						p.Taxonomies = make(map[string][]string)
-					}
-					p.Taxonomies["tags"] = meta.Tags
-				}
 				posts[idx] = p
 			}
 		}
@@ -276,8 +269,9 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		Meta: parseRes.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 		TabTitle: post.Title + " | " + service.cfg.Title, Permalink: post.Link, Image: cardImageURL,
 		TOC: parseRes.TOC, Config: service.cfg, ReadingTime: post.ReadingTime,
-		Taxonomies: nav.taxonomies,
-		PrevPage: nav.prev, NextPage: nav.next, RelativePrefix: relPrefix,
+		Taxonomies:     nav.taxonomies,
+		ItemTaxonomies: post.Taxonomies,
+		PrevPage:       nav.prev, NextPage: nav.next, RelativePrefix: relPrefix,
 		HasImages: parseRes.HasImages, Context: pageContext,
 		BlogPrefix:   service.cfg.BlogPrefix,
 		BlogIndexURL: blogIndexURL,
@@ -311,9 +305,9 @@ func (service *postService) commitPostCache(options commitPostCacheOptions) {
 	}
 
 	newMeta := &cache.PostMeta{
-		PostID: postID, Path: options.relPath, ModTime: options.info.ModTime().Unix(),
+		PostID: postID, Path: options.relPath, ModTime: options.info.ModTime().UnixNano(),
 		ContentHash: options.parseRes.FrontmatterHash, BodyHash: hashing.GetBodyHash(nil),
-		Title: options.post.Title, Date: options.post.DateObj, Tags: options.post.Tags,
+		Title: options.post.Title, Date: options.post.DateObj, Taxonomies: options.post.Taxonomies,
 		ReadingTime: options.post.ReadingTime, Description: options.post.Description,
 		Link: options.post.Link, IsPinned: options.post.IsPinned, Weight: options.post.Weight,
 		IsDraft: options.post.IsDraft, Meta: options.parseRes.Metadata, TOC: cacheTOC,
@@ -325,23 +319,19 @@ func (service *postService) commitPostCache(options commitPostCacheOptions) {
 		service.logger.Error("Failed to store HTML in cache", "path", options.relPath, "error", err)
 	}
 
-	normalizedTags := make([]string, len(options.post.Tags))
-	for idx, tag := range options.post.Tags {
-		normalizedTags[idx] = strings.ToLower(tag)
-	}
-
 	newSearch := &cache.SearchRecord{
 		Title:           options.post.Title,
 		NormalizedTitle: strings.ToLower(options.post.Title),
 		BM25Data:        options.parseRes.WordFreqs,
 		DocLen:          options.parseRes.DocLen,
 		Content:         options.parseRes.PlainText,
-		NormalizedTags:  normalizedTags,
+		Taxonomies:      options.parseRes.SearchRecord.Taxonomies,
+		NormalizedTaxs:  options.parseRes.SearchRecord.NormalizedTaxs,
 		StemMap:         options.parseRes.StemMap,
 		PositionalIndex: options.parseRes.PositionalIndex,
 		ByteOffsets:     options.parseRes.ByteOffsets,
 	}
-	newDep := &models.Dependencies{Tags: options.post.Tags}
+	newDep := &models.Dependencies{Taxonomies: options.post.Taxonomies}
 
 	service.cacheWg.Add(1)
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{

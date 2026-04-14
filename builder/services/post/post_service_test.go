@@ -2,6 +2,7 @@ package post
 
 import (
 	"context"
+	"html/template"
 	"io"
 	"log/slog"
 	"os"
@@ -57,6 +58,9 @@ func (m *mockRenderService) RenderPage(path string, data models.PageData) error 
 func (m *mockRenderService) RenderIndex(path string, data models.PageData) error      { return nil }
 func (m *mockRenderService) Render404(path string, data models.PageData) error        { return nil }
 func (m *mockRenderService) RenderGraph(path string, data models.PageData) error      { return nil }
+func (m *mockRenderService) RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error) {
+	return template.HTML(""), nil
+}
 func (m *mockRenderService) RegisterFile(path string)                                 {}
 func (m *mockRenderService) SetAssets(assets map[string]string)                       {}
 func (m *mockRenderService) GetAssets() map[string]string                             { return nil }
@@ -207,7 +211,7 @@ func setupPostServiceTest(t *testing.T) *postService {
 	// Create minimal directory structure
 	_ = sourceFs.MkdirAll(cfg.ContentDir, 0755)
 
-	nativeRenderer := native.New()
+	nativeRenderer := native.New(native.WithWorkers(1))
 	t.Cleanup(func() {
 		_ = nativeRenderer.Close()
 	})

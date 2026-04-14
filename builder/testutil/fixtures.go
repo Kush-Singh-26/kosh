@@ -30,7 +30,7 @@ func CreateSamplePostMeta() *cache.PostMeta {
 		Path:        "content/posts/test-post.md",
 		Title:       "Test Post",
 		Date:        time.Date(sampleYear, sampleMonth, sampleDay, sampleHour, 0, 0, 0, time.UTC),
-		Tags:        []string{"test", "go", "tutorial"},
+		Taxonomies:  map[string][]string{"tags": {"test", "go", "tutorial"}},
 		Description: "A test post for testing purposes",
 		IsDraft:     false,
 		Weight:      sampleWeight,
@@ -62,16 +62,17 @@ func CreateSampleSearchRecord() *cache.SearchRecord {
 		NormalizedTitle: "test post",
 		BM25Data:        map[string]int{"test": 1, "post": 1},
 		DocLen:          sampleDocLen,
-		NormalizedTags:  []string{"test", "go"},
+		Taxonomies:      map[string][]string{"tags": {"test", "go"}},
+		NormalizedTaxs:  map[string][]string{"tags": {"test", "go"}},
 	}
 }
 
 // CreateSampleDependencies creates valid Dependencies for testing
 func CreateSampleDependencies() *cache.Dependencies {
 	return &cache.Dependencies{
-		Templates: []string{"layouts/post.html", "partials/header.html"},
-		Tags:      []string{"go", "tutorial"},
-		Includes:  []string{"partials/footer.html"},
+		Templates:  []string{"layouts/post.html", "partials/header.html"},
+		Taxonomies: map[string][]string{"tags": {"go", "tutorial"}},
+		Includes:   []string{"partials/footer.html"},
 	}
 }
 

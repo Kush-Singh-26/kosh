@@ -105,6 +105,16 @@ func (service *cacheService) SetWasmHash(hash string) error {
 	return service.manager.SetWasmHash(hash)
 }
 
+// GetSearchHash returns the cached search hash.
+func (service *cacheService) GetSearchHash() (string, error) {
+	return service.manager.GetSearchHash()
+}
+
+// SetSearchHash stores the cached search hash.
+func (service *cacheService) SetSearchHash(hash string) error {
+	return service.manager.SetSearchHash(hash)
+}
+
 // StoreHTML stores HTML content and returns its hash.
 func (service *cacheService) StoreHTML(content []byte) (string, error) {
 	return service.manager.StoreHTML(content)
@@ -130,6 +140,16 @@ func (service *cacheService) MarkDirty(postID string) {
 	service.dirtyPostsMap.Store(postID, true)
 	// We also call manager.MarkDirty if the manager still relies on it.
 	service.manager.MarkDirty(postID)
+}
+
+// GetFragment retrieves a fragment from the cache.
+func (service *cacheService) GetFragment(key string) (string, error) {
+	return service.manager.GetFragment(key)
+}
+
+// StoreFragment stores a fragment in the cache.
+func (service *cacheService) StoreFragment(key string, html string) error {
+	return service.manager.StoreFragment(key, html)
 }
 
 // IsDirty reports whether a post is marked dirty.

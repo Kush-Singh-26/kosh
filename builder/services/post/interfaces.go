@@ -22,7 +22,8 @@ import (
 type ContentResult struct {
 	AllPosts       []models.PostMetadata
 	PinnedPosts    []models.PostMetadata
-	TaxonomyMap    map[string]map[string][]models.PostMetadata // New generalized taxonomies
+	Taxonomies     map[string]models.TaxonomyData
+	TaxonomyMap    map[string]map[string][]models.PostMetadata
 	IndexedPosts   []models.IndexedPost
 	AnyPostChanged bool
 	Has404         bool
@@ -32,6 +33,7 @@ type ContentResult struct {
 type ContentContext struct {
 	AllPosts       []models.PostMetadata
 	PinnedPosts    []models.PostMetadata
+	Taxonomies     map[string]models.TaxonomyData
 	TaxonomyMap    map[string]map[string][]models.PostMetadata
 	IndexedPosts   []models.IndexedPost
 	AnyPostChanged bool
@@ -42,6 +44,7 @@ func (pr *ContentResult) ToContentContext() *ContentContext {
 	return &ContentContext{
 		AllPosts:       pr.AllPosts,
 		PinnedPosts:    pr.PinnedPosts,
+		Taxonomies:     pr.Taxonomies,
 		TaxonomyMap:    pr.TaxonomyMap,
 		IndexedPosts:   pr.IndexedPosts,
 		AnyPostChanged: pr.AnyPostChanged,

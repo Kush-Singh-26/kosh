@@ -260,38 +260,13 @@ func (service *postService) GetMetadataContext(ctx context.Context) (*ContentCon
 		}
 		postMeta := models.PostMetadata{
 			Title: meta.Title, Link: meta.Link, Description: meta.Description,
-			Tags: meta.Tags, IsPinned: meta.IsPinned, Weight: meta.Weight,
+			IsPinned: meta.IsPinned, Weight: meta.Weight,
 			ReadingTime: meta.ReadingTime, DateObj: meta.Date,
 			IsDraft: meta.IsDraft,
-			Taxonomies:  make(map[string][]string),
+			Taxonomies:  meta.Taxonomies,
 		}
 
-		// Re-extract taxonomies from meta (if stored in metadata) or just use Tags for legacy
-		// In a real build, worker.go would have populated Taxonomies.
-		// For cache retrieval, we look at the meta map.
-		if meta.Meta != nil {
-			for taxKey := range service.cfg.Taxonomies {
-				if val, ok := meta.Meta[taxKey]; ok {
-					switch v := val.(type) {
-					case string:
-						postMeta.Taxonomies[taxKey] = []string{v}
-					case []any:
-						var terms []string
-						for _, item := range v {
-							if s, ok := item.(string); ok {
-								terms = append(terms, s)
-							}
-						}
-						postMeta.Taxonomies[taxKey] = terms
-					}
-				}
-			}
-		}
-
-		// Backward compatibility fallback for tags
-		if len(postMeta.Taxonomies["tag"]) == 0 && len(postMeta.Tags) > 0 {
-			postMeta.Taxonomies["tag"] = postMeta.Tags
-		}
+		// Taxonomy extraction logic removed: directly utilizing meta.Taxonomies from cache.
 
 		allPosts = append(allPosts, postMeta)
 		if postMeta.IsPinned {

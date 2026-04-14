@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
@@ -54,7 +55,7 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 					allPosts:       metadataContext.AllPosts,
 					pinnedPosts:    metadataContext.PinnedPosts,
 					force:          engineInstance.Cfg.ShouldForceRebuild,
-					allTags:        metadataContext.AllTags,
+					taxonomies:     metadataContext.Taxonomies,
 				})
 			})
 			siteWideGroup.Go(func() error {
@@ -63,9 +64,9 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 			})
 			siteWideGroup.Go(func() error {
 				return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-					AllPosts:          metadataContext.AllPosts,
-					TaxonomyMap:       metadataContext.TaxonomyMap,
-					AssetsReadySignal: assetsReadySignal,
+					AllPosts:               metadataContext.AllPosts,
+					TaxonomyMapSummarized:  metadataContext.Taxonomies,
+					AssetsReadySignal:      assetsReadySignal,
 				})
 			})
 			wasmWaitGroup.Add(1)
@@ -109,10 +110,11 @@ func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *post.
 
 // MetadataRenderOptions configures site-wide metadata generation.
 type MetadataRenderOptions struct {
-	AllPosts          []models.PostMetadata
-	TaxonomyMap       map[string]map[string][]models.PostMetadata
-	IndexedPosts      []models.IndexedPost
-	AssetsReadySignal <-chan struct{}
+	AllPosts              []models.PostMetadata
+	TaxonomyMapSummarized map[string]models.TaxonomyData
+	TaxonomyMap           map[string]map[string][]models.PostMetadata
+	IndexedPosts          []models.IndexedPost
+	AssetsReadySignal     <-chan struct{}
 }
 
 func (engineInstance *Engine) generateSitemap(options MetadataRenderOptions) error {
@@ -120,7 +122,7 @@ func (engineInstance *Engine) generateSitemap(options MetadataRenderOptions) err
 		Sink:       engineInstance.artifactSink,
 		BaseURL:    engineInstance.Cfg.BaseURL,
 		Posts:      options.AllPosts,
-		Tags:       options.TagMap,
+		Taxonomies: options.TaxonomyMap,
 		OutputPath: filepath.Join(engineInstance.Cfg.OutputDir, "sitemap/sitemap.xml"),
 	})
 	if err != nil {
@@ -183,7 +185,7 @@ func (engineInstance *Engine) generateGraph(options MetadataRenderOptions) error
 		BaseURL:        engineInstance.Cfg.BaseURL,
 		BuildVersion:   engineInstance.Cfg.BuildVersion,
 		Config:         engineInstance.Cfg,
-		AllTags:        options.AllTags,
+		Taxonomies:     options.TaxonomyMapSummarized, // Use summarized for template
 		RelativePrefix: "",
 		IsGraphPage:    true,
 		Context:        models.ContextHome,
@@ -240,7 +242,7 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 			allPosts:       metadataContext.AllPosts,
 			pinnedPosts:    metadataContext.PinnedPosts,
 			force:          false,
-			allTags:        metadataContext.AllTags,
+			taxonomies:     metadataContext.Taxonomies,
 		})
 	})
 
@@ -248,8 +250,9 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 	// if a change was detected.
 	errorGroup.Go(func() error {
 		return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-			AllPosts:    metadataContext.AllPosts,
-			TaxonomyMap: metadataContext.TaxonomyMap,
+			AllPosts:              metadataContext.AllPosts,
+			TaxonomyMapSummarized: metadataContext.Taxonomies,
+			TaxonomyMap:           metadataContext.TaxonomyMap,
 		})
 	})
 

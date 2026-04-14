@@ -12,7 +12,7 @@ type renderPaginationOptions struct {
 	allPosts       []models.PostMetadata
 	pinnedPosts    []models.PostMetadata
 	force          bool
-	allTags        []models.TagData
+	taxonomies     map[string]models.TaxonomyData
 }
 
 func (engineInstance *Engine) renderPagination(options renderPaginationOptions) error {
@@ -20,7 +20,7 @@ func (engineInstance *Engine) renderPagination(options renderPaginationOptions) 
 	allPosts := options.allPosts
 	pinnedPosts := options.pinnedPosts
 	force := options.force
-	allTags := options.allTags
+	taxonomies := options.taxonomies
 
 	return generators.RenderPagination(generators.PaginationOptions{
 		Ctx:         workingContext,
@@ -34,7 +34,7 @@ func (engineInstance *Engine) renderPagination(options renderPaginationOptions) 
 		Force:       force,
 		Logger:      engineInstance.Deps.Logger,
 		LogoPath:    engineInstance.GetLogoPath(),
-		AllTags:     allTags,
+		Taxonomies:  taxonomies,
 	})
 }
 

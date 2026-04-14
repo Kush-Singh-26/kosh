@@ -52,6 +52,7 @@ type SiteConfig struct {
 	Menu        []models.MenuEntry  `yaml:"menu"`
 	FooterMenu  []models.MenuEntry  `yaml:"footerMenu"`
 	Taxonomies  map[string]string   `yaml:"taxonomies"` // Maps frontmatter key to plural folder name
+	Navbar      models.NavbarIdentityConfig `yaml:"navbar"`     // Context-aware branding
 }
 
 // BuildOptions defines build-time tuning parameters.
@@ -128,6 +129,10 @@ func defaultConfig() *Config {
 			BaseURL: "",
 			Taxonomies: map[string]string{
 				"tags": "tags",
+			},
+			Navbar: models.NavbarIdentityConfig{
+				Home: models.NavbarContextConfig{Title: "Kosh Blog", BtnLabel: "Blogs"},
+				Blog: models.NavbarContextConfig{Title: "Kush Blogs", BtnLabel: "Home"},
 			},
 		},
 		BuildOptions: BuildOptions{
@@ -373,3 +378,6 @@ func (cfg *Config) GetBlogPrefix() string { return cfg.BlogPrefix }
 
 // IsDevMode returns whether the build is running in development mode.
 func (cfg *Config) IsDevMode() bool { return cfg.IsDev }
+
+// GetNavbar returns the configured navbar identity branding.
+func (cfg *Config) GetNavbar() models.NavbarIdentityConfig { return cfg.Navbar }

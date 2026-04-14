@@ -52,6 +52,9 @@ Rules for agents:
   - persistent SSR cache for diagrams and math
   - reading-time reuse during frontmatter-only updates
   - automatic cache garbage collection
+  - **navbar branding stabilization** (context-aware Home vs Blog identity)
+  - **stale fragment cache prevention** (clean-build cache invalidation)
+  - **taxonomy index restoration** (Terms population in PageData)
 - New features implemented:
   - Pipelined parse+render with streaming workers
   - Overlapping asset discovery and copying via channels
@@ -447,6 +450,21 @@ imageWorkers: 8
 - search analysis / ranking / snippet changes
 - schema changes
 - anything that alters clean-build staging completeness
+- **fragment cache key schema** (in renderer.go)
+
+## Identity and Branding Rules
+
+### 1. Context-Aware Branding
+
+Kosh supports unique branding for the home root and the blog section.
+
+- Use `models.ContextHome` for `/` and `/graph.html`.
+- Use `models.ContextBlog` for everything under `/blogs/` and taxonomy pages.
+- `setupNavbar` in `renderer_assets.go` is the source of truth for this logic.
+
+### 2. Fragment Cache Invalidation
+
+Persistent fragments (Navbar, Footer) are stored in BoltDB. Use `models.PageData.IsCleanBuild` to bypass these caches during cold rebuilds (`kosh clean --cache`) to ensure config changes propagate immediately.
 
 ## Things Agents Must Not Regress
 

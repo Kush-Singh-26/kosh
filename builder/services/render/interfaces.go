@@ -1,6 +1,7 @@
 package render
 
 import (
+	"html/template"
 	"log/slog"
 
 	"github.com/spf13/afero"
@@ -23,6 +24,7 @@ type Service interface {
 	ReconfigureForBuild(sink fspkg.ArtifactSink, sourceFs afero.Fs)
 	SetAssetsGate(signal <-chan struct{})
 	ReconfigureWithLogger(logger *slog.Logger)
+	RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error)
 	RenderPage(path string, data models.PageData) error
 	RenderIndex(path string, data models.PageData) error
 	Render404(path string, data models.PageData) error

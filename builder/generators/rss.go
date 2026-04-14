@@ -40,6 +40,11 @@ func GenerateRSS(opts RSSOptions) (string, error) {
 	}
 
 	for _, p := range posts {
+		allTerms := []string{}
+		for _, terms := range p.Taxonomies {
+			allTerms = append(allTerms, terms...)
+		}
+
 		item := models.Item{
 			Title:       p.Title,
 			Link:        p.Link,
@@ -47,7 +52,7 @@ func GenerateRSS(opts RSSOptions) (string, error) {
 			PubDate:     p.DateObj.Format(time.RFC1123),
 			Guid:        p.Link,
 			Author:      opts.Author,
-			Categories:  p.Tags,
+			Categories:  allTerms,
 		}
 
 		if p.ContentHTML != "" {

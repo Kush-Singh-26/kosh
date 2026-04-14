@@ -14,10 +14,10 @@ import (
 )
 
 type postGraphInfo struct {
-	Title       string   `json:"title"`
-	Link        string   `json:"link"`
-	Tags        []string `json:"tags"`
-	Description string   `json:"description"`
+	Title       string              `json:"title"`
+	Link        string              `json:"link"`
+	Taxonomies  map[string][]string `json:"taxonomies"`
+	Description string              `json:"description"`
 }
 
 const (
@@ -38,7 +38,7 @@ func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
 		graphInfo = append(graphInfo, postGraphInfo{
 			Title:       p.Title,
 			Link:        p.Link,
-			Tags:        p.Tags,
+			Taxonomies:  p.Taxonomies,
 			Description: p.Description,
 		})
 	}
@@ -85,28 +85,35 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 	})
 	nodeExists[rootID] = true
 
-	// Collect all unique tags first
-	tagNodes := make(map[string]models.GraphNode)
+	// Collect all unique taxonomy terms first
+	termNodes := make(map[string]models.GraphNode)
 	for _, p := range posts {
 		if cfg.ShowsTags {
-			for _, t := range p.Tags {
-				slug := timeutil.Slugify(t)
-				tagID := "tag-" + slug
-				if !nodeExists[tagID] {
-					tagNodes[tagID] = models.GraphNode{
-						ID: tagID, Label: "#" + t, Group: graphTagGroup, Value: graphTagValue,
-						URL: fmt.Sprintf("%s/blogs/tags/%s.html", baseURL, slug),
+			for taxKey, terms := range p.Taxonomies {
+				// For now, we prefix the slug with taxonomy key to avoid collisions
+				for _, t := range terms {
+					slug := taxKey + "-" + timeutil.Slugify(t)
+					termID := "term-" + slug
+					if !nodeExists[termID] {
+						label := "#" + t
+						if taxKey != "tags" {
+							label = taxKey + ":" + t
+						}
+						termNodes[termID] = models.GraphNode{
+							ID: termID, Label: label, Group: graphTagGroup, Value: graphTagValue,
+							URL: fmt.Sprintf("%s/blogs/%s/%s.html", baseURL, taxKey, timeutil.Slugify(t)),
+						}
+						nodeExists[termID] = true
 					}
-					nodeExists[tagID] = true
 				}
 			}
 		}
 	}
 
-	// Add root -> tag links and add tags to nodes
-	for _, tag := range tagNodes {
-		nodes = append(nodes, tag)
-		links = append(links, models.GraphLink{Source: rootID, Target: tag.ID, Weight: graphRootTagWeight})
+	// Add root -> term links
+	for _, term := range termNodes {
+		nodes = append(nodes, term)
+		links = append(links, models.GraphLink{Source: rootID, Target: term.ID, Weight: graphRootTagWeight})
 	}
 
 	// Add post nodes and tag -> post links
@@ -128,9 +135,11 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 			nodeExists[p.Link] = true
 		}
 		if cfg.ShowsTags {
-			for _, t := range p.Tags {
-				tagID := "tag-" + timeutil.Slugify(t)
-				links = append(links, models.GraphLink{Source: p.Link, Target: tagID, Type: "tag"})
+			for taxKey, terms := range p.Taxonomies {
+				for _, t := range terms {
+					termID := "term-" + taxKey + "-" + timeutil.Slugify(t)
+					links = append(links, models.GraphLink{Source: p.Link, Target: termID, Type: taxKey})
+				}
 			}
 		}
 	}

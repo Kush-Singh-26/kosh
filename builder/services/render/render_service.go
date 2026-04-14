@@ -7,6 +7,7 @@ package render
 
 import (
 	"fmt"
+	"html/template"
 	"log/slog"
 	"time"
 
@@ -55,12 +56,16 @@ func (service *renderService) ReconfigureWithLogger(logger *slog.Logger) {
 	service.renderer.SetLogger(logger)
 }
 
+func (service *renderService) RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error) {
+	return service.renderer.RenderFragment(context, blockName, data)
+}
+
 // RenderPage renders a standard page after assets are ready.
 func (service *renderService) RenderPage(path string, data models.PageData) error {
 	if err := service.waitForAssets(path); err != nil {
 		return err
 	}
-	service.renderer.PreparePageData(&data)
+	service.preparePageData(&data)
 	return service.renderer.RenderPage(path, data)
 }
 
@@ -69,7 +74,7 @@ func (service *renderService) RenderIndex(path string, data models.PageData) err
 	if err := service.waitForAssets(path); err != nil {
 		return err
 	}
-	service.renderer.PreparePageData(&data)
+	service.preparePageData(&data)
 	return service.renderer.RenderIndex(path, data)
 }
 
@@ -77,7 +82,7 @@ func (service *renderService) RenderIndex(path string, data models.PageData) err
 func (service *renderService) Render404(path string, data models.PageData) error {
 	// 404 typically doesn't wait for assets to avoid recursive waits or hangs
 	// but we still prepare data for consistency.
-	service.renderer.PreparePageData(&data)
+	service.preparePageData(&data)
 	return service.renderer.Render404(path, data)
 }
 
@@ -86,8 +91,13 @@ func (service *renderService) RenderGraph(path string, data models.PageData) err
 	if err := service.waitForAssets(path); err != nil {
 		return err
 	}
-	service.renderer.PreparePageData(&data)
+	service.preparePageData(&data)
 	return service.renderer.RenderGraph(path, data)
+}
+
+func (service *renderService) preparePageData(data *models.PageData) {
+	data.IsCleanBuild = service.ctx.IsCleanBuild
+	service.renderer.PreparePageData(data)
 }
 
 func (service *renderService) waitForAssets(path string) error {

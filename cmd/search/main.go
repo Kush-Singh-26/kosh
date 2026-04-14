@@ -203,6 +203,18 @@ func searchPosts(this js.Value, args []js.Value) any {
 		jsRes["description"] = res.Description
 		jsRes["snippet"] = res.Snippet
 		jsRes["score"] = res.Score
+
+		// Convert taxonomies to any map for JSValueOf
+		jsTax := make(map[string]any)
+		for k, v := range res.Taxonomies {
+			terms := make([]any, len(v))
+			for i, t := range v {
+				terms[i] = t
+			}
+			jsTax[k] = terms
+		}
+		jsRes["taxonomies"] = jsTax
+
 		finalResults = append(finalResults, jsRes)
 	}
 

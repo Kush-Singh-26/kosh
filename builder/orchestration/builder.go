@@ -150,6 +150,7 @@ func (setup *buildSetup) initServices() {
 		TemplateDir: setup.config.TemplateDir,
 		DevMode:     setup.config.IsDev,
 		Logger:      setup.logger,
+		Cache:       setup.cacheSvc,
 	})
 
 	assetsReady := make(chan struct{})

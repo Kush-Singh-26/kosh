@@ -73,3 +73,9 @@ type BuildArtifactCache interface {
 	IsDirty(postID string) bool
 	ClearDirty()
 }
+
+// FragmentCache provides persistent storage for pre-rendered UI components.
+type FragmentCache interface {
+	GetFragment(key string) (string, error)
+	StoreFragment(key string, html string) error
+}

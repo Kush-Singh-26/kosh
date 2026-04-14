@@ -23,7 +23,7 @@ type PostMeta struct {
 	SSRInputHashes []string
 	Title          string
 	Date           time.Time
-	Tags           []string
+	Taxonomies     map[string][]string
 	WordCount      int
 	ReadingTime    int
 	Description    string
@@ -47,7 +47,8 @@ type SearchRecord struct {
 	BM25Data        map[string]int // word -> frequency
 	DocLen          int
 	Content         string
-	NormalizedTags  []string
+	Taxonomies      map[string][]string
+	NormalizedTaxs  map[string][]string
 	StemMap         map[string]string
 	PositionalIndex map[string][]uint32
 	ByteOffsets     map[string][]uint32
@@ -56,8 +57,8 @@ type SearchRecord struct {
 // Dependencies tracks what a post depends on
 type Dependencies struct {
 	Templates []string
-	Includes  []string
-	Tags      []string
+	Includes    []string
+	Taxonomies  map[string][]string
 }
 
 // PostListMeta contains minimal metadata needed for navigation/sorting only.
@@ -68,7 +69,6 @@ type PostListMeta struct {
 	Link   string
 	Weight int
 	Date   time.Time
-	Tags       []string
 	Taxonomies map[string][]string
 }
 

@@ -49,7 +49,7 @@ Body of draft`,
 	}
 
 	scanner := NewScanner()
-	fileChan := make(chan models.ScannedFile, 10)
+	fileChan := make(chan models.ScannedResource, 10)
 
 	ctx := context.Background()
 	result, err := scanner.Scan(ScanOptions{
@@ -74,7 +74,7 @@ Body of draft`,
 	}
 
 	// Verify Post 1
-	var post1 models.ScannedFile
+	var post1 models.ScannedResource
 	for _, f := range result.Files {
 		if f.Title == "Post 1" {
 			post1 = f
@@ -87,8 +87,8 @@ Body of draft`,
 	if !post1.IsPinned {
 		t.Error("Post 1 should be pinned")
 	}
-	if len(post1.Tags) != 2 {
-		t.Errorf("Expected 2 tags for Post 1, got %d", len(post1.Tags))
+	if len(post1.Taxonomies["tags"]) != 2 {
+		t.Errorf("Expected 2 tags for Post 1, got %d", len(post1.Taxonomies["tags"]))
 	}
 
 	// Verify Assets
@@ -149,8 +149,8 @@ Body content`
 	if !sf.IsPinned {
 		t.Error("Expected pinned to be true")
 	}
-	if len(sf.Tags) != 2 {
-		t.Errorf("Expected 2 tags, got %d", len(sf.Tags))
+	if len(sf.Taxonomies["tags"]) != 2 {
+		t.Errorf("Expected 2 tags, got %d", len(sf.Taxonomies["tags"]))
 	}
 	if sf.FrontmatterHash == "" {
 		t.Error("Expected non-empty frontmatter hash")

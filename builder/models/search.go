@@ -12,10 +12,10 @@ type PostRecord struct {
 	NormalizedTitle string // Lowercase title for search
 	Link            string
 	Description     string
-	Tags            []string
-	NormalizedTags  []string // Lowercase tags for search
-	Content         string   // Raw plain text for snippet extraction
-	Date            int64    // Unix timestamp for recency scoring
+	Taxonomies      map[string][]string // All taxonomies (e.g., tags, categories)
+	NormalizedTaxs  map[string][]string // Lowercase taxonomies for search
+	Content         string              // Raw plain text for snippet extraction
+	Date            int64               // Unix timestamp for recency scoring
 }
 
 // IndexedPost bundles a search record with pre-computed word frequencies for BM25
@@ -30,7 +30,7 @@ type IndexedPost struct {
 }
 
 // CurrentSchemaVersion is the active search schema version.
-const CurrentSchemaVersion = 15
+const CurrentSchemaVersion = 20
 
 // SearchIndex stores the serialized search index.
 type SearchIndex struct {

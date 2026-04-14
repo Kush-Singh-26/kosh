@@ -15,7 +15,6 @@ import (
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
-	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
@@ -58,8 +57,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
-	nativeRenderer := native.New()
-	t.Cleanup(func() { _ = nativeRenderer.Close() })
+	nativeRenderer := getSharedRenderer()
 	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
@@ -192,8 +190,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
-	nativeRenderer := native.New()
-	t.Cleanup(func() { _ = nativeRenderer.Close() })
+	nativeRenderer := getSharedRenderer()
 	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{

@@ -31,7 +31,7 @@ type parsedFrontmatter struct {
 	Title       string
 	Description string
 	DateObj     time.Time
-	Tags        []string
+	Taxonomies  map[string][]string // Generalized taxonomies from metadata
 	IsPinned    bool
 	Weight      int
 	IsDraft     bool
@@ -44,11 +44,21 @@ func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
 	if w, ok := metadata["weight"].(float64); ok && weight == 0 {
 		weight = int(w)
 	}
+
+	// Extract all possible taxonomy slices. We'll refine this in buildPostMetadata
+	// by checking against config if needed, but for now we pull everything that looks like a slice.
+	taxonomies := make(map[string][]string)
+	for k := range metadata {
+		if slice := timeutil.ExtractSliceFromMap(metadata, k); len(slice) > 0 {
+			taxonomies[k] = slice
+		}
+	}
+
 	return parsedFrontmatter{
 		Title:       timeutil.ExtractStringFromMap(metadata, "title"),
 		Description: timeutil.ExtractStringFromMap(metadata, "description"),
 		DateObj:     dateObj,
-		Tags:        timeutil.ExtractSliceFromMap(metadata, "tags"),
+		Taxonomies:  taxonomies,
 		IsPinned:    timeutil.ExtractBoolFromMap(metadata, "pinned"),
 		Weight:      weight,
 		IsDraft:     timeutil.ExtractBoolFromMap(metadata, "draft"),

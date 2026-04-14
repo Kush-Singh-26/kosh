@@ -12,6 +12,14 @@ author:
   url: "https://kush-singh-26.github.io/"
 
 # Navigation
+navbar:
+  home:
+    title: "Kush Singh"
+    btnLabel: "Blogs"
+  blog:
+    title: "Kush Blogs"
+    btnLabel: "Home"
+
 menu:
   - name: "Portfolio"
     url: "https://kush-singh-26.github.io/"

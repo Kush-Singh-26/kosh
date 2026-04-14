@@ -65,11 +65,13 @@ func encodePosts(posts []*core.PostMeta, searchRecords map[string]*core.SearchRe
 
 func buildBucketOps(encoded []EncodedPost) bucketOps {
 	var ops bucketOps
-	totalTags := 0
+	totalTaxEntries := 0
 	totalTemplates := 0
 	totalIncludes := 0
 	for _, encodedPost := range encoded {
-		totalTags += len(encodedPost.Tags)
+		for _, terms := range encodedPost.Taxonomies {
+			totalTaxEntries += len(terms)
+		}
 		totalTemplates += len(encodedPost.Templates)
 		totalIncludes += len(encodedPost.Includes)
 	}
@@ -78,7 +80,7 @@ func buildBucketOps(encoded []EncodedPost) bucketOps {
 	ops.paths = make([]batchOp, 0, len(encoded))
 	ops.search = make([]batchOp, 0, len(encoded))
 	ops.deps = make([]batchOp, 0, len(encoded))
-	ops.tags = make([]batchOp, 0, totalTags)
+	ops.taxonomies = make([]batchOp, 0, totalTaxEntries)
 	ops.templates = make([]batchOp, 0, totalTemplates)
 	ops.includes = make([]batchOp, 0, totalIncludes)
 
@@ -93,9 +95,11 @@ func buildBucketOps(encoded []EncodedPost) bucketOps {
 		if encodedPost.DepsData != nil {
 			ops.deps = append(ops.deps, batchOp{key: encodedPost.PostID, value: encodedPost.DepsData})
 
-			for _, tag := range encodedPost.Tags {
-				tagKey := []byte(tag + "/" + string(encodedPost.PostID))
-				ops.tags = append(ops.tags, batchOp{key: tagKey, value: nil})
+			for tax, terms := range encodedPost.Taxonomies {
+				for _, term := range terms {
+					taxKey := []byte(tax + "/" + term + "/" + string(encodedPost.PostID))
+					ops.taxonomies = append(ops.taxonomies, batchOp{key: taxKey, value: nil})
+				}
 			}
 
 			for _, tmpl := range encodedPost.Templates {
@@ -137,7 +141,7 @@ func writeAllOps(tx *bbolt.Tx, ops bucketOps) error {
 	sortOps(ops.paths)
 	sortOps(ops.search)
 	sortOps(ops.deps)
-	sortOps(ops.tags)
+	sortOps(ops.taxonomies)
 	sortOps(ops.templates)
 	sortOps(ops.includes)
 
@@ -153,7 +157,7 @@ func writeAllOps(tx *bbolt.Tx, ops bucketOps) error {
 	if err := writeOps(tx.Bucket([]byte(core.BucketPostDeps)), ops.deps); err != nil {
 		return err
 	}
-	if err := writeOps(tx.Bucket([]byte(core.BucketTags)), ops.tags); err != nil {
+	if err := writeOps(tx.Bucket([]byte(core.BucketTaxonomies)), ops.taxonomies); err != nil {
 		return err
 	}
 	if err := writeOps(tx.Bucket([]byte(core.BucketDepsTemplates)), ops.templates); err != nil {
@@ -263,6 +267,17 @@ func (manager *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[st
 func (manager *Manager) StoreHTML(content []byte) (string, error) {
 	hash, _, err := manager.store.Put("html", content)
 	return hash, err
+}
+
+// StoreFragment persists a pre-rendered UI fragment in the cache.
+func (manager *Manager) StoreFragment(key string, html string) error {
+	return manager.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(core.BucketFragments))
+		if bucket == nil {
+			return fmt.Errorf("fragment bucket not found")
+		}
+		return bucket.Put([]byte(key), []byte(html))
+	})
 }
 
 // StoreHTMLForPost stores HTML for a specific post, inlining if small.
@@ -450,7 +465,7 @@ func encodeSinglePost(p *core.PostMeta, sr *core.SearchRecord, d *core.Dependenc
 			return EncodedPost{}, err
 		}
 		ep.DepsData = depsData
-		ep.Tags = d.Tags
+		ep.Taxonomies = d.Taxonomies
 		ep.Templates = d.Templates
 		ep.Includes = d.Includes
 	}
@@ -488,7 +503,7 @@ func (manager *Manager) deletePostInTx(postID string) (string, string, []error, 
 		pathsBucket := tx.Bucket([]byte(core.BucketPaths))
 		searchBucket := tx.Bucket([]byte(core.BucketSearch))
 		depsBucket := tx.Bucket([]byte(core.BucketPostDeps))
-		tagsBucket := tx.Bucket([]byte(core.BucketTags))
+		taxonomiesBucket := tx.Bucket([]byte(core.BucketTaxonomies))
 
 		postIDBytes := []byte(postID)
 
@@ -502,10 +517,12 @@ func (manager *Manager) deletePostInTx(postID string) (string, string, []error, 
 					deleteErrors = append(deleteErrors, fmt.Errorf("delete path: %w", err))
 				}
 
-				for _, tag := range post.Tags {
-					tagKey := []byte(tag + "/" + postID)
-					if err := tagsBucket.Delete(tagKey); err != nil {
-						deleteErrors = append(deleteErrors, fmt.Errorf("delete tag %s: %w", tag, err))
+				for tax, terms := range post.Taxonomies {
+					for _, term := range terms {
+						taxKey := []byte(tax + "/" + term + "/" + postID)
+						if err := taxonomiesBucket.Delete(taxKey); err != nil {
+							deleteErrors = append(deleteErrors, fmt.Errorf("delete tax %s/%s: %w", tax, term, err))
+						}
 					}
 				}
 			}

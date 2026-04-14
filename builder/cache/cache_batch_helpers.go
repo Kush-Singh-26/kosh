@@ -15,7 +15,7 @@ type EncodedPost struct {
 	SearchData []byte
 	DepsData   []byte
 	Version    string
-	Tags       []string
+	Taxonomies map[string][]string
 	Templates  []string
 	Includes   []string
 }
@@ -28,13 +28,13 @@ type batchOp struct {
 
 // bucketOps groups all operations by bucket for sequential writes
 type bucketOps struct {
-	posts     []batchOp
-	paths     []batchOp
-	search    []batchOp
-	deps      []batchOp
-	tags      []batchOp
-	templates []batchOp
-	includes  []batchOp
+	posts      []batchOp
+	paths      []batchOp
+	search     []batchOp
+	deps       []batchOp
+	taxonomies []batchOp
+	templates  []batchOp
+	includes   []batchOp
 }
 
 // writeOps performs sequential writes to a bucket

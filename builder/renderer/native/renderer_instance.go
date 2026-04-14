@@ -18,9 +18,14 @@ type instance struct {
 	initOnce      sync.Once
 }
 
+var qjsInitMu sync.Mutex
+
 // ensureInitialized performs lazy initialization of the JS engine
 func (i *instance) ensureInitialized(bytecode []byte) {
 	i.initOnce.Do(func() {
+		qjsInitMu.Lock()
+		defer qjsInitMu.Unlock()
+
 		rt, err := qjs.New(qjs.Option{
 			MaxExecutionTime: maxExecutionTimeMs, // 2s safety timeout per task
 		})

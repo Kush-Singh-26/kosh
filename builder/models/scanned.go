@@ -12,7 +12,7 @@ type LightResourceMetadata struct {
 	Path        string
 	Title       string
 	DateObj     time.Time
-	Tags        []string
+	Taxonomies  map[string][]string
 	IsPinned    bool
 	Weight      int
 	ReadingTime int
@@ -26,7 +26,7 @@ type LightResourceMetadata struct {
 // MetadataScannerResult captures the results of a metadata scan.
 type MetadataScannerResult struct {
 	Metadata      []LightResourceMetadata
-	TagMap        map[string][]LightResourceMetadata
+	TaxonomyMap   map[string]map[string][]LightResourceMetadata
 	Files         []ScannedResource
 	ContentAssets []ScannedAsset
 	Has404        bool
@@ -39,11 +39,12 @@ type ScannedResource struct {
 	Title           string
 	Description     string
 	Date            string
+	DateObj         time.Time
 	IsDraft         bool
 	IsPinned        bool
 	Weight          int
 	Layout          string
-	Tags            []string
+	Taxonomies      map[string][]string
 	Info            fs.FileInfo
 	BodyHash        string
 	FrontmatterHash string

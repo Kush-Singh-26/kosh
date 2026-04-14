@@ -160,3 +160,26 @@ func (manager *Manager) SetWasmHash(hash string) error {
 		return metaBucket.Put([]byte(core.KeyWasmHash), []byte(hash))
 	})
 }
+
+// GetSearchHash retrieves the stored search index hash
+func (manager *Manager) GetSearchHash() (string, error) {
+	var hash string
+	err := manager.db.View(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		data := metaBucket.Get([]byte(core.KeySearchHash))
+		if data == nil {
+			return core.ErrNoContent
+		}
+		hash = string(data)
+		return nil
+	})
+	return hash, err
+}
+
+// SetSearchHash stores the search index hash
+func (manager *Manager) SetSearchHash(hash string) error {
+	return manager.db.Update(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		return metaBucket.Put([]byte(core.KeySearchHash), []byte(hash))
+	})
+}

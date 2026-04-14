@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"html/template"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,7 @@ func (m MockConfig) GetBaseURL() string                 { return "" }
 func (m MockConfig) GetBlogPrefix() string              { return "" }
 func (m MockConfig) IsDevMode() bool                    { return false }
 func (m MockConfig) GetSiteData() map[string]any        { return nil }
+func (m MockConfig) GetNavbar() models.NavbarIdentityConfig { return models.NavbarIdentityConfig{} }
 
 // SetAssets snapshots the asset map for template rendering.
 func (r *Renderer) SetAssets(assets map[string]string) {
@@ -41,8 +43,10 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 	})
 }
 
-// PreparePageData performs common optimizations like asset map relativization
-func (r *Renderer) PreparePageData(data *models.PageData) {
+// PrepareAssets performs common optimizations like asset map relativization,
+// site data setup, and context detection. It is non-recursive and safe to call
+// from fragment rendering.
+func (r *Renderer) PrepareAssets(data *models.PageData) {
 	if data.Config == nil {
 		data.Config = MockConfig{}
 	}
@@ -81,60 +85,101 @@ func (r *Renderer) PreparePageData(data *models.PageData) {
 		data.SiteData = data.Config.GetSiteData()
 	}
 
-	// Setup Navbar based on Context
+	// Robust Context Detection: Ensure root index always uses Home identity
+	if data.Context == "" || (data.IsIndex && data.RelativePrefix == "") {
+		// If at root and not explicitly a blog sub-page, use Home
+		if data.RelativePrefix == "" || data.RelativePrefix == "./" {
+			data.Context = models.ContextHome
+		}
+	}
+
+	// Universal Fragment Initialization
+	if data.Fragments == nil {
+		data.Fragments = make(map[string]template.HTML)
+	}
+
+	// Always setup data-structures before fragment rendering
 	if data.Navbar.Title == "" {
 		setupNavbar(data, r.logger)
+	}
+
+}
+
+// PreparePageData performs full page preparation including global fragment pre-rendering.
+func (r *Renderer) PreparePageData(data *models.PageData) {
+	r.PrepareAssets(data)
+
+	// Classic Path Optimization: Pre-render fragments
+	contextKey := string(data.Context)
+
+	// 1. Navbar Identity
+	if data.Navbar.IdentityHTML == "" {
+		fragment, err := r.RenderFragment(contextKey, "navbar-identity", *data)
+		if err == nil {
+			data.Navbar.IdentityHTML = fragment
+			data.Fragments["navbar-identity"] = fragment
+		}
+	}
+
+	// 2. Footer
+	if _, ok := data.Fragments["footer"]; !ok {
+		fragment, err := r.RenderFragment(contextKey, "footer", *data)
+		if err == nil {
+			data.Fragments["footer"] = fragment
+		}
 	}
 }
 
 func setupNavbar(data *models.PageData, logger *slog.Logger) {
 	cfg := data.Config
+	navCfg := cfg.GetNavbar()
 	blogPrefix := strings.Trim(cfg.GetBlogPrefix(), "/")
 
-	// Determine context
+	// Determine context: enforce home context for root index and graph pages
 	ctx := data.Context
 	if ctx == "" {
-		// Default to Home if not explicitly set
-		ctx = models.ContextHome
-	}
-
-	// Set Navbar Title
-	if ctx == models.ContextHome {
-		data.Navbar.Title = cfg.GetSiteTitle()
-		data.Navbar.TitleURL = "/"
-	} else {
-		data.Navbar.Title = "Kush Blogs"
-		if blogPrefix != "" {
-			data.Navbar.TitleURL = "/" + blogPrefix + "/"
+		if data.IsIndex && (data.RelativePrefix == "" || data.RelativePrefix == "./") {
+			ctx = models.ContextHome
+		} else if data.IsGraphPage {
+			ctx = models.ContextHome
 		} else {
-			data.Navbar.TitleURL = "/blogs/"
+			ctx = models.ContextBlog
 		}
 	}
 
-	// Set Navbar Button
+	// Apply branding from Config based on context
 	if ctx == models.ContextHome {
-		data.Navbar.BtnLabel = "Blogs"
+		data.Navbar.Title = navCfg.Home.Title
+		data.Navbar.BtnLabel = navCfg.Home.BtnLabel
+		data.Navbar.TitleURL = "/"
 		if blogPrefix != "" {
 			data.Navbar.BtnURL = "/" + blogPrefix + "/"
 		} else {
 			data.Navbar.BtnURL = "/blogs/"
 		}
 	} else {
-		data.Navbar.BtnLabel = "Home"
+		data.Navbar.Title = navCfg.Blog.Title
+		data.Navbar.BtnLabel = navCfg.Blog.BtnLabel
+		if blogPrefix != "" {
+			data.Navbar.TitleURL = "/" + blogPrefix + "/"
+		} else {
+			data.Navbar.TitleURL = "/blogs/"
+		}
 		data.Navbar.BtnURL = "/"
 	}
 
+	// Fallback to Site Title if navbar title is empty in config
+	if data.Navbar.Title == "" {
+		data.Navbar.Title = cfg.GetSiteTitle()
+	}
+
 	// Apply RelativePrefix to button URL only if it's a relative path (doesn't start with /)
-	// Absolute root paths (/) should stay as / and be treated as root in the browser
 	if data.RelativePrefix != "" && !strings.HasPrefix(data.Navbar.BtnURL, "/") && !strings.HasPrefix(data.Navbar.BtnURL, "http") {
 		prefix := data.RelativePrefix
 		if !strings.HasSuffix(prefix, "/") {
 			prefix += "/"
 		}
-		url := data.Navbar.BtnURL
-		if strings.HasPrefix(url, "/") {
-			url = url[1:]
-		}
+		url := strings.TrimPrefix(data.Navbar.BtnURL, "/")
 		data.Navbar.BtnURL = prefix + url
 	}
 

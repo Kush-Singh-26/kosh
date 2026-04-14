@@ -17,8 +17,10 @@ type MockCacheService struct {
 	SearchRecords      map[string]*cache.SearchRecord
 	Dirty              map[string]bool
 	SocialCardHashes   map[string]string
+	Fragments          map[string]string
 	GraphHash          string
 	WasmHash           string
+	SearchHash         string
 	Err                error
 	CallCount          map[string]int
 	BatchCommitPosts   []*cache.PostMeta
@@ -36,6 +38,7 @@ func NewMockCacheService() *MockCacheService {
 		SearchRecords:      make(map[string]*cache.SearchRecord),
 		Dirty:              make(map[string]bool),
 		SocialCardHashes:   make(map[string]string),
+		Fragments:          make(map[string]string),
 		CallCount:          make(map[string]int),
 		BatchCommitRecords: make(map[string]*cache.SearchRecord),
 		BatchCommitDeps:    make(map[string]*cache.Dependencies),
@@ -213,6 +216,53 @@ func (m *MockCacheService) SetWasmHash(hash string) error {
 	return nil
 }
 
+// GetSearchHash returns the cached search hash.
+func (m *MockCacheService) GetSearchHash() (string, error) {
+	m.recordCall("GetSearchHash")
+	if m.Err != nil {
+		return "", m.Err
+	}
+	return m.SearchHash, nil
+}
+
+// SetSearchHash stores the cached search hash.
+func (m *MockCacheService) SetSearchHash(hash string) error {
+	m.recordCall("SetSearchHash")
+	if m.Err != nil {
+		return m.Err
+	}
+	m.SearchHash = hash
+	return nil
+}
+
+// GetFragment retrieves a cached fragment.
+func (m *MockCacheService) GetFragment(key string) (string, error) {
+	m.recordCall("GetFragment")
+	if m.Err != nil {
+		return "", m.Err
+	}
+	return m.Fragments[key], nil
+}
+
+// StoreFragment stores a fragment in the cache.
+func (m *MockCacheService) StoreFragment(key, content string) error {
+	m.recordCall("StoreFragment")
+	if m.Err != nil {
+		return m.Err
+	}
+	m.Fragments[key] = content
+	return nil
+}
+
+// GetPostsByTaxonomy returns post IDs for a given taxonomy and term.
+func (m *MockCacheService) GetPostsByTaxonomy(taxonomy, term string) ([]string, error) {
+	m.recordCall("GetPostsByTaxonomy")
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	return []string{}, nil
+}
+
 // StoreHTML stores HTML content and returns its hash.
 func (m *MockCacheService) StoreHTML(content []byte) (string, error) {
 	m.recordCall("StoreHTML")
@@ -329,11 +379,11 @@ func (m *MockCacheService) GetAllPostsMetadata() ([]cache.PostListMeta, error) {
 	var result []cache.PostListMeta
 	for _, post := range m.Posts {
 		result = append(result, cache.PostListMeta{
-			Title:  post.Title,
-			Link:   post.Link,
-			Weight: post.Weight,
-			Date:   post.Date,
-			Tags:   post.Tags,
+			Title:      post.Title,
+			Link:       post.Link,
+			Weight:     post.Weight,
+			Date:       post.Date,
+			Taxonomies: post.Taxonomies,
 		})
 	}
 	return result, nil

@@ -29,7 +29,7 @@ func createSamplePostMeta() *core.PostMeta {
 		Title:       "Test Post",
 		Path:        "content/posts/test-post.md",
 		Date:        time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
-		Tags:        []string{"test", "go", "tutorial"},
+		Taxonomies:  map[string][]string{"tags": {"test", "go", "tutorial"}},
 		Description: "A test post for testing purposes",
 		IsDraft:     false,
 		Weight:      10,

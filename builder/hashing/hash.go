@@ -37,7 +37,11 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 	title := timeutil.ExtractStringFromMap(metadata, "title")
 	description := timeutil.ExtractStringFromMap(metadata, "description")
 	date := timeutil.ExtractDateStringFromMap(metadata, "date")
-	tags := timeutil.ExtractSliceFromMap(metadata, "tags")
+	taxonomies := map[string][]string{
+		"tags": timeutil.ExtractSliceFromMap(metadata, "tags"),
+	}
+	// Add other taxonomies from metadata if they are slices
+	// (This is a bit raw here, scanner does it better, but for consistency)
 
 	isPinned := false
 	if p, ok := metadata["pinned"].(bool); ok {
@@ -61,7 +65,7 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 		Title:       title,
 		Description: description,
 		Date:        date,
-		Tags:        tags,
+		Taxonomies:  taxonomies,
 		IsPinned:    isPinned,
 		IsDraft:     isDraft,
 		Weight:      weight,
@@ -101,7 +105,7 @@ type FrontmatterHashOptions struct {
 	Title       string
 	Description string
 	Date        string
-	Tags        []string
+	Taxonomies  map[string][]string
 	IsPinned    bool
 	IsDraft     bool
 	Weight      int
@@ -120,7 +124,7 @@ func GetFrontmatterHashFromValues(opts FrontmatterHashOptions) string {
 		Title:       opts.Title,
 		Description: opts.Description,
 		Date:        opts.Date,
-		Tags:        opts.Tags,
+		Taxonomies:  opts.Taxonomies,
 		IsPinned:    opts.IsPinned,
 		IsDraft:     opts.IsDraft,
 		Weight:      opts.Weight,
@@ -159,7 +163,7 @@ type HashStandardFieldsOptions struct {
 	Title       string
 	Description string
 	Date        string
-	Tags        []string
+	Taxonomies  map[string][]string
 	IsPinned    bool
 	IsDraft     bool
 	Weight      int
@@ -179,19 +183,36 @@ func hashStandardFields(opts HashStandardFieldsOptions) {
 	}
 	_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
 
-	if len(opts.Tags) > 0 {
-		normalized := make([]string, len(opts.Tags))
-		copy(normalized, opts.Tags)
-		for i := range normalized {
-			normalized[i] = strings.TrimSpace(normalized[i])
+	// Taxonomies: Sort taxonomy keys and their terms for deterministic hashing
+	if len(opts.Taxonomies) > 0 {
+		taxKeys := make([]string, 0, len(opts.Taxonomies))
+		for k := range opts.Taxonomies {
+			taxKeys = append(taxKeys, k)
 		}
-		sort.Strings(normalized)
-		for _, tag := range normalized {
-			writeStringXXH3(opts.Hasher, tag)
-			_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
+		sort.Strings(taxKeys)
+
+		for _, k := range taxKeys {
+			terms := opts.Taxonomies[k]
+			if len(terms) == 0 {
+				continue
+			}
+			writeStringXXH3(opts.Hasher, k)
+			_, _ = opts.Hasher.Write([]byte{hashFieldSeparator})
+
+			normalized := make([]string, len(terms))
+			copy(normalized, terms)
+			for i := range normalized {
+				normalized[i] = strings.TrimSpace(normalized[i])
+			}
+			sort.Strings(normalized)
+			for _, term := range normalized {
+				writeStringXXH3(opts.Hasher, term)
+				_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
+			}
+			_, _ = opts.Hasher.Write([]byte{hashSectionSeparator}) // End of specific taxonomy
 		}
 	}
-	_, _ = opts.Hasher.Write([]byte{hashSectionSeparator})
+	_, _ = opts.Hasher.Write([]byte{hashSectionSeparator}) // End of all taxonomies
 
 	// Flags and numeric values
 	if opts.IsPinned {

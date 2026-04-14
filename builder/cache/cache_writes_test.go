@@ -107,7 +107,7 @@ func TestBatchCommit_WithSearchRecords(t *testing.T) {
 		NormalizedTitle: "test post",
 		BM25Data:        map[string]int{"test": 1},
 		DocLen:          10,
-		NormalizedTags:  []string{"test"},
+		NormalizedTaxs:  map[string][]string{"tags": {"test"}},
 	}
 
 	records := map[string]*core.SearchRecord{
@@ -141,9 +141,9 @@ func TestBatchCommit_WithDependencies(t *testing.T) {
 	post.PostID = "deps-test-post"
 
 	deps := &core.Dependencies{
-		Templates: []string{"layouts/post.html", "partials/header.html"},
-		Tags:      []string{"go", "tutorial", "advanced"},
-		Includes:  []string{"partials/footer.html", "partials/analytics.html"},
+		Templates:  []string{"layouts/post.html", "partials/header.html"},
+		Taxonomies: map[string][]string{"tags": {"go", "tutorial", "advanced"}},
+		Includes:   []string{"partials/footer.html", "partials/analytics.html"},
 	}
 
 	depsMap := map[string]*core.Dependencies{
@@ -155,9 +155,9 @@ func TestBatchCommit_WithDependencies(t *testing.T) {
 	}
 
 	// Verify tags were indexed (indirectly verifying dependencies were processed)
-	tagPosts, err := m.GetPostsByTag("go")
+	tagPosts, err := m.GetPostsByTaxonomy("tags", "go")
 	if err != nil {
-		t.Fatalf("GetPostsByTag failed: %v", err)
+		t.Fatalf("GetPostsByTaxonomy failed: %v", err)
 	}
 
 	found := slices.Contains(tagPosts, post.PostID)
@@ -179,9 +179,9 @@ func TestBatchCommit_Complete(t *testing.T) {
 	}
 
 	deps := &core.Dependencies{
-		Templates: []string{"layouts/post.html"},
-		Tags:      []string{"test"},
-		Includes:  []string{"partials/footer.html"},
+		Templates:  []string{"layouts/post.html"},
+		Taxonomies: map[string][]string{"tags": {"test"}},
+		Includes:   []string{"partials/footer.html"},
 	}
 
 	if err := m.BatchCommit(
@@ -204,7 +204,7 @@ func TestBatchCommit_Complete(t *testing.T) {
 	}
 
 	// Verify side effects like tag indexing
-	tagPosts, _ := m.GetPostsByTag("test")
+	tagPosts, _ := m.GetPostsByTaxonomy("tags", "test")
 	if len(tagPosts) == 0 {
 		t.Error("Post should be indexed by tag 'test'")
 	}
@@ -436,10 +436,10 @@ func TestDeletePost(t *testing.T) {
 
 	// Create a post
 	post := createSamplePostMeta()
-	post.Tags = []string{"test", "delete"}
+	post.Taxonomies = map[string][]string{"tags": {"test", "delete"}}
 
 	deps := &core.Dependencies{
-		Tags: []string{"test", "delete"},
+		Taxonomies: map[string][]string{"tags": {"test", "delete"}},
 	}
 
 	if err := m.BatchCommit([]*core.PostMeta{post}, nil, map[string]*core.Dependencies{post.PostID: deps}); err != nil {
@@ -464,7 +464,7 @@ func TestDeletePost(t *testing.T) {
 	}
 
 	// Verify tags are removed
-	tagPosts, _ := m.GetPostsByTag("test")
+	tagPosts, _ := m.GetPostsByTaxonomy("tags", "test")
 	for _, id := range tagPosts {
 		if id == post.PostID {
 			t.Error("Post should not be indexed by tag after deletion")

@@ -54,7 +54,14 @@ func (scorer *TagScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 	if ctx.TagFilter != "" && len(ctx.QueryTerms) == 0 {
 		opts.HighlightTerms[ctx.TagFilter] = true
 		for id, post := range ctx.Index.Posts {
-			if slices.Contains(post.NormalizedTags, ctx.TagFilter) {
+			match := false
+			for _, terms := range post.NormalizedTaxs {
+				if slices.Contains(terms, ctx.TagFilter) {
+					match = true
+					break
+				}
+			}
+			if match {
 				opts.Scores[id] += ScoreTagMatch
 			}
 		}
@@ -83,8 +90,20 @@ func (scorer *BM25Scorer) applyBM25Score(ctx *SearchContext, posts map[string][]
 
 	for postID, positions := range posts {
 		post, ok := ctx.Index.Posts[postID]
-		if !ok || (ctx.TagFilter != "" && !slices.Contains(post.NormalizedTags, ctx.TagFilter)) {
+		if !ok {
 			continue
+		}
+		if ctx.TagFilter != "" {
+			match := false
+			for _, terms := range post.NormalizedTaxs {
+				if slices.Contains(terms, ctx.TagFilter) {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
 		}
 
 		freq := len(positions)
@@ -214,11 +233,13 @@ func (scorer *BoostScorer) Score(ctx *SearchContext, opts *SearchScoringOptions)
 			continue
 		}
 
-		// Exact tag matches
-		for _, tag := range post.NormalizedTags {
-			if tag == ctx.OriginalQuery || tag == ctx.TagFilter {
-				opts.Scores[id] += ScoreTagMatch * exactTagBoostFactor
-				opts.HighlightTerms[tag] = true
+		// Exact taxonomy term matches
+		for _, terms := range post.NormalizedTaxs {
+			for _, term := range terms {
+				if term == ctx.OriginalQuery || term == ctx.TagFilter {
+					opts.Scores[id] += ScoreTagMatch * exactTagBoostFactor
+					opts.HighlightTerms[term] = true
+				}
 			}
 		}
 	}

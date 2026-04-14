@@ -392,24 +392,46 @@ func (z *Dependencies) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
-		case "Tags":
+		case "Taxonomies":
 			var zb0004 uint32
-			zb0004, err = dc.ReadArrayHeader()
+			zb0004, err = dc.ReadMapHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "Tags")
+				err = msgp.WrapError(err, "Taxonomies")
 				return
 			}
-			if cap(z.Tags) >= int(zb0004) {
-				z.Tags = (z.Tags)[:zb0004]
-			} else {
-				z.Tags = make([]string, zb0004)
+			if z.Taxonomies == nil {
+				z.Taxonomies = make(map[string][]string, zb0004)
+			} else if len(z.Taxonomies) > 0 {
+				clear(z.Taxonomies)
 			}
-			for za0003 := range z.Tags {
-				z.Tags[za0003], err = dc.ReadString()
+			for zb0004 > 0 {
+				zb0004--
+				var za0003 string
+				za0003, err = dc.ReadString()
 				if err != nil {
-					err = msgp.WrapError(err, "Tags", za0003)
+					err = msgp.WrapError(err, "Taxonomies")
 					return
 				}
+				var za0004 []string
+				var zb0005 uint32
+				zb0005, err = dc.ReadArrayHeader()
+				if err != nil {
+					err = msgp.WrapError(err, "Taxonomies", za0003)
+					return
+				}
+				if cap(za0004) >= int(zb0005) {
+					za0004 = (za0004)[:zb0005]
+				} else {
+					za0004 = make([]string, zb0005)
+				}
+				for za0005 := range za0004 {
+					za0004[za0005], err = dc.ReadString()
+					if err != nil {
+						err = msgp.WrapError(err, "Taxonomies", za0003, za0005)
+						return
+					}
+				}
+				z.Taxonomies[za0003] = za0004
 			}
 		default:
 			err = dc.Skip()
@@ -459,21 +481,33 @@ func (z *Dependencies) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
-	// write "Tags"
-	err = en.Append(0xa4, 0x54, 0x61, 0x67, 0x73)
+	// write "Taxonomies"
+	err = en.Append(0xaa, 0x54, 0x61, 0x78, 0x6f, 0x6e, 0x6f, 0x6d, 0x69, 0x65, 0x73)
 	if err != nil {
 		return
 	}
-	err = en.WriteArrayHeader(uint32(len(z.Tags)))
+	err = en.WriteMapHeader(uint32(len(z.Taxonomies)))
 	if err != nil {
-		err = msgp.WrapError(err, "Tags")
+		err = msgp.WrapError(err, "Taxonomies")
 		return
 	}
-	for za0003 := range z.Tags {
-		err = en.WriteString(z.Tags[za0003])
+	for za0003, za0004 := range z.Taxonomies {
+		err = en.WriteString(za0003)
 		if err != nil {
-			err = msgp.WrapError(err, "Tags", za0003)
+			err = msgp.WrapError(err, "Taxonomies")
 			return
+		}
+		err = en.WriteArrayHeader(uint32(len(za0004)))
+		if err != nil {
+			err = msgp.WrapError(err, "Taxonomies", za0003)
+			return
+		}
+		for za0005 := range za0004 {
+			err = en.WriteString(za0004[za0005])
+			if err != nil {
+				err = msgp.WrapError(err, "Taxonomies", za0003, za0005)
+				return
+			}
 		}
 	}
 	return
@@ -495,11 +529,15 @@ func (z *Dependencies) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0002 := range z.Includes {
 		o = msgp.AppendString(o, z.Includes[za0002])
 	}
-	// string "Tags"
-	o = append(o, 0xa4, 0x54, 0x61, 0x67, 0x73)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
-	for za0003 := range z.Tags {
-		o = msgp.AppendString(o, z.Tags[za0003])
+	// string "Taxonomies"
+	o = append(o, 0xaa, 0x54, 0x61, 0x78, 0x6f, 0x6e, 0x6f, 0x6d, 0x69, 0x65, 0x73)
+	o = msgp.AppendMapHeader(o, uint32(len(z.Taxonomies)))
+	for za0003, za0004 := range z.Taxonomies {
+		o = msgp.AppendString(o, za0003)
+		o = msgp.AppendArrayHeader(o, uint32(len(za0004)))
+		for za0005 := range za0004 {
+			o = msgp.AppendString(o, za0004[za0005])
+		}
 	}
 	return
 }
@@ -560,24 +598,46 @@ func (z *Dependencies) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
-		case "Tags":
+		case "Taxonomies":
 			var zb0004 uint32
-			zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Tags")
+				err = msgp.WrapError(err, "Taxonomies")
 				return
 			}
-			if cap(z.Tags) >= int(zb0004) {
-				z.Tags = (z.Tags)[:zb0004]
-			} else {
-				z.Tags = make([]string, zb0004)
+			if z.Taxonomies == nil {
+				z.Taxonomies = make(map[string][]string, zb0004)
+			} else if len(z.Taxonomies) > 0 {
+				clear(z.Taxonomies)
 			}
-			for za0003 := range z.Tags {
-				z.Tags[za0003], bts, err = msgp.ReadStringBytes(bts)
+			for zb0004 > 0 {
+				var za0004 []string
+				zb0004--
+				var za0003 string
+				za0003, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Tags", za0003)
+					err = msgp.WrapError(err, "Taxonomies")
 					return
 				}
+				var zb0005 uint32
+				zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Taxonomies", za0003)
+					return
+				}
+				if cap(za0004) >= int(zb0005) {
+					za0004 = (za0004)[:zb0005]
+				} else {
+					za0004 = make([]string, zb0005)
+				}
+				for za0005 := range za0004 {
+					za0004[za0005], bts, err = msgp.ReadStringBytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Taxonomies", za0003, za0005)
+						return
+					}
+				}
+				z.Taxonomies[za0003] = za0004
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -601,9 +661,15 @@ func (z *Dependencies) Msgsize() (s int) {
 	for za0002 := range z.Includes {
 		s += msgp.StringPrefixSize + len(z.Includes[za0002])
 	}
-	s += 5 + msgp.ArrayHeaderSize
-	for za0003 := range z.Tags {
-		s += msgp.StringPrefixSize + len(z.Tags[za0003])
+	s += 11 + msgp.MapHeaderSize
+	if z.Taxonomies != nil {
+		for za0003, za0004 := range z.Taxonomies {
+			_ = za0004
+			s += msgp.StringPrefixSize + len(za0003) + msgp.ArrayHeaderSize
+			for za0005 := range za0004 {
+				s += msgp.StringPrefixSize + len(za0004[za0005])
+			}
+		}
 	}
 	return
 }
@@ -650,24 +716,46 @@ func (z *PostListMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Date")
 				return
 			}
-		case "Tags":
-			var zb0002 uint32
-			zb0002, err = dc.ReadArrayHeader()
+		case "Taxonomies":
+			var zb0003 uint32
+			zb0003, err = dc.ReadMapHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "Tags")
+				err = msgp.WrapError(err, "Taxonomies")
 				return
 			}
-			if cap(z.Tags) >= int(zb0002) {
-				z.Tags = (z.Tags)[:zb0002]
-			} else {
-				z.Tags = make([]string, zb0002)
+			if z.Taxonomies == nil {
+				z.Taxonomies = make(map[string][]string, zb0003)
+			} else if len(z.Taxonomies) > 0 {
+				clear(z.Taxonomies)
 			}
-			for za0001 := range z.Tags {
-				z.Tags[za0001], err = dc.ReadString()
+			for zb0003 > 0 {
+				zb0003--
+				var za0002 string
+				za0002, err = dc.ReadString()
 				if err != nil {
-					err = msgp.WrapError(err, "Tags", za0001)
+					err = msgp.WrapError(err, "Taxonomies")
 					return
 				}
+				var za0003 []string
+				var zb0004 uint32
+				zb0004, err = dc.ReadArrayHeader()
+				if err != nil {
+					err = msgp.WrapError(err, "Taxonomies", za0002)
+					return
+				}
+				if cap(za0003) >= int(zb0004) {
+					za0003 = (za0003)[:zb0004]
+				} else {
+					za0003 = make([]string, zb0004)
+				}
+				for za0004 := range za0003 {
+					za0003[za0004], err = dc.ReadString()
+					if err != nil {
+						err = msgp.WrapError(err, "Taxonomies", za0002, za0004)
+						return
+					}
+				}
+				z.Taxonomies[za0002] = za0003
 			}
 		default:
 			err = dc.Skip()
@@ -723,21 +811,33 @@ func (z *PostListMeta) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Date")
 		return
 	}
-	// write "Tags"
-	err = en.Append(0xa4, 0x54, 0x61, 0x67, 0x73)
+	// write "Taxonomies"
+	err = en.Append(0xaa, 0x54, 0x61, 0x78, 0x6f, 0x6e, 0x6f, 0x6d, 0x69, 0x65, 0x73)
 	if err != nil {
 		return
 	}
-	err = en.WriteArrayHeader(uint32(len(z.Tags)))
+	err = en.WriteMapHeader(uint32(len(z.Taxonomies)))
 	if err != nil {
-		err = msgp.WrapError(err, "Tags")
+		err = msgp.WrapError(err, "Taxonomies")
 		return
 	}
-	for za0001 := range z.Tags {
-		err = en.WriteString(z.Tags[za0001])
+	for za0002, za0003 := range z.Taxonomies {
+		err = en.WriteString(za0002)
 		if err != nil {
-			err = msgp.WrapError(err, "Tags", za0001)
+			err = msgp.WrapError(err, "Taxonomies")
 			return
+		}
+		err = en.WriteArrayHeader(uint32(len(za0003)))
+		if err != nil {
+			err = msgp.WrapError(err, "Taxonomies", za0002)
+			return
+		}
+		for za0004 := range za0003 {
+			err = en.WriteString(za0003[za0004])
+			if err != nil {
+				err = msgp.WrapError(err, "Taxonomies", za0002, za0004)
+				return
+			}
 		}
 	}
 	return
@@ -759,11 +859,15 @@ func (z *PostListMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Date"
 	o = append(o, 0xa4, 0x44, 0x61, 0x74, 0x65)
 	o = msgp.AppendTime(o, z.Date)
-	// string "Tags"
-	o = append(o, 0xa4, 0x54, 0x61, 0x67, 0x73)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
-	for za0001 := range z.Tags {
-		o = msgp.AppendString(o, z.Tags[za0001])
+	// string "Taxonomies"
+	o = append(o, 0xaa, 0x54, 0x61, 0x78, 0x6f, 0x6e, 0x6f, 0x6d, 0x69, 0x65, 0x73)
+	o = msgp.AppendMapHeader(o, uint32(len(z.Taxonomies)))
+	for za0002, za0003 := range z.Taxonomies {
+		o = msgp.AppendString(o, za0002)
+		o = msgp.AppendArrayHeader(o, uint32(len(za0003)))
+		for za0004 := range za0003 {
+			o = msgp.AppendString(o, za0003[za0004])
+		}
 	}
 	return
 }
@@ -810,24 +914,46 @@ func (z *PostListMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Date")
 				return
 			}
-		case "Tags":
-			var zb0002 uint32
-			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+		case "Taxonomies":
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Tags")
+				err = msgp.WrapError(err, "Taxonomies")
 				return
 			}
-			if cap(z.Tags) >= int(zb0002) {
-				z.Tags = (z.Tags)[:zb0002]
-			} else {
-				z.Tags = make([]string, zb0002)
+			if z.Taxonomies == nil {
+				z.Taxonomies = make(map[string][]string, zb0003)
+			} else if len(z.Taxonomies) > 0 {
+				clear(z.Taxonomies)
 			}
-			for za0001 := range z.Tags {
-				z.Tags[za0001], bts, err = msgp.ReadStringBytes(bts)
+			for zb0003 > 0 {
+				var za0003 []string
+				zb0003--
+				var za0002 string
+				za0002, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Tags", za0001)
+					err = msgp.WrapError(err, "Taxonomies")
 					return
 				}
+				var zb0004 uint32
+				zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Taxonomies", za0002)
+					return
+				}
+				if cap(za0003) >= int(zb0004) {
+					za0003 = (za0003)[:zb0004]
+				} else {
+					za0003 = make([]string, zb0004)
+				}
+				for za0004 := range za0003 {
+					za0003[za0004], bts, err = msgp.ReadStringBytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Taxonomies", za0002, za0004)
+						return
+					}
+				}
+				z.Taxonomies[za0002] = za0003
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -843,9 +969,16 @@ func (z *PostListMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PostListMeta) Msgsize() (s int) {
-	s = 1 + 6 + msgp.StringPrefixSize + len(z.Title) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 5 + msgp.TimeSize + 5 + msgp.ArrayHeaderSize
-	for za0001 := range z.Tags {
-		s += msgp.StringPrefixSize + len(z.Tags[za0001])
+	s = 1 + 6 + msgp.StringPrefixSize + len(z.Title) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 5 + msgp.TimeSize
+	s += 11 + msgp.MapHeaderSize
+	if z.Taxonomies != nil {
+		for za0002, za0003 := range z.Taxonomies {
+			_ = za0003
+			s += msgp.StringPrefixSize + len(za0002) + msgp.ArrayHeaderSize
+			for za0004 := range za0003 {
+				s += msgp.StringPrefixSize + len(za0003[za0004])
+			}
+		}
 	}
 	return
 }
@@ -941,24 +1074,46 @@ func (z *PostMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Date")
 				return
 			}
-		case "Tags":
+		case "Taxonomies":
 			var zb0003 uint32
-			zb0003, err = dc.ReadArrayHeader()
+			zb0003, err = dc.ReadMapHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "Tags")
+				err = msgp.WrapError(err, "Taxonomies")
 				return
 			}
-			if cap(z.Tags) >= int(zb0003) {
-				z.Tags = (z.Tags)[:zb0003]
-			} else {
-				z.Tags = make([]string, zb0003)
+			if z.Taxonomies == nil {
+				z.Taxonomies = make(map[string][]string, zb0003)
+			} else if len(z.Taxonomies) > 0 {
+				clear(z.Taxonomies)
 			}
-			for za0002 := range z.Tags {
-				z.Tags[za0002], err = dc.ReadString()
+			for zb0003 > 0 {
+				zb0003--
+				var za0002 string
+				za0002, err = dc.ReadString()
 				if err != nil {
-					err = msgp.WrapError(err, "Tags", za0002)
+					err = msgp.WrapError(err, "Taxonomies")
 					return
 				}
+				var za0003 []string
+				var zb0004 uint32
+				zb0004, err = dc.ReadArrayHeader()
+				if err != nil {
+					err = msgp.WrapError(err, "Taxonomies", za0002)
+					return
+				}
+				if cap(za0003) >= int(zb0004) {
+					za0003 = (za0003)[:zb0004]
+				} else {
+					za0003 = make([]string, zb0004)
+				}
+				for za0004 := range za0003 {
+					za0003[za0004], err = dc.ReadString()
+					if err != nil {
+						err = msgp.WrapError(err, "Taxonomies", za0002, za0004)
+						return
+					}
+				}
+				z.Taxonomies[za0002] = za0003
 			}
 		case "WordCount":
 			z.WordCount, err = dc.ReadInt()
@@ -1201,21 +1356,33 @@ func (z *PostMeta) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Date")
 		return
 	}
-	// write "Tags"
-	err = en.Append(0xa4, 0x54, 0x61, 0x67, 0x73)
+	// write "Taxonomies"
+	err = en.Append(0xaa, 0x54, 0x61, 0x78, 0x6f, 0x6e, 0x6f, 0x6d, 0x69, 0x65, 0x73)
 	if err != nil {
 		return
 	}
-	err = en.WriteArrayHeader(uint32(len(z.Tags)))
+	err = en.WriteMapHeader(uint32(len(z.Taxonomies)))
 	if err != nil {
-		err = msgp.WrapError(err, "Tags")
+		err = msgp.WrapError(err, "Taxonomies")
 		return
 	}
-	for za0002 := range z.Tags {
-		err = en.WriteString(z.Tags[za0002])
+	for za0002, za0003 := range z.Taxonomies {
+		err = en.WriteString(za0002)
 		if err != nil {
-			err = msgp.WrapError(err, "Tags", za0002)
+			err = msgp.WrapError(err, "Taxonomies")
 			return
+		}
+		err = en.WriteArrayHeader(uint32(len(za0003)))
+		if err != nil {
+			err = msgp.WrapError(err, "Taxonomies", za0002)
+			return
+		}
+		for za0004 := range za0003 {
+			err = en.WriteString(za0003[za0004])
+			if err != nil {
+				err = msgp.WrapError(err, "Taxonomies", za0002, za0004)
+				return
+			}
 		}
 	}
 	// write "WordCount"
@@ -1404,11 +1571,15 @@ func (z *PostMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Date"
 	o = append(o, 0xa4, 0x44, 0x61, 0x74, 0x65)
 	o = msgp.AppendTime(o, z.Date)
-	// string "Tags"
-	o = append(o, 0xa4, 0x54, 0x61, 0x67, 0x73)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
-	for za0002 := range z.Tags {
-		o = msgp.AppendString(o, z.Tags[za0002])
+	// string "Taxonomies"
+	o = append(o, 0xaa, 0x54, 0x61, 0x78, 0x6f, 0x6e, 0x6f, 0x6d, 0x69, 0x65, 0x73)
+	o = msgp.AppendMapHeader(o, uint32(len(z.Taxonomies)))
+	for za0002, za0003 := range z.Taxonomies {
+		o = msgp.AppendString(o, za0002)
+		o = msgp.AppendArrayHeader(o, uint32(len(za0003)))
+		for za0004 := range za0003 {
+			o = msgp.AppendString(o, za0003[za0004])
+		}
 	}
 	// string "WordCount"
 	o = append(o, 0xa9, 0x57, 0x6f, 0x72, 0x64, 0x43, 0x6f, 0x75, 0x6e, 0x74)
@@ -1562,24 +1733,46 @@ func (z *PostMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Date")
 				return
 			}
-		case "Tags":
+		case "Taxonomies":
 			var zb0003 uint32
-			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Tags")
+				err = msgp.WrapError(err, "Taxonomies")
 				return
 			}
-			if cap(z.Tags) >= int(zb0003) {
-				z.Tags = (z.Tags)[:zb0003]
-			} else {
-				z.Tags = make([]string, zb0003)
+			if z.Taxonomies == nil {
+				z.Taxonomies = make(map[string][]string, zb0003)
+			} else if len(z.Taxonomies) > 0 {
+				clear(z.Taxonomies)
 			}
-			for za0002 := range z.Tags {
-				z.Tags[za0002], bts, err = msgp.ReadStringBytes(bts)
+			for zb0003 > 0 {
+				var za0003 []string
+				zb0003--
+				var za0002 string
+				za0002, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Tags", za0002)
+					err = msgp.WrapError(err, "Taxonomies")
 					return
 				}
+				var zb0004 uint32
+				zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Taxonomies", za0002)
+					return
+				}
+				if cap(za0003) >= int(zb0004) {
+					za0003 = (za0003)[:zb0004]
+				} else {
+					za0003 = make([]string, zb0004)
+				}
+				for za0004 := range za0003 {
+					za0003[za0004], bts, err = msgp.ReadStringBytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Taxonomies", za0002, za0004)
+						return
+					}
+				}
+				z.Taxonomies[za0002] = za0003
 			}
 		case "WordCount":
 			z.WordCount, bts, err = msgp.ReadIntBytes(bts)
@@ -1719,9 +1912,15 @@ func (z *PostMeta) Msgsize() (s int) {
 	for za0001 := range z.SSRInputHashes {
 		s += msgp.StringPrefixSize + len(z.SSRInputHashes[za0001])
 	}
-	s += 6 + msgp.StringPrefixSize + len(z.Title) + 5 + msgp.TimeSize + 5 + msgp.ArrayHeaderSize
-	for za0002 := range z.Tags {
-		s += msgp.StringPrefixSize + len(z.Tags[za0002])
+	s += 11 + msgp.MapHeaderSize
+	if z.Taxonomies != nil {
+		for za0002, za0003 := range z.Taxonomies {
+			_ = za0003
+			s += msgp.StringPrefixSize + len(za0002) + msgp.ArrayHeaderSize
+			for za0004 := range za0003 {
+				s += msgp.StringPrefixSize + len(za0003[za0004])
+			}
+		}
 	}
 	s += 10 + msgp.IntSize + 12 + msgp.IntSize + 12 + msgp.StringPrefixSize + len(z.Description) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 9 + msgp.BoolSize + 8 + msgp.BoolSize + 5 + msgp.MapHeaderSize
 	if z.Meta != nil {
@@ -2089,24 +2288,87 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Content")
 				return
 			}
-		case "NormalizedTags":
+		case "Taxonomies":
 			var zb0003 uint32
-			zb0003, err = dc.ReadArrayHeader()
+			zb0003, err = dc.ReadMapHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "NormalizedTags")
+				err = msgp.WrapError(err, "Taxonomies")
 				return
 			}
-			if cap(z.NormalizedTags) >= int(zb0003) {
-				z.NormalizedTags = (z.NormalizedTags)[:zb0003]
-			} else {
-				z.NormalizedTags = make([]string, zb0003)
+			if z.Taxonomies == nil {
+				z.Taxonomies = make(map[string][]string, zb0003)
+			} else if len(z.Taxonomies) > 0 {
+				clear(z.Taxonomies)
 			}
-			for za0003 := range z.NormalizedTags {
-				z.NormalizedTags[za0003], err = dc.ReadString()
+			for zb0003 > 0 {
+				zb0003--
+				var za0003 string
+				za0003, err = dc.ReadString()
 				if err != nil {
-					err = msgp.WrapError(err, "NormalizedTags", za0003)
+					err = msgp.WrapError(err, "Taxonomies")
 					return
 				}
+				var za0004 []string
+				var zb0004 uint32
+				zb0004, err = dc.ReadArrayHeader()
+				if err != nil {
+					err = msgp.WrapError(err, "Taxonomies", za0003)
+					return
+				}
+				if cap(za0004) >= int(zb0004) {
+					za0004 = (za0004)[:zb0004]
+				} else {
+					za0004 = make([]string, zb0004)
+				}
+				for za0005 := range za0004 {
+					za0004[za0005], err = dc.ReadString()
+					if err != nil {
+						err = msgp.WrapError(err, "Taxonomies", za0003, za0005)
+						return
+					}
+				}
+				z.Taxonomies[za0003] = za0004
+			}
+		case "NormalizedTaxs":
+			var zb0005 uint32
+			zb0005, err = dc.ReadMapHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "NormalizedTaxs")
+				return
+			}
+			if z.NormalizedTaxs == nil {
+				z.NormalizedTaxs = make(map[string][]string, zb0005)
+			} else if len(z.NormalizedTaxs) > 0 {
+				clear(z.NormalizedTaxs)
+			}
+			for zb0005 > 0 {
+				zb0005--
+				var za0006 string
+				za0006, err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "NormalizedTaxs")
+					return
+				}
+				var za0007 []string
+				var zb0006 uint32
+				zb0006, err = dc.ReadArrayHeader()
+				if err != nil {
+					err = msgp.WrapError(err, "NormalizedTaxs", za0006)
+					return
+				}
+				if cap(za0007) >= int(zb0006) {
+					za0007 = (za0007)[:zb0006]
+				} else {
+					za0007 = make([]string, zb0006)
+				}
+				for za0008 := range za0007 {
+					za0007[za0008], err = dc.ReadString()
+					if err != nil {
+						err = msgp.WrapError(err, "NormalizedTaxs", za0006, za0008)
+						return
+					}
+				}
+				z.NormalizedTaxs[za0006] = za0007
 			}
 		case "StemMap":
 			var zb0004 uint32
@@ -2231,9 +2493,9 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *SearchRecord) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 9
+	// map header, size 10
 	// write "Title"
-	err = en.Append(0x89, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	err = en.Append(0x8a, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	if err != nil {
 		return
 	}
@@ -2294,21 +2556,62 @@ func (z *SearchRecord) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Content")
 		return
 	}
-	// write "NormalizedTags"
-	err = en.Append(0xae, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x54, 0x61, 0x67, 0x73)
+	// write "Taxonomies"
+	err = en.Append(0xaa, 0x54, 0x61, 0x78, 0x6f, 0x6e, 0x6f, 0x6d, 0x69, 0x65, 0x73)
 	if err != nil {
 		return
 	}
-	err = en.WriteArrayHeader(uint32(len(z.NormalizedTags)))
+	err = en.WriteMapHeader(uint32(len(z.Taxonomies)))
 	if err != nil {
-		err = msgp.WrapError(err, "NormalizedTags")
+		err = msgp.WrapError(err, "Taxonomies")
 		return
 	}
-	for za0003 := range z.NormalizedTags {
-		err = en.WriteString(z.NormalizedTags[za0003])
+	for za0003, za0004 := range z.Taxonomies {
+		err = en.WriteString(za0003)
 		if err != nil {
-			err = msgp.WrapError(err, "NormalizedTags", za0003)
+			err = msgp.WrapError(err, "Taxonomies")
 			return
+		}
+		err = en.WriteArrayHeader(uint32(len(za0004)))
+		if err != nil {
+			err = msgp.WrapError(err, "Taxonomies", za0003)
+			return
+		}
+		for za0005 := range za0004 {
+			err = en.WriteString(za0004[za0005])
+			if err != nil {
+				err = msgp.WrapError(err, "Taxonomies", za0003, za0005)
+				return
+			}
+		}
+	}
+	// write "NormalizedTaxs"
+	err = en.Append(0xae, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x54, 0x61, 0x78, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteMapHeader(uint32(len(z.NormalizedTaxs)))
+	if err != nil {
+		err = msgp.WrapError(err, "NormalizedTaxs")
+		return
+	}
+	for za0006, za0007 := range z.NormalizedTaxs {
+		err = en.WriteString(za0006)
+		if err != nil {
+			err = msgp.WrapError(err, "NormalizedTaxs")
+			return
+		}
+		err = en.WriteArrayHeader(uint32(len(za0007)))
+		if err != nil {
+			err = msgp.WrapError(err, "NormalizedTaxs", za0006)
+			return
+		}
+		for za0008 := range za0007 {
+			err = en.WriteString(za0007[za0008])
+			if err != nil {
+				err = msgp.WrapError(err, "NormalizedTaxs", za0006, za0008)
+				return
+			}
 		}
 	}
 	// write "StemMap"
@@ -2397,9 +2700,9 @@ func (z *SearchRecord) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *SearchRecord) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 9
+	// map header, size 10
 	// string "Title"
-	o = append(o, 0x89, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	o = append(o, 0x8a, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	o = msgp.AppendString(o, z.Title)
 	// string "NormalizedTitle"
 	o = append(o, 0xaf, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x54, 0x69, 0x74, 0x6c, 0x65)
@@ -2417,11 +2720,25 @@ func (z *SearchRecord) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Content"
 	o = append(o, 0xa7, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74)
 	o = msgp.AppendString(o, z.Content)
-	// string "NormalizedTags"
-	o = append(o, 0xae, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x54, 0x61, 0x67, 0x73)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.NormalizedTags)))
-	for za0003 := range z.NormalizedTags {
-		o = msgp.AppendString(o, z.NormalizedTags[za0003])
+	// string "Taxonomies"
+	o = append(o, 0xaa, 0x54, 0x61, 0x78, 0x6f, 0x6e, 0x6f, 0x6d, 0x69, 0x65, 0x73)
+	o = msgp.AppendMapHeader(o, uint32(len(z.Taxonomies)))
+	for za0003, za0004 := range z.Taxonomies {
+		o = msgp.AppendString(o, za0003)
+		o = msgp.AppendArrayHeader(o, uint32(len(za0004)))
+		for za0005 := range za0004 {
+			o = msgp.AppendString(o, za0004[za0005])
+		}
+	}
+	// string "NormalizedTaxs"
+	o = append(o, 0xae, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x54, 0x61, 0x78, 0x73)
+	o = msgp.AppendMapHeader(o, uint32(len(z.NormalizedTaxs)))
+	for za0006, za0007 := range z.NormalizedTaxs {
+		o = msgp.AppendString(o, za0006)
+		o = msgp.AppendArrayHeader(o, uint32(len(za0007)))
+		for za0008 := range za0007 {
+			o = msgp.AppendString(o, za0007[za0008])
+		}
 	}
 	// string "StemMap"
 	o = append(o, 0xa7, 0x53, 0x74, 0x65, 0x6d, 0x4d, 0x61, 0x70)
@@ -2523,24 +2840,87 @@ func (z *SearchRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Content")
 				return
 			}
-		case "NormalizedTags":
+		case "Taxonomies":
 			var zb0003 uint32
-			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "NormalizedTags")
+				err = msgp.WrapError(err, "Taxonomies")
 				return
 			}
-			if cap(z.NormalizedTags) >= int(zb0003) {
-				z.NormalizedTags = (z.NormalizedTags)[:zb0003]
-			} else {
-				z.NormalizedTags = make([]string, zb0003)
+			if z.Taxonomies == nil {
+				z.Taxonomies = make(map[string][]string, zb0003)
+			} else if len(z.Taxonomies) > 0 {
+				clear(z.Taxonomies)
 			}
-			for za0003 := range z.NormalizedTags {
-				z.NormalizedTags[za0003], bts, err = msgp.ReadStringBytes(bts)
+			for zb0003 > 0 {
+				var za0004 []string
+				zb0003--
+				var za0003 string
+				za0003, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "NormalizedTags", za0003)
+					err = msgp.WrapError(err, "Taxonomies")
 					return
 				}
+				var zb0004 uint32
+				zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Taxonomies", za0003)
+					return
+				}
+				if cap(za0004) >= int(zb0004) {
+					za0004 = (za0004)[:zb0004]
+				} else {
+					za0004 = make([]string, zb0004)
+				}
+				for za0005 := range za0004 {
+					za0004[za0005], bts, err = msgp.ReadStringBytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Taxonomies", za0003, za0005)
+						return
+					}
+				}
+				z.Taxonomies[za0003] = za0004
+			}
+		case "NormalizedTaxs":
+			var zb0005 uint32
+			zb0005, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "NormalizedTaxs")
+				return
+			}
+			if z.NormalizedTaxs == nil {
+				z.NormalizedTaxs = make(map[string][]string, zb0005)
+			} else if len(z.NormalizedTaxs) > 0 {
+				clear(z.NormalizedTaxs)
+			}
+			for zb0005 > 0 {
+				var za0007 []string
+				zb0005--
+				var za0006 string
+				za0006, bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "NormalizedTaxs")
+					return
+				}
+				var zb0006 uint32
+				zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "NormalizedTaxs", za0006)
+					return
+				}
+				if cap(za0007) >= int(zb0006) {
+					za0007 = (za0007)[:zb0006]
+				} else {
+					za0007 = make([]string, zb0006)
+				}
+				for za0008 := range za0007 {
+					za0007[za0008], bts, err = msgp.ReadStringBytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "NormalizedTaxs", za0006, za0008)
+						return
+					}
+				}
+				z.NormalizedTaxs[za0006] = za0007
 			}
 		case "StemMap":
 			var zb0004 uint32
@@ -2673,9 +3053,25 @@ func (z *SearchRecord) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0001) + msgp.IntSize
 		}
 	}
-	s += 7 + msgp.IntSize + 8 + msgp.StringPrefixSize + len(z.Content) + 15 + msgp.ArrayHeaderSize
-	for za0003 := range z.NormalizedTags {
-		s += msgp.StringPrefixSize + len(z.NormalizedTags[za0003])
+	s += 7 + msgp.IntSize + 8 + msgp.StringPrefixSize + len(z.Content) + 11 + msgp.MapHeaderSize
+	if z.Taxonomies != nil {
+		for za0003, za0004 := range z.Taxonomies {
+			_ = za0004
+			s += msgp.StringPrefixSize + len(za0003) + msgp.ArrayHeaderSize
+			for za0005 := range za0004 {
+				s += msgp.StringPrefixSize + len(za0004[za0005])
+			}
+		}
+	}
+	s += 15 + msgp.MapHeaderSize
+	if z.NormalizedTaxs != nil {
+		for za0006, za0007 := range z.NormalizedTaxs {
+			_ = za0007
+			s += msgp.StringPrefixSize + len(za0006) + msgp.ArrayHeaderSize
+			for za0008 := range za0007 {
+				s += msgp.StringPrefixSize + len(za0007[za0008])
+			}
+		}
 	}
 	s += 8 + msgp.MapHeaderSize
 	if z.StemMap != nil {

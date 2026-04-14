@@ -22,11 +22,14 @@ type Service interface {
 	models.SearchCache
 	models.SocialCardCache
 	models.BuildArtifactCache
+	models.FragmentCache
 
 	GetGraphHash() (string, error)
 	SetGraphHash(hash string) error
 	GetWasmHash() (string, error)
 	SetWasmHash(hash string) error
+	GetSearchHash() (string, error)
+	SetSearchHash(hash string) error
 
 	Stats() (*cache.CacheStats, error)
 	IncrementBuildCount() (uint32, error)

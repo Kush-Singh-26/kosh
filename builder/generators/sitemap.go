@@ -11,6 +11,7 @@ import (
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 // SitemapOptions configures sitemap generation.
@@ -18,7 +19,7 @@ type SitemapOptions struct {
 	Sink       fspkg.ArtifactSink
 	BaseURL    string
 	Posts      []models.PostMetadata
-	Tags       map[string][]models.PostMetadata
+	Taxonomies map[string]map[string][]models.PostMetadata
 	OutputPath string
 }
 
@@ -27,7 +28,7 @@ func GenerateSitemap(opts SitemapOptions) (string, error) {
 	sink := opts.Sink
 	baseURL := opts.BaseURL
 	posts := opts.Posts
-	tags := opts.Tags
+	taxonomies := opts.Taxonomies
 	outputPath := opts.OutputPath
 
 	slog.Info("Generating sitemap")
@@ -50,20 +51,22 @@ func GenerateSitemap(opts SitemapOptions) (string, error) {
 		})
 	}
 
-	// 3. Add Tag Pages
-	for t, tagPosts := range tags {
-		// Find the latest date among posts with this tag
-		var latest time.Time
-		for _, p := range tagPosts {
-			if p.DateObj.After(latest) {
-				latest = p.DateObj
+	// 3. Add Taxonomy Pages
+	for taxKey, terms := range taxonomies {
+		for term, termPosts := range terms {
+			// Find the latest date among posts with this term
+			var latest time.Time
+			for _, p := range termPosts {
+				if p.DateObj.After(latest) {
+					latest = p.DateObj
+				}
 			}
-		}
 
-		urls = append(urls, models.URL{
-			Loc:     fmt.Sprintf("%s/blogs/tags/%s.html", baseURL, url.PathEscape(t)),
-			LastMod: latest.Format("2006-01-02"),
-		})
+			urls = append(urls, models.URL{
+				Loc:     fmt.Sprintf("%s/blogs/%s/%s.html", baseURL, taxKey, url.PathEscape(timeutil.Slugify(term))),
+				LastMod: latest.Format("2006-01-02"),
+			})
+		}
 	}
 
 	// Streaming encode: write XML header then encode each URL entry directly to the sink writer

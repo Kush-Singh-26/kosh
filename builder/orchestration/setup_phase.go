@@ -10,6 +10,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/data"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // buildSetupResult holds data from the initial setup phase.
@@ -65,6 +66,9 @@ func (engineInstance *Engine) setupPhase(ctx context.Context) (*buildSetupResult
 		// We continue even if data loading fails, it might be empty or optional
 	}
 	engineInstance.Cfg.SiteData = siteData
+
+	// Warm up the fragment cache for common UI components.
+	engineInstance.warmupFragmentCache(ctx)
 
 	return &buildSetupResult{
 		wasmWg:             wasmWaitGroup,
@@ -130,4 +134,28 @@ func (engineInstance *Engine) createOutputDirectories() error {
 		}
 	}
 	return nil
+}
+
+// warmupFragmentCache pre-renders common UI fragments to populate caches before workers start.
+func (engineInstance *Engine) warmupFragmentCache(ctx context.Context) {
+	if engineInstance.Deps.Render == nil {
+		return
+	}
+
+	// Contexts and blocks that are site-wide and expensive to render first-time
+	commonContexts := []models.PageContext{models.ContextHome, models.ContextBlog}
+	commonBlocks := []string{"navbar-identity", "footer"}
+
+	// Mock data for warmup - PreparePageData will fill in the rest
+	data := models.PageData{
+		RelativePrefix: "",
+	}
+
+	for _, contextType := range commonContexts {
+		data.Context = contextType
+		for _, block := range commonBlocks {
+			// Trigger render to populate memory and persistent caches
+			_, _ = engineInstance.Deps.Render.RenderFragment(string(contextType), block, data)
+		}
+	}
 }

@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -20,6 +21,8 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
 
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/base"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
@@ -45,6 +48,8 @@ type Renderer struct {
 	errMu          sync.Mutex // protects renderErrors
 	assetCache     sync.Map   // cacheKey string -> map[string]string
 	Minifier       *minify.M
+	fragmentCache sync.Map // context string -> template.HTML
+	Cache         models.FragmentCache
 }
 
 // RendererOptions configures a Renderer instance.
@@ -55,6 +60,7 @@ type RendererOptions struct {
 	TemplateDir string
 	DevMode     bool
 	Logger      *slog.Logger
+	Cache       models.FragmentCache
 }
 
 // New creates a Renderer with default filesystem settings.
@@ -75,6 +81,7 @@ func NewWithFs(opts RendererOptions) *Renderer {
 		templateDir: opts.TemplateDir,
 		devMode:     opts.DevMode,
 		Minifier:    koshMinify.GetHTMLMinifier(),
+		Cache:       opts.Cache,
 	}
 	r.ReloadTemplates()
 	return r
@@ -98,6 +105,14 @@ func (r *Renderer) Has404Template() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.NotFound != nil
+}
+
+// ClearFragments empties the pre-rendered fragment cache.
+func (r *Renderer) ClearFragments() {
+	r.fragmentCache.Range(func(key, value any) bool {
+		r.fragmentCache.Delete(key)
+		return true
+	})
 }
 
 // ReloadTemplates reloads templates from disk or cache.
@@ -129,7 +144,61 @@ func (r *Renderer) ReloadTemplates() {
 	r.Home = homeTmpl
 	r.Graph = graphTmpl
 	r.NotFound = notFoundTmpl
+	r.baseTemplate = layoutTmpl // Use layout as base for fragment rendering
 	r.mu.Unlock()
+
+	r.ClearFragments()
+}
+
+// RenderFragment renders a specific named template block into the cache.
+func (r *Renderer) RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error) {
+	// Cache key includes block name, context and relative prefix to ensure path safety
+	cacheKey := fmt.Sprintf("%s:%s:%s", blockName, context, data.RelativePrefix)
+
+	if val, ok := r.fragmentCache.Load(cacheKey); ok && !data.IsCleanBuild {
+		return val.(template.HTML), nil
+	}
+
+	// Persistent cache lookup: skip if this is a clean build to ensure branding/config updates
+	if r.Cache != nil && !data.IsCleanBuild {
+		if cached, err := r.Cache.GetFragment(cacheKey); err == nil && cached != "" {
+			html := template.HTML(cached)
+			r.fragmentCache.Store(cacheKey, html)
+			return html, nil
+		}
+	}
+
+	r.mu.RLock()
+	tmpl := r.Layout
+	r.mu.RUnlock()
+
+	if tmpl == nil {
+		return "", fmt.Errorf("no template available for fragment rendering")
+	}
+
+	buf := pools.SharedBufferPool.Get()
+	defer pools.SharedBufferPool.Put(buf)
+
+	// We prepare assets here to ensure path relativization and site data are available,
+	// but we call PrepareAssets instead of PreparePageData to avoid infinite recursion
+	// with global fragment pre-rendering.
+	r.PrepareAssets(&data)
+
+	if err := tmpl.ExecuteTemplate(buf, blockName, data); err != nil {
+		return "", err
+	}
+
+	html := template.HTML(buf.String())
+	r.fragmentCache.Store(cacheKey, html)
+
+	// Persist fragment for cross-build reuse
+	if r.Cache != nil {
+		if err := r.Cache.StoreFragment(cacheKey, string(html)); err != nil {
+			r.logger.Debug("Failed to persist fragment", "key", cacheKey, "error", err)
+		}
+	}
+
+	return html, nil
 }
 
 func (r *Renderer) applyTemplateCache(tc *templateCache) {
@@ -361,39 +430,54 @@ func (r *Renderer) loadPartials(t *template.Template) (int, error) {
 		return 0, nil // No partials directory is fine
 	}
 
-	count := 0
-	err = afero.Walk(r.SourceFs, partialsDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() || !strings.HasSuffix(info.Name(), ".html") {
+	var (
+		count int32
+		mu    sync.Mutex
+	)
+
+	walkingCtx := context.Background() // Renderer doesn't usually take ctx here, but ParallelWalk requires it.
+
+	walkErr := fspkg.ParallelWalk(fspkg.WalkOptions{
+		Ctx:      walkingCtx,
+		SourceFs: r.SourceFs,
+		Root:     partialsDir,
+		WalkFn: func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() || !strings.HasSuffix(info.Name(), ".html") {
+				return nil
+			}
+
+			relPath, err := filepath.Rel(partialsDir, path)
+			if err != nil {
+				return err
+			}
+
+			content, err := afero.ReadFile(r.SourceFs, path)
+			if err != nil {
+				return err
+			}
+
+			// Register as "partials/filename.html"
+			// Using filepath.ToSlash for consistent template names across OSes
+			name := "partials/" + filepath.ToSlash(relPath)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if _, err := t.New(name).Parse(string(content)); err != nil {
+				return fmt.Errorf("failed to parse partial %s: %w", name, err)
+			}
+
+			atomic.AddInt32(&count, 1)
 			return nil
-		}
-
-		relPath, err := filepath.Rel(partialsDir, path)
-		if err != nil {
-			return err
-		}
-
-		content, err := afero.ReadFile(r.SourceFs, path)
-		if err != nil {
-			return err
-		}
-
-		// Register as "partials/filename.html"
-		// Using filepath.ToSlash for consistent template names across OSes
-		name := "partials/" + filepath.ToSlash(relPath)
-		if _, err := t.New(name).Parse(string(content)); err != nil {
-			return fmt.Errorf("failed to parse partial %s: %w", name, err)
-		}
-
-		count++
-		return nil
+		},
 	})
 
-	if err != nil {
-		return count, fmt.Errorf("failed to walk partials directory: %w", err)
+	if walkErr != nil {
+		return int(atomic.LoadInt32(&count)), fmt.Errorf("failed to walk partials directory: %w", walkErr)
 	}
 
-	return count, nil
+	return int(atomic.LoadInt32(&count)), nil
 }

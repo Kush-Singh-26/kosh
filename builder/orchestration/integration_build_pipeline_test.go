@@ -18,7 +18,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
-	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/services/post"
@@ -64,8 +63,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
-	nativeRenderer := native.New()
-	t.Cleanup(func() { _ = nativeRenderer.Close() })
+	nativeRenderer := getSharedRenderer()
 	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{
@@ -216,8 +214,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 
 	logger := InitLogger()
 	buildMetrics := metrics.NewBuildMetrics()
-	nativeRenderer := native.New()
-	t.Cleanup(func() { _ = nativeRenderer.Close() })
+	nativeRenderer := getSharedRenderer()
 	diagramCache := mdParser.NewMemorySSRMap()
 	d2Group := nativeRenderer.GetD2Singleflight()
 	mdPool := &sync.Pool{

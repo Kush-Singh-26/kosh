@@ -314,21 +314,43 @@ func shouldPreserveOriginal(name string) bool {
 }
 
 func collectOriginalsToDelete(outputDir string, converted map[string]string) []string {
-	var toDelete []string
-	for originalRelativePath := range converted {
-		lower := strings.ToLower(originalRelativePath)
-		if !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") {
-			continue
-		}
-
-		base := filepath.Base(originalRelativePath)
-		if shouldPreserveOriginal(base) {
-			continue
-		}
-
-		absolutePath := filepath.Join(outputDir, strings.TrimPrefix(filepath.ToSlash(originalRelativePath), "/"))
-		toDelete = append(toDelete, absolutePath)
+	if len(converted) == 0 {
+		return nil
 	}
+
+	keys := make([]string, 0, len(converted))
+	for k := range converted {
+		keys = append(keys, k)
+	}
+
+	toDelete := make([]string, 0, len(keys))
+	var mu sync.Mutex
+
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(runtime.NumCPU())
+
+	for _, k := range keys {
+		originalPath := k
+		g.Go(func() error {
+			lower := strings.ToLower(originalPath)
+			if !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") {
+				return nil
+			}
+
+			base := filepath.Base(originalPath)
+			if shouldPreserveOriginal(base) {
+				return nil
+			}
+
+			absolutePath := filepath.Join(outputDir, strings.TrimPrefix(filepath.ToSlash(originalPath), "/"))
+			mu.Lock()
+			toDelete = append(toDelete, absolutePath)
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	_ = g.Wait()
 	return toDelete
 }
 

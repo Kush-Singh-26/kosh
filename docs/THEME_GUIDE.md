@@ -212,8 +212,8 @@ To style the header, footer, or search modal provided by the engine, target thes
 1. **Path Safety**: Always use the `relativize` template function for internal links and assets.
    - `{{ relativize .BaseURL .RelativePrefix "/path/to/asset" }}`
 2. **Config Access**: Use the strictly-typed `{{ .Config.Get* }}` methods to access site settings.
-   - Example: `{{ .Config.GetSiteTitle }}`, `{{ .Config.GetLogo }}`.
-3. **Typography**: Define your base typography on the `html` or `body` element. The Base Chrome takes care of the layout layout.
+   - Example: `{{ .Config.GetSiteTitle }}`, `{{ .Config.GetLogo }}`, `{{ .Config.GetNavbar }}`.
+3. **Typography**: Define your base typography on the `html` or `body` element.
 4. **Performance**: Avoid large unoptimized scripts. The Base Chrome already includes the necessary logic for search, PWA, and graph interactions.
 
 ---
