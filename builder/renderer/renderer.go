@@ -45,6 +45,7 @@ type Renderer struct {
 	renderedFiles  sync.Map // path string -> struct{}{}
 	logger         *slog.Logger
 	templateDir    string
+	layoutsDir     string
 	mu             sync.RWMutex // protects template pointers and logger
 	devMode        bool
 	renderErrors   []renderError
@@ -62,6 +63,7 @@ type RendererOptions struct {
 	Minify      bool
 	Sink        fspkg.ArtifactSink
 	TemplateDir string
+	LayoutsDir  string
 	DevMode     bool
 	Logger      *slog.Logger
 	Cache       models.FragmentCache
@@ -84,6 +86,7 @@ func NewWithFs(opts RendererOptions) *Renderer {
 		SourceFs:    opts.SourceFs,
 		logger:      opts.Logger,
 		templateDir: opts.TemplateDir,
+		layoutsDir:  opts.LayoutsDir,
 		devMode:     opts.DevMode,
 		Minifier:    koshMinify.GetHTMLMinifier(),
 		Cache:       opts.Cache,
@@ -122,7 +125,7 @@ func (r *Renderer) ClearFragments() {
 
 // ReloadTemplates reloads templates from disk or cache.
 func (r *Renderer) ReloadTemplates() {
-	tc := getGlobalCache(r.templateDir, r.devMode)
+	tc := getGlobalCache(r.templateDir, r.layoutsDir, r.devMode)
 
 	tc.mu.RLock()
 	hasTemplates := len(tc.templates) > 0
@@ -324,10 +327,16 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 	}
 
 	loadSlotTmpl := func(name, fileName string) (*template.Template, error) {
-		path := filepath.Join(r.templateDir, fileName)
+		// 1. Check Site Layouts
+		path := filepath.Join(r.layoutsDir, fileName)
 		content, err := afero.ReadFile(r.SourceFs, path)
 		if err != nil {
-			return nil, err
+			// 2. Fallback to Theme
+			path = filepath.Join(r.templateDir, fileName)
+			content, err = afero.ReadFile(r.SourceFs, path)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// Clone base and parse theme slot on top
@@ -336,7 +345,7 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 			return nil, err
 		}
 
-		// Load partials into the clone
+		// Load partials from both site and theme
 		if _, err := r.loadPartials(t); err != nil {
 			return nil, err
 		}
@@ -428,61 +437,63 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 
 // loadPartials discovers and parses all files under templates/partials/ into t.
 // Partials are registered as named templates "partials/<filename>" on t.
+// loadPartials discovers and parses all files under partials/ into t.
+// It merges partials from both the site layouts directory and the theme directory,
+// with site partials taking precedence.
 func (r *Renderer) loadPartials(t *template.Template) (int, error) {
-	partialsDir := filepath.Join(r.templateDir, "partials")
-	exists, err := afero.DirExists(r.SourceFs, partialsDir)
-	if err != nil || !exists {
-		return 0, nil // No partials directory is fine
-	}
-
 	var (
 		count int32
 		mu    sync.Mutex
 	)
 
-	walkingCtx := context.Background() // Renderer doesn't usually take ctx here, but ParallelWalk requires it.
-
-	walkErr := fspkg.ParallelWalk(fspkg.WalkOptions{
-		Ctx:      walkingCtx,
-		SourceFs: r.SourceFs,
-		Root:     partialsDir,
-		WalkFn: func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info.IsDir() || !strings.HasSuffix(info.Name(), ".html") {
-				return nil
-			}
-
-			relPath, err := filepath.Rel(partialsDir, path)
-			if err != nil {
-				return err
-			}
-
-			content, err := afero.ReadFile(r.SourceFs, path)
-			if err != nil {
-				return err
-			}
-
-			// Register as "partials/filename.html"
-			// Using filepath.ToSlash for consistent template names across OSes
-			name := "partials/" + filepath.ToSlash(relPath)
-
-			mu.Lock()
-			defer mu.Unlock()
-
-			if _, err := t.New(name).Parse(string(content)); err != nil {
-				return fmt.Errorf("failed to parse partial %s: %w", name, err)
-			}
-
-			atomic.AddInt32(&count, 1)
+	loadFrom := func(dir string) error {
+		partialsDir := filepath.Join(dir, "partials")
+		exists, err := afero.DirExists(r.SourceFs, partialsDir)
+		if err != nil || !exists {
 			return nil
-		},
-	})
+		}
 
-	if walkErr != nil {
-		return int(atomic.LoadInt32(&count)), fmt.Errorf("failed to walk partials directory: %w", walkErr)
+		return fspkg.ParallelWalk(fspkg.WalkOptions{
+			Ctx:      context.Background(),
+			SourceFs: r.SourceFs,
+			Root:     partialsDir,
+			WalkFn: func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".html") {
+					return nil
+				}
+
+				relPath, err := filepath.Rel(partialsDir, path)
+				if err != nil {
+					return err
+				}
+
+				content, err := afero.ReadFile(r.SourceFs, path)
+				if err != nil {
+					return err
+				}
+
+				name := "partials/" + filepath.ToSlash(relPath)
+				mu.Lock()
+				defer mu.Unlock()
+
+				if _, err := t.New(name).Parse(string(content)); err != nil {
+					return fmt.Errorf("failed to parse partial %s: %w", name, err)
+				}
+				atomic.AddInt32(&count, 1)
+				return nil
+			},
+		})
 	}
 
-	return int(atomic.LoadInt32(&count)), nil
+	// 1. Load from Theme (Base)
+	if err := loadFrom(r.templateDir); err != nil {
+		return 0, err
+	}
+
+	// 2. Load from Site (Overrides)
+	if err := loadFrom(r.layoutsDir); err != nil {
+		return int(count), err
+	}
+
+	return int(count), nil
 }

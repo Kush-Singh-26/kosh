@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -52,20 +53,25 @@ type TaxonomyOptions struct {
 }
 
 // BuildTaxonomyData builds a list of TermData from a term map for a specific taxonomy.
-func BuildTaxonomyData(plural string, termMap map[string][]models.PostMetadata) []models.TermData {
+func BuildTaxonomyData(prefix, plural string, termMap map[string][]models.PostMetadata) []models.TermData {
 	allTerms := make([]models.TermData, 0, len(termMap))
+	prefix = strings.Trim(prefix, "/")
+	cleanPlural := strings.TrimPrefix(strings.Trim(plural, "/"), prefix+"/")
 	for t, posts := range termMap {
 		slug := timeutil.Slugify(t)
+		link := fmt.Sprintf("/%s/%s.html", cleanPlural, slug)
+		if prefix != "" {
+			link = fmt.Sprintf("/%s/%s/%s.html", prefix, cleanPlural, slug)
+		}
 		allTerms = append(allTerms, models.TermData{
 			Name:  t,
 			Count: len(posts),
-			Link:  fmt.Sprintf("/%s/%s.html", plural, slug),
+			Link:  link,
 		})
 	}
 	sort.Slice(allTerms, func(i, j int) bool { return allTerms[i].Name < allTerms[j].Name })
 	return allTerms
 }
-
 
 func startTaxonomyCardPool(opts TaxonomyOptions, workers int) *async.WorkerPool[TaxonomySocialCardTask] {
 	cfg := opts.Cfg
@@ -142,11 +148,18 @@ func ensureTaxonomyIndexCard(opts TaxonomyOptions, taxonomy, plural, desc string
 }
 
 func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxonomy, plural string, terms []models.TermData) error {
-	indexPath := fmt.Sprintf("%s/index.html", plural)
-	blogIndexURL := navigation.ResolveSectionIndex(indexPath)
+	prefix := strings.Trim(cfg.ContentPrefix, "/")
+	// Normalize plural to not have the prefix if we are going to prepend it
+	cleanPlural := strings.TrimPrefix(strings.Trim(plural, "/"), prefix+"/")
+
+	indexPath := fmt.Sprintf("%s/index.html", cleanPlural)
+	if prefix != "" {
+		indexPath = fmt.Sprintf("%s/%s/index.html", prefix, cleanPlural)
+	}
+	postsIndexURL := navigation.ResolveSectionIndex(indexPath)
 
 	return render.RenderPage(filepath.Join(cfg.OutputDir, indexPath), models.PageData{
-		Title: fmt.Sprintf("All %s", plural), IsTagsIndex: true, Context: models.ContextBlog,
+		Title: fmt.Sprintf("All %s", plural), IsTagsIndex: true, Context: models.ContextPosts,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 		Permalink: cfg.BaseURL + "/" + indexPath,
 		Image:     fmt.Sprintf("%s/static/images/cards/%s/index.webp", cfg.BaseURL, plural),
@@ -159,17 +172,24 @@ func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxono
 			},
 		},
 		Weight:         0,
-		RelativePrefix: "../../", BlogPrefix: cfg.BlogPrefix,
-		BlogIndexURL: blogIndexURL,
+		RelativePrefix: "../../", ContentPrefix: cfg.ContentPrefix,
+		PostsIndexURL: postsIndexURL,
 	})
 }
 
 func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, plural, termName, slug string, posts []models.PostMetadata) error {
 	timeutil.SortPosts(posts)
-	termPath := fmt.Sprintf("%s/%s.html", plural, slug)
-	blogIndexURL := navigation.ResolveSectionIndex(termPath)
+	prefix := strings.Trim(cfg.ContentPrefix, "/")
+	// Normalize plural to not have the prefix if we are going to prepend it
+	cleanPlural := strings.TrimPrefix(strings.Trim(plural, "/"), prefix+"/")
+
+	termPath := fmt.Sprintf("%s/%s.html", cleanPlural, slug)
+	if prefix != "" {
+		termPath = fmt.Sprintf("%s/%s/%s.html", prefix, cleanPlural, slug)
+	}
+	postsIndexURL := navigation.ResolveSectionIndex(termPath)
 	return render.RenderPage(filepath.Join(cfg.OutputDir, termPath), models.PageData{
-		Title: termName, IsIndex: true, Context: models.ContextBlog, Posts: posts,
+		Title: termName, IsIndex: true, Context: models.ContextPosts, Posts: posts,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 		Permalink: fmt.Sprintf("%s/%s", cfg.BaseURL, termPath),
 		Image:     fmt.Sprintf("%s/static/images/cards/%s/%s.webp", cfg.BaseURL, plural, slug),
@@ -178,12 +198,12 @@ func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, p
 			taxonomy: {
 				Name:   taxonomy,
 				Plural: plural,
-				Terms:  BuildTaxonomyData(plural, map[string][]models.PostMetadata{termName: posts}),
+				Terms:  BuildTaxonomyData(cfg.ContentPrefix, plural, map[string][]models.PostMetadata{termName: posts}),
 			},
 		},
 		Weight:         0,
-		RelativePrefix: "../../", BlogPrefix: cfg.BlogPrefix,
-		BlogIndexURL: blogIndexURL,
+		RelativePrefix: "../../", ContentPrefix: cfg.ContentPrefix,
+		PostsIndexURL: postsIndexURL,
 	})
 }
 
@@ -207,8 +227,8 @@ func RenderTaxonomies(opts TaxonomyOptions) error {
 			continue
 		}
 
-		allTerms := BuildTaxonomyData(taxPlural, termMap)
-		
+		allTerms := BuildTaxonomyData(cfg.ContentPrefix, taxPlural, termMap)
+
 		desc := fmt.Sprintf("Browse all %d %s", lenAll(termMap), taxPlural)
 		ensureTaxonomyIndexCard(opts, taxKey, taxPlural, desc)
 
@@ -221,7 +241,7 @@ func RenderTaxonomies(opts TaxonomyOptions) error {
 			termPosts := make([]models.PostMetadata, len(posts))
 			copy(termPosts, posts)
 			slug := timeutil.Slugify(termName)
-			
+
 			termDesc := fmt.Sprintf("%d items in %s: %s", len(termPosts), taxPlural, termName)
 			hash := SocialCardHash(termName, termDesc)
 			cached := filepath.Join(cfg.CacheDir, "social-cards", hash+".webp")

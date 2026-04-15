@@ -42,6 +42,7 @@ func (service *postService) resolveNavigation(post models.PostMetadata) *navResu
 					Title:      meta.Title,
 					Link:       meta.Link,
 					Weight:     meta.Weight,
+					Section:    meta.Section,
 					DateObj:    meta.Date,
 					Taxonomies: meta.Taxonomies,
 				}
@@ -80,14 +81,14 @@ func (service *postService) resolveNavigation(post models.PostMetadata) *navResu
 			}
 		}
 	}
-	
+
 	taxonomies := make(map[string]models.TaxonomyData)
 	for taxKey, plural := range service.cfg.Taxonomies {
 		if termMap, ok := taxonomyMap[taxKey]; ok {
 			taxonomies[taxKey] = models.TaxonomyData{
 				Name:   taxKey,
 				Plural: plural,
-				Terms:  generators.BuildTaxonomyData(plural, termMap),
+				Terms:  generators.BuildTaxonomyData(service.cfg.ContentPrefix, plural, termMap),
 			}
 		}
 	}
@@ -189,6 +190,18 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 	relPath, _ := fspkg.SafeRel(service.cfg.ContentDir, path)
 	htmlRelPath, _, destPath := navigation.ComputePathVars(service.cfg.OutputDir, relPath)
 
+	// Calculate Section
+	section := ""
+	cleanRel := filepath.ToSlash(relPath)
+	cleanRel = strings.TrimPrefix(cleanRel, "./")
+	cleanRel = strings.TrimPrefix(cleanRel, "/")
+	parts := strings.Split(cleanRel, "/")
+	if len(parts) > 1 {
+		section = parts[0]
+	}
+	service.logger.Info("Section detected", "relPath", relPath, "section", section)
+	service.logger.Info("Calculating section for post", "relPath", relPath, "section", section)
+
 	var parseRes *ParsedMarkdownResult
 	if preParsed != nil {
 		parseRes = preParsed
@@ -212,6 +225,9 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 			return err
 		}
 	}
+
+	// Ensure section is set on the post early
+	parseRes.Post.Section = section
 
 	htmlContent := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
 	relPrefix := fspkg.GetRelativePrefix(htmlRelPath)
@@ -242,12 +258,12 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
 	}
 
-	blogPrefix := strings.Trim(service.cfg.BlogPrefix, "/")
-	blogIndexURL := "index.html"
-	if blogPrefix != "" {
-		blogIndexURL = "/" + blogPrefix + "/"
+	contentPrefix := strings.Trim(service.cfg.ContentPrefix, "/")
+	postsIndexURL := "index.html"
+	if contentPrefix != "" {
+		postsIndexURL = "/" + contentPrefix + "/"
 	} else if relPrefix != "" {
-		blogIndexURL = relPrefix + "index.html"
+		postsIndexURL = relPrefix + "index.html"
 	}
 
 	// Determine if this is a blog page or a custom layout page
@@ -258,9 +274,9 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 	} else if l, ok := parseRes.Metadata["Layout"].(string); ok {
 		layoutVal = strings.ToLower(l)
 	}
-	isBlog := layoutVal != "home"
-	pageContext := models.ContextBlog
-	if !isBlog {
+	isContent := layoutVal != "home"
+	pageContext := models.ContextPosts
+	if !isContent {
 		pageContext = models.ContextHome
 	}
 
@@ -273,9 +289,11 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		ItemTaxonomies: post.Taxonomies,
 		PrevPage:       nav.prev, NextPage: nav.next, RelativePrefix: relPrefix,
 		HasImages: parseRes.HasImages, Context: pageContext,
-		BlogPrefix:   service.cfg.BlogPrefix,
-		BlogIndexURL: blogIndexURL,
-		JSONLD:       service.generateJSONLD(post, cardImageURL),
+		ContentPrefix: contentPrefix,
+		PostsIndexURL: postsIndexURL,
+		JSONLD:        service.generateJSONLD(post, cardImageURL),
+		Section:       section,
+		IsCleanBuild:  service.ctx.IsCleanBuild,
 	})
 }
 
@@ -310,6 +328,7 @@ func (service *postService) commitPostCache(options commitPostCacheOptions) {
 		Title: options.post.Title, Date: options.post.DateObj, Taxonomies: options.post.Taxonomies,
 		ReadingTime: options.post.ReadingTime, Description: options.post.Description,
 		Link: options.post.Link, IsPinned: options.post.IsPinned, Weight: options.post.Weight,
+		Section: options.post.Section,
 		IsDraft: options.post.IsDraft, Meta: options.parseRes.Metadata, TOC: cacheTOC,
 		SSRInputHashes: options.parseRes.SSRHashes,
 		CardHash:       options.parseRes.FrontmatterHash,

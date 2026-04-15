@@ -27,11 +27,12 @@ const (
 	DefaultParserWorkers = 0
 	MaxParserWorkers     = 64
 
-	DefaultTheme      = "blog"
+	DefaultTheme      = "default"
 	DefaultThemeDir   = "themes"
 	DefaultContentDir = "content"
 	DefaultOutputDir  = "public"
 	DefaultCacheDir   = ".kosh-cache"
+	DefaultLayoutsDir = "layouts"
 
 	DefaultSocialCardAngle = 135
 )
@@ -62,7 +63,7 @@ type BuildOptions struct {
 	ImageWorkers         int    `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
 	WebPQuality          int    `yaml:"webpQuality"`   // WebP image compression quality (1-100, default: 80)
 	ParserWorkers        int    `yaml:"parserWorkers"` // Number of parallel parser workers (0 = auto, default: 0)
-	BlogPrefix           string `yaml:"blogPrefix"`    // Prefix for blog-related output (default: "")
+	ContentPrefix        string `yaml:"contentPrefix"` // Prefix for content-related output (default: "")
 	NoStaging            bool   `yaml:"-"`             // Disable atomic staging
 }
 
@@ -79,6 +80,7 @@ type PathConfig struct {
 	StaticDir   string `yaml:"staticDir"`
 	Logo        string `yaml:"logo"`       // Path to site logo (unified source for branding, PWA icons, etc.)
 	ContentDir  string `yaml:"contentDir"` // Content source directory (default: "content")
+	LayoutsDir  string `yaml:"layoutsDir"` // Site-level template overrides (default: "layouts")
 	OutputDir   string `yaml:"outputDir"`  // Build output directory (default: "public")
 	CacheDir    string `yaml:"cacheDir"`   // Cache directory (default: ".kosh-cache")
 }
@@ -124,14 +126,14 @@ func Load(args []string) *Config {
 func defaultConfig() *Config {
 	return &Config{
 		SiteConfig: SiteConfig{
-			Title:   "Kosh Blog",
+			Title:   "Kosh Site",
 			BaseURL: "",
 			Taxonomies: map[string]string{
 				"tags": "tags",
 			},
 			Navbar: models.NavbarIdentityConfig{
-				Home: models.NavbarContextConfig{Title: "Kosh Blog", BtnLabel: "Blogs"},
-				Blog: models.NavbarContextConfig{Title: "Kush Blogs", BtnLabel: "Home"},
+				Home:  models.NavbarContextConfig{Title: "Kosh Site", BtnLabel: "Posts"},
+				Posts: models.NavbarContextConfig{Title: "Posts", BtnLabel: "Home"},
 			},
 		},
 		BuildOptions: BuildOptions{
@@ -141,7 +143,7 @@ func defaultConfig() *Config {
 			ImageWorkers:         DefaultImageWorkers,
 			WebPQuality:          DefaultWebPQuality,
 			ParserWorkers:        DefaultParserWorkers,
-			BlogPrefix:           "",
+			ContentPrefix:        "",
 			NoStaging:            true,
 		},
 		PathConfig: PathConfig{
@@ -238,6 +240,9 @@ func resolveContentPaths(cfg *Config, isTesting bool) {
 		}
 	}
 
+	if cfg.LayoutsDir == "" {
+		cfg.LayoutsDir = DefaultLayoutsDir
+	}
 	if cfg.OutputDir == "" {
 		cfg.OutputDir = DefaultOutputDir
 	}
@@ -372,11 +377,23 @@ func (cfg *Config) GetLogo() string { return cfg.Logo }
 // GetBaseURL returns the configured base URL.
 func (cfg *Config) GetBaseURL() string { return cfg.BaseURL }
 
-// GetBlogPrefix returns the blog prefix path.
-func (cfg *Config) GetBlogPrefix() string { return cfg.BlogPrefix }
+// GetContentPrefix returns the content prefix path.
+func (cfg *Config) GetContentPrefix() string { return cfg.ContentPrefix }
+
+// GetTemplateDir returns the directory containing theme templates.
+func (cfg *Config) GetTemplateDir() string { return cfg.TemplateDir }
+
+// GetStaticDir returns the directory containing global static assets.
+func (cfg *Config) GetStaticDir() string { return cfg.StaticDir }
+
+// GetLayoutsDir returns the directory for site-level template overrides.
+func (cfg *Config) GetLayoutsDir() string { return cfg.LayoutsDir }
+
+// GetContentDir returns the directory containing markdown content.
+func (cfg *Config) GetContentDir() string { return cfg.ContentDir }
 
 // IsDevMode returns whether the build is running in development mode.
 func (cfg *Config) IsDevMode() bool { return cfg.IsDev }
 
-// GetNavbar returns the configured navbar identity branding.
+// GetNavbar returns the navbar branding configuration.
 func (cfg *Config) GetNavbar() models.NavbarIdentityConfig { return cfg.Navbar }

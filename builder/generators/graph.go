@@ -1,11 +1,11 @@
 package generators
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-
-	"encoding/hex"
+	"strings"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -59,8 +59,9 @@ type GraphOptions struct {
 	BaseURL    string
 	Posts      []models.PostMetadata
 	OutputPath string
-	Config     models.GraphConfig
-	SiteTitle  string
+	Config        models.GraphConfig
+	SiteTitle     string
+	ContentPrefix string
 }
 
 // GenerateGraph builds the knowledge graph JSON and writes it to disk.
@@ -95,13 +96,16 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 					slug := taxKey + "-" + timeutil.Slugify(t)
 					termID := "term-" + slug
 					if !nodeExists[termID] {
-						label := "#" + t
-						if taxKey != "tags" {
-							label = taxKey + ":" + t
+						label := taxKey + ":" + t
+						
+						prefix := strings.Trim(opts.ContentPrefix, "/")
+						if prefix != "" {
+							prefix = "/" + prefix
 						}
+
 						termNodes[termID] = models.GraphNode{
 							ID: termID, Label: label, Group: graphTagGroup, Value: graphTagValue,
-							URL: fmt.Sprintf("%s/blogs/%s/%s.html", baseURL, taxKey, timeutil.Slugify(t)),
+							URL: fmt.Sprintf("%s%s/%s/%s.html", baseURL, prefix, taxKey, timeutil.Slugify(t)),
 						}
 						nodeExists[termID] = true
 					}

@@ -315,19 +315,12 @@ func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.C
 
 	dateObj, _ := time.ParseInLocation("2006-01-02", date, time.UTC)
 
-	// Extract ALL taxonomies: check for "tags" and "categories" etc. based on config.
+	// Extract ALL taxonomies: check for tags, categories, etc. based on config.
 	taxonomies := make(map[string][]string)
-	// Default: Tags
-	if tags := timeutil.ExtractSliceFromMap(preparsedMetadata, "tags"); len(tags) > 0 {
-		taxonomies["tags"] = tags
-	}
-	// Categories
-	if cats := timeutil.ExtractSliceFromMap(preparsedMetadata, "categories"); len(cats) > 0 {
-		taxonomies["categories"] = cats
-	}
-	// Series
-	if series := timeutil.ExtractSliceFromMap(preparsedMetadata, "series"); len(series) > 0 {
-		taxonomies["series"] = series
+	for taxKey := range siteConfig.Taxonomies {
+		if terms := timeutil.ExtractSliceFromMap(preparsedMetadata, taxKey); len(terms) > 0 {
+			taxonomies[taxKey] = terms
+		}
 	}
 
 	bodyHash := ""

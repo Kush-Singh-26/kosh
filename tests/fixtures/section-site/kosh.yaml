@@ -1,0 +1,5 @@
+
+title: "Section Site"
+themeDir: "../../themes"
+contentDir: "content"
+outputDir: "public"

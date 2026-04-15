@@ -35,8 +35,8 @@ func TestLoad_Defaults(t *testing.T) {
 	cfg := Load([]string{})
 
 	// Check default values
-	if cfg.Title != "Kosh Blog" {
-		t.Errorf("Title = %q, want %q", cfg.Title, "Kosh Blog")
+	if cfg.Title != "Kosh Site" {
+		t.Errorf("Title = %q, want %q", cfg.Title, "Kosh Site")
 	}
 
 	if cfg.PostsPerPage != 10 {
@@ -48,8 +48,8 @@ func TestLoad_Defaults(t *testing.T) {
 		t.Errorf("ImageWorkers = %d, want 8", cfg.ImageWorkers)
 	}
 
-	if cfg.Theme != "blog" {
-		t.Errorf("Theme = %q, want %q", cfg.Theme, "blog")
+	if cfg.Theme != "default" {
+		t.Errorf("Theme = %q, want %q", cfg.Theme, "default")
 	}
 
 	if cfg.ContentDir == "" {
@@ -179,8 +179,8 @@ func TestLoad_InvalidYAML(t *testing.T) {
 	// Should not panic and should use defaults
 	cfg := Load([]string{})
 
-	if cfg.Title != "Kosh Blog" {
-		t.Errorf("Title = %q, want default %q", cfg.Title, "Kosh Blog")
+	if cfg.Title != "Kosh Site" {
+		t.Errorf("Title = %q, want default %q", cfg.Title, "Kosh Site")
 	}
 }
 

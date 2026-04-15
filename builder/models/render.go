@@ -9,7 +9,7 @@ type PageContext string
 
 const (
 	ContextHome PageContext = "home"
-	ContextBlog PageContext = "blog"
+	ContextPosts PageContext = "posts"
 )
 
 type Navbar struct {
@@ -44,6 +44,7 @@ type NavPage struct {
 // for template rendering. It is the primary data structure passed to HTML templates
 // for displaying post lists, navigation, and page content.
 type PostMetadata struct {
+	Section     string
 	Title       string
 	Link        string
 	Description string
@@ -98,8 +99,8 @@ type PageData struct {
 	IsGraphPage  bool
 	Context      PageContext
 	Navbar       Navbar
-	BlogPrefix   string
-	BlogIndexURL string
+	ContentPrefix   string
+	PostsIndexURL  string
 	Posts        []PostMetadata
 	PinnedPosts  []PostMetadata
 	Taxonomies   map[string]TaxonomyData // All aggregated taxonomies
@@ -113,6 +114,7 @@ type PageData struct {
 	Weight       int
 	ReadingTime  int
 	HasImages    bool
+	Section      string
 
 	// SiteData holds structured data from the data/ directory
 	SiteData map[string]any

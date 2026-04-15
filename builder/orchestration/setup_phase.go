@@ -107,7 +107,8 @@ func (engineInstance *Engine) checkSocialCardRebuild() bool {
 	if lastBuildTime.IsZero() {
 		return false
 	}
-	fileInfo, err := os.Stat("builder/generators/social.go")
+	socialGo := filepath.Join(engineInstance.Cfg.KoshSourceRoot, "builder/generators/social.go")
+	fileInfo, err := os.Stat(socialGo)
 	return err == nil && fileInfo.ModTime().After(lastBuildTime)
 }
 
@@ -127,7 +128,12 @@ func (engineInstance *Engine) initializeNativeRenderer(ctx context.Context) {
 
 // createOutputDirectories creates required output directories.
 func (engineInstance *Engine) createOutputDirectories() error {
-	for _, dir := range []string{"tags", "static/images/cards", "sitemap"} {
+	dirs := []string{"static/images/cards", "sitemap"}
+	for _, plural := range engineInstance.Cfg.Taxonomies {
+		dirs = append(dirs, plural)
+	}
+
+	for _, dir := range dirs {
 		if err := engineInstance.artifactSink.MkdirAll(filepath.Join(engineInstance.Cfg.OutputDir, dir)); err != nil {
 			engineInstance.Deps.Logger.Error("Failed to create directory", "dir", dir, "error", err)
 			return err
@@ -143,7 +149,7 @@ func (engineInstance *Engine) warmupFragmentCache(ctx context.Context) {
 	}
 
 	// Contexts and blocks that are site-wide and expensive to render first-time
-	commonContexts := []models.PageContext{models.ContextHome, models.ContextBlog}
+	commonContexts := []models.PageContext{models.ContextHome, models.ContextPosts}
 	commonBlocks := []string{"navbar-identity", "footer"}
 
 	// Mock data for warmup - PreparePageData will fill in the rest

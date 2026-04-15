@@ -110,6 +110,8 @@ type ManifestOptions struct {
 	BaseURL         string
 	SiteTitle       string
 	SiteDescription string
+	BackgroundColor string
+	ThemeColor      string
 	ShouldForceRebuild    bool
 	IsTesting       bool
 }
@@ -138,8 +140,8 @@ func GenerateManifest(opts ManifestOptions) error {
     "short_name": "{{ .Title }}",
     "start_url": "./",
     "display": "standalone",
-    "background_color": "#111113",
-    "theme_color": "#111113",
+    "background_color": "{{ .BackgroundColor }}",
+    "theme_color": "{{ .ThemeColor }}",
     "description": "{{ .Description }}",
     "icons": [
         {
@@ -182,13 +184,17 @@ func GenerateManifest(opts ManifestOptions) error {
 	}
 
 	data := struct {
-		Title       string
-		Description string
-		BaseURL     string
+		Title           string
+		Description     string
+		BaseURL         string
+		BackgroundColor string
+		ThemeColor      string
 	}{
-		Title:       siteTitle,
-		Description: siteDescription,
-		BaseURL:     baseURL,
+		Title:           siteTitle,
+		Description:     siteDescription,
+		BaseURL:         baseURL,
+		BackgroundColor: opts.BackgroundColor,
+		ThemeColor:      opts.ThemeColor,
 	}
 
 	return sink.WriteStream(manifestPath, func(w io.Writer) error {

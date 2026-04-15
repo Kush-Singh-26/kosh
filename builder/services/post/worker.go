@@ -2,6 +2,7 @@ package post
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 
 	"github.com/zeebo/xxh3"
@@ -141,6 +142,18 @@ func (service *postService) parseWorkerTaskLocal(file models.ScannedResource, wo
 		return
 	}
 
+	// Calculate Section
+	section := ""
+	cleanRel := filepath.ToSlash(relativePath)
+	cleanRel = strings.TrimPrefix(cleanRel, "./")
+	cleanRel = strings.TrimPrefix(cleanRel, "/")
+	parts := strings.Split(cleanRel, "/")
+	if len(parts) > 1 {
+		section = parts[0]
+	}
+	post.Section = section
+	parseResult.Post.Section = section
+
 	// 4. Social Card
 	service.queueSocialCard(SocialCardOptions{
 		RelativePath:       relativePath,
@@ -203,7 +216,7 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 	if !useCache && service.cache != nil {
 		newSearch := &models.SearchRecord{
 			Title: post.Title, NormalizedTitle: renderResult.SearchRecord.NormalizedTitle,
-			Content: renderResult.SearchRecord.Content,
+			Content:        renderResult.SearchRecord.Content,
 			Taxonomies:     renderResult.SearchRecord.Taxonomies,
 			NormalizedTaxs: renderResult.SearchRecord.NormalizedTaxs,
 		}
@@ -249,8 +262,8 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 		newMeta := &models.PostMeta{
 			PostID: postID, Path: relativePath, ModTime: file.Info.ModTime().UnixNano(),
 			ContentHash: renderResult.FrontmatterHash, BodyHash: file.BodyHash, Title: post.Title, Date: post.DateObj,
-			WordCount: int(file.Info.Size()), // Use WordCount as size for quick comparison
-			Taxonomies:  post.Taxonomies, ReadingTime: post.ReadingTime, Description: post.Description,
+			WordCount:  int(file.Info.Size()), // Use WordCount as size for quick comparison
+			Taxonomies: post.Taxonomies, ReadingTime: post.ReadingTime, Description: post.Description,
 			Link: post.Link, IsPinned: post.IsPinned, Weight: post.Weight, IsDraft: post.IsDraft,
 			Meta: renderResult.Metadata, TOC: renderResult.TOC, SSRInputHashes: ssrHashes,
 			CardHash: renderResult.FrontmatterHash, HasImages: renderResult.HasImages, MathExpressions: renderResult.MathExpressions,

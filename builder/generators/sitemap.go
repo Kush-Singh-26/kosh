@@ -19,8 +19,9 @@ type SitemapOptions struct {
 	Sink       fspkg.ArtifactSink
 	BaseURL    string
 	Posts      []models.PostMetadata
-	Taxonomies map[string]map[string][]models.PostMetadata
-	OutputPath string
+	Taxonomies      map[string]map[string][]models.PostMetadata
+	ContentPrefix   string
+	OutputPath      string
 }
 
 // GenerateSitemap builds and writes the sitemap XML.
@@ -62,8 +63,13 @@ func GenerateSitemap(opts SitemapOptions) (string, error) {
 				}
 			}
 
+			prefix := strings.Trim(opts.ContentPrefix, "/")
+			if prefix != "" {
+				prefix = "/" + prefix
+			}
+
 			urls = append(urls, models.URL{
-				Loc:     fmt.Sprintf("%s/blogs/%s/%s.html", baseURL, taxKey, url.PathEscape(timeutil.Slugify(term))),
+				Loc:     fmt.Sprintf("%s%s/%s/%s.html", baseURL, prefix, taxKey, url.PathEscape(timeutil.Slugify(term))),
 				LastMod: latest.Format("2006-01-02"),
 			})
 		}

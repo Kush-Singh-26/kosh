@@ -1,0 +1,7 @@
+
+title: "Override Site"
+theme: "blog"
+themeDir: "../../themes"
+layoutsDir: "layouts"
+contentDir: "content"
+outputDir: "public"

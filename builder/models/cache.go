@@ -21,6 +21,7 @@ type PostMeta struct {
 	HTMLHash       string // Only for large posts
 	InlineHTML     []byte // < 32KB posts stored inline
 	SSRInputHashes []string
+	Section        string
 	Title          string
 	Date           time.Time
 	Taxonomies     map[string][]string
@@ -65,7 +66,8 @@ type Dependencies struct {
 // It is used to quickly build navigation and post lists
 // without loading full PostMeta records from the cache.
 type PostListMeta struct {
-	Title  string
+	Section string
+	Title   string
 	Link   string
 	Weight int
 	Date   time.Time

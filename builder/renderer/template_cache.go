@@ -24,6 +24,7 @@ type templateCache struct {
 	mtimes      map[string]time.Time
 	hashes      map[string]string
 	templateDir string
+	layoutsDir  string
 	mu          sync.RWMutex // protects templates, mtimes, hashes, checkTTL
 	lastCheckNs atomic.Int64 // UnixNano of last TTL check; atomic for lock-free reads
 	checkTTL    time.Duration
@@ -35,7 +36,7 @@ var (
 	globalCacheMu sync.Mutex
 )
 
-func getGlobalCache(templateDir string, devMode bool) *templateCache {
+func getGlobalCache(templateDir, layoutsDir string, devMode bool) *templateCache {
 	globalCacheMu.Lock()
 	defer globalCacheMu.Unlock()
 
@@ -44,12 +45,13 @@ func getGlobalCache(templateDir string, devMode bool) *templateCache {
 		ttl = templateCacheDevTTL
 	}
 
-	if globalCache == nil || globalCache.templateDir != templateDir {
+	if globalCache == nil || globalCache.templateDir != templateDir || globalCache.layoutsDir != layoutsDir {
 		globalCache = &templateCache{
 			templates:   make(map[string]*template.Template),
 			mtimes:      make(map[string]time.Time),
 			hashes:      make(map[string]string),
 			templateDir: templateDir,
+			layoutsDir:  layoutsDir,
 			checkTTL:    ttl,
 		}
 	} else {
@@ -106,28 +108,49 @@ func (tc *templateCache) checkTemplatesOnDisk(fs afero.Fs) (bool, error) {
 	templateFiles := []string{"layout.html", "index.html", "404.html"}
 	changed := false
 
-	// Add partials to the list of files to check
-	partialsDir := filepath.Join(tc.templateDir, "partials")
-	if info, err := fs.Stat(partialsDir); err == nil && info.IsDir() {
-		// Walk partials to detect changes in snippets
-		err = afero.Walk(fs, partialsDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".html") {
+	// Helper to collect files from a directory
+	collectFiles := func(dir string, prefix string) {
+		if dir == "" {
+			return
+		}
+		partialsDir := filepath.Join(dir, "partials")
+		if info, err := fs.Stat(partialsDir); err == nil && info.IsDir() {
+			_ = afero.Walk(fs, partialsDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".html") {
+					return nil
+				}
+				rel, err := filepath.Rel(dir, path)
+				if err == nil {
+					templateFiles = append(templateFiles, rel)
+				}
 				return nil
-			}
-			rel, err := filepath.Rel(tc.templateDir, path)
-			if err == nil {
-				templateFiles = append(templateFiles, rel)
-			}
-			return nil
-		})
+			})
+		}
+		// Also add the main slots from this directory
+		for _, f := range []string{"layout.html", "index.html", "404.html", "home.html", "graph.html"} {
+			templateFiles = append(templateFiles, f)
+		}
 	}
+
+	collectFiles(tc.templateDir, "")
+	collectFiles(tc.layoutsDir, "")
 
 	// Use read lock to check metadata first
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
 
 	for _, fname := range templateFiles {
-		path := filepath.Join(tc.templateDir, fname)
+		// Attempt to load from layoutsDir first, then templateDir
+		var path string
+		if tc.layoutsDir != "" {
+			path = filepath.Join(tc.layoutsDir, fname)
+			if _, err := fs.Stat(path); err != nil {
+				path = filepath.Join(tc.templateDir, fname)
+			}
+		} else {
+			path = filepath.Join(tc.templateDir, fname)
+		}
+
 		info, err := fs.Stat(path)
 		if err != nil {
 			// If a previously tracked template is gone, that's a change

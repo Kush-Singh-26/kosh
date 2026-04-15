@@ -6,7 +6,7 @@ This document provides a comprehensive reference for the `kosh.yaml` configurati
 
 | Field | Description | Default |
 | :--- | :--- | :--- |
-| `title` | The global site title. | `Kosh Blog` |
+| `title` | The global site title. | `Kosh Site` |
 | `description` | Site description used for SEO and meta tags. | `A Kosh site` |
 | `baseURL` | The root URL for your site (no trailing slash). | `""` (root-relative) |
 
@@ -17,23 +17,23 @@ Kosh supports context-aware branding through the `navbar` section. This allows y
 ```yaml
 navbar:
   home:
-    title: "Kush Singh"
-    btnLabel: "Read Blogs"
-  blog:
-    title: "Kush Blogs"
+    title: "John Doe"
+    btnLabel: "My Work"
+  posts:
+    title: "Modern SSG"
     btnLabel: "Home"
 ```
 
 | Field | Description | Default |
 | :--- | :--- | :--- |
 | `logo` | Path to the site logo (relative to `static/`). | `""` |
-| `blogPrefix` | URL segment for the blog section. | `blogs` |
+| `contentPrefix` | URL segment for the main content section. | `blogs` |
 
 ## Build Options
 
 | Field | Description | Default |
 | :--- | :--- | :--- |
-| `theme` | Name of the theme to use (must exist in `themes/`). | `blog` |
+| `theme` | Name of the theme to use (must exist in `themes/`). | `default` |
 | `themeDir` | Directory containing themes. | `themes` |
 | `contentDir` | Directory containing markdown content. | `content` |
 | `staticDir` | Directory containing global static assets. | `static` |

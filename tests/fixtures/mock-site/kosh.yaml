@@ -1,6 +1,6 @@
 title: "Mock Site"
 baseURL: "https://example.com"
-theme: "blog"
+theme: "theme"
 themeDir: "../../themes"
 outputDir: "public"
 staticDir: "static"
@@ -8,7 +8,7 @@ contentDir: "content"
 imageWorkers: 2
 shouldCompressImages: true
 shouldMinifySVGs: true
-blogPrefix: "blogs"
+contentPrefix: "blogs"
 menu:
   - name: "Search"
     id: "search-btn"

@@ -8,6 +8,7 @@ import (
 
 	"github.com/fastschema/qjs"
 	"github.com/zeebo/xxh3"
+	"runtime"
 )
 
 const (
@@ -23,10 +24,12 @@ const (
 
 func main() {
 	// Read katex.min.js from the native package directory
-	jsPath := "C:/Users/KIIT0001/blogs/builder/renderer/native/katex.min.js"
+	_, filename, _, _ := runtime.Caller(0)
+	scriptDir := filepath.Dir(filename)
+	jsPath := filepath.Join(scriptDir, "../../builder/renderer/native/katex.min.js")
 	jsData, err := os.ReadFile(jsPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to read katex.min.js: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to read katex.min.js at %s: %v\n", jsPath, err)
 		os.Exit(1)
 	}
 
@@ -58,7 +61,7 @@ func main() {
 	binary.LittleEndian.PutUint64(header[katexSizeStart:katexSizeEnd], uint64(len(bytecode)))
 
 	// Get the output path from command line or use default
-	outputPath := "C:/Users/KIIT0001/blogs/builder/renderer/native/katex.bytecode"
+	outputPath := filepath.Join(scriptDir, "../../builder/renderer/native/katex.bytecode")
 	if len(os.Args) > 1 {
 		outputPath = os.Args[1]
 	}

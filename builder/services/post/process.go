@@ -268,8 +268,8 @@ func (service *postService) GetMetadataContext(ctx context.Context) (*ContentCon
 			Title: meta.Title, Link: meta.Link, Description: meta.Description,
 			IsPinned: meta.IsPinned, Weight: meta.Weight,
 			ReadingTime: meta.ReadingTime, DateObj: meta.Date,
-			IsDraft: meta.IsDraft,
-			Taxonomies:  meta.Taxonomies,
+			IsDraft:    meta.IsDraft,
+			Taxonomies: meta.Taxonomies,
 		}
 
 		// Taxonomy extraction logic removed: directly utilizing meta.Taxonomies from cache.
@@ -376,7 +376,7 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			}
 		}
 
-		blogIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
+		postsIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
 
 		// Determine node type and layout
 		layoutVal := strings.ToLower(renderTaskInstance.file.Layout)
@@ -387,7 +387,7 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			}
 		}
 
-		pageContext := models.ContextBlog
+		pageContext := models.ContextPosts
 		if layoutVal == "home" {
 			pageContext = models.ContextHome
 		}
@@ -398,12 +398,14 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			TabTitle: post.Title + " | " + service.cfg.Title, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
 			TOC: renderTaskInstance.parseResult.TOC, Config: service.cfg, ReadingTime: post.ReadingTime,
 			Taxonomies: nav.taxonomies,
-			PrevPage: prev, NextPage: next, RelativePrefix: relPrefix,
+			PrevPage:   prev, NextPage: next, RelativePrefix: relPrefix,
 			HasImages: renderTaskInstance.parseResult.HasImages, Context: pageContext,
-			BlogPrefix:   service.cfg.BlogPrefix,
-			BlogIndexURL: blogIndexURL,
-			SiteData:     service.cfg.SiteData,
-			JSONLD:       service.generateJSONLD(post, cardImageURL),
+			ContentPrefix: service.cfg.ContentPrefix,
+			PostsIndexURL: postsIndexURL,
+			SiteData:      service.cfg.SiteData,
+			JSONLD:        service.generateJSONLD(post, cardImageURL),
+			Section:       post.Section,
+			IsCleanBuild:  service.ctx.IsCleanBuild,
 		}); err != nil {
 			return err
 		}

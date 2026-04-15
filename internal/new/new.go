@@ -10,9 +10,13 @@ import (
 )
 
 const (
-	maxSlugLength   = 100
-	newPostFileMode = 0644
+	maxSlugLength      = 100
+	newContentFileMode = 0644
 )
+
+type ConfigGetter interface {
+	GetContentDir() string
+}
 
 // sanitizeSlug converts a title to a safe filename slug
 func sanitizeSlug(title string) string {
@@ -39,15 +43,10 @@ func sanitizeSlug(title string) string {
 	return slug
 }
 
-// Run creates a new blog post file
-func Run(args []string) {
-	RunFs(afero.NewOsFs(), args)
-}
-
-// RunFs creates a new blog post file using the provided filesystem
+// RunFs creates a new content file using the provided filesystem
 func RunFs(fs afero.Fs, args []string) {
 	if len(args) < 1 {
-		slog.Info("Usage: kosh new \"My New Post Title\"")
+		slog.Info("Usage: kosh new \"My New Content Title\"")
 		return
 	}
 
@@ -58,7 +57,15 @@ func RunFs(fs afero.Fs, args []string) {
 		slog.Error("Title produces empty slug after sanitization")
 		return
 	}
-	filename := fmt.Sprintf("content/%s.md", slug)
+
+	contentDir := "content"
+	// Basic try-load of kosh.yaml to find ContentDir
+	// We don't want to fail if not in a kosh project, but we want to be helpful
+	if data, err := afero.ReadFile(fs, "kosh.yaml"); err == nil {
+		contentDir = parseContentDirFromYAML(string(data))
+	}
+
+	filename := fmt.Sprintf("%s/%s.md", contentDir, slug)
 
 	// Basic Frontmatter template
 	content := fmt.Sprintf(`---
@@ -83,10 +90,33 @@ Start writing here...
 		return
 	}
 
-	if err := afero.WriteFile(fs, filename, []byte(content), newPostFileMode); err != nil {
+	if err := afero.WriteFile(fs, filename, []byte(content), newContentFileMode); err != nil {
 		slog.Error("Error creating file", "error", err)
 		return
 	}
 
 	slog.Info("Created", "path", filename)
+}
+
+func parseContentDirFromYAML(data string) string {
+	for _, line := range strings.Split(data, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "contentDir:") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				dir := strings.TrimSpace(parts[1])
+				dir = strings.Trim(dir, "\"")
+				dir = strings.Trim(dir, "'")
+				if dir != "" {
+					return dir
+				}
+			}
+		}
+	}
+	return "content"
+}
+
+// Run creates a new content file in the local filesystem
+func Run(args []string) {
+	RunFs(afero.NewOsFs(), args)
 }

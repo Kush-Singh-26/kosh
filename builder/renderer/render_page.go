@@ -80,8 +80,14 @@ func (r *Renderer) RenderPage(path string, data models.PageData) error {
 	// Determine if this is the root index file
 	isRoot := false
 	if (data.RelativePrefix == "" || data.RelativePrefix == "./") && strings.HasSuffix(filepath.Base(path), "index.html") {
-		// Only consider it root if it's not in a subfolder like /blogs/
-		if !strings.Contains(path, "blogs") && !strings.Contains(path, "tags") {
+		// Only consider it root if it's NOT inside a content section or taxonomy directory
+		contentPrefix := strings.Trim(data.ContentPrefix, "/")
+		isContentSubpath := contentPrefix != "" && strings.Contains(path, "/"+contentPrefix+"/")
+		
+		// For taxonomies, we check if it's in a plural folder. 
+		// This is a bit tricky without full tree awareness here, 
+		// but checking for relative prefix emptiness is a strong signal for root.
+		if !isContentSubpath && !data.IsTagsIndex {
 			isRoot = true
 		}
 	}

@@ -268,14 +268,14 @@ func Run(opts ServerOptions) {
 		}
 
 		rawPath := request.URL.Path
-		blogPrefix := GetBaseURLPrefix(baseURL)
+		contentPrefix := GetBaseURLPrefix(baseURL)
 		effectiveStaticDir := cfg.staticDir
 		var normalizedPath string
 
 		if strings.HasPrefix(rawPath, "/static/") {
-			// Always prioritize consolidated blog assets for /static/ requests
+			// Always prioritize consolidated site assets for /static/ requests
 			normalizedPath = normalizeRequestPath(rawPath, baseURL)
-		} else if HasPathPrefix(rawPath, blogPrefix) {
+		} else if HasPathPrefix(rawPath, contentPrefix) {
 			normalizedPath = normalizeRequestPath(rawPath, baseURL)
 		} else if cfg.rootDirectory != "" {
 			effectiveStaticDir = cfg.rootDirectory
@@ -290,7 +290,7 @@ func Run(opts ServerOptions) {
 		if err != nil {
 			slog.Error("Routing failed - invalid path",
 				"rawPath", rawPath,
-				"blogPrefix", blogPrefix,
+				"contentPrefix", contentPrefix,
 				"effectiveStaticDir", effectiveStaticDir,
 				"normalizedPath", normalizedPath,
 				"error", err)
@@ -300,7 +300,7 @@ func Run(opts ServerOptions) {
 
 		slog.Debug("Routing request",
 			"rawPath", rawPath,
-			"blogPrefix", blogPrefix,
+			"contentPrefix", contentPrefix,
 			"rootDirectory", cfg.rootDirectory,
 			"effectiveStaticDir", effectiveStaticDir,
 			"normalizedPath", normalizedPath,
@@ -310,7 +310,7 @@ func Run(opts ServerOptions) {
 			writer:         writer,
 			request:        request,
 			staticDir:      effectiveStaticDir,
-			blogOutputDir:  cfg.staticDir,
+			engineOutputDir: cfg.staticDir,
 			fullPath:       fullPath,
 			normalizedPath: normalizedPath,
 			isDev:          cfg.isDev,
@@ -353,13 +353,13 @@ func waitForBuildCompletion(writer http.ResponseWriter, request *http.Request) b
 }
 
 type fileRequestOptions struct {
-	writer         http.ResponseWriter
-	request        *http.Request
-	staticDir      string // Directory being served for this request
-	blogOutputDir  string // The blog's output directory
-	fullPath       string
-	normalizedPath string
-	isDev          bool
+	writer          http.ResponseWriter
+	request         *http.Request
+	staticDir       string // Directory being served for this request
+	engineOutputDir string // The SSG's output directory
+	fullPath        string
+	normalizedPath  string
+	isDev           bool
 }
 
 type responseHeaderOptions struct {
@@ -401,10 +401,10 @@ func handleFileRequest(opts fileRequestOptions) {
 			}
 		}
 
-		// Inject live-reload script if serving HTML from rootDirectory (not the blog output)
+		// Inject live-reload script if serving HTML from rootDirectory (not the SSG output)
 		isRootHTML := strings.HasSuffix(strings.ToLower(opts.fullPath), ".html") &&
 			opts.staticDir != "" &&
-			fspkg.NormalizePath(opts.staticDir) != fspkg.NormalizePath(opts.blogOutputDir)
+			fspkg.NormalizePath(opts.staticDir) != fspkg.NormalizePath(opts.engineOutputDir)
 
 		if isRootHTML {
 			slog.Debug("Injecting live-reload script into root HTML", "path", opts.normalizedPath)

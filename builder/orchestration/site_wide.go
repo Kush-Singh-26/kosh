@@ -127,11 +127,12 @@ type MetadataRenderOptions struct {
 
 func (engineInstance *Engine) generateSitemap(options MetadataRenderOptions) error {
 	_, err := generators.GenerateSitemap(generators.SitemapOptions{
-		Sink:       engineInstance.artifactSink,
-		BaseURL:    engineInstance.Cfg.BaseURL,
-		Posts:      options.AllPosts,
-		Taxonomies: options.TaxonomyMap,
-		OutputPath: filepath.Join(engineInstance.Cfg.OutputDir, "sitemap/sitemap.xml"),
+		Sink:          engineInstance.artifactSink,
+		BaseURL:       engineInstance.Cfg.BaseURL,
+		Posts:         options.AllPosts,
+		Taxonomies:    options.TaxonomyMap,
+		ContentPrefix: engineInstance.Cfg.ContentPrefix,
+		OutputPath:    filepath.Join(engineInstance.Cfg.OutputDir, "sitemap/sitemap.xml"),
 	})
 	if err != nil {
 		engineInstance.Deps.Logger.Error("Failed to generate sitemap", "error", err)
@@ -191,12 +192,13 @@ func (engineInstance *Engine) generateSearchIndex(options MetadataRenderOptions)
 
 func (engineInstance *Engine) generateGraph(options MetadataRenderOptions) error {
 	_, _, err := generators.GenerateGraph(generators.GraphOptions{
-		Sink:       engineInstance.artifactSink,
-		BaseURL:    engineInstance.Cfg.BaseURL,
-		Posts:      options.AllPosts,
-		OutputPath: filepath.Join(engineInstance.Cfg.OutputDir, "graph.json"),
-		Config:     engineInstance.Cfg.Features.Generators.Graph,
-		SiteTitle:  engineInstance.Cfg.Title,
+		Sink:          engineInstance.artifactSink,
+		BaseURL:       engineInstance.Cfg.BaseURL,
+		Posts:         options.AllPosts,
+		OutputPath:    filepath.Join(engineInstance.Cfg.OutputDir, "graph.json"),
+		Config:        engineInstance.Cfg.Features.Generators.Graph,
+		SiteTitle:     engineInstance.Cfg.Title,
+		ContentPrefix: engineInstance.Cfg.ContentPrefix,
 	})
 	if err != nil {
 		engineInstance.Deps.Logger.Error("Failed to generate knowledge graph data", "error", err)
@@ -215,6 +217,7 @@ func (engineInstance *Engine) generateGraph(options MetadataRenderOptions) error
 		Config:         engineInstance.Cfg,
 		Taxonomies:     options.TaxonomyMapSummarized, // Use summarized for template
 		RelativePrefix: "",
+		ContentPrefix:  engineInstance.Cfg.ContentPrefix,
 		IsGraphPage:    true,
 		Context:        models.ContextHome,
 	}); err != nil {

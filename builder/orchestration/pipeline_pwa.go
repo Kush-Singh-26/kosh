@@ -54,6 +54,8 @@ func (engineInstance *Engine) generateManifest(shouldForce bool) error {
 		BaseURL:            engineInstance.Cfg.BaseURL,
 		SiteTitle:          engineInstance.Cfg.Title,
 		SiteDescription:    engineInstance.Cfg.Description,
+		BackgroundColor:    engineInstance.Cfg.SocialCards.Background,
+		ThemeColor:         engineInstance.Cfg.SocialCards.Background, // Use same background for theme color for consistency
 		ShouldForceRebuild: shouldForce,
 		IsTesting:          engineInstance.Ctx.IsTesting,
 	})

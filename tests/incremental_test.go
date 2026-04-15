@@ -34,7 +34,7 @@ themeDir: "../../themes"
 outputDir: "public"
 staticDir: "static"
 contentDir: "content"
-blogPrefix: "blogs"
+contentPrefix: "blogs"
 `
 	err = os.WriteFile(filepath.Join(mockSiteDir, "kosh.yaml"), []byte(koshYaml), 0644)
 	require.NoError(t, err)
@@ -103,8 +103,8 @@ Body content`
 	assert.Contains(t, string(updatedHtml), "Updated Title")
 	assert.NotContains(t, string(updatedHtml), "Initial Title")
 
-	// Check if tags index was updated (tags/index.html)
-	tagsIndexPath := filepath.Join(cfg.OutputDir, "tags", "index.html")
+	// Check if tags index was updated (blogs/tags/index.html)
+	tagsIndexPath := filepath.Join(cfg.OutputDir, "blogs", "tags", "index.html")
 	tagsIndexHtml, err := os.ReadFile(tagsIndexPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(tagsIndexHtml), "new")

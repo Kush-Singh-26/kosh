@@ -2,7 +2,7 @@
 
 # Kosh
 
-Kosh is a high-performance static site generator written in Go for blogs. It focuses on fast incremental rebuilds, safe atomic publishing, modern frontend bundling, server-side rendering for math/diagrams, and a Go+WASM search engine.
+Kosh is a high-performance static site generator written in Go. It focuses on fast incremental rebuilds, safe atomic publishing, modern frontend bundling, server-side rendering for math/diagrams, and a Go+WASM search engine.
 
 ## Current State
 
@@ -50,7 +50,7 @@ kosh build
 kosh serve --dev
 kosh clean
 kosh clean --cache
-kosh new "My Post"
+kosh new "Title"
 go run scripts/rebuild_search.go
 kosh version --info
 ```
@@ -90,13 +90,13 @@ Minimal `kosh.yaml`:
 title: "My Site"
 description: "A Kosh site"
 baseURL: "https://example.com"
-theme: "blog"
+theme: "default"
 navbar:
   home:
-    title: "Kush Singh"
-    btnLabel: "Read Blogs"
-  blog:
-    title: "Kush Blogs"
+    title: "John Doe"
+    btnLabel: "John Doe"
+  posts:
+    title: "Project Blog"
     btnLabel: "Home"
 
 features:
@@ -145,7 +145,7 @@ Typical project layout:
 content/
 static/
 themes/
-  blog/
+  default/
     templates/
     static/
 kosh.yaml
@@ -242,12 +242,12 @@ git push origin v1.4.2
 
 The canonical theme path is the Kosh submodule:
 
-- `C:\Users\KIIT0001\blogs\themes\blog`
+- `C:\Users\KIIT0001\blogs\themes\default`
 
 Two local junctions point to the same files so edits are shared instantly:
 
-- `C:\Users\KIIT0001\kosh-theme-blog`
-- `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src\themes\blog`
+- `C:\Users\KIIT0001\kosh-theme-default`
+- `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src\themes\default`
 
 If you ever need to recreate the junctions:
 

@@ -46,7 +46,7 @@ type NavbarContextConfig struct {
 
 type NavbarIdentityConfig struct {
 	Home NavbarContextConfig `yaml:"home"`
-	Blog NavbarContextConfig `yaml:"blog"`
+	Posts NavbarContextConfig `yaml:"posts"`
 }
 
 // TemplateConfig defines the strictly-typed subset of project configuration
@@ -61,7 +61,11 @@ type TemplateConfig interface {
 	GetSiteTitle() string
 	GetLogo() string
 	GetBaseURL() string
-	GetBlogPrefix() string
+	GetContentPrefix() string
+	GetTemplateDir() string
+	GetStaticDir() string
+	GetLayoutsDir() string
+	GetContentDir() string
 	IsDevMode() bool
 	GetSiteData() map[string]any
 	GetNavbar() NavbarIdentityConfig

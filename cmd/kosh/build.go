@@ -111,7 +111,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 		maybePrintPhaseTimings()
 		maybeWritePhaseTimings()
 
-		watcher, err := watch.New([]string{"content", engine.Cfg.TemplateDir, engine.Cfg.StaticDir, "kosh.yaml"}, func(event watch.Event) {
+		watcher, err := watch.New([]string{"content", engine.Cfg.TemplateDir, engine.Cfg.LayoutsDir, engine.Cfg.StaticDir, "kosh.yaml"}, func(event watch.Event) {
 			orchestration.DevLogRebuild("Change detected: " + event.Name)
 			timeutil.ResetPhaseTracking()
 			engine.BuildChanged(ctx, event.Name, event.Op)

@@ -84,6 +84,7 @@ func CreateSampleConfig() *config.Config {
 			Description: "A test site",
 			BaseURL:     "https://example.com",
 			Author:      models.AuthorConfig{Name: "Test Author", URL: "https://author.example.com"},
+			Taxonomies:  map[string]string{"tags": "tags"},
 		},
 		PathConfig: config.PathConfig{
 			ContentDir:  "content",

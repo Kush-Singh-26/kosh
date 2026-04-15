@@ -8,8 +8,8 @@ import (
 
 var newCmd = &cobra.Command{
 	Use:   "new <title>",
-	Short: "Create a new blog post",
-	Long:  `Create a new blog post with the given title. The post will be created in the content directory.`,
+	Short: "Create a new content file",
+	Long:  `Create a new markdown content file with the given title. The file will be created in the configured content directory.`,
 	Args:  cobra.MinimumNArgs(1),
 	Run:   runNew,
 }

@@ -117,9 +117,9 @@ func pageWindow(pageIdx, postsPerPage, totalPosts int) (int, int) {
 }
 
 func pagePaths(cfg *config.Config, sink models.ArtifactSink, pageIdx int) (string, string, string) {
-	// For now, pagination remains at the root or blog prefix as configured.
+	// For now, pagination remains at the root or content prefix as configured.
 	// In the future, every section will have its own pagination.
-	prefix := strings.Trim(cfg.BlogPrefix, "/")
+	prefix := strings.Trim(cfg.ContentPrefix, "/")
 	if prefix != "" {
 		prefix = "/" + prefix
 	}
@@ -137,7 +137,7 @@ func pagePaths(cfg *config.Config, sink models.ArtifactSink, pageIdx int) (strin
 }
 
 func buildPaginator(cfg *config.Config, pageIdx, totalPages int) models.Paginator {
-	prefix := strings.Trim(cfg.BlogPrefix, "/")
+	prefix := strings.Trim(cfg.ContentPrefix, "/")
 	if prefix != "" {
 		prefix = "/" + prefix
 	}
@@ -189,21 +189,21 @@ func RenderPagination(opts PaginationOptions) error {
 				curPinned = opts.PinnedPosts
 			}
 
-			context := models.ContextBlog
+			context := models.ContextPosts
 			// If this is the main site index (root), use Home context
 			if pageIdx == firstPageIndex && (relPath == "" || relPath == "index.html" || relPath == "./") {
 				context = models.ContextHome
 			}
 
 			relPrefix := fspkg.GetRelativePrefix(relPath)
-			blogIndexURL := navigation.ResolveSectionIndex(relPath)
+			postsIndexURL := navigation.ResolveSectionIndex(relPath)
 			if err := render.RenderIndex(destPath, models.PageData{
 				Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
 				Paginator: paginator, Config: cfg, Context: context,
-				RelativePrefix: relPrefix, BlogPrefix: cfg.BlogPrefix,
-				BlogIndexURL: blogIndexURL,
+				RelativePrefix: relPrefix, ContentPrefix: cfg.ContentPrefix,
+				PostsIndexURL: postsIndexURL,
 				Taxonomies:   opts.Taxonomies,
 				SiteData:     cfg.SiteData,
 			}); err != nil {

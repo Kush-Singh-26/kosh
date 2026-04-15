@@ -20,10 +20,14 @@ func (m MockConfig) GetSocial() models.SocialCardsConfig {
 	return models.SocialCardsConfig{Gradient: []string{"#000", "#fff"}}
 }
 func (m MockConfig) GetFeatures() models.FeaturesConfig     { return models.FeaturesConfig{} }
-func (m MockConfig) GetSiteTitle() string                   { return "Kosh Blog" }
+func (m MockConfig) GetSiteTitle() string                   { return "Kosh Site" }
 func (m MockConfig) GetLogo() string                        { return "" }
 func (m MockConfig) GetBaseURL() string                     { return "" }
-func (m MockConfig) GetBlogPrefix() string                  { return "" }
+func (m MockConfig) GetContentPrefix() string               { return "" }
+func (m MockConfig) GetTemplateDir() string                 { return "" }
+func (m MockConfig) GetStaticDir() string                   { return "" }
+func (m MockConfig) GetLayoutsDir() string                  { return "" }
+func (m MockConfig) GetContentDir() string                  { return "" }
 func (m MockConfig) IsDevMode() bool                        { return false }
 func (m MockConfig) GetSiteData() map[string]any            { return nil }
 func (m MockConfig) GetNavbar() models.NavbarIdentityConfig { return models.NavbarIdentityConfig{} }
@@ -89,7 +93,7 @@ func (r *Renderer) PrepareAssets(data *models.PageData) {
 
 	// Robust Context Detection: Ensure root index always uses Home identity
 	if data.Context == "" || (data.IsIndex && data.RelativePrefix == "") {
-		// If at root and not explicitly a blog sub-page, use Home
+		// If at root and not explicitly a content sub-page, use Home
 		if data.RelativePrefix == "" || data.RelativePrefix == "./" {
 			data.Context = models.ContextHome
 		}
@@ -135,7 +139,7 @@ func (r *Renderer) PreparePageData(data *models.PageData) {
 func setupNavbar(data *models.PageData, logger *slog.Logger) {
 	cfg := data.Config
 	navCfg := cfg.GetNavbar()
-	blogPrefix := strings.Trim(cfg.GetBlogPrefix(), "/")
+	contentPrefix := strings.Trim(cfg.GetContentPrefix(), "/")
 
 	// Determine context: enforce home context for root index and graph pages
 	ctx := data.Context
@@ -145,7 +149,7 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 		} else if data.IsGraphPage {
 			ctx = models.ContextHome
 		} else {
-			ctx = models.ContextBlog
+			ctx = models.ContextPosts
 		}
 	}
 
@@ -154,18 +158,18 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 		data.Navbar.Title = navCfg.Home.Title
 		data.Navbar.BtnLabel = navCfg.Home.BtnLabel
 		data.Navbar.TitleURL = "/"
-		if blogPrefix != "" {
-			data.Navbar.BtnURL = "/" + blogPrefix + "/"
+		if contentPrefix != "" {
+			data.Navbar.BtnURL = "/" + contentPrefix + "/"
 		} else {
-			data.Navbar.BtnURL = "/blogs/"
+			data.Navbar.BtnURL = "/"
 		}
 	} else {
-		data.Navbar.Title = navCfg.Blog.Title
-		data.Navbar.BtnLabel = navCfg.Blog.BtnLabel
-		if blogPrefix != "" {
-			data.Navbar.TitleURL = "/" + blogPrefix + "/"
+		data.Navbar.Title = navCfg.Posts.Title
+		data.Navbar.BtnLabel = navCfg.Posts.BtnLabel
+		if contentPrefix != "" {
+			data.Navbar.TitleURL = "/" + contentPrefix + "/"
 		} else {
-			data.Navbar.TitleURL = "/blogs/"
+			data.Navbar.TitleURL = "/"
 		}
 		data.Navbar.BtnURL = "/"
 	}

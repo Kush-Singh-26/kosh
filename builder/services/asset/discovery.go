@@ -185,7 +185,7 @@ func (service *assetService) getStaticSourceDirs() []string {
 
 	themeDir := service.cfg.StaticDir
 	if themeDir == "" {
-		themeDir = "themes/blog/static"
+		themeDir = filepath.Join(service.cfg.ThemeDir, service.cfg.Theme, "static")
 	}
 	if _, err := os.Stat(themeDir); err == nil {
 		dirs = append(dirs, themeDir)

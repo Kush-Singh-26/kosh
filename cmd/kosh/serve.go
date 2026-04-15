@@ -103,7 +103,7 @@ func runServe(cmd *cobra.Command, args []string) {
 		}
 
 		async.FireAndForget(ctx, slog.Default(), "watcher", func() error {
-			watchDirs := []string{engine.Cfg.ContentDir, engine.Cfg.TemplateDir, engine.Cfg.StaticDir, "kosh.yaml"}
+			watchDirs := []string{engine.Cfg.ContentDir, engine.Cfg.TemplateDir, engine.Cfg.LayoutsDir, engine.Cfg.StaticDir, "kosh.yaml"}
 
 			watcher, err := watch.New(watchDirs, func(event watch.Event) {
 				orchestration.DevLogChange(event.Name, "watch")

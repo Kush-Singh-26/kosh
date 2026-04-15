@@ -153,6 +153,7 @@ func (setup *buildSetup) initServices() {
 		Minify:      setup.config.ShouldMinify,
 		Sink:        nil,
 		TemplateDir: setup.config.TemplateDir,
+		LayoutsDir:  setup.config.LayoutsDir,
 		DevMode:     setup.config.IsDev,
 		Logger:      setup.logger,
 		Cache:       setup.fragmentAdapter,

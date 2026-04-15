@@ -86,7 +86,7 @@ func (service *postService) prepareNavigationInfo(files []models.ScannedResource
 			taxonomies[taxKey] = models.TaxonomyData{
 				Name:   taxKey,
 				Plural: plural,
-				Terms:  generators.BuildTaxonomyData(plural, termMap),
+				Terms:  generators.BuildTaxonomyData(service.cfg.ContentPrefix, plural, termMap),
 			}
 		}
 	}

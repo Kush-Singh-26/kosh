@@ -14,10 +14,12 @@ const (
 )
 
 const defaultKoshYaml = `# Site Configuration
-title: "My Kosh Site"
-description: "A new site built with Kosh"
+title: "My New Site"
+description: "A general-purpose static site built with Kosh"
 baseURL: "http://localhost:2604"
 language: "en"
+
+# contentPrefix: "posts" # Uncomment to put content in a sub-directory
 
 author:
   name: "Author Name"
@@ -28,14 +30,14 @@ menu:
   - name: "Home"
     url: "/"
   - name: "Tags"
-    url: "/blogs/tags/index.html"
+    url: "/tags/index.html"
 
 # Features
 postsPerPage: 10
-compressImages: true
+shouldCompressImages: true
 
 # Theme Configuration
-theme: "blog"
+theme: "default"
 themeDir: "themes"
 # templateDir and staticDir will default to themes/<theme>/templates and themes/<theme>/static
 `

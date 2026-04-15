@@ -86,14 +86,14 @@ func TestGenerateGraph(t *testing.T) {
 	if !ok {
 		t.Error("Tag 'go' node missing")
 	} else {
-		if tagGo.Label != "#Go" {
-			t.Errorf("Expected label #Go, got %s", tagGo.Label)
+		if tagGo.Label != "tags:Go" {
+			t.Errorf("Expected label tags:Go, got %s", tagGo.Label)
 		}
 		if tagGo.Group != 2 {
 			t.Errorf("Expected group 2 for tag, got %d", tagGo.Group)
 		}
-		if !strings.Contains(tagGo.URL, "/blogs/tags/go.html") {
-			t.Errorf("Expected tag URL to contain /blogs/tags/go.html, got %s", tagGo.URL)
+		if !strings.Contains(tagGo.URL, "/tags/go.html") {
+			t.Errorf("Expected tag URL to contain /tags/go.html, got %s", tagGo.URL)
 		}
 	}
 
