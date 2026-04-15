@@ -26,6 +26,7 @@ const (
 	schemaVersionSize = 4
 )
 
+// Migration defines a database schema migration step.
 type Migration struct {
 	FromVersion uint32
 	ToVersion   uint32
@@ -76,6 +77,7 @@ var registeredMigrations = []Migration{
 	},
 }
 
+// RunMigrations executes all pending database migrations.
 func RunMigrations(db *bbolt.DB, currentVersion uint32, logger *slog.Logger) (uint32, error) {
 	if logger == nil {
 		logger = slog.Default()

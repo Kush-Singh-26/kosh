@@ -25,7 +25,7 @@ func TestRenderer_ReloadTemplates(t *testing.T) {
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ define "content" }}{{ .Title }}{{ end }}`), 0644)
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "index.html"), []byte(`{{ define "content" }}Index: {{ .Title }}{{ end }}`), 0644)
 
-	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
+	r := NewWithFs(Options{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
 
 	if r.Layout == nil {
 		t.Fatal("Layout template should not be nil")
@@ -52,7 +52,7 @@ func TestRenderer_ReloadTemplates_Missing(t *testing.T) {
 	_ = fs.MkdirAll(templateDir, 0755)
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ define "content" }}Layout{{ end }}`), 0644)
 
-	r := NewWithFs(RendererOptions{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
+	r := NewWithFs(Options{SourceFs: fs, Compress: false, Sink: sink, TemplateDir: templateDir, DevMode: false, Logger: logger})
 
 	if r.Layout == nil {
 		t.Fatal("Layout template should not be nil")
@@ -112,3 +112,4 @@ func TestRenderer_FuncMap_Slugify(t *testing.T) {
 		t.Errorf("Expected hello-world, got %s", buf.String())
 	}
 }
+

@@ -329,10 +329,10 @@ func TestAssetService_Build_ImageCompression(t *testing.T) {
 		t.Fatalf("failed to create image file: %v", err)
 	}
 	if err := png.Encode(f, img); err != nil {
-		f.Close()
+		_ = f.Close()
 		t.Fatalf("failed to encode png: %v", err)
 	}
-	f.Close()
+	_ = f.Close() // best-effort; write already succeeded
 
 	cfg := &config.Config{
 		PathConfig: config.PathConfig{

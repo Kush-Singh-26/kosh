@@ -139,10 +139,10 @@ func LevenshteinDistance(str1, str2 string) int {
 
 			// Minimum of insert, delete, replace
 			insert := curr[j-1] + 1
-			delete := prev[j] + 1
+			del := prev[j] + 1
 			replace := prev[j-1] + cost
 
-			curr[j] = min3(insert, delete, replace)
+			curr[j] = min3(insert, del, replace)
 		}
 
 		// Swap slices

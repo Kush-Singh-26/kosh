@@ -26,7 +26,7 @@ func init() {
 	versionCmd.Flags().BoolVar(&versionInfo, "info", false, "Show Kosh build information")
 }
 
-func runVersion(cmd *cobra.Command, args []string) {
+func runVersion(_ *cobra.Command, _ []string) {
 	printVersionInfo()
 }
 

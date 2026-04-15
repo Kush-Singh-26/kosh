@@ -420,20 +420,22 @@ func (s *transformState) handleMath(n ast.Node, kind ast.NodeKind) (ast.WalkStat
 	var typeStr string
 	var displayMode bool
 
-	if kind == passthrough.KindPassthroughInline {
+	switch kind {
+	case passthrough.KindPassthroughInline:
 		m := n.(*passthrough.PassthroughInline)
 		val := string(m.Segment.Value(s.source))
-		if strings.HasPrefix(val, "$") && strings.HasSuffix(val, "$") {
+		switch {
+		case strings.HasPrefix(val, "$") && strings.HasSuffix(val, "$"):
 			latex = val[1 : len(val)-1]
-		} else if strings.HasPrefix(val, `\(`) && strings.HasSuffix(val, `\)`) {
+		case strings.HasPrefix(val, `\(`) && strings.HasSuffix(val, `\)`):
 			latex = val[2 : len(val)-2]
-		} else {
+		default:
 			latex = val
 		}
 		latex = strings.TrimSpace(latex)
 		typeStr = "math-inline"
 		displayMode = false
-	} else {
+	case passthrough.KindPassthroughBlock:
 		m := n.(*passthrough.PassthroughBlock)
 		var lines strings.Builder
 		l := m.Lines().Len()
@@ -443,11 +445,12 @@ func (s *transformState) handleMath(n ast.Node, kind ast.NodeKind) (ast.WalkStat
 		}
 		val := lines.String()
 		valTrimmed := strings.TrimSpace(val)
-		if strings.HasPrefix(valTrimmed, "$$") && strings.HasSuffix(valTrimmed, "$$") {
+		switch {
+		case strings.HasPrefix(valTrimmed, "$$") && strings.HasSuffix(valTrimmed, "$$"):
 			latex = valTrimmed[2 : len(valTrimmed)-2]
-		} else if strings.HasPrefix(valTrimmed, `\[`) && strings.HasSuffix(valTrimmed, `\]`) {
+		case strings.HasPrefix(valTrimmed, `\[`) && strings.HasSuffix(valTrimmed, `\]`):
 			latex = valTrimmed[2 : len(valTrimmed)-2]
-		} else {
+		default:
 			latex = valTrimmed
 		}
 		latex = strings.TrimSpace(latex)

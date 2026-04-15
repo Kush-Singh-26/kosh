@@ -108,7 +108,7 @@ func (service *assetService) syncStaticAssets(ctx context.Context, backgroundCtx
 	copyGroup, copyContext := errgroup.WithContext(ctx)
 	copyGroup.SetLimit(assetCopyGroupLimit)
 
-	workerWg := service.setupAssetWorker(assetChan, copyGroup, copyContext)
+	workerWg := service.setupAssetWorker(copyContext, assetChan, copyGroup)
 
 	walkerWg := sync.WaitGroup{}
 	discoveryGroup, discoveryContext := errgroup.WithContext(ctx)
@@ -233,7 +233,7 @@ func (service *assetService) getStaticSourceDirs() []string {
 	return dirs
 }
 
-func (service *assetService) setupAssetWorker(assetChan <-chan assetTask, group *errgroup.Group, ctx context.Context) *sync.WaitGroup {
+func (service *assetService) setupAssetWorker(ctx context.Context, assetChan <-chan assetTask, group *errgroup.Group) *sync.WaitGroup {
 	waitGroupInstance := &sync.WaitGroup{}
 	waitGroupInstance.Add(1)
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{

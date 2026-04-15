@@ -12,16 +12,16 @@ type captureHandler struct {
 	messages []string
 }
 
-func (h *captureHandler) Handle(ctx context.Context, r slog.Record) error {
+func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.messages = append(h.messages, r.Message)
 	return nil
 }
 
-func (h *captureHandler) WithAttrs(attrs []slog.Attr) slog.Handler { return h }
-func (h *captureHandler) WithGroup(name string) slog.Handler       { return h }
-func (h *captureHandler) Enabled(ctx context.Context, level slog.Level) bool {
+func (h *captureHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *captureHandler) WithGroup(_ string) slog.Handler      { return h }
+func (h *captureHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= slog.LevelWarn
 }
 

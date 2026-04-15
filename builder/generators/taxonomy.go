@@ -103,7 +103,7 @@ func startTaxonomyCardPool(opts TaxonomyOptions, workers int) *async.WorkerPool[
 	return pool
 }
 
-func ensureTaxonomyIndexCard(opts TaxonomyOptions, taxonomy, plural, desc string) {
+func ensureTaxonomyIndexCard(opts TaxonomyOptions, _ string, plural, desc string) {
 	cfg := opts.Cfg
 	sink := opts.Sink
 	render := opts.Render
@@ -156,10 +156,10 @@ func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxono
 	if prefix != "" {
 		indexPath = fmt.Sprintf("%s/%s/index.html", prefix, cleanPlural)
 	}
-	postsIndexURL := navigation.ResolveSectionIndex(indexPath)
+	sectionIndexURL := navigation.ResolveSectionIndex(indexPath)
 
 	return render.RenderPage(filepath.Join(cfg.OutputDir, indexPath), models.PageData{
-		Title: fmt.Sprintf("All %s", plural), IsTagsIndex: true, Context: models.ContextPosts,
+		Title: fmt.Sprintf("All %s", plural), IsTaxonomyIndex: true, Context: models.ContextSection,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 		Permalink: cfg.BaseURL + "/" + indexPath,
 		Image:     fmt.Sprintf("%s/static/images/cards/%s/index.webp", cfg.BaseURL, plural),
@@ -173,7 +173,7 @@ func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxono
 		},
 		Weight:         0,
 		RelativePrefix: "../../", ContentPrefix: cfg.ContentPrefix,
-		PostsIndexURL: postsIndexURL,
+		SectionIndexURL: sectionIndexURL,
 	})
 }
 
@@ -187,9 +187,9 @@ func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, p
 	if prefix != "" {
 		termPath = fmt.Sprintf("%s/%s/%s.html", prefix, cleanPlural, slug)
 	}
-	postsIndexURL := navigation.ResolveSectionIndex(termPath)
+	sectionIndexURL := navigation.ResolveSectionIndex(termPath)
 	return render.RenderPage(filepath.Join(cfg.OutputDir, termPath), models.PageData{
-		Title: termName, IsIndex: true, Context: models.ContextPosts, Posts: posts,
+		Title: termName, IsIndex: true, Context: models.ContextSection, Posts: posts,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 		Permalink: fmt.Sprintf("%s/%s", cfg.BaseURL, termPath),
 		Image:     fmt.Sprintf("%s/static/images/cards/%s/%s.webp", cfg.BaseURL, plural, slug),
@@ -203,7 +203,7 @@ func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, p
 		},
 		Weight:         0,
 		RelativePrefix: "../../", ContentPrefix: cfg.ContentPrefix,
-		PostsIndexURL: postsIndexURL,
+		SectionIndexURL: sectionIndexURL,
 	})
 }
 

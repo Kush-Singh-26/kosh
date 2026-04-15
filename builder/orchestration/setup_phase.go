@@ -143,13 +143,13 @@ func (engineInstance *Engine) createOutputDirectories() error {
 }
 
 // warmupFragmentCache pre-renders common UI fragments to populate caches before workers start.
-func (engineInstance *Engine) warmupFragmentCache(ctx context.Context) {
+func (engineInstance *Engine) warmupFragmentCache(_ context.Context) {
 	if engineInstance.Deps.Render == nil {
 		return
 	}
 
 	// Contexts and blocks that are site-wide and expensive to render first-time
-	commonContexts := []models.PageContext{models.ContextHome, models.ContextPosts}
+	commonContexts := []models.PageContext{models.ContextHome, models.ContextSection}
 	commonBlocks := []string{"navbar-identity", "footer"}
 
 	// Mock data for warmup - PreparePageData will fill in the rest

@@ -11,7 +11,7 @@ import (
 func (service *postService) queueSocialCard(options SocialCardOptions) {
 	relativePath := options.RelativePath
 	result := options.Result
-	htmlRelativePath := options.HtmlRelativePath
+	htmlRelativePath := options.HTMLRelativePath
 	shouldForce := options.ForceSocialRebuild
 	cardPool := options.CardPool
 

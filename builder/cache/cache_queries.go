@@ -43,7 +43,7 @@ func (manager *Manager) Stats() (*core.CacheStats, error) {
 			stats.LastGC = int64(binary.BigEndian.Uint64(data))
 		}
 
-		return postsBucket.ForEach(func(key, value []byte) error {
+		return postsBucket.ForEach(func(_, value []byte) error {
 			var post core.PostMeta
 			if err := core.Decode(value, &post); err == nil {
 				if len(post.InlineHTML) > 0 {

@@ -56,7 +56,8 @@ func TestNormalizeRequestPath(t *testing.T) {
 }
 
 func TestBrotliHandler_RangeRequest(t *testing.T) {
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	w := httptest.NewRecorder()
+	next := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("some data"))
 	})
 
@@ -65,7 +66,6 @@ func TestBrotliHandler_RangeRequest(t *testing.T) {
 	req := httptest.NewRequest("GET", "/video.mp4", nil)
 	req.Header.Set("Accept-Encoding", "br")
 	req.Header.Set("Range", "bytes=0-100")
-	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
 
@@ -75,14 +75,14 @@ func TestBrotliHandler_RangeRequest(t *testing.T) {
 }
 
 func TestBrotliHandler_NoBrotliSupport(t *testing.T) {
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	w := httptest.NewRecorder()
+	next := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("some data"))
 	})
 
 	handler := compressionHandler(next)
 
 	req := httptest.NewRequest("GET", "/index.html", nil)
-	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
 

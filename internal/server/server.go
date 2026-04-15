@@ -73,8 +73,8 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// ServerOptions configures the development server.
-type ServerOptions struct {
+// Options configures the development server.
+type Options struct {
 	Ctx           context.Context
 	Args          []string
 	OutputDir     string
@@ -165,7 +165,7 @@ func startReloadBroadcast(ctx context.Context, reloadEvents chan string) {
 	})
 }
 
-func buildServeConfig(opts ServerOptions, host, port string) serveConfig {
+func buildServeConfig(opts Options, host, port string) serveConfig {
 	return serveConfig{
 		addr:             fmt.Sprintf("%s:%s", host, port),
 		host:             host,
@@ -203,7 +203,7 @@ func logServeStatus(reporter ui.Reporter, addr, host string) {
 }
 
 // Run starts the development HTTP server.
-func Run(opts ServerOptions) {
+func Run(opts Options) {
 	ctx := opts.Ctx
 	args := opts.Args
 	baseURL := opts.BaseURL
@@ -215,18 +215,9 @@ func Run(opts ServerOptions) {
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
 	_ = mime.AddExtensionType(".bin", "application/octet-stream")
 
-	watchDirs := []string{cfg.staticDir}
-	if cfg.rootDirectory != "" {
-		watchDirs = append(watchDirs, cfg.rootDirectory)
-	}
-
-	// Watch site-root assets directory if it exists
 	assetsDir := "assets"
 	if cfg.rootDirectory != "" {
 		assetsDir = filepath.Join(cfg.rootDirectory, "assets")
-	}
-	if _, err := os.Stat(assetsDir); err == nil {
-		watchDirs = append(watchDirs, assetsDir)
 	}
 
 	var exclusions []string
@@ -272,17 +263,19 @@ func Run(opts ServerOptions) {
 		effectiveStaticDir := cfg.staticDir
 		var normalizedPath string
 
-		if strings.HasPrefix(rawPath, "/static/") {
+		switch {
+		case strings.HasPrefix(rawPath, "/static/"):
 			// Always prioritize consolidated site assets for /static/ requests
 			normalizedPath = normalizeRequestPath(rawPath, baseURL)
-		} else if HasPathPrefix(rawPath, contentPrefix) {
+		case HasPathPrefix(rawPath, contentPrefix):
 			normalizedPath = normalizeRequestPath(rawPath, baseURL)
-		} else if cfg.rootDirectory != "" {
+		case cfg.rootDirectory != "":
 			effectiveStaticDir = cfg.rootDirectory
 			normalizedPath = rawPath // Already starts with /
-		} else {
+		default:
 			normalizedPath = normalizeRequestPath(rawPath, baseURL)
 		}
+		//nolint:gocritic
 
 		request.URL.Path = normalizedPath
 
@@ -307,21 +300,25 @@ func Run(opts ServerOptions) {
 			"fullPath", fullPath)
 
 		handleFileRequest(fileRequestOptions{
-			writer:         writer,
-			request:        request,
-			staticDir:      effectiveStaticDir,
+			writer:          writer,
+			request:         request,
+			staticDir:       effectiveStaticDir,
 			engineOutputDir: cfg.staticDir,
-			fullPath:       fullPath,
-			normalizedPath: normalizedPath,
-			isDev:          cfg.isDev,
+			fullPath:        fullPath,
+			normalizedPath:  normalizedPath,
+			isDev:           cfg.isDev,
 		})
 	})
 
 	startReloadBroadcast(ctx, reloadEvents)
 
 	httpServer := &http.Server{
-		Addr:    cfg.addr,
-		Handler: loggingMiddleware(recoveryMiddleware(mux)),
+		Addr:           cfg.addr,
+		Handler:        loggingMiddleware(recoveryMiddleware(mux)),
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 20,
 	}
 
 	registerServerShutdown(ctx, httpServer, cfg.shutdownTimeout)
@@ -330,12 +327,13 @@ func Run(opts ServerOptions) {
 
 	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 		slog.Error("HTTP server error", "error", err)
-		os.Exit(1)
+		stopWatcher()
+		os.Exit(1) //nolint:gocritic
 	}
 	orchestration.DevLogSuccess("Server stopped")
 }
 
-func waitForBuildCompletion(writer http.ResponseWriter, request *http.Request) bool {
+func waitForBuildCompletion(_ http.ResponseWriter, request *http.Request) bool {
 	buildDone := waitForBuild()
 	if buildDone == nil {
 		return true
@@ -464,13 +462,14 @@ func setResponseHeaders(opts responseHeaderOptions) {
 	filename := filepath.Base(opts.normalizedPath)
 
 	// Set Cache-Control
-	if isHashedAsset(filename) {
+	switch {
+	case isHashedAsset(filename):
 		opts.writer.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", cacheMaxAgeHashed))
-	} else if opts.isDev || opts.fileInfo.IsDir() || strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".wasm") || strings.HasSuffix(filename, ".bin") {
+	case opts.isDev, opts.fileInfo.IsDir(), strings.HasSuffix(filename, ".html"), strings.HasSuffix(filename, ".wasm"), strings.HasSuffix(filename, ".bin"):
 		opts.writer.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
 		opts.writer.Header().Set("Pragma", "no-cache")
 		opts.writer.Header().Set("Expires", "0")
-	} else {
+	default:
 		opts.writer.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", cacheMaxAgeDefault))
 	}
 
@@ -490,9 +489,4 @@ func setResponseHeaders(opts responseHeaderOptions) {
 			opts.writer.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		}
 	}
-}
-
-func renderError(writer http.ResponseWriter, status int, msg string) {
-	writer.WriteHeader(status)
-	_, _ = writer.Write([]byte(msg))
 }

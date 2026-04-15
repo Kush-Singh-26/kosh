@@ -45,7 +45,7 @@ func init() {
 	serveCmd.Flags().BoolVar(&serveNoStaging, "no-staging", false, "Disable atomic staging (overwrites output in place)")
 }
 
-func runServe(cmd *cobra.Command, args []string) {
+func runServe(cmd *cobra.Command, _ []string) {
 	ctx := cmd.Context()
 
 	var filteredArgs []string
@@ -117,7 +117,7 @@ func runServe(cmd *cobra.Command, args []string) {
 			return nil
 		})
 
-		server.Run(server.ServerOptions{
+		server.Run(server.Options{
 			Ctx:           ctx,
 			Args:          filteredArgs,
 			OutputDir:     engine.Cfg.OutputDir,
@@ -144,7 +144,7 @@ func runServe(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 
-		server.Run(server.ServerOptions{
+		server.Run(server.Options{
 			Ctx:           ctx,
 			Args:          filteredArgs,
 			OutputDir:     cfg.OutputDir,
@@ -156,3 +156,4 @@ func runServe(cmd *cobra.Command, args []string) {
 		})
 	}
 }
+

@@ -88,7 +88,7 @@ func (d *dirSink) MkdirAll(path string) error {
 	return os.MkdirAll(filepath.Join(d.outputDir, path), 0755)
 }
 
-func (d *dirSink) Register(path string)             {}
+func (d *dirSink) Register(_ string)                {}
 func (d *dirSink) GetWrittenFiles() map[string]bool { return nil }
 func (d *dirSink) GetOutputDir() string             { return d.outputDir }
 func (d *dirSink) SetMtime(path string, mtime time.Time) error {

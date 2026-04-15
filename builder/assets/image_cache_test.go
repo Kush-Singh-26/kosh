@@ -13,17 +13,17 @@ func TestImageCache_LRUBehavior(t *testing.T) {
 	k2 := imageCacheKey{path: "key2", size: 100, modTime: 2}
 	k3 := imageCacheKey{path: "key3", size: 100, modTime: 3}
 
-	cache.set(k1, []byte("value1"))
-	cache.set(k2, []byte("value2"))
-	cache.set(k3, []byte("value3"))
+	cache.Set(k1, []byte("value1"))
+	cache.Set(k2, []byte("value2"))
+	cache.Set(k3, []byte("value3"))
 
-	if _, ok := cache.get(k1); !ok {
+	if _, ok := cache.Get(k1); !ok {
 		t.Error("key1 should exist")
 	}
 
 	for i := 4; i <= 10; i++ {
 		ki := imageCacheKey{path: "key", size: int64(i), modTime: int64(i)}
-		cache.set(ki, []byte("value"))
+		cache.Set(ki, []byte("value"))
 	}
 
 	t.Log("LRU behavior test passed - no panic")
@@ -37,8 +37,8 @@ func TestImageCache_ConcurrentAccess(t *testing.T) {
 		go func(id int) {
 			for j := range 100 {
 				key := imageCacheKey{path: "key", size: int64(id), modTime: int64(j % 10)}
-				cache.set(key, []byte("data"))
-				cache.get(key)
+				cache.Set(key, []byte("data"))
+				cache.Get(key)
 			}
 			done <- true
 		}(i)
@@ -78,3 +78,4 @@ func TestImageCache_LRUWithRealLibrary(t *testing.T) {
 
 	t.Log("Real LRU library test passed")
 }
+

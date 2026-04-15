@@ -70,7 +70,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -170,3 +170,4 @@ func TestBuild_WithRealCache(t *testing.T) {
 		t.Error("Expected posts in cache after rebuild")
 	}
 }
+

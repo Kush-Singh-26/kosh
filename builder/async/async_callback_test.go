@@ -114,7 +114,7 @@ func TestFireAndForgetWithCallback_Panic(t *testing.T) {
 			defer wg.Done()
 			panic("test panic")
 		},
-		OnError: func(err error) {
+		OnError: func(_ error) {
 			callbackCalled = true
 		},
 	})
@@ -148,7 +148,7 @@ func TestFireAndForgetWithCallback_CallbackRunsAfterError(t *testing.T) {
 			wg.Done()
 			return expectedErr
 		},
-		OnError: func(err error) {
+		OnError: func(_ error) {
 			mu.Lock()
 			executionOrder = append(executionOrder, "callback")
 			mu.Unlock()

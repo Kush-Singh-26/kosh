@@ -76,7 +76,7 @@ func TestLoad_Defaults(t *testing.T) {
 	if !cfg.Features.Generators.Graph.IsEnabled {
 		t.Error("Graph generator should be enabled by default")
 	}
-	if !cfg.Features.Generators.Graph.ShowsTags {
+	if !cfg.Features.Generators.Graph.ShowsTaxonomies {
 		t.Error("Graph showsTags should be enabled by default")
 	}
 

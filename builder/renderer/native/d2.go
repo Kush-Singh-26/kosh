@@ -185,7 +185,7 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 		Ruler:  ruler,
 	}
 
-	compileOpts.LayoutResolver = func(engine string) (d2graph.LayoutGraph, error) {
+	compileOpts.LayoutResolver = func(_ string) (d2graph.LayoutGraph, error) {
 		return layout, nil
 	}
 

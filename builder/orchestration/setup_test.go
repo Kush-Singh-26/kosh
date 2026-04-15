@@ -40,7 +40,7 @@ func TestVerifyThemeFs_Detached(t *testing.T) {
 	}
 }
 
-func TestVerifyThemeFs_Invalid(t *testing.T) {
+func TestVerifyThemeFs_Invalid(_ *testing.T) {
 	fs := afero.NewMemMapFs()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	cfg := &config.Config{

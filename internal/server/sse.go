@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 const (
 	clientSliceCap      = 16
 	clientChannelBuffer = 5
+	maxSSEClients       = 1000
 )
 
 // clientSlicePool stores *[]chan<- string slices for broadcast snapshots.
@@ -21,11 +23,18 @@ var clientSlicePool = sync.Pool{
 }
 
 var (
-	clientMu sync.Mutex
-	clients  = make(map[chan string]struct{})
+	clientMu    sync.Mutex
+	clientCount atomic.Int32
+	clients     = make(map[chan string]struct{})
 )
 
 func handleSSE(w http.ResponseWriter, r *http.Request) {
+	// Check client limit before proceeding
+	if clientCount.Load() >= maxSSEClients {
+		http.Error(w, "Server at capacity", http.StatusServiceUnavailable)
+		return
+	}
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -39,11 +48,13 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	clientChan := make(chan string, clientChannelBuffer)
 	clientMu.Lock()
 	clients[clientChan] = struct{}{}
+	clientCount.Add(1)
 	clientMu.Unlock()
 
 	defer func() {
 		clientMu.Lock()
 		delete(clients, clientChan)
+		clientCount.Add(-1)
 		clientMu.Unlock()
 	}()
 
@@ -68,7 +79,8 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func BroadcastReload(target, path string) {
+// BroadcastReload sends reload events to connected SSE clients.
+func BroadcastReload(target string, _ string) {
 	// Wait for active build to complete before broadcasting for 'site' or 'all'
 	if target != "root" {
 		if waitCh := waitForBuild(); waitCh != nil {

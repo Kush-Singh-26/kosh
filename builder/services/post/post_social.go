@@ -28,15 +28,14 @@ func (service *postService) generateSocialCard(task socialCardTask) {
 			_, err := io.Copy(writer, cachedFile)
 			return err
 		})
-		if errWrite == nil {
-			if service.cache != nil {
-				_ = service.cache.SetSocialCardHash(task.path, task.frontmatterHash)
-			}
-			service.renderer.RegisterFile(task.cardDestPath)
-			return
-		} else {
+		if errWrite != nil {
 			service.logger.Warn("Failed to copy cached social card", "path", task.cardDestPath, "error", errWrite)
+			return
 		}
+		if service.cache != nil {
+			_ = service.cache.SetSocialCardHash(task.path, task.frontmatterHash)
+		}
+		service.renderer.RegisterFile(task.cardDestPath)
 	}
 
 	logoPath := service.cfg.Logo

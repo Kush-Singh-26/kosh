@@ -66,8 +66,8 @@ type WatchCoordinator interface {
 	TriggerSearchRegeneration()
 }
 
-// IncrementalDependencies groups optional services used by the incremental manager.
-type IncrementalDependencies struct {
+// Dependencies groups optional services used by the incremental manager.
+type Dependencies struct {
 	Cache    svcCache.Service
 	Post     post.Service
 	Render   render.Service
@@ -79,7 +79,7 @@ type ManagerDependencies struct {
 	Cfg            *config.Config
 	Logger         *slog.Logger
 	SourceFs       afero.Fs
-	Deps           IncrementalDependencies
+	Deps           Dependencies
 	Builder        SiteBuilder
 	Search         SearchManager
 	MdPool         *sync.Pool
@@ -91,7 +91,7 @@ type Manager struct {
 	cfg            *config.Config
 	logger         *slog.Logger
 	sourceFs       afero.Fs
-	deps           IncrementalDependencies
+	deps           Dependencies
 	builder        SiteBuilder
 	search         SearchManager
 	mdPool         *sync.Pool
@@ -181,7 +181,7 @@ func (m *Manager) HandleAssetChange(ctx context.Context, path string) {
 }
 
 // HandleOtherChange handles other file changes
-func (m *Manager) HandleOtherChange(ctx context.Context, path string) {
+func (m *Manager) HandleOtherChange(ctx context.Context, _ string) {
 	m.builder.LockBuild()
 	defer m.builder.UnlockBuild()
 
@@ -203,7 +203,7 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 		return
 	}
 
-	relPath, htmlRelPath, cleanHtmlRelPath, err := m.ResolveContentPaths(path)
+	relPath, htmlRelPath, cleanHTMLRelPath, err := m.ResolveContentPaths(path)
 	if err != nil {
 		m.logger.Error("Path resolution failed", "error", err)
 		return
@@ -235,8 +235,8 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 			Source:           source,
 			Path:             path,
 			RelPath:          relPath,
-			CleanHtmlRelPath: cleanHtmlRelPath,
-			HtmlRelPath:      htmlRelPath,
+			CleanHTMLRelPath: cleanHTMLRelPath,
+			HTMLRelPath:      htmlRelPath,
 			MdPool:           m.mdPool,
 			Cfg:              m.cfg,
 			NativeRenderer:   m.nativeRenderer,
@@ -325,8 +325,8 @@ func (m *Manager) ResolveContentPaths(path string) (string, string, string, erro
 	relPath = fspkg.NormalizePath(relPath)
 
 	htmlRelPath := fspkg.MarkdownToHTMLPath(relPath)
-	cleanHtmlRelPath := htmlRelPath
-	return relPath, htmlRelPath, cleanHtmlRelPath, nil
+	cleanHTMLRelPath := htmlRelPath
+	return relPath, htmlRelPath, cleanHTMLRelPath, nil
 }
 
 // ComputePostHashes calculates frontmatter and body hashes for change detection.

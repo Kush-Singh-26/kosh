@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/andybalholm/brotli"
@@ -32,8 +33,6 @@ var searchWasmBr []byte
 
 //go:embed wasm/wasm_exec.js
 var wasmExecJs []byte
-
-const wasmExecJsHash = "8d0c8b9a3f4e6d1c"
 
 // embeddedWasmHash is the hash of the raw (decompressed) embedded WASM.
 // It mirrors SearchWasmHash to keep legacy tests stable.
@@ -129,11 +128,17 @@ func writeWasmOutputs(sink fspkg.ArtifactSink, wasmRelativePath, brotliRelativeP
 	return true
 }
 
-var wasmExecJsDeployed bool
+var (
+	wasmExecJsDeployed bool
+	wasmExecJsMu       sync.Mutex
+)
 
 // DeployWasmExec deploys the Go WASM runtime stub to static/js/
 // Returns true if deployment was successful or already present
 func DeployWasmExec(sink fspkg.ArtifactSink) bool {
+	wasmExecJsMu.Lock()
+	defer wasmExecJsMu.Unlock()
+
 	if wasmExecJsDeployed {
 		return true
 	}
@@ -158,12 +163,16 @@ func DeployWasmExec(sink fspkg.ArtifactSink) bool {
 
 // ResetWasmExecDeployment resets the deployment flag for testing
 func ResetWasmExecDeployment() {
+	wasmExecJsMu.Lock()
+	defer wasmExecJsMu.Unlock()
 	wasmExecJsDeployed = false
 }
 
 // ResetWasmExecForBuild resets the deployment flag at the start of each build.
 // This ensures wasm_exec.js is deployed even in incremental dev builds.
 func ResetWasmExecForBuild() {
+	wasmExecJsMu.Lock()
+	defer wasmExecJsMu.Unlock()
 	wasmExecJsDeployed = false
 }
 

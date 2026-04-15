@@ -62,7 +62,7 @@ func TestRunMigrations_V1ToV2(t *testing.T) {
 			FromVersion: 1,
 			ToVersion:   2,
 			Description: "Test migration V1 to V2",
-			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
+			Migrate: func(_ *bbolt.Tx, _ *slog.Logger) error {
 				migrationRun = true
 				return nil
 			},
@@ -120,7 +120,7 @@ func TestCacheSchema_MigrationPath(t *testing.T) {
 			FromVersion: 1,
 			ToVersion:   2,
 			Description: "Migration 1->2",
-			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
+			Migrate: func(_ *bbolt.Tx, _ *slog.Logger) error {
 				migrationOrder = append(migrationOrder, 2)
 				return nil
 			},
@@ -129,7 +129,7 @@ func TestCacheSchema_MigrationPath(t *testing.T) {
 			FromVersion: 2,
 			ToVersion:   3,
 			Description: "Migration 2->3",
-			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
+			Migrate: func(_ *bbolt.Tx, _ *slog.Logger) error {
 				migrationOrder = append(migrationOrder, 3)
 				return nil
 			},
@@ -138,7 +138,7 @@ func TestCacheSchema_MigrationPath(t *testing.T) {
 			FromVersion: 3,
 			ToVersion:   4,
 			Description: "Migration 3->4",
-			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
+			Migrate: func(_ *bbolt.Tx, _ *slog.Logger) error {
 				migrationOrder = append(migrationOrder, 4)
 				return nil
 			},
@@ -193,7 +193,7 @@ func TestCacheSchema_BackwardCompatibility(t *testing.T) {
 			FromVersion: 0,
 			ToVersion:   1,
 			Description: "Initialize schema",
-			Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
+			Migrate: func(_ *bbolt.Tx, _ *slog.Logger) error {
 				migrationRan = true
 				return nil
 			},

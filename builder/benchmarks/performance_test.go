@@ -98,7 +98,7 @@ This is post number %d.
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// We need fresh services for each run or at least reset them
-		rnd := renderer.NewWithFs(renderer.RendererOptions{
+		rnd := renderer.NewWithFs(renderer.Options{
 			SourceFs:    fs,
 			Compress:    false,
 			Sink:        sink,
@@ -162,3 +162,4 @@ This is post number %d.
 		}
 	}
 }
+

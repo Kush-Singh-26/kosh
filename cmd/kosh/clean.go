@@ -1,8 +1,8 @@
 package main
 
 import (
-	"os"
 	"github.com/spf13/cobra"
+	"os"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
@@ -30,7 +30,7 @@ func init() {
 	cleanCmd.Flags().BoolVar(&cleanNoStaging, "no-staging", false, "Disable atomic staging (overwrites output in place)")
 }
 
-func runClean(cmd *cobra.Command, args []string) {
+func runClean(_ *cobra.Command, _ []string) {
 	mode := "Warm Rebuild"
 	if cleanCache {
 		mode = "Cold Rebuild"

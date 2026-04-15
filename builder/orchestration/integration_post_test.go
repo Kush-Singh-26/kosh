@@ -98,7 +98,7 @@ Content 3
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -167,3 +167,4 @@ Content 3
 		}
 	}
 }
+

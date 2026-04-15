@@ -28,12 +28,12 @@ type Rss struct {
 
 // Channel represents the RSS channel metadata and items.
 type Channel struct {
-	Title         string      `xml:"title"`
-	Link          string      `xml:"link"`
-	Description   string      `xml:"description"`
-	LastBuildDate string      `xml:"lastBuildDate,omitempty"`
-	Image         *RSSImage   `xml:"image,omitempty"`
-	Items         []Item      `xml:"item"`
+	Title         string    `xml:"title"`
+	Link          string    `xml:"link"`
+	Description   string    `xml:"description"`
+	LastBuildDate string    `xml:"lastBuildDate,omitempty"`
+	Image         *RSSImage `xml:"image,omitempty"`
+	Items         []Item    `xml:"item"`
 }
 
 // RSSImage represents the channel logo.
@@ -49,7 +49,7 @@ type Item struct {
 	Link           string   `xml:"link"`
 	Description    string   `xml:"description"`
 	PubDate        string   `xml:"pubDate"`
-	Guid           string   `xml:"guid"`
+	GUID           string   `xml:"guid"`
 	Author         string   `xml:"author,omitempty"`
 	Categories     []string `xml:"category,omitempty"`
 	ContentEncoded string   `xml:"content:encoded,omitempty"`

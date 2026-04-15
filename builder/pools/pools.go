@@ -15,9 +15,12 @@ const (
 	bytesPerMiB             = 1024 * bytesPerKiB
 	byteSlicePoolDefaultCap = 10 * bytesPerKiB
 	byteSlicePoolMaxCap     = 5 * bytesPerMiB
-	MaxImageResizeWidth     = 1200
-	MaxImageResizeHeight    = 1600
-	RGBABytesPerPixel       = 4
+	// MaxImageResizeWidth is the maximum width for resized images.
+	MaxImageResizeWidth = 1200
+	// MaxImageResizeHeight is the maximum height for resized images.
+	MaxImageResizeHeight = 1600
+	// RGBABytesPerPixel is the number of bytes per RGBA pixel.
+	RGBABytesPerPixel = 4
 )
 
 // BufferPool manages a pool of reusable bytes.Buffer objects.

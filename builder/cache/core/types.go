@@ -1,4 +1,4 @@
-// Package cache provides a BoltDB + content-addressed filesystem cache for Kosh SSG.
+// Package core provides BoltDB + content-addressed filesystem cache for Kosh SSG.
 package core
 
 import (
@@ -49,7 +49,7 @@ const (
 	// SchemaVersion is the current cache schema version.
 	// This should be kept in sync with models.CurrentSchemaVersion (search index schema).
 	// Both are currently at version 20.
-	SchemaVersion = 21
+	SchemaVersion = 20
 )
 
 // HashContent returns a hex xxh3 hash of the content.

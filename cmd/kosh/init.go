@@ -18,6 +18,6 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-func runInit(cmd *cobra.Command, args []string) {
+func runInit(_ *cobra.Command, args []string) {
 	scaffold.Run(args)
 }

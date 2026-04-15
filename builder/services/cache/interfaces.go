@@ -31,9 +31,9 @@ type Service interface {
 	GetSearchHash() (string, error)
 	SetSearchHash(hash string) error
 
-	Stats() (*cache.CacheStats, error)
+	Stats() (*cache.Stats, error)
 	IncrementBuildCount() (uint32, error)
-	RunGC(config gc.GCConfig) (*gc.GCResult, error)
+	RunGC(config gc.Config) (*gc.Result, error)
 	Close() error
 }
 

@@ -159,9 +159,7 @@ func TestFireAndForget_ReturnsImmediately(t *testing.T) {
 		t.Errorf("FireAndForget did not return immediately: %v", elapsed)
 	}
 
-	waitForCondition(t, 200*time.Millisecond, func() bool {
-		return executed.Load()
-	})
+	waitForCondition(t, 200*time.Millisecond, executed.Load)
 }
 
 func TestFireAndForgetWithCleanup_Success(t *testing.T) {

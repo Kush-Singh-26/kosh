@@ -23,10 +23,10 @@ type postGraphInfo struct {
 const (
 	graphRootGroup     = 0
 	graphRootValue     = 22
-	graphTagGroup      = 2
-	graphTagValue      = 10
-	graphPostGroup     = 1
-	graphPostValue     = 7
+	graphTaxonomyGroup = 2
+	graphTaxonomyValue = 10
+	graphItemGroup     = 1
+	graphItemValue     = 7
 	graphRootTagWeight = 1
 	graphDateFormat    = "Jan 02, 2006"
 )
@@ -89,7 +89,7 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 	// Collect all unique taxonomy terms first
 	termNodes := make(map[string]models.GraphNode)
 	for _, p := range posts {
-		if cfg.ShowsTags {
+		if cfg.ShowsTaxonomies {
 			for taxKey, terms := range p.Taxonomies {
 				// For now, we prefix the slug with taxonomy key to avoid collisions
 				for _, t := range terms {
@@ -104,7 +104,7 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 						}
 
 						termNodes[termID] = models.GraphNode{
-							ID: termID, Label: label, Group: graphTagGroup, Value: graphTagValue,
+							ID: termID, Label: label, Group: graphTaxonomyGroup, Value: graphTaxonomyValue,
 							URL: fmt.Sprintf("%s%s/%s/%s.html", baseURL, prefix, taxKey, timeutil.Slugify(t)),
 						}
 						nodeExists[termID] = true
@@ -130,15 +130,15 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 			nodes = append(nodes, models.GraphNode{
 				ID:      p.Link,
 				Label:   p.Title,
-				Group:   graphPostGroup,
-				Value:   graphPostValue,
+				Group:   graphItemGroup,
+				Value:   graphItemValue,
 				URL:     postURL,
 				Excerpt: p.Description,
 				Date:    p.DateObj.Format(graphDateFormat),
 			})
 			nodeExists[p.Link] = true
 		}
-		if cfg.ShowsTags {
+		if cfg.ShowsTaxonomies {
 			for taxKey, terms := range p.Taxonomies {
 				for _, t := range terms {
 					termID := "term-" + taxKey + "-" + timeutil.Slugify(t)

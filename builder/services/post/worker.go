@@ -12,7 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
-func (service *postService) loadCachedPost(relPath, htmlRelPath string, file models.ScannedResource, cachedMeta *models.PostMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
+func (service *postService) loadCachedPost(_ string, htmlRelPath string, _ models.ScannedResource, cachedMeta *models.PostMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
 	var parseRes *ParsedMarkdownResult
 	var htmlContent string
 	var finalSSRHashes []string
@@ -52,7 +52,7 @@ func (service *postService) loadSourceIfNeeded(file models.ScannedResource, useC
 	return file.SourceLoader()
 }
 
-func (service *postService) parseIfNeeded(ctx context.Context, file models.ScannedResource, cachedMeta *models.PostMeta, htmlRelPath string, sourceBytes []byte, useCache bool) (*ParsedMarkdownResult, string, []string, bool, error) {
+func (service *postService) parseIfNeeded(_ context.Context, file models.ScannedResource, cachedMeta *models.PostMeta, htmlRelPath string, sourceBytes []byte, useCache bool) (*ParsedMarkdownResult, string, []string, bool, error) {
 	if useCache {
 		return nil, "", nil, true, nil
 	}
@@ -87,8 +87,8 @@ func (service *postService) parseIfNeeded(ctx context.Context, file models.Scann
 		DiagramAdapter:       service.diagramAdapter,
 		Metrics:              service.metrics,
 		Cfg:                  service.cfg,
-		CleanHtmlRelPath:     htmlRelPath,
-		HtmlRelPath:          htmlRelPath,
+		CleanHTMLRelPath:     htmlRelPath,
+		HTMLRelPath:          htmlRelPath,
 		KnownFrontmatterHash: file.FrontmatterHash,
 		KnownReadingTime:     readingTime,
 		BodyOffset:           file.BodyOffset,
@@ -158,7 +158,7 @@ func (service *postService) parseWorkerTaskLocal(file models.ScannedResource, wo
 	service.queueSocialCard(SocialCardOptions{
 		RelativePath:       relativePath,
 		Result:             parseResult,
-		HtmlRelativePath:   htmlRelativePath,
+		HTMLRelativePath:   htmlRelativePath,
 		ForceSocialRebuild: workerContext.ForceSocialRebuild,
 		CardPool:           workerContext.CardPool,
 	})
@@ -168,10 +168,10 @@ func (service *postService) parseWorkerTaskLocal(file models.ScannedResource, wo
 		ScannedFile:      file,
 		Result:           parseResult,
 		Post:             post,
-		HtmlContent:      htmlContent,
+		HTMLContent:      htmlContent,
 		DestinationPath:  destinationPath,
 		RelativePath:     relativePath,
-		HtmlRelativePath: htmlRelativePath,
+		HTMLRelativePath: htmlRelativePath,
 		SSRHashes:        finalSSRHashes,
 		UseCache:         useCache,
 		WorkerContext:    workerContext,
@@ -187,10 +187,10 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 	file := aggregateContext.ScannedFile
 	renderResult := aggregateContext.Result
 	post := aggregateContext.Post
-	htmlContent := aggregateContext.HtmlContent
+	htmlContent := aggregateContext.HTMLContent
 	destinationPath := aggregateContext.DestinationPath
 	relativePath := aggregateContext.RelativePath
-	htmlRelativePath := aggregateContext.HtmlRelativePath
+	htmlRelativePath := aggregateContext.HTMLRelativePath
 	ssrHashes := aggregateContext.SSRHashes
 	useCache := aggregateContext.UseCache
 	workerContext := aggregateContext.WorkerContext
@@ -232,7 +232,7 @@ func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
 
 	local.allPosts = append(local.allPosts, post)
 	if post.IsPinned {
-		local.pinnedPosts = append(local.pinnedPosts, post)
+		local.pinnedItems = append(local.pinnedItems, post)
 	}
 	// 6. Aggregate taxonomies for site-wide discovery
 	for taxKey, terms := range post.Taxonomies {
@@ -284,7 +284,7 @@ func (service *postService) mergeWorkerStates(locals []*workerLocalState, worker
 		}
 		baseIndex := len(processContext.indexedPosts)
 		processContext.allPosts = append(processContext.allPosts, local.allPosts...)
-		processContext.pinnedPosts = append(processContext.pinnedPosts, local.pinnedPosts...)
+		processContext.pinnedItems = append(processContext.pinnedItems, local.pinnedItems...)
 		processContext.indexedPosts = append(processContext.indexedPosts, local.indexedPosts...)
 		processContext.newPostsMeta = append(processContext.newPostsMeta, local.newPostsMeta...)
 		for k, v := range local.newSearchRecords {

@@ -31,7 +31,7 @@ func (m *MockAssetService) SetSink(sink fspkg.ArtifactSink) {
 }
 
 // SetSourceFs sets the source filesystem for the mock asset service.
-func (m *MockAssetService) SetSourceFs(fs afero.Fs) {}
+func (m *MockAssetService) SetSourceFs(_ afero.Fs) {}
 
 // SetMetrics sets the metrics collector for the mock asset service.
 func (m *MockAssetService) SetMetrics(m2 *metrics.BuildMetrics) {
@@ -65,7 +65,7 @@ func (m *MockAssetService) Build(ctx context.Context) error {
 }
 
 // BuildWithOptions runs the mock build with options.
-func (m *MockAssetService) BuildWithOptions(ctx context.Context, skipImages bool) error {
+func (m *MockAssetService) BuildWithOptions(_ context.Context, _ bool) error {
 	m.mu.Lock()
 	failBuild := m.FailBuild
 	contentAssetsChan := m.contentAssetsChan
@@ -80,7 +80,7 @@ func (m *MockAssetService) BuildWithOptions(ctx context.Context, skipImages bool
 	m.mu.Unlock()
 
 	if failBuild {
-		return context.Canceled // Simulate build failure
+		return context.Canceled
 	}
 	if contentAssetsChan != nil {
 		<-contentAssetsChan
@@ -95,12 +95,12 @@ func (m *MockAssetService) BuildWithOptions(ctx context.Context, skipImages bool
 }
 
 // BuildForAssetChange simulates an incremental asset change build.
-func (m *MockAssetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
+func (m *MockAssetService) BuildForAssetChange(_ context.Context) (map[string]string, error) {
 	return map[string]string{}, nil
 }
 
 // BuildForAssetChangeWithOptions simulates an incremental asset change build with options.
-func (m *MockAssetService) BuildForAssetChangeWithOptions(ctx context.Context, forceImages bool) (map[string]string, error) {
+func (m *MockAssetService) BuildForAssetChangeWithOptions(_ context.Context, _ bool) (map[string]string, error) {
 	return map[string]string{}, nil
 }
 
@@ -115,9 +115,9 @@ func (m *MockAssetService) DiscoveryReady() <-chan struct{} {
 }
 
 // ReconfigureForBuild updates the sink for the mock build.
-func (m *MockAssetService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
+func (m *MockAssetService) ReconfigureForBuild(sink fspkg.ArtifactSink, _ afero.Fs) {
 	m.Sink = sink
 }
 
 // ReconfigureWithReporter sets the reporter and logger for the mock.
-func (m *MockAssetService) ReconfigureWithReporter(r ui.Reporter, l *slog.Logger) {}
+func (m *MockAssetService) ReconfigureWithReporter(_ ui.Reporter, _ *slog.Logger) {}

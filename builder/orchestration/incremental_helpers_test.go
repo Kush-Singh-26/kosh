@@ -39,7 +39,7 @@ func TestResolveContentPaths_VariousPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			relPath, htmlRelPath, cleanHtmlRelPath, err := engine.Incremental.ResolveContentPaths(tt.path)
+			relPath, htmlRelPath, cleanHTMLRelPath, err := engine.Incremental.ResolveContentPaths(tt.path)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -49,7 +49,7 @@ func TestResolveContentPaths_VariousPaths(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotEmpty(t, relPath)
 			assert.NotEmpty(t, htmlRelPath)
-			assert.NotEmpty(t, cleanHtmlRelPath)
+			assert.NotEmpty(t, cleanHTMLRelPath)
 		})
 	}
 }

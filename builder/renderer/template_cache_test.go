@@ -27,7 +27,7 @@ func TestRenderer_MutexProtection(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	r := New(RendererOptions{Compress: true, Sink: nil, TemplateDir: templateDir, DevMode: true, Logger: logger})
+	r := New(Options{Compress: true, Sink: nil, TemplateDir: templateDir, DevMode: true, Logger: logger})
 
 	var wg sync.WaitGroup
 
@@ -149,7 +149,7 @@ func TestGraphTemplate_LoadedAutomatically(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	r := New(RendererOptions{Compress: true, Sink: nil, TemplateDir: templateDir, DevMode: true, Logger: logger})
+	r := New(Options{Compress: true, Sink: nil, TemplateDir: templateDir, DevMode: true, Logger: logger})
 
 	r.ReloadTemplates()
 
@@ -159,3 +159,4 @@ func TestGraphTemplate_LoadedAutomatically(t *testing.T) {
 
 	t.Log("Graph template automatic load test passed")
 }
+

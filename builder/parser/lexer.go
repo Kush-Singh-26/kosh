@@ -49,7 +49,8 @@ func (l *MathLexer) Scan() []MathMatch {
 		char := l.input[l.pos]
 
 		// Potential start of math
-		if char == '$' {
+		switch {
+		case char == '$':
 			if l.pos+1 < n && l.input[l.pos+1] == '$' {
 				// Block math $$
 				startPos := l.pos
@@ -83,7 +84,7 @@ func (l *MathLexer) Scan() []MathMatch {
 					})
 				}
 			}
-		} else if char == '\\' && l.pos+1 < n {
+		case char == '\\' && l.pos+1 < n:
 			next := l.input[l.pos+1]
 			switch next {
 			case '[':
@@ -115,7 +116,7 @@ func (l *MathLexer) Scan() []MathMatch {
 			default:
 				l.pos++
 			}
-		} else {
+		default:
 			l.pos++
 		}
 	}

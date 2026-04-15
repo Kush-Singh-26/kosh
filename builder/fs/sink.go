@@ -92,18 +92,18 @@ func (sink *DiskSink) resolvePathForWrite(path string) (string, error) {
 	absPathLower := strings.ToLower(absPath)
 	var resolved string
 
-	if isInsideDir(absPathLower, sink.stagingDirLower) {
+	switch {
+	case isInsideDir(absPathLower, sink.stagingDirLower):
 		resolved = absPath
-	} else if isInsideDir(absPathLower, sink.realOutputDirLower) {
+	case isInsideDir(absPathLower, sink.realOutputDirLower):
 		rel, err := filepath.Rel(filepath.FromSlash(sink.realOutputDir), filepath.FromSlash(absPath))
 		if err != nil {
 			return "", err
 		}
 		resolved = sink.fastJoinStaging(NormalizePath(rel))
-	} else if !filepath.IsAbs(filepath.FromSlash(cleanPath)) {
-		// If it was relative and NOT inside realOutputDir, we assume it's relative to staging root
+	case !filepath.IsAbs(filepath.FromSlash(cleanPath)):
 		resolved = sink.fastJoinStaging(cleanPath)
-	} else {
+	default:
 		return "", fmt.Errorf("refusing to write outside output roots: %s", path)
 	}
 
@@ -160,14 +160,15 @@ func (sink *DiskSink) Register(path string) {
 
 	if absPath != "" {
 		absPathLower := strings.ToLower(absPath)
-		if isInsideDir(absPathLower, sink.stagingDirLower) {
+		switch {
+		case isInsideDir(absPathLower, sink.stagingDirLower):
 			rel, _ := filepath.Rel(filepath.FromSlash(sink.stagingDir), filepath.FromSlash(absPath))
 			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(sink.realOutputDir), filepath.FromSlash(rel)))
-		} else if isInsideDir(absPathLower, sink.realOutputDirLower) {
+		case isInsideDir(absPathLower, sink.realOutputDirLower):
 			finalPath = absPath
-		} else if !filepath.IsAbs(filepath.FromSlash(cleanPath)) {
+		case !filepath.IsAbs(filepath.FromSlash(cleanPath)):
 			finalPath = NormalizePath(filepath.Join(filepath.FromSlash(sink.realOutputDir), filepath.FromSlash(cleanPath)))
-		} else {
+		default:
 			finalPath = absPath
 		}
 	}

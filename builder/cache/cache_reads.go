@@ -187,7 +187,8 @@ func (manager *Manager) GetPostsByTemplate(templatePath string) ([]string, error
 			return nil
 		}
 		cursor := bucket.Cursor()
-		prefix := append(key, '/')
+		key = append(key, '/')
+		prefix := key
 		for k, _ := cursor.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = cursor.Next() {
 			postID := string(k[len(prefix):])
 			ids = append(ids, postID)
@@ -305,7 +306,7 @@ func (manager *Manager) GetAllPostsMetadata() ([]PostListMeta, error) {
 			return nil
 		}
 
-		return postsBucket.ForEach(func(key, value []byte) error {
+		return postsBucket.ForEach(func(_, value []byte) error {
 			var meta core.PostMeta
 			if err := core.Decode(value, &meta); err == nil {
 				result = append(result, PostListMeta{

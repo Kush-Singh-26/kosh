@@ -93,7 +93,7 @@ Initial body.
 		Manager: cm,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -177,3 +177,4 @@ Updated body.
 		t.Fatalf("expected single-post rebuild output for absolute path")
 	}
 }
+

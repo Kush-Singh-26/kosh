@@ -7,7 +7,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Build configuration constants.
 const (
+	// DefaultMaxWorkers is the maximum number of concurrent workers for build operations.
 	DefaultMaxWorkers     = 32
 	DefaultDefaultWorkers = 12
 
@@ -31,7 +33,9 @@ const (
 	DefaultMaxSearchResults        = 100
 )
 
+// Worker configuration limits.
 const (
+	// MinWorkers is the minimum allowed number of workers.
 	MinWorkers = 1
 	MaxWorkers = 256
 

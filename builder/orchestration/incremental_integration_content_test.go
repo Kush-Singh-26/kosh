@@ -92,7 +92,7 @@ This is the initial body.
 		Manager: cm,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -262,7 +262,7 @@ Body content.
 		Manager: cm,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -352,3 +352,4 @@ Body content.
 		t.Error("output doesn't contain updated title")
 	}
 }
+

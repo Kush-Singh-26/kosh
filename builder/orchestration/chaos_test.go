@@ -44,7 +44,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	}
 
 	// Initial successful build
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -121,3 +121,4 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		t.Logf("Caught expected error: %v", err)
 	}
 }
+

@@ -8,8 +8,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"image"
-	_ "image/jpeg"
-	_ "image/png"
+	_ "image/jpeg" // JPEG support for image decoding
+	_ "image/png"  // PNG support for image decoding
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -257,7 +257,7 @@ func retryWriteFile(sink fspkg.ArtifactSink, path string, data []byte) error {
 	for index := 0; index < retryWriteAttempts; index++ {
 		if err := sink.WriteFile(path, data); err == nil {
 			return nil
-		} else {
+		} else { //nolint:revive
 			lastErr = err
 			if index < retryWriteAttempts-1 {
 				select {
@@ -304,7 +304,7 @@ func maybeCopyOriginalBestEffort(options ProcessImageOptions) {
 }
 
 func tryMemoryCache(options ProcessImageOptions, key imageCacheKey) (bool, error) {
-	cached, ok := GetImageCache().get(key)
+	cached, ok := GetImageCache().Get(key)
 	if !ok {
 		return false, nil
 	}
@@ -355,7 +355,7 @@ func tryDiskCache(options ProcessImageOptions, cacheFile string, key imageCacheK
 	if readErr != nil {
 		return true, fmt.Errorf("failed to read cached image %s: %w", cacheFile, readErr)
 	}
-	GetImageCache().set(key, cachedData)
+	GetImageCache().Set(key, cachedData)
 	if !isNil(options.Opts.Metrics) {
 		options.Opts.Metrics.RecordImageOptimization(options.SrcInfo.Size(), int64(len(cachedData)))
 		options.Opts.Metrics.IncrementAssetsProcessed()
@@ -449,7 +449,7 @@ func encodeWebP(image image.Image, quality int) ([]byte, error) {
 }
 
 func writeEncodedWebP(options ProcessImageOptions, key imageCacheKey, cacheFile string, cacheData []byte) error {
-	GetImageCache().set(key, cacheData)
+	GetImageCache().Set(key, cacheData)
 	if cacheFile != "" {
 		queueImageCacheWrite(cacheFile, cacheData, true)
 	}

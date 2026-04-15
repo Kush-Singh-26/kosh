@@ -121,26 +121,26 @@ type failingSink struct {
 	testutil.MemSink
 }
 
-func (f *failingSink) WriteStream(path string, fn func(io.Writer) error) error {
+func (f *failingSink) WriteStream(_ string, _ func(io.Writer) error) error {
 	return io.ErrUnexpectedEOF
 }
 
-func (f *failingSink) WriteFile(path string, data []byte) error {
+func (f *failingSink) WriteFile(_ string, _ []byte) error {
 	return io.ErrUnexpectedEOF
 }
 
-func (f *failingSink) CopyFile(srcPath, destPath string) error {
+func (f *failingSink) CopyFile(_, _ string) error {
 	return io.ErrUnexpectedEOF
 }
 
-func (f *failingSink) MkdirAll(path string) error {
+func (f *failingSink) MkdirAll(_ string) error {
 	return io.ErrUnexpectedEOF
 }
 
-func (f *failingSink) SetMtime(path string, mtime time.Time) error {
+func (f *failingSink) SetMtime(_ string, _ time.Time) error {
 	return io.ErrUnexpectedEOF
 }
 
-func (f *failingSink) Stat(path string) (os.FileInfo, error) {
+func (f *failingSink) Stat(_ string) (os.FileInfo, error) {
 	return nil, io.ErrUnexpectedEOF
 }

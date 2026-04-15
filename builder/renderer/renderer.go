@@ -56,8 +56,8 @@ type Renderer struct {
 	Cache          models.FragmentCache
 }
 
-// RendererOptions configures a Renderer instance.
-type RendererOptions struct {
+// Options configures a Renderer instance.
+type Options struct {
 	SourceFs    afero.Fs
 	Compress    bool
 	Minify      bool
@@ -70,7 +70,7 @@ type RendererOptions struct {
 }
 
 // New creates a Renderer with default filesystem settings.
-func New(opts RendererOptions) *Renderer {
+func New(opts Options) *Renderer {
 	if opts.SourceFs == nil {
 		opts.SourceFs = afero.NewOsFs()
 	}
@@ -78,7 +78,7 @@ func New(opts RendererOptions) *Renderer {
 }
 
 // NewWithFs creates a Renderer using the provided filesystem.
-func NewWithFs(opts RendererOptions) *Renderer {
+func NewWithFs(opts Options) *Renderer {
 	r := &Renderer{
 		Compress:    opts.Compress,
 		Minify:      opts.Minify,
@@ -117,7 +117,7 @@ func (r *Renderer) Has404Template() bool {
 
 // ClearFragments empties the pre-rendered fragment cache.
 func (r *Renderer) ClearFragments() {
-	r.fragmentCache.Range(func(key, value any) bool {
+	r.fragmentCache.Range(func(key, _ any) bool {
 		r.fragmentCache.Delete(key)
 		return true
 	})

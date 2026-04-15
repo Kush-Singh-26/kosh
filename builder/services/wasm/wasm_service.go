@@ -40,7 +40,7 @@ func NewService(dependencies Dependencies) Service {
 }
 
 // CheckAndUpdate is a no-op in the simplified manual workflow.
-func (service *wasmService) CheckAndUpdate(ctx context.Context) (bool, error) {
+func (service *wasmService) CheckAndUpdate(_ context.Context) (bool, error) {
 	if service.cfg.KoshSourceRoot == "" {
 		return false, nil
 	}
@@ -59,7 +59,7 @@ func (service *wasmService) CheckAndUpdate(ctx context.Context) (bool, error) {
 }
 
 // Deploy ensures the search WASM is available in the output sink.
-func (service *wasmService) Deploy(ctx context.Context, sink fspkg.ArtifactSink) error {
+func (service *wasmService) Deploy(_ context.Context, sink fspkg.ArtifactSink) error {
 	// Skip WASM operations in test mode unless E2E is requested
 	if service.ctx != nil && service.ctx.IsTesting && os.Getenv("KOSH_E2E") != "1" {
 		return nil

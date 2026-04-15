@@ -23,9 +23,9 @@ func ComputePathVars(outputDir, relPath string) (string, string, string) {
 	relPath = filepath.ToSlash(relPath)
 	htmlRelPath := fs.MarkdownToHTMLPath(relPath)
 
-	cleanHtmlRelPath := htmlRelPath
+	cleanHTMLRelPath := htmlRelPath
 	destPath := filepath.Join(outputDir, htmlRelPath)
-	return htmlRelPath, cleanHtmlRelPath, destPath
+	return htmlRelPath, cleanHTMLRelPath, destPath
 }
 
 // BuildAbsoluteURL joins a base URL with a relative path.
@@ -42,6 +42,7 @@ func CardPaths(baseURL, outputDir, htmlRelPath string) (string, string, string) 
 	cardImageURL := baseURL + "/static/images/cards/" + cardRelPath
 	return cardRelPath, cardDestPath, cardImageURL
 }
+
 // ResolveSectionIndex finds the nearest index URL for a given relative path.
 // This replaces the hardcoded blogPrefix logic by following the directory hierarchy.
 func ResolveSectionIndex(relPath string) string {

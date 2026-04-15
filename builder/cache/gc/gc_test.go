@@ -46,7 +46,7 @@ func TestRunGC(t *testing.T) {
 	var htmlHash string
 
 	// Manually store to have full control
-	err = db.Update(func(tx *bbolt.Tx) error {
+	err = db.Update(func(_ *bbolt.Tx) error {
 		var err error
 		htmlHash, _, err = s.Put("html", htmlContent)
 		return err
@@ -74,7 +74,7 @@ func TestRunGC(t *testing.T) {
 	}
 
 	// 2. Run GC - should NOT delete because it's live
-	res, err := RunGC(db, s, refCount, GCConfig{MaxAge: 0})
+	res, err := RunGC(db, s, refCount, Config{MaxAge: 0})
 	if err != nil {
 		t.Fatalf("GC failed: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestRunGC(t *testing.T) {
 		return nil
 	})
 
-	res2, err := RunGC(db, s, refCount, GCConfig{MaxAge: 1 * time.Hour})
+	res2, err := RunGC(db, s, refCount, Config{MaxAge: 1 * time.Hour})
 	if err != nil {
 		t.Fatalf("GC 2 failed: %v", err)
 	}

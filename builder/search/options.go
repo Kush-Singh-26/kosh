@@ -2,8 +2,8 @@ package search
 
 import "github.com/Kush-Singh-26/kosh/builder/search/core"
 
-// SearchScoringOptions defines parameters for the BM25 scoring engine
-type SearchScoringOptions struct {
+// ScoringOptions defines parameters for the BM25 scoring engine.
+type ScoringOptions struct {
 	TagFilter      string
 	QueryTerms     []string
 	HighlightTerms map[string]bool
@@ -14,8 +14,8 @@ type SearchScoringOptions struct {
 	Modifier       float64
 }
 
-// SearchScoringResult holds the output of a scoring pass
-type SearchScoringResult struct {
+// ScoringResult holds the output of a scoring pass.
+type ScoringResult struct {
 	Scores         map[string]float64
 	HighlightTerms []string
 }

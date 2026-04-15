@@ -1,3 +1,4 @@
+// Package shortcodes provides templating and rendering for Hugo-style shortcodes.
 package shortcodes
 
 import (

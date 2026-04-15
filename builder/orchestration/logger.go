@@ -56,7 +56,8 @@ func HTTPLog(method, path string, status int, duration time.Duration) {
 	)
 }
 
-type consoleHandler struct {
+// ConsoleHandler is a slog handler that writes to console with reporter integration.
+type ConsoleHandler struct {
 	output     io.Writer
 	mu         sync.Mutex // serializes writes to output and handler state
 	timeFormat string
@@ -67,8 +68,8 @@ type consoleHandler struct {
 }
 
 // NewConsoleHandler constructs a console handler for slog output.
-func NewConsoleHandler(output io.Writer, reporter ui.Reporter) *consoleHandler {
-	return &consoleHandler{
+func NewConsoleHandler(output io.Writer, reporter ui.Reporter) *ConsoleHandler {
+	return &ConsoleHandler{
 		output:     output,
 		timeFormat: "15:04:05",
 		reporter:   reporter,
@@ -76,7 +77,7 @@ func NewConsoleHandler(output io.Writer, reporter ui.Reporter) *consoleHandler {
 }
 
 // Enabled reports whether the handler handles the given level.
-func (handler *consoleHandler) Enabled(workingContext context.Context, level slog.Level) bool {
+func (handler *ConsoleHandler) Enabled(_ context.Context, level slog.Level) bool {
 	minLevel := handler.minLevel
 	if minLevel == 0 {
 		minLevel = slog.LevelInfo
@@ -85,7 +86,7 @@ func (handler *consoleHandler) Enabled(workingContext context.Context, level slo
 }
 
 // Handle formats and writes a log record.
-func (handler *consoleHandler) Handle(workingContext context.Context, record slog.Record) error {
+func (handler *ConsoleHandler) Handle(_ context.Context, record slog.Record) error {
 	if handler.reporter != nil {
 		isHTTP := false
 		// Only handle Warn, Error, and important Info (like HTTP requests)
@@ -184,7 +185,7 @@ func (handler *consoleHandler) Handle(workingContext context.Context, record slo
 	return nil
 }
 
-func (handler *consoleHandler) writeMessage(message string) {
+func (handler *ConsoleHandler) writeMessage(message string) {
 	if handler.group != "" {
 		_, _ = fmt.Fprintf(handler.output, "[\033[1m%s\033[0m] %s", handler.group, message)
 	} else {
@@ -192,7 +193,7 @@ func (handler *consoleHandler) writeMessage(message string) {
 	}
 }
 
-func (handler *consoleHandler) writeAttr(attribute slog.Attr) {
+func (handler *ConsoleHandler) writeAttr(attribute slog.Attr) {
 	value := attribute.Value.Resolve()
 	switch value.Kind() {
 	case slog.KindString:
@@ -220,11 +221,11 @@ func (handler *consoleHandler) writeAttr(attribute slog.Attr) {
 }
 
 // WithAttrs returns a handler with additional attributes.
-func (handler *consoleHandler) WithAttrs(attributes []slog.Attr) slog.Handler {
+func (handler *ConsoleHandler) WithAttrs(attributes []slog.Attr) slog.Handler {
 	newAttributes := make([]slog.Attr, len(handler.attrs)+len(attributes))
 	copy(newAttributes, handler.attrs)
 	copy(newAttributes[len(handler.attrs):], attributes)
-	return &consoleHandler{
+	return &ConsoleHandler{
 		output:     handler.output,
 		timeFormat: handler.timeFormat,
 		attrs:      newAttributes,
@@ -234,8 +235,8 @@ func (handler *consoleHandler) WithAttrs(attributes []slog.Attr) slog.Handler {
 }
 
 // WithGroup returns a handler with the given group name.
-func (handler *consoleHandler) WithGroup(name string) slog.Handler {
-	return &consoleHandler{
+func (handler *ConsoleHandler) WithGroup(name string) slog.Handler {
+	return &ConsoleHandler{
 		output:     handler.output,
 		timeFormat: handler.timeFormat,
 		attrs:      handler.attrs,
@@ -263,11 +264,11 @@ func getLevelColor(level slog.Level) string {
 }
 
 // LogLevelOption configures the minimum log level for the logger.
-type LogLevelOption func(*consoleHandler)
+type LogLevelOption func(*ConsoleHandler)
 
 // WithDebugLevel sets the minimum log level to Debug.
 func WithDebugLevel() LogLevelOption {
-	return func(h *consoleHandler) {
+	return func(h *ConsoleHandler) {
 		h.minLevel = slog.LevelDebug
 	}
 }
@@ -288,3 +289,4 @@ func InitLogger(reportersAndOpts ...any) *slog.Logger {
 	}
 	return slog.New(handler)
 }
+

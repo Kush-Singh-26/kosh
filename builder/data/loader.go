@@ -1,3 +1,4 @@
+// Package data provides functionality for loading and parsing site configuration and data files.
 package data
 
 import (
@@ -11,17 +12,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// DataMap represents the structured site data.
-type DataMap map[string]any
+// Map represents the structured site data.
+type Map map[string]any
 
 // Load reads all .yaml, .yml, and .json files from the data directory.
-func Load(fs afero.Fs, dataDir string) (DataMap, error) {
+func Load(fs afero.Fs, dataDir string) (Map, error) {
 	exists, err := afero.DirExists(fs, dataDir)
 	if err != nil || !exists {
-		return make(DataMap), nil
+		return make(Map), nil
 	}
 
-	siteData := make(DataMap)
+	siteData := make(Map)
 
 	err = afero.Walk(fs, dataDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -44,7 +45,7 @@ func Load(fs afero.Fs, dataDir string) (DataMap, error) {
 
 		// Use the filename stem as the key
 		name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-		
+
 		var decoded any
 		if ext == ".json" {
 			if err := json.Unmarshal(content, &decoded); err != nil {

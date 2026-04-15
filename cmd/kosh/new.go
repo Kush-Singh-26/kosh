@@ -18,6 +18,6 @@ func init() {
 	rootCmd.AddCommand(newCmd)
 }
 
-func runNew(cmd *cobra.Command, args []string) {
+func runNew(_ *cobra.Command, args []string) {
 	new.Run(args)
 }

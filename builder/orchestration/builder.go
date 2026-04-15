@@ -147,7 +147,7 @@ func (setup *buildSetup) initServices() {
 	// RenderService receives it via SetAssetsGate and waits before rendering pages.
 	// This is a one-way synchronization channel, not a bidirectional dependency.
 	// AssetService owns the channel lifecycle; RenderService only waits on it.
-	rendererInstance := renderer.NewWithFs(renderer.RendererOptions{
+	rendererInstance := renderer.NewWithFs(renderer.Options{
 		SourceFs:    setup.sourceFs,
 		Compress:    setup.config.ShouldCompressImages,
 		Minify:      setup.config.ShouldMinify,
@@ -264,7 +264,7 @@ func newEngineWithConfigFs(sourceFs afero.Fs, cfg *config.Config, reporter ui.Re
 		Cfg:      cfg,
 		Logger:   setup.logger,
 		SourceFs: sourceFs,
-		Deps: incremental.IncrementalDependencies{
+		Deps: incremental.Dependencies{
 			Cache:    setup.cacheSvc,
 			Post:     setup.postSvc,
 			Render:   setup.renderSvc,
@@ -287,3 +287,4 @@ func newEngineWithConfigFs(sourceFs afero.Fs, cfg *config.Config, reporter ui.Re
 
 	return engineInstance
 }
+

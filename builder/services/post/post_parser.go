@@ -103,8 +103,8 @@ type ParseOptions struct {
 	DiagramAdapter       *cache.DiagramCacheAdapter
 	Metrics              *metrics.BuildMetrics
 	Cfg                  *config.Config
-	CleanHtmlRelPath     string
-	HtmlRelPath          string
+	CleanHTMLRelPath     string
+	HTMLRelPath          string
 	KnownFrontmatterHash string
 	KnownReadingTime     int
 	BodyOffset           int
@@ -122,7 +122,7 @@ func ParseMarkdownMetadata(options ParseOptions) (*ParsedMarkdownResult, error) 
 	result.BodyOnly = stripFrontmatter(options.Source, options.BodyOffset)
 
 	// Step 2: Parse markdown with panic recovery
-	docNode, mdCtx, parseErr := parseMarkdownWithRecovery(result.BodyOnly, options.Path, options.MdPool, context.Background())
+	docNode, mdCtx, parseErr := parseMarkdownWithRecovery(context.Background(), result.BodyOnly, options.Path, options.MdPool)
 	if parseErr != nil {
 		return nil, parseErr
 	}
@@ -138,14 +138,14 @@ func ParseMarkdownMetadata(options ParseOptions) (*ParsedMarkdownResult, error) 
 	frontmatter := extractFrontmatter(result.Metadata)
 	result.TOC = mdParser.GetTOC(mdCtx)
 
-	postLink := navigation.BuildAbsoluteURL(options.Cfg.BaseURL, options.CleanHtmlRelPath)
+	postLink := navigation.BuildAbsoluteURL(options.Cfg.BaseURL, options.CleanHTMLRelPath)
 	readingTime := computeReadingTime(options.Source, options.KnownReadingTime)
 
 	result.Post = buildPostMetadata(frontmatter, postLink, readingTime)
 
 	// Step 5: Get plain text and build search record
 	result.PlainText = mdParser.GetPlainText(mdCtx)
-	result.SearchRecord = buildSearchRecord(result.Post, options.HtmlRelPath, result.PlainText)
+	result.SearchRecord = buildSearchRecord(result.Post, options.HTMLRelPath, result.PlainText)
 
 	// Step 6: Search Analysis (DEFERRED to background worker)
 

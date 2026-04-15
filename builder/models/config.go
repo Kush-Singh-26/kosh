@@ -38,15 +38,41 @@ type SocialCardsConfig struct {
 	TextColor  string   `yaml:"textColor"`
 }
 
-// NavbarIdentityConfig defines context-aware branding for the navbar.
+// NavbarContextConfig defines context-aware branding for the navbar.
 type NavbarContextConfig struct {
 	Title    string `yaml:"title"`
 	BtnLabel string `yaml:"btnLabel"`
 }
 
+// NavbarIdentityConfig defines the navbar identity configuration for different contexts.
 type NavbarIdentityConfig struct {
-	Home NavbarContextConfig `yaml:"home"`
-	Posts NavbarContextConfig `yaml:"posts"`
+	Home    NavbarContextConfig `yaml:"home"`
+	Section NavbarContextConfig `yaml:"section"`
+}
+
+// UnmarshalYAML implements custom unmarshalling to support legacy aliases.
+func (c *NavbarIdentityConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	type alias NavbarIdentityConfig
+	var aux struct {
+		*alias `yaml:",inline"`
+		Posts  *NavbarContextConfig `yaml:"posts,omitempty"`
+		Blog   *NavbarContextConfig `yaml:"blog,omitempty"`
+	}
+	aux.alias = (*alias)(c)
+
+	if err := unmarshal(&aux); err != nil {
+		return err
+	}
+
+	// Fallback to legacy config keys if section is empty
+	if c.Section.Title == "" && c.Section.BtnLabel == "" {
+		if aux.Posts != nil {
+			c.Section = *aux.Posts
+		} else if aux.Blog != nil {
+			c.Section = *aux.Blog
+		}
+	}
+	return nil
 }
 
 // TemplateConfig defines the strictly-typed subset of project configuration
@@ -69,4 +95,5 @@ type TemplateConfig interface {
 	IsDevMode() bool
 	GetSiteData() map[string]any
 	GetNavbar() NavbarIdentityConfig
+	GetHomeBadge() string
 }

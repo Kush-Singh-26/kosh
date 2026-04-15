@@ -25,7 +25,7 @@ func TestRenderer_SetAssets(t *testing.T) {
 		t.Errorf("SetAssets snapshot should have %d assets, got %d", len(assets), len(*s))
 	}
 
-	r.assetCache.Range(func(key, value any) bool {
+	r.assetCache.Range(func(_, _ any) bool {
 		t.Error("SetAssets should clear asset cache")
 		return false
 	})
@@ -236,7 +236,7 @@ func TestRenderer_AssetCacheInvalidation(t *testing.T) {
 	r.PreparePageData(data)
 
 	cacheSize := 0
-	r.assetCache.Range(func(key, value any) bool {
+	r.assetCache.Range(func(_, _ any) bool {
 		cacheSize++
 		return true
 	})
@@ -248,7 +248,7 @@ func TestRenderer_AssetCacheInvalidation(t *testing.T) {
 	r.SetAssets(map[string]string{"new.css": "/static/new.css"})
 
 	cacheSize = 0
-	r.assetCache.Range(func(key, value any) bool {
+	r.assetCache.Range(func(_, _ any) bool {
 		cacheSize++
 		return true
 	})

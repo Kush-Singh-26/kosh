@@ -103,7 +103,7 @@ func (m *MockCacheService) GetPostsByIDs(ids []string) (map[string]*cache.PostMe
 }
 
 // GetPostsByTemplate returns post IDs that depend on a template.
-func (m *MockCacheService) GetPostsByTemplate(templatePath string) ([]string, error) {
+func (m *MockCacheService) GetPostsByTemplate(_ string) ([]string, error) {
 	m.recordCall("GetPostsByTemplate")
 	if m.Err != nil {
 		return nil, m.Err
@@ -256,7 +256,7 @@ func (m *MockCacheService) StoreFragment(key, content string) error {
 }
 
 // GetPostsByTaxonomy returns post IDs for a given taxonomy and term.
-func (m *MockCacheService) GetPostsByTaxonomy(taxonomy, term string) ([]string, error) {
+func (m *MockCacheService) GetPostsByTaxonomy(_, _ string) ([]string, error) {
 	m.recordCall("GetPostsByTaxonomy")
 	if m.Err != nil {
 		return nil, m.Err
@@ -339,12 +339,12 @@ func (m *MockCacheService) ClearDirty() {
 }
 
 // Stats returns cache stats for the mock.
-func (m *MockCacheService) Stats() (*cache.CacheStats, error) {
+func (m *MockCacheService) Stats() (*cache.Stats, error) {
 	m.recordCall("Stats")
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	return &cache.CacheStats{}, nil
+	return &cache.Stats{}, nil
 }
 
 // IncrementBuildCount increments and returns the build count.
@@ -357,12 +357,12 @@ func (m *MockCacheService) IncrementBuildCount() (uint32, error) {
 }
 
 // RunGC runs garbage collection using the provided config.
-func (m *MockCacheService) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
+func (m *MockCacheService) RunGC(_ gc.Config) (*gc.Result, error) {
 	m.recordCall("RunGC")
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	return &gc.GCResult{}, nil
+	return &gc.Result{}, nil
 }
 
 // Close closes the mock cache service.

@@ -227,8 +227,8 @@ func TestEncodeDecode(t *testing.T) {
 		{
 			name: "Dependencies",
 			data: &Dependencies{
-				Templates: []string{"layout.html", "post.html"},
-				Includes:  []string{"header.html"},
+				Templates:  []string{"layout.html", "post.html"},
+				Includes:   []string{"header.html"},
 				Taxonomies: map[string][]string{"tags": {"go", "ssg"}},
 			},
 		},
@@ -344,7 +344,7 @@ func TestEncodeDecodeComplex(t *testing.T) {
 	}
 }
 
-func TestConstants(t *testing.T) {
+func TestConstants(_ *testing.T) {
 	// Test that constants have expected values
 	// These constants are now in builder/utils/constants.go
 	// and should be tested there or imported from there.

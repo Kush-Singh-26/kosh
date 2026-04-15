@@ -32,7 +32,7 @@ func TestE2E_SearchAndGraph(t *testing.T) {
 	if err := os.Chdir(mockSiteDir); err != nil {
 		t.Fatalf("Failed to chdir to mock site: %v", err)
 	}
-	defer os.Chdir(cwd)
+	defer func() { _ = os.Chdir(cwd) }()
 
 	// 2. Setup server and config
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -69,7 +69,7 @@ func TestE2E_SearchAndGraph(t *testing.T) {
 			t.Errorf("Server failed: %v", err)
 		}
 	}()
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	// Wait for server to start
 	time.Sleep(500 * time.Millisecond)

@@ -36,12 +36,12 @@ func Theme(targetPath, themeName string) error {
 
 	// Process and write files
 	files := map[string]string{
-		"theme_templates/theme.yaml.tmpl":   "theme.yaml",
-		"theme_templates/layout.html.tmpl":  "templates/layout.html",
-		"theme_templates/index.html.tmpl":   "templates/index.html",
-		"theme_templates/404.html.tmpl":     "templates/404.html",
-		"theme_templates/layout.css.tmpl":   "static/css/layout.css",
-		"theme_templates/post-card.html.tmpl": "templates/partials/post-card.html",
+		"theme_templates/theme.yaml.tmpl":             "theme.yaml",
+		"theme_templates/layout.html.tmpl":            "templates/layout.html",
+		"theme_templates/index.html.tmpl":             "templates/index.html",
+		"theme_templates/404.html.tmpl":               "templates/404.html",
+		"theme_templates/layout.css.tmpl":             "static/css/layout.css",
+		"theme_templates/post-card.html.tmpl":         "templates/partials/post-card.html",
 		"theme_templates/shortcode-youtube.html.tmpl": "templates/shortcodes/youtube.html",
 	}
 
@@ -66,10 +66,10 @@ func Theme(targetPath, themeName string) error {
 		}
 
 		if err := tmpl.Execute(f, data); err != nil {
-			f.Close()
+			_ = f.Close()
 			return fmt.Errorf("failed to execute template %s: %w", dest, err)
 		}
-		f.Close()
+		_ = f.Close()
 	}
 
 	return nil

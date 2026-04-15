@@ -55,7 +55,7 @@ func TestParallelWalk(t *testing.T) {
 		SourceFs:    sourceFs,
 		Root:        root,
 		Concurrency: 4,
-		WalkFn: func(path string, info fs.FileInfo, err error) error {
+		WalkFn: func(_ string, info fs.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
@@ -100,7 +100,7 @@ func TestParallelWalk_MemMapFsFallback(t *testing.T) {
 		SourceFs:    sourceFs,
 		Root:        root,
 		Concurrency: 4,
-		WalkFn: func(path string, info fs.FileInfo, err error) error {
+		WalkFn: func(_ string, info fs.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
@@ -146,7 +146,7 @@ func TestParallelWalk_SkipDir(t *testing.T) {
 		SourceFs:    afero.NewOsFs(),
 		Root:        root,
 		Concurrency: 2,
-		WalkFn: func(path string, info fs.FileInfo, err error) error {
+		WalkFn: func(path string, _ fs.FileInfo, _ error) error {
 			if filepath.Base(path) == "skip_me" {
 				return filepath.SkipDir
 			}

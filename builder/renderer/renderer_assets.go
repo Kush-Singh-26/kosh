@@ -11,26 +11,61 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+// MockConfig is a test implementation of the config interface.
 type MockConfig struct{}
 
-func (m MockConfig) GetMenu() []models.MenuEntry       { return nil }
+// GetMenu returns an empty menu for testing.
+func (m MockConfig) GetMenu() []models.MenuEntry { return nil }
+
+// GetFooterMenu returns an empty footer menu for testing.
 func (m MockConfig) GetFooterMenu() []models.MenuEntry { return nil }
-func (m MockConfig) GetAuthor() models.AuthorConfig    { return models.AuthorConfig{} }
+
+// GetAuthor returns a default author config for testing.
+func (m MockConfig) GetAuthor() models.AuthorConfig { return models.AuthorConfig{} }
+
+// GetSocial returns a default social config for testing.
 func (m MockConfig) GetSocial() models.SocialCardsConfig {
 	return models.SocialCardsConfig{Gradient: []string{"#000", "#fff"}}
 }
-func (m MockConfig) GetFeatures() models.FeaturesConfig     { return models.FeaturesConfig{} }
-func (m MockConfig) GetSiteTitle() string                   { return "Kosh Site" }
-func (m MockConfig) GetLogo() string                        { return "" }
-func (m MockConfig) GetBaseURL() string                     { return "" }
-func (m MockConfig) GetContentPrefix() string               { return "" }
-func (m MockConfig) GetTemplateDir() string                 { return "" }
-func (m MockConfig) GetStaticDir() string                   { return "" }
-func (m MockConfig) GetLayoutsDir() string                  { return "" }
-func (m MockConfig) GetContentDir() string                  { return "" }
-func (m MockConfig) IsDevMode() bool                        { return false }
-func (m MockConfig) GetSiteData() map[string]any            { return nil }
+
+// GetFeatures returns empty features config for testing.
+func (m MockConfig) GetFeatures() models.FeaturesConfig { return models.FeaturesConfig{} }
+
+// GetSiteTitle returns default site title for testing.
+func (m MockConfig) GetSiteTitle() string { return "Kosh Site" }
+
+// GetLogo returns empty logo path for testing.
+func (m MockConfig) GetLogo() string { return "" }
+
+// GetBaseURL returns empty base URL for testing.
+func (m MockConfig) GetBaseURL() string { return "" }
+
+// GetContentPrefix returns empty content prefix for testing.
+func (m MockConfig) GetContentPrefix() string { return "" }
+
+// GetTemplateDir returns empty template dir for testing.
+func (m MockConfig) GetTemplateDir() string { return "" }
+
+// GetStaticDir returns empty static dir for testing.
+func (m MockConfig) GetStaticDir() string { return "" }
+
+// GetLayoutsDir returns empty layouts dir for testing.
+func (m MockConfig) GetLayoutsDir() string { return "" }
+
+// GetContentDir returns empty content dir for testing.
+func (m MockConfig) GetContentDir() string { return "" }
+
+// IsDevMode returns false for testing.
+func (m MockConfig) IsDevMode() bool { return false }
+
+// GetSiteData returns nil site data for testing.
+func (m MockConfig) GetSiteData() map[string]any { return nil }
+
+// GetNavbar returns empty navbar config for testing.
 func (m MockConfig) GetNavbar() models.NavbarIdentityConfig { return models.NavbarIdentityConfig{} }
+
+// GetHomeBadge returns default badge text for testing.
+func (m MockConfig) GetHomeBadge() string { return "Latest Items" }
 
 // SetAssets snapshots the asset map for template rendering.
 func (r *Renderer) SetAssets(assets map[string]string) {
@@ -43,7 +78,7 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 	slog.Debug("Asset map snapshot updated", "count", len(snapshot))
 
 	// Invalidate relativization cache because assets have changed
-	r.assetCache.Range(func(key, value any) bool {
+	r.assetCache.Range(func(key, _ any) bool {
 		r.assetCache.Delete(key)
 		return true
 	})
@@ -144,12 +179,13 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 	// Determine context: enforce home context for root index and graph pages
 	ctx := data.Context
 	if ctx == "" {
-		if data.IsIndex && (data.RelativePrefix == "" || data.RelativePrefix == "./") {
+		switch {
+		case data.IsIndex && (data.RelativePrefix == "" || data.RelativePrefix == "./"):
 			ctx = models.ContextHome
-		} else if data.IsGraphPage {
+		case data.IsGraphPage:
 			ctx = models.ContextHome
-		} else {
-			ctx = models.ContextPosts
+		default:
+			ctx = models.ContextSection
 		}
 	}
 
@@ -164,8 +200,8 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 			data.Navbar.BtnURL = "/"
 		}
 	} else {
-		data.Navbar.Title = navCfg.Posts.Title
-		data.Navbar.BtnLabel = navCfg.Posts.BtnLabel
+		data.Navbar.Title = navCfg.Section.Title
+		data.Navbar.BtnLabel = navCfg.Section.BtnLabel
 		if contentPrefix != "" {
 			data.Navbar.TitleURL = "/" + contentPrefix + "/"
 		} else {

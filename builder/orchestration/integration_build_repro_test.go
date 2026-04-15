@@ -74,7 +74,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 			Manager: cacheManager,
 			Logger:  logger,
 		})
-		rnd := renderer.NewWithFs(renderer.RendererOptions{
+		rnd := renderer.NewWithFs(renderer.Options{
 			SourceFs:    fs,
 			Compress:    false,
 			Sink:        sink,
@@ -211,7 +211,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -277,3 +277,4 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		t.Logf("Sink has %d files after failed build (may be expected with mock transaction)", len(sink.Files))
 	}
 }
+

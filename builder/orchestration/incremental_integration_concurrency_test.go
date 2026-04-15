@@ -87,7 +87,7 @@ date: "2026-03-15"
 		Manager: cm,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -165,3 +165,4 @@ date: "2026-03-15"
 
 	<-done
 }
+

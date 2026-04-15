@@ -17,17 +17,17 @@ type Dependencies = core.Dependencies
 // PostListMeta re-exports the core PostListMeta type for backward compatibility.
 type PostListMeta = core.PostListMeta
 
-// CacheStats re-exports the core CacheStats type for backward compatibility.
-type CacheStats = core.CacheStats
+// Stats re-exports the core CacheStats type for backward compatibility.
+type Stats = core.CacheStats
 
-// GCConfig re-exports the gc.GCConfig type for backward compatibility.
-type GCConfig = gc.GCConfig
+// GCConfig re-exports the gc.Config type for backward compatibility.
+type GCConfig = gc.Config
 
-// GCResult re-exports the gc.GCResult type for backward compatibility.
-type GCResult = gc.GCResult
+// GCResult re-exports the gc.Result type for backward compatibility.
+type GCResult = gc.Result
 
 // DefaultGCConfig re-exports the default GC configuration.
-var DefaultGCConfig = gc.DefaultGCConfig
+var DefaultGCConfig = gc.DefaultConfig
 
 const (
 	// CompressionNone disables compression.

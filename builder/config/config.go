@@ -18,22 +18,37 @@ import (
 var _ models.TemplateConfig = (*Config)(nil)
 
 const (
-	DefaultPostsPerPage  = 10
-	DefaultImageWorkers  = 8
-	MaxImageWorkers      = 32
-	DefaultWebPQuality   = 80
-	MinWebPQuality       = 1
-	MaxWebPQuality       = 100
+	// DefaultPostsPerPage is the default number of posts per pagination page.
+	DefaultPostsPerPage = 10
+	// DefaultImageWorkers is the default number of image processing workers.
+	DefaultImageWorkers = 8
+	// MaxImageWorkers is the maximum number of image processing workers.
+	MaxImageWorkers = 32
+	// DefaultWebPQuality is the default WebP encoding quality.
+	DefaultWebPQuality = 80
+	// MinWebPQuality is the minimum WebP quality value.
+	MinWebPQuality = 1
+	// MaxWebPQuality is the maximum WebP quality value.
+	MaxWebPQuality = 100
+	// DefaultParserWorkers is the default number of markdown parser workers.
 	DefaultParserWorkers = 0
-	MaxParserWorkers     = 64
+	// MaxParserWorkers is the maximum number of parser workers.
+	MaxParserWorkers = 64
 
-	DefaultTheme      = "default"
-	DefaultThemeDir   = "themes"
+	// DefaultTheme is the default theme name.
+	DefaultTheme = "default"
+	// DefaultThemeDir is the default theme directory.
+	DefaultThemeDir = "themes"
+	// DefaultContentDir is the default content directory.
 	DefaultContentDir = "content"
-	DefaultOutputDir  = "public"
-	DefaultCacheDir   = ".kosh-cache"
+	// DefaultOutputDir is the default output directory.
+	DefaultOutputDir = "public"
+	// DefaultCacheDir is the default cache directory.
+	DefaultCacheDir = ".kosh-cache"
+	// DefaultLayoutsDir is the default layouts directory.
 	DefaultLayoutsDir = "layouts"
 
+	// DefaultSocialCardAngle is the default social card gradient angle.
 	DefaultSocialCardAngle = 135
 )
 
@@ -53,6 +68,7 @@ type SiteConfig struct {
 	FooterMenu  []models.MenuEntry          `yaml:"footerMenu"`
 	Taxonomies  map[string]string           `yaml:"taxonomies"` // Maps frontmatter key to plural folder name
 	Navbar      models.NavbarIdentityConfig `yaml:"navbar"`     // Context-aware branding
+	HomeBadge   string                      `yaml:"homeBadge"`  // Label for home page social card badge
 }
 
 // BuildOptions defines build-time tuning parameters.
@@ -69,7 +85,7 @@ type BuildOptions struct {
 
 // ServerConfig defines development server parameters.
 type ServerConfig struct {
-	RootDirectory string `yaml:"rootDirectory"` // Optional directory to serve alongside the blog
+	RootDirectory string `yaml:"rootDirectory"` // Optional directory to serve alongside the site content
 }
 
 // PathConfig defines filesystem paths used during builds.
@@ -132,9 +148,10 @@ func defaultConfig() *Config {
 				"tags": "tags",
 			},
 			Navbar: models.NavbarIdentityConfig{
-				Home:  models.NavbarContextConfig{Title: "Kosh Site", BtnLabel: "Posts"},
-				Posts: models.NavbarContextConfig{Title: "Posts", BtnLabel: "Home"},
+				Home:    models.NavbarContextConfig{Title: "Kosh Site", BtnLabel: "Content"},
+				Section: models.NavbarContextConfig{Title: "Content", BtnLabel: "Home"},
 			},
+			HomeBadge: "Latest Items",
 		},
 		BuildOptions: BuildOptions{
 			PostsPerPage:         DefaultPostsPerPage,
@@ -159,7 +176,7 @@ func defaultConfig() *Config {
 			Generators: models.GeneratorsConfig{
 				IsSitemapEnabled: true,
 				IsRSSEnabled:     true,
-				Graph:            models.GraphConfig{IsEnabled: true, ShowsTags: true},
+				Graph:            models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
 				IsPWAEnabled:     true,
 				IsSearchEnabled:  true,
 			},
@@ -209,23 +226,25 @@ func resolveThemePaths(cfg *Config, isTesting bool) {
 		}
 	}
 
-	if cfg.TemplateDir == "" {
+	switch {
+	case cfg.TemplateDir == "":
 		cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
-	} else if !filepath.IsAbs(cfg.TemplateDir) && !isTesting {
+	case !filepath.IsAbs(cfg.TemplateDir) && !isTesting:
 		if absPath, err := filepath.Abs(cfg.TemplateDir); err == nil {
 			cfg.TemplateDir = fspkg.NormalizePath(absPath)
 		}
-	} else {
+	default:
 		cfg.TemplateDir = fspkg.NormalizePath(cfg.TemplateDir)
 	}
 
-	if cfg.StaticDir == "" {
+	switch {
+	case cfg.StaticDir == "":
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
-	} else if !filepath.IsAbs(cfg.StaticDir) && !isTesting {
+	case !filepath.IsAbs(cfg.StaticDir) && !isTesting:
 		if absPath, err := filepath.Abs(cfg.StaticDir); err == nil {
 			cfg.StaticDir = fspkg.NormalizePath(absPath)
 		}
-	} else {
+	default:
 		cfg.StaticDir = fspkg.NormalizePath(cfg.StaticDir)
 	}
 }
@@ -264,7 +283,7 @@ func resolveContentPaths(cfg *Config, isTesting bool) {
 
 func applyCLIOverrides(cfg *Config, args []string) {
 	flagSet := flag.NewFlagSet("config", flag.ContinueOnError)
-	baseUrlFlag := flagSet.String("baseurl", "", "Base URL (overrides config file)")
+	baseURLFlag := flagSet.String("baseurl", "", "Base URL (overrides config file)")
 	draftsFlag := flagSet.Bool("drafts", false, "Include draft posts in the build")
 	themeFlag := flagSet.String("theme", "", "Theme to use (overrides config file)")
 	forceLockFlag := flagSet.Bool("force-lock", false, "Acquire build lock even if another build is running")
@@ -274,8 +293,8 @@ func applyCLIOverrides(cfg *Config, args []string) {
 
 	_ = flagSet.Parse(args)
 
-	if *baseUrlFlag != "" {
-		cfg.BaseURL = strings.TrimSuffix(*baseUrlFlag, "/")
+	if *baseURLFlag != "" {
+		cfg.BaseURL = strings.TrimSuffix(*baseURLFlag, "/")
 	}
 	if *draftsFlag {
 		cfg.ShouldIncludeDrafts = true
@@ -354,46 +373,54 @@ func SetDevMode(cfg *Config, isDev bool) {
 // TemplateConfig interface implementation
 
 // GetMenu returns the configured menu entries.
-func (cfg *Config) GetMenu() []models.MenuEntry { return cfg.Menu }
+func (c *Config) GetMenu() []models.MenuEntry { return c.Menu }
 
 // GetFooterMenu returns the configured footer menu entries.
-func (cfg *Config) GetFooterMenu() []models.MenuEntry { return cfg.FooterMenu }
+func (c *Config) GetFooterMenu() []models.MenuEntry { return c.FooterMenu }
 
 // GetAuthor returns the configured author metadata.
-func (cfg *Config) GetAuthor() models.AuthorConfig { return cfg.Author }
+func (c *Config) GetAuthor() models.AuthorConfig { return c.Author }
 
 // GetSocial returns the social card configuration.
-func (cfg *Config) GetSocial() models.SocialCardsConfig { return cfg.SocialCards }
+func (c *Config) GetSocial() models.SocialCardsConfig { return c.SocialCards }
 
-// GetFeatures returns the enabled feature configuration.
-func (cfg *Config) GetFeatures() models.FeaturesConfig { return cfg.Features }
+// GetFeatures returns the features configuration.
+func (c *Config) GetFeatures() models.FeaturesConfig { return c.Features }
 
 // GetSiteTitle returns the site title.
-func (cfg *Config) GetSiteTitle() string { return cfg.Title }
+func (c *Config) GetSiteTitle() string { return c.Title }
 
 // GetLogo returns the path to the site logo.
-func (cfg *Config) GetLogo() string { return cfg.Logo }
+func (c *Config) GetLogo() string { return c.Logo }
 
 // GetBaseURL returns the configured base URL.
-func (cfg *Config) GetBaseURL() string { return cfg.BaseURL }
+func (c *Config) GetBaseURL() string { return c.BaseURL }
 
 // GetContentPrefix returns the content prefix path.
-func (cfg *Config) GetContentPrefix() string { return cfg.ContentPrefix }
+func (c *Config) GetContentPrefix() string { return c.ContentPrefix }
 
 // GetTemplateDir returns the directory containing theme templates.
-func (cfg *Config) GetTemplateDir() string { return cfg.TemplateDir }
+func (c *Config) GetTemplateDir() string { return c.TemplateDir }
 
 // GetStaticDir returns the directory containing global static assets.
-func (cfg *Config) GetStaticDir() string { return cfg.StaticDir }
+func (c *Config) GetStaticDir() string { return c.StaticDir }
 
 // GetLayoutsDir returns the directory for site-level template overrides.
-func (cfg *Config) GetLayoutsDir() string { return cfg.LayoutsDir }
+func (c *Config) GetLayoutsDir() string { return c.LayoutsDir }
 
 // GetContentDir returns the directory containing markdown content.
-func (cfg *Config) GetContentDir() string { return cfg.ContentDir }
+func (c *Config) GetContentDir() string { return c.ContentDir }
 
 // IsDevMode returns whether the build is running in development mode.
-func (cfg *Config) IsDevMode() bool { return cfg.IsDev }
+func (c *Config) IsDevMode() bool { return c.IsDev }
 
 // GetNavbar returns the navbar branding configuration.
-func (cfg *Config) GetNavbar() models.NavbarIdentityConfig { return cfg.Navbar }
+func (c *Config) GetNavbar() models.NavbarIdentityConfig { return c.Navbar }
+
+// GetHomeBadge returns the home page badge label.
+func (c *Config) GetHomeBadge() string {
+	if c.HomeBadge == "" {
+		return "Latest Items"
+	}
+	return c.HomeBadge
+}

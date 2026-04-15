@@ -37,7 +37,7 @@ type PaginationOptions struct {
 	Cache       models.SocialCardCache
 	SourceFs    afero.Fs
 	AllPosts    []models.PostMetadata
-	PinnedPosts []models.PostMetadata
+	PinnedItems []models.PostMetadata
 	Force       bool
 	Logger      *slog.Logger
 	LogoPath    string
@@ -76,7 +76,7 @@ func ensureHomeSocialCard(opts PaginationOptions) {
 			CacheKey:    "home",
 			CardTitle:   cfg.Title,
 			Description: desc,
-			Badge:       "Latest Posts",
+			Badge:       cfg.GetHomeBadge(),
 			Force:       opts.Force,
 			SocialCfg:   &cfg.SocialCards,
 			Render:      render,
@@ -186,24 +186,24 @@ func RenderPagination(opts PaginationOptions) error {
 			paginator := buildPaginator(cfg, pageIdx, totalPages)
 			var curPinned []models.PostMetadata
 			if pageIdx == firstPageIndex {
-				curPinned = opts.PinnedPosts
+				curPinned = opts.PinnedItems
 			}
 
-			context := models.ContextPosts
+			context := models.ContextSection
 			// If this is the main site index (root), use Home context
 			if pageIdx == firstPageIndex && (relPath == "" || relPath == "index.html" || relPath == "./") {
 				context = models.ContextHome
 			}
 
 			relPrefix := fspkg.GetRelativePrefix(relPath)
-			postsIndexURL := navigation.ResolveSectionIndex(relPath)
+			sectionIndexURL := navigation.ResolveSectionIndex(relPath)
 			if err := render.RenderIndex(destPath, models.PageData{
-				Title: cfg.Title, Posts: pagePosts, PinnedPosts: curPinned,
+				Title: cfg.Title, Posts: pagePosts, PinnedItems: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
 				Paginator: paginator, Config: cfg, Context: context,
 				RelativePrefix: relPrefix, ContentPrefix: cfg.ContentPrefix,
-				PostsIndexURL: postsIndexURL,
+				SectionIndexURL: sectionIndexURL,
 				Taxonomies:   opts.Taxonomies,
 				SiteData:     cfg.SiteData,
 			}); err != nil {

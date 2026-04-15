@@ -43,7 +43,7 @@ func TestFullBuildIntegration(t *testing.T) {
 	cfg.Features.Generators.IsSearchEnabled = true
 	cfg.Features.Generators.IsRSSEnabled = true
 	cfg.Features.Generators.IsSitemapEnabled = true
-	cfg.Features.Generators.Graph = models.GraphConfig{IsEnabled: true, ShowsTags: true}
+	cfg.Features.Generators.Graph = models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true}
 
 	// Create Builder
 	b := orchestration.NewEngine(orchestration.WithFs(fs), orchestration.WithConfig(cfg))

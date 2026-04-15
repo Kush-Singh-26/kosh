@@ -52,7 +52,7 @@ Body content`
 	// Change WD
 	err = os.Chdir(mockSiteDir)
 	require.NoError(t, err)
-	defer os.Chdir(wd)
+	defer func() { _ = os.Chdir(wd) }()
 
 	// 2. Load config and engine
 	cfg := config.Load(nil)
@@ -80,9 +80,9 @@ Body content`
 	// Verify initial state
 	// Note: since it's in content/blogs/post.md, output is public/blogs/post.html
 	htmlPath := filepath.Join(cfg.OutputDir, "blogs", "post.html")
-	initialHtml, err := os.ReadFile(htmlPath)
+	initialHTML, err := os.ReadFile(htmlPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(initialHtml), "Initial Title")
+	assert.Contains(t, string(initialHTML), "Initial Title")
 
 	// 4. Modify file (Title change)
 	newContent := `---
@@ -98,14 +98,14 @@ Body content`
 	engine.Incremental.BuildSingleFileChange(context.Background(), postPath, fsnotify.Write)
 
 	// 6. Assertions
-	updatedHtml, err := os.ReadFile(htmlPath)
+	updatedHTML, err := os.ReadFile(htmlPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(updatedHtml), "Updated Title")
-	assert.NotContains(t, string(updatedHtml), "Initial Title")
+	assert.Contains(t, string(updatedHTML), "Updated Title")
+	assert.NotContains(t, string(updatedHTML), "Initial Title")
 
 	// Check if tags index was updated (blogs/tags/index.html)
 	tagsIndexPath := filepath.Join(cfg.OutputDir, "blogs", "tags", "index.html")
-	tagsIndexHtml, err := os.ReadFile(tagsIndexPath)
+	tagsIndexHTML, err := os.ReadFile(tagsIndexPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(tagsIndexHtml), "new")
+	assert.Contains(t, string(tagsIndexHTML), "new")
 }

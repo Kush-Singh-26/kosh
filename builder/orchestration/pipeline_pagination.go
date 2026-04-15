@@ -10,7 +10,7 @@ import (
 type renderPaginationOptions struct {
 	workingContext context.Context
 	allPosts       []models.PostMetadata
-	pinnedPosts    []models.PostMetadata
+	pinnedItems    []models.PostMetadata
 	force          bool
 	taxonomies     map[string]models.TaxonomyData
 }
@@ -18,7 +18,7 @@ type renderPaginationOptions struct {
 func (engineInstance *Engine) renderPagination(options renderPaginationOptions) error {
 	workingContext := options.workingContext
 	allPosts := options.allPosts
-	pinnedPosts := options.pinnedPosts
+	pinnedItems := options.pinnedItems
 	force := options.force
 	taxonomies := options.taxonomies
 
@@ -30,7 +30,7 @@ func (engineInstance *Engine) renderPagination(options renderPaginationOptions) 
 		Cache:       engineInstance.Deps.Cache,
 		SourceFs:    engineInstance.Deps.SourceFs,
 		AllPosts:    allPosts,
-		PinnedPosts: pinnedPosts,
+		PinnedItems: pinnedItems,
 		Force:       force,
 		Logger:      engineInstance.Deps.Logger,
 		LogoPath:    engineInstance.GetLogoPath(),

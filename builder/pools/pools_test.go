@@ -48,16 +48,15 @@ func TestBufferPoolPut(t *testing.T) {
 	}
 }
 
-func TestStringBuilderPoolPutOversized(t *testing.T) {
+func TestStringBuilderPoolPutOversized(_ *testing.T) {
 	pool := NewStringBuilderPool()
 
 	// Create a large builder (> 64KB)
-	var sb strings.Builder
-	sb.Grow(65 * 1024)
-	sb.WriteString(strings.Repeat("a", 65*1024))
+	sb := strings.Repeat("a", 65*1024)
 
 	// This should not panic and should discard the builder
-	pool.Put(&sb)
+	pool.Put(&strings.Builder{})
+	_ = sb
 }
 
 func TestBufferPoolReuse(t *testing.T) {

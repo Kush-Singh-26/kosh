@@ -37,7 +37,7 @@ func TestManager_ResolveContentPaths(t *testing.T) {
 func TestManager_DeterminePostChange(t *testing.T) {
 	mockCache := &mocks.MockCacheService{}
 	m := NewManager(ManagerDependencies{
-		Deps: IncrementalDependencies{
+		Deps: Dependencies{
 			Cache: mockCache,
 		},
 	})
@@ -45,7 +45,7 @@ func TestManager_DeterminePostChange(t *testing.T) {
 	relPath := "test.md"
 
 	t.Run("New Post", func(t *testing.T) {
-		mockCache.GetPostByPathFn = func(path string) (*models.PostMeta, error) {
+		mockCache.GetPostByPathFn = func(_ string) (*models.PostMeta, error) {
 			return nil, nil
 		}
 		change := m.DeterminePostChange(relPath, "f1", "b1")
@@ -55,7 +55,7 @@ func TestManager_DeterminePostChange(t *testing.T) {
 	})
 
 	t.Run("Frontmatter Change", func(t *testing.T) {
-		mockCache.GetPostByPathFn = func(path string) (*models.PostMeta, error) {
+		mockCache.GetPostByPathFn = func(_ string) (*models.PostMeta, error) {
 			return &models.PostMeta{ContentHash: "f0", BodyHash: "b1"}, nil
 		}
 		change := m.DeterminePostChange(relPath, "f1", "b1")
@@ -65,7 +65,7 @@ func TestManager_DeterminePostChange(t *testing.T) {
 	})
 
 	t.Run("Body Change", func(t *testing.T) {
-		mockCache.GetPostByPathFn = func(path string) (*models.PostMeta, error) {
+		mockCache.GetPostByPathFn = func(_ string) (*models.PostMeta, error) {
 			return &models.PostMeta{ContentHash: "f1", BodyHash: "b0"}, nil
 		}
 		change := m.DeterminePostChange(relPath, "f1", "b1")
@@ -75,7 +75,7 @@ func TestManager_DeterminePostChange(t *testing.T) {
 	})
 
 	t.Run("No Change", func(t *testing.T) {
-		mockCache.GetPostByPathFn = func(path string) (*models.PostMeta, error) {
+		mockCache.GetPostByPathFn = func(_ string) (*models.PostMeta, error) {
 			return &models.PostMeta{ContentHash: "f1", BodyHash: "b1"}, nil
 		}
 		change := m.DeterminePostChange(relPath, "f1", "b1")

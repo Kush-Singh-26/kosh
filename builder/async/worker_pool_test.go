@@ -49,18 +49,18 @@ func TestWorkerPool_SchedulerTokenReleaseOnCancel(t *testing.T) {
 	var acquired, released atomic.Int32
 
 	mockScheduler := &mockScheduler{
-		acquire: func(ctx context.Context, task scheduler.TaskType) error {
+		acquire: func(ctx context.Context, _ scheduler.TaskType) error {
 			acquired.Add(1)
 			// Block until context is cancelled
 			<-ctx.Done()
 			return ctx.Err()
 		},
-		release: func(task scheduler.TaskType) {
+		release: func(_ scheduler.TaskType) {
 			released.Add(1)
 		},
 	}
 
-	pool := NewWorkerPool(ctx, 2, func(task int) error {
+	pool := NewWorkerPool(ctx, 2, func(_ int) error {
 		time.Sleep(50 * time.Millisecond)
 		return nil
 	})
@@ -90,7 +90,7 @@ func TestWorkerPool_StopWaitsForInFlightTasks(t *testing.T) {
 	ctx := context.Background()
 	var completed atomic.Int32
 
-	pool := NewWorkerPool(ctx, 2, func(task int) error {
+	pool := NewWorkerPool(ctx, 2, func(_ int) error {
 		time.Sleep(50 * time.Millisecond)
 		completed.Add(1)
 		return nil
@@ -123,7 +123,7 @@ func TestWorkerPool_SubmitAfterStop(t *testing.T) {
 	ctx := context.Background()
 	var processed atomic.Int32
 
-	pool := NewWorkerPool(ctx, 2, func(task int) error {
+	pool := NewWorkerPool(ctx, 2, func(_ int) error {
 		processed.Add(1)
 		return nil
 	})
@@ -150,7 +150,7 @@ func TestWorkerPool_ConcurrentSubmit(t *testing.T) {
 	ctx := context.Background()
 	var processed atomic.Int32
 
-	pool := NewWorkerPool(ctx, 4, func(task int) error {
+	pool := NewWorkerPool(ctx, 4, func(_ int) error {
 		processed.Add(1)
 		return nil
 	})
@@ -184,7 +184,7 @@ func TestWorkerPool_ContextCancellation(t *testing.T) {
 
 	var processed atomic.Int32
 
-	pool := NewWorkerPool(ctx, 2, func(task int) error {
+	pool := NewWorkerPool(ctx, 2, func(_ int) error {
 		time.Sleep(20 * time.Millisecond)
 		processed.Add(1)
 		return nil

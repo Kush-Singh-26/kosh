@@ -15,7 +15,7 @@ func TestWatcher_BurstDebounce(t *testing.T) {
 	eventCount := 0
 	var countMu sync.Mutex
 
-	w, err := New([]string{dir}, func(e Event) {
+	w, err := New([]string{dir}, func(_ Event) {
 		countMu.Lock()
 		eventCount++
 		countMu.Unlock()
@@ -60,7 +60,7 @@ func TestWatcher_ResetTimer_ThreadSafe(t *testing.T) {
 	eventCount := 0
 	var countMu sync.Mutex
 
-	w, err := New([]string{dir}, func(e Event) {
+	w, err := New([]string{dir}, func(_ Event) {
 		countMu.Lock()
 		eventCount++
 		countMu.Unlock()
@@ -107,7 +107,7 @@ func TestWatcher_ConcurrentFileEvents(t *testing.T) {
 	eventCount := 0
 	var countMu sync.Mutex
 
-	w, err := New([]string{dir}, func(e Event) {
+	w, err := New([]string{dir}, func(_ Event) {
 		countMu.Lock()
 		eventCount++
 		countMu.Unlock()
@@ -147,7 +147,7 @@ func TestWatcher_ConcurrentFileEvents(t *testing.T) {
 func TestWatcher_TimerDrain(t *testing.T) {
 	dir := t.TempDir()
 
-	w, err := New([]string{dir}, func(e Event) {})
+	w, err := New([]string{dir}, func(_ Event) {})
 	if err != nil {
 		t.Fatalf("Failed to create watcher: %v", err)
 	}

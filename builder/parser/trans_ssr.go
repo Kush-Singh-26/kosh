@@ -87,7 +87,7 @@ func GetContext(pc parser.Context) context.Context {
 }
 
 // WithContext stores a build context in the parser context.
-func WithContext(pc parser.Context, ctx context.Context) {
+func WithContext(ctx context.Context, pc parser.Context) {
 	if pc != nil {
 		pc.Set(contextKeyBuild, ctx)
 	}

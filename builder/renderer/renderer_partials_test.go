@@ -35,7 +35,7 @@ func TestPartials_LoadedAndRendered(t *testing.T) {
 {{ end }}`
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(layoutContent), 0644)
 
-	r := NewWithFs(RendererOptions{
+	r := NewWithFs(Options{
 		SourceFs:    fs,
 		TemplateDir: templateDir,
 		Logger:      slog.Default(),
@@ -71,7 +71,7 @@ func TestPartials_CacheInvalidation(t *testing.T) {
 	_ = afero.WriteFile(fs, filepath.Join(partialsDir, "var.html"), []byte(`v1`), 0644)
 	_ = afero.WriteFile(fs, filepath.Join(templateDir, "layout.html"), []byte(`{{ define "content" }}{{ template "partials/var.html" . }}{{ end }}`), 0644)
 
-	r := NewWithFs(RendererOptions{
+	r := NewWithFs(Options{
 		SourceFs:    fs,
 		TemplateDir: templateDir,
 		DevMode:     true, // Ensure small TTL
@@ -104,3 +104,4 @@ func TestPartials_CacheInvalidation(t *testing.T) {
 	r.ReloadTemplates()
 	check("v2")
 }
+

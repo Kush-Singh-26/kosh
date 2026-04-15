@@ -10,7 +10,7 @@ import (
 )
 
 func TestRecoveryMiddleware(t *testing.T) {
-	handler := recoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := recoveryMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		panic("test panic")
 	}))
 
@@ -30,7 +30,7 @@ func TestRecoveryMiddleware(t *testing.T) {
 }
 
 func TestRecoveryMiddleware_NormalRequest(t *testing.T) {
-	handler := recoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := recoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	}))
@@ -175,7 +175,7 @@ func TestNormalizeRequestPath_CleansPath(t *testing.T) {
 }
 
 func TestCompressionHandler_NoBrotliSupport(t *testing.T) {
-	handler := compressionHandler(func(w http.ResponseWriter, r *http.Request) {
+	handler := compressionHandler(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
 
@@ -195,7 +195,7 @@ func TestCompressionHandler_NoBrotliSupport(t *testing.T) {
 }
 
 func TestCompressionHandler_WithBrotliSupport(t *testing.T) {
-	handler := compressionHandler(func(w http.ResponseWriter, r *http.Request) {
+	handler := compressionHandler(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
 
@@ -264,7 +264,7 @@ func TestSetBuildActive(t *testing.T) {
 	}
 }
 
-func TestResetDebounceTimer(t *testing.T) {
+func TestResetDebounceTimer(_ *testing.T) {
 	// Test that function doesn't panic
 	resetDebounceTimer("site", "/test.html")
 }

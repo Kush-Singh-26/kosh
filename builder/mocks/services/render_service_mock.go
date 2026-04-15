@@ -42,13 +42,12 @@ func (m *MockRenderService) SetSink(sink fspkg.ArtifactSink) {
 }
 
 // SetSourceFs sets the source filesystem for the mock render service.
-func (m *MockRenderService) SetSourceFs(fs afero.Fs) {
+func (m *MockRenderService) SetSourceFs(_ afero.Fs) {
 	m.recordCall("SetSourceFs")
-	m.SourceFs = fs
 }
 
 // SetAssetsGate records the assets gate channel.
-func (m *MockRenderService) SetAssetsGate(ch <-chan struct{}) {
+func (m *MockRenderService) SetAssetsGate(_ <-chan struct{}) {
 	m.recordCall("SetAssetsGate")
 }
 
@@ -58,12 +57,12 @@ func (m *MockRenderService) ReloadTemplates() {
 }
 
 // ReconfigureWithLogger sets the logger on the mock render service.
-func (m *MockRenderService) ReconfigureWithLogger(l *slog.Logger) {
+func (m *MockRenderService) ReconfigureWithLogger(_ *slog.Logger) {
 	m.recordCall("ReconfigureWithLogger")
 }
 
 // RenderFragment records a fragment rendering call.
-func (m *MockRenderService) RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error) {
+func (m *MockRenderService) RenderFragment(_ string, _ string, _ models.PageData) (template.HTML, error) {
 	m.recordCall("RenderFragment")
 	return template.HTML("mock fragment"), nil
 }

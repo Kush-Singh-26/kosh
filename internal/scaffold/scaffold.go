@@ -84,7 +84,7 @@ func Run(args []string) {
 }
 
 // RunFs initializes a new Kosh project using the provided filesystem
-func RunFs(fs afero.Fs, args []string) {
+func RunFs(fs afero.Fs, _ []string) {
 	slog.Info("Initializing new Kosh project...")
 
 	// 1. Create Directories

@@ -135,7 +135,7 @@ func waitForRenderTasks(collector *renderTaskCollector) []renderTask {
 
 func finalizePostProcessing(processCtx *postProcessContext) {
 	timeutil.SortPosts(processCtx.allPosts)
-	timeutil.SortPosts(processCtx.pinnedPosts)
+	timeutil.SortPosts(processCtx.pinnedItems)
 	for _, termMap := range processCtx.taxonomyMap {
 		for _, posts := range termMap {
 			timeutil.SortPosts(posts)
@@ -164,7 +164,7 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResul
 	totalFiles := len(opts.Files)
 	processCtx := &postProcessContext{
 		allPosts:         make([]models.PostMetadata, 0, totalFiles),
-		pinnedPosts:      make([]models.PostMetadata, 0, totalFiles/4),
+		pinnedItems:      make([]models.PostMetadata, 0, totalFiles/4),
 		taxonomyMap:      make(map[string]map[string][]models.PostMetadata),
 		newSearchRecords: make(map[string]*models.SearchRecord),
 		newDependencies:  make(map[string]*models.Dependencies),
@@ -235,13 +235,13 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResul
 	finalizePostProcessing(processCtx)
 
 	return &ContentResult{
-		AllPosts: processCtx.allPosts, PinnedPosts: processCtx.pinnedPosts, TaxonomyMap: processCtx.taxonomyMap,
+		AllPosts: processCtx.allPosts, PinnedItems: processCtx.pinnedItems, TaxonomyMap: processCtx.taxonomyMap,
 		IndexedPosts: processCtx.indexedPosts, AnyPostChanged: processCtx.anyPostChanged.Load(), Has404: false,
 	}, nil
 }
 
 // GetMetadataContext retrieves the full site metadata context from the post cache.
-func (service *postService) GetMetadataContext(ctx context.Context) (*ContentContext, error) {
+func (service *postService) GetMetadataContext(_ context.Context) (*ContentContext, error) {
 	if service.cache == nil {
 		return &ContentContext{}, nil
 	}
@@ -257,7 +257,7 @@ func (service *postService) GetMetadataContext(ctx context.Context) (*ContentCon
 	}
 
 	var allPosts []models.PostMetadata
-	pinnedPosts := make([]models.PostMetadata, 0)
+	pinnedItems := make([]models.PostMetadata, 0)
 	taxonomyMap := make(map[string]map[string][]models.PostMetadata)
 
 	for _, meta := range metas {
@@ -276,7 +276,7 @@ func (service *postService) GetMetadataContext(ctx context.Context) (*ContentCon
 
 		allPosts = append(allPosts, postMeta)
 		if postMeta.IsPinned {
-			pinnedPosts = append(pinnedPosts, postMeta)
+			pinnedItems = append(pinnedItems, postMeta)
 		}
 
 		// Aggregate into taxonomyMap
@@ -292,7 +292,7 @@ func (service *postService) GetMetadataContext(ctx context.Context) (*ContentCon
 	}
 
 	timeutil.SortPosts(allPosts)
-	timeutil.SortPosts(pinnedPosts)
+	timeutil.SortPosts(pinnedItems)
 	for _, termMap := range taxonomyMap {
 		for _, posts := range termMap {
 			timeutil.SortPosts(posts)
@@ -301,7 +301,7 @@ func (service *postService) GetMetadataContext(ctx context.Context) (*ContentCon
 
 	return &ContentContext{
 		AllPosts:    allPosts,
-		PinnedPosts: pinnedPosts,
+		PinnedItems: pinnedItems,
 		TaxonomyMap: taxonomyMap,
 	}, nil
 }
@@ -316,7 +316,7 @@ func (service *postService) runStreamingParsePhase(numWorkers int, fileChan <-ch
 	for i := range locals {
 		locals[i] = &workerLocalState{
 			allPosts:         make([]models.PostMetadata, 0, expectedPerWorker),
-			pinnedPosts:      make([]models.PostMetadata, 0, expectedPerWorker/4),
+			pinnedItems:      make([]models.PostMetadata, 0, expectedPerWorker/4),
 			indexedPosts:     make([]models.IndexedPost, 0, expectedPerWorker),
 			searchTasks:      make([]deferredSearchTask, 0, expectedPerWorker),
 			newPostsMeta:     make([]*models.PostMeta, 0, expectedPerWorker),
@@ -376,7 +376,7 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			}
 		}
 
-		postsIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
+		sectionIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
 
 		// Determine node type and layout
 		layoutVal := strings.ToLower(renderTaskInstance.file.Layout)
@@ -387,7 +387,7 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			}
 		}
 
-		pageContext := models.ContextPosts
+		pageContext := models.ContextSection
 		if layoutVal == "home" {
 			pageContext = models.ContextHome
 		}
@@ -400,12 +400,12 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 			Taxonomies: nav.taxonomies,
 			PrevPage:   prev, NextPage: next, RelativePrefix: relPrefix,
 			HasImages: renderTaskInstance.parseResult.HasImages, Context: pageContext,
-			ContentPrefix: service.cfg.ContentPrefix,
-			PostsIndexURL: postsIndexURL,
-			SiteData:      service.cfg.SiteData,
-			JSONLD:        service.generateJSONLD(post, cardImageURL),
-			Section:       post.Section,
-			IsCleanBuild:  service.ctx.IsCleanBuild,
+			ContentPrefix:   service.cfg.ContentPrefix,
+			SectionIndexURL: sectionIndexURL,
+			SiteData:        service.cfg.SiteData,
+			JSONLD:          service.generateJSONLD(post, cardImageURL),
+			Section:         post.Section,
+			IsCleanBuild:    service.ctx.IsCleanBuild,
 		}); err != nil {
 			return err
 		}

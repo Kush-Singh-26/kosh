@@ -85,7 +85,7 @@ func TestPostService_TaxonomyPopulation(t *testing.T) {
 	}
 }
 
-func TestPostService_ReadingTimeReuse(t *testing.T) {
+func TestPostService_ReadingTimeReuse(_ *testing.T) {
 	// This tests "Reading-time reuse during frontmatter-only updates"
 	// We'll need to mock the cache to return a value for reading time
 	// and verify it's reused when only frontmatter changes.

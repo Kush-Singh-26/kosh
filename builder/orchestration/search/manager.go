@@ -143,7 +143,7 @@ func (managerInstance *Manager) PruneDeletedPost(relativePath string) {
 }
 
 // RegenerateIndex rebuilds and writes the search index.
-func (managerInstance *Manager) RegenerateIndex(workingContext context.Context) error {
+func (managerInstance *Manager) RegenerateIndex(_ context.Context) error {
 	managerInstance.mu.Lock()
 	sink := managerInstance.sink
 	renderSvc := managerInstance.render
@@ -209,11 +209,11 @@ func (managerInstance *Manager) calculateSearchHash(posts []models.IndexedPost) 
 
 	hasher := xxh3.New()
 	for _, p := range sorted {
-		hasher.WriteString(indexedPostStableKey(p))
+		_, _ = hasher.WriteString(indexedPostStableKey(p))
 		// Use the Title and some content-based field for hashing.
 		// Since BM25Data (WordFreqs) represents the searchable content, it's a good proxy.
-		hasher.WriteString(p.Record.Title)
-		hasher.WriteString(p.Record.Description)
+		_, _ = hasher.WriteString(p.Record.Title)
+		_, _ = hasher.WriteString(p.Record.Description)
 	}
 
 	return fmt.Sprintf("%x", hasher.Sum64())

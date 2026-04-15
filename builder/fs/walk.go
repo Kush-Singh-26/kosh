@@ -23,7 +23,7 @@ const (
 // WalkFunc is the signature for the callback used in ParallelWalk.
 type WalkFunc func(path string, info fs.FileInfo, err error) error
 
-// ParallelWalk provides a stable, parallelized directory traversal using the afero interface.
+// WalkOptions contains configuration for ParallelWalk.
 type WalkOptions struct {
 	Ctx         context.Context
 	SourceFs    afero.Fs
@@ -44,7 +44,6 @@ type walkState struct {
 	activeTasks int32
 	firstErr    error
 	errOnce     sync.Once
-	cancelOnce  sync.Once
 }
 
 func wrapWalkFn(ctx context.Context, walkFn WalkFunc) WalkFunc {

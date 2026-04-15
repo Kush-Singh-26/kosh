@@ -83,21 +83,22 @@ func (r *Renderer) RenderPage(path string, data models.PageData) error {
 		// Only consider it root if it's NOT inside a content section or taxonomy directory
 		contentPrefix := strings.Trim(data.ContentPrefix, "/")
 		isContentSubpath := contentPrefix != "" && strings.Contains(path, "/"+contentPrefix+"/")
-		
-		// For taxonomies, we check if it's in a plural folder. 
-		// This is a bit tricky without full tree awareness here, 
+
+		// For taxonomies, we check if it's in a plural folder.
+		// This is a bit tricky without full tree awareness here,
 		// but checking for relative prefix emptiness is a strong signal for root.
-		if !isContentSubpath && !data.IsTagsIndex {
+		if !isContentSubpath && !data.IsTaxonomyIndex {
 			isRoot = true
 		}
 	}
 
 	// Choose layout
-	if layoutReq == "home" && r.Home != nil {
+	switch {
+	case layoutReq == "home" && r.Home != nil:
 		layout = r.Home
-	} else if isRoot && r.Home != nil {
+	case isRoot && r.Home != nil:
 		layout = r.Home
-	} else if layoutReq == "index" && r.Index != nil {
+	case layoutReq == "index" && r.Index != nil:
 		layout = r.Index
 	}
 
@@ -237,60 +238,38 @@ func rewriteAttrValue(attrName, value string, converted map[string]string) strin
 
 func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 	result := make([]byte, 0, len(tag))
-	// 1. Skip the "<img" part
 	i := imgTagPrefixLen
 	result = append(result, tag[:i]...)
 
 	for i < len(tag) {
-		// Skip whitespace before attribute name
-		for i < len(tag) && (tag[i] == ' ' || tag[i] == '\t' || tag[i] == '\n' || tag[i] == '\r') {
-			result = append(result, tag[i])
-			i++
-		}
+		i = skipWhitespaceBytes(tag, i, &result)
 
-		if i >= len(tag) || tag[i] == '>' || tag[i] == '/' {
-			// Capture the closing part to append attributes before it
+		if i >= len(tag) || isTagClosingChar(tag[i]) {
 			closingPart := tag[i:]
-			// Add loading="lazy" and decoding="async" to content images
-			// Skip images with class="site-logo" (above-the-fold LCP candidates)
 			result = appendLazyAttributes(result)
 			result = append(result, closingPart...)
 			break
 		}
 
-		// 2. Find attribute name
-		nameStart := i
-		for i < len(tag) && tag[i] != '=' && tag[i] != ' ' && tag[i] != '\t' && tag[i] != '\n' && tag[i] != '\r' && tag[i] != '>' && tag[i] != '/' {
-			i++
-		}
-		attrName := string(tag[nameStart:i])
-		result = append(result, tag[nameStart:i]...)
+		attrName, nameEnd := extractAttributeName(tag, i)
+		result = append(result, tag[i:nameEnd]...)
+		i = nameEnd
 
-		// Skip whitespace before '='
-		for i < len(tag) && (tag[i] == ' ' || tag[i] == '\t' || tag[i] == '\n' || tag[i] == '\r') {
-			result = append(result, tag[i])
-			i++
-		}
+		i = skipWhitespaceBytes(tag, i, &result)
 
 		if i >= len(tag) || tag[i] != '=' {
 			continue
 		}
 
-		// Consume '='
 		result = append(result, '=')
 		i++
 
-		// Skip whitespace after '='
-		for i < len(tag) && (tag[i] == ' ' || tag[i] == '\t' || tag[i] == '\n' || tag[i] == '\r') {
-			result = append(result, tag[i])
-			i++
-		}
+		i = skipWhitespaceBytes(tag, i, &result)
 
 		if i >= len(tag) {
 			break
 		}
 
-		// Handle quoted value
 		if tag[i] == '"' || tag[i] == '\'' {
 			quote := tag[i]
 			result = append(result, quote)
@@ -308,9 +287,8 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 				i++
 			}
 		} else {
-			// Unquoted value (rare in modern HTML but possible)
 			valStart := i
-			for i < len(tag) && tag[i] != ' ' && tag[i] != '\t' && tag[i] != '\n' && tag[i] != '\r' && tag[i] != '>' && tag[i] != '/' {
+			for i < len(tag) && !isTagClosingChar(tag[i]) && tag[i] != ' ' && tag[i] != '\t' && tag[i] != '\n' && tag[i] != '\r' {
 				i++
 			}
 			val := string(tag[valStart:i])
@@ -320,6 +298,26 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 	}
 
 	return result
+}
+
+func skipWhitespaceBytes(tag []byte, i int, result *[]byte) int {
+	for i < len(tag) && (tag[i] == ' ' || tag[i] == '\t' || tag[i] == '\n' || tag[i] == '\r') {
+		*result = append(*result, tag[i])
+		i++
+	}
+	return i
+}
+
+func extractAttributeName(tag []byte, i int) (string, int) {
+	nameStart := i
+	for i < len(tag) && tag[i] != '=' && !isTagClosingChar(tag[i]) && tag[i] != ' ' && tag[i] != '\t' && tag[i] != '\n' && tag[i] != '\r' {
+		i++
+	}
+	return string(tag[nameStart:i]), i
+}
+
+func isTagClosingChar(c byte) bool {
+	return c == '>' || c == '/'
 }
 
 func rewriteImgSrc(src string, converted map[string]string) string {

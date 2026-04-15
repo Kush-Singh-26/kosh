@@ -12,15 +12,17 @@ import (
 // Isolated via parser.NewContextKey() which guarantees global uniqueness.
 var ContextKeyFilePath = parser.NewContextKey()
 
-func (t *unifiedTransformer) processImageDestination(img *ast.Image, dest []byte) {
+func (t *unifiedTransformer) processImageDestination(_ *ast.Image, dest []byte) {
 	src := string(dest)
-	if src == "" || strings.HasPrefix(src, "http") || strings.HasPrefix(src, "//") || strings.HasPrefix(src, "data:") {
+	if src == "" {
 		return
 	}
-	img.Destination = []byte(strings.ToLower(src))
+	if strings.HasPrefix(src, "http") || strings.HasPrefix(src, "//") || strings.HasPrefix(src, "data:") { //nolint:staticcheck
+		return
+	}
 }
 
-func (t *unifiedTransformer) processDestination(n ast.Node, dest []byte, pc parser.Context) {
+func (t *unifiedTransformer) processDestination(n ast.Node, dest []byte, _ parser.Context) {
 	href := string(dest)
 	idx := strings.IndexAny(href, "?#")
 	query := ""
@@ -68,7 +70,7 @@ func (t *unifiedTransformer) processDestination(n ast.Node, dest []byte, pc pars
 	}
 }
 
-func hasTextChild(n ast.Node, source []byte) bool {
+func hasTextChild(n ast.Node, _ []byte) bool {
 	for child := n.FirstChild(); child != nil; child = child.NextSibling() {
 		if _, ok := child.(*ast.Text); ok {
 			return true

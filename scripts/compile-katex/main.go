@@ -48,7 +48,8 @@ func main() {
 	bytecode, err := rt.Compile("katex.min.js", qjs.Code(string(jsData)))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to compile KaTeX: %v\n", err)
-		os.Exit(1)
+		rt.Close()
+		os.Exit(1) //nolint:gocritic
 	}
 
 	// Prepare header (20 bytes)

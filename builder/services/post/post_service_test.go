@@ -32,10 +32,10 @@ import (
 // noopHandler is a slog.Handler that does nothing, used in tests to avoid race conditions in standard handlers.
 type noopHandler struct{}
 
-func (noopHandler) Handle(ctx context.Context, r slog.Record) error    { return nil }
-func (noopHandler) WithAttrs(attrs []slog.Attr) slog.Handler           { return noopHandler{} }
-func (noopHandler) WithGroup(name string) slog.Handler                 { return noopHandler{} }
-func (noopHandler) Enabled(ctx context.Context, level slog.Level) bool { return false }
+func (noopHandler) Handle(_ context.Context, _ slog.Record) error { return nil }
+func (noopHandler) WithAttrs(_ []slog.Attr) slog.Handler          { return noopHandler{} }
+func (noopHandler) WithGroup(_ string) slog.Handler               { return noopHandler{} }
+func (noopHandler) Enabled(_ context.Context, _ slog.Level) bool  { return false }
 
 // mockRenderService is a mock that can simulate panics
 type mockRenderService struct {
@@ -43,34 +43,34 @@ type mockRenderService struct {
 	panicMsg    string
 }
 
-func (m *mockRenderService) SetSink(sink fspkg.ArtifactSink)      {}
-func (m *mockRenderService) SetSourceFs(fs afero.Fs)              {}
-func (m *mockRenderService) SetAssetsGate(ch <-chan struct{})     {}
-func (m *mockRenderService) ReconfigureWithLogger(l *slog.Logger) {}
+func (m *mockRenderService) SetSink(_ fspkg.ArtifactSink)         {}
+func (m *mockRenderService) SetSourceFs(_ afero.Fs)               {}
+func (m *mockRenderService) SetAssetsGate(_ <-chan struct{})      {}
+func (m *mockRenderService) ReconfigureWithLogger(_ *slog.Logger) {}
 
-func (m *mockRenderService) RenderPage(path string, data models.PageData) error {
+func (m *mockRenderService) RenderPage(_ string, _ models.PageData) error {
 	if m.shouldPanic {
 		panic(m.panicMsg)
 	}
 	return nil
 }
 
-func (m *mockRenderService) RenderIndex(path string, data models.PageData) error { return nil }
-func (m *mockRenderService) Render404(path string, data models.PageData) error   { return nil }
-func (m *mockRenderService) RenderGraph(path string, data models.PageData) error { return nil }
-func (m *mockRenderService) RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error) {
+func (m *mockRenderService) RenderIndex(_ string, _ models.PageData) error { return nil }
+func (m *mockRenderService) Render404(_ string, _ models.PageData) error   { return nil }
+func (m *mockRenderService) RenderGraph(_ string, _ models.PageData) error { return nil }
+func (m *mockRenderService) RenderFragment(_ string, _ string, _ models.PageData) (template.HTML, error) {
 	return template.HTML(""), nil
 }
-func (m *mockRenderService) RegisterFile(path string)                                 {}
-func (m *mockRenderService) SetAssets(assets map[string]string)                       {}
-func (m *mockRenderService) GetAssets() map[string]string                             { return nil }
-func (m *mockRenderService) GetRenderedFiles() map[string]bool                        { return nil }
-func (m *mockRenderService) ClearRenderedFiles()                                      {}
-func (m *mockRenderService) ReloadTemplates()                                         {}
-func (m *mockRenderService) ConsumeErrors() []error                                   { return nil }
-func (m *mockRenderService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {}
-func (m *mockRenderService) Has404Template() bool                                     { return true }
-func (m *mockRenderService) FlushFragments(ctx context.Context) error                 { return nil }
+func (m *mockRenderService) RegisterFile(_ string)                                {}
+func (m *mockRenderService) SetAssets(_ map[string]string)                        {}
+func (m *mockRenderService) GetAssets() map[string]string                         { return nil }
+func (m *mockRenderService) GetRenderedFiles() map[string]bool                    { return nil }
+func (m *mockRenderService) ClearRenderedFiles()                                  {}
+func (m *mockRenderService) ReloadTemplates()                                     {}
+func (m *mockRenderService) ConsumeErrors() []error                               { return nil }
+func (m *mockRenderService) ReconfigureForBuild(_ fspkg.ArtifactSink, _ afero.Fs) {}
+func (m *mockRenderService) Has404Template() bool                                 { return true }
+func (m *mockRenderService) FlushFragments(_ context.Context) error               { return nil }
 
 // mockArtifactSink is a mock ArtifactSink for testing
 type mockArtifactSink struct {
@@ -78,29 +78,28 @@ type mockArtifactSink struct {
 	writtenFiles sync.Map
 }
 
-func (m *mockArtifactSink) WriteFile(path string, data []byte) error {
-	m.writtenFiles.Store(path, true)
+func (m *mockArtifactSink) WriteFile(_ string, _ []byte) error {
+	m.writtenFiles.Store("", true)
 	return nil
 }
 
-func (m *mockArtifactSink) WriteStream(path string, fn func(w io.Writer) error) error {
-	m.writtenFiles.Store(path, true)
+func (m *mockArtifactSink) WriteStream(_ string, _ func(w io.Writer) error) error {
+	m.writtenFiles.Store("", true)
 	return nil
 }
 
-func (m *mockArtifactSink) MkdirAll(path string) error { return nil }
+func (m *mockArtifactSink) MkdirAll(_ string) error { return nil }
 
-func (m *mockArtifactSink) CopyFile(src, dst string) error {
+func (m *mockArtifactSink) CopyFile(_, dst string) error {
 	m.writtenFiles.Store(dst, true)
 	return nil
 }
 
-func (m *mockArtifactSink) Register(path string) {
-	m.writtenFiles.Store(path, true)
+func (m *mockArtifactSink) Register(_ string) {
 }
 
-func (m *mockArtifactSink) SetMtime(path string, mtime time.Time) error { return nil }
-func (m *mockArtifactSink) Stat(path string) (os.FileInfo, error) {
+func (m *mockArtifactSink) SetMtime(_ string, _ time.Time) error { return nil }
+func (m *mockArtifactSink) Stat(_ string) (os.FileInfo, error) {
 	return nil, os.ErrNotExist
 }
 
@@ -152,40 +151,40 @@ func (m *mockRenderServiceWithCapture) GetAssets() map[string]string { return ni
 // mockCacheService that can simulate failures
 type mockCacheService struct{}
 
-func (m *mockCacheService) GetPostByID(id string) (*cache.PostMeta, error)     { return nil, nil }
-func (m *mockCacheService) ListAllPosts() ([]string, error)                    { return nil, nil }
-func (m *mockCacheService) GetPostByPath(path string) (*cache.PostMeta, error) { return nil, nil }
-func (m *mockCacheService) GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error) {
+func (m *mockCacheService) GetPostByID(_ string) (*cache.PostMeta, error)   { return nil, nil }
+func (m *mockCacheService) ListAllPosts() ([]string, error)                 { return nil, nil }
+func (m *mockCacheService) GetPostByPath(_ string) (*cache.PostMeta, error) { return nil, nil }
+func (m *mockCacheService) GetPostsByIDs(_ []string) (map[string]*cache.PostMeta, error) {
 	return nil, nil
 }
-func (m *mockCacheService) GetPostsByTemplate(templatePath string) ([]string, error) { return nil, nil }
-func (m *mockCacheService) GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error) {
+func (m *mockCacheService) GetPostsByTemplate(_ string) ([]string, error) { return nil, nil }
+func (m *mockCacheService) GetSearchRecords(_ []string) (map[string]*cache.SearchRecord, error) {
 	return nil, nil
 }
-func (m *mockCacheService) GetSearchRecord(id string) (*cache.SearchRecord, error)  { return nil, nil }
-func (m *mockCacheService) GetHTMLContent(post *cache.PostMeta) ([]byte, error)     { return nil, nil }
-func (m *mockCacheService) GetSocialCardHash(path string) (string, error)           { return "", nil }
-func (m *mockCacheService) SetSocialCardHash(path, hash string) error               { return nil }
-func (m *mockCacheService) BatchSetSocialCardHashes(hashes map[string]string) error { return nil }
-func (m *mockCacheService) GetGraphHash() (string, error)                           { return "", nil }
-func (m *mockCacheService) SetGraphHash(hash string) error                          { return nil }
-func (m *mockCacheService) GetWasmHash() (string, error)                            { return "", nil }
-func (m *mockCacheService) SetWasmHash(hash string) error                           { return nil }
+func (m *mockCacheService) GetSearchRecord(_ string) (*cache.SearchRecord, error) { return nil, nil }
+func (m *mockCacheService) GetHTMLContent(_ *cache.PostMeta) ([]byte, error)      { return nil, nil }
+func (m *mockCacheService) GetSocialCardHash(_ string) (string, error)            { return "", nil }
+func (m *mockCacheService) SetSocialCardHash(_, _ string) error                   { return nil }
+func (m *mockCacheService) BatchSetSocialCardHashes(_ map[string]string) error    { return nil }
+func (m *mockCacheService) GetGraphHash() (string, error)                         { return "", nil }
+func (m *mockCacheService) SetGraphHash(_ string) error                           { return nil }
+func (m *mockCacheService) GetWasmHash() (string, error)                          { return "", nil }
+func (m *mockCacheService) SetWasmHash(_ string) error                            { return nil }
 func (m *mockCacheService) GetAllPostsMetadata() ([]cache.PostListMeta, error) {
 	return nil, nil
 }
-func (m *mockCacheService) StoreHTML(content []byte) (string, error)                    { return "", nil }
-func (m *mockCacheService) StoreHTMLForPost(post *cache.PostMeta, content []byte) error { return nil }
-func (m *mockCacheService) BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error {
+func (m *mockCacheService) StoreHTML(_ []byte) (string, error)                 { return "", nil }
+func (m *mockCacheService) StoreHTMLForPost(_ *cache.PostMeta, _ []byte) error { return nil }
+func (m *mockCacheService) BatchCommit(_ []*cache.PostMeta, _ map[string]*cache.SearchRecord, _ map[string]*cache.Dependencies) error {
 	return nil
 }
-func (m *mockCacheService) DeletePost(postID string) error    { return nil }
-func (m *mockCacheService) MarkDirty(postID string)           {}
-func (m *mockCacheService) IsDirty(postID string) bool        { return false }
-func (m *mockCacheService) ClearDirty()                       {}
-func (m *mockCacheService) Stats() (*cache.CacheStats, error) { return nil, nil }
-func (m *mockCacheService) IncrementBuildCount() error        { return nil }
-func (m *mockCacheService) Close() error                      { return nil }
+func (m *mockCacheService) DeletePost(_ string) error    { return nil }
+func (m *mockCacheService) MarkDirty(_ string)           {}
+func (m *mockCacheService) IsDirty(_ string) bool        { return false }
+func (m *mockCacheService) ClearDirty()                  {}
+func (m *mockCacheService) Stats() (*cache.Stats, error) { return nil, nil }
+func (m *mockCacheService) IncrementBuildCount() error   { return nil }
+func (m *mockCacheService) Close() error                 { return nil }
 
 func setupPostServiceTest(t *testing.T) *postService {
 	t.Helper()
@@ -391,8 +390,8 @@ func TestDecoupledPipeline(t *testing.T) {
 	res, err := ParseMarkdownMetadata(ParseOptions{
 		Source:           source,
 		Path:             "content/test.md",
-		CleanHtmlRelPath: "test.html",
-		HtmlRelPath:      "test.html",
+		CleanHTMLRelPath: "test.html",
+		HTMLRelPath:      "test.html",
 		MdPool:           mdPool,
 		Cfg:              cfg,
 	})

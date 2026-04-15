@@ -15,7 +15,7 @@ import (
 //	FireAndForget(ctx, logger, "cache commit", func() error {
 //	    return cache.BatchCommit(...)
 //	})
-func FireAndForget(ctx context.Context, logger *slog.Logger, operation string, fn func() error) {
+func FireAndForget(_ context.Context, logger *slog.Logger, operation string, fn func() error) {
 	go func() {
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -50,7 +50,7 @@ func FireAndForget(ctx context.Context, logger *slog.Logger, operation string, f
 //	case <-time.After(5 * time.Second):
 //	    /* timeout */
 //	}
-func FireAndForgetWithResult(ctx context.Context, logger *slog.Logger, operation string, fn func() error) <-chan error {
+func FireAndForgetWithResult(_ context.Context, logger *slog.Logger, operation string, fn func() error) <-chan error {
 	errCh := make(chan error, 1) // buffered to prevent goroutine leak
 	go func() {
 		defer func() {

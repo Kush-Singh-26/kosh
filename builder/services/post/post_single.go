@@ -218,8 +218,8 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 			DiagramAdapter:   service.diagramAdapter,
 			Metrics:          service.metrics,
 			Cfg:              service.cfg,
-			HtmlRelPath:      htmlRelPath,
-			CleanHtmlRelPath: strings.TrimSuffix(htmlRelPath, "index.html"),
+			HTMLRelPath:      htmlRelPath,
+			CleanHTMLRelPath: strings.TrimSuffix(htmlRelPath, "index.html"),
 		})
 		if err != nil {
 			return err
@@ -259,11 +259,11 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 	}
 
 	contentPrefix := strings.Trim(service.cfg.ContentPrefix, "/")
-	postsIndexURL := "index.html"
+	sectionIndexURL := "index.html"
 	if contentPrefix != "" {
-		postsIndexURL = "/" + contentPrefix + "/"
+		sectionIndexURL = "/" + contentPrefix + "/"
 	} else if relPrefix != "" {
-		postsIndexURL = relPrefix + "index.html"
+		sectionIndexURL = relPrefix + "index.html"
 	}
 
 	// Determine if this is a blog page or a custom layout page
@@ -275,7 +275,7 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		layoutVal = strings.ToLower(l)
 	}
 	isContent := layoutVal != "home"
-	pageContext := models.ContextPosts
+	pageContext := models.ContextSection
 	if !isContent {
 		pageContext = models.ContextHome
 	}
@@ -289,11 +289,11 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		ItemTaxonomies: post.Taxonomies,
 		PrevPage:       nav.prev, NextPage: nav.next, RelativePrefix: relPrefix,
 		HasImages: parseRes.HasImages, Context: pageContext,
-		ContentPrefix: contentPrefix,
-		PostsIndexURL: postsIndexURL,
-		JSONLD:        service.generateJSONLD(post, cardImageURL),
-		Section:       section,
-		IsCleanBuild:  service.ctx.IsCleanBuild,
+		ContentPrefix:   contentPrefix,
+		SectionIndexURL: sectionIndexURL,
+		JSONLD:          service.generateJSONLD(post, cardImageURL),
+		Section:         section,
+		IsCleanBuild:    service.ctx.IsCleanBuild,
 	})
 }
 

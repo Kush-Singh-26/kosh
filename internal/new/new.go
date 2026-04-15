@@ -14,6 +14,7 @@ const (
 	newContentFileMode = 0644
 )
 
+// ConfigGetter provides content directory configuration for new post creation.
 type ConfigGetter interface {
 	GetContentDir() string
 }

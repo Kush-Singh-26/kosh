@@ -83,7 +83,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 		Manager: cm,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -218,7 +218,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 		Manager: cm,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -323,3 +323,4 @@ func TestIncrementalBuild_AssetCopyTimestampPreservation(t *testing.T) {
 	_ = srcModTime
 	_ = dstInfo
 }
+

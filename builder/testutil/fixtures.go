@@ -102,7 +102,7 @@ func CreateSampleConfig() *config.Config {
 			Generators: models.GeneratorsConfig{
 				IsSitemapEnabled: true,
 				IsRSSEnabled:     true,
-				Graph:           models.GraphConfig{IsEnabled: true, ShowsTags: true},
+				Graph:           models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
 				IsPWAEnabled:     false,
 				IsSearchEnabled:  true,
 			},

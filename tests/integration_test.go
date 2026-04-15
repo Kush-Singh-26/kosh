@@ -17,16 +17,16 @@ import (
 
 type mockReporter struct{}
 
-func (m *mockReporter) Start(mode string)                                                {}
-func (m *mockReporter) StartPhase(phase ui.Phase)                                        {}
-func (m *mockReporter) UpdateProgress(phase ui.Phase, current, total int, detail string) {}
-func (m *mockReporter) EndPhase(phase ui.Phase, duration time.Duration)                  {}
-func (m *mockReporter) Info(msg string, args ...any)                                     {}
-func (m *mockReporter) Warn(msg string, args ...any)                                     {}
-func (m *mockReporter) Error(msg string, err error, args ...any)                         {}
-func (m *mockReporter) Success(msg string)                                               {}
-func (m *mockReporter) Status(msg string)                                                {}
-func (m *mockReporter) Finish(stats ui.BuildStats)                                       {}
+func (m *mockReporter) Start(_ string)                                {}
+func (m *mockReporter) StartPhase(_ ui.Phase)                         {}
+func (m *mockReporter) UpdateProgress(_ ui.Phase, _, _ int, _ string) {}
+func (m *mockReporter) EndPhase(_ ui.Phase, _ time.Duration)          {}
+func (m *mockReporter) Info(_ string, _ ...any)                       {}
+func (m *mockReporter) Warn(_ string, _ ...any)                       {}
+func (m *mockReporter) Error(_ string, _ error, _ ...any)             {}
+func (m *mockReporter) Success(_ string)                              {}
+func (m *mockReporter) Status(_ string)                               {}
+func (m *mockReporter) Finish(_ ui.BuildStats)                        {}
 
 func TestMockSiteBuild(t *testing.T) {
 	// 1. Setup paths
@@ -37,7 +37,7 @@ func TestMockSiteBuild(t *testing.T) {
 	// Change working directory so config.Load finds kosh.yaml
 	err := os.Chdir(mockSiteDir)
 	require.NoError(t, err)
-	defer os.Chdir(wd)
+	defer func() { _ = os.Chdir(wd) }()
 
 	// 2. Load config
 	cfg := config.Load(nil)

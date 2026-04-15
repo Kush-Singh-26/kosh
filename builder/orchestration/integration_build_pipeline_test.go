@@ -56,7 +56,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 				IsSitemapEnabled: true,
 				IsRSSEnabled:     true,
 				IsSearchEnabled:  true,
-				Graph:            models.GraphConfig{IsEnabled: true, ShowsTags: true},
+				Graph:            models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
 			},
 		},
 	}
@@ -93,7 +93,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -240,7 +240,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		Manager: cacheManager,
 		Logger:  logger,
 	})
-	rnd := renderer.NewWithFs(renderer.RendererOptions{
+	rnd := renderer.NewWithFs(renderer.Options{
 		SourceFs:    fs,
 		Compress:    false,
 		Sink:        nil,
@@ -317,3 +317,4 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		t.Errorf("Expected same post count, got %d vs %d", afterStats.TotalPosts, initialStats.TotalPosts)
 	}
 }
+

@@ -57,7 +57,8 @@ type imageCacheKey struct {
 	modTime int64
 }
 
-type imageCache struct {
+// ImageCache is an LRU cache for processed images.
+type ImageCache struct {
 	cache    *lru.Cache[imageCacheKey, []byte]
 	size     atomicInt64
 	capacity int64
@@ -68,14 +69,14 @@ type imageCacheEntry struct {
 	data []byte
 }
 
-func newImageCache(maxItems int, maxBytes int64) *imageCache {
-	cacheInstance := &imageCache{
+func newImageCache(maxItems int, maxBytes int64) *ImageCache {
+	cacheInstance := &ImageCache{
 		capacity: maxBytes,
 	}
 
 	onEvict := func(key imageCacheKey, value []byte) {
 		overhead := imageCacheEntryOverhead + len(key.path)
-		cacheInstance.size.Add(-int64(cap(value) + overhead))
+		cacheInstance.size.Add(-int64(len(value)) + int64(overhead))
 	}
 
 	cache, _ := lru.NewWithEvict[imageCacheKey, []byte](maxItems, onEvict)
@@ -84,13 +85,15 @@ func newImageCache(maxItems int, maxBytes int64) *imageCache {
 	return cacheInstance
 }
 
-func (cache *imageCache) get(key imageCacheKey) ([]byte, bool) {
+// Get retrieves a value from the cache.
+func (cache *ImageCache) Get(key imageCacheKey) ([]byte, bool) {
 	return cache.cache.Get(key)
 }
 
-func (cache *imageCache) set(key imageCacheKey, data []byte) {
+// Set adds a value to the cache.
+func (cache *ImageCache) Set(key imageCacheKey, data []byte) {
 	overhead := imageCacheEntryOverhead + len(key.path)
-	itemSize := cap(data) + overhead
+	itemSize := len(data) + overhead
 
 	cache.size.Add(int64(itemSize))
 
@@ -105,15 +108,15 @@ func (cache *imageCache) set(key imageCacheKey, data []byte) {
 }
 
 // Size reports the current in-memory cache size in bytes.
-func (cache *imageCache) Size() int64 { return cache.size.Load() }
+func (cache *ImageCache) Size() int64 { return cache.size.Load() }
 
 var (
-	globalImageCache     *imageCache
+	globalImageCache     *ImageCache
 	globalImageCacheOnce sync.Once
 )
 
 // GetImageCache returns the global in-memory image cache.
-func GetImageCache() *imageCache {
+func GetImageCache() *ImageCache {
 	globalImageCacheOnce.Do(func() {
 		globalImageCache = newImageCache(defaultImageCacheItems, defaultImageCacheMaxSize)
 	})

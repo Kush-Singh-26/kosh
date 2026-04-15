@@ -48,7 +48,7 @@ func TestImageOptimizationStress(t *testing.T) {
 	opts := assets.CopyOptions{
 		Compress:     true,
 		ExcludeExts:  []string{},
-		OnWrite:      func(s string) {},
+		OnWrite:      func(_ string) {},
 		CacheDir:     cacheDir,
 		ImageWorkers: 8,
 		WebPQuality:  80,

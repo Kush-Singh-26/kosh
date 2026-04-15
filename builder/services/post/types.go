@@ -8,6 +8,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
+// ShortcodeProcessor processes shortcodes in markdown content.
 type ShortcodeProcessor interface {
 	Process(markdown []byte) ([]byte, error)
 }
@@ -33,16 +34,16 @@ type searchTask struct {
 // workerLocalState accumulates results within a single parse worker,
 // eliminating contention on the shared postProcessContext.
 type workerLocalState struct {
-	allPosts              []models.PostMetadata
-	pinnedPosts           []models.PostMetadata
-	taxonomyEntries       []taxonomyEntry
-	indexedPosts          []models.IndexedPost
-	searchTasks           []deferredSearchTask
-	newPostsMeta          []*models.PostMeta
-	newSearchRecords      map[string]*models.SearchRecord
-	newDependencies       map[string]*models.Dependencies
-	anyChanged            bool
-	errs                  []error
+	allPosts         []models.PostMetadata
+	pinnedItems      []models.PostMetadata
+	taxonomyEntries  []taxonomyEntry
+	indexedPosts     []models.IndexedPost
+	searchTasks      []deferredSearchTask
+	newPostsMeta     []*models.PostMeta
+	newSearchRecords map[string]*models.SearchRecord
+	newDependencies  map[string]*models.Dependencies
+	anyChanged       bool
+	errs             []error
 }
 
 type taxonomyEntry struct {
@@ -72,7 +73,7 @@ type WorkerContext struct {
 
 type postProcessContext struct {
 	allPosts         []models.PostMetadata
-	pinnedPosts      []models.PostMetadata
+	pinnedItems      []models.PostMetadata
 	taxonomyMap      map[string]map[string][]models.PostMetadata // Taxonomy -> Term -> Posts
 	anyPostChanged   atomic.Bool
 	newPostsMeta     []*models.PostMeta
@@ -87,10 +88,10 @@ type AggregateContext struct {
 	Ctx              context.Context
 	Result           *ParsedMarkdownResult
 	Post             models.PostMetadata
-	HtmlContent      string
+	HTMLContent      string
 	DestinationPath  string
 	RelativePath     string
-	HtmlRelativePath string
+	HTMLRelativePath string
 	SSRHashes        []string
 	UseCache         bool
 	WorkerContext    WorkerContext
@@ -103,7 +104,7 @@ type AggregateContext struct {
 type SocialCardOptions struct {
 	RelativePath       string
 	Result             *ParsedMarkdownResult
-	HtmlRelativePath   string
+	HTMLRelativePath   string
 	ForceSocialRebuild bool
 	CardPool           *async.WorkerPool[socialCardTask]
 }

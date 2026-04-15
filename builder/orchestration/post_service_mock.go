@@ -25,13 +25,13 @@ func (serviceMock *mockPostService) ReconfigureForBuild(sink fspkg.ArtifactSink,
 }
 
 // SetAssetsGate sets the assets gate for the mock.
-func (serviceMock *mockPostService) SetAssetsGate(readySignal <-chan struct{}) {}
+func (serviceMock *mockPostService) SetAssetsGate(_ <-chan struct{}) {}
 
 // ReconfigureWithReporter is a no-op for the mock.
-func (serviceMock *mockPostService) ReconfigureWithReporter(reporter ui.Reporter, logger *slog.Logger) {}
+func (serviceMock *mockPostService) ReconfigureWithReporter(_ ui.Reporter, _ *slog.Logger) {}
 
 // Process returns the configured result for the mock.
-func (serviceMock *mockPostService) Process(opts post.ProcessOptions) (*post.ContentResult, error) {
+func (serviceMock *mockPostService) Process(_ post.ProcessOptions) (*post.ContentResult, error) {
 	if serviceMock.ProcessResult != nil {
 		return serviceMock.ProcessResult, serviceMock.ProcessErr
 	}
@@ -41,7 +41,7 @@ func (serviceMock *mockPostService) Process(opts post.ProcessOptions) (*post.Con
 // ProcessStreaming returns the configured result after draining the file channel.
 func (serviceMock *mockPostService) ProcessStreaming(opts post.ProcessOptions) (*post.ContentResult, error) {
 	// Drain the channel to simulate consumption
-	for range opts.FileChan {
+	for range opts.FileChan { //nolint:revive // intentionally drain channel
 	}
 	if serviceMock.ProcessResult != nil {
 		return serviceMock.ProcessResult, serviceMock.ProcessErr
@@ -50,12 +50,11 @@ func (serviceMock *mockPostService) ProcessStreaming(opts post.ProcessOptions) (
 }
 
 // ProcessSingle returns the configured error for the mock.
-func (serviceMock *mockPostService) ProcessSingle(ctx context.Context, path string, source []byte) error {
+func (serviceMock *mockPostService) ProcessSingle(_ context.Context, _ string, _ []byte) error {
 	return serviceMock.ProcessSingleErr
 }
 
-// ProcessSingleWithResult returns the configured error for the mock.
-func (serviceMock *mockPostService) ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *post.ParsedMarkdownResult) error {
+func (serviceMock *mockPostService) ProcessSingleWithResult(_ context.Context, _ string, _ []byte, _ *post.ParsedMarkdownResult) error {
 	return serviceMock.ProcessSingleErr
 }
 
@@ -63,7 +62,7 @@ func (serviceMock *mockPostService) ProcessSingleWithResult(ctx context.Context,
 func (serviceMock *mockPostService) WaitForCacheCommit() {}
 
 // GetMetadataContext returns the configured metadata context for the mock.
-func (serviceMock *mockPostService) GetMetadataContext(ctx context.Context) (*post.ContentContext, error) {
+func (serviceMock *mockPostService) GetMetadataContext(_ context.Context) (*post.ContentContext, error) {
 	if serviceMock.ProcessResult != nil {
 		return serviceMock.ProcessResult.ToContentContext(), nil
 	}

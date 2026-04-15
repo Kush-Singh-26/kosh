@@ -31,8 +31,8 @@ const (
 	bm25Smoothing              = 0.5
 )
 
-// SearchContext holds the context for a search execution
-type SearchContext struct {
+// Context holds the context for a search execution.
+type Context struct {
 	Index         *models.SearchIndex
 	QueryTerms    []string
 	Phrases       [][]string
@@ -43,14 +43,14 @@ type SearchContext struct {
 
 // Scorer defines the interface for different scoring strategies
 type Scorer interface {
-	Score(ctx *SearchContext, opts *SearchScoringOptions)
+	Score(ctx *Context, opts *ScoringOptions)
 }
 
 // TagScorer boosts scores based on tag matches
 type TagScorer struct{}
 
 // Score boosts results that match the active tag filter.
-func (scorer *TagScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *TagScorer) Score(ctx *Context, opts *ScoringOptions) {
 	if ctx.TagFilter != "" && len(ctx.QueryTerms) == 0 {
 		opts.HighlightTerms[ctx.TagFilter] = true
 		for id, post := range ctx.Index.Posts {
@@ -72,7 +72,7 @@ func (scorer *TagScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
 type BM25Scorer struct{}
 
 // Score applies BM25 scoring and fuzzy matching when needed.
-func (scorer *BM25Scorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *BM25Scorer) Score(ctx *Context, opts *ScoringOptions) {
 	for _, term := range ctx.QueryTerms {
 		if posts, ok := ctx.Index.Inverted[term]; ok {
 			opts.Modifier = scoreModifierBase
@@ -83,7 +83,7 @@ func (scorer *BM25Scorer) Score(ctx *SearchContext, opts *SearchScoringOptions) 
 	}
 }
 
-func (scorer *BM25Scorer) applyBM25Score(ctx *SearchContext, posts map[string][]uint32, term string, opts *SearchScoringOptions) {
+func (scorer *BM25Scorer) applyBM25Score(ctx *Context, posts map[string][]uint32, _ string, opts *ScoringOptions) {
 	docFreq := len(posts)
 	invDocFreq := math.Log(1 + (float64(ctx.Index.TotalDocs)-float64(docFreq)+bm25Smoothing)/(float64(docFreq)+bm25Smoothing))
 	avgDocLen := ctx.Index.AvgDocLen
@@ -113,7 +113,7 @@ func (scorer *BM25Scorer) applyBM25Score(ctx *SearchContext, posts map[string][]
 	}
 }
 
-func (scorer *BM25Scorer) scoreFuzzy(ctx *SearchContext, term string, opts *SearchScoringOptions) {
+func (scorer *BM25Scorer) scoreFuzzy(ctx *Context, term string, opts *ScoringOptions) {
 	var candidates []string
 	if ctx.Index.NgramIndex != nil {
 		candidates = core.FuzzyExpandWithNgrams(term, ctx.Index.NgramIndex, core.MaxEditDistance)
@@ -137,7 +137,7 @@ func (scorer *BM25Scorer) scoreFuzzy(ctx *SearchContext, term string, opts *Sear
 type PhraseScorer struct{}
 
 // Score boosts results that match phrases or full query terms.
-func (scorer *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *PhraseScorer) Score(ctx *Context, opts *ScoringOptions) {
 	if len(ctx.QueryTerms) > 1 {
 		for id := range opts.Scores {
 			if checkPhraseUnified(ctx.Index, id, ctx.QueryTerms) {
@@ -163,7 +163,7 @@ func (scorer *PhraseScorer) Score(ctx *SearchContext, opts *SearchScoringOptions
 type TitleScorer struct{}
 
 // Score boosts results that match title or description text.
-func (scorer *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *TitleScorer) Score(ctx *Context, opts *ScoringOptions) {
 	if ctx.OriginalQuery == "" {
 		return
 	}
@@ -186,14 +186,13 @@ func (scorer *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions)
 
 	for id := range ctx.Index.Posts {
 		post := ctx.Index.Posts[id]
-		if post.NormalizedTitle == queryLower {
-			idNum, _ := strconv.ParseUint(id, 10, 64)
+		idNum, _ := strconv.ParseUint(id, 10, 64)
+		switch {
+		case post.NormalizedTitle == queryLower:
 			titleMatches[idNum] += exactTitleBoost
-		} else if strings.HasPrefix(post.NormalizedTitle, queryLower) {
-			idNum, _ := strconv.ParseUint(id, 10, 64)
+		case strings.HasPrefix(post.NormalizedTitle, queryLower):
 			titleMatches[idNum] += prefixTitleBoost
-		} else if strings.Contains(post.NormalizedTitle, queryLower) {
-			idNum, _ := strconv.ParseUint(id, 10, 64)
+		case strings.Contains(post.NormalizedTitle, queryLower):
 			titleMatches[idNum] += substringTitleBoost
 		}
 
@@ -222,7 +221,7 @@ func (scorer *TitleScorer) Score(ctx *SearchContext, opts *SearchScoringOptions)
 type BoostScorer struct{}
 
 // Score boosts results that match exact tags.
-func (scorer *BoostScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *BoostScorer) Score(ctx *Context, opts *ScoringOptions) {
 	if ctx.OriginalQuery == "" && ctx.TagFilter == "" {
 		return
 	}
@@ -256,7 +255,7 @@ func NewPipeline(scorers ...Scorer) *Pipeline {
 }
 
 // Execute runs all scorers in order.
-func (pipeline *Pipeline) Execute(ctx *SearchContext, opts *SearchScoringOptions) {
+func (pipeline *Pipeline) Execute(ctx *Context, opts *ScoringOptions) {
 	for _, scorer := range pipeline.scorers {
 		scorer.Score(ctx, opts)
 	}
@@ -266,7 +265,7 @@ func (pipeline *Pipeline) Execute(ctx *SearchContext, opts *SearchScoringOptions
 type FilterScorer struct{}
 
 // Score filters results based on required and excluded query terms.
-func (scorer *FilterScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *FilterScorer) Score(ctx *Context, opts *ScoringOptions) {
 	if len(opts.TermInfos) == 0 {
 		return
 	}
@@ -298,7 +297,7 @@ func (scorer *FilterScorer) Score(ctx *SearchContext, opts *SearchScoringOptions
 type ProximityScorer struct{}
 
 // Score boosts results where terms appear close together.
-func (scorer *ProximityScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *ProximityScorer) Score(ctx *Context, opts *ScoringOptions) {
 	if len(ctx.QueryTerms) < 2 {
 		return
 	}
@@ -311,7 +310,7 @@ func (scorer *ProximityScorer) Score(ctx *SearchContext, opts *SearchScoringOpti
 	}
 }
 
-func (scorer *ProximityScorer) calculateProximityScore(ctx *SearchContext, id string) float64 {
+func (scorer *ProximityScorer) calculateProximityScore(ctx *Context, id string) float64 {
 	// Find all positions for each term in this document
 	termPositions := make([][]int, 0, len(ctx.QueryTerms))
 	for _, term := range ctx.QueryTerms {
@@ -338,13 +337,14 @@ func (scorer *ProximityScorer) calculateProximityScore(ctx *SearchContext, id st
 				if diff < 0 {
 					diff = -diff
 				}
-				if diff <= maxProximitySlop {
+				switch {
+				case diff <= maxProximitySlop:
 					boost += proximityBoost / float64(diff+1)
 					pos1++
 					pos2++
-				} else if list1[pos1] < list2[pos2] {
+				case list1[pos1] < list2[pos2]:
 					pos1++
-				} else {
+				default:
 					pos2++
 				}
 			}
@@ -358,7 +358,7 @@ func (scorer *ProximityScorer) calculateProximityScore(ctx *SearchContext, id st
 type RecencyScorer struct{}
 
 // Score boosts newer results using an exponential decay.
-func (scorer *RecencyScorer) Score(ctx *SearchContext, opts *SearchScoringOptions) {
+func (scorer *RecencyScorer) Score(ctx *Context, opts *ScoringOptions) {
 	if ctx.Index.TotalDocs == 0 {
 		return
 	}
@@ -425,13 +425,14 @@ func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []
 		var newCandidates []int
 		idx1, idx2 := 0, 0
 		for idx1 < len(posList) && idx2 < len(nextDecoded) {
-			if nextDecoded[idx2] == posList[idx1]+1 {
+			switch {
+			case nextDecoded[idx2] == posList[idx1]+1:
 				newCandidates = append(newCandidates, nextDecoded[idx2])
 				idx1++
 				idx2++
-			} else if nextDecoded[idx2] < posList[idx1]+1 {
+			case nextDecoded[idx2] < posList[idx1]+1:
 				idx2++
-			} else {
+			default:
 				idx1++
 			}
 		}

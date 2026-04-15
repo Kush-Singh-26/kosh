@@ -49,10 +49,10 @@ func (m *MemSink) WriteStream(path string, fn func(io.Writer) error) error {
 }
 
 // MkdirAll is a no-op for MemSink.
-func (m *MemSink) MkdirAll(path string) error { return nil }
+func (m *MemSink) MkdirAll(_ string) error { return nil }
 
 // Register is a no-op for MemSink.
-func (m *MemSink) Register(path string) {}
+func (m *MemSink) Register(_ string) {}
 
 // GetWrittenFiles returns a set of written file paths.
 func (m *MemSink) GetWrittenFiles() map[string]bool {
@@ -69,12 +69,12 @@ func (m *MemSink) GetWrittenFiles() map[string]bool {
 func (m *MemSink) GetOutputDir() string { return m.OutputDir }
 
 // WriteHardlink is a no-op for MemSink.
-func (m *MemSink) WriteHardlink(src, dst string) (bool, error) {
+func (m *MemSink) WriteHardlink(_, _ string) (bool, error) {
 	return false, nil
 }
 
 // SetMtime is a no-op for MemSink.
-func (m *MemSink) SetMtime(path string, mtime time.Time) error { return nil }
+func (m *MemSink) SetMtime(_ string, _ time.Time) error { return nil }
 
 // Stat returns a synthetic FileInfo for the stored path.
 func (m *MemSink) Stat(path string) (os.FileInfo, error) {
@@ -115,7 +115,7 @@ func NewMockTransaction(stagingDir string) *MockTransaction {
 func (m *MockTransaction) StagingDir() string { return m.stagingDir }
 
 // Commit marks the transaction as committed.
-func (m *MockTransaction) Commit(ctx context.Context) error {
+func (m *MockTransaction) Commit(_ context.Context) error {
 	m.Committed = true
 	return nil
 }
@@ -156,21 +156,21 @@ type FailingSink struct {
 }
 
 // WriteFile returns the configured error.
-func (f *FailingSink) WriteFile(path string, data []byte) error {
+func (f *FailingSink) WriteFile(_ string, _ []byte) error {
 	return f.Err
 }
 
 // WriteStream returns the configured error.
-func (f *FailingSink) WriteStream(path string, fn func(io.Writer) error) error {
+func (f *FailingSink) WriteStream(_ string, _ func(io.Writer) error) error {
 	return f.Err
 }
 
 // MkdirAll returns the configured error.
-func (f *FailingSink) MkdirAll(path string) error {
+func (f *FailingSink) MkdirAll(_ string) error {
 	return f.Err
 }
 
 // Stat returns the configured error.
-func (f *FailingSink) Stat(path string) (os.FileInfo, error) {
+func (f *FailingSink) Stat(_ string) (os.FileInfo, error) {
 	return nil, f.Err
 }

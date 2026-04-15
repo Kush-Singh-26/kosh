@@ -146,7 +146,7 @@ func ensureSchemaVersion(db *bbolt.DB, currentVersion uint32) error {
 }
 
 // OpenWithTimeout opens or creates a cache with a custom timeout
-func OpenWithTimeout(basePath string, isDev bool, timeout time.Duration) (*Manager, error) {
+func OpenWithTimeout(basePath string, _ bool, timeout time.Duration) (*Manager, error) {
 	if err := os.MkdirAll(basePath, cacheDirMode); err != nil {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
@@ -369,7 +369,7 @@ func (manager *Manager) DB() *bbolt.DB {
 }
 
 // RunGC performs garbage collection
-func (manager *Manager) RunGC(cfg gc.GCConfig) (*gc.GCResult, error) {
+func (manager *Manager) RunGC(cfg gc.Config) (*gc.Result, error) {
 	return gc.RunGC(manager.db, manager.store, manager.refCount, cfg)
 }
 

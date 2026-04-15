@@ -443,7 +443,7 @@ func TestRanking_SnippetPopulated(t *testing.T) {
 	}
 }
 
-func TestRanking_ConcurrentSafety(t *testing.T) {
+func TestRanking_ConcurrentSafety(_ *testing.T) {
 	index := buildRankingIndex()
 
 	done := make(chan bool, 10)

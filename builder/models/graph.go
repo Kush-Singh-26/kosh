@@ -4,7 +4,7 @@ package models
 type GraphNode struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
-	Group       int    `json:"group"` // 0=Root/Hub, 1=Posts, 2=Tags, 3=Categories
+	Group       int    `json:"group"` // 0=Root/Hub, 1=Items, 2=Taxonomies
 	Value       int    `json:"val"`   // Node size
 	URL         string `json:"url,omitempty"`
 	Date        string `json:"date,omitempty"`
@@ -16,7 +16,7 @@ type GraphNode struct {
 type GraphLink struct {
 	Source string  `json:"source"`
 	Target string  `json:"target"`
-	Type   string  `json:"type,omitempty"`   // "tag", "wiki", "similarity", "backlink"
+	Type   string  `json:"type,omitempty"`   // "taxonomy", "wiki", "similarity", "backlink"
 	Weight float64 `json:"weight,omitempty"` // for similarity edges
 }
 
@@ -29,9 +29,9 @@ type GraphData struct {
 // GraphConfig defines knowledge graph generation options.
 type GraphConfig struct {
 	IsEnabled       bool `yaml:"isEnabled"`
-	ShowsTags       bool `yaml:"showsTags"`
+	ShowsTaxonomies bool `yaml:"showsTaxonomies"`
 	MaxNodes        int  `yaml:"maxNodes"`
-	MinTagFrequency int  `yaml:"minTagFrequency"`
+	MinTermFrequency int `yaml:"minTermFrequency"`
 }
 
 // UnmarshalYAML implements custom unmarshalling for GraphConfig.
@@ -39,16 +39,30 @@ func (gc *GraphConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	var b bool
 	if err := unmarshal(&b); err == nil {
 		gc.IsEnabled = b
-		gc.ShowsTags = true
+		gc.ShowsTaxonomies = true
 		return nil
 	}
 	type graphConfigAlias GraphConfig
-	alias := (*graphConfigAlias)(gc)
-	if err := unmarshal(alias); err != nil {
+	var aux struct {
+		*graphConfigAlias `yaml:",inline"`
+		ShowsTags         *bool `yaml:"showsTags,omitempty"`
+		MinTagFrequency   *int  `yaml:"minTagFrequency,omitempty"`
+	}
+	aux.graphConfigAlias = (*graphConfigAlias)(gc)
+	
+	if err := unmarshal(&aux); err != nil {
 		return err
 	}
-	if !gc.ShowsTags {
-		gc.ShowsTags = true
+	
+	if aux.ShowsTags != nil {
+		gc.ShowsTaxonomies = *aux.ShowsTags
+	}
+	if aux.MinTagFrequency != nil {
+		gc.MinTermFrequency = *aux.MinTagFrequency
+	}
+	
+	if !gc.ShowsTaxonomies && aux.ShowsTags == nil {
+		gc.ShowsTaxonomies = true
 	}
 	return nil
 }

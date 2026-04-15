@@ -105,11 +105,11 @@ func (tc *templateCache) hasTemplatesChanged(fs afero.Fs) bool {
 }
 
 func (tc *templateCache) checkTemplatesOnDisk(fs afero.Fs) (bool, error) {
-	templateFiles := []string{"layout.html", "index.html", "404.html"}
+	templateFiles := []string{"layout.html", "index.html", "404.html", "home.html", "graph.html"}
 	changed := false
 
 	// Helper to collect files from a directory
-	collectFiles := func(dir string, prefix string) {
+	collectFiles := func(dir string, _ string) {
 		if dir == "" {
 			return
 		}
@@ -125,10 +125,6 @@ func (tc *templateCache) checkTemplatesOnDisk(fs afero.Fs) (bool, error) {
 				}
 				return nil
 			})
-		}
-		// Also add the main slots from this directory
-		for _, f := range []string{"layout.html", "index.html", "404.html", "home.html", "graph.html"} {
-			templateFiles = append(templateFiles, f)
 		}
 	}
 

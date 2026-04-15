@@ -47,10 +47,10 @@ func stripFrontmatter(source []byte, bodyOffset int) []byte {
 
 // parseMarkdownWithRecovery parses markdown with panic recovery
 func parseMarkdownWithRecovery(
+	ctx context.Context,
 	bodyOnly []byte,
 	path string,
 	mdPool *sync.Pool,
-	ctx context.Context,
 ) (ast.Node, parser.Context, error) {
 	var docNode ast.Node
 	var mdCtx parser.Context
@@ -64,7 +64,7 @@ func parseMarkdownWithRecovery(
 		}()
 
 		mdCtx = parser.NewContext()
-		mdParser.WithContext(mdCtx, ctx)
+		mdParser.WithContext(ctx, mdCtx)
 		mdCtx.Set(mdParser.ContextKeyFilePath, path)
 
 		mdEngine, ok := mdPool.Get().(goldmark.Markdown)
@@ -82,7 +82,7 @@ func parseMarkdownWithRecovery(
 
 // extractMetadata extracts metadata from context or frontmatter.
 // Expected value types (from YAML decoding): string, bool, int/float64, time.Time, []any, map[string]any.
-func extractMetadata(mdCtx parser.Context, source []byte, preParsedMeta map[string]any) map[string]any {
+func extractMetadata(_ parser.Context, source []byte, preParsedMeta map[string]any) map[string]any {
 	if preParsedMeta != nil {
 		return preParsedMeta
 	}

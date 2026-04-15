@@ -281,7 +281,7 @@ func (manager *Manager) StoreFragment(key string, html string) error {
 }
 
 // BatchStoreFragments persists multiple UI fragments in a single transaction.
-func (manager *Manager) BatchStoreFragments(ctx context.Context, entries map[string]string) error {
+func (manager *Manager) BatchStoreFragments(_ context.Context, entries map[string]string) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -330,11 +330,11 @@ func (manager *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*co
 	}
 
 	artifact := &core.SSRArtifact{
-		Type:       ssrType,
-		InputHash:  inputHash,
-		OutputHash: outputHash,
-		Size:       int64(len(content)),
-		CreatedAt:  time.Now().Unix(),
+		Type:         ssrType,
+		InputHash:    inputHash,
+		OutputHash:   outputHash,
+		Size:         int64(len(content)),
+		CreatedAt:    time.Now().Unix(),
 		IsCompressed: compressionType != core.CompressionNone,
 	}
 

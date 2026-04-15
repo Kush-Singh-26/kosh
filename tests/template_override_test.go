@@ -48,7 +48,7 @@ Body`
 	// 2. Load Config
 	err := os.Chdir(mockSiteDir)
 	require.NoError(t, err)
-	defer os.Chdir(wd)
+	defer func() { _ = os.Chdir(wd) }()
 
 	cfg := config.Load(nil)
 	cfg.OutputDir = filepath.Join(mockSiteDir, "public")
@@ -103,8 +103,8 @@ outputDir: "public"
 	// Blogs content
 	require.NoError(t, os.WriteFile(filepath.Join(mockSiteDir, "content", "blogs", "b1.md"), []byte("---\ntitle: B1\n---\n"), 0644))
 
-	os.Chdir(mockSiteDir)
-	defer os.Chdir(wd)
+	_ = os.Chdir(mockSiteDir) // best-effort cleanup
+	defer func() { _ = os.Chdir(wd) }()
 
 	cfg := config.Load(nil)
 	cfg.OutputDir = filepath.Join(mockSiteDir, "public")

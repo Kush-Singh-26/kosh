@@ -45,11 +45,11 @@ const (
 // This reduces function signatures and makes test setup more readable.
 type EngineDependencies struct {
 	// Services
-	Cache    svcCache.Service
-	Post     post.Service
-	Asset    asset.Service
-	Render   render.Service
-	Wasm     wasm.Service
+	Cache     svcCache.Service
+	Post      post.Service
+	Asset     asset.Service
+	Render    render.Service
+	Wasm      wasm.Service
 	Scanner   scanner.Scanner
 	Diagrams  *cache.DiagramCacheAdapter
 	Fragments *cache.FragmentCacheAdapter
@@ -174,7 +174,7 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 		Cfg:      cfg,
 		Logger:   deps.Logger,
 		SourceFs: deps.SourceFs,
-		Deps: incremental.IncrementalDependencies{
+		Deps: incremental.Dependencies{
 			Cache:    deps.Cache,
 			Post:     deps.Post,
 			Render:   deps.Render,
@@ -359,7 +359,7 @@ func (engineInstance *Engine) SaveCaches() {
 		// Trigger garbage collection every cacheGCPollInterval builds
 		if count, err := engineInstance.Deps.Cache.IncrementBuildCount(); err == nil && count >= cacheGCPollInterval {
 			engineInstance.Deps.Logger.Info("Triggering scheduled cache garbage collection", "builds", count)
-			if result, err := engineInstance.Deps.Cache.RunGC(gc.GCConfig{
+			if result, err := engineInstance.Deps.Cache.RunGC(gc.Config{
 				MaxAge: cacheGCMaxAge,
 			}); err != nil {
 				engineInstance.Deps.Logger.Warn("Cache garbage collection failed", "error", err)

@@ -255,9 +255,9 @@ func (rep *lineReporter) printLine(line string) {
 	rep.mu.Unlock()
 
 	if isTTY && !finished {
-		fmt.Fprint(os.Stdout, "\r\033[K"+line)
+		_, _ = fmt.Fprint(os.Stdout, "\r\033[K"+line)
 	} else {
-		fmt.Fprint(os.Stdout, line)
+		_, _ = fmt.Fprint(os.Stdout, line)
 	}
 }
 
@@ -374,12 +374,12 @@ func (rep *lineReporter) renderSpinner() {
 	rep.mu.Unlock()
 
 	// Use erase-to-end-of-line to clear any leftover characters
-	fmt.Fprint(os.Stdout, line+"\033[K")
+	_, _ = fmt.Fprint(os.Stdout, line+"\033[K")
 }
 
 // clearLine clears the current spinner line. Must be called with rep.mu held.
 func (rep *lineReporter) clearLine() {
-	fmt.Fprint(os.Stdout, "\r\033[K")
+	_, _ = fmt.Fprint(os.Stdout, "\r\033[K")
 }
 
 func (rep *lineReporter) shouldSkip(msg string) bool {

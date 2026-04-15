@@ -171,14 +171,14 @@ func (service *cacheService) IsDirty(postID string) bool {
 // ClearDirty clears all dirty markers.
 func (service *cacheService) ClearDirty() {
 	// Use Range+Delete instead of reassignment to prevent lost dirty marks
-	service.dirtyPostsMap.Range(func(key, value any) bool {
+	service.dirtyPostsMap.Range(func(key, _ any) bool {
 		service.dirtyPostsMap.Delete(key)
 		return true
 	})
 }
 
 // Stats returns cache stats.
-func (service *cacheService) Stats() (*cache.CacheStats, error) {
+func (service *cacheService) Stats() (*cache.Stats, error) {
 	return service.manager.Stats()
 }
 
@@ -188,7 +188,7 @@ func (service *cacheService) IncrementBuildCount() (uint32, error) {
 }
 
 // RunGC runs garbage collection with the provided config.
-func (service *cacheService) RunGC(config gc.GCConfig) (*gc.GCResult, error) {
+func (service *cacheService) RunGC(config gc.Config) (*gc.Result, error) {
 	return service.manager.RunGC(config)
 }
 

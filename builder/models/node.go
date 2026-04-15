@@ -8,31 +8,35 @@ import (
 type NodeType int
 
 const (
-	NodePage     NodeType = iota // A standalone markdown or HTML page
-	NodeSection                  // A directory containing other nodes
-	NodeTaxonomy                 // A list page for a taxonomy term (e.g., /tags/go/)
-	NodeHome                     // The root entry point of the site
+	// NodePage represents a standalone markdown or HTML page.
+	NodePage NodeType = iota
+	// NodeSection represents a directory containing other nodes.
+	NodeSection
+	// NodeTaxonomy represents a list page for a taxonomy term (e.g., /tags/go/).
+	NodeTaxonomy
+	// NodeHome represents the root entry point of the site.
+	NodeHome
 )
 
 // Resource represents any content item processed by the SSG.
 // This is a generalized version of PostMetadata that can represent
 // blog posts, documentation pages, or portfolio items.
 type Resource struct {
-	Title          string                 `json:"title"`
-	Link           string                 `json:"link"`
-	Description    string                 `json:"description"`
-	Tags           []string               `json:"tags"`
-	Weight         int                    `json:"weight"`
-	ReadingTime    int                    `json:"reading_time"`
-	IsPinned       bool                   `json:"is_pinned"`
-	IsDraft        bool                   `json:"is_draft"`
-	Date           time.Time              `json:"date"`
-	ContentHTML    string                 `json:"content_html,omitempty"`
-	Type           NodeType               `json:"type"`
-	Layout         string                 `json:"layout"`
-	Metadata       map[string]any          `json:"metadata"`
-	RelPath        string                 `json:"rel_path"`
-	RelativePrefix string                 `json:"relative_prefix"`
+	Title          string         `json:"title"`
+	Link           string         `json:"link"`
+	Description    string         `json:"description"`
+	Tags           []string       `json:"tags"`
+	Weight         int            `json:"weight"`
+	ReadingTime    int            `json:"reading_time"`
+	IsPinned       bool           `json:"is_pinned"`
+	IsDraft        bool           `json:"is_draft"`
+	Date           time.Time      `json:"date"`
+	ContentHTML    string         `json:"content_html,omitempty"`
+	Type           NodeType       `json:"type"`
+	Layout         string         `json:"layout"`
+	Metadata       map[string]any `json:"metadata"`
+	RelPath        string         `json:"rel_path"`
+	RelativePrefix string         `json:"relative_prefix"`
 }
 
 // NodeTree represents the hierarchical structure of the site.

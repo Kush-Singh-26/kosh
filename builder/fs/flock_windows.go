@@ -15,10 +15,10 @@ var (
 )
 
 const (
-	// LOCKFILE_EXCLUSIVE_LOCK requests an exclusive file lock.
-	LOCKFILE_EXCLUSIVE_LOCK = 2
-	// LOCKFILE_FAIL_IMMEDIATELY returns immediately instead of waiting for a lock.
-	LOCKFILE_FAIL_IMMEDIATELY = 1
+	// ExclusiveLock requests an exclusive file lock.
+	ExclusiveLock = 2
+	// FailImmediately returns immediately instead of waiting for a lock.
+	FailImmediately = 1
 )
 
 func tryLock(file *os.File) error {
@@ -28,7 +28,7 @@ func tryLock(file *os.File) error {
 	// Lock entire file (0 to 0xFFFFFFFF for both low and high parts)
 	ret, _, err := lockFileExProc.Call(
 		uintptr(file.Fd()),
-		uintptr(LOCKFILE_EXCLUSIVE_LOCK|LOCKFILE_FAIL_IMMEDIATELY),
+		uintptr(ExclusiveLock|FailImmediately),
 		0,
 		0xFFFFFFFF,
 		0xFFFFFFFF,

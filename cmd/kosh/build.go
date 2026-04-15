@@ -50,7 +50,7 @@ func init() {
 	buildCmd.Flags().BoolVar(&buildNoStaging, "no-staging", false, "Disable atomic staging (overwrites output in place)")
 }
 
-func runBuild(cmd *cobra.Command, args []string) {
+func runBuild(cmd *cobra.Command, _ []string) {
 	ctx := cmd.Context()
 	timeutil.ResetPhaseTracking()
 	if buildPhaseTimings || buildPhaseTimingsFile != "" {
@@ -82,11 +82,12 @@ func runBuild(cmd *cobra.Command, args []string) {
 		profileFile, err := os.Create(buildCPUProfile)
 		if err != nil {
 			fmt.Printf("could not create CPU profile: %v\n", err)
-			os.Exit(1)
+			os.Exit(1) //nolint:gocritic
 		}
 		defer func() { _ = profileFile.Close() }()
 		if err := pprof.StartCPUProfile(profileFile); err != nil {
 			fmt.Printf("could not start CPU profile: %v\n", err)
+			pprof.StopCPUProfile()
 			os.Exit(1)
 		}
 		defer pprof.StopCPUProfile()
@@ -106,6 +107,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 		}
 		if err := engine.Build(ctx); err != nil {
 			orchestration.DevLogError("Initial build failed: " + err.Error())
+			timeutil.DisablePhaseTracking()
 			os.Exit(1)
 		}
 		maybePrintPhaseTimings()
@@ -120,11 +122,13 @@ func runBuild(cmd *cobra.Command, args []string) {
 		})
 		if err != nil {
 			orchestration.DevLogError("Watcher failed: " + err.Error())
+			timeutil.DisablePhaseTracking()
 			os.Exit(1)
 		}
 		watcher.Start()
 	} else {
 		if err := orchestration.Run(filteredArgs, reporter); err != nil {
+			timeutil.DisablePhaseTracking()
 			os.Exit(1)
 		}
 		maybePrintPhaseTimings()
@@ -140,6 +144,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 			runtime.GC()
 			if err := pprof.WriteHeapProfile(profileFile); err != nil {
 				fmt.Printf("could not write memory profile: %v\n", err)
+				timeutil.DisablePhaseTracking()
 				os.Exit(1)
 			}
 		}

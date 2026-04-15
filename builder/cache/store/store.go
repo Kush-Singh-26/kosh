@@ -259,7 +259,7 @@ func (storeInstance *Store) ListHashes(category string) ([]string, error) {
 		SourceFs:    afero.NewOsFs(),
 		Root:        categoryPath,
 		Concurrency: 0,
-		WalkFn: func(path string, info fs.FileInfo, err error) error {
+		WalkFn: func(_ string, info fs.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}

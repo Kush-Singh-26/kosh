@@ -48,49 +48,16 @@ func (service *metadataScanner) Scan(options ScanOptions) (*models.MetadataScann
 
 // ScanStreaming performs a scan and returns result and error channels.
 func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *models.MetadataScannerResult, <-chan error) {
-	contextValue := options.Ctx
-	contentDir := options.ContentDir
-	sourceFs := options.SrcFs
-	siteConfig := options.Cfg
-	fileChan := options.FileChan
-
 	resultChan := make(chan *models.MetadataScannerResult, 1)
 	errorChan := make(chan error, 1)
 
+	contextValue := options.Ctx
 	if contextValue == nil {
 		contextValue = context.Background()
 	}
+
 	async.FireAndForget(contextValue, slog.Default(), "metadata scan stream", func() error {
-		// Pass 1: Discover sections (_index.md files) to build the Data Cascade.
-		sections := make(map[string]map[string]any)
-		var sectionsMu sync.Mutex
-		errPass1 := fspkg.ParallelWalk(fspkg.WalkOptions{
-			Ctx:         contextValue,
-			SourceFs:    sourceFs,
-			Root:        contentDir,
-			Concurrency: runtime.NumCPU() * scanConcurrencyMultiplier,
-			WalkFn: func(path string, info fs.FileInfo, err error) error {
-				if err != nil || info.IsDir() {
-					return nil
-				}
-				if filepath.Base(path) == "_index.md" {
-					scanned, err := service.ScanFile(sourceFs, siteConfig, path)
-					if err == nil {
-						relDir := filepath.Dir(scanned.RelPath)
-						if relDir == "." {
-							relDir = ""
-						}
-						sectionsMu.Lock()
-						sections[relDir] = scanned.PreParsedMeta
-						sectionsMu.Unlock()
-					}
-				}
-				return nil
-			},
-		})
-		if errPass1 != nil {
-			slog.Warn("Scanner Pass 1 (sections) failed", "error", errPass1)
-		}
+		sections := service.discoverSections(contextValue, options.SrcFs, options.ContentDir, options.Cfg)
 
 		result := &models.MetadataScannerResult{
 			Files:         make([]models.ScannedResource, 0, scanResultFilesCap),
@@ -103,137 +70,11 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 
 		err := fspkg.ParallelWalk(fspkg.WalkOptions{
 			Ctx:         contextValue,
-			SourceFs:    sourceFs,
-			Root:        contentDir,
+			SourceFs:    options.SrcFs,
+			Root:        options.ContentDir,
 			Concurrency: runtime.NumCPU() * scanConcurrencyMultiplier,
 			WalkFn: func(path string, info fs.FileInfo, err error) error {
-				if err != nil || info.IsDir() {
-					return nil
-				}
-
-				filename := filepath.Base(path)
-				if filename == "_index.md" {
-					return nil // Already handled in Pass 1
-				}
-
-				if filepath.Ext(path) != ".md" {
-					mutex.Lock()
-					result.ContentAssets = append(result.ContentAssets, models.ScannedAsset{
-						Path: path,
-						Info: info,
-					})
-					mutex.Unlock()
-					return nil
-				}
-
-				if filename == "404.md" {
-					mutex.Lock()
-					result.Has404 = true
-					mutex.Unlock()
-				}
-
-				errorGroup.Go(func() error {
-					scannedFile, err := service.ScanFile(sourceFs, siteConfig, path)
-					if err != nil {
-						return nil
-					}
-
-					// Apply Data Cascade: merge section metadata into page metadata.
-					relDir := filepath.Dir(scannedFile.RelPath)
-					if relDir == "." {
-						relDir = ""
-					}
-
-					// Resolve cascaded metadata by walking up the directory tree to the root.
-					// We merge both global root metadata and 'cascade' blocks.
-					merged := make(map[string]any)
-					pathParts := strings.Split(relDir, string(filepath.Separator))
-					currentPath := ""
-					for i := 0; i <= len(pathParts); i++ {
-						if i > 0 && pathParts[i-1] == "" {
-							continue
-						}
-						if sectionMeta, ok := sections[currentPath]; ok {
-							// Cascade Block: Only propagate fields inside the 'cascade' key
-							if cascade, ok := sectionMeta["cascade"].(map[string]any); ok {
-								for k, v := range cascade {
-									merged[k] = v
-								}
-							}
-
-							// Specific handling for root metadata (optional: allow some root fields to cascade)
-							if currentPath == "" {
-								if desc, ok := sectionMeta["description"].(string); ok {
-									merged["description"] = desc
-								}
-							}
-						}
-						if i < len(pathParts) {
-							if currentPath != "" {
-								currentPath += string(filepath.Separator)
-							}
-							currentPath += pathParts[i]
-						}
-					}
-
-					// Finally merge the page's own metadata (overwrites cascaded values)
-					for k, v := range scannedFile.PreParsedMeta {
-						merged[k] = v
-					}
-					scannedFile.PreParsedMeta = merged
-
-					// Re-evaluate core fields from the merged metadata
-					if layout, ok := merged["layout"].(string); ok {
-						scannedFile.Layout = layout
-					}
-					if title, ok := merged["title"].(string); ok && scannedFile.Title == "" {
-						scannedFile.Title = title
-					}
-
-					if fileChan != nil {
-						select {
-						case fileChan <- scannedFile:
-						case <-groupCtx.Done():
-							return groupCtx.Err()
-						}
-					}
-
-					mutex.Lock()
-					result.Files = append(result.Files, scannedFile)
-
-					// Update site-wide discovery metadata
-					light := models.LightResourceMetadata{
-						Path:        scannedFile.Path,
-						Title:       scannedFile.Title,
-						DateObj:     scannedFile.DateObj,
-						Taxonomies:  scannedFile.Taxonomies,
-						IsPinned:    scannedFile.IsPinned,
-						Weight:      scannedFile.Weight,
-						ReadingTime: scannedFile.ReadingTime,
-						IsDraft:     scannedFile.IsDraft,
-						Description: scannedFile.Description,
-						Link:        scannedFile.Link,
-						Layout:      scannedFile.Layout,
-					}
-					result.Metadata = append(result.Metadata, light)
-
-					// Aggregate Taxonomies
-					if result.TaxonomyMap == nil {
-						result.TaxonomyMap = make(map[string]map[string][]models.LightResourceMetadata)
-					}
-					for taxK, terms := range scannedFile.Taxonomies {
-						if _, ok := result.TaxonomyMap[taxK]; !ok {
-							result.TaxonomyMap[taxK] = make(map[string][]models.LightResourceMetadata)
-						}
-						for _, t := range terms {
-							result.TaxonomyMap[taxK][t] = append(result.TaxonomyMap[taxK][t], light)
-						}
-					}
-					mutex.Unlock()
-					return nil
-				})
-
-				return nil
+				return service.processScanPath(groupCtx, path, info, err, options, sections, result, &mutex, errorGroup)
 			},
 		})
 
@@ -255,6 +96,181 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 	})
 
 	return resultChan, errorChan
+}
+
+// discoverSections performs Pass 1: discover all _index.md files to build data cascade.
+func (service *metadataScanner) discoverSections(ctx context.Context, sourceFs afero.Fs, contentDir string, siteConfig *config.Config) map[string]map[string]any {
+	sections := make(map[string]map[string]any)
+	var sectionsMu sync.Mutex
+
+	err := fspkg.ParallelWalk(fspkg.WalkOptions{
+		Ctx:         ctx,
+		SourceFs:    sourceFs,
+		Root:        contentDir,
+		Concurrency: runtime.NumCPU() * scanConcurrencyMultiplier,
+		WalkFn: func(path string, info fs.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			if filepath.Base(path) == "_index.md" {
+				scanned, err := service.ScanFile(sourceFs, siteConfig, path)
+				if err == nil {
+					relDir := filepath.Dir(scanned.RelPath)
+					if relDir == "." {
+						relDir = ""
+					}
+					sectionsMu.Lock()
+					sections[relDir] = scanned.PreParsedMeta
+					sectionsMu.Unlock()
+				}
+			}
+			return nil
+		},
+	})
+
+	if err != nil {
+		slog.Warn("Scanner Pass 1 (sections) failed", "error", err)
+	}
+
+	return sections
+}
+
+// processScanPath processes a single path during the scan walk.
+func (service *metadataScanner) processScanPath(ctx context.Context, path string, info fs.FileInfo, err error, options ScanOptions, sections map[string]map[string]any, result *models.MetadataScannerResult, mutex *sync.Mutex, errorGroup *errgroup.Group) error {
+	if err != nil || info.IsDir() {
+		return nil
+	}
+
+	filename := filepath.Base(path)
+	if filename == "_index.md" {
+		return nil
+	}
+
+	if filepath.Ext(path) != ".md" {
+		mutex.Lock()
+		result.ContentAssets = append(result.ContentAssets, models.ScannedAsset{
+			Path: path,
+			Info: info,
+		})
+		mutex.Unlock()
+		return nil
+	}
+
+	if filename == "404.md" {
+		mutex.Lock()
+		result.Has404 = true
+		mutex.Unlock()
+	}
+
+	errorGroup.Go(func() error {
+		scannedFile, err := service.ScanFile(options.SrcFs, options.Cfg, path)
+		if err != nil {
+			return nil
+		}
+
+		merged := service.applyDataCascade(scannedFile, sections)
+		scannedFile.PreParsedMeta = merged
+
+		if fileChan := options.FileChan; fileChan != nil {
+			select {
+			case fileChan <- scannedFile:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+		service.aggregateScanResult(result, scannedFile, mutex)
+		return nil
+	})
+
+	return nil
+}
+
+// applyDataCascade merges section metadata into the scanned file's metadata.
+func (service *metadataScanner) applyDataCascade(scannedFile models.ScannedResource, sections map[string]map[string]any) map[string]any {
+	relDir := filepath.Dir(scannedFile.RelPath)
+	if relDir == "." {
+		relDir = ""
+	}
+
+	merged := make(map[string]any)
+	pathParts := strings.Split(relDir, string(filepath.Separator))
+	currentPath := ""
+
+	for i := 0; i <= len(pathParts); i++ {
+		if i > 0 && pathParts[i-1] == "" {
+			continue
+		}
+
+		if sectionMeta, ok := sections[currentPath]; ok {
+			if cascade, ok := sectionMeta["cascade"].(map[string]any); ok {
+				for k, v := range cascade {
+					merged[k] = v
+				}
+			}
+
+			if currentPath == "" {
+				if desc, ok := sectionMeta["description"].(string); ok {
+					merged["description"] = desc
+				}
+			}
+		}
+
+		if i < len(pathParts) {
+			if currentPath != "" {
+				currentPath += string(filepath.Separator)
+			}
+			currentPath += pathParts[i]
+		}
+	}
+
+	for k, v := range scannedFile.PreParsedMeta {
+		merged[k] = v
+	}
+
+	if layout, ok := merged["layout"].(string); ok {
+		scannedFile.Layout = layout
+	}
+	if title, ok := merged["title"].(string); ok && scannedFile.Title == "" {
+		scannedFile.Title = title
+	}
+
+	return merged
+}
+
+// aggregateScanResult aggregates the scanned file into the result.
+func (service *metadataScanner) aggregateScanResult(result *models.MetadataScannerResult, scannedFile models.ScannedResource, mutex *sync.Mutex) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	result.Files = append(result.Files, scannedFile)
+
+	light := models.LightResourceMetadata{
+		Path:        scannedFile.Path,
+		Title:       scannedFile.Title,
+		DateObj:     scannedFile.DateObj,
+		Taxonomies:  scannedFile.Taxonomies,
+		IsPinned:    scannedFile.IsPinned,
+		Weight:      scannedFile.Weight,
+		ReadingTime: scannedFile.ReadingTime,
+		IsDraft:     scannedFile.IsDraft,
+		Description: scannedFile.Description,
+		Link:        scannedFile.Link,
+		Layout:      scannedFile.Layout,
+	}
+	result.Metadata = append(result.Metadata, light)
+
+	if result.TaxonomyMap == nil {
+		result.TaxonomyMap = make(map[string]map[string][]models.LightResourceMetadata)
+	}
+	for taxK, terms := range scannedFile.Taxonomies {
+		if _, ok := result.TaxonomyMap[taxK]; !ok {
+			result.TaxonomyMap[taxK] = make(map[string][]models.LightResourceMetadata)
+		}
+		for _, t := range terms {
+			result.TaxonomyMap[taxK][t] = append(result.TaxonomyMap[taxK][t], light)
+		}
+	}
 }
 
 // ScanFile scans a single markdown file for metadata.
@@ -324,8 +340,8 @@ func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.C
 	}
 
 	bodyHash := ""
-	cleanHtmlRelPath := strings.TrimSuffix(relativePath, filepath.Ext(relativePath)) + ".html"
-	postLink := navigation.BuildAbsoluteURL(siteConfig.BaseURL, cleanHtmlRelPath)
+	cleanHTMLRelPath := strings.TrimSuffix(relativePath, filepath.Ext(relativePath)) + ".html"
+	postLink := navigation.BuildAbsoluteURL(siteConfig.BaseURL, cleanHTMLRelPath)
 
 	frontmatterHash := hashing.GetFrontmatterHashFromValues(hashing.FrontmatterHashOptions{
 		Title:       title,

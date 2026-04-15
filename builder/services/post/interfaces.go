@@ -21,7 +21,7 @@ import (
 // ContentResult contains the aggregated results of content processing
 type ContentResult struct {
 	AllPosts       []models.PostMetadata
-	PinnedPosts    []models.PostMetadata
+	PinnedItems    []models.PostMetadata
 	Taxonomies     map[string]models.TaxonomyData
 	TaxonomyMap    map[string]map[string][]models.PostMetadata
 	IndexedPosts   []models.IndexedPost
@@ -32,7 +32,7 @@ type ContentResult struct {
 // ContentContext holds aggregated content metadata ready for site-wide generators.
 type ContentContext struct {
 	AllPosts       []models.PostMetadata
-	PinnedPosts    []models.PostMetadata
+	PinnedItems    []models.PostMetadata
 	Taxonomies     map[string]models.TaxonomyData
 	TaxonomyMap    map[string]map[string][]models.PostMetadata
 	IndexedPosts        []models.IndexedPost
@@ -44,7 +44,7 @@ type ContentContext struct {
 func (pr *ContentResult) ToContentContext() *ContentContext {
 	return &ContentContext{
 		AllPosts:       pr.AllPosts,
-		PinnedPosts:    pr.PinnedPosts,
+		PinnedItems:    pr.PinnedItems,
 		Taxonomies:     pr.Taxonomies,
 		TaxonomyMap:    pr.TaxonomyMap,
 		IndexedPosts:        pr.IndexedPosts,

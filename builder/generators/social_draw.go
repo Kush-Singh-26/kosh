@@ -59,7 +59,7 @@ func drawGradient(opts GradientOptions) {
 	}
 
 	// Normalize angle to 0-360
-	angle = angle % gradientFullTurnDegrees
+	angle %= gradientFullTurnDegrees
 	if angle < 0 {
 		angle += gradientFullTurnDegrees
 	}

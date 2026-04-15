@@ -40,7 +40,7 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 		if engineInstance.Search != nil && metadataContext.IndexedPosts != nil {
 			engineInstance.Search.SetIndexedPosts(metadataContext.IndexedPosts)
 		}
-		if psearchIndex != nil {
+		if metadataContext.PrebuiltSearchIndex != nil {
 			// If we have a pipelined index, use it instead of building it from IndexedPosts
 			metadataContext.PrebuiltSearchIndex = psearchIndex
 		}
@@ -50,7 +50,7 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 		}
 
 		siteWideOnce.Do(func() {
-			engineInstance.Deps.Logger.Info("Rendering pagination, tags, metadata and PWA...")
+			engineInstance.Deps.Logger.Info("Rendering pagination, taxonomies, metadata and PWA...")
 			siteTimer = timeutil.StartPhase("Site-wide rendering")
 			siteWideGroup, siteWideCtx = errgroup.WithContext(workingContext)
 
@@ -59,7 +59,7 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 				return engineInstance.renderPagination(renderPaginationOptions{
 					workingContext: siteWideCtx,
 					allPosts:       metadataContext.AllPosts,
-					pinnedPosts:    metadataContext.PinnedPosts,
+					pinnedItems:    metadataContext.PinnedItems,
 					force:          engineInstance.Cfg.ShouldForceRebuild,
 					taxonomies:     metadataContext.Taxonomies,
 				})
@@ -271,7 +271,7 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 		return engineInstance.renderPagination(renderPaginationOptions{
 			workingContext: siteWideCtx,
 			allPosts:       metadataContext.AllPosts,
-			pinnedPosts:    metadataContext.PinnedPosts,
+			pinnedItems:    metadataContext.PinnedItems,
 			force:          false,
 			taxonomies:     metadataContext.Taxonomies,
 		})

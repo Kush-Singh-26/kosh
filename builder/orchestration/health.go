@@ -288,11 +288,12 @@ func (registry *BuildHealthRegistry) Report() BuildHealthReport {
 	}
 
 	healthLevel := "healthy"
-	if healthScore < healthLevelCriticalThreshold {
+	switch {
+	case healthScore < healthLevelCriticalThreshold:
 		healthLevel = "critical"
-	} else if healthScore < healthLevelDegradedThreshold {
+	case healthScore < healthLevelDegradedThreshold:
 		healthLevel = "degraded"
-	} else if healthScore < healthLevelHealthyMax {
+	case healthScore < healthLevelHealthyMax:
 		healthLevel = "healthy_with_warnings"
 	}
 

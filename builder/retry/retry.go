@@ -3,8 +3,15 @@ package retry
 import (
 	"context"
 	"log/slog"
+	"math/rand"
 	"os"
+	"sync"
 	"time"
+)
+
+var (
+	rngMutex sync.Mutex
+	rng      = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
 const (
@@ -54,8 +61,11 @@ func RenameWithRetry(opts RenameOptions) error {
 
 		// Use a capped backoff with jitter
 		delay := min(baseDelay*time.Duration(1<<uint(i)), backoffCap)
-		// Simple jitter without math/rand: ±10%
-		jitter := time.Duration(time.Now().UnixNano() % int64(delay/jitterDivisor+jitterOffset))
+		// Proper jitter using crypto/rand equivalent
+		rngMutex.Lock()
+		jitterN := rng.Int63n(int64(delay / jitterDivisor))
+		rngMutex.Unlock()
+		jitter := time.Duration(jitterN) + jitterOffset
 
 		timer := time.NewTimer(delay + jitter)
 		select {
@@ -90,7 +100,11 @@ func RemoveAllWithRetry(ctx context.Context, path string, maxRetries int, baseDe
 
 		// Use a capped backoff with jitter
 		delay := min(baseDelay*time.Duration(1<<uint(i)), backoffCap)
-		jitter := time.Duration(time.Now().UnixNano() % int64(delay/jitterDivisor+jitterOffset))
+		// Proper jitter using crypto/rand equivalent
+		rngMutex.Lock()
+		jitterN := rng.Int63n(int64(delay / jitterDivisor))
+		rngMutex.Unlock()
+		jitter := time.Duration(jitterN) + jitterOffset
 
 		timer := time.NewTimer(delay + jitter)
 		select {

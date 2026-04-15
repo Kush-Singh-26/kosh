@@ -66,7 +66,7 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 	tagFilter, query := extractTagFilter(query)
 	parsed := core.ParseQuery(query)
 
-	ctx := &SearchContext{
+	ctx := &Context{
 		Index:         index,
 		QueryTerms:    parsed.Terms,
 		Phrases:       parsed.Phrases,
@@ -75,7 +75,7 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 		TermInfos:     parsed.TermInfos,
 	}
 
-	opts := &SearchScoringOptions{
+	opts := &ScoringOptions{
 		TagFilter:      tagFilter,
 		QueryTerms:     parsed.Terms,
 		Scores:         make(map[string]float64, defaultScoreMapCap),
@@ -116,7 +116,7 @@ func extractTagFilter(query string) (string, string) {
 	return "", query
 }
 
-func finalizeResults(index *models.SearchIndex, opts *SearchScoringOptions) []Result {
+func finalizeResults(index *models.SearchIndex, opts *ScoringOptions) []Result {
 	finalHighlightTerms := make([]string, 0, len(opts.HighlightTerms))
 	for term := range opts.HighlightTerms {
 		finalHighlightTerms = append(finalHighlightTerms, term)

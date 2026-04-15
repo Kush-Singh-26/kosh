@@ -14,6 +14,7 @@ import (
 
 const searchIndexBrotliLevel = 4
 
+// GenerateSearchIndex builds and writes the search index to the output directory.
 func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []models.IndexedPost) (string, int64, error) {
 	idx := index.Build(indexedPosts)
 	return GenerateSearchIndexFromObject(sink, idx)

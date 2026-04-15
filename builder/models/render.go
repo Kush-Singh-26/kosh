@@ -5,13 +5,17 @@ import (
 	"time"
 )
 
+// PageContext represents the rendering context for a page (home or section).
 type PageContext string
 
 const (
+	// ContextHome indicates the home page context.
 	ContextHome PageContext = "home"
-	ContextPosts PageContext = "posts"
+	// ContextSection indicates a section page context.
+	ContextSection PageContext = "section"
 )
 
+// Navbar represents the navigation bar configuration.
 type Navbar struct {
 	Title        string
 	TitleURL     string
@@ -66,11 +70,10 @@ type TermData struct {
 
 // TaxonomyData represents an entire taxonomy (e.g., 'tags' or 'categories').
 type TaxonomyData struct {
-	Name  string
+	Name   string
 	Plural string
-	Terms []TermData
+	Terms  []TermData
 }
-
 
 // Paginator describes pagination state for templates.
 type Paginator struct {
@@ -93,28 +96,28 @@ type PageData struct {
 	Content     template.HTML
 	// Meta contains template-accessible frontmatter values.
 	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
-	Meta         map[string]any
-	IsIndex      bool
-	IsTagsIndex  bool
-	IsGraphPage  bool
-	Context      PageContext
-	Navbar       Navbar
+	Meta            map[string]any
+	IsIndex         bool
+	IsTaxonomyIndex bool
+	IsGraphPage     bool
+	Context         PageContext
+	Navbar          Navbar
 	ContentPrefix   string
-	PostsIndexURL  string
-	Posts        []PostMetadata
-	PinnedPosts  []PostMetadata
-	Taxonomies   map[string]TaxonomyData // All aggregated taxonomies
-	ItemTaxonomies map[string][]string   // Specific taxonomy terms for the current page (e.g. current post's tags)
-	BuildVersion int64
-	Permalink    string
-	Image        string
-	TOC          []TOCEntry
-	Paginator    Paginator
-	Assets       map[string]string
-	Weight       int
-	ReadingTime  int
-	HasImages    bool
-	Section      string
+	SectionIndexURL string
+	Posts           []PostMetadata
+	PinnedItems     []PostMetadata
+	Taxonomies      map[string]TaxonomyData // All aggregated taxonomies
+	ItemTaxonomies  map[string][]string     // Specific taxonomy terms for the current page (e.g. current post's tags)
+	BuildVersion    int64
+	Permalink       string
+	Image           string
+	TOC             []TOCEntry
+	Paginator       Paginator
+	Assets          map[string]string
+	Weight          int
+	ReadingTime     int
+	HasImages       bool
+	Section         string
 
 	// SiteData holds structured data from the data/ directory
 	SiteData map[string]any
@@ -135,6 +138,6 @@ type PageData struct {
 	JSONLD template.HTML
 
 	// Universal Fragment Cache
-	Fragments map[string]template.HTML
+	Fragments    map[string]template.HTML
 	IsCleanBuild bool
 }

@@ -100,7 +100,9 @@ func RenderMathForHTML(opts RenderMathOptions) (string, []string, map[string]str
 // GetMathExpressions retrieves math from context
 func GetMathExpressions(pc parser.Context) []models.MathExpression {
 	if v := pc.Get(mathExpressionsKey); v != nil {
-		return v.([]models.MathExpression)
+		if exprs, ok := v.([]models.MathExpression); ok {
+			return exprs
+		}
 	}
 	return nil
 }

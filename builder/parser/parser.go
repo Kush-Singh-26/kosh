@@ -1,4 +1,4 @@
-// Configures the markdown parser and URL transformation logic
+// Package parser provides markdown parsing and URL transformation logic.
 package parser
 
 import (
@@ -52,40 +52,40 @@ func codeBlockWrapper(writer util.BufWriter, codeCtx highlighting.CodeBlockConte
 	}
 }
 
-// ParserOptions controls the configuration of the markdown parser.
-type ParserOptions struct {
+// Options controls the configuration of the markdown parser.
+type Options struct {
 	Renderer     *native.Renderer
 	DiagramCache SSRMap
 	D2Group      *singleflight.Group
 }
 
 // Option is a functional option for configuring the parser.
-type Option func(*ParserOptions)
+type Option func(*Options)
 
 // WithRenderer sets the native renderer for the parser.
 func WithRenderer(renderer *native.Renderer) Option {
-	return func(o *ParserOptions) {
+	return func(o *Options) {
 		o.Renderer = renderer
 	}
 }
 
 // WithDiagramCache sets the diagram cache for the parser.
 func WithDiagramCache(cache SSRMap) Option {
-	return func(o *ParserOptions) {
+	return func(o *Options) {
 		o.DiagramCache = cache
 	}
 }
 
 // WithD2Group sets the singleflight group for D2 rendering.
 func WithD2Group(group *singleflight.Group) Option {
-	return func(o *ParserOptions) {
+	return func(o *Options) {
 		o.D2Group = group
 	}
 }
 
 // New creates a new Goldmark markdown parser with SSR support for diagrams
 func New(cfg *config.Config, opts ...Option) goldmark.Markdown {
-	options := &ParserOptions{}
+	options := &Options{}
 	for _, opt := range opts {
 		opt(options)
 	}

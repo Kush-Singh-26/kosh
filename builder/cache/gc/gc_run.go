@@ -54,7 +54,7 @@ func scanLiveHashes(db *bbolt.DB) (map[string]bool, map[string]bool, error) {
 	return liveHTMLHashes, liveSSRHashes, err
 }
 
-func resolveMaxAge(config GCConfig) time.Duration {
+func resolveMaxAge(config Config) time.Duration {
 	if config.MaxAge == 0 {
 		return defaultMaxAge
 	}
@@ -145,9 +145,9 @@ func updateGCStats(db *bbolt.DB) {
 }
 
 // RunGC performs garbage collection logic
-func RunGC(db *bbolt.DB, cacheStore *store.Store, refCount *RefCountManager, config GCConfig) (*GCResult, error) {
+func RunGC(db *bbolt.DB, cacheStore *store.Store, refCount *RefCountManager, config Config) (*Result, error) {
 	start := time.Now()
-	result := &GCResult{}
+	result := &Result{}
 
 	// Step 1: Collect all live hashes from PostMetas
 	liveHTMLHashes, liveSSRHashes, err := scanLiveHashes(db)

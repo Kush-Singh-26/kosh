@@ -50,7 +50,7 @@ func GenerateRSS(opts RSSOptions) (string, error) {
 			Link:        p.Link,
 			Description: p.Description,
 			PubDate:     p.DateObj.Format(time.RFC1123),
-			Guid:        p.Link,
+			GUID:        p.Link,
 			Author:      opts.Author,
 			Categories:  allTerms,
 		}

@@ -89,14 +89,14 @@ func openCache() *cache.Manager {
 	return cm
 }
 
-func runCacheStats(cmd *cobra.Command, args []string) {
+func runCacheStats(_ *cobra.Command, _ []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
 	stats, err := cm.Stats()
 	if err != nil {
 		fmt.Printf("❌ Failed to get stats: %v\n", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic
 	}
 
 	fmt.Println("📊 Cache Statistics")
@@ -119,7 +119,7 @@ func runCacheStats(cmd *cobra.Command, args []string) {
 	fmt.Printf("Hashed Posts:    %d (%.1f%%)\n", stats.HashedPosts, float64(stats.HashedPosts)*percentScale/float64(stats.TotalPosts))
 }
 
-func runCacheGC(cmd *cobra.Command, args []string) {
+func runCacheGC(_ *cobra.Command, _ []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
@@ -136,7 +136,7 @@ func runCacheGC(cmd *cobra.Command, args []string) {
 	result, err := cm.RunGC(cfg)
 	if err != nil {
 		fmt.Printf("❌ GC failed: %v\n", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic
 	}
 
 	fmt.Println("════════════════════════════════════════")
@@ -152,7 +152,7 @@ func runCacheGC(cmd *cobra.Command, args []string) {
 	}
 }
 
-func runCacheVerify(cmd *cobra.Command, args []string) {
+func runCacheVerify(_ *cobra.Command, _ []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
@@ -161,7 +161,7 @@ func runCacheVerify(cmd *cobra.Command, args []string) {
 	errors, err := cm.Verify()
 	if err != nil {
 		fmt.Printf("❌ Verification failed: %v\n", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic
 	}
 
 	if len(errors) == 0 {
@@ -174,7 +174,7 @@ func runCacheVerify(cmd *cobra.Command, args []string) {
 	}
 }
 
-func runCacheRebuild(cmd *cobra.Command, args []string) {
+func runCacheRebuild(_ *cobra.Command, _ []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
@@ -182,13 +182,13 @@ func runCacheRebuild(cmd *cobra.Command, args []string) {
 
 	if err := cm.Rebuild(); err != nil {
 		fmt.Printf("❌ Failed to clear cache: %v\n", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic
 	}
 
 	fmt.Println("✅ Cache cleared. Run 'kosh build' to rebuild.")
 }
 
-func runCacheClear(cmd *cobra.Command, args []string) {
+func runCacheClear(_ *cobra.Command, _ []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
@@ -196,13 +196,13 @@ func runCacheClear(cmd *cobra.Command, args []string) {
 
 	if err := cm.Clear(); err != nil {
 		fmt.Printf("❌ Failed to clear cache: %v\n", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic
 	}
 
 	fmt.Println("✅ Cache cleared")
 }
 
-func runCacheInspect(cmd *cobra.Command, args []string) {
+func runCacheInspect(_ *cobra.Command, args []string) {
 	path := args[0]
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
@@ -210,12 +210,12 @@ func runCacheInspect(cmd *cobra.Command, args []string) {
 	post, err := cm.GetPostByPath(path)
 	if err != nil {
 		fmt.Printf("❌ Error looking up path: %v\n", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic
 	}
 
 	if post == nil {
 		fmt.Printf("❌ No cache entry found for: %s\n", path)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic
 	}
 
 	fmt.Println("📄 Cache Entry")

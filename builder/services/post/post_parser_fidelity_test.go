@@ -44,8 +44,8 @@ func TestDateParsingFidelity(t *testing.T) {
 			res, err := ParseMarkdownMetadata(ParseOptions{
 				Source:           []byte(tc.source),
 				Path:             "content/test.md",
-				CleanHtmlRelPath: "test.html",
-				HtmlRelPath:      "test.html",
+				CleanHTMLRelPath: "test.html",
+				HTMLRelPath:      "test.html",
 				MdPool:           mdPool,
 				Cfg:              cfg,
 			})
@@ -92,8 +92,8 @@ title: Shortcode Test
 	res, err := ParseMarkdown(ParseOptions{
 		Source:           processedSource,
 		Path:             "content/test.md",
-		CleanHtmlRelPath: "test.html",
-		HtmlRelPath:      "test.html",
+		CleanHTMLRelPath: "test.html",
+		HTMLRelPath:      "test.html",
 		MdPool:           mdPool,
 		Cfg:              cfg,
 		BodyOffset:       24, // length of frontmatter + delimiters
