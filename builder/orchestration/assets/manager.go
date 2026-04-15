@@ -61,79 +61,75 @@ func (managerInstance *Manager) ReconfigureWithLogger(logger *slog.Logger) {
 // Returns a signal channel for full readiness, discovery signal, wait group, and error channel.
 func (managerInstance *Manager) SetupBuilding(ctx context.Context, contentAssetsChan chan []models.ScannedAsset, force bool) (<-chan struct{}, <-chan struct{}, *sync.WaitGroup, <-chan error) {
 	managerInstance.deps.Logger.Info("Building assets...")
-	assetTimer := timeutil.StartPhase("Asset building")
+	timer := timeutil.StartPhase("Asset building")
 
-	// Reset converted image tracking so rewrite is fresh for this build
 	assets.ResetConvertedImages()
-
-	// Reset wasm_exec.js deployment flag to ensure it's deployed in dev mode
 	assets.ResetWasmExecForBuild()
-
-	// Reset rendered assets in memory before starting fresh build pass
 	managerInstance.deps.Render.SetAssets(map[string]string{})
 
-	// Check static fingerprint to potentially skip image processing
-	skipImages := false
-	if !force && managerInstance.deps.Cfg.CacheDir != "" {
-		managerInstance.deps.Logger.Debug("Checking static fingerprint", "force", force)
-		currentFingerprint, fingerprintError := asset.ComputeStaticFingerprint(managerInstance.deps.SourceFs, asset.GetStaticDirs(managerInstance.deps.Cfg))
-		if fingerprintError != nil {
-			managerInstance.deps.Logger.Debug("Failed to compute static fingerprint", "error", fingerprintError)
-		} else {
-			cachedFingerprint, loadError := asset.LoadStaticFingerprint(managerInstance.deps.Cfg.CacheDir)
-			if loadError != nil || currentFingerprint != cachedFingerprint {
-				managerInstance.deps.Logger.Debug("Static fingerprint mismatch or not cached", "current", currentFingerprint, "cached", cachedFingerprint, "loadErr", loadError)
-				_ = asset.SaveStaticFingerprint(managerInstance.deps.Cfg.CacheDir, currentFingerprint)
-			} else {
-				managerInstance.deps.Logger.Debug("Static fingerprint matches, will skip image processing")
-				skipImages = true
-			}
-		}
-	}
+	skipImages := managerInstance.determineSkipImages(force)
+	managerInstance.configureAssetService(contentAssetsChan)
 
-	// Link content assets from scanner to asset service
+	assetsReady := make(chan struct{})
+	managerInstance.deps.Asset.SetAssetsReadySignal(assetsReady)
+	managerInstance.deps.Render.SetAssetsGate(assetsReady)
+
+	discoveryCh := make(chan struct{})
+	managerInstance.deps.Asset.SetDiscoveryReady(discoveryCh)
+
+	errChan := make(chan error, 1)
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	managerInstance.runAssetBuild(ctx, skipImages, &wg, errChan, timer)
+
+	return assetsReady, managerInstance.deps.Asset.DiscoveryReady(), &wg, errChan
+}
+
+func (managerInstance *Manager) determineSkipImages(force bool) bool {
+	if force || managerInstance.deps.Cfg.CacheDir == "" {
+		return false
+	}
+	managerInstance.deps.Logger.Debug("Checking static fingerprint", "force", force)
+	current, err := asset.ComputeStaticFingerprint(managerInstance.deps.SourceFs, asset.GetStaticDirs(managerInstance.deps.Cfg))
+	if err != nil {
+		managerInstance.deps.Logger.Debug("Failed to compute static fingerprint", "error", err)
+		return false
+	}
+	cached, err := asset.LoadStaticFingerprint(managerInstance.deps.Cfg.CacheDir)
+	if err == nil && current == cached {
+		managerInstance.deps.Logger.Debug("Static fingerprint matches, will skip image processing")
+		return true
+	}
+	managerInstance.deps.Logger.Debug("Static fingerprint mismatch or not cached", "current", current, "cached", cached, "loadErr", err)
+	_ = asset.SaveStaticFingerprint(managerInstance.deps.Cfg.CacheDir, current)
+	return false
+}
+
+func (managerInstance *Manager) configureAssetService(contentAssetsChan chan []models.ScannedAsset) {
 	if setter, ok := managerInstance.deps.Asset.(interface {
 		SetContentAssetsChannel(<-chan []models.ScannedAsset)
 	}); ok {
 		setter.SetContentAssetsChannel(contentAssetsChan)
 	}
+}
 
-	// Create and register a fresh readiness signal for this build pass
-	assetsReady := make(chan struct{})
-	managerInstance.deps.Asset.SetAssetsReadySignal(assetsReady)
-
-	// Ensure RenderService waits for these assets before entering render phase
-	managerInstance.deps.Render.SetAssetsGate(assetsReady)
-
-	// Initialize discoveryReady before launching Build goroutine to avoid
-	// race between Build() writing and DiscoveryReady() reading.
-	discoveryCh := make(chan struct{})
-	managerInstance.deps.Asset.SetDiscoveryReady(discoveryCh)
-
-	assetErrChan := make(chan error, 1)
-	var assetWaitGroup sync.WaitGroup
-	assetWaitGroup.Add(1)
-
+func (managerInstance *Manager) runAssetBuild(ctx context.Context, skipImages bool, wg *sync.WaitGroup, errChan chan error, timer *timeutil.PhaseTimer) {
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 		Ctx:       ctx,
 		Logger:    managerInstance.deps.Logger,
 		Operation: "asset build",
 		Fn: func() error {
-			if buildError := managerInstance.deps.Asset.BuildWithOptions(ctx, skipImages); buildError != nil {
-				assetErrChan <- buildError
+			if err := managerInstance.deps.Asset.BuildWithOptions(ctx, skipImages); err != nil {
+				errChan <- err
 			}
 			return nil
 		},
 		Cleanup: func() {
-			assetTimer.Stop()
-			assetWaitGroup.Done()
+			timer.Stop()
+			wg.Done()
 		},
 	})
-
-	// discoveryReady is populated by Build() when the image rewrite map is ready.
-	discoveryReady := managerInstance.deps.Asset.DiscoveryReady()
-
-	return assetsReady, discoveryReady, &assetWaitGroup, assetErrChan
 }
 
 // CheckChanged computes a hash of the current asset map to detect changes since last site-wide render.

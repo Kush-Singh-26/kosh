@@ -221,98 +221,108 @@ func (r *Renderer) applyTemplateCache(tc *templateCache) {
 
 func templateFuncMap() template.FuncMap {
 	return template.FuncMap{
-		"lower":     strings.ToLower,
-		"hasPrefix": strings.HasPrefix,
-		"replace": func(from, to, input string) string {
-			return strings.ReplaceAll(input, from, to)
-		},
+		"lower":      strings.ToLower,
+		"hasPrefix":  strings.HasPrefix,
+		"replace":    replaceFunc,
 		"trimPrefix": strings.TrimPrefix,
-		"relativize": func(baseURL, prefix, link string) string {
-			if len(link) == 0 {
-				return link
-			}
-
-			if strings.HasPrefix(link, "http") || strings.HasPrefix(link, "//") || strings.HasPrefix(link, "data:") {
-				return link
-			}
-
-			isHome := link == "/"
-			if link[0] != '/' {
-				link = "/" + link
-			}
-
-			if baseURL != "" {
-				slog.Debug("relativize called", "baseURL", baseURL, "link", link)
-				if strings.HasPrefix(link, baseURL) {
-					return filepath.ToSlash(link)
-				}
-				// Also check if it starts with the path part of baseURL
-				if u, err := url.Parse(baseURL); err == nil && u.Path != "" {
-					if strings.HasPrefix(link, u.Path) {
-						return filepath.ToSlash(link)
-					}
-				}
-				return filepath.ToSlash(strings.TrimSuffix(baseURL, "/") + link)
-			}
-
-			// Handle root-relative prefix specifically
-			if prefix == "/" {
-				return filepath.ToSlash(link)
-			}
-
-			if prefix == "" || prefix == "." || prefix == "./" {
-				if isHome {
-					return "index.html"
-				}
-				return filepath.ToSlash(link[1:])
-			}
-
-			if isHome {
-				return filepath.ToSlash(prefix + "index.html")
-			}
-			return filepath.ToSlash(prefix + link[1:])
-		},
-		"now":       time.Now,
-		"urlEscape": url.PathEscape,
-		"slugify":   timeutil.Slugify,
-		"dateFormat": func(layout string, value any) string {
-			if value == nil {
-				return ""
-			}
-			if dateTime, ok := value.(time.Time); ok {
-				return dateTime.UTC().Format(layout)
-			}
-			if dateStr, ok := value.(string); ok {
-				if dateTime, err := time.ParseInLocation("2006-01-02", dateStr, time.UTC); err == nil {
-					return dateTime.Format(layout)
-				}
-				if dateTime, err := time.ParseInLocation("2006-01-02 15:04:05 -0700 MST", dateStr, time.UTC); err == nil {
-					return dateTime.Format(layout)
-				}
-				if dateTime, err := time.ParseInLocation("2006-01-02 15:04:05 -0700", dateStr, time.UTC); err == nil {
-					return dateTime.Format(layout)
-				}
-				return dateStr
-			}
-			return fmt.Sprintf("%v", value)
-		},
-		"jsonify": func(value any) (string, error) {
-			jsonBytes, err := json.Marshal(value)
-			return string(jsonBytes), err
-		},
-		"default": func(defaultValue, value any) any {
-			if value == nil {
-				return defaultValue
-			}
-			if s, ok := value.(string); ok && s == "" {
-				return defaultValue
-			}
-			return value
-		},
+		"relativize": relativizeFunc,
+		"now":        time.Now,
+		"urlEscape":  url.PathEscape,
+		"slugify":    timeutil.Slugify,
+		"dateFormat": dateFormatFunc,
+		"jsonify":    jsonifyFunc,
+		"default":    defaultFunc,
 		"add": func(a, b int) int {
 			return a + b
 		},
 	}
+}
+
+func replaceFunc(from, to, input string) string {
+	return strings.ReplaceAll(input, from, to)
+}
+
+func relativizeFunc(baseURL, prefix, link string) string {
+	if len(link) == 0 {
+		return link
+	}
+
+	if strings.HasPrefix(link, "http") || strings.HasPrefix(link, "//") || strings.HasPrefix(link, "data:") {
+		return link
+	}
+
+	isHome := link == "/"
+	if link[0] != '/' {
+		link = "/" + link
+	}
+
+	if baseURL != "" {
+		slog.Debug("relativize called", "baseURL", baseURL, "link", link)
+		if strings.HasPrefix(link, baseURL) {
+			return filepath.ToSlash(link)
+		}
+		// Also check if it starts with the path part of baseURL
+		if u, err := url.Parse(baseURL); err == nil && u.Path != "" {
+			if strings.HasPrefix(link, u.Path) {
+				return filepath.ToSlash(link)
+			}
+		}
+		return filepath.ToSlash(strings.TrimSuffix(baseURL, "/") + link)
+	}
+
+	// Handle root-relative prefix specifically
+	if prefix == "/" {
+		return filepath.ToSlash(link)
+	}
+
+	if prefix == "" || prefix == "." || prefix == "./" {
+		if isHome {
+			return "index.html"
+		}
+		return filepath.ToSlash(link[1:])
+	}
+
+	if isHome {
+		return filepath.ToSlash(prefix + "index.html")
+	}
+	return filepath.ToSlash(prefix + link[1:])
+}
+
+func dateFormatFunc(layout string, value any) string {
+	if value == nil {
+		return ""
+	}
+	if dateTime, ok := value.(time.Time); ok {
+		return dateTime.UTC().Format(layout)
+	}
+	if dateStr, ok := value.(string); ok {
+		if dateTime, err := time.ParseInLocation("2006-01-02", dateStr, time.UTC); err == nil {
+			return dateTime.Format(layout)
+		}
+		if dateTime, err := time.ParseInLocation("2006-01-02 15:04:05 -0700 MST", dateStr, time.UTC); err == nil {
+			return dateTime.Format(layout)
+		}
+		if dateTime, err := time.ParseInLocation("2006-01-02 15:04:05 -0700", dateStr, time.UTC); err == nil {
+			return dateTime.Format(layout)
+		}
+		return dateStr
+	}
+	return fmt.Sprintf("%v", value)
+}
+
+func jsonifyFunc(value any) (string, error) {
+	jsonBytes, err := json.Marshal(value)
+	return string(jsonBytes), err
+}
+
+func defaultFunc(defaultValue, value any) any {
+	if value == nil {
+		return defaultValue
+	}
+	if s, ok := value.(string); ok && s == "" {
+		return defaultValue
+	}
+	return value
 }
 
 func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*template.Template, *template.Template, *template.Template, *template.Template, *template.Template, error) {
@@ -326,113 +336,111 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 		return nil, nil, nil, nil, nil, fmt.Errorf("failed to parse embedded base template: %w", err)
 	}
 
-	loadSlotTmpl := func(name, fileName string) (*template.Template, error) {
-		// 1. Check Site Layouts
-		path := filepath.Join(r.layoutsDir, fileName)
-		content, err := afero.ReadFile(r.SourceFs, path)
-		if err != nil {
-			// 2. Fallback to Theme
-			path = filepath.Join(r.templateDir, fileName)
-			content, err = afero.ReadFile(r.SourceFs, path)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		// Clone base and parse theme slot on top
-		t, err := baseTmpl.Clone()
-		if err != nil {
-			return nil, err
-		}
-
-		// Load partials from both site and theme
-		if _, err := r.loadPartials(t); err != nil {
-			return nil, err
-		}
-
-		if _, err := t.New(fileName).Parse(string(content)); err != nil {
-			return nil, err
-		}
-
-		info, _ := r.SourceFs.Stat(path)
-		mu.Lock()
-		if info != nil {
-			tc.setTemplate(name, t, info.ModTime(), content)
-		}
-		mu.Unlock()
-		return t, nil
-	}
-
 	eg := new(errgroup.Group)
+	r.submitSlotTemplateTasks(eg, tc, baseTmpl, &mu, &layoutTmpl, &indexTmpl, &homeTmpl, &notFoundTmpl)
 
 	eg.Go(func() error {
-		tmpl, err := loadSlotTmpl("layout", "layout.html")
-		if err != nil {
-			return fmt.Errorf("failed to read layout template: %w", err)
+		tmpl, err := r.loadGraphTemplate(tc, baseTmpl)
+		if err == nil {
+			mu.Lock()
+			graphTmpl = tmpl
+			mu.Unlock()
 		}
-		mu.Lock()
-		layoutTmpl = tmpl
-		mu.Unlock()
-		return nil
-	})
-
-	eg.Go(func() error {
-		tmpl, err := loadSlotTmpl("index", "index.html")
-		if err != nil {
-			r.logger.Warn("Index template not found, falling back to layout", "dir", r.templateDir)
-			return nil
-		}
-		mu.Lock()
-		indexTmpl = tmpl
-		mu.Unlock()
-		return nil
-	})
-
-	eg.Go(func() error {
-		// Graph is now base-only clone
-		t, err := baseTmpl.Clone()
-		if err != nil {
-			return err
-		}
-		// Load partials into the clone
-		if _, err := r.loadPartials(t); err != nil {
-			return err
-		}
-		mu.Lock()
-		graphTmpl = t
-		tc.setTemplate("graph", t, time.Now(), []byte(base.BaseTemplate))
-		mu.Unlock()
-		return nil
-	})
-
-	eg.Go(func() error {
-		tmpl, err := loadSlotTmpl("home", "home.html")
-		if err != nil {
-			r.logger.Debug("Home template not found (optional)", "dir", r.templateDir)
-			return nil
-		}
-		mu.Lock()
-		homeTmpl = tmpl
-		mu.Unlock()
-		return nil
-	})
-
-	eg.Go(func() error {
-		tmpl, err := loadSlotTmpl("404", "404.html")
-		if err != nil {
-			r.logger.Warn("404 template not found, falling back to layout", "dir", r.templateDir)
-			return nil
-		}
-		mu.Lock()
-		notFoundTmpl = tmpl
-		mu.Unlock()
-		return nil
+		return err
 	})
 
 	if err := eg.Wait(); err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
 	return layoutTmpl, indexTmpl, homeTmpl, graphTmpl, notFoundTmpl, nil
+}
+
+func (r *Renderer) submitSlotTemplateTasks(eg *errgroup.Group, tc *templateCache, baseTmpl *template.Template, mu *sync.Mutex, layout, index, home, notFound **template.Template) {
+	tasks := []struct {
+		name     string
+		fileName string
+		target   **template.Template
+	}{
+		{"layout", "layout.html", layout},
+		{"index", "index.html", index},
+		{"home", "home.html", home},
+		{"404", "404.html", notFound},
+	}
+
+	for _, task := range tasks {
+		t := task
+		eg.Go(func() error {
+			tmpl, err := r.loadSlotTmpl(tc, baseTmpl, mu, t.name, t.fileName)
+			if err != nil {
+				return r.handleTemplateLoadError(t.name, err)
+			}
+			mu.Lock()
+			*t.target = tmpl
+			mu.Unlock()
+			return nil
+		})
+	}
+}
+
+func (r *Renderer) handleTemplateLoadError(name string, err error) error {
+	if name == "layout" {
+		return fmt.Errorf("failed to read layout template: %w", err)
+	}
+	if name == "home" {
+		r.logger.Debug("Home template not found (optional)", "dir", r.templateDir)
+	} else {
+		r.logger.Warn(fmt.Sprintf("%s template not found, falling back to layout", name), "dir", r.templateDir)
+	}
+	return nil
+}
+
+func (r *Renderer) loadGraphTemplate(tc *templateCache, baseTmpl *template.Template) (*template.Template, error) {
+	t, err := baseTmpl.Clone()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := r.loadPartials(t); err != nil {
+		return nil, err
+	}
+	tc.setTemplate("graph", t, time.Now(), []byte(base.BaseTemplate))
+	return t, nil
+}
+
+func (r *Renderer) loadSlotTmpl(tc *templateCache, baseTmpl *template.Template, mu *sync.Mutex, name, fileName string) (*template.Template, error) {
+	// 1. Check Site Layouts
+	path := filepath.Join(r.layoutsDir, fileName)
+	content, err := afero.ReadFile(r.SourceFs, path)
+	if err != nil {
+		// 2. Fallback to Theme
+		path = filepath.Join(r.templateDir, fileName)
+		content, err = afero.ReadFile(r.SourceFs, path)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Clone base and parse theme slot on top
+	t, err := baseTmpl.Clone()
+	if err != nil {
+		return nil, err
+	}
+
+	// Load partials from both site and theme
+	if _, err := r.loadPartials(t); err != nil {
+		return nil, err
+	}
+
+	if _, err := t.New(fileName).Parse(string(content)); err != nil {
+		return nil, err
+	}
+
+	info, _ := r.SourceFs.Stat(path)
+	mu.Lock()
+	if info != nil {
+		tc.setTemplate(name, t, info.ModTime(), content)
+	}
+	mu.Unlock()
+	return t, nil
 }
 
 // loadPartials discovers and parses all files under templates/partials/ into t.

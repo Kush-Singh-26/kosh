@@ -11,8 +11,11 @@ linters-settings:
     var-naming:
       - JSON
       - URL
-      - API
       - ID
+      - API
+  funlen:
+    lines: 50
+    statements: 40
 
 linters:
   disable-all: true
@@ -27,6 +30,7 @@ linters:
     - revive
     - gocritic
     - gocyclo
+    - funlen
 
 issues:
   exclude-dirs:
@@ -36,122 +40,22 @@ issues:
   exclude-rules:
   - path: _test\.go
     linters:
-    - errorlint
-    - errcheck
-  - path: _test\.go
+    - funlen
+    - gocyclo
+  - path: tests
     linters:
-    - revive
-    text: "unused-parameter"
-  - path: _test\.go
+    - funlen
+    - gocyclo
+  - path: scripts
     linters:
-    - revive
-    text: "redefines-builtin-id"
-  - path: _test\.go
-    linters:
-    - staticcheck
+    - funlen
+    - gocyclo
   - linters:
     - gocritic
     text: "exitAfterDefer"
-  - path: _test\.go
-    linters:
-    - revive
-    text: "unused-parameter"
-  - linters:
-    - revive
-    text: "package comment should be of the form"
-  - linters:
-    - revive
-    text: "should have a package comment"
-  - linters:
-    - revive
-    text: "exported type .* should have comment or be unexported"
-  - linters:
-    - revive
-    text: "exported function .* should have comment or be unexported"
-  - linters:
-    - revive
-    text: "comment on exported type .* should be of the form"
-  - linters:
-    - revive
-    text: "type name will be used as .* by other packages, and that stutters"
-  - linters:
-    - revive
-    text: "don't use ALL_CAPS in Go names"
-  - linters:
-    - revive
-    text: "empty-block"
-  - linters:
-    - revive
-    text: "redefines-builtin-id"
-  - path: debug_path\.go
-    linters:
-    - revive
-  - linters:
-    - gocritic
-    text: "ifElseChain"
-  - linters:
-    - gocyclo
-  - linters:
-    - ineffassign
-  - linters:
-    - staticcheck
-    text: "SA5011"
-  - path: _test\.go
-    linters:
-    - staticcheck
-  - linters:
-    - revive
-    text: "context-as-argument"
-  - linters:
-    - revive
-    text: "indent-error-flow"
-  - linters:
-    - revive
-    text: "unexported-return"
-  - linters:
-    - revive
-    text: "blank-imports"
-  - path: mocks/
-    linters:
-    - revive
-    text: "unused-parameter"
-  - path: testutil/
-    linters:
-    - revive
-    text: "unused-parameter"
-  - path: builder/async/
-    linters:
-    - revive
-    text: "unused-parameter"
   - path: builder/orchestration/
     linters:
-    - revive
-    text: "unused-parameter"
-  - path: tests/
-    linters:
-    - revive
-    text: "unused-parameter"
-  - path: _test\.go
-    linters:
-    - revive
-    text: "unused-parameter"
-  - path: _test\.go
-    linters:
-    - revive
-    text: "redefines-builtin-id"
-  - path: _test\.go
-    linters:
-    - revive
-    text: "exported"
-  - path: _test\.go
-    linters:
-    - gocritic
-  - path: _test\.go
-    linters:
-    - gocyclo
-  - path: builder/orchestration/
-    linters:
-    - revive
+      - revive
     text: "unused-parameter|exported"
   - path: builder/cache/
     linters:
@@ -180,4 +84,4 @@ issues:
 
 run:
   timeout: 5m
-  tests: true
+  tests: false

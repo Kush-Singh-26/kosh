@@ -77,7 +77,12 @@ func (w *Watcher) resetTimer(pendingMu *sync.Mutex, pendingEvents *map[string]fs
 func (w *Watcher) Start() {
 	defer func() { _ = w.watcher.Close() }()
 
-	// Add directories recursively
+	w.addWatchDirs()
+	orchestration.DevLogInfo("Watch mode active. Waiting for changes...")
+	w.handleWatchEvents()
+}
+
+func (w *Watcher) addWatchDirs() {
 	for _, dir := range w.Dirs {
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			continue
@@ -99,9 +104,9 @@ func (w *Watcher) Start() {
 			slog.Error("Error walking directory", "dir", dir, "error", err)
 		}
 	}
+}
 
-	orchestration.DevLogInfo("Watch mode active. Waiting for changes...")
-
+func (w *Watcher) handleWatchEvents() {
 	var pendingMu sync.Mutex
 	pendingEvents := make(map[string]fsnotify.Op)
 
@@ -111,12 +116,10 @@ func (w *Watcher) Start() {
 			if !ok {
 				return
 			}
-			// Ignore chmod and other meta events
 			if event.Op&fsnotify.Chmod == fsnotify.Chmod {
 				continue
 			}
 
-			// Handle new directories
 			if event.Op&fsnotify.Create == fsnotify.Create {
 				info, err := os.Stat(event.Name)
 				if err == nil && info.IsDir() {
@@ -125,16 +128,9 @@ func (w *Watcher) Start() {
 			}
 
 			pendingMu.Lock()
-			// Combine operations if same file modified multiple times
-			existingOp, exists := pendingEvents[event.Name]
-			if exists {
-				pendingEvents[event.Name] = existingOp | event.Op
-			} else {
-				pendingEvents[event.Name] = event.Op
-			}
+			pendingEvents[event.Name] |= event.Op
 			pendingMu.Unlock()
 
-			// Safely reset the debounce timer
 			w.resetTimer(&pendingMu, &pendingEvents)
 
 		case err, ok := <-w.watcher.Errors:

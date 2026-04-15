@@ -115,66 +115,59 @@ func (analyzer *Analyzer) AnalyzeWithPositions(text string) ([]string, map[strin
 	bufPtr := pools.SharedByteSlicePool.Get()
 	defer pools.SharedByteSlicePool.Put(bufPtr)
 
-	tokenIndex := 0
-	for _, token := range tokens {
-		var original string
-		if isLowerASCII(token.Value) {
-			// Avoid cloning if it's a stop word
-			if analyzer.useStopWords && stopWords[token.Value] {
-				tokenIndex++
-				continue
-			}
-			original = strings.Clone(token.Value)
-		} else {
-			lowered, hasUnicode := toLowerASCII(token.Value, *bufPtr)
-			if hasUnicode {
-				// strings.ToLower handles Unicode and returns a new allocation
-				original = strings.ToLower(token.Value)
-			} else {
-				// Go compiler optimizes stopWords[string(lowered)] here
-				if analyzer.useStopWords && stopWords[string(lowered)] {
-					tokenIndex++
-					continue
-				}
-				original = string(lowered)
-			}
-		}
-
-		if len(original) < minTokenLength {
-			tokenIndex++
-			continue
-		}
-		if analyzer.useStopWords && stopWords[original] {
-			tokenIndex++
+	for tokenIndex, token := range tokens {
+		original, stem, skip := analyzer.processToken(token, *bufPtr, localStemCache)
+		if skip || stem == "" {
 			continue
 		}
 
-		stem := original
+		result = append(result, stem)
+		if positions[stem] == nil {
+			positions[stem] = make([]int, 0, positionsCap)
+			offsets[stem] = make([]int, 0, offsetsCap)
+		}
+		positions[stem] = append(positions[stem], tokenIndex)
+		offsets[stem] = append(offsets[stem], token.Start, token.End)
 		if analyzer.useStemming {
-			if cached, ok := localStemCache[original]; ok {
-				stem = cached
-			} else {
-				// Stem already returns a new string allocation (string(runes))
-				stem = Stem(original)
-				localStemCache[original] = stem
-			}
+			mapping[original] = stem
 		}
-
-		if stem != "" {
-			result = append(result, stem)
-			if positions[stem] == nil {
-				positions[stem] = make([]int, 0, positionsCap)
-				offsets[stem] = make([]int, 0, offsetsCap)
-			}
-			positions[stem] = append(positions[stem], tokenIndex)
-			offsets[stem] = append(offsets[stem], token.Start, token.End)
-			if analyzer.useStemming {
-				mapping[original] = stem
-			}
-		}
-		tokenIndex++
 	}
 	return result, mapping, positions, offsets
+}
+
+func (analyzer *Analyzer) processToken(token Token, buf []byte, localStemCache map[string]string) (string, string, bool) {
+	var original string
+	if isLowerASCII(token.Value) {
+		if analyzer.useStopWords && stopWords[token.Value] {
+			return "", "", true
+		}
+		original = strings.Clone(token.Value)
+	} else {
+		lowered, hasUnicode := toLowerASCII(token.Value, buf)
+		if hasUnicode {
+			original = strings.ToLower(token.Value)
+		} else {
+			if analyzer.useStopWords && stopWords[string(lowered)] {
+				return "", "", true
+			}
+			original = string(lowered)
+		}
+	}
+
+	if len(original) < minTokenLength || (analyzer.useStopWords && stopWords[original]) {
+		return "", "", true
+	}
+
+	stem := original
+	if analyzer.useStemming {
+		if cached, ok := localStemCache[original]; ok {
+			stem = cached
+		} else {
+			stem = Stem(original)
+			localStemCache[original] = stem
+		}
+	}
+	return original, stem, false
 }
 
 // isLowerASCII returns true if the string is already lowercase ASCII.

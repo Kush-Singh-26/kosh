@@ -146,14 +146,36 @@ func shortenPath(path string) string {
 }
 
 func printStartupBanner(mode string, cfg *config.Config) {
-	wide := true
-	if width := os.Getenv("COLUMNS"); width != "" {
-		if n, err := strconv.Atoi(strings.TrimSpace(width)); err == nil && n > 0 && n <= terminalWidthThreshold {
-			wide = false
-		}
+	fmt.Println()
+	if isWideTerminal() {
+		printLogo()
+	} else {
+		fmt.Println("  " + gradient("Kosh "+cliVersion, koshGradient))
 	}
 
 	fmt.Println()
+	printSysBadge(mode)
+	fmt.Println()
+
+	if cfg == nil {
+		printEmptyConfigState()
+		return
+	}
+
+	printConfigBlock(cfg)
+	fmt.Println()
+}
+
+func isWideTerminal() bool {
+	if width := os.Getenv("COLUMNS"); width != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(width)); err == nil && n > 0 && n <= terminalWidthThreshold {
+			return false
+		}
+	}
+	return true
+}
+
+func printLogo() {
 	logo := []string{
 		"██╗  ██╗ ██████╗ ███████╗██╗  ██╗",
 		"██║ ██╔╝██╔═══██╗██╔════╝██║  ██║",
@@ -163,39 +185,30 @@ func printStartupBanner(mode string, cfg *config.Config) {
 		"╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝",
 	}
 
-	if wide {
-		for i, line := range logo {
-			// Using a heavy block character for the left anchor
-			colorIdx := int((float64(i) / float64(len(logo)-1)) * float64(len(koshGradient)-1))
-			dec := fmt.Sprintf("\x1b[38;5;%dm█\x1b[0m", koshGradient[colorIdx])
+	for i, line := range logo {
+		colorIdx := int((float64(i) / float64(len(logo)-1)) * float64(len(koshGradient)-1))
+		dec := fmt.Sprintf("\x1b[38;5;%dm█\x1b[0m", koshGradient[colorIdx])
 
-			if !supportsANSI() {
-				dec = "█"
-			}
-
-			fmt.Printf("  %s  %s\n", dec, gradient(line, koshGradient))
+		if !supportsANSI() {
+			dec = "█"
 		}
-	} else {
-		fmt.Println("  " + gradient("Kosh "+cliVersion, koshGradient))
+
+		fmt.Printf("  %s  %s\n", dec, gradient(line, koshGradient))
 	}
+}
 
-	fmt.Println()
-
-	// Tagline with system footprint
+func printSysBadge(mode string) {
 	modeStyler := modeColor(mode)
 	sysBadge := dim(fmt.Sprintf("(%s/%s)", runtime.GOOS, runtime.GOARCH))
 	fmt.Printf("     %s  %s %s   %s\n", gradient("Kosh "+cliVersion, koshGradient), modeStyler(mode), statusDot(), sysBadge)
-	fmt.Println()
+}
 
-	// Empty config state
-	if cfg == nil {
-		fmt.Println("     " + dim("│ ") + dim(`Use "kosh [command] --help" for command details.`))
-		fmt.Println("     " + dim("╰"+strings.Repeat("─", blockquoteRuleWidth)))
-		fmt.Println()
-		return
-	}
+func printEmptyConfigState() {
+	fmt.Println("     " + dim("│ ") + dim(`Use "kosh [command] --help" for command details.`))
+	fmt.Println("     " + dim("╰"+strings.Repeat("─", blockquoteRuleWidth)))
+}
 
-	// Populated config state - Blockquote UI
+func printConfigBlock(cfg *config.Config) {
 	if cfg.BaseURL == "" && cfg.Theme == "" && cfg.OutputDir == "" {
 		fmt.Println("     " + dim("│ ") + dim("Configuration will be loaded from kosh.yaml"))
 	} else {
@@ -209,8 +222,5 @@ func printStartupBanner(mode string, cfg *config.Config) {
 			fmt.Println(infoRow("Output", shortenPath(cfg.OutputDir)))
 		}
 	}
-
-	// Cap off the blockquote UI beautifully
 	fmt.Println("     " + dim("╰"+strings.Repeat("─", blockquoteRuleWidth)))
-	fmt.Println()
 }

@@ -34,13 +34,6 @@ var searchWasmBr []byte
 //go:embed wasm/wasm_exec.js
 var wasmExecJs []byte
 
-// embeddedWasmHash is the hash of the raw (decompressed) embedded WASM.
-// It mirrors SearchWasmHash to keep legacy tests stable.
-var embeddedWasmHash = SearchWasmHash
-
-// wasmInitErr captures initialization errors for embedded WASM.
-var wasmInitErr error
-
 // CheckWASM ensures the search engine WASM is present and up-to-date.
 // Uses hash comparison to avoid unnecessary writes when WASM hasn't changed.
 func CheckWASM(sink fspkg.ArtifactSink, cacheDir string) bool {

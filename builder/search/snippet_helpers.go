@@ -183,65 +183,23 @@ func calculateIsland(bestStart, windowSize int, content string) snippetIsland {
 
 // buildSnippetText builds the final snippet text with highlighted matches across islands
 func buildSnippetText(content string, matches []snippetMatch, islands []snippetIsland, hasMatches bool) string {
-	builder := pools.SharedStringBuilderPool.Get()
+	if !hasMatches || len(matches) == 0 {
+		return buildFallbackSnippet(content, islands)
+	}
 
+	builder := pools.SharedStringBuilderPool.Get()
 	totalLen := 0
 	for _, island := range islands {
 		totalLen += island.end - island.start
 	}
 	builder.Grow(int(float64(totalLen) * snippetGrowFactor))
 
-	if !hasMatches || len(matches) == 0 {
-		island := islands[0]
-		if island.start > 0 {
-			builder.WriteString("...")
-		}
-		escapeToBuilder(builder, content[island.start:island.end])
-		if island.end < len(content) {
-			builder.WriteString("...")
-		}
-		res := builder.String()
-		pools.SharedStringBuilderPool.Put(builder)
-		return res
-	}
-
 	for i, island := range islands {
 		if i > 0 || island.start > 0 {
 			builder.WriteString("...")
 		}
 
-		lastPos := island.start
-		for _, match := range matches {
-			if match.pos < island.start {
-				continue
-			}
-			if match.pos >= island.end {
-				break
-			}
-			if match.pos < lastPos {
-				continue
-			}
-
-			escapeToBuilder(builder, content[lastPos:match.pos])
-
-			actualEnd := match.pos + len(match.term)
-			if actualEnd > island.end {
-				actualEnd = island.end
-			}
-
-			for actualEnd < island.end {
-				char, size := utf8.DecodeRuneInString(content[actualEnd:])
-				if !unicode.IsLetter(char) && !unicode.IsNumber(char) && char != '_' {
-					break
-				}
-				actualEnd += size
-			}
-
-			builder.WriteString("<b>")
-			escapeToBuilder(builder, content[match.pos:actualEnd])
-			builder.WriteString("</b>")
-			lastPos = actualEnd
-		}
+		lastPos := processIsland(builder, content, island, matches)
 
 		if lastPos < island.end {
 			escapeToBuilder(builder, content[lastPos:island.end])
@@ -255,6 +213,60 @@ func buildSnippetText(content string, matches []snippetMatch, islands []snippetI
 	res := builder.String()
 	pools.SharedStringBuilderPool.Put(builder)
 	return res
+}
+
+func buildFallbackSnippet(content string, islands []snippetIsland) string {
+	if len(islands) == 0 {
+		return ""
+	}
+	builder := pools.SharedStringBuilderPool.Get()
+	island := islands[0]
+	if island.start > 0 {
+		builder.WriteString("...")
+	}
+	escapeToBuilder(builder, content[island.start:island.end])
+	if island.end < len(content) {
+		builder.WriteString("...")
+	}
+	res := builder.String()
+	pools.SharedStringBuilderPool.Put(builder)
+	return res
+}
+
+func processIsland(builder *strings.Builder, content string, island snippetIsland, matches []snippetMatch) int {
+	lastPos := island.start
+	for _, match := range matches {
+		if match.pos < island.start {
+			continue
+		}
+		if match.pos >= island.end {
+			break
+		}
+		if match.pos < lastPos {
+			continue
+		}
+
+		escapeToBuilder(builder, content[lastPos:match.pos])
+
+		actualEnd := match.pos + len(match.term)
+		if actualEnd > island.end {
+			actualEnd = island.end
+		}
+
+		for actualEnd < island.end {
+			char, size := utf8.DecodeRuneInString(content[actualEnd:])
+			if !unicode.IsLetter(char) && !unicode.IsNumber(char) && char != '_' {
+				break
+			}
+			actualEnd += size
+		}
+
+		builder.WriteString("<b>")
+		escapeToBuilder(builder, content[match.pos:actualEnd])
+		builder.WriteString("</b>")
+		lastPos = actualEnd
+	}
+	return lastPos
 }
 
 // buildSimpleSnippet builds a simple snippet without term matching

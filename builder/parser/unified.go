@@ -416,10 +416,24 @@ func (s *transformState) handleD2(cb *ast.FencedCodeBlock) {
 }
 
 func (s *transformState) handleMath(n ast.Node, kind ast.NodeKind) (ast.WalkStatus, error) {
-	var latex string
-	var typeStr string
-	var displayMode bool
+	latex, typeStr, displayMode := s.extractLaTeX(n, kind)
 
+	if latex != "" {
+		hash := native.HashContent(typeStr, latex)
+		s.mathExpressions = append(s.mathExpressions, models.MathExpression{
+			LaTeX:       latex,
+			DisplayMode: displayMode,
+			Hash:        hash,
+		})
+
+		newNode := s.createMathReplacement(hash, displayMode)
+		s.toReplace = append(s.toReplace, replacement{old: n, new: newNode})
+		return ast.WalkSkipChildren, nil
+	}
+	return ast.WalkContinue, nil
+}
+
+func (s *transformState) extractLaTeX(n ast.Node, kind ast.NodeKind) (latex string, typeStr string, displayMode bool) {
 	switch kind {
 	case passthrough.KindPassthroughInline:
 		m := n.(*passthrough.PassthroughInline)
@@ -432,49 +446,34 @@ func (s *transformState) handleMath(n ast.Node, kind ast.NodeKind) (ast.WalkStat
 		default:
 			latex = val
 		}
-		latex = strings.TrimSpace(latex)
-		typeStr = "math-inline"
-		displayMode = false
+		return strings.TrimSpace(latex), "math-inline", false
 	case passthrough.KindPassthroughBlock:
 		m := n.(*passthrough.PassthroughBlock)
-		var lines strings.Builder
+		var sb strings.Builder
 		l := m.Lines().Len()
 		for i := 0; i < l; i++ {
 			line := m.Lines().At(i)
-			lines.Write(line.Value(s.source))
+			sb.Write(line.Value(s.source))
 		}
-		val := lines.String()
-		valTrimmed := strings.TrimSpace(val)
+		val := sb.String()
+		vTrim := strings.TrimSpace(val)
 		switch {
-		case strings.HasPrefix(valTrimmed, "$$") && strings.HasSuffix(valTrimmed, "$$"):
-			latex = valTrimmed[2 : len(valTrimmed)-2]
-		case strings.HasPrefix(valTrimmed, `\[`) && strings.HasSuffix(valTrimmed, `\]`):
-			latex = valTrimmed[2 : len(valTrimmed)-2]
+		case strings.HasPrefix(vTrim, "$$") && strings.HasSuffix(vTrim, "$$"):
+			latex = vTrim[2 : len(vTrim)-2]
+		case strings.HasPrefix(vTrim, `\[`) && strings.HasSuffix(vTrim, `\]`):
+			latex = vTrim[2 : len(vTrim)-2]
 		default:
-			latex = valTrimmed
+			latex = vTrim
 		}
-		latex = strings.TrimSpace(latex)
-		typeStr = "math-block"
-		displayMode = true
+		return strings.TrimSpace(latex), "math-block", true
 	}
+	return "", "", false
+}
 
-	if latex != "" {
-		hash := native.HashContent(typeStr, latex)
-		s.mathExpressions = append(s.mathExpressions, models.MathExpression{
-			LaTeX:       latex,
-			DisplayMode: displayMode,
-			Hash:        hash,
-		})
-
-		placeholder := "<!--KOSH_MATH:" + hash + "-->"
-		var newNode ast.Node
-		if displayMode {
-			newNode = &RawHTMLBlock{Content: []byte(placeholder)}
-		} else {
-			newNode = &RawHTMLInline{Content: []byte(placeholder)}
-		}
-		s.toReplace = append(s.toReplace, replacement{old: n, new: newNode})
-		return ast.WalkSkipChildren, nil
+func (s *transformState) createMathReplacement(hash string, displayMode bool) ast.Node {
+	placeholder := "<!--KOSH_MATH:" + hash + "-->"
+	if displayMode {
+		return &RawHTMLBlock{Content: []byte(placeholder)}
 	}
-	return ast.WalkContinue, nil
+	return &RawHTMLInline{Content: []byte(placeholder)}
 }

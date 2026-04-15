@@ -1,3 +1,4 @@
+// Package main provides a utility to compile KaTeX to QJS bytecode with a custom header.
 package main
 
 import (
@@ -23,80 +24,85 @@ const (
 )
 
 func main() {
-	// Read katex.min.js from the native package directory
+	jsData, jsHash, err := readSourceJS()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+
+	bytecode, err := compileJS(jsData)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+
+	outputPath := getOutputPath()
+	if err := writeBytecode(outputPath, jsHash, bytecode); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully compiled KaTeX to bytecode with header: %s (%d bytes total)\n", outputPath, katexHeaderSize+len(bytecode))
+}
+
+func readSourceJS() ([]byte, uint64, error) {
 	_, filename, _, _ := runtime.Caller(0)
 	scriptDir := filepath.Dir(filename)
 	jsPath := filepath.Join(scriptDir, "../../builder/renderer/native/katex.min.js")
 	jsData, err := os.ReadFile(jsPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to read katex.min.js at %s: %v\n", jsPath, err)
-		os.Exit(1)
+		return nil, 0, fmt.Errorf("failed to read katex.min.js at %s: %w", jsPath, err)
 	}
+	return jsData, xxh3.Hash(jsData), nil
+}
 
-	// Calculate hash of source JS
-	jsHash := xxh3.Hash(jsData)
-
-	// Create a temporary QJS runtime for compilation
+func compileJS(jsData []byte) ([]byte, error) {
 	rt, err := qjs.New()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create QJS runtime: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to create QJS runtime: %w", err)
 	}
 	defer rt.Close()
 
-	// Compile KaTeX to bytecode
 	bytecode, err := rt.Compile("katex.min.js", qjs.Code(string(jsData)))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to compile KaTeX: %v\n", err)
-		rt.Close()
-		os.Exit(1) //nolint:gocritic
+		return nil, fmt.Errorf("failed to compile KaTeX: %w", err)
+	}
+	return bytecode, nil
+}
+
+func getOutputPath() string {
+	_, filename, _, _ := runtime.Caller(0)
+	scriptDir := filepath.Dir(filename)
+	if len(os.Args) > 1 {
+		return os.Args[1]
+	}
+	return filepath.Join(scriptDir, "../../builder/renderer/native/katex.bytecode")
+}
+
+func writeBytecode(outputPath string, jsHash uint64, bytecode []byte) error {
+	outputDir := filepath.Dir(outputPath)
+	if outputDir != "." {
+		if err := os.MkdirAll(outputDir, katexOutputDirMode); err != nil {
+			return fmt.Errorf("failed to create output directory: %w", err)
+		}
 	}
 
-	// Prepare header (20 bytes)
-	// 4 bytes: Magic "KBC1"
-	// 8 bytes: Source JS Hash
-	// 8 bytes: Bytecode size (for integrity check)
 	header := make([]byte, katexHeaderSize)
 	copy(header[0:katexMagicSize], katexMagic)
 	binary.LittleEndian.PutUint64(header[katexHashStart:katexHashEnd], jsHash)
 	binary.LittleEndian.PutUint64(header[katexSizeStart:katexSizeEnd], uint64(len(bytecode)))
 
-	// Get the output path from command line or use default
-	outputPath := filepath.Join(scriptDir, "../../builder/renderer/native/katex.bytecode")
-	if len(os.Args) > 1 {
-		outputPath = os.Args[1]
-	}
-
-	// Ensure the output directory exists
-	outputDir := filepath.Dir(outputPath)
-	if outputDir != "." {
-		if err := os.MkdirAll(outputDir, katexOutputDirMode); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create output directory: %v\n", err)
-			os.Exit(1)
-		}
-	}
-
-	// Write header + bytecode to file
 	f, err := os.Create(outputPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create output file: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create output file: %w", err)
 	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to close output file: %v\n", err)
-		}
-	}()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.Write(header); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to write header: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to write header: %w", err)
 	}
-
 	if _, err := f.Write(bytecode); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to write bytecode: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to write bytecode: %w", err)
 	}
-
-	fmt.Printf("Successfully compiled KaTeX to bytecode with header: %s (%d bytes total)\n", outputPath, len(header)+len(bytecode))
+	return nil
 }

@@ -404,41 +404,11 @@ func CopyDirVFS(ctx context.Context, options CopyDirOptions) error {
 	imageQueue, imageWg := startImageWorkers(ctx, directoryCtx, options, workerCount, &errorMutex, &errorsList)
 	nonImageQueue, nonImageWg := startNonImageWorkers(ctx, directoryCtx, options, nonImageWorkers, &errorMutex, &errorsList)
 
-	// Collect images and sort by size (fat tail optimization)
-	var imageTasks []fileTask
-	var imageTasksMu sync.Mutex
-
-	// Use higher concurrency for discovery walk on modern SSDs.
-	// Decouple from image worker count to maximize I/O throughput.
-	walkConcurrency := max(runtime.NumCPU()*2, 8)
-	walkFn := buildWalkFn(ctx, directoryCtx, options, &imageTasks, &imageTasksMu, nonImageQueue)
-	walkErr := fspkg.ParallelWalk(fspkg.WalkOptions{
-		Ctx:         ctx,
-		SourceFs:    directoryCtx.srcFs,
-		Root:        directoryCtx.srcDir,
-		Concurrency: walkConcurrency,
-		WalkFn:      walkFn,
-	})
+	imageTasks, walkErr := collectImageTasks(ctx, directoryCtx, options, nonImageQueue)
 
 	if walkErr == nil {
-		// Sort images by size descending
-		slices.SortFunc(imageTasks, func(a, b fileTask) int {
-			if a.info.Size() > b.info.Size() {
-				return -1
-			}
-			if a.info.Size() < b.info.Size() {
-				return 1
-			}
-			return 0
-		})
-
-		// Enqueue sorted images
-		for _, task := range imageTasks {
-			if err := enqueueTask(ctx, imageQueue, task); err != nil {
-				walkErr = err
-				break
-			}
-		}
+		sortImageTasks(imageTasks)
+		walkErr = enqueueImageTasks(ctx, imageQueue, imageTasks)
 	}
 
 	close(imageQueue)
@@ -453,5 +423,45 @@ func CopyDirVFS(ctx context.Context, options CopyDirOptions) error {
 		return errorsList[0]
 	}
 
+	return nil
+}
+
+func collectImageTasks(ctx context.Context, directoryCtx copyDirContext, options CopyDirOptions, nonImageQueue chan fileTask) ([]fileTask, error) {
+	var imageTasks []fileTask
+	var imageTasksMu sync.Mutex
+
+	// Use higher concurrency for discovery walk on modern SSDs.
+	// Decouple from image worker count to maximize I/O throughput.
+	walkConcurrency := max(runtime.NumCPU()*2, 8)
+	walkFn := buildWalkFn(ctx, directoryCtx, options, &imageTasks, &imageTasksMu, nonImageQueue)
+	walkErr := fspkg.ParallelWalk(fspkg.WalkOptions{
+		Ctx:         ctx,
+		SourceFs:    directoryCtx.srcFs,
+		Root:        directoryCtx.srcDir,
+		Concurrency: walkConcurrency,
+		WalkFn:      walkFn,
+	})
+	return imageTasks, walkErr
+}
+
+func sortImageTasks(imageTasks []fileTask) {
+	// Sort images by size descending
+	slices.SortFunc(imageTasks, func(a, b fileTask) int {
+		if a.info.Size() > b.info.Size() {
+			return -1
+		}
+		if a.info.Size() < b.info.Size() {
+			return 1
+		}
+		return 0
+	})
+}
+
+func enqueueImageTasks(ctx context.Context, imageQueue chan fileTask, imageTasks []fileTask) error {
+	for _, task := range imageTasks {
+		if err := enqueueTask(ctx, imageQueue, task); err != nil {
+			return err
+		}
+	}
 	return nil
 }

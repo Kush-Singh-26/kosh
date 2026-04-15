@@ -207,6 +207,26 @@ To style the header, footer, or search modal provided by the engine, target thes
 | **Graph** | Knowledge graph UI | `.graph-ui`, `.graph-panel` |
 | **Footer** | The site colophon | `footer.colophon`, `.colophon-grid` |
 
+## Validation and Quality
+
+Kosh employs a mix of automated and manual checks to ensure theme quality.
+
+### Automated Checks
+The engine automatically verifies several requirements during the build process:
+
+- **Directory Structure**: Kosh validates the presence of `layout.html`, `index.html`, and `theme.yaml`. The build will fail if these are missing.
+- **A11y Linting**: During HTML rendering, the engine scans for `<img>` tags. It will issue a `slog.Warn` if it finds an image without an `alt` attribute (or an empty one that isn't clearly decorative).
+- **Template Syntax**: Go template syntax is validated at parse time.
+- **Asset Resolution**: The `relativize` function ensures all internal links are correct based on the deployment subpath.
+
+### Manual Requirements
+Some quality standards cannot be easily automated and must be verified manually by the theme developer:
+
+- **Color Contrast**: Ensure text-to-background contrast ratios meet WCAG AA standards (4.5:1 for normal text).
+- **CSS Variable Consistency**: Maintain a consistent naming convention for CSS tokens (e.g., `--color-primary-500`, `--spacing-md`).
+- **Responsive Fluidity**: Verify that layouts do not break at arbitrary viewport widths between standard breakpoints.
+- **Semantic HTML**: Use appropriate landmark elements (`<nav>`, `<main>`, `<aside>`, `<footer>`) to ensure a screen-reader-friendly document outline.
+
 ## Best Practices
 
 1. **Path Safety**: Always use the `relativize` template function for internal links and assets.

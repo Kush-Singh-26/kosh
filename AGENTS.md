@@ -262,6 +262,20 @@ go test ./builder/utils ./builder/services ./builder/run ./internal/clean
 golangci-lint run ./...
 ```
 
+## Pre-commit Hooks
+
+Kosh uses `pre-commit` to enforce code quality before changes are committed.
+
+### Hooks Summary
+
+- **golangci-lint**: Runs strict linting on production code (skipping tests). Production code must pass `funlen` (50 lines / 40 statements) and `gocyclo` (complexity 15) limits.
+- **go-test**: Runs all project tests (`go test ./...`).
+- **go-mod-tidy**: Ensures `go.mod` and `go.sum` are up to date.
+
+### Usage
+
+Agents should verify changes locally using these tools before attempting a commit. If a hook rejects a commit, fix the underlying issue and attempt a NEW commit. Do not use `--no-verify` unless explicitly instructed.
+
 ## Search WASM Development
 
 ### When to Rebuild

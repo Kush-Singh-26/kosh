@@ -228,53 +228,61 @@ func (managerInstance *Manager) ensureIndexedPosts() ([]models.IndexedPost, erro
 	}
 	managerInstance.mu.RUnlock()
 
+	postIDs, posts, records, err := managerInstance.getPostsFromCache()
+	if err != nil || len(postIDs) == 0 {
+		return nil, err
+	}
+
+	return managerInstance.buildIndexedPostsParallel(postIDs, posts, records)
+}
+
+func (managerInstance *Manager) getPostsFromCache() ([]string, map[string]*models.PostMeta, map[string]*models.SearchRecord, error) {
 	if managerInstance.cache == nil {
-		return nil, nil
+		return nil, nil, nil, nil
 	}
 
-	postIDs, cacheError := managerInstance.cache.ListAllPosts()
-	if cacheError != nil {
-		return nil, cacheError
-	}
-	if len(postIDs) == 0 {
-		return nil, nil
+	postIDs, err := managerInstance.cache.ListAllPosts()
+	if err != nil || len(postIDs) == 0 {
+		return nil, nil, nil, err
 	}
 
-	posts, postsError := managerInstance.cache.GetPostsByIDs(postIDs)
-	if postsError != nil {
-		return nil, postsError
+	posts, err := managerInstance.cache.GetPostsByIDs(postIDs)
+	if err != nil {
+		return nil, nil, nil, err
 	}
-	searchRecords, recordsError := managerInstance.cache.GetSearchRecords(postIDs)
-	if recordsError != nil {
-		return nil, recordsError
+
+	records, err := managerInstance.cache.GetSearchRecords(postIDs)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	sort.Strings(postIDs)
+	return postIDs, posts, records, nil
+}
+
+func (managerInstance *Manager) buildIndexedPostsParallel(ids []string, posts map[string]*models.PostMeta, records map[string]*models.SearchRecord) ([]models.IndexedPost, error) {
 	indexedPosts := make([]models.IndexedPost, 0, len(posts))
 	var mu sync.Mutex
 
 	g, _ := errgroup.WithContext(context.Background())
 	g.SetLimit(runtime.NumCPU())
 
-	for _, id := range postIDs {
+	for _, id := range ids {
 		postID := id
 		g.Go(func() error {
 			metadata, ok := posts[postID]
-			if !ok || metadata == nil {
-				return nil
-			}
-			record, ok := searchRecords[postID]
-			if !ok || record == nil {
+			record, ok2 := records[postID]
+			if !ok || metadata == nil || !ok2 || record == nil {
 				return nil
 			}
 
-			htmlRelativePath := fspkg.MarkdownToHTMLPath(metadata.Path)
+			htmlPath := fspkg.MarkdownToHTMLPath(metadata.Path)
 			indexed := models.IndexedPost{
 				Record: models.PostRecord{
-					ID:              xxh3.HashString(htmlRelativePath),
+					ID:              xxh3.HashString(htmlPath),
 					Title:           metadata.Title,
 					NormalizedTitle: record.NormalizedTitle,
-					Link:            htmlRelativePath,
+					Link:            htmlPath,
 					Description:     metadata.Description,
 					Taxonomies:      metadata.Taxonomies,
 					NormalizedTaxs:  record.NormalizedTaxs,

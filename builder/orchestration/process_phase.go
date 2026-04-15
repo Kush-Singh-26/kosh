@@ -59,25 +59,72 @@ func waitForPostProcessing(ctx context.Context, postResultChan chan postStreamRe
 	}
 }
 
+func (engineInstance *Engine) finalizePostPhase(ctx context.Context, postResultChan chan postStreamResult, searchStream *index.StreamBuilder) (*post.ContentResult, *models.SearchIndex, error) {
+	postResult, processError := waitForPostProcessing(ctx, postResultChan)
+	if processError != nil {
+		return nil, nil, fmt.Errorf("post processing failed: %w", processError)
+	}
+
+	finalSearchIndex := searchStream.Complete()
+	if engineInstance.Deps.Reporter != nil {
+		engineInstance.Deps.Reporter.EndPhase(ui.PhasePosts, 0)
+		engineInstance.Deps.Reporter.StartPhase(ui.PhaseSiteWide)
+	}
+	return postResult, finalSearchIndex, nil
+}
+
+func (engineInstance *Engine) runSiteWidePhase(
+	ctx context.Context,
+	setup *buildSetupResult,
+	assetsRes *buildAssetResult,
+	postResult *post.ContentResult,
+	finalSearchIndex *models.SearchIndex,
+) error {
+	runSiteWide, _ := engineInstance.setupSiteWideRendering(SiteWideOptions{
+		Ctx:                ctx,
+		AssetsReadySignal:  assetsRes.assetsReadySignal,
+		WasmWaitGroup:      setup.wasmWg,
+		ForceSocialRebuild: setup.forceSocialRebuild,
+		SearchIndex:        finalSearchIndex,
+	})
+
+	metadataCtx := postResult.ToContentContext()
+	assetsChanged := engineInstance.Assets.CheckChanged(ctx, assetsRes.assetsReadySignal)
+	siteWideGroup, siteTimer := runSiteWide(metadataCtx, assetsChanged)
+
+	has404 := postResult.Has404 || engineInstance.Deps.Render.Has404Template()
+	if err := engineInstance.waitForSiteWideRendering(siteWideGroup, siteTimer, has404, metadataCtx); err != nil {
+		return fmt.Errorf("site-wide rendering failed: %w", err)
+	}
+
+	return engineInstance.flushCaches(ctx)
+}
+
+func (engineInstance *Engine) flushCaches(ctx context.Context) error {
+	if engineInstance.Deps.Fragments != nil {
+		if err := engineInstance.Deps.Fragments.Flush(ctx); err != nil {
+			engineInstance.Deps.Logger.Warn("Fragment cache flush failed", "error", err)
+		}
+	}
+	if engineInstance.Deps.Diagrams != nil {
+		if err := engineInstance.Deps.Diagrams.Flush(ctx); err != nil {
+			engineInstance.Deps.Logger.Warn("Diagram cache flush failed", "error", err)
+		}
+	}
+	return nil
+}
+
 // processPhase executes post processing and site-wide orchestration.
-// Assets (including image compression) MUST complete before post rendering,
-// since post rendering rewrites PNG/JPG/JPEG image references to WebP.
 func (engineInstance *Engine) processPhase(
 	ctx context.Context,
 	setup *buildSetupResult,
 	assetsRes *buildAssetResult,
 	scan *buildScanResult,
 ) error {
-	// Initialize Search Stream Builder early
-	searchStream := index.NewStreamBuilder(0) // Will refine expectedDocs when scanner finishes if needed
-
-	// Start streaming post processing (ingesting from the scanner's fileChan).
+	searchStream := index.NewStreamBuilder(0)
 	postResultChan := engineInstance.startPostProcessingStream(ctx, setup, scan, searchStream)
 
-	// Wait for scanner and discovery metadata (needed for ContentAssets and site-wide state).
-	// This ensures the image/WebP rewrite map is populated so HTML can reference
-	// the correct paths. Image compression continues in the background while posts render.
-	metadataResult, discoverySignal, scannerError, assetError, _ := engineInstance.waitForScannerAndAssets(WaitScannerAssetsOptions{
+	_, discoverySignal, scannerError, assetError, _ := engineInstance.waitForScannerAndAssets(WaitScannerAssetsOptions{
 		Ctx:                  ctx,
 		ScannerReady:         scan.scannerReady,
 		MetadataResultChan:   scan.metadataResultChan,
@@ -98,67 +145,16 @@ func (engineInstance *Engine) processPhase(
 	if assetError != nil {
 		return fmt.Errorf("failed to build assets: %w", assetError)
 	}
-
-	// Discovery signal must be ready before templates can be safely executed by the renderer.
 	if err := waitForDiscovery(ctx, discoverySignal); err != nil {
 		return err
 	}
 
-	var siteWideHas404 bool
-	if metadataResult != nil && metadataResult.Has404 {
-		siteWideHas404 = true
+	postResult, finalSearchIndex, err := engineInstance.finalizePostPhase(ctx, postResultChan, searchStream)
+	if err != nil {
+		return err
 	}
 
-	// Wait for post processing to finish (it was started as a stream).
-	postResult, processError := waitForPostProcessing(ctx, postResultChan)
-	if processError != nil {
-		return fmt.Errorf("post processing failed: %w", processError)
-	}
-
-	// Finalize search index construction (pipelined)
-	finalSearchIndex := searchStream.Complete()
-
-	if engineInstance.Deps.Reporter != nil {
-		engineInstance.Deps.Reporter.EndPhase(ui.PhasePosts, 0)
-		engineInstance.Deps.Reporter.StartPhase(ui.PhaseSiteWide)
-	}
-	if postResult.Has404 {
-		siteWideHas404 = true
-	}
-
-	// Set up site-wide generators (need full asset completion).
-	runSiteWide, _ := engineInstance.setupSiteWideRendering(SiteWideOptions{
-		Ctx:                ctx,
-		AssetsReadySignal:  assetsRes.assetsReadySignal,
-		WasmWaitGroup:      setup.wasmWg,
-		ForceSocialRebuild: setup.forceSocialRebuild,
-		SearchIndex:        finalSearchIndex,
-	})
-
-	// Site-wide generators.
-	metadataCtx := postResult.ToContentContext()
-	assetsChanged := engineInstance.Assets.CheckChanged(ctx, assetsRes.assetsReadySignal)
-	siteWideGroup, siteTimer := runSiteWide(metadataCtx, assetsChanged)
-
-	// Wait for site-wide rendering.
-	if err := engineInstance.waitForSiteWideRendering(siteWideGroup, siteTimer, siteWideHas404 || engineInstance.Deps.Render.Has404Template(), metadataCtx); err != nil {
-		return fmt.Errorf("site-wide rendering failed: %w", err)
-	}
-
-	// Persist cached objects (fragments, diagrams) for reuse in next build.
-	// We flush here to ensure data is committed even if SaveCaches is interrupted later.
-	if engineInstance.Deps.Fragments != nil {
-		if err := engineInstance.Deps.Fragments.Flush(ctx); err != nil {
-			engineInstance.Deps.Logger.Warn("Fragment cache flush failed", "error", err)
-		}
-	}
-	if engineInstance.Deps.Diagrams != nil {
-		if err := engineInstance.Deps.Diagrams.Flush(ctx); err != nil {
-			engineInstance.Deps.Logger.Warn("Diagram cache flush failed", "error", err)
-		}
-	}
-
-	return nil
+	return engineInstance.runSiteWidePhase(ctx, setup, assetsRes, postResult, finalSearchIndex)
 }
 
 // ProcessPostsOptions configures content processing for a build pass.

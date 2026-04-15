@@ -85,95 +85,95 @@ func (handler *ConsoleHandler) Enabled(_ context.Context, level slog.Level) bool
 	return level >= minLevel
 }
 
+func (handler *ConsoleHandler) formatHTTPLog(record slog.Record) string {
+	var method, path, durationStr string
+	var status int
+	record.Attrs(func(attribute slog.Attr) bool {
+		switch attribute.Key {
+		case "method":
+			if attribute.Value.Kind() == slog.KindString {
+				method = attribute.Value.String()
+			}
+		case "path":
+			if attribute.Value.Kind() == slog.KindString {
+				path = attribute.Value.String()
+			}
+		case "status":
+			if attribute.Value.Kind() == slog.KindInt64 {
+				status = int(attribute.Value.Int64())
+			}
+		case "duration":
+			if attribute.Value.Kind() == slog.KindDuration {
+				durationStr = fmt.Sprintf("%dms", attribute.Value.Duration().Milliseconds())
+			} else {
+				durationStr = attribute.Value.String()
+			}
+		}
+		return true
+	})
+	return fmt.Sprintf("%s %s %d %s", method, path, status, durationStr)
+}
+
+func (handler *ConsoleHandler) formatStandardLog(record slog.Record) string {
+	var logBuilder strings.Builder
+	logBuilder.WriteString(record.Message)
+	if record.NumAttrs() > 0 {
+		record.Attrs(func(attribute slog.Attr) bool {
+			fmt.Fprintf(&logBuilder, " %s=%v", attribute.Key, attribute.Value.Any())
+			return true
+		})
+	}
+	return logBuilder.String()
+}
+
+func (handler *ConsoleHandler) handleReporter(record slog.Record) {
+	isHTTP := false
+	if record.Level < slog.LevelWarn {
+		record.Attrs(func(attribute slog.Attr) bool {
+			if attribute.Key == "http" && attribute.Value.Kind() == slog.KindBool && attribute.Value.Bool() {
+				isHTTP = true
+				return false
+			}
+			return true
+		})
+	}
+
+	var message string
+	if isHTTP {
+		message = handler.formatHTTPLog(record)
+	} else {
+		message = handler.formatStandardLog(record)
+	}
+
+	switch {
+	case record.Level >= slog.LevelError:
+		handler.reporter.Error("%s", nil, message)
+	case record.Level >= slog.LevelWarn:
+		handler.reporter.Warn("%s", message)
+	default:
+		handler.reporter.Info("%s", message)
+	}
+}
+
 // Handle formats and writes a log record.
 func (handler *ConsoleHandler) Handle(_ context.Context, record slog.Record) error {
 	if handler.reporter != nil {
-		isHTTP := false
-		// Only handle Warn, Error, and important Info (like HTTP requests)
-		if record.Level < slog.LevelWarn {
-			// Special handling for HTTP logs
-			record.Attrs(func(attribute slog.Attr) bool {
-				if attribute.Key == "http" {
-					if attribute.Value.Kind() == slog.KindBool && attribute.Value.Bool() {
-						isHTTP = true
-					}
-					return false
-				}
-				return true
-			})
-		}
-
-		var logBuilder strings.Builder
-		if isHTTP {
-			// Format HTTP log line manually for a clean look in the UI
-			var method, path string
-			var status int
-			var durationStr string
-			record.Attrs(func(attribute slog.Attr) bool {
-				switch attribute.Key {
-				case "method":
-					if attribute.Value.Kind() == slog.KindString {
-						method = attribute.Value.String()
-					}
-				case "path":
-					if attribute.Value.Kind() == slog.KindString {
-						path = attribute.Value.String()
-					}
-				case "status":
-					if attribute.Value.Kind() == slog.KindInt64 {
-						status = int(attribute.Value.Int64())
-					}
-				case "duration":
-					if attribute.Value.Kind() == slog.KindDuration {
-						durationStr = fmt.Sprintf("%dms", attribute.Value.Duration().Milliseconds())
-					} else {
-						durationStr = attribute.Value.String()
-					}
-				}
-				return true
-			})
-
-			fmt.Fprintf(&logBuilder, "%s %s %d %s", method, path, status, durationStr)
-		} else {
-			// Not an HTTP log - use standard message formatting
-			logBuilder.WriteString(record.Message)
-			if record.NumAttrs() > 0 {
-				record.Attrs(func(attribute slog.Attr) bool {
-					fmt.Fprintf(&logBuilder, " %s=%v", attribute.Key, attribute.Value.Any())
-					return true
-				})
-			}
-		}
-		message := logBuilder.String()
-
-		switch {
-		case record.Level >= slog.LevelError:
-			handler.reporter.Error("%s", nil, message)
-		case record.Level >= slog.LevelWarn:
-			handler.reporter.Warn("%s", message)
-		default:
-			handler.reporter.Info("%s", message)
-		}
+		handler.handleReporter(record)
 		return nil
 	}
 
 	handler.mu.Lock()
 	defer handler.mu.Unlock()
 
-	// Use fmt.Sprintf to avoid races in fmt package's internal state
 	color := getLevelColor(record.Level)
 	timeString := record.Time.Format(handler.timeFormat)
 
-	line := fmt.Sprintf("\033[90m%s\033[0m %s ", timeString, color)
-	_, _ = fmt.Fprintf(handler.output, "%s", line)
+	_, _ = fmt.Fprintf(handler.output, "\033[90m%s\033[0m %s ", timeString, color)
 	handler.writeMessage(record.Message)
 
-	// Write handler attributes
 	for _, attribute := range handler.attrs {
 		handler.writeAttr(attribute)
 	}
-
-	// Write record attributes
 	if record.NumAttrs() > 0 {
 		record.Attrs(func(attribute slog.Attr) bool {
 			handler.writeAttr(attribute)
@@ -289,4 +289,3 @@ func InitLogger(reportersAndOpts ...any) *slog.Logger {
 	}
 	return slog.New(handler)
 }
-

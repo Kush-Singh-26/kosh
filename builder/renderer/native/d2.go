@@ -58,6 +58,44 @@ func (r *Renderer) RenderGlobalD2Batch(ctx context.Context, expressions []models
 	return r.RenderAllD2(ctx, uniqueExprs, nil)
 }
 
+func (r *Renderer) spawnD2Worker(ctx context.Context, taskChan <-chan models.D2Expression, results map[string]models.SSRThemePair, mu *sync.Mutex, wg *sync.WaitGroup, globalErr *error) {
+	wg.Add(1)
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    slog.Default(),
+		Operation: "d2 render",
+		Fn: func() error {
+			for expr := range taskChan {
+				lightSVG, err := r.RenderD2(ctx, expr.Code, d2LightTheme)
+				if err != nil {
+					mu.Lock()
+					if *globalErr == nil {
+						*globalErr = err
+					}
+					mu.Unlock()
+					return nil
+				}
+
+				darkSVG, err := r.RenderD2(ctx, expr.Code, d2DarkTheme)
+				if err != nil {
+					mu.Lock()
+					if *globalErr == nil {
+						*globalErr = err
+					}
+					mu.Unlock()
+					return nil
+				}
+
+				mu.Lock()
+				results[expr.Hash] = models.SSRThemePair{Light: lightSVG, Dark: darkSVG}
+				mu.Unlock()
+			}
+			return nil
+		},
+		Cleanup: wg.Done,
+	})
+}
+
 // RenderAllD2 renders multiple D2 diagrams in parallel.
 func (r *Renderer) RenderAllD2(ctx context.Context, expressions []models.D2Expression, cache map[string]models.SSRThemePair) (map[string]models.SSRThemePair, error) {
 	if len(expressions) == 0 {
@@ -66,7 +104,6 @@ func (r *Renderer) RenderAllD2(ctx context.Context, expressions []models.D2Expre
 
 	finalResults := make(map[string]models.SSRThemePair)
 	var toRender []models.D2Expression
-
 	for _, expr := range expressions {
 		if val, ok := cache[expr.Hash]; ok {
 			finalResults[expr.Hash] = val
@@ -85,7 +122,6 @@ func (r *Renderer) RenderAllD2(ctx context.Context, expressions []models.D2Expre
 	var wg sync.WaitGroup
 	var globalErr error
 
-	// Channel to feed workers
 	taskChan := make(chan models.D2Expression, len(toRender))
 	for _, expr := range toRender {
 		taskChan <- expr
@@ -93,45 +129,10 @@ func (r *Renderer) RenderAllD2(ctx context.Context, expressions []models.D2Expre
 	close(taskChan)
 
 	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       ctx,
-			Logger:    slog.Default(),
-			Operation: "d2 render",
-			Fn: func() error {
-				for expr := range taskChan {
-					lightSVG, err := r.RenderD2(ctx, expr.Code, d2LightTheme)
-					if err != nil {
-						mu.Lock()
-						if globalErr == nil {
-							globalErr = err
-						}
-						mu.Unlock()
-						return nil
-					}
-
-					darkSVG, err := r.RenderD2(ctx, expr.Code, d2DarkTheme)
-					if err != nil {
-						mu.Lock()
-						if globalErr == nil {
-							globalErr = err
-						}
-						mu.Unlock()
-						return nil
-					}
-
-					mu.Lock()
-					results[expr.Hash] = models.SSRThemePair{Light: lightSVG, Dark: darkSVG}
-					mu.Unlock()
-				}
-				return nil
-			},
-			Cleanup: wg.Done,
-		})
+		r.spawnD2Worker(ctx, taskChan, results, &mu, &wg, &globalErr)
 	}
 
 	wg.Wait()
-
 	if globalErr != nil {
 		return finalResults, globalErr
 	}
@@ -139,7 +140,6 @@ func (r *Renderer) RenderAllD2(ctx context.Context, expressions []models.D2Expre
 	for hash, pair := range results {
 		finalResults[hash] = pair
 	}
-
 	return finalResults, nil
 }
 

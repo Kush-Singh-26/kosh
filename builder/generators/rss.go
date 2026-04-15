@@ -24,64 +24,12 @@ type RSSOptions struct {
 
 // GenerateRSS builds and writes the RSS feed.
 func GenerateRSS(opts RSSOptions) (string, error) {
-	sink := opts.Sink
-	baseURL := opts.BaseURL
-	posts := opts.Posts
-	title := opts.Title
-	description := opts.Description
-	outputPath := opts.OutputPath
-
 	slog.Info("Generating RSS feed")
 
-	var items []models.Item
-	var lastBuildDate string
-	if len(posts) > 0 {
-		lastBuildDate = posts[0].DateObj.Format(time.RFC1123)
-	}
+	items, lastBuildDate := buildRSSItems(opts)
+	rss := createRSSObject(opts, items, lastBuildDate)
 
-	for _, p := range posts {
-		allTerms := []string{}
-		for _, terms := range p.Taxonomies {
-			allTerms = append(allTerms, terms...)
-		}
-
-		item := models.Item{
-			Title:       p.Title,
-			Link:        p.Link,
-			Description: p.Description,
-			PubDate:     p.DateObj.Format(time.RFC1123),
-			GUID:        p.Link,
-			Author:      opts.Author,
-			Categories:  allTerms,
-		}
-
-		if p.ContentHTML != "" {
-			item.ContentEncoded = p.ContentHTML
-		}
-		items = append(items, item)
-	}
-
-	rss := models.Rss{
-		Version:      "2.0",
-		XMLNSContent: "http://purl.org/rss/1.0/modules/content/",
-		Channel: models.Channel{
-			Title:         title,
-			Link:          baseURL,
-			Description:   description,
-			LastBuildDate: lastBuildDate,
-			Items:         items,
-		},
-	}
-
-	if opts.LogoURL != "" {
-		rss.Channel.Image = &models.RSSImage{
-			URL:   opts.LogoURL,
-			Title: title,
-			Link:  baseURL,
-		}
-	}
-
-	err := sink.WriteStream(outputPath, func(w io.Writer) error {
+	err := opts.Sink.WriteStream(opts.OutputPath, func(w io.Writer) error {
 		if _, err := w.Write([]byte(xml.Header)); err != nil {
 			return err
 		}
@@ -93,5 +41,56 @@ func GenerateRSS(opts RSSOptions) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return outputPath, nil
+	return opts.OutputPath, nil
+}
+
+func buildRSSItems(opts RSSOptions) ([]models.Item, string) {
+	items := make([]models.Item, 0, len(opts.Posts))
+	var lastBuildDate string
+	if len(opts.Posts) > 0 {
+		lastBuildDate = opts.Posts[0].DateObj.Format(time.RFC1123)
+	}
+
+	for _, p := range opts.Posts {
+		var allTerms []string
+		for _, terms := range p.Taxonomies {
+			allTerms = append(allTerms, terms...)
+		}
+
+		item := models.Item{
+			Title:          p.Title,
+			Link:           p.Link,
+			Description:    p.Description,
+			PubDate:        p.DateObj.Format(time.RFC1123),
+			GUID:           p.Link,
+			Author:         opts.Author,
+			Categories:     allTerms,
+			ContentEncoded: p.ContentHTML,
+		}
+		items = append(items, item)
+	}
+	return items, lastBuildDate
+}
+
+func createRSSObject(opts RSSOptions, items []models.Item, lastBuildDate string) models.Rss {
+	rss := models.Rss{
+		Version:      "2.0",
+		XMLNSContent: "http://purl.org/rss/1.0/modules/content/",
+		Channel: models.Channel{
+			Title:         opts.Title,
+			Link:          opts.BaseURL,
+			Description:   opts.Description,
+			LastBuildDate: lastBuildDate,
+			Items:         items,
+		},
+	}
+
+	if opts.LogoURL != "" {
+		rss.Channel.Image = &models.RSSImage{
+			URL:   opts.LogoURL,
+			Title: opts.Title,
+			Link:  opts.BaseURL,
+		}
+	}
+	return rss
 }

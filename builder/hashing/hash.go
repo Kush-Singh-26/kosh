@@ -28,58 +28,63 @@ const (
 )
 
 // GetFrontmatterHash computes the canonical frontmatter hash from the raw metadata map.
-// It includes whitelisted standard fields with normalization and a catch-all for custom fields.
-// Expected types in metadata: string, bool, int/float64, time.Time, []any, map[string]any.
 func GetFrontmatterHash(metadata map[string]any) (string, error) {
 	h := xxh3.New()
 
-	// 1. Standard Whitelisted Fields (Normalized)
-	title := timeutil.ExtractStringFromMap(metadata, "title")
-	description := timeutil.ExtractStringFromMap(metadata, "description")
-	date := timeutil.ExtractDateStringFromMap(metadata, "date")
-	taxonomies := map[string][]string{
-		"tags": timeutil.ExtractSliceFromMap(metadata, "tags"),
-	}
-	// Add other taxonomies from metadata if they are slices
-	// (This is a bit raw here, scanner does it better, but for consistency)
-
-	isPinned := false
-	if p, ok := metadata["pinned"].(bool); ok {
-		isPinned = p
-	}
-
-	isDraft := false
-	if d, ok := metadata["draft"].(bool); ok {
-		isDraft = d
-	}
-
-	weight := 0
-	if w, ok := metadata["weight"].(int); ok {
-		weight = w
-	} else if w, ok := metadata["weight"].(float64); ok {
-		weight = int(w)
-	}
-
+	standardFields := extractStandardFields(metadata)
 	hashStandardFields(HashStandardFieldsOptions{
 		Hasher:      h,
-		Title:       title,
-		Description: description,
-		Date:        date,
-		Taxonomies:  taxonomies,
-		IsPinned:    isPinned,
-		IsDraft:     isDraft,
-		Weight:      weight,
+		Title:       standardFields.Title,
+		Description: standardFields.Description,
+		Date:        standardFields.Date,
+		Taxonomies:  standardFields.Taxonomies,
+		IsPinned:    standardFields.IsPinned,
+		IsDraft:     standardFields.IsDraft,
+		Weight:      standardFields.Weight,
 	})
 
-	// 2. Catch-all for Custom Fields
-	// Sort keys to ensure deterministic hashing
-	var keys []string
+	hashCustomFields(h, metadata)
+
+	sum := h.Sum128()
+	b := sum.Bytes()
+	return hex.EncodeToString(b[:]), nil
+}
+
+func extractStandardFields(metadata map[string]any) FrontmatterHashOptions {
+	opts := FrontmatterHashOptions{
+		Title:       timeutil.ExtractStringFromMap(metadata, "title"),
+		Description: timeutil.ExtractStringFromMap(metadata, "description"),
+		Date:        timeutil.ExtractDateStringFromMap(metadata, "date"),
+		Taxonomies: map[string][]string{
+			"tags": timeutil.ExtractSliceFromMap(metadata, "tags"),
+		},
+	}
+
+	if p, ok := metadata["pinned"].(bool); ok {
+		opts.IsPinned = p
+	}
+
+	if d, ok := metadata["draft"].(bool); ok {
+		opts.IsDraft = d
+	}
+
+	if w, ok := metadata["weight"].(int); ok {
+		opts.Weight = w
+	} else if w, ok := metadata["weight"].(float64); ok {
+		opts.Weight = int(w)
+	}
+
+	return opts
+}
+
+func hashCustomFields(h *xxh3.Hasher, other map[string]any) {
 	standardKeys := map[string]bool{
 		"title": true, "description": true, "date": true, "tags": true,
 		"pinned": true, "draft": true, "weight": true,
 	}
 
-	for k := range metadata {
+	var keys []string
+	for k := range other {
 		if !standardKeys[k] {
 			keys = append(keys, k)
 		}
@@ -89,15 +94,10 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 	for _, k := range keys {
 		writeStringXXH3(h, k)
 		_, _ = h.Write([]byte{hashFieldSeparator})
-		// Convert value to string representation for hashing
-		val := fmt.Sprintf("%v", metadata[k])
+		val := fmt.Sprintf("%v", other[k])
 		writeStringXXH3(h, val)
 		_, _ = h.Write([]byte{hashSectionSeparator})
 	}
-
-	sum := h.Sum128()
-	b := sum.Bytes()
-	return hex.EncodeToString(b[:]), nil
 }
 
 // FrontmatterHashOptions provides parsed frontmatter values for hashing.
@@ -115,7 +115,6 @@ type FrontmatterHashOptions struct {
 }
 
 // GetFrontmatterHashFromValues computes the canonical frontmatter hash from already-parsed values.
-// This avoids reparsing YAML when scanner-stage frontmatter is already available.
 func GetFrontmatterHashFromValues(opts FrontmatterHashOptions) string {
 	h := xxh3.New()
 
@@ -130,27 +129,7 @@ func GetFrontmatterHashFromValues(opts FrontmatterHashOptions) string {
 		Weight:      opts.Weight,
 	})
 
-	// Catch-all for custom fields
-	var keys []string
-	standardKeys := map[string]bool{
-		"title": true, "description": true, "date": true, "tags": true,
-		"pinned": true, "draft": true, "weight": true,
-	}
-
-	for k := range opts.Other {
-		if !standardKeys[k] {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		writeStringXXH3(h, k)
-		_, _ = h.Write([]byte{hashFieldSeparator})
-		val := fmt.Sprintf("%v", opts.Other[k])
-		writeStringXXH3(h, val)
-		_, _ = h.Write([]byte{hashSectionSeparator})
-	}
+	hashCustomFields(h, opts.Other)
 
 	sum := h.Sum128()
 	b := sum.Bytes()

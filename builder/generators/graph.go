@@ -31,6 +31,17 @@ const (
 	graphDateFormat    = "Jan 02, 2006"
 )
 
+// GraphOptions configures knowledge graph generation.
+type GraphOptions struct {
+	Sink          fspkg.ArtifactSink
+	BaseURL       string
+	Posts         []models.PostMetadata
+	OutputPath    string
+	Config        models.GraphConfig
+	SiteTitle     string
+	ContentPrefix string
+}
+
 // ComputeGraphHash computes a stable hash for the knowledge graph data
 func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
 	graphInfo := make([]postGraphInfo, 0, len(posts))
@@ -53,81 +64,99 @@ func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
-// GraphOptions configures knowledge graph generation.
-type GraphOptions struct {
-	Sink       fspkg.ArtifactSink
-	BaseURL    string
-	Posts      []models.PostMetadata
-	OutputPath string
-	Config        models.GraphConfig
-	SiteTitle     string
-	ContentPrefix string
-}
-
 // GenerateGraph builds the knowledge graph JSON and writes it to disk.
 func GenerateGraph(opts GraphOptions) (string, string, error) {
-	sink := opts.Sink
-	baseURL := opts.BaseURL
-	posts := opts.Posts
-	outputPath := opts.OutputPath
-	cfg := opts.Config
-	siteTitle := opts.SiteTitle
+	slog.Info("Generating knowledge graph data", "output", opts.OutputPath)
 
-	slog.Info("Generating knowledge graph data", "output", outputPath)
+	nodes, links, nodeExists := initializeGraphNodes(opts)
+	termNodes := collectTaxonomyTerms(opts, nodeExists)
+	addTermNodes(&nodes, &links, termNodes)
+	addPostNodes(&nodes, &links, opts, nodeExists)
 
+	output, err := json.Marshal(models.GraphData{Nodes: nodes, Links: links})
+	if err != nil {
+		return "", "", err
+	}
+	if err := opts.Sink.WriteFile(opts.OutputPath, output); err != nil {
+		return "", "", err
+	}
+
+	hash, err := ComputeGraphHash(opts.Posts)
+	if err != nil {
+		return "", "", err
+	}
+	return opts.OutputPath, hash, nil
+}
+
+// initializeGraphNodes creates the root node and initializes data structures
+func initializeGraphNodes(opts GraphOptions) ([]models.GraphNode, []models.GraphLink, map[string]bool) {
 	nodes := []models.GraphNode{}
 	links := []models.GraphLink{}
 	nodeExists := make(map[string]bool)
 
-	// Add root node for hub-and-spoke layout
 	rootID := "root"
 	nodes = append(nodes, models.GraphNode{
-		ID: rootID, Label: siteTitle, Group: graphRootGroup, Value: graphRootValue, URL: baseURL,
+		ID: rootID, Label: opts.SiteTitle, Group: graphRootGroup, Value: graphRootValue, URL: opts.BaseURL,
 	})
 	nodeExists[rootID] = true
+	return nodes, links, nodeExists
+}
 
-	// Collect all unique taxonomy terms first
+// collectTaxonomyTerms collects all unique taxonomy terms from posts
+func collectTaxonomyTerms(opts GraphOptions, nodeExists map[string]bool) map[string]models.GraphNode {
 	termNodes := make(map[string]models.GraphNode)
-	for _, p := range posts {
-		if cfg.ShowsTaxonomies {
-			for taxKey, terms := range p.Taxonomies {
-				// For now, we prefix the slug with taxonomy key to avoid collisions
-				for _, t := range terms {
-					slug := taxKey + "-" + timeutil.Slugify(t)
-					termID := "term-" + slug
-					if !nodeExists[termID] {
-						label := taxKey + ":" + t
-						
-						prefix := strings.Trim(opts.ContentPrefix, "/")
-						if prefix != "" {
-							prefix = "/" + prefix
-						}
+	if !opts.Config.ShowsTaxonomies {
+		return termNodes
+	}
 
-						termNodes[termID] = models.GraphNode{
-							ID: termID, Label: label, Group: graphTaxonomyGroup, Value: graphTaxonomyValue,
-							URL: fmt.Sprintf("%s%s/%s/%s.html", baseURL, prefix, taxKey, timeutil.Slugify(t)),
-						}
-						nodeExists[termID] = true
-					}
+	for _, p := range opts.Posts {
+		for taxKey, terms := range p.Taxonomies {
+			for _, t := range terms {
+				slug := taxKey + "-" + timeutil.Slugify(t)
+				termID := "term-" + slug
+				if !nodeExists[termID] {
+					termNodes[termID] = createTermNode(termID, taxKey, t, opts.BaseURL, opts.ContentPrefix)
+					nodeExists[termID] = true
 				}
 			}
 		}
 	}
+	return termNodes
+}
 
-	// Add root -> term links
-	for _, term := range termNodes {
-		nodes = append(nodes, term)
-		links = append(links, models.GraphLink{Source: rootID, Target: term.ID, Weight: graphRootTagWeight})
+// createTermNode creates a taxonomy term node
+func createTermNode(termID, taxKey, term, baseURL, contentPrefix string) models.GraphNode {
+	prefix := strings.Trim(contentPrefix, "/")
+	if prefix != "" {
+		prefix = "/" + prefix
 	}
 
-	// Add post nodes and tag -> post links
-	for _, p := range posts {
+	return models.GraphNode{
+		ID:    termID,
+		Label: taxKey + ":" + term,
+		Group: graphTaxonomyGroup,
+		Value: graphTaxonomyValue,
+		URL:   fmt.Sprintf("%s%s/%s/%s.html", baseURL, prefix, taxKey, timeutil.Slugify(term)),
+	}
+}
+
+// addTermNodes adds term nodes and root->term links
+func addTermNodes(nodes *[]models.GraphNode, links *[]models.GraphLink, termNodes map[string]models.GraphNode) {
+	for _, term := range termNodes {
+		*nodes = append(*nodes, term)
+		*links = append(*links, models.GraphLink{Source: "root", Target: term.ID, Weight: graphRootTagWeight})
+	}
+}
+
+// addPostNodes adds post nodes and taxonomy links
+func addPostNodes(nodes *[]models.GraphNode, links *[]models.GraphLink, opts GraphOptions, nodeExists map[string]bool) {
+	for _, p := range opts.Posts {
 		postURL := p.Link
-		if baseURL != "" && postURL != "" && postURL[0] == '/' {
-			postURL = baseURL + postURL
+		if opts.BaseURL != "" && postURL != "" && postURL[0] == '/' {
+			postURL = opts.BaseURL + postURL
 		}
 		if !nodeExists[p.Link] {
-			nodes = append(nodes, models.GraphNode{
+			*nodes = append(*nodes, models.GraphNode{
 				ID:      p.Link,
 				Label:   p.Title,
 				Group:   graphItemGroup,
@@ -138,27 +167,13 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 			})
 			nodeExists[p.Link] = true
 		}
-		if cfg.ShowsTaxonomies {
+		if opts.Config.ShowsTaxonomies {
 			for taxKey, terms := range p.Taxonomies {
 				for _, t := range terms {
 					termID := "term-" + taxKey + "-" + timeutil.Slugify(t)
-					links = append(links, models.GraphLink{Source: p.Link, Target: termID, Type: taxKey})
+					*links = append(*links, models.GraphLink{Source: p.Link, Target: termID, Type: taxKey})
 				}
 			}
 		}
 	}
-
-	output, err := json.Marshal(models.GraphData{Nodes: nodes, Links: links})
-	if err != nil {
-		return "", "", err
-	}
-	if err := sink.WriteFile(outputPath, output); err != nil {
-		return "", "", err
-	}
-
-	hash, err := ComputeGraphHash(posts)
-	if err != nil {
-		return "", "", err
-	}
-	return outputPath, hash, nil
 }

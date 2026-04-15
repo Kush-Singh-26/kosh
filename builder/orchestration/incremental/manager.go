@@ -222,65 +222,69 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 		if err := m.builder.BuildLocked(ctx); err != nil {
 			m.logger.Error("Build failed", "error", err)
 		}
-		return
 
 	case PostChangeBody:
-		m.logger.Info("Content change detected, rebuilding single post...")
-
-		// Only refresh session and commit for body-only changes.
-		// Full builds (via BuildLocked) manage their own session.
-		m.builder.RefreshBuildSession()
-
-		parseRes, err := post.ParseMarkdown(post.ParseOptions{
-			Source:           source,
-			Path:             path,
-			RelPath:          relPath,
-			CleanHTMLRelPath: cleanHTMLRelPath,
-			HTMLRelPath:      htmlRelPath,
-			MdPool:           m.mdPool,
-			Cfg:              m.cfg,
-			NativeRenderer:   m.nativeRenderer,
-			DiagramAdapter:   m.deps.Diagrams,
-		})
-
-		if err != nil {
-			m.logger.Error("Error parsing markdown", "path", path, "error", err)
-			return
-		}
-
-		if err := m.deps.Post.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
-			m.logger.Error("Failed to process single post", "error", err)
-			if err := m.builder.BuildLocked(ctx); err != nil {
-				m.logger.Error("Build failed", "error", err)
-				return
-			}
-		} else {
-			if m.search != nil {
-				m.search.UpdateIndexedPostCache(relPath, parseRes)
-			}
-			metadataCtx, err := m.builder.GetPost().GetMetadataContext(ctx)
-			if err != nil {
-				m.logger.Warn("Failed to retrieve metadata context for site-wide rendering", "error", err)
-			} else if err := m.builder.RenderSiteWide(ctx, metadataCtx); err != nil {
-				m.logger.Warn("Failed to update site-wide assets during incremental build", "error", err)
-			}
-		}
-
-		if err := m.builder.Commit(ctx); err != nil {
-			m.logger.Error("Sync/Commit failed", "error", err)
-			m.deletePostFromCache(path)
-			return
-		}
-
-		m.builder.SaveCaches()
-		m.deps.Render.ClearRenderedFiles()
-
-		if watch := m.builder.GetWatch(); watch != nil {
-			watch.TriggerSearchRegeneration()
-		}
+		m.handleSinglePostBodyChange(ctx, path, source, relPath, htmlRelPath, cleanHTMLRelPath)
 
 	case PostChangeNone:
 		m.logger.Info("No changes detected, skipping...")
+	}
+}
+
+func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, source []byte, relPath, htmlRelPath, cleanHTMLRelPath string) {
+	m.logger.Info("Content change detected, rebuilding single post...")
+
+	// Only refresh session and commit for body-only changes.
+	// Full builds (via BuildLocked) manage their own session.
+	m.builder.RefreshBuildSession()
+
+	parseRes, err := post.ParseMarkdown(post.ParseOptions{
+		Source:           source,
+		Path:             path,
+		RelPath:          relPath,
+		CleanHTMLRelPath: cleanHTMLRelPath,
+		HTMLRelPath:      htmlRelPath,
+		MdPool:           m.mdPool,
+		Cfg:              m.cfg,
+		NativeRenderer:   m.nativeRenderer,
+		DiagramAdapter:   m.deps.Diagrams,
+	})
+
+	if err != nil {
+		m.logger.Error("Error parsing markdown", "path", path, "error", err)
+		return
+	}
+
+	if err := m.deps.Post.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
+		m.logger.Error("Failed to process single post", "error", err)
+		if err := m.builder.BuildLocked(ctx); err != nil {
+			m.logger.Error("Build failed", "error", err)
+		}
+		return
+	}
+
+	if m.search != nil {
+		m.search.UpdateIndexedPostCache(relPath, parseRes)
+	}
+
+	metadataCtx, err := m.builder.GetPost().GetMetadataContext(ctx)
+	if err != nil {
+		m.logger.Warn("Failed to retrieve metadata context for site-wide rendering", "error", err)
+	} else if err := m.builder.RenderSiteWide(ctx, metadataCtx); err != nil {
+		m.logger.Warn("Failed to update site-wide assets during incremental build", "error", err)
+	}
+
+	if err := m.builder.Commit(ctx); err != nil {
+		m.logger.Error("Sync/Commit failed", "error", err)
+		m.deletePostFromCache(path)
+		return
+	}
+
+	m.builder.SaveCaches()
+	m.deps.Render.ClearRenderedFiles()
+
+	if watch := m.builder.GetWatch(); watch != nil {
+		watch.TriggerSearchRegeneration()
 	}
 }
 

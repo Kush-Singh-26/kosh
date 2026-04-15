@@ -122,67 +122,69 @@ func finalizeResults(index *models.SearchIndex, opts *ScoringOptions) []Result {
 		finalHighlightTerms = append(finalHighlightTerms, term)
 	}
 
-	results := make([]Result, 0, len(opts.Scores))
-	for id, score := range opts.Scores {
-		post := index.Posts[id]
-		title := post.Title
+	results := convertResults(index, opts.Scores)
+	results = topKResults(results, defaultTopKResults)
+	enrichWithSnippets(index, results, finalHighlightTerms)
 
+	return results
+}
+
+func convertResults(index *models.SearchIndex, scores map[string]float64) []Result {
+	results := make([]Result, 0, len(scores))
+	for id, score := range scores {
+		post := index.Posts[id]
 		idNum, _ := strconv.ParseUint(id, decimalBase, uint64Bits)
 		results = append(results, Result{
-			ID: idNum, Title: title, Link: post.Link,
+			ID: idNum, Title: post.Title, Link: post.Link,
 			Description: post.Description, Taxonomies: post.Taxonomies,
 			Score: score,
 		})
 	}
+	return results
+}
 
-	if len(results) > defaultTopKResults {
-		resHeap := &resultHeap{results: results[:defaultTopKResults]}
+func topKResults(results []Result, k int) []Result {
+	if len(results) > k {
+		resHeap := &resultHeap{results: results[:k]}
 		heap.Init(resHeap)
-		for i := defaultTopKResults; i < len(results); i++ {
+		for i := k; i < len(results); i++ {
 			if results[i].Score > resHeap.results[0].Score {
 				heap.Pop(resHeap)
 				heap.Push(resHeap, results[i])
 			}
 		}
-		slices.SortFunc(resHeap.results, func(a, b Result) int {
-			if a.Score > b.Score {
-				return -1
-			}
-			if a.Score < b.Score {
-				return 1
-			}
-			return 0
-		})
 		results = resHeap.results
-	} else {
-		slices.SortFunc(results, func(a, b Result) int {
-			if a.Score > b.Score {
-				return -1
-			}
-			if a.Score < b.Score {
-				return 1
-			}
-			return 0
-		})
 	}
+	sortResults(results)
+	return results[:min(len(results), k)]
+}
 
-	results = results[:min(len(results), defaultTopKResults)]
+func sortResults(results []Result) {
+	slices.SortFunc(results, func(a, b Result) int {
+		if a.Score > b.Score {
+			return -1
+		}
+		if a.Score < b.Score {
+			return 1
+		}
+		return 0
+	})
+}
 
+func enrichWithSnippets(index *models.SearchIndex, results []Result, highlightTerms []string) {
 	for i := range results {
 		id := strconv.FormatUint(results[i].ID, decimalBase)
 		post := index.Posts[id]
 		termOffsets := make(map[string][]int)
-		for _, term := range finalHighlightTerms {
+		for _, term := range highlightTerms {
 			if docMap, ok := index.Offsets[term]; ok {
 				if offsets, found := docMap[id]; found {
 					termOffsets[term] = models.DecodeOffsets(offsets)
 				}
 			}
 		}
-		results[i].Snippet = ExtractSnippet(post.Content, finalHighlightTerms, termOffsets)
+		results[i].Snippet = ExtractSnippet(post.Content, highlightTerms, termOffsets)
 	}
-
-	return results
 }
 
 // resultHeap implements heap.Interface for a min-heap of search results

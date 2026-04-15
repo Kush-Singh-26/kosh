@@ -245,9 +245,8 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 		i = skipWhitespaceBytes(tag, i, &result)
 
 		if i >= len(tag) || isTagClosingChar(tag[i]) {
-			closingPart := tag[i:]
 			result = appendLazyAttributes(result)
-			result = append(result, closingPart...)
+			result = append(result, tag[i:]...)
 			break
 		}
 
@@ -256,50 +255,47 @@ func rewriteImgTag(tag []byte, converted map[string]string) []byte {
 		i = nameEnd
 
 		i = skipWhitespaceBytes(tag, i, &result)
-
-		if i >= len(tag) || tag[i] != '=' {
-			continue
-		}
-
-		result = append(result, '=')
-		i++
-
-		i = skipWhitespaceBytes(tag, i, &result)
-
-		if i >= len(tag) {
-			break
-		}
-
-		if tag[i] == '"' || tag[i] == '\'' {
-			quote := tag[i]
-			result = append(result, quote)
+		if i < len(tag) && tag[i] == '=' {
+			result = append(result, '=')
 			i++
-			valStart := i
-			for i < len(tag) && tag[i] != quote {
-				i++
-			}
-			val := string(tag[valStart:i])
-			rewritten := rewriteAttrValue(attrName, val, converted)
-			result = append(result, []byte(rewritten)...)
-
+			i = skipWhitespaceBytes(tag, i, &result)
 			if i < len(tag) {
-				result = append(result, quote)
-				i++
+				i = processAttributeValue(tag, i, attrName, converted, &result)
 			}
-		} else {
-			valStart := i
-			for i < len(tag) && !isTagClosingChar(tag[i]) && tag[i] != ' ' && tag[i] != '\t' && tag[i] != '\n' && tag[i] != '\r' {
-				i++
-			}
-			val := string(tag[valStart:i])
-			rewritten := rewriteAttrValue(attrName, val, converted)
-			result = append(result, []byte(rewritten)...)
 		}
 	}
-
 	return result
 }
 
+func processAttributeValue(tag []byte, i int, attrName string, converted map[string]string, result *[]byte) int {
+	if tag[i] == '"' || tag[i] == '\'' {
+		quote := tag[i]
+		*result = append(*result, quote)
+		i++
+		valStart := i
+		for i < len(tag) && tag[i] != quote {
+			i++
+		}
+		val := string(tag[valStart:i])
+		rewritten := rewriteAttrValue(attrName, val, converted)
+		*result = append(*result, []byte(rewritten)...)
+		if i < len(tag) {
+			*result = append(*result, quote)
+			i++
+		}
+	} else {
+		valStart := i
+		for i < len(tag) && !isTagClosingChar(tag[i]) && tag[i] != ' ' && tag[i] != '\t' && tag[i] != '\n' && tag[i] != '\r' {
+			i++
+		}
+		val := string(tag[valStart:i])
+		rewritten := rewriteAttrValue(attrName, val, converted)
+		*result = append(*result, []byte(rewritten)...)
+	}
+	return i
+}
+
+// skipWhitespaceBytes skips whitespace characters in the tag and appends them to the result buffer.
 func skipWhitespaceBytes(tag []byte, i int, result *[]byte) int {
 	for i < len(tag) && (tag[i] == ' ' || tag[i] == '\t' || tag[i] == '\n' || tag[i] == '\r') {
 		*result = append(*result, tag[i])
@@ -308,6 +304,7 @@ func skipWhitespaceBytes(tag []byte, i int, result *[]byte) int {
 	return i
 }
 
+// extractAttributeName extracts the attribute name from an HTML tag starting at position i.
 func extractAttributeName(tag []byte, i int) (string, int) {
 	nameStart := i
 	for i < len(tag) && tag[i] != '=' && !isTagClosingChar(tag[i]) && tag[i] != ' ' && tag[i] != '\t' && tag[i] != '\n' && tag[i] != '\r' {
@@ -316,6 +313,7 @@ func extractAttributeName(tag []byte, i int) (string, int) {
 	return string(tag[nameStart:i]), i
 }
 
+// isTagClosingChar checks if a byte is a tag closing character.
 func isTagClosingChar(c byte) bool {
 	return c == '>' || c == '/'
 }

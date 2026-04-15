@@ -20,22 +20,61 @@ type mathInput struct {
 	DisplayMode bool   `json:"d"`
 }
 
+func (r *Renderer) chunkAndRender(ctx context.Context, expressions []models.MathExpression, operation string) (map[string]string, error) {
+	numWorkers := min(r.numWorkers, len(expressions))
+	chunkSize := (len(expressions) + numWorkers - 1) / numWorkers
+
+	results := make(map[string]string)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	var globalErr error
+
+	for i := 0; i < numWorkers; i++ {
+		start := i * chunkSize
+		if start >= len(expressions) {
+			break
+		}
+		end := min(start+chunkSize, len(expressions))
+
+		wg.Add(1)
+		chunk := expressions[start:end]
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    slog.Default(),
+			Operation: operation,
+			Fn: func() error {
+				rendered, err := r.RenderMathBatch(ctx, chunk)
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					if globalErr == nil {
+						globalErr = err
+					}
+					return nil
+				}
+				for j, html := range rendered {
+					results[chunk[j].Hash] = html
+				}
+				return nil
+			},
+			Cleanup: wg.Done,
+		})
+	}
+
+	wg.Wait()
+	return results, globalErr
+}
+
 // RenderGlobalBatch renders all unique math expressions across the entire site
-// in large parallel chunks to minimize Go-to-JS bridge overhead.
-// Each worker processes a batch of expressions in a single JS call, reducing
-// the number of context switches between Go and QuickJS runtime.
 func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []models.MathExpression) (map[string]string, error) {
 	if len(expressions) == 0 {
 		return make(map[string]string), nil
 	}
-
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
 	r.ensureInitialized()
 
-	// 1. Deduplicate globally
 	uniqueExprs := make([]models.MathExpression, 0, len(expressions))
 	seen := make(map[string]bool)
 	for _, e := range expressions {
@@ -53,53 +92,7 @@ func (r *Renderer) RenderGlobalBatch(ctx context.Context, expressions []models.M
 	timer := timeutil.StartPhase("Global math render")
 	defer timer.Stop()
 
-	// 2. Chunk expressions by number of workers
-	numWorkers := min(r.numWorkers, len(uniqueExprs))
-
-	chunkSize := (len(uniqueExprs) + numWorkers - 1) / numWorkers
-
-	results := make(map[string]string)
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	var globalErr error
-
-	for i := 0; i < numWorkers; i++ {
-		start := i * chunkSize
-		if start >= len(uniqueExprs) {
-			break
-		}
-		end := min(start+chunkSize, len(uniqueExprs))
-
-		wg.Add(1)
-		chunk := uniqueExprs[start:end]
-		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       ctx,
-			Logger:    slog.Default(),
-			Operation: "math batch render",
-			Fn: func() error {
-
-				rendered, err := r.RenderMathBatch(ctx, chunk)
-
-				mu.Lock()
-				defer mu.Unlock()
-				if err != nil {
-					if globalErr == nil {
-						globalErr = err
-					}
-					return nil
-				}
-
-				for j, html := range rendered {
-					results[chunk[j].Hash] = html
-				}
-				return nil
-			},
-			Cleanup: wg.Done,
-		})
-	}
-
-	wg.Wait()
-	return results, globalErr
+	return r.chunkAndRender(ctx, uniqueExprs, "math batch render")
 }
 
 // RenderMath renders a single LaTeX expression to HTML using KaTeX via QuickJS
@@ -165,45 +158,82 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 		return nil, nil
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
+	if err := r.acquireTask(ctx, scheduler.TaskMath); err != nil {
+		return nil, err
 	}
-
-	if r.scheduler != nil {
-		if err := r.scheduler.Acquire(ctx, scheduler.TaskMath); err != nil {
-			return nil, err
-		}
-		defer r.scheduler.Release(scheduler.TaskMath)
-	}
+	defer r.releaseTask(scheduler.TaskMath)
 
 	r.ensureInitialized()
 
-	r.mu.Lock()
-	if r.isClosed {
-		r.mu.Unlock()
-		return nil, errRendererClosed
+	instance, err := r.acquireWorker()
+	if err != nil {
+		return nil, err
 	}
-	r.taskWg.Add(1)
-	r.mu.Unlock()
-
-	defer r.taskWg.Done()
-
-	// Acquire worker
-	instance := <-r.pool
-	defer func() {
-		r.mu.Lock()
-		isClosed := r.isClosed
-		r.mu.Unlock()
-		if !isClosed {
-			r.pool <- instance
-		}
-	}()
+	defer r.releaseWorker(instance)
 
 	if instance.ctx == nil || instance.renderBatchFn == nil {
 		return nil, errRenderBatchNotInit
 	}
 
-	// Prepare input for JSON encoding
+	jsInput, err := encodeMathBatch(instance.ctx, expressions)
+	if err != nil {
+		return nil, err
+	}
+	defer jsInput.Free()
+
+	res, err := instance.ctx.Invoke(instance.renderBatchFn, instance.ctx.Global(), jsInput)
+	if err != nil {
+		return nil, fmt.Errorf("KaTeX batch render failed: %w", err)
+	}
+	defer res.Free()
+
+	return decodeMathResults(res)
+}
+
+func (r *Renderer) acquireTask(ctx context.Context, taskType scheduler.TaskType) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if r.scheduler != nil {
+		if err := r.scheduler.Acquire(ctx, taskType); err != nil {
+			return err
+		}
+	}
+
+	r.mu.Lock()
+	if r.isClosed {
+		r.mu.Unlock()
+		if r.scheduler != nil {
+			r.scheduler.Release(taskType)
+		}
+		return errRendererClosed
+	}
+	r.taskWg.Add(1)
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *Renderer) releaseTask(taskType scheduler.TaskType) {
+	if r.scheduler != nil {
+		r.scheduler.Release(taskType)
+	}
+	r.taskWg.Done()
+}
+
+func (r *Renderer) acquireWorker() (*instance, error) {
+	return <-r.pool, nil
+}
+
+func (r *Renderer) releaseWorker(inst *instance) {
+	r.mu.Lock()
+	isClosed := r.isClosed
+	r.mu.Unlock()
+	if !isClosed {
+		r.pool <- inst
+	}
+}
+
+func encodeMathBatch(ctx *qjs.Context, expressions []models.MathExpression) (*qjs.Value, error) {
 	input := make([]mathInput, len(expressions))
 	for i, expr := range expressions {
 		input[i] = mathInput{
@@ -219,15 +249,11 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 		return nil, fmt.Errorf("failed to encode math batch: %w", err)
 	}
 
-	jsInput := instance.ctx.NewString(buf.String())
-	defer jsInput.Free()
+	jsInput := ctx.NewString(buf.String())
+	return jsInput, nil
+}
 
-	res, err := instance.ctx.Invoke(instance.renderBatchFn, instance.ctx.Global(), jsInput)
-	if err != nil {
-		return nil, fmt.Errorf("KaTeX batch render failed: %w", err)
-	}
-	defer res.Free()
-
+func decodeMathResults(res *qjs.Value) ([]string, error) {
 	if !res.IsArray() {
 		return nil, fmt.Errorf("expected array response from renderBatch, got %s", res.String())
 	}
@@ -244,23 +270,19 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 	return results, nil
 }
 
-// RenderAllMath renders multiple LaTeX expressions in parallel using the worker pool.
-// Refactored to use batch processing instead of spawning a goroutine per expression.
+// RenderAllMath renders multiple math expressions in a single batch.
 func (r *Renderer) RenderAllMath(ctx context.Context, expressions []models.MathExpression, cache map[string]string) (map[string]string, error) {
 	if len(expressions) == 0 {
 		return make(map[string]string), nil
 	}
-
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
 	r.ensureInitialized()
 
 	finalResults := make(map[string]string)
 	var toRender []models.MathExpression
 
-	// 1. Filter out cached expressions
 	seen := make(map[string]bool)
 	for _, expr := range expressions {
 		if seen[expr.Hash] {
@@ -279,57 +301,11 @@ func (r *Renderer) RenderAllMath(ctx context.Context, expressions []models.MathE
 		return finalResults, nil
 	}
 
-	// 2. Batch process expressions using worker pool (similar to RenderGlobalBatch)
-	numWorkers := min(r.numWorkers, len(toRender))
-	chunkSize := (len(toRender) + numWorkers - 1) / numWorkers
-
-	results := make(map[string]string)
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	var globalErr error
-
-	for i := 0; i < numWorkers; i++ {
-		start := i * chunkSize
-		if start >= len(toRender) {
-			break
-		}
-		end := min(start+chunkSize, len(toRender))
-
-		wg.Add(1)
-		chunk := toRender[start:end]
-		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       ctx,
-			Logger:    slog.Default(),
-			Operation: "math render",
-			Fn: func() error {
-
-				rendered, err := r.RenderMathBatch(ctx, chunk)
-
-				mu.Lock()
-				defer mu.Unlock()
-				if err != nil {
-					if globalErr == nil {
-						globalErr = err
-					}
-					return nil
-				}
-
-				for j, html := range rendered {
-					results[chunk[j].Hash] = html
-				}
-				return nil
-			},
-			Cleanup: wg.Done,
-		})
+	results, err := r.chunkAndRender(ctx, toRender, "math render")
+	if err != nil {
+		return finalResults, err
 	}
 
-	wg.Wait()
-
-	if globalErr != nil {
-		return finalResults, globalErr
-	}
-
-	// Add all results to final output
 	for hash, html := range results {
 		finalResults[hash] = html
 	}

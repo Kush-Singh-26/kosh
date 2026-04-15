@@ -23,6 +23,7 @@ const (
 	schemaV13         = 13
 	schemaV14         = 14
 	schemaV15         = 15
+	schemaV20         = 20
 	schemaVersionSize = 4
 )
 
@@ -61,6 +62,26 @@ var registeredMigrations = []Migration{
 		Description: "Migration to align cache schema with search schema (v15: TitleInverted)",
 		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
 			logger.Info("Purging all cache buckets due to schema version alignment (v10 -> v15)")
+			for _, bucketName := range core.AllBuckets() {
+				if bucketName == core.BucketMeta {
+					continue
+				}
+				if err := tx.DeleteBucket([]byte(bucketName)); err != nil && !errors.Is(err, bbolterrors.ErrBucketNotFound) {
+					return err
+				}
+				if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	},
+	{
+		FromVersion: schemaV15,
+		ToVersion:   schemaV20,
+		Description: "Migration to align cache schema with search schema (v20: XXH3 Hashing)",
+		Migrate: func(tx *bbolt.Tx, logger *slog.Logger) error {
+			logger.Info("Purging all cache buckets due to schema version alignment (v15 -> v20)")
 			for _, bucketName := range core.AllBuckets() {
 				if bucketName == core.BucketMeta {
 					continue

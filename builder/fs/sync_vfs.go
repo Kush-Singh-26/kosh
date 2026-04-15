@@ -263,10 +263,7 @@ func syncSingleFileTask(opts SyncFileOptions) error {
 
 		// Fast Metadata Check: if file exists and size differs, it's dirty
 		info, err := os.Stat(osPath)
-		if err == nil && info.Size() != int64(len(srcContent)) {
-			// Size differs, definitely dirty - proceed with write
-		} //nolint:revive
-		if err == nil {
+		if err == nil && info.Size() == int64(len(srcContent)) {
 			// Size matches, do a content check
 			destContent, err := os.ReadFile(osPath)
 			if err == nil && bytes.Equal(srcContent, destContent) {

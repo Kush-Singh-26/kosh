@@ -411,60 +411,70 @@ func normalizeAssetURLHashes(content []byte) []byte {
 		// Skip "url("
 		innerStart := urlStart + len(urlPrefix)
 		// Skip optional whitespace
-		for innerStart < len(content) && (content[innerStart] == ' ' || content[innerStart] == '\t' || content[innerStart] == '\n' || content[innerStart] == '\r') {
+		for innerStart < len(content) && isWhitespace(content[innerStart]) {
 			innerStart++
 		}
 
-		var quote byte
-		var urlEnd int
 		if innerStart < len(content) && (content[innerStart] == '"' || content[innerStart] == '\'') {
-			quote = content[innerStart]
-			urlEnd = bytes.IndexByte(content[innerStart+1:], quote)
-			if urlEnd < 0 {
-				// No closing quote, copy rest as-is
-				result = append(result, content[urlStart:]...)
-				i = len(content)
-				continue
-			}
-			urlEnd += innerStart + 1
-			urlInner := content[innerStart+1 : urlEnd]
-			normalized := normalizeURLHash(urlInner)
-
-			// Reconstruct url("...") or url('...')
-			result = append(result, []byte(urlPrefix)...)
-			result = append(result, quote)
-			result = append(result, normalized...)
-			result = append(result, quote)
-			result = append(result, ')')
-			// Advance past the closing ')' if present to avoid duplicating it
-			i = urlEnd + 1
-			parenIdx := i
-			for parenIdx < len(content) && (content[parenIdx] == ' ' || content[parenIdx] == '\t' || content[parenIdx] == '\n' || content[parenIdx] == '\r') {
-				parenIdx++
-			}
-			if parenIdx < len(content) && content[parenIdx] == ')' {
-				i = parenIdx + 1
-			}
+			i = parseQuotedURL(content, urlStart, innerStart, &result)
 		} else {
-			// Unquoted: find closing ')'
-			urlEnd = bytes.IndexByte(content[innerStart:], ')')
-			if urlEnd < 0 {
-				result = append(result, content[urlStart:]...)
-				i = len(content)
-				continue
-			}
-			urlEnd += innerStart
-			// Trim trailing whitespace
-			inner := bytes.TrimSpace(content[innerStart:urlEnd])
-			normalized := normalizeURLHash(inner)
-
-			result = append(result, []byte(urlPrefix)...)
-			result = append(result, normalized...)
-			result = append(result, ')')
-			i = urlEnd + 1
+			i = parseUnquotedURL(content, urlStart, innerStart, &result)
 		}
 	}
 	return result
+}
+
+func isWhitespace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
+}
+
+func parseQuotedURL(content []byte, urlStart, innerStart int, result *[]byte) int {
+	quote := content[innerStart]
+	urlEnd := bytes.IndexByte(content[innerStart+1:], quote)
+	if urlEnd < 0 {
+		// No closing quote, copy rest as-is
+		*result = append(*result, content[urlStart:]...)
+		return len(content)
+	}
+	urlEnd += innerStart + 1
+	urlInner := content[innerStart+1 : urlEnd]
+	normalized := normalizeURLHash(urlInner)
+
+	// Reconstruct url("...") or url('...')
+	*result = append(*result, []byte(urlPrefix)...)
+	*result = append(*result, quote)
+	*result = append(*result, normalized...)
+	*result = append(*result, quote)
+	*result = append(*result, ')')
+
+	// Advance past the closing ')' if present to avoid duplicating it
+	i := urlEnd + 1
+	parenIdx := i
+	for parenIdx < len(content) && isWhitespace(content[parenIdx]) {
+		parenIdx++
+	}
+	if parenIdx < len(content) && content[parenIdx] == ')' {
+		i = parenIdx + 1
+	}
+	return i
+}
+
+func parseUnquotedURL(content []byte, urlStart, innerStart int, result *[]byte) int {
+	// Unquoted: find closing ')'
+	urlEnd := bytes.IndexByte(content[innerStart:], ')')
+	if urlEnd < 0 {
+		*result = append(*result, content[urlStart:]...)
+		return len(content)
+	}
+	urlEnd += innerStart
+	// Trim trailing whitespace
+	inner := bytes.TrimSpace(content[innerStart:urlEnd])
+	normalized := normalizeURLHash(inner)
+
+	*result = append(*result, []byte(urlPrefix)...)
+	*result = append(*result, normalized...)
+	*result = append(*result, ')')
+	return urlEnd + 1
 }
 
 // normalizeURLHash lowercases hash segments in a URL path like "/static/css/layout.ABC123.css"

@@ -275,17 +275,10 @@ func (service *metadataScanner) aggregateScanResult(result *models.MetadataScann
 
 // ScanFile scans a single markdown file for metadata.
 func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.Config, path string) (models.ScannedResource, error) {
-	file, err := sourceFs.Open(path)
+	fileData, bytesRead, err := service.readFileStart(sourceFs, path)
 	if err != nil {
 		return models.ScannedResource{}, err
 	}
-	buffer := make([]byte, scanBufferSize)
-	bytesRead, err := io.ReadFull(file, buffer)
-	_ = file.Close()
-	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
-		return models.ScannedResource{}, err
-	}
-	fileData := buffer[:bytesRead]
 
 	info, err := sourceFs.Stat(path)
 	if err != nil {
@@ -293,9 +286,33 @@ func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.C
 	}
 
 	relativePath, _ := filepath.Rel(siteConfig.ContentDir, path)
+	frontmatter, bodyOffset, _ := service.extractFrontmatterAndBodyOffset(sourceFs, path, fileData, bytesRead)
+	preparsedMetadata, _ := hashing.ParseFrontmatter(frontmatter)
 
-	var frontmatter []byte
-	var bodyOffset int
+	scanned := service.parseScannedMetadata(siteConfig, path, relativePath, preparsedMetadata)
+	scanned.Info = info
+	scanned.BodyOffset = bodyOffset
+	scanned.SourceLoader = func() ([]byte, error) { return afero.ReadFile(sourceFs, path) }
+	scanned.PreParsedMeta = preparsedMetadata
+
+	return scanned, nil
+}
+
+func (service *metadataScanner) readFileStart(sourceFs afero.Fs, path string) ([]byte, int, error) {
+	file, err := sourceFs.Open(path)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = file.Close() }()
+	buffer := make([]byte, scanBufferSize)
+	bytesRead, err := io.ReadFull(file, buffer)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return nil, 0, err
+	}
+	return buffer[:bytesRead], bytesRead, nil
+}
+
+func (service *metadataScanner) extractFrontmatterAndBodyOffset(sourceFs afero.Fs, path string, fileData []byte, bytesRead int) ([]byte, int, []byte) {
 	parts := bytes.SplitN(fileData, hashing.YAMLDelim, frontmatterParts)
 	if len(parts) < frontmatterParts && bytesRead == scanBufferSize {
 		fullData, err := afero.ReadFile(sourceFs, path)
@@ -305,41 +322,31 @@ func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.C
 		}
 	}
 	if len(parts) >= frontmatterParts {
-		frontmatter = bytes.TrimSpace(parts[1])
-		bodyOffset = bytes.Index(fileData, parts[2])
-	} else {
-		bodyOffset = 0
+		return bytes.TrimSpace(parts[1]), bytes.Index(fileData, parts[2]), fileData
 	}
+	return nil, 0, fileData
+}
 
-	preparsedMetadata, _ := hashing.ParseFrontmatter(frontmatter)
-
-	title := timeutil.ExtractStringFromMap(preparsedMetadata, "title")
+func (service *metadataScanner) parseScannedMetadata(siteConfig *config.Config, path, relativePath string, metadata map[string]any) models.ScannedResource {
+	title := timeutil.ExtractStringFromMap(metadata, "title")
 	if title == "" {
 		title = strings.TrimSuffix(filepath.Base(path), ".md")
 	}
-	description := timeutil.ExtractStringFromMap(preparsedMetadata, "description")
-	date := timeutil.ExtractDateStringFromMap(preparsedMetadata, "date")
-	isDraft := timeutil.ExtractBoolFromMap(preparsedMetadata, "draft")
-	isPinned := timeutil.ExtractBoolFromMap(preparsedMetadata, "pinned")
-
-	weight := 0
-	if weightValue, ok := preparsedMetadata["weight"].(int); ok {
-		weight = weightValue
-	} else if weightValue, ok := preparsedMetadata["weight"].(float64); ok {
-		weight = int(weightValue)
-	}
+	description := timeutil.ExtractStringFromMap(metadata, "description")
+	date := timeutil.ExtractDateStringFromMap(metadata, "date")
+	isDraft := timeutil.ExtractBoolFromMap(metadata, "draft")
+	isPinned := timeutil.ExtractBoolFromMap(metadata, "pinned")
+	weight := extractWeight(metadata)
 
 	dateObj, _ := time.ParseInLocation("2006-01-02", date, time.UTC)
 
-	// Extract ALL taxonomies: check for tags, categories, etc. based on config.
 	taxonomies := make(map[string][]string)
 	for taxKey := range siteConfig.Taxonomies {
-		if terms := timeutil.ExtractSliceFromMap(preparsedMetadata, taxKey); len(terms) > 0 {
+		if terms := timeutil.ExtractSliceFromMap(metadata, taxKey); len(terms) > 0 {
 			taxonomies[taxKey] = terms
 		}
 	}
 
-	bodyHash := ""
 	cleanHTMLRelPath := strings.TrimSuffix(relativePath, filepath.Ext(relativePath)) + ".html"
 	postLink := navigation.BuildAbsoluteURL(siteConfig.BaseURL, cleanHTMLRelPath)
 
@@ -351,12 +358,12 @@ func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.C
 		IsPinned:    isPinned,
 		IsDraft:     isDraft,
 		Weight:      weight,
-		Other:       preparsedMetadata,
+		Other:       metadata,
 	})
 
 	return models.ScannedResource{
-		Path:            path,
 		RelPath:         relativePath,
+		Path:            path,
 		Title:           title,
 		Description:     description,
 		Date:            date,
@@ -365,12 +372,16 @@ func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.C
 		IsPinned:        isPinned,
 		Weight:          weight,
 		Taxonomies:      taxonomies,
-		Info:            info,
-		BodyHash:        bodyHash,
 		FrontmatterHash: frontmatterHash,
-		BodyOffset:      bodyOffset,
 		Link:            postLink,
-		SourceLoader:    func() ([]byte, error) { return afero.ReadFile(sourceFs, path) },
-		PreParsedMeta:   preparsedMetadata,
-	}, nil
+	}
+}
+
+func extractWeight(metadata map[string]any) int {
+	if weightValue, ok := metadata["weight"].(int); ok {
+		return weightValue
+	} else if weightValue, ok := metadata["weight"].(float64); ok {
+		return int(weightValue)
+	}
+	return 0
 }

@@ -27,13 +27,13 @@ var pwaIconSizes = []int{pwaIconSmall, pwaIconLarge}
 
 // SWOptions configures service worker generation.
 type SWOptions struct {
-	Sink         fspkg.ArtifactSink
-	DestDir      string
-	BuildVersion int64
+	Sink               fspkg.ArtifactSink
+	DestDir            string
+	BuildVersion       int64
 	ShouldForceRebuild bool
-	BaseURL      string
-	Assets       map[string]string
-	IsTesting    bool
+	BaseURL            string
+	Assets             map[string]string
+	IsTesting          bool
 }
 
 // GenerateSW creates the service worker only if needed (smart build)
@@ -105,37 +105,19 @@ self.addEventListener('fetch', function(event) {
 
 // ManifestOptions configures manifest generation.
 type ManifestOptions struct {
-	Sink            fspkg.ArtifactSink
-	DestDir         string
-	BaseURL         string
-	SiteTitle       string
-	SiteDescription string
-	BackgroundColor string
-	ThemeColor      string
-	ShouldForceRebuild    bool
-	IsTesting       bool
+	Sink               fspkg.ArtifactSink
+	DestDir            string
+	BaseURL            string
+	SiteTitle          string
+	SiteDescription    string
+	BackgroundColor    string
+	ThemeColor         string
+	ShouldForceRebuild bool
+	IsTesting          bool
 }
 
 // GenerateManifest creates the manifest.json dynamically with a smart build check
-func GenerateManifest(opts ManifestOptions) error {
-	sink := opts.Sink
-	destDir := opts.DestDir
-	baseURL := opts.BaseURL
-	siteTitle := opts.SiteTitle
-	siteDescription := opts.SiteDescription
-	shouldForceRebuild := opts.ShouldForceRebuild
-	isTesting := opts.IsTesting
-	manifestPath := filepath.Join(destDir, "manifest.json")
-
-	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
-	if !shouldForceRebuild && !isTesting {
-		if _, err := os.Stat(manifestPath); err == nil {
-			sink.Register(manifestPath)
-			return nil
-		}
-	}
-
-	manifestTemplate := `{
+const manifestTemplate = `{
     "name": "{{ .Title }}",
     "short_name": "{{ .Title }}",
     "start_url": "./",
@@ -174,12 +156,24 @@ func GenerateManifest(opts ManifestOptions) error {
 }
 `
 
+// GenerateManifest creates the PWA webmanifest file.
+func GenerateManifest(opts ManifestOptions) error {
+	manifestPath := filepath.Join(opts.DestDir, "manifest.json")
+
+	// 1. Smart Check: If not forcing rebuild and manifest exists, skip
+	if !opts.ShouldForceRebuild && !opts.IsTesting {
+		if _, err := os.Stat(manifestPath); err == nil {
+			opts.Sink.Register(manifestPath)
+			return nil
+		}
+	}
+
 	tmpl, err := template.New("manifest").Parse(manifestTemplate)
 	if err != nil {
 		return err
 	}
 
-	if err := sink.MkdirAll(filepath.Dir(manifestPath)); err != nil {
+	if err := opts.Sink.MkdirAll(filepath.Dir(manifestPath)); err != nil {
 		return err
 	}
 
@@ -190,14 +184,14 @@ func GenerateManifest(opts ManifestOptions) error {
 		BackgroundColor string
 		ThemeColor      string
 	}{
-		Title:           siteTitle,
-		Description:     siteDescription,
-		BaseURL:         baseURL,
+		Title:           opts.SiteTitle,
+		Description:     opts.SiteDescription,
+		BaseURL:         opts.BaseURL,
 		BackgroundColor: opts.BackgroundColor,
 		ThemeColor:      opts.ThemeColor,
 	}
 
-	return sink.WriteStream(manifestPath, func(w io.Writer) error {
+	return opts.Sink.WriteStream(manifestPath, func(w io.Writer) error {
 		return tmpl.Execute(w, data)
 	})
 }

@@ -51,70 +51,12 @@ func (l *MathLexer) Scan() []MathMatch {
 		// Potential start of math
 		switch {
 		case char == '$':
-			if l.pos+1 < n && l.input[l.pos+1] == '$' {
-				// Block math $$
-				startPos := l.pos
-				l.pos += 2
-				content, found := l.scanUntil("$$")
-				if found {
-					matches = append(matches, MathMatch{
-						Type:    MathBlock,
-						Content: content,
-						Start:   startPos,
-						End:     l.pos,
-					})
-				}
-			} else {
-				// Potential inline math $
-				// Check for escape \$
-				if l.pos > 0 && l.input[l.pos-1] == '\\' {
-					l.pos++
-					continue
-				}
-
-				startPos := l.pos
-				l.pos++
-				content, found := l.scanInlineMath()
-				if found {
-					matches = append(matches, MathMatch{
-						Type:    MathInline,
-						Content: content,
-						Start:   startPos,
-						End:     l.pos,
-					})
-				}
+			if m, ok := l.handleDollar(); ok {
+				matches = append(matches, m)
 			}
 		case char == '\\' && l.pos+1 < n:
-			next := l.input[l.pos+1]
-			switch next {
-			case '[':
-				// Display math \[
-				startPos := l.pos
-				l.pos += 2
-				content, found := l.scanUntil("\\]")
-				if found {
-					matches = append(matches, MathMatch{
-						Type:    MathDisplay,
-						Content: content,
-						Start:   startPos,
-						End:     l.pos,
-					})
-				}
-			case '(':
-				// Inline paren math \(
-				startPos := l.pos
-				l.pos += 2
-				content, found := l.scanUntil("\\)")
-				if found {
-					matches = append(matches, MathMatch{
-						Type:    MathParen,
-						Content: content,
-						Start:   startPos,
-						End:     l.pos,
-					})
-				}
-			default:
-				l.pos++
+			if m, ok := l.handleBackslash(); ok {
+				matches = append(matches, m)
 			}
 		default:
 			l.pos++
@@ -122,6 +64,80 @@ func (l *MathLexer) Scan() []MathMatch {
 	}
 
 	return matches
+}
+
+func (l *MathLexer) handleDollar() (MathMatch, bool) {
+	n := len(l.input)
+	if l.pos+1 < n && l.input[l.pos+1] == '$' {
+		// Block math $$
+		startPos := l.pos
+		l.pos += 2
+		content, found := l.scanUntil("$$")
+		if found {
+			return MathMatch{
+				Type:    MathBlock,
+				Content: content,
+				Start:   startPos,
+				End:     l.pos,
+			}, true
+		}
+		return MathMatch{}, false
+	}
+
+	// Potential inline math $
+	// Check for escape \$
+	if l.pos > 0 && l.input[l.pos-1] == '\\' {
+		l.pos++
+		return MathMatch{}, false
+	}
+
+	startPos := l.pos
+	l.pos++
+	content, found := l.scanInlineMath()
+	if found {
+		return MathMatch{
+			Type:    MathInline,
+			Content: content,
+			Start:   startPos,
+			End:     l.pos,
+		}, true
+	}
+	return MathMatch{}, false
+}
+
+func (l *MathLexer) handleBackslash() (MathMatch, bool) {
+	next := l.input[l.pos+1]
+	switch next {
+	case '[':
+		// Display math \[
+		startPos := l.pos
+		l.pos += 2
+		content, found := l.scanUntil("\\]")
+		if found {
+			return MathMatch{
+				Type:    MathDisplay,
+				Content: content,
+				Start:   startPos,
+				End:     l.pos,
+			}, true
+		}
+	case '(':
+		// Inline paren math \(
+		startPos := l.pos
+		l.pos += 2
+		content, found := l.scanUntil("\\)")
+		if found {
+			return MathMatch{
+				Type:    MathParen,
+				Content: content,
+				Start:   startPos,
+				End:     l.pos,
+			}, true
+		}
+	default:
+		l.pos++
+	}
+	return MathMatch{}, false
 }
 
 func (l *MathLexer) scanUntil(delimiter string) (string, bool) {

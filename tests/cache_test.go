@@ -19,11 +19,9 @@ func TestCacheConsistency(t *testing.T) {
 	// 1. Setup paths
 	wd, _ := os.Getwd()
 	repoRoot := filepath.Dir(wd)
-	mockSiteDir := filepath.Join(repoRoot, "tests", "fixtures", "mock-site-cache")
+	mockSiteDir := t.TempDir()
 
-	err := os.RemoveAll(mockSiteDir)
-	require.NoError(t, err)
-	err = os.MkdirAll(filepath.Join(mockSiteDir, "content"), 0755)
+	err := os.MkdirAll(filepath.Join(mockSiteDir, "content"), 0755)
 	require.NoError(t, err)
 
 	koshYaml := `

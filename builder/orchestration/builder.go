@@ -15,10 +15,6 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/minify"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration/assets"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration/incremental"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration/search"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 	"github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
@@ -243,48 +239,8 @@ func newEngineWithConfigFs(sourceFs afero.Fs, cfg *config.Config, reporter ui.Re
 		Health: NewBuildHealthRegistry(),
 	}
 
-	engineInstance.Assets = assets.NewManager(assets.ManagerDependencies{
-		Cfg:      cfg,
-		Asset:    setup.assetSvc,
-		Render:   setup.renderSvc,
-		Logger:   setup.logger,
-		Metrics:  setup.buildMetrics,
-		SourceFs: sourceFs,
-	})
-
-	engineInstance.Search = search.NewManager(search.ManagerDependencies{
-		Cfg:    cfg,
-		Cache:  setup.cacheSvc,
-		Logger: setup.logger,
-		Health: engineInstance.Health,
-	})
-
-	engineInstance.State.ForceGenerators.Store(true)
-	engineInstance.Incremental = incremental.NewManager(incremental.ManagerDependencies{
-		Cfg:      cfg,
-		Logger:   setup.logger,
-		SourceFs: sourceFs,
-		Deps: incremental.Dependencies{
-			Cache:    setup.cacheSvc,
-			Post:     setup.postSvc,
-			Render:   setup.renderSvc,
-			Diagrams: setup.diagramAdapter,
-		},
-		Builder:        engineInstance,
-		Search:         engineInstance.Search,
-		MdPool:         setup.mdPool,
-		NativeRenderer: setup.nativeRenderer,
-	})
-
-	engineInstance.Watch = watch.New(watch.CoordinatorDependencies{
-		Cfg:           cfg,
-		BuildMu:       &engineInstance.State.BuildMu,
-		Cache:         setup.cacheSvc,
-		OnChange:      engineInstance.handleWatchChange,
-		OnSearchRegen: engineInstance.handleSearchRegen,
-	})
-	engineInstance.Watch.Start()
+	engineInstance.initManagers(setup.cacheSvc, setup.postSvc, setup.assetSvc, setup.renderSvc, setup.metaScanner, setup.diagramAdapter, setup.mdPool, setup.nativeRenderer, sourceFs)
+	engineInstance.initWatch(setup.cacheSvc)
 
 	return engineInstance
 }
-

@@ -43,59 +43,18 @@ func (service *assetService) BuildWithOptions(ctx context.Context, skipImages bo
 		copyTimer := timeutil.StartPhase("Asset discovery and copy")
 		defer copyTimer.Stop()
 
-		// Load asset manifest
-		if service.cfg.CacheDir != "" {
-			manifest, err := assets.LoadManifest(service.cfg.CacheDir + "/assets")
-			if err != nil {
-				service.logger.Warn("Failed to load asset manifest", "error", err)
-			} else {
-				service.manifest = manifest
-			}
-		}
+		service.loadManifest()
 
 		defer func() {
-			if service.discoveryReady != nil {
-				close(service.discoveryReady)
-				service.discoveryReady = nil
-			}
-			// Save asset manifest
-			if service.manifest != nil && service.cfg.CacheDir != "" {
-				if err := assets.SaveManifest(service.cfg.CacheDir+"/assets", service.manifest); err != nil {
-					service.logger.Warn("Failed to save asset manifest", "error", err)
-				}
-			}
+			service.finalizeDiscoveryReady()
+			service.saveManifest()
 		}()
 
 		var imageChannel chan imageCopyTask
 		var imgGroup *errgroup.Group
-		var imgGroupCtx context.Context
 
 		if !skipImages {
-			numWorkers := service.cfg.ImageWorkers
-			if numWorkers <= 0 {
-				numWorkers = runtime.NumCPU()
-			}
-			imgGroup, imgGroupCtx = errgroup.WithContext(groupCtx)
-			imgGroup.SetLimit(max(numWorkers, 1))
-			imageChannel = make(chan imageCopyTask, 1024) // Buffer to allow walk to proceed
-
-			processedCount := atomic.Int32{}
-
-			for range max(numWorkers, 1) {
-				imgGroup.Go(func() error {
-					for task := range imageChannel {
-						if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgGroupCtx.Err() == nil {
-							return err
-						}
-						if service.reporter != nil {
-							// Note: totalCount is unknown during discovery, using -1 or approximate
-							currentCount := int(processedCount.Add(1))
-							service.reporter.UpdateProgress(ui.PhaseAssets, currentCount, 0, task.opts.SrcPath)
-						}
-					}
-					return nil
-				})
-			}
+			imageChannel, imgGroup = service.startImageWorkers(groupCtx, service.cfg.ImageWorkers)
 		}
 
 		err := service.syncStaticAssets(ctx, groupCtx, skipImages, imageChannel)
@@ -107,10 +66,7 @@ func (service *assetService) BuildWithOptions(ctx context.Context, skipImages bo
 		}
 
 		// Close discoveryReady so post-processing can start while images are still processing.
-		if service.discoveryReady != nil {
-			close(service.discoveryReady)
-			service.discoveryReady = nil
-		}
+		service.finalizeDiscoveryReady()
 
 		if imgGroup != nil {
 			if err := imgGroup.Wait(); err != nil {
@@ -140,35 +96,7 @@ func (service *assetService) BuildWithOptions(ctx context.Context, skipImages bo
 
 // BuildForAssetChange rebuilds assets when a static asset change is detected.
 func (service *assetService) BuildForAssetChange(ctx context.Context) (map[string]string, error) {
-	syncTimer := timeutil.StartPhase("Asset sync")
-	defer syncTimer.Stop()
-
-	imageChannel := make(chan imageCopyTask, 64)
-	imgGroup, imgGroupCtx := errgroup.WithContext(ctx)
-	imgGroup.SetLimit(max(service.cfg.ImageWorkers, 1))
-
-	imgGroup.Go(func() error {
-		for task := range imageChannel {
-			if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgGroupCtx.Err() == nil {
-				return err
-			}
-		}
-		return nil
-	})
-
-	err := service.syncStaticAssets(ctx, ctx, false, imageChannel)
-	close(imageChannel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to sync static assets: %w", err)
-	}
-
-	if err := imgGroup.Wait(); err != nil {
-		return nil, fmt.Errorf("failed to process images: %w", err)
-	}
-
-	esbuildTimer := timeutil.StartPhase("Asset esbuild")
-	defer esbuildTimer.Stop()
-	return service.buildEsbuildAssets(true)
+	return service.BuildForAssetChangeWithOptions(ctx, true)
 }
 
 // BuildForAssetChangeWithOptions rebuilds assets after changes, optionally forcing images.
@@ -176,18 +104,7 @@ func (service *assetService) BuildForAssetChangeWithOptions(ctx context.Context,
 	syncTimer := timeutil.StartPhase("Asset sync")
 	defer syncTimer.Stop()
 
-	imageChannel := make(chan imageCopyTask, 64)
-	imgGroup, imgGroupCtx := errgroup.WithContext(ctx)
-	imgGroup.SetLimit(max(service.cfg.ImageWorkers, 1))
-
-	imgGroup.Go(func() error {
-		for task := range imageChannel {
-			if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgGroupCtx.Err() == nil {
-				return err
-			}
-		}
-		return nil
-	})
+	imageChannel, imgGroup := service.startImageWorkers(ctx, service.cfg.ImageWorkers)
 
 	err := service.syncStaticAssets(ctx, ctx, !forceImages, imageChannel)
 	close(imageChannel)
@@ -257,4 +174,59 @@ func (service *assetService) copyFileOrLink(sourcePath, destinationPath string) 
 		service.metrics.IncrementAssetsProcessed()
 	}
 	return err
+}
+
+func (service *assetService) loadManifest() {
+	if service.cfg.CacheDir == "" {
+		return
+	}
+	manifest, err := assets.LoadManifest(service.cfg.CacheDir + "/assets")
+	if err != nil {
+		service.logger.Warn("Failed to load asset manifest", "error", err)
+	} else {
+		service.manifest = manifest
+	}
+}
+
+func (service *assetService) saveManifest() {
+	if service.manifest == nil || service.cfg.CacheDir == "" {
+		return
+	}
+	if err := assets.SaveManifest(service.cfg.CacheDir+"/assets", service.manifest); err != nil {
+		service.logger.Warn("Failed to save asset manifest", "error", err)
+	}
+}
+
+func (service *assetService) finalizeDiscoveryReady() {
+	if service.discoveryReady != nil {
+		close(service.discoveryReady)
+		service.discoveryReady = nil
+	}
+}
+
+func (service *assetService) startImageWorkers(ctx context.Context, numWorkers int) (chan imageCopyTask, *errgroup.Group) {
+	if numWorkers <= 0 {
+		numWorkers = runtime.NumCPU()
+	}
+	imgGroup, imgGroupCtx := errgroup.WithContext(ctx)
+	imgGroup.SetLimit(max(numWorkers, 1))
+	imageChannel := make(chan imageCopyTask, 1024)
+
+	processedCount := atomic.Int32{}
+
+	for range max(numWorkers, 1) {
+		imgGroup.Go(func() error {
+			for task := range imageChannel {
+				if err := assets.ProcessCacheMissImage(task.opts); err != nil && imgGroupCtx.Err() == nil {
+					return err
+				}
+				if service.reporter != nil {
+					currentCount := int(processedCount.Add(1))
+					service.reporter.UpdateProgress(ui.PhaseAssets, currentCount, 0, task.opts.SrcPath)
+				}
+			}
+			return nil
+		})
+	}
+	return imageChannel, imgGroup
 }

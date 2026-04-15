@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
@@ -47,7 +48,16 @@ func init() {
 
 func runServe(cmd *cobra.Command, _ []string) {
 	ctx := cmd.Context()
+	filteredArgs := collectServeArgs()
 
+	if serveDev {
+		runDevServe(ctx, filteredArgs)
+	} else {
+		runStaticServe(ctx, filteredArgs)
+	}
+}
+
+func collectServeArgs() []string {
 	var filteredArgs []string
 	if serveBaseURL != "" {
 		filteredArgs = append(filteredArgs, "-baseurl", serveBaseURL)
@@ -70,90 +80,98 @@ func runServe(cmd *cobra.Command, _ []string) {
 	if debug {
 		filteredArgs = append(filteredArgs, "-debug")
 	}
-	if serveNoStaging {
-		filteredArgs = append(filteredArgs, "-no-staging")
-	}
-
-	if serveDev {
-		cfg := config.Load(filteredArgs)
-		config.SetDevMode(cfg, true)
-		if cfg.BaseURL == "" {
-			cfg.BaseURL = "http://localhost:2604"
-		}
-		printStartupBanner("Live Preview", cfg)
-		engine := orchestration.NewEngine(orchestration.WithConfig(cfg))
-		if reporter != nil {
-			engine.SetReporter(reporter)
-			reporter.Start("Live Preview")
-		}
-		engine.OnBuildStart = func() { server.SetBuildActive(true) }
-		engine.OnBuildDone = func() {
-			server.SetBuildActive(false)
-			server.BroadcastReload("site", "")
-		}
-		engine.OnSearchStart = func() { server.SetBuildActive(true) }
-		engine.OnSearchDone = func() {
-			server.SetBuildActive(false)
-			server.BroadcastReload("site", "")
-		}
-
-		if err := engine.Build(ctx); err != nil {
-			orchestration.DevLogError("Build failed: " + err.Error())
-			os.Exit(1)
-		}
-
-		async.FireAndForget(ctx, slog.Default(), "watcher", func() error {
-			watchDirs := []string{engine.Cfg.ContentDir, engine.Cfg.TemplateDir, engine.Cfg.LayoutsDir, engine.Cfg.StaticDir, "kosh.yaml"}
-
-			watcher, err := watch.New(watchDirs, func(event watch.Event) {
-				orchestration.DevLogChange(event.Name, "watch")
-				engine.BuildChanged(ctx, event.Name, event.Op)
-			})
-			if err != nil {
-				orchestration.DevLogError("Watcher failed: " + err.Error())
-				return nil
-			}
-			watcher.Start()
-			return nil
-		})
-
-		server.Run(server.Options{
-			Ctx:           ctx,
-			Args:          filteredArgs,
-			OutputDir:     engine.Cfg.OutputDir,
-			RootDirectory: engine.Cfg.Server.RootDirectory,
-			SiteRoot:      engine.Cfg.SiteRoot,
-			BaseURL:       engine.Cfg.BaseURL,
-			BuildConfig:   engine.Cfg.Build,
-			Reporter:      reporter,
-			IsDev:         true,
-		})
-	} else {
-		cfg := config.Load(filteredArgs)
-		printStartupBanner("Static Preview", cfg)
-
-		// Run a build first to ensure images are processed
-		orchestration.DevLogInfo("Building site...")
-		buildEngine := orchestration.NewEngine(orchestration.WithConfig(cfg))
-		if reporter != nil {
-			buildEngine.SetReporter(reporter)
-			reporter.Start("Static Preview")
-		}
-		if err := buildEngine.Build(ctx); err != nil {
-			orchestration.DevLogError("Build failed: " + err.Error())
-			os.Exit(1)
-		}
-
-		server.Run(server.Options{
-			Ctx:           ctx,
-			Args:          filteredArgs,
-			OutputDir:     cfg.OutputDir,
-			RootDirectory: cfg.Server.RootDirectory,
-			SiteRoot:      cfg.SiteRoot,
-			BaseURL:       cfg.BaseURL,
-			BuildConfig:   cfg.Build,
-			Reporter:      reporter,
-		})
-	}
+	return filteredArgs
 }
 
+func runDevServe(ctx context.Context, filteredArgs []string) {
+	cfg := config.Load(filteredArgs)
+	config.SetDevMode(cfg, true)
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = "http://localhost:2604"
+	}
+	printStartupBanner("Live Preview", cfg)
+	engine := setupDevEngine(cfg)
+
+	if err := engine.Build(ctx); err != nil {
+		orchestration.DevLogError("Build failed: " + err.Error())
+		os.Exit(1)
+	}
+
+	startWatcher(ctx, engine)
+
+	server.Run(server.Options{
+		Ctx:           ctx,
+		Args:          filteredArgs,
+		OutputDir:     engine.Cfg.OutputDir,
+		RootDirectory: engine.Cfg.Server.RootDirectory,
+		SiteRoot:      engine.Cfg.SiteRoot,
+		BaseURL:       engine.Cfg.BaseURL,
+		BuildConfig:   engine.Cfg.Build,
+		Reporter:      reporter,
+		IsDev:         true,
+	})
+}
+
+func setupDevEngine(cfg *config.Config) *orchestration.Engine {
+	engine := orchestration.NewEngine(orchestration.WithConfig(cfg))
+	if reporter != nil {
+		engine.SetReporter(reporter)
+		reporter.Start("Live Preview")
+	}
+	engine.OnBuildStart = func() { server.SetBuildActive(true) }
+	engine.OnBuildDone = func() {
+		server.SetBuildActive(false)
+		server.BroadcastReload("site", "")
+	}
+	engine.OnSearchStart = func() { server.SetBuildActive(true) }
+	engine.OnSearchDone = func() {
+		server.SetBuildActive(false)
+		server.BroadcastReload("site", "")
+	}
+	return engine
+}
+
+func startWatcher(ctx context.Context, engine *orchestration.Engine) {
+	async.FireAndForget(ctx, slog.Default(), "watcher", func() error {
+		watchDirs := []string{engine.Cfg.ContentDir, engine.Cfg.TemplateDir, engine.Cfg.LayoutsDir, engine.Cfg.StaticDir, "kosh.yaml"}
+
+		watcher, err := watch.New(watchDirs, func(event watch.Event) {
+			orchestration.DevLogChange(event.Name, "watch")
+			engine.BuildChanged(ctx, event.Name, event.Op)
+		})
+		if err != nil {
+			orchestration.DevLogError("Watcher failed: " + err.Error())
+			return nil
+		}
+		watcher.Start()
+		return nil
+	})
+}
+
+func runStaticServe(ctx context.Context, filteredArgs []string) {
+	cfg := config.Load(filteredArgs)
+	printStartupBanner("Static Preview", cfg)
+
+	// Run a build first to ensure images are processed
+	orchestration.DevLogInfo("Building site...")
+	buildEngine := orchestration.NewEngine(orchestration.WithConfig(cfg))
+	if reporter != nil {
+		buildEngine.SetReporter(reporter)
+		reporter.Start("Static Preview")
+	}
+	if err := buildEngine.Build(ctx); err != nil {
+		orchestration.DevLogError("Build failed: " + err.Error())
+		os.Exit(1)
+	}
+
+	server.Run(server.Options{
+		Ctx:           ctx,
+		Args:          filteredArgs,
+		OutputDir:     cfg.OutputDir,
+		RootDirectory: cfg.Server.RootDirectory,
+		SiteRoot:      cfg.SiteRoot,
+		BaseURL:       cfg.BaseURL,
+		BuildConfig:   cfg.Build,
+		Reporter:      reporter,
+	})
+}

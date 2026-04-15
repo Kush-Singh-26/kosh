@@ -202,33 +202,13 @@ func logServeStatus(reporter ui.Reporter, addr, host string) {
 	orchestration.DevLogInfo("Auto-reload enabled via /events")
 }
 
-// Run starts the development HTTP server.
-func Run(opts Options) {
-	ctx := opts.Ctx
-	args := opts.Args
-	baseURL := opts.BaseURL
-	reporter := opts.Reporter
-
-	host, port := parseServeFlags(args)
-	cfg := buildServeConfig(opts, host, port)
-
-	_ = mime.AddExtensionType(".wasm", "application/wasm")
-	_ = mime.AddExtensionType(".bin", "application/octet-stream")
-
-	assetsDir := "assets"
-	if cfg.rootDirectory != "" {
-		assetsDir = filepath.Join(cfg.rootDirectory, "assets")
-	}
-
+func (opts Options) prepareWatchConfig(cfg serveConfig) watchConfig {
 	var exclusions []string
 	if cfg.rootDirectory != "" {
-		// Exclude blog output directory from root watch to avoid infinite reload loops
 		exclusions = append(exclusions, cfg.staticDir)
 		if opts.SiteRoot != "" {
-			// Exclude the entire Kosh project root from the portfolio's watcher
 			exclusions = append(exclusions, opts.SiteRoot)
 		}
-		// Exclude noisy VCS and dependency directories
 		exclusions = append(exclusions, filepath.Join(cfg.rootDirectory, ".git"))
 		exclusions = append(exclusions, filepath.Join(cfg.rootDirectory, "node_modules"))
 	}
@@ -238,79 +218,81 @@ func Run(opts Options) {
 	if cfg.rootDirectory != "" {
 		dirs[cfg.rootDirectory] = "root"
 	}
+
+	assetsDir := "assets"
+	if cfg.rootDirectory != "" {
+		assetsDir = filepath.Join(cfg.rootDirectory, "assets")
+	}
 	if _, err := os.Stat(assetsDir); err == nil {
 		dirs[assetsDir] = "all"
 	}
 
-	reloadEvents := startWatcher(ctx, watchConfig{
+	return watchConfig{
 		Dirs:       dirs,
 		Debounce:   cfg.debounceDuration,
 		Exclusions: exclusions,
+	}
+}
+
+func (opts Options) handleRequest(cfg serveConfig, writer http.ResponseWriter, request *http.Request) {
+	if !waitForBuildCompletion(writer, request) {
+		return
+	}
+
+	rawPath := request.URL.Path
+	contentPrefix := GetBaseURLPrefix(opts.BaseURL)
+	effectiveStaticDir := cfg.staticDir
+	var normalizedPath string
+
+	switch {
+	case strings.HasPrefix(rawPath, "/static/"):
+		normalizedPath = normalizeRequestPath(rawPath, opts.BaseURL)
+	case HasPathPrefix(rawPath, contentPrefix):
+		normalizedPath = normalizeRequestPath(rawPath, opts.BaseURL)
+	case cfg.rootDirectory != "":
+		effectiveStaticDir = cfg.rootDirectory
+		normalizedPath = rawPath
+	default:
+		normalizedPath = normalizeRequestPath(rawPath, opts.BaseURL)
+	}
+
+	request.URL.Path = normalizedPath
+	fullPath, err := validatePath(effectiveStaticDir, normalizedPath)
+	if err != nil {
+		slog.Error("Routing failed - invalid path", "rawPath", rawPath, "error", err)
+		http.Error(writer, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	handleFileRequest(fileRequestOptions{
+		writer:          writer,
+		request:         request,
+		staticDir:       effectiveStaticDir,
+		engineOutputDir: cfg.staticDir,
+		fullPath:        fullPath,
+		normalizedPath:  normalizedPath,
+		isDev:           cfg.isDev,
 	})
+}
+
+// Run starts the development HTTP server.
+func Run(opts Options) {
+	host, port := parseServeFlags(opts.Args)
+	cfg := buildServeConfig(opts, host, port)
+
+	_ = mime.AddExtensionType(".wasm", "application/wasm")
+	_ = mime.AddExtensionType(".bin", "application/octet-stream")
+
+	reloadEvents := startWatcher(opts.Ctx, opts.prepareWatchConfig(cfg))
 	defer stopWatcher()
 
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("/events", handleSSE)
-
-	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		if !waitForBuildCompletion(writer, request) {
-			return
-		}
-
-		rawPath := request.URL.Path
-		contentPrefix := GetBaseURLPrefix(baseURL)
-		effectiveStaticDir := cfg.staticDir
-		var normalizedPath string
-
-		switch {
-		case strings.HasPrefix(rawPath, "/static/"):
-			// Always prioritize consolidated site assets for /static/ requests
-			normalizedPath = normalizeRequestPath(rawPath, baseURL)
-		case HasPathPrefix(rawPath, contentPrefix):
-			normalizedPath = normalizeRequestPath(rawPath, baseURL)
-		case cfg.rootDirectory != "":
-			effectiveStaticDir = cfg.rootDirectory
-			normalizedPath = rawPath // Already starts with /
-		default:
-			normalizedPath = normalizeRequestPath(rawPath, baseURL)
-		}
-		//nolint:gocritic
-
-		request.URL.Path = normalizedPath
-
-		fullPath, err := validatePath(effectiveStaticDir, normalizedPath)
-		if err != nil {
-			slog.Error("Routing failed - invalid path",
-				"rawPath", rawPath,
-				"contentPrefix", contentPrefix,
-				"effectiveStaticDir", effectiveStaticDir,
-				"normalizedPath", normalizedPath,
-				"error", err)
-			http.Error(writer, "Forbidden", http.StatusForbidden)
-			return
-		}
-
-		slog.Debug("Routing request",
-			"rawPath", rawPath,
-			"contentPrefix", contentPrefix,
-			"rootDirectory", cfg.rootDirectory,
-			"effectiveStaticDir", effectiveStaticDir,
-			"normalizedPath", normalizedPath,
-			"fullPath", fullPath)
-
-		handleFileRequest(fileRequestOptions{
-			writer:          writer,
-			request:         request,
-			staticDir:       effectiveStaticDir,
-			engineOutputDir: cfg.staticDir,
-			fullPath:        fullPath,
-			normalizedPath:  normalizedPath,
-			isDev:           cfg.isDev,
-		})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		opts.handleRequest(cfg, w, r)
 	})
 
-	startReloadBroadcast(ctx, reloadEvents)
+	startReloadBroadcast(opts.Ctx, reloadEvents)
 
 	httpServer := &http.Server{
 		Addr:           cfg.addr,
@@ -321,9 +303,8 @@ func Run(opts Options) {
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	registerServerShutdown(ctx, httpServer, cfg.shutdownTimeout)
-
-	logServeStatus(reporter, cfg.addr, cfg.host)
+	registerServerShutdown(opts.Ctx, httpServer, cfg.shutdownTimeout)
+	logServeStatus(opts.Reporter, cfg.addr, cfg.host)
 
 	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 		slog.Error("HTTP server error", "error", err)
@@ -369,52 +350,57 @@ type responseHeaderOptions struct {
 	isDev          bool
 }
 
-func handleFileRequest(opts fileRequestOptions) {
-	acceptEncoding := opts.request.Header.Get("Accept-Encoding")
+func (opts fileRequestOptions) checkPreCompressed(acceptEncoding string) (string, bool) {
 	ext := strings.ToLower(filepath.Ext(opts.normalizedPath))
-	preCompressed := false
-
 	if ext != ".bin" && strings.Contains(acceptEncoding, "br") {
-		if _, err := os.Stat(opts.fullPath + ".br"); err == nil {
-			opts.fullPath += ".br"
-			preCompressed = true
+		brPath := opts.fullPath + ".br"
+		if _, err := os.Stat(brPath); err == nil {
+			return brPath, true
 		}
 	}
+	return opts.fullPath, false
+}
+
+func (opts fileRequestOptions) handleDirectory(fullPath string) (string, os.FileInfo, error) {
+	fileInfo, err := os.Stat(fullPath)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if fileInfo.IsDir() {
+		indexPath := filepath.Join(fullPath, "index.html")
+		indexInfo, err := os.Stat(indexPath)
+		if err != nil || indexInfo.IsDir() {
+			return "", nil, os.ErrNotExist
+		}
+		return indexPath, indexInfo, nil
+	}
+	return fullPath, fileInfo, nil
+}
+
+func (opts fileRequestOptions) shouldInjectReload(fullPath string) bool {
+	return strings.HasSuffix(strings.ToLower(fullPath), ".html") &&
+		opts.staticDir != "" &&
+		fspkg.NormalizePath(opts.staticDir) != fspkg.NormalizePath(opts.engineOutputDir)
+}
+
+func handleFileRequest(opts fileRequestOptions) {
+	acceptEncoding := opts.request.Header.Get("Accept-Encoding")
+	fullPath, preCompressed := opts.checkPreCompressed(acceptEncoding)
 
 	serve := func(writer http.ResponseWriter, request *http.Request) {
-		fileInfo, err := os.Stat(opts.fullPath)
+		finalPath, fileInfo, err := opts.handleDirectory(fullPath)
 		if err != nil {
 			handleFileError(writer, opts.staticDir, err)
 			return
 		}
 
-		if fileInfo.IsDir() {
-			indexPath := filepath.Join(opts.fullPath, "index.html")
-			if indexInfo, err := os.Stat(indexPath); err == nil && !indexInfo.IsDir() {
-				opts.fullPath = indexPath
-				fileInfo = indexInfo
-			} else {
-				handleFileError(writer, opts.staticDir, os.ErrNotExist)
-				return
-			}
-		}
-
-		// Inject live-reload script if serving HTML from rootDirectory (not the SSG output)
-		isRootHTML := strings.HasSuffix(strings.ToLower(opts.fullPath), ".html") &&
-			opts.staticDir != "" &&
-			fspkg.NormalizePath(opts.staticDir) != fspkg.NormalizePath(opts.engineOutputDir)
-
-		if isRootHTML {
-			slog.Debug("Injecting live-reload script into root HTML", "path", opts.normalizedPath)
-			data, err := os.ReadFile(opts.fullPath)
-			if err == nil {
+		if opts.shouldInjectReload(finalPath) {
+			if data, err := os.ReadFile(finalPath); err == nil {
 				html := InjectLiveReload(string(data))
 				setResponseHeaders(responseHeaderOptions{
-					writer:         writer,
-					fullPath:       opts.fullPath,
-					normalizedPath: opts.normalizedPath,
-					fileInfo:       fileInfo,
-					preCompressed:  false,
+					writer: writer, fullPath: finalPath, normalizedPath: opts.normalizedPath,
+					fileInfo: fileInfo, preCompressed: false,
 				})
 				_, _ = writer.Write([]byte(html))
 				return
@@ -422,14 +408,10 @@ func handleFileRequest(opts fileRequestOptions) {
 		}
 
 		setResponseHeaders(responseHeaderOptions{
-			writer:         writer,
-			fullPath:       opts.fullPath,
-			normalizedPath: opts.normalizedPath,
-			fileInfo:       fileInfo,
-			preCompressed:  preCompressed,
-			isDev:          opts.isDev,
+			writer: writer, fullPath: finalPath, normalizedPath: opts.normalizedPath,
+			fileInfo: fileInfo, preCompressed: preCompressed, isDev: opts.isDev,
 		})
-		http.ServeFile(writer, request, opts.fullPath)
+		http.ServeFile(writer, request, finalPath)
 	}
 
 	if preCompressed {

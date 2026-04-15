@@ -177,6 +177,7 @@ func TestShouldSkipSiteWideRendering(t *testing.T) {
 		Config: cfg,
 		Logger: logger,
 	}))
+	b.State.ForceGenerators.Store(false)
 
 	cb := &post.ContentContext{
 		AnyPostChanged: false,

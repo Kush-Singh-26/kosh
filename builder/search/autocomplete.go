@@ -14,6 +14,11 @@ const (
 	defaultSuggestionLimit = 8
 )
 
+type suggestion struct {
+	term  string
+	count int
+}
+
 // GetSuggestions returns a list of suggested terms based on a prefix
 func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 	prefix = core.ToLower(strings.TrimSpace(prefix))
@@ -21,14 +26,14 @@ func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 		return nil
 	}
 
-	type suggestion struct {
-		term  string
-		count int
-	}
-
 	var suggestions []suggestion
+	suggestions = findInvertedSuggestions(index, prefix, suggestions)
+	suggestions = findStemSuggestions(index, prefix, suggestions)
 
-	// Check inverted index for matches
+	return sortAndFinalizeSuggestions(suggestions)
+}
+
+func findInvertedSuggestions(index *models.SearchIndex, prefix string, suggestions []suggestion) []suggestion {
 	for term, docs := range index.Inverted {
 		if strings.HasPrefix(term, prefix) {
 			suggestions = append(suggestions, suggestion{
@@ -37,23 +42,14 @@ func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 			})
 		}
 	}
+	return suggestions
+}
 
-	// Also check stem map origins
+func findStemSuggestions(index *models.SearchIndex, prefix string, suggestions []suggestion) []suggestion {
 	for stem, origins := range index.StemMap {
 		if strings.HasPrefix(stem, prefix) {
 			for _, origin := range origins {
-				// Avoid duplicates if original is also in inverted (it should be, but just in case)
-				found := false
-				for _, sugg := range suggestions {
-					if sugg.term == origin {
-						found = true
-						break
-					}
-				}
-				if !found {
-					// We don't have easy access to original term frequency here without
-					// a separate map, so we'll use a heuristic or just look it up
-					// if we really wanted to. For now, we'll just add it.
+				if !containsSuggestion(suggestions, origin) {
 					suggestions = append(suggestions, suggestion{
 						term:  origin,
 						count: defaultSuggestionCount,
@@ -61,28 +57,29 @@ func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 				}
 			}
 		} else {
-			// Check if any origin starts with the prefix
 			for _, origin := range origins {
-				if strings.HasPrefix(origin, prefix) {
-					found := false
-					for _, sugg := range suggestions {
-						if sugg.term == origin {
-							found = true
-							break
-						}
-					}
-					if !found {
-						suggestions = append(suggestions, suggestion{
-							term:  origin,
-							count: defaultSuggestionCount,
-						})
-					}
+				if strings.HasPrefix(origin, prefix) && !containsSuggestion(suggestions, origin) {
+					suggestions = append(suggestions, suggestion{
+						term:  origin,
+						count: defaultSuggestionCount,
+					})
 				}
 			}
 		}
 	}
+	return suggestions
+}
 
-	// Sort by frequency (descending) and then length (ascending)
+func containsSuggestion(suggestions []suggestion, term string) bool {
+	for _, sugg := range suggestions {
+		if sugg.term == term {
+			return true
+		}
+	}
+	return false
+}
+
+func sortAndFinalizeSuggestions(suggestions []suggestion) []string {
 	slices.SortFunc(suggestions, func(a, b suggestion) int {
 		if a.count != b.count {
 			return b.count - a.count
@@ -102,6 +99,5 @@ func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 			}
 		}
 	}
-
 	return result
 }

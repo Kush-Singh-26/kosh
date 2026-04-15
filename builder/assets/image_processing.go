@@ -159,41 +159,53 @@ func maybeMinifySVG(options ProcessImageOptions) (bool, error) {
 		return false, nil
 	}
 
-	cacheDir := options.Opts.CacheDir
-	if cacheDir != "" {
-		cacheDir = filepath.Join(cacheDir, "svg-cache")
-	}
-
-	srcInfo := options.SrcInfo
-	if srcInfo == nil {
-		if f, err := options.SrcFs.Stat(options.SrcPath); err == nil {
-			srcInfo = f
-		}
-	}
-	if srcInfo == nil {
+	srcInfo, err := getSourceInfo(options)
+	if err != nil || srcInfo == nil {
 		return false, nil
 	}
 
-	if cacheDir != "" {
-		cacheFile := filepath.Join(cacheDir, getSVGCachePath(options.SrcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())+".svg")
-		if cachedData, err := afero.ReadFile(afero.NewOsFs(), cacheFile); err == nil {
-			if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
-				return true, err
-			}
-			if err := options.Sink.WriteFile(options.DstPath, cachedData); err == nil {
-				if options.Opts.OnWrite != nil {
-					options.Opts.OnWrite(options.DstPath)
-				}
-				return true, nil
-			}
-		}
+	if handled, err := tryLoadSVGCache(options, srcInfo); handled {
+		return handled, err
 	}
 
-	buildScheduler := options.Scheduler
-	if buildScheduler == nil {
-		buildScheduler = options.Opts.Scheduler
+	return minifyAndWriteSVG(options, srcInfo)
+}
+
+func getSourceInfo(options ProcessImageOptions) (os.FileInfo, error) {
+	if options.SrcInfo != nil {
+		return options.SrcInfo, nil
 	}
-	if buildScheduler != nil {
+	return options.SrcFs.Stat(options.SrcPath)
+}
+
+func tryLoadSVGCache(options ProcessImageOptions, srcInfo os.FileInfo) (bool, error) {
+	cacheDir := options.Opts.CacheDir
+	if cacheDir == "" {
+		return false, nil
+	}
+	cacheDir = filepath.Join(cacheDir, "svg-cache")
+	cacheFile := filepath.Join(cacheDir, getSVGCachePath(options.SrcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())+".svg")
+
+	cachedData, err := afero.ReadFile(afero.NewOsFs(), cacheFile)
+	if err != nil {
+		return false, nil
+	}
+
+	if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
+		return true, err
+	}
+	if err := options.Sink.WriteFile(options.DstPath, cachedData); err != nil {
+		return true, err
+	}
+
+	if options.Opts.OnWrite != nil {
+		options.Opts.OnWrite(options.DstPath)
+	}
+	return true, nil
+}
+
+func minifyAndWriteSVG(options ProcessImageOptions, srcInfo os.FileInfo) (bool, error) {
+	if buildScheduler := getScheduler(options); buildScheduler != nil {
 		if err := buildScheduler.Acquire(options.Ctx, scheduler.TaskDefault); err != nil {
 			return true, err
 		}
@@ -209,26 +221,47 @@ func maybeMinifySVG(options ProcessImageOptions) (bool, error) {
 	if err != nil {
 		return false, nil
 	}
+
+	updateSVGMetrics(options)
+
+	if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
+		return true, err
+	}
+	if err := options.Sink.WriteFile(options.DstPath, minified); err != nil {
+		return true, err
+	}
+
+	saveSVGCache(options, srcInfo, minified)
+
+	if options.Opts.OnWrite != nil {
+		options.Opts.OnWrite(options.DstPath)
+	}
+	return true, nil
+}
+
+func getScheduler(options ProcessImageOptions) scheduler.BuildScheduler {
+	if options.Scheduler != nil {
+		return options.Scheduler
+	}
+	return options.Opts.Scheduler
+}
+
+func updateSVGMetrics(options ProcessImageOptions) {
 	if !isNil(options.Opts.Metrics) {
 		options.Opts.Metrics.IncrementSVGsMinified()
 		options.Opts.Metrics.IncrementAssetsProcessed()
 	}
-	if err := options.Sink.MkdirAll(filepath.Dir(options.DstPath)); err != nil {
-		return true, err
-	}
-	if err := options.Sink.WriteFile(options.DstPath, minified); err == nil {
-		if cacheDir != "" {
-			cacheFile := filepath.Join(cacheDir, getSVGCachePath(options.SrcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())+".svg")
-			_ = os.MkdirAll(filepath.Dir(cacheFile), 0755)
-			_ = os.WriteFile(cacheFile, minified, 0644)
-		}
-		if options.Opts.OnWrite != nil {
-			options.Opts.OnWrite(options.DstPath)
-		}
-		return true, nil
-	}
+}
 
-	return false, nil
+func saveSVGCache(options ProcessImageOptions, srcInfo os.FileInfo, minified []byte) {
+	cacheDir := options.Opts.CacheDir
+	if cacheDir == "" {
+		return
+	}
+	cacheDir = filepath.Join(cacheDir, "svg-cache")
+	cacheFile := filepath.Join(cacheDir, getSVGCachePath(options.SrcPath, srcInfo.Size(), srcInfo.ModTime().UnixNano())+".svg")
+	_ = os.MkdirAll(filepath.Dir(cacheFile), 0755)
+	_ = os.WriteFile(cacheFile, minified, 0644)
 }
 
 // CopyFileWithOptionalImageProcessing copies or converts an image based on options.

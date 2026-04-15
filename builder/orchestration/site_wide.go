@@ -24,26 +24,64 @@ type SiteWideOptions struct {
 	SearchIndex        *models.SearchIndex
 }
 
-func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (func(*post.ContentContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
-	workingContext := options.Ctx
-	assetsReadySignal := options.AssetsReadySignal
-	wasmWaitGroup := options.WasmWaitGroup
-	forceSocialRebuild := options.ForceSocialRebuild
-	psearchIndex := options.SearchIndex
+func (engineInstance *Engine) updateSearchIndex(metadataContext *post.ContentContext, psearchIndex *models.SearchIndex) {
+	if engineInstance.Search != nil && metadataContext.IndexedPosts != nil {
+		engineInstance.Search.SetIndexedPosts(metadataContext.IndexedPosts)
+	}
+	if metadataContext.PrebuiltSearchIndex != nil {
+		metadataContext.PrebuiltSearchIndex = psearchIndex
+	}
+}
 
+func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *errgroup.Group, metadataContext *post.ContentContext, assetsReadySignal <-chan struct{}, forceSocialRebuild bool) {
+	group.Go(func() error {
+		engineInstance.Assets.WaitForAvailability(ctx, assetsReadySignal)
+		return engineInstance.renderPagination(renderPaginationOptions{
+			workingContext: ctx,
+			allPosts:       metadataContext.AllPosts,
+			pinnedItems:    metadataContext.PinnedItems,
+			force:          engineInstance.Cfg.ShouldForceRebuild,
+			taxonomies:     metadataContext.Taxonomies,
+		})
+	})
+	group.Go(func() error {
+		engineInstance.Assets.WaitForAvailability(ctx, assetsReadySignal)
+		return engineInstance.renderTaxonomies(ctx, metadataContext.TaxonomyMap, forceSocialRebuild)
+	})
+	group.Go(func() error {
+		return engineInstance.renderSiteMetadata(MetadataRenderOptions{
+			AllPosts:              metadataContext.AllPosts,
+			TaxonomyMapSummarized: metadataContext.Taxonomies,
+			AssetsReadySignal:     assetsReadySignal,
+		})
+	})
+}
+
+func (engineInstance *Engine) handlePWAGeneration(ctx context.Context, wasmWaitGroup *sync.WaitGroup, assetsReadySignal <-chan struct{}) {
+	wasmWaitGroup.Add(1)
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    engineInstance.Deps.Logger,
+		Operation: "pwa generation",
+		Fn: func() error {
+			engineInstance.Assets.WaitForAvailability(ctx, assetsReadySignal)
+			if err := engineInstance.generatePWA(ctx, engineInstance.Cfg.ShouldForceRebuild); err != nil {
+				engineInstance.Deps.Logger.Warn("PWA generation failed", "error", err)
+			}
+			return nil
+		},
+		Cleanup: wasmWaitGroup.Done,
+	})
+}
+
+func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (func(*post.ContentContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
 	var siteWideGroup *errgroup.Group
 	var siteWideCtx context.Context
 	var siteTimer *timeutil.PhaseTimer
 	var siteWideOnce sync.Once
 
 	runSiteWide := func(metadataContext *post.ContentContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
-		if engineInstance.Search != nil && metadataContext.IndexedPosts != nil {
-			engineInstance.Search.SetIndexedPosts(metadataContext.IndexedPosts)
-		}
-		if metadataContext.PrebuiltSearchIndex != nil {
-			// If we have a pipelined index, use it instead of building it from IndexedPosts
-			metadataContext.PrebuiltSearchIndex = psearchIndex
-		}
+		engineInstance.updateSearchIndex(metadataContext, options.SearchIndex)
 
 		if engineInstance.shouldSkipSiteWideRendering(metadataContext, assetsChanged) {
 			return nil, nil
@@ -52,43 +90,10 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 		siteWideOnce.Do(func() {
 			engineInstance.Deps.Logger.Info("Rendering pagination, taxonomies, metadata and PWA...")
 			siteTimer = timeutil.StartPhase("Site-wide rendering")
-			siteWideGroup, siteWideCtx = errgroup.WithContext(workingContext)
+			siteWideGroup, siteWideCtx = errgroup.WithContext(options.Ctx)
 
-			siteWideGroup.Go(func() error {
-				engineInstance.Assets.WaitForAvailability(siteWideCtx, assetsReadySignal)
-				return engineInstance.renderPagination(renderPaginationOptions{
-					workingContext: siteWideCtx,
-					allPosts:       metadataContext.AllPosts,
-					pinnedItems:    metadataContext.PinnedItems,
-					force:          engineInstance.Cfg.ShouldForceRebuild,
-					taxonomies:     metadataContext.Taxonomies,
-				})
-			})
-			siteWideGroup.Go(func() error {
-				engineInstance.Assets.WaitForAvailability(siteWideCtx, assetsReadySignal)
-				return engineInstance.renderTaxonomies(siteWideCtx, metadataContext.TaxonomyMap, forceSocialRebuild)
-			})
-			siteWideGroup.Go(func() error {
-				return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-					AllPosts:              metadataContext.AllPosts,
-					TaxonomyMapSummarized: metadataContext.Taxonomies,
-					AssetsReadySignal:     assetsReadySignal,
-				})
-			})
-			wasmWaitGroup.Add(1)
-			async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-				Ctx:       workingContext,
-				Logger:    engineInstance.Deps.Logger,
-				Operation: "pwa generation",
-				Fn: func() error {
-					engineInstance.Assets.WaitForAvailability(workingContext, assetsReadySignal)
-					if err := engineInstance.generatePWA(workingContext, engineInstance.Cfg.ShouldForceRebuild); err != nil {
-						engineInstance.Deps.Logger.Warn("PWA generation failed", "error", err)
-					}
-					return nil
-				},
-				Cleanup: wasmWaitGroup.Done,
-			})
+			engineInstance.submitSiteWideTasks(siteWideCtx, siteWideGroup, metadataContext, options.AssetsReadySignal, options.ForceSocialRebuild)
+			engineInstance.handlePWAGeneration(options.Ctx, options.WasmWaitGroup, options.AssetsReadySignal)
 		})
 
 		if metadataContext.IndexedPosts != nil || metadataContext.PrebuiltSearchIndex != nil {

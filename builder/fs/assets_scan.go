@@ -37,6 +37,24 @@ func (a *assetScanResult) hasCSS() bool { return len(a.points.css) > 0 }
 func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 	srcDir = NormalizePath(srcDir)
 
+	js, css, metas, err := scanFiles(srcFs, srcDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan for assets: %w", err)
+	}
+
+	hash, err := computeAssetHash(metas)
+	if err != nil {
+		return nil, err
+	}
+
+	return &assetScanResult{
+		points: assetEntryPoints{js: js, css: css},
+		hash:   hash,
+		metas:  metas,
+	}, nil
+}
+
+func scanFiles(srcFs afero.Fs, srcDir string) ([]string, []string, []fileMeta, error) {
 	var js, css []string
 	var metas []fileMeta
 	var walkMu sync.Mutex
@@ -47,7 +65,6 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 		Root:        filepath.FromSlash(srcDir),
 		Concurrency: 0,
 		WalkFn: func(path string, info fs.FileInfo, err error) error {
-
 			if err != nil {
 				return err
 			}
@@ -55,9 +72,7 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 				return nil
 			}
 			ext := strings.ToLower(filepath.Ext(path))
-			baseName := filepath.Base(path)
-
-			if baseName == "wasm_engine.js" || baseName == "wasm_exec.js" || baseName == "engine.js" {
+			if isSkippedAsset(path) {
 				return nil
 			}
 
@@ -66,11 +81,8 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 
 			switch ext {
 			case ".js":
-				// For JS, we keep all as entry points for now
 				js = append(js, path)
 			case ".css":
-				// Bundle all CSS files from static directory (layout.css, graph.css, portfolio CSS)
-				// This ensures all theme CSS is properly minified and hashed
 				css = append(css, path)
 			}
 
@@ -81,10 +93,15 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 			})
 			return nil
 		}})
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan for assets: %w", err)
-	}
+	return js, css, metas, err
+}
 
+func isSkippedAsset(path string) bool {
+	baseName := filepath.Base(path)
+	return baseName == "wasm_engine.js" || baseName == "wasm_exec.js" || baseName == "engine.js"
+}
+
+func computeAssetHash(metas []fileMeta) (string, error) {
 	slices.SortFunc(metas, func(a, b fileMeta) int {
 		return strings.Compare(a.path, b.path)
 	})
@@ -92,17 +109,11 @@ func scanAssets(srcFs afero.Fs, srcDir string) (*assetScanResult, error) {
 	inputHash := xxh3.New()
 	for _, m := range metas {
 		if _, err := fmt.Fprintf(inputHash, "%s:%d:%d;", m.path, m.size, m.mtime); err != nil {
-			return nil, fmt.Errorf("failed to write to input hash: %w", err)
+			return "", fmt.Errorf("failed to write to input hash: %w", err)
 		}
 	}
 
 	sum := inputHash.Sum128()
 	b := sum.Bytes()
-	hash := hex.EncodeToString(b[:])
-
-	return &assetScanResult{
-		points: assetEntryPoints{js: js, css: css},
-		hash:   hash,
-		metas:  metas,
-	}, nil
+	return hex.EncodeToString(b[:]), nil
 }

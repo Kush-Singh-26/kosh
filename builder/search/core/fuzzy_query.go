@@ -76,30 +76,7 @@ func parseOperators(text string) ([]string, []QueryTerm) {
 	for _, char := range text {
 		if unicode.IsSpace(char) {
 			if current.Len() > 0 {
-				term, operator := extractOperator(current.String())
-				switch operator {
-				case 1:
-					result := processTerm(term)
-					if result != "" {
-						result = StemCached(result)
-						terms = append(terms, result)
-						termInfos = append(termInfos, QueryTerm{Term: result, Required: true})
-					}
-				case 2:
-					result := processTerm(term)
-					if result != "" {
-						result = StemCached(result)
-						terms = append(terms, result)
-						termInfos = append(termInfos, QueryTerm{Term: result, Excluded: true})
-					}
-				default:
-					result := processTerm(term)
-					if result != "" {
-						result = StemCached(result)
-						terms = append(terms, result)
-						termInfos = append(termInfos, QueryTerm{Term: result})
-					}
-				}
+				appendQueryTerm(&terms, &termInfos, current.String())
 				current.Reset()
 				inOperator = false
 			}
@@ -108,15 +85,7 @@ func parseOperators(text string) ([]string, []QueryTerm) {
 
 		if char == '+' || char == '-' {
 			if current.Len() > 0 && !inOperator {
-				term, operator := extractOperator(current.String())
-				if operator == 0 {
-					result := processTerm(term)
-					if result != "" {
-						result = StemCached(result)
-						terms = append(terms, result)
-						termInfos = append(termInfos, QueryTerm{Term: result})
-					}
-				}
+				appendQueryTermWithCheck(&terms, &termInfos, current.String())
 				current.Reset()
 			}
 			inOperator = true
@@ -129,33 +98,43 @@ func parseOperators(text string) ([]string, []QueryTerm) {
 	}
 
 	if current.Len() > 0 {
-		term, operator := extractOperator(current.String())
-		switch operator {
-		case 1:
-			result := processTerm(term)
-			if result != "" {
-				result = StemCached(result)
-				terms = append(terms, result)
-				termInfos = append(termInfos, QueryTerm{Term: result, Required: true})
-			}
-		case 2:
-			result := processTerm(term)
-			if result != "" {
-				result = StemCached(result)
-				terms = append(terms, result)
-				termInfos = append(termInfos, QueryTerm{Term: result, Excluded: true})
-			}
-		default:
-			result := processTerm(term)
-			if result != "" {
-				result = StemCached(result)
-				terms = append(terms, result)
-				termInfos = append(termInfos, QueryTerm{Term: result})
-			}
-		}
+		appendQueryTerm(&terms, &termInfos, current.String())
 	}
 
 	return terms, termInfos
+}
+
+func appendQueryTerm(terms *[]string, termInfos *[]QueryTerm, rawTerm string) {
+	term, operator := extractOperator(rawTerm)
+	result := processTerm(term)
+	if result == "" {
+		return
+	}
+	result = StemCached(result)
+	*terms = append(*terms, result)
+
+	switch operator {
+	case 1:
+		*termInfos = append(*termInfos, QueryTerm{Term: result, Required: true})
+	case 2:
+		*termInfos = append(*termInfos, QueryTerm{Term: result, Excluded: true})
+	default:
+		*termInfos = append(*termInfos, QueryTerm{Term: result})
+	}
+}
+
+func appendQueryTermWithCheck(terms *[]string, termInfos *[]QueryTerm, rawTerm string) {
+	term, operator := extractOperator(rawTerm)
+	if operator != 0 {
+		return
+	}
+	result := processTerm(term)
+	if result == "" {
+		return
+	}
+	result = StemCached(result)
+	*terms = append(*terms, result)
+	*termInfos = append(*termInfos, QueryTerm{Term: result})
 }
 
 func extractOperator(term string) (string, int) {

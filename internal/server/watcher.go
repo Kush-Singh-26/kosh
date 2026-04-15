@@ -120,17 +120,39 @@ func startWatcherWithConfig(cfg watchConfig) chan string {
 		return nil
 	}
 
+	initWatchExclusions(cfg.Exclusions)
+	initWatchTargets(w, cfg.Dirs)
+
+	watcherMu.Lock()
+	watcher = w
+	watcherMu.Unlock()
+
+	var currentReloadChan chan string
+	reloadMu.Lock()
+	reloadChan = make(chan string, 1)
+	currentReloadChan = reloadChan
+	reloadMu.Unlock()
+
+	startWatcherLoop(w)
+
+	return currentReloadChan
+}
+
+func initWatchExclusions(exclusions []string) {
 	watchExclusionsMu.Lock()
-	watchExclusions = make([]string, 0, len(cfg.Exclusions))
-	for _, ex := range cfg.Exclusions {
+	defer watchExclusionsMu.Unlock()
+	watchExclusions = make([]string, 0, len(exclusions))
+	for _, ex := range exclusions {
 		if abs, err := fspkg.AbsNormalizePath(ex); err == nil {
 			watchExclusions = append(watchExclusions, abs)
 		}
 	}
-	watchExclusionsMu.Unlock()
+}
 
+func initWatchTargets(w *fsnotify.Watcher, dirs map[string]string) {
 	watchTargetsMu.Lock()
-	for dir, target := range cfg.Dirs {
+	defer watchTargetsMu.Unlock()
+	for dir, target := range dirs {
 		absDir, _ := fspkg.AbsNormalizePath(dir)
 		watchTargets[absDir] = target
 
@@ -158,18 +180,9 @@ func startWatcherWithConfig(cfg watchConfig) chan string {
 			slog.Warn("Failed to walk directory for watching", "dir", dir, "error", err)
 		}
 	}
-	watchTargetsMu.Unlock()
+}
 
-	watcherMu.Lock()
-	watcher = w
-	watcherMu.Unlock()
-
-	var currentReloadChan chan string
-	reloadMu.Lock()
-	reloadChan = make(chan string, 1)
-	currentReloadChan = reloadChan
-	reloadMu.Unlock()
-
+func startWatcherLoop(w *fsnotify.Watcher) {
 	watcherWg.Add(1)
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 		Ctx:       context.Background(),
@@ -177,17 +190,10 @@ func startWatcherWithConfig(cfg watchConfig) chan string {
 		Operation: "file watcher",
 		Fn: func() error {
 			defer func() {
-				watcherMu.RLock()
-				w := watcher
-				watcherMu.RUnlock()
 				if w != nil {
 					_ = w.Close()
 				}
 			}()
-
-			watcherMu.RLock()
-			w := watcher
-			watcherMu.RUnlock()
 
 			for {
 				select {
@@ -217,8 +223,6 @@ func startWatcherWithConfig(cfg watchConfig) chan string {
 		},
 		Cleanup: watcherWg.Done,
 	})
-
-	return currentReloadChan
 }
 
 func resolveTarget(path string) string {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,96 +102,145 @@ func (service *postService) renderSSR(ctx context.Context, html string, result *
 		return html
 	}
 
-	// 1. Math
-	if len(result.MathExpressions) > 0 {
-		cached := make(map[string]string)
-		if service.diagramAdapter != nil {
-			for _, expr := range result.MathExpressions {
-				key := "math:" + expr.Hash
-				if val, ok := service.diagramAdapter.GetLocal(key); ok {
-					if renderedStr, ok := val.(string); ok {
-						cached[expr.Hash] = renderedStr
-					}
-				}
-			}
-		}
-
-		rendered, err := service.nativeRenderer.RenderAllMath(ctx, result.MathExpressions, cached)
-		if err == nil {
-			if service.diagramAdapter != nil && len(rendered) > 0 {
-				newMath := make(map[string]any)
-				for hash, content := range rendered {
-					if _, ok := cached[hash]; !ok {
-						newMath["math:"+hash] = content
-					}
-				}
-				if len(newMath) > 0 {
-					service.diagramAdapter.Merge(newMath)
-				}
-			}
-			html = mdParser.ReplaceMathExpressions(html, result.MathExpressions, rendered)
-		}
-	}
-
-	// 2. D2
-	if len(result.D2Expressions) > 0 {
-		cached := make(map[string]models.SSRThemePair)
-		if service.diagramAdapter != nil {
-			for _, expr := range result.D2Expressions {
-				key := "d2:" + expr.Hash
-				if val, ok := service.diagramAdapter.GetLocal(key); ok {
-					if pair, ok := val.(models.SSRThemePair); ok {
-						cached[expr.Hash] = pair
-					}
-				}
-			}
-		}
-
-		rendered, err := service.nativeRenderer.RenderAllD2(ctx, result.D2Expressions, cached)
-		if err == nil {
-			if service.diagramAdapter != nil && len(rendered) > 0 {
-				newD2 := make(map[string]any)
-				for hash, pair := range rendered {
-					if _, ok := cached[hash]; !ok {
-						newD2["d2:"+hash] = pair
-					}
-				}
-				if len(newD2) > 0 {
-					service.diagramAdapter.Merge(newD2)
-				}
-			}
-			html = mdParser.ReplaceD2Expressions(html, result.D2Expressions, rendered)
-		}
-	}
+	html = service.renderMathSSR(ctx, html, result)
+	html = service.renderD2SSR(ctx, html, result)
 
 	return html
 }
 
+func (service *postService) renderMathSSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
+	if len(result.MathExpressions) == 0 {
+		return html
+	}
+
+	cached := make(map[string]string)
+	if service.diagramAdapter != nil {
+		for _, expr := range result.MathExpressions {
+			key := "math:" + expr.Hash
+			if val, ok := service.diagramAdapter.GetLocal(key); ok {
+				if renderedStr, ok := val.(string); ok {
+					cached[expr.Hash] = renderedStr
+				}
+			}
+		}
+	}
+
+	rendered, err := service.nativeRenderer.RenderAllMath(ctx, result.MathExpressions, cached)
+	if err != nil {
+		return html
+	}
+
+	if service.diagramAdapter != nil && len(rendered) > 0 {
+		newMath := make(map[string]any)
+		for hash, content := range rendered {
+			if _, ok := cached[hash]; !ok {
+				newMath["math:"+hash] = content
+			}
+		}
+		if len(newMath) > 0 {
+			service.diagramAdapter.Merge(newMath)
+		}
+	}
+	return mdParser.ReplaceMathExpressions(html, result.MathExpressions, rendered)
+}
+
+func (service *postService) renderD2SSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
+	if len(result.D2Expressions) == 0 {
+		return html
+	}
+
+	cached := make(map[string]models.SSRThemePair)
+	if service.diagramAdapter != nil {
+		for _, expr := range result.D2Expressions {
+			key := "d2:" + expr.Hash
+			if val, ok := service.diagramAdapter.GetLocal(key); ok {
+				if pair, ok := val.(models.SSRThemePair); ok {
+					cached[expr.Hash] = pair
+				}
+			}
+		}
+	}
+
+	rendered, err := service.nativeRenderer.RenderAllD2(ctx, result.D2Expressions, cached)
+	if err != nil {
+		return html
+	}
+
+	if service.diagramAdapter != nil && len(rendered) > 0 {
+		newD2 := make(map[string]any)
+		for hash, pair := range rendered {
+			if _, ok := cached[hash]; !ok {
+				newD2["d2:"+hash] = pair
+			}
+		}
+		if len(newD2) > 0 {
+			service.diagramAdapter.Merge(newD2)
+		}
+	}
+	return mdParser.ReplaceD2Expressions(html, result.D2Expressions, rendered)
+}
+
 // ProcessSingleWithResult processes and renders a single markdown file using an optional pre-parse result.
 func (service *postService) ProcessSingleWithResult(ctx context.Context, path string, source []byte, preParsed *ParsedMarkdownResult) error {
+	info, source, err := service.validateAndReadSource(path, source)
+	if err != nil {
+		return err
+	}
+
+	relPath, _ := fspkg.SafeRel(service.cfg.ContentDir, path)
+	htmlRelPath, _, destPath := navigation.ComputePathVars(service.cfg.OutputDir, relPath)
+	section := detectSection(relPath, service.logger)
+
+	parseRes, err := service.ensureParsed(path, relPath, htmlRelPath, source, info, preParsed)
+	if err != nil {
+		return err
+	}
+	parseRes.Post.Section = section
+
+	htmlContent := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
+	relPrefix := fspkg.GetRelativePrefix(htmlRelPath)
+	htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
+
+	service.handleRawMarkdown(destPath, source)
+
+	if service.cache != nil {
+		service.commitPostCache(commitPostCacheOptions{
+			parseRes:    parseRes,
+			post:        parseRes.Post,
+			relPath:     relPath,
+			info:        info,
+			htmlContent: htmlContent,
+		})
+		cardRelPath, cardDestPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
+		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
+	}
+
+	return service.renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section, parseRes)
+}
+
+func (service *postService) validateAndReadSource(path string, source []byte) (os.FileInfo, []byte, error) {
 	info, err := service.sourceFs.Stat(path)
 	if err != nil {
 		service.logger.Error("Error stating file", "path", path, "error", err)
-		return err
+		return nil, nil, err
 	}
 
 	if info.Size() > models.MaxFileSize {
 		service.logger.Warn("File exceeds size limit, skipping", "path", path, "size", info.Size(), "limit", models.MaxFileSize)
-		return fmt.Errorf("file size %d exceeds limit %d", info.Size(), models.MaxFileSize)
+		return nil, nil, fmt.Errorf("file size %d exceeds limit %d", info.Size(), models.MaxFileSize)
 	}
 
 	if source == nil {
 		source, err = afero.ReadFile(service.sourceFs, path)
 		if err != nil {
 			service.logger.Error("Error reading file", "path", path, "error", err)
-			return err
+			return nil, nil, err
 		}
 	}
+	return info, source, nil
+}
 
-	relPath, _ := fspkg.SafeRel(service.cfg.ContentDir, path)
-	htmlRelPath, _, destPath := navigation.ComputePathVars(service.cfg.OutputDir, relPath)
-
-	// Calculate Section
+func detectSection(relPath string, logger *slog.Logger) string {
 	section := ""
 	cleanRel := filepath.ToSlash(relPath)
 	cleanRel = strings.TrimPrefix(cleanRel, "./")
@@ -199,84 +249,53 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 	if len(parts) > 1 {
 		section = parts[0]
 	}
-	service.logger.Info("Section detected", "relPath", relPath, "section", section)
-	service.logger.Info("Calculating section for post", "relPath", relPath, "section", section)
+	logger.Debug("Section detected", "relPath", relPath, "section", section)
+	return section
+}
 
-	var parseRes *ParsedMarkdownResult
+func (service *postService) ensureParsed(path, relPath, htmlRelPath string, source []byte, info os.FileInfo, preParsed *ParsedMarkdownResult) (*ParsedMarkdownResult, error) {
 	if preParsed != nil {
-		parseRes = preParsed
-	} else {
-		var err error
-		parseRes, err = ParseMarkdown(ParseOptions{
-			Path:             path,
-			RelPath:          relPath,
-			Source:           source,
-			Info:             info,
-			Renderer:         service.renderer,
-			NativeRenderer:   service.nativeRenderer,
-			MdPool:           service.mdPool,
-			DiagramAdapter:   service.diagramAdapter,
-			Metrics:          service.metrics,
-			Cfg:              service.cfg,
-			HTMLRelPath:      htmlRelPath,
-			CleanHTMLRelPath: strings.TrimSuffix(htmlRelPath, "index.html"),
-		})
-		if err != nil {
-			return err
-		}
+		return preParsed, nil
 	}
+	return ParseMarkdown(ParseOptions{
+		Path:             path,
+		RelPath:          relPath,
+		Source:           source,
+		Info:             info,
+		Renderer:         service.renderer,
+		NativeRenderer:   service.nativeRenderer,
+		MdPool:           service.mdPool,
+		DiagramAdapter:   service.diagramAdapter,
+		Metrics:          service.metrics,
+		Cfg:              service.cfg,
+		HTMLRelPath:      htmlRelPath,
+		CleanHTMLRelPath: strings.TrimSuffix(htmlRelPath, "index.html"),
+	})
+}
 
-	// Ensure section is set on the post early
-	parseRes.Post.Section = section
+func (service *postService) handleRawMarkdown(destPath string, source []byte) {
+	if !service.cfg.Features.UseRawMarkdown {
+		return
+	}
+	mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
+	if err := service.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
+		service.logger.Warn("Failed to create directory for raw markdown", "dir", filepath.Dir(mdDestPath), "error", err)
+	}
+	if err := service.sink.WriteFile(mdDestPath, source); err == nil {
+		service.renderer.RegisterFile(mdDestPath)
+	}
+}
 
-	htmlContent := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
-	relPrefix := fspkg.GetRelativePrefix(htmlRelPath)
-	htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
-
+func (service *postService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult) error {
 	post := parseRes.Post
 	nav := service.resolveNavigation(post)
-	cardRelPath, cardDestPath, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
-
-	if service.cfg.Features.UseRawMarkdown {
-		mdDestPath := destPath[:len(destPath)-len(filepath.Ext(destPath))] + ".md"
-		if err := service.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
-			service.logger.Warn("Failed to create directory for raw markdown", "dir", filepath.Dir(mdDestPath), "error", err)
-		}
-		if err := service.sink.WriteFile(mdDestPath, source); err == nil {
-			service.renderer.RegisterFile(mdDestPath)
-		}
-	}
-
-	if service.cache != nil {
-		service.commitPostCache(commitPostCacheOptions{
-			parseRes:    parseRes,
-			post:        post,
-			relPath:     relPath,
-			info:        info,
-			htmlContent: htmlContent,
-		})
-		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
-	}
+	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
 
 	contentPrefix := strings.Trim(service.cfg.ContentPrefix, "/")
-	sectionIndexURL := "index.html"
-	if contentPrefix != "" {
-		sectionIndexURL = "/" + contentPrefix + "/"
-	} else if relPrefix != "" {
-		sectionIndexURL = relPrefix + "index.html"
-	}
+	sectionIndexURL := service.getSectionIndexURL(relPrefix, contentPrefix)
 
-	// Determine if this is a blog page or a custom layout page
-	// Pages with layout: "home" (portfolio) should NOT be treated as blog pages
-	layoutVal := ""
-	if l, ok := parseRes.Metadata["layout"].(string); ok {
-		layoutVal = strings.ToLower(l)
-	} else if l, ok := parseRes.Metadata["Layout"].(string); ok {
-		layoutVal = strings.ToLower(l)
-	}
-	isContent := layoutVal != "home"
 	pageContext := models.ContextSection
-	if !isContent {
+	if getLayoutVal(parseRes.Metadata) == "home" {
 		pageContext = models.ContextHome
 	}
 
@@ -295,6 +314,26 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 		Section:         section,
 		IsCleanBuild:    service.ctx.IsCleanBuild,
 	})
+}
+
+func (service *postService) getSectionIndexURL(relPrefix, contentPrefix string) string {
+	if contentPrefix != "" {
+		return "/" + contentPrefix + "/"
+	}
+	if relPrefix != "" {
+		return relPrefix + "index.html"
+	}
+	return "index.html"
+}
+
+func getLayoutVal(metadata map[string]any) string {
+	if l, ok := metadata["layout"].(string); ok {
+		return strings.ToLower(l)
+	}
+	if l, ok := metadata["Layout"].(string); ok {
+		return strings.ToLower(l)
+	}
+	return ""
 }
 
 type commitPostCacheOptions struct {
@@ -317,39 +356,13 @@ func (service *postService) commitPostCache(options commitPostCacheOptions) {
 	}
 
 	postID := cache.GeneratePostID("", options.relPath)
-	cacheTOC := make([]models.TOCEntry, len(options.parseRes.TOC))
-	for idx, tocEntry := range options.parseRes.TOC {
-		cacheTOC[idx] = models.TOCEntry{ID: tocEntry.ID, Text: tocEntry.Text, Level: tocEntry.Level}
-	}
+	newMeta := service.buildCacheMeta(options, postID)
 
-	newMeta := &cache.PostMeta{
-		PostID: postID, Path: options.relPath, ModTime: options.info.ModTime().UnixNano(),
-		ContentHash: options.parseRes.FrontmatterHash, BodyHash: hashing.GetBodyHash(nil),
-		Title: options.post.Title, Date: options.post.DateObj, Taxonomies: options.post.Taxonomies,
-		ReadingTime: options.post.ReadingTime, Description: options.post.Description,
-		Link: options.post.Link, IsPinned: options.post.IsPinned, Weight: options.post.Weight,
-		Section: options.post.Section,
-		IsDraft: options.post.IsDraft, Meta: options.parseRes.Metadata, TOC: cacheTOC,
-		SSRInputHashes: options.parseRes.SSRHashes,
-		CardHash:       options.parseRes.FrontmatterHash,
-		HasImages:      options.parseRes.HasImages,
-	}
 	if err := service.cache.StoreHTMLForPost(newMeta, []byte(options.htmlContent)); err != nil {
 		service.logger.Error("Failed to store HTML in cache", "path", options.relPath, "error", err)
 	}
 
-	newSearch := &cache.SearchRecord{
-		Title:           options.post.Title,
-		NormalizedTitle: strings.ToLower(options.post.Title),
-		BM25Data:        options.parseRes.WordFreqs,
-		DocLen:          options.parseRes.DocLen,
-		Content:         options.parseRes.PlainText,
-		Taxonomies:      options.parseRes.SearchRecord.Taxonomies,
-		NormalizedTaxs:  options.parseRes.SearchRecord.NormalizedTaxs,
-		StemMap:         options.parseRes.StemMap,
-		PositionalIndex: options.parseRes.PositionalIndex,
-		ByteOffsets:     options.parseRes.ByteOffsets,
-	}
+	newSearch := service.buildSearchRecord(options.parseRes)
 	newDep := &models.Dependencies{Taxonomies: options.post.Taxonomies}
 
 	service.cacheWg.Add(1)
@@ -367,6 +380,41 @@ func (service *postService) commitPostCache(options commitPostCacheOptions) {
 		},
 		Cleanup: service.cacheWg.Done,
 	})
+}
+
+func (service *postService) buildCacheMeta(options commitPostCacheOptions, postID string) *cache.PostMeta {
+	cacheTOC := make([]models.TOCEntry, len(options.parseRes.TOC))
+	for idx, tocEntry := range options.parseRes.TOC {
+		cacheTOC[idx] = models.TOCEntry{ID: tocEntry.ID, Text: tocEntry.Text, Level: tocEntry.Level}
+	}
+
+	return &cache.PostMeta{
+		PostID: postID, Path: options.relPath, ModTime: options.info.ModTime().UnixNano(),
+		ContentHash: options.parseRes.FrontmatterHash, BodyHash: hashing.GetBodyHash(nil),
+		Title: options.post.Title, Date: options.post.DateObj, Taxonomies: options.post.Taxonomies,
+		ReadingTime: options.post.ReadingTime, Description: options.post.Description,
+		Link: options.post.Link, IsPinned: options.post.IsPinned, Weight: options.post.Weight,
+		Section: options.post.Section,
+		IsDraft: options.post.IsDraft, Meta: options.parseRes.Metadata, TOC: cacheTOC,
+		SSRInputHashes: options.parseRes.SSRHashes,
+		CardHash:       options.parseRes.FrontmatterHash,
+		HasImages:      options.parseRes.HasImages,
+	}
+}
+
+func (service *postService) buildSearchRecord(parseRes *ParsedMarkdownResult) *cache.SearchRecord {
+	return &cache.SearchRecord{
+		Title:           parseRes.Post.Title,
+		NormalizedTitle: strings.ToLower(parseRes.Post.Title),
+		BM25Data:        parseRes.WordFreqs,
+		DocLen:          parseRes.DocLen,
+		Content:         parseRes.PlainText,
+		Taxonomies:      parseRes.SearchRecord.Taxonomies,
+		NormalizedTaxs:  parseRes.SearchRecord.NormalizedTaxs,
+		StemMap:         parseRes.StemMap,
+		PositionalIndex: parseRes.PositionalIndex,
+		ByteOffsets:     parseRes.ByteOffsets,
+	}
 }
 
 func (service *postService) handleSocialCard(parseRes *ParsedMarkdownResult, relPath, cardRelPath, cardDestPath string) {

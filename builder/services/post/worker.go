@@ -107,21 +107,27 @@ func (service *postService) parseIfNeeded(_ context.Context, file models.Scanned
 	return parseRes, htmlContent, finalSSRHashes, false, nil
 }
 
-func (service *postService) parseWorkerTaskLocal(file models.ScannedResource, workerContext WorkerContext, local *workerLocalState) {
-	path := file.Path
-	relativePath := file.RelPath
+func (service *postService) calculateSection(relativePath string) string {
+	cleanRel := filepath.ToSlash(relativePath)
+	cleanRel = strings.TrimPrefix(cleanRel, "./")
+	cleanRel = strings.TrimPrefix(cleanRel, "/")
+	parts := strings.Split(cleanRel, "/")
+	if len(parts) > 1 {
+		return parts[0]
+	}
+	return ""
+}
 
+func (service *postService) parseWorkerTaskLocal(file models.ScannedResource, workerContext WorkerContext, local *workerLocalState) {
+	relativePath := file.RelPath
 	htmlRelativePath, _, destinationPath := navigation.ComputePathVars(service.cfg.OutputDir, relativePath)
 
-	// 1. Check Cache
 	cachedMeta, useCache := service.checkCache(relativePath, file, workerContext.ShouldForce)
-
 	parseResult, htmlContent, finalSSRHashes, useCache := service.loadCachedPost(relativePath, htmlRelativePath, file, cachedMeta, useCache)
 
-	// 3. Full Parse if needed
 	sourceBytes, err := service.loadSourceIfNeeded(file, useCache)
 	if err != nil {
-		service.logger.Error("Failed to load source", "path", path, "error", err)
+		service.logger.Error("Failed to load source", "path", file.Path, "error", err)
 		local.errs = append(local.errs, err)
 		return
 	}
@@ -130,7 +136,7 @@ func (service *postService) parseWorkerTaskLocal(file models.ScannedResource, wo
 		var parseErr error
 		parseResult, htmlContent, finalSSRHashes, useCache, parseErr = service.parseIfNeeded(workerContext.Ctx, file, cachedMeta, htmlRelativePath, sourceBytes, useCache)
 		if parseErr != nil {
-			service.logger.Error("Failed to parse markdown", "path", path, "error", parseErr)
+			service.logger.Error("Failed to parse markdown", "path", file.Path, "error", parseErr)
 			local.errs = append(local.errs, parseErr)
 			return
 		}
@@ -142,19 +148,10 @@ func (service *postService) parseWorkerTaskLocal(file models.ScannedResource, wo
 		return
 	}
 
-	// Calculate Section
-	section := ""
-	cleanRel := filepath.ToSlash(relativePath)
-	cleanRel = strings.TrimPrefix(cleanRel, "./")
-	cleanRel = strings.TrimPrefix(cleanRel, "/")
-	parts := strings.Split(cleanRel, "/")
-	if len(parts) > 1 {
-		section = parts[0]
-	}
+	section := service.calculateSection(relativePath)
 	post.Section = section
 	parseResult.Post.Section = section
 
-	// 4. Social Card
 	service.queueSocialCard(SocialCardOptions{
 		RelativePath:       relativePath,
 		Result:             parseResult,
@@ -163,126 +160,126 @@ func (service *postService) parseWorkerTaskLocal(file models.ScannedResource, wo
 		CardPool:           workerContext.CardPool,
 	})
 
-	// 5. Aggregate and stream
 	service.aggregateLocal(AggregateContext{
-		ScannedFile:      file,
-		Result:           parseResult,
-		Post:             post,
-		HTMLContent:      htmlContent,
-		DestinationPath:  destinationPath,
-		RelativePath:     relativePath,
-		HTMLRelativePath: htmlRelativePath,
-		SSRHashes:        finalSSRHashes,
-		UseCache:         useCache,
-		WorkerContext:    workerContext,
-		Local:            local,
-		SourceBytes:      sourceBytes,
+		ScannedFile: file, Result: parseResult, Post: post, HTMLContent: htmlContent,
+		DestinationPath: destinationPath, RelativePath: relativePath, HTMLRelativePath: htmlRelativePath,
+		SSRHashes: finalSSRHashes, UseCache: useCache, WorkerContext: workerContext, Local: local, SourceBytes: sourceBytes,
 	})
 	if service.metrics != nil {
 		service.metrics.IncrementPostsProcessed()
 	}
 }
 
-func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
-	file := aggregateContext.ScannedFile
-	renderResult := aggregateContext.Result
-	post := aggregateContext.Post
-	htmlContent := aggregateContext.HTMLContent
-	destinationPath := aggregateContext.DestinationPath
-	relativePath := aggregateContext.RelativePath
-	htmlRelativePath := aggregateContext.HTMLRelativePath
-	ssrHashes := aggregateContext.SSRHashes
-	useCache := aggregateContext.UseCache
-	workerContext := aggregateContext.WorkerContext
-	local := aggregateContext.Local
-	sourceBytes := aggregateContext.SourceBytes
-
-	searchRecord := renderResult.SearchRecord
+func (service *postService) prepareIndexedPost(aggregateContext AggregateContext) models.IndexedPost {
+	searchRecord := aggregateContext.Result.SearchRecord
 	searchRecord.ID = xxh3.HashString(searchRecord.Link)
 
-	localIndex := len(local.indexedPosts)
-	indexed := models.IndexedPost{
-		Record: searchRecord, WordFreqs: renderResult.WordFreqs, DocLen: renderResult.DocLen,
-		StemMap: renderResult.StemMap, PositionalIndex: renderResult.PositionalIndex, ByteOffsets: renderResult.ByteOffsets,
+	return models.IndexedPost{
+		Record: searchRecord, WordFreqs: aggregateContext.Result.WordFreqs, DocLen: aggregateContext.Result.DocLen,
+		StemMap: aggregateContext.Result.StemMap, PositionalIndex: aggregateContext.Result.PositionalIndex, ByteOffsets: aggregateContext.Result.ByteOffsets,
 	}
-	local.indexedPosts = append(local.indexedPosts, indexed)
+}
 
-	// If using cache or indexing is simple, stream immediately.
-	// Otherwise it goes through SearchPool which feeds ingestor upon completion.
-	if useCache && workerContext.SearchIngestor != nil {
-		workerContext.SearchIngestor.Add(indexed)
+func (service *postService) handleSearchTasks(aggregateContext AggregateContext, indexed models.IndexedPost, localIndex int) {
+	if aggregateContext.UseCache && aggregateContext.WorkerContext.SearchIngestor != nil {
+		aggregateContext.WorkerContext.SearchIngestor.Add(indexed)
 	}
 
-	if !useCache && service.cache != nil {
+	if !aggregateContext.UseCache && service.cache != nil {
 		newSearch := &models.SearchRecord{
-			Title: post.Title, NormalizedTitle: renderResult.SearchRecord.NormalizedTitle,
-			Content:        renderResult.SearchRecord.Content,
-			Taxonomies:     renderResult.SearchRecord.Taxonomies,
-			NormalizedTaxs: renderResult.SearchRecord.NormalizedTaxs,
+			Title: aggregateContext.Post.Title, NormalizedTitle: aggregateContext.Result.SearchRecord.NormalizedTitle,
+			Content:        aggregateContext.Result.SearchRecord.Content,
+			Taxonomies:     aggregateContext.Result.SearchRecord.Taxonomies,
+			NormalizedTaxs: aggregateContext.Result.SearchRecord.NormalizedTaxs,
 		}
-		postID := cache.GeneratePostID("", relativePath)
-		local.newSearchRecords[postID] = newSearch
+		postID := cache.GeneratePostID("", aggregateContext.RelativePath)
+		aggregateContext.Local.newSearchRecords[postID] = newSearch
 
 		if service.cfg.Features.Generators.IsSearchEnabled {
-			local.searchTasks = append(local.searchTasks, deferredSearchTask{
-				record: searchRecord, plainText: renderResult.PlainText, localIndex: localIndex, cached: newSearch,
+			aggregateContext.Local.searchTasks = append(aggregateContext.Local.searchTasks, deferredSearchTask{
+				record: indexed.Record, plainText: aggregateContext.Result.PlainText, localIndex: localIndex, cached: newSearch,
 			})
 		}
 	}
+}
 
-	local.allPosts = append(local.allPosts, post)
-	if post.IsPinned {
-		local.pinnedItems = append(local.pinnedItems, post)
+func (service *postService) storeCacheMetadata(aggregateContext AggregateContext) {
+	if aggregateContext.UseCache || service.cache == nil {
+		return
 	}
-	// 6. Aggregate taxonomies for site-wide discovery
-	for taxKey, terms := range post.Taxonomies {
-		// Add to local registry for site-wide aggregation (tags, categories, etc.)
+
+	postID := cache.GeneratePostID("", aggregateContext.RelativePath)
+	newMeta := &models.PostMeta{
+		PostID: postID, Path: aggregateContext.RelativePath, ModTime: aggregateContext.ScannedFile.Info.ModTime().UnixNano(),
+		ContentHash: aggregateContext.Result.FrontmatterHash, BodyHash: aggregateContext.ScannedFile.BodyHash,
+		Title: aggregateContext.Post.Title, Date: aggregateContext.Post.DateObj,
+		WordCount:  int(aggregateContext.ScannedFile.Info.Size()),
+		Taxonomies: aggregateContext.Post.Taxonomies, ReadingTime: aggregateContext.Post.ReadingTime,
+		Description: aggregateContext.Post.Description, Link: aggregateContext.Post.Link,
+		IsPinned: aggregateContext.Post.IsPinned, Weight: aggregateContext.Post.Weight,
+		IsDraft: aggregateContext.Post.IsDraft, Meta: aggregateContext.Result.Metadata,
+		TOC: aggregateContext.Result.TOC, SSRInputHashes: aggregateContext.SSRHashes,
+		CardHash: aggregateContext.Result.FrontmatterHash, HasImages: aggregateContext.Result.HasImages,
+		MathExpressions: aggregateContext.Result.MathExpressions,
+	}
+
+	if err := service.cache.StoreHTMLForPost(newMeta, []byte(aggregateContext.HTMLContent)); err != nil {
+		service.logger.Warn("Failed to store HTML for post", "path", aggregateContext.RelativePath, "error", err)
+	}
+
+	aggregateContext.Local.newPostsMeta = append(aggregateContext.Local.newPostsMeta, newMeta)
+	aggregateContext.Local.newDependencies[postID] = &models.Dependencies{Taxonomies: aggregateContext.Post.Taxonomies}
+}
+
+func (service *postService) aggregateLocal(aggregateContext AggregateContext) {
+	local := aggregateContext.Local
+
+	indexed := service.prepareIndexedPost(aggregateContext)
+	localIndex := len(local.indexedPosts)
+	local.indexedPosts = append(local.indexedPosts, indexed)
+
+	service.handleSearchTasks(aggregateContext, indexed, localIndex)
+
+	local.allPosts = append(local.allPosts, aggregateContext.Post)
+	if aggregateContext.Post.IsPinned {
+		local.pinnedItems = append(local.pinnedItems, aggregateContext.Post)
+	}
+
+	for taxKey, terms := range aggregateContext.Post.Taxonomies {
 		for _, term := range terms {
 			local.taxonomyEntries = append(local.taxonomyEntries, taxonomyEntry{
 				taxonomy: taxKey,
 				term:     strings.ToLower(strings.TrimSpace(term)),
-				post:     post,
+				post:     aggregateContext.Post,
 			})
 		}
 	}
 
-	// Stream to renderer // No locks needed for channel write
-	workerContext.RenderChan <- renderTask{
-		parseResult:      renderResult,
-		file:             file,
-		htmlContent:      htmlContent,
-		destinationPath:  destinationPath,
-		relativePath:     relativePath,
-		htmlRelativePath: htmlRelativePath,
-		source:           sourceBytes,
+	aggregateContext.WorkerContext.RenderChan <- renderTask{
+		parseResult:      aggregateContext.Result,
+		file:             aggregateContext.ScannedFile,
+		htmlContent:      aggregateContext.HTMLContent,
+		destinationPath:  aggregateContext.DestinationPath,
+		relativePath:     aggregateContext.RelativePath,
+		htmlRelativePath: aggregateContext.HTMLRelativePath,
+		source:           aggregateContext.SourceBytes,
 	}
 
-	if !useCache && service.cache != nil {
-		postID := cache.GeneratePostID("", relativePath)
-		newMeta := &models.PostMeta{
-			PostID: postID, Path: relativePath, ModTime: file.Info.ModTime().UnixNano(),
-			ContentHash: renderResult.FrontmatterHash, BodyHash: file.BodyHash, Title: post.Title, Date: post.DateObj,
-			WordCount:  int(file.Info.Size()), // Use WordCount as size for quick comparison
-			Taxonomies: post.Taxonomies, ReadingTime: post.ReadingTime, Description: post.Description,
-			Link: post.Link, IsPinned: post.IsPinned, Weight: post.Weight, IsDraft: post.IsDraft,
-			Meta: renderResult.Metadata, TOC: renderResult.TOC, SSRInputHashes: ssrHashes,
-			CardHash: renderResult.FrontmatterHash, HasImages: renderResult.HasImages, MathExpressions: renderResult.MathExpressions,
-		}
-		if err := service.cache.StoreHTMLForPost(newMeta, []byte(htmlContent)); err != nil {
-			service.logger.Warn("Failed to store HTML for post", "path", relativePath, "error", err)
-		}
-		local.newPostsMeta = append(local.newPostsMeta, newMeta)
-		local.newDependencies[postID] = &models.Dependencies{Taxonomies: post.Taxonomies}
-	}
+	service.storeCacheMetadata(aggregateContext)
 }
 
 func (service *postService) mergeWorkerStates(locals []*workerLocalState, workerContext WorkerContext) {
 	processContext := workerContext.ProcessContext
-	for _, local := range locals {
+	baseIndices := make([]int, len(locals))
+
+	// Phase 1: Aggregate all metadata and stabilize the indexedPosts slice.
+	// We must finish all appends to indexedPosts before handing out pointers to its elements
+	// to avoid data races during slice reallocation (growslice).
+	for i, local := range locals {
 		if local.anyChanged {
 			processContext.anyPostChanged.Store(true)
 		}
-		baseIndex := len(processContext.indexedPosts)
+		baseIndices[i] = len(processContext.indexedPosts)
 		processContext.allPosts = append(processContext.allPosts, local.allPosts...)
 		processContext.pinnedItems = append(processContext.pinnedItems, local.pinnedItems...)
 		processContext.indexedPosts = append(processContext.indexedPosts, local.indexedPosts...)
@@ -300,7 +297,11 @@ func (service *postService) mergeWorkerStates(locals []*workerLocalState, worker
 			processContext.taxonomyMap[entry.taxonomy][entry.term] = append(processContext.taxonomyMap[entry.taxonomy][entry.term], entry.post)
 		}
 		processContext.errs = append(processContext.errs, local.errs...)
+	}
 
+	// Phase 2: Submit search tasks using stable pointers into the global slice.
+	for i, local := range locals {
+		baseIndex := baseIndices[i]
 		for _, task := range local.searchTasks {
 			globalIndex := baseIndex + task.localIndex
 			workerContext.SearchPool.Submit(searchTask{

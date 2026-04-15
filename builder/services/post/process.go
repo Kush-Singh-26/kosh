@@ -4,7 +4,6 @@ import (
 	"context"
 	"html/template"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -143,26 +142,8 @@ func finalizePostProcessing(processCtx *postProcessContext) {
 	}
 }
 
-// ProcessStreaming processes posts using streaming parse and render phases.
-func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResult, error) {
-	ctx := opts.Ctx
-	searchIngestor := opts.SearchIngestor
-	shouldForce := opts.ShouldForce
-	forceSocialRebuild := opts.ForceSocialRebuild
-	fileChan := opts.FileChan
-
-	numWorkers := models.GetDefaultWorkerCount()
-
-	cardPool := service.startCardPool(ctx, numWorkers)
-	defer func() { buildctx.IgnoreError(cardPool.Stop(), "stop card pool") }()
-
-	// Search Indexing Pool (Background)
-	searchPool := service.startSearchPool(ctx, numWorkers)
-	defer func() { buildctx.IgnoreError(searchPool.Stop(), "stop search pool") }()
-
-	// Create a channel for navInfo to be sent once scanner finishes
-	totalFiles := len(opts.Files)
-	processCtx := &postProcessContext{
+func (service *postService) newPostProcessContext(totalFiles int) *postProcessContext {
+	return &postProcessContext{
 		allPosts:         make([]models.PostMetadata, 0, totalFiles),
 		pinnedItems:      make([]models.PostMetadata, 0, totalFiles/4),
 		taxonomyMap:      make(map[string]map[string][]models.PostMetadata),
@@ -171,67 +152,62 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResul
 		indexedPosts:     make([]models.IndexedPost, 0, totalFiles),
 		newPostsMeta:     make([]*models.PostMeta, 0, totalFiles),
 	}
+}
 
-	// Internal channel to collect all files for navigation calculation
-	logger := service.logger
-	if logger == nil {
-		logger = slog.Default()
+func (service *postService) setupStreamingContext(ctx context.Context, numWorkers int) (*async.WorkerPool[socialCardTask], *async.WorkerPool[searchTask]) {
+	cardPool := service.startCardPool(ctx, numWorkers)
+	searchPool := service.startSearchPool(ctx, numWorkers)
+	return cardPool, searchPool
+}
+
+func (service *postService) getLogger() *slog.Logger {
+	if service.logger != nil {
+		return service.logger
 	}
+	return slog.Default()
+}
+
+// ProcessStreaming processes posts using streaming parse and render phases.
+func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResult, error) {
+	ctx := opts.Ctx
+	numWorkers := models.GetDefaultWorkerCount()
+
+	cardPool, searchPool := service.setupStreamingContext(ctx, numWorkers)
+	defer func() { buildctx.IgnoreError(cardPool.Stop(), "stop card pool") }()
+	defer func() { buildctx.IgnoreError(searchPool.Stop(), "stop search pool") }()
+
+	processCtx := service.newPostProcessContext(len(opts.Files))
+	logger := service.getLogger()
+
 	collectedFilesChan, navReady, collectWg := startNavCollector(ctx, logger, service.prepareNavigationInfo)
-
-	// Start render task collector goroutine to avoid blocking parse workers
 	renderCollector := startRenderTaskCollector(ctx, logger, numWorkers)
-
-	// renderWg is kept for context-based cleanup if needed, though runStreamingRenderPhase is synchronous
-	var renderWg sync.WaitGroup
-	renderWg.Add(1)
-	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-		Ctx:       ctx,
-		Logger:    logger,
-		Operation: "render phase sync",
-		Fn: func() error {
-			// This goroutine will wait for renderChan to close and tasks to be collected elsewhere
-			return nil
-		},
-		Cleanup: renderWg.Done,
-	})
 
 	workerCtx := WorkerContext{
 		Ctx: ctx, ProcessContext: processCtx, CardPool: cardPool, SearchPool: searchPool,
-		SearchIngestor: searchIngestor,
-		RenderChan:     renderCollector.renderChan, ShouldForce: shouldForce, ForceSocialRebuild: forceSocialRebuild,
+		SearchIngestor: opts.SearchIngestor,
+		RenderChan:     renderCollector.renderChan, ShouldForce: opts.ShouldForce, ForceSocialRebuild: opts.ForceSocialRebuild,
 	}
 
-	// Stream from original channel to both parse workers and our navigation collector
-	err := service.runStreamingParsePhase(numWorkers, fileChan, collectedFilesChan, workerCtx)
+	err := service.runStreamingParsePhase(numWorkers, opts.FileChan, collectedFilesChan, workerCtx)
 	close(collectedFilesChan)
-	collectWg.Wait() // Wait for scanner walk to finish and navReady to be filled
+	collectWg.Wait()
 
-	// Once scanner is done and navReady is filled, signal the render phase
-	close(renderCollector.renderChan) // No more render tasks will be produced
+	close(renderCollector.renderChan)
 	renderTasks := waitForRenderTasks(renderCollector)
 
-	// Global SSR render pass (Math and D2)
 	service.renderSSRGlobal(ctx, renderTasks)
-
-	// Now start the render pool with complete navInfo
 	nav := <-navReady
 	service.runStreamingRenderPhase(ctx, numWorkers, nav, renderTasks)
-
-	renderWg.Wait() // Reserved for backward compatibility if needed, but runStreamingRenderPhase is now synchronous here
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Wait for search indexing to complete before returning results
 	if err := searchPool.Stop(); err != nil {
 		service.logger.Error("Failed to stop search pool", "error", err)
 	}
 
 	service.finalizeBuild(processCtx)
-
-	// Sort allPosts to ensure deterministic ordering across builds
 	finalizePostProcessing(processCtx)
 
 	return &ContentResult{
@@ -346,17 +322,32 @@ func (service *postService) runStreamingParsePhase(numWorkers int, fileChan <-ch
 	return err
 }
 
+func (service *postService) setupNavPages(nav navInfo, link string) (prev, next *models.NavPage) {
+	if position, ok := nav.postPos[link]; ok {
+		allPosts := nav.allPosts
+		if position > 0 {
+			prev = &models.NavPage{Title: allPosts[position-1].Title, Link: allPosts[position-1].Link}
+		}
+		if position < len(allPosts)-1 {
+			next = &models.NavPage{Title: allPosts[position+1].Title, Link: allPosts[position+1].Link}
+		}
+	}
+	return
+}
+
+func (service *postService) getPageLayout(renderTaskInstance renderTask) string {
+	layoutVal := strings.ToLower(renderTaskInstance.file.Layout)
+	if layoutVal == "" {
+		if l, ok := renderTaskInstance.parseResult.Metadata["layout"].(string); ok {
+			layoutVal = strings.ToLower(l)
+		}
+	}
+	return layoutVal
+}
+
 func (service *postService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask) {
 	processed := atomic.Int32{}
 	totalFiles := len(tasks)
-
-	// Build a map to update post metadata with finalized HTML for RSS
-	postMap := make(map[string]*models.PostMetadata)
-	if service.cfg.Features.Generators.IsRSSEnabled {
-		for i := range nav.allPosts {
-			postMap[nav.allPosts[i].Link] = &nav.allPosts[i]
-		}
-	}
 
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(renderTaskInstance renderTask) error {
 		post := renderTaskInstance.parseResult.Post
@@ -365,28 +356,10 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 		htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
 
 		_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, renderTaskInstance.htmlRelativePath)
-		var prev, next *models.NavPage
-		if position, ok := nav.postPos[renderTaskInstance.file.Link]; ok {
-			allPosts := nav.allPosts
-			if position > 0 {
-				prev = &models.NavPage{Title: allPosts[position-1].Title, Link: allPosts[position-1].Link}
-			}
-			if position < len(allPosts)-1 {
-				next = &models.NavPage{Title: allPosts[position+1].Title, Link: allPosts[position+1].Link}
-			}
-		}
-
+		prev, next := service.setupNavPages(nav, renderTaskInstance.file.Link)
 		sectionIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
 
-		// Determine node type and layout
-		layoutVal := strings.ToLower(renderTaskInstance.file.Layout)
-		if layoutVal == "" {
-			// Fallback to frontmatter if not set by Data Cascade
-			if l, ok := renderTaskInstance.parseResult.Metadata["layout"].(string); ok {
-				layoutVal = strings.ToLower(l)
-			}
-		}
-
+		layoutVal := service.getPageLayout(renderTaskInstance)
 		pageContext := models.ContextSection
 		if layoutVal == "home" {
 			pageContext = models.ContextHome
@@ -411,20 +384,13 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 		}
 
 		if service.cfg.Features.UseRawMarkdown {
-			mdDestPath := renderTaskInstance.destinationPath[:len(renderTaskInstance.destinationPath)-len(filepath.Ext(renderTaskInstance.destinationPath))] + ".md"
-			if err := service.sink.MkdirAll(filepath.Dir(mdDestPath)); err != nil {
-				service.logger.Warn("Failed to create directory for raw markdown", "dir", filepath.Dir(mdDestPath), "error", err)
-			}
-			if err := service.sink.WriteFile(mdDestPath, renderTaskInstance.source); err == nil {
-				service.renderer.RegisterFile(mdDestPath)
-			}
+			service.handleRawMarkdown(renderTaskInstance.destinationPath, renderTaskInstance.source)
 		}
 
 		if service.reporter != nil {
 			curr := int(processed.Add(1))
 			service.reporter.UpdateProgress(ui.PhasePosts, curr, totalFiles, renderTaskInstance.relativePath)
 		}
-
 		return nil
 	}).WithScheduler(service.ctx.Scheduler, scheduler.TaskMarkdown)
 
@@ -432,7 +398,5 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 	for _, renderTaskInstance := range tasks {
 		renderPool.Submit(renderTaskInstance)
 	}
-	if err := renderPool.Stop(); err != nil {
-		service.logger.Error("Failed to stop render pool", "error", err)
-	}
+	buildctx.IgnoreError(renderPool.Stop(), "stop render pool")
 }

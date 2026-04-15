@@ -143,62 +143,71 @@ func NewStreamBuilder(expectedDocs int) *StreamBuilder {
 			Logger:    slog.Default(),
 			Operation: "search index stream build",
 			Fn: func() error {
-				workerCap := minWorkerCap
-				if sb.totalDocs > 0 {
-					workerCap = max(sb.totalDocs/sb.numWorkers, minWorkerCap)
-				}
-				res := partialResult{
-					posts:         make(map[string]models.PostRecord, workerCap),
-					inverted:      make(map[string]map[string][]uint32, workerCap*2),
-					offsets:       make(map[string]map[string][]uint32, workerCap*2),
-					docLens:       make(map[string]int64, workerCap),
-					stemMap:       make(map[string]map[string]bool, workerCap),
-					titleInverted: make(map[string][]uint64, workerCap),
-				}
-
-				for ip := range sb.postChan {
-					idStr := strconv.FormatUint(ip.Record.ID, decimalBase)
-					rec := ip.Record
-					if len(rec.Content) > maxSearchIndexContentLength {
-						rec.Content = core.TruncateToLength(rec.Content, maxSearchIndexContentLength)
-					}
-					res.posts[idStr] = rec
-					res.docLens[idStr] = int64(ip.DocLen)
-					res.totalLen += int64(ip.DocLen)
-
-					titleTokens := core.DefaultAnalyzer.Analyze(ip.Record.NormalizedTitle)
-					for _, word := range titleTokens {
-						res.titleInverted[word] = append(res.titleInverted[word], ip.Record.ID)
-					}
-
-					for word, positions := range ip.PositionalIndex {
-						if _, ok := res.inverted[word]; !ok {
-							res.inverted[word] = make(map[string][]uint32, perWordMapCap)
-						}
-						res.inverted[word][idStr] = positions
-					}
-
-					for word, off := range ip.ByteOffsets {
-						if _, ok := res.offsets[word]; !ok {
-							res.offsets[word] = make(map[string][]uint32, perWordMapCap)
-						}
-						res.offsets[word][idStr] = off
-					}
-
-					for orig, stem := range ip.StemMap {
-						if _, ok := res.stemMap[stem]; !ok {
-							res.stemMap[stem] = make(map[string]bool, perWordMapCap)
-						}
-						res.stemMap[stem][orig] = true
-					}
-				}
-				sb.results[workerID] = res
+				sb.runWorker(workerID)
 				return nil
 			},
 			Cleanup: sb.wg.Done,
 		})
 	}
+
 	return sb
+}
+
+func (sb *StreamBuilder) runWorker(workerID int) {
+	workerCap := minWorkerCap
+	if sb.totalDocs > 0 {
+		workerCap = max(sb.totalDocs/sb.numWorkers, minWorkerCap)
+	}
+	res := partialResult{
+		posts:         make(map[string]models.PostRecord, workerCap),
+		inverted:      make(map[string]map[string][]uint32, workerCap*2),
+		offsets:       make(map[string]map[string][]uint32, workerCap*2),
+		docLens:       make(map[string]int64, workerCap),
+		stemMap:       make(map[string]map[string]bool, workerCap),
+		titleInverted: make(map[string][]uint64, workerCap),
+	}
+
+	for ip := range sb.postChan {
+		idStr := strconv.FormatUint(ip.Record.ID, decimalBase)
+		rec := ip.Record
+		if len(rec.Content) > maxSearchIndexContentLength {
+			rec.Content = core.TruncateToLength(rec.Content, maxSearchIndexContentLength)
+		}
+		res.posts[idStr] = rec
+		res.docLens[idStr] = int64(ip.DocLen)
+		res.totalLen += int64(ip.DocLen)
+
+		titleTokens := core.DefaultAnalyzer.Analyze(ip.Record.NormalizedTitle)
+		for _, word := range titleTokens {
+			res.titleInverted[word] = append(res.titleInverted[word], ip.Record.ID)
+		}
+
+		sb.ingestWordIndices(&res, idStr, ip)
+	}
+	sb.results[workerID] = res
+}
+
+func (sb *StreamBuilder) ingestWordIndices(res *partialResult, idStr string, ip models.IndexedPost) {
+	for word, positions := range ip.PositionalIndex {
+		if _, ok := res.inverted[word]; !ok {
+			res.inverted[word] = make(map[string][]uint32, perWordMapCap)
+		}
+		res.inverted[word][idStr] = positions
+	}
+
+	for word, off := range ip.ByteOffsets {
+		if _, ok := res.offsets[word]; !ok {
+			res.offsets[word] = make(map[string][]uint32, perWordMapCap)
+		}
+		res.offsets[word][idStr] = off
+	}
+
+	for orig, stem := range ip.StemMap {
+		if _, ok := res.stemMap[stem]; !ok {
+			res.stemMap[stem] = make(map[string]bool, perWordMapCap)
+		}
+		res.stemMap[stem][orig] = true
+	}
 }
 
 // Add enqueues a post for background indexing.

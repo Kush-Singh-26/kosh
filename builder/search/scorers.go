@@ -390,58 +390,73 @@ func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []
 	}
 
 	if len(phraseTerms) == 1 {
-		if postMap, ok := index.Inverted[phraseTerms[0]]; ok {
-			_, found := postMap[postID]
-			return found
-		}
-		return false
+		return checkSingleTermInPost(index, postID, phraseTerms[0])
 	}
 
-	postMap, ok := index.Inverted[phraseTerms[0]]
+	posList, ok := getInitialPositions(index, postID, phraseTerms[0])
 	if !ok {
 		return false
 	}
-	candidates, ok := postMap[postID]
-	if !ok {
-		return false
-	}
-
-	decoded := models.DecodePositions(candidates)
-	posList := make([]int, len(decoded))
-	copy(posList, decoded)
 
 	for i := 1; i < len(phraseTerms); i++ {
-		nextWord := phraseTerms[i]
-		nextPostMap, ok := index.Inverted[nextWord]
-		if !ok {
-			return false
-		}
-		nextPositions, ok := nextPostMap[postID]
+		nextPositions, ok := getDecodedPositions(index, postID, phraseTerms[i])
 		if !ok {
 			return false
 		}
 
-		nextDecoded := models.DecodePositions(nextPositions)
-		var newCandidates []int
-		idx1, idx2 := 0, 0
-		for idx1 < len(posList) && idx2 < len(nextDecoded) {
-			switch {
-			case nextDecoded[idx2] == posList[idx1]+1:
-				newCandidates = append(newCandidates, nextDecoded[idx2])
-				idx1++
-				idx2++
-			case nextDecoded[idx2] < posList[idx1]+1:
-				idx2++
-			default:
-				idx1++
-			}
-		}
-
-		if len(newCandidates) == 0 {
+		posList = intersectPositions(posList, nextPositions)
+		if len(posList) == 0 {
 			return false
 		}
-		posList = newCandidates
 	}
 
 	return true
+}
+
+func checkSingleTermInPost(index *models.SearchIndex, postID, term string) bool {
+	if postMap, ok := index.Inverted[term]; ok {
+		_, found := postMap[postID]
+		return found
+	}
+	return false
+}
+
+func getInitialPositions(index *models.SearchIndex, postID, term string) ([]int, bool) {
+	candidates, ok := getDecodedPositions(index, postID, term)
+	if !ok {
+		return nil, false
+	}
+	posList := make([]int, len(candidates))
+	copy(posList, candidates)
+	return posList, true
+}
+
+func getDecodedPositions(index *models.SearchIndex, postID, term string) ([]int, bool) {
+	postMap, ok := index.Inverted[term]
+	if !ok {
+		return nil, false
+	}
+	candidates, ok := postMap[postID]
+	if !ok {
+		return nil, false
+	}
+	return models.DecodePositions(candidates), true
+}
+
+func intersectPositions(posList, nextDecoded []int) []int {
+	var newCandidates []int
+	idx1, idx2 := 0, 0
+	for idx1 < len(posList) && idx2 < len(nextDecoded) {
+		switch {
+		case nextDecoded[idx2] == posList[idx1]+1:
+			newCandidates = append(newCandidates, nextDecoded[idx2])
+			idx1++
+			idx2++
+		case nextDecoded[idx2] < posList[idx1]+1:
+			idx2++
+		default:
+			idx1++
+		}
+	}
+	return newCandidates
 }
