@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"bytes"
@@ -101,13 +101,13 @@ func extractMetadata(_ parser.Context, source []byte, preParsedMeta map[string]a
 	return make(map[string]any)
 }
 
-// buildPostMetadata creates PostMetadata from frontmatter data
-func buildPostMetadata(
+// buildContentMetadata creates ContentMetadata from frontmatter data
+func buildContentMetadata(
 	fm parsedFrontmatter,
 	postLink string,
 	readingTime int,
-) models.PostMetadata {
-	return models.PostMetadata{
+) models.ContentMetadata {
+	return models.ContentMetadata{
 		Title:       fm.Title,
 		Link:        postLink,
 		Description: fm.Description,
@@ -120,14 +120,14 @@ func buildPostMetadata(
 	}
 }
 
-// buildSearchRecord creates a PostRecord for search indexing
+// buildSearchRecord creates a ContentRecord for search indexing
 func buildSearchRecord(
-	post models.PostMetadata,
+	item models.ContentMetadata,
 	htmlRelPath string,
 	plainText string,
-) models.PostRecord {
-	normTaxs := make(map[string][]string, len(post.Taxonomies))
-	for k, terms := range post.Taxonomies {
+) models.ContentRecord {
+	normTaxs := make(map[string][]string, len(item.Taxonomies))
+	for k, terms := range item.Taxonomies {
 		norm := make([]string, len(terms))
 		for i, t := range terms {
 			norm[i] = strings.ToLower(t)
@@ -135,22 +135,22 @@ func buildSearchRecord(
 		normTaxs[k] = norm
 	}
 
-	return models.PostRecord{
+	return models.ContentRecord{
 		ID:              0, // Temporary ID, assigned in post_service.go
-		Title:           post.Title,
-		NormalizedTitle: strings.ToLower(post.Title),
+		Title:           item.Title,
+		NormalizedTitle: strings.ToLower(item.Title),
 		Link:            htmlRelPath,
-		Description:     post.Description,
-		Taxonomies:      post.Taxonomies,
+		Description:     item.Description,
+		Taxonomies:      item.Taxonomies,
 		NormalizedTaxs:  normTaxs,
 		Content:         plainText,
-		Date:            post.DateObj.Unix(),
+		Date:            item.DateObj.Unix(),
 	}
 }
 
 // tokenizeSearchData performs search tokenization and builds search-related fields
 func tokenizeSearchData(
-	searchRecord models.PostRecord,
+	searchRecord models.ContentRecord,
 	plainText string,
 ) (map[string]int, int, map[string]string, map[string][]uint32, map[string][]uint32) {
 	builder := pools.SharedStringBuilderPool.Get()
@@ -227,10 +227,10 @@ func computeReadingTime(source []byte, knownReadingTime int) int {
 
 // computeFrontmatterHash computes the frontmatter hash if not already known.
 // Expected value types (from YAML decoding): string, bool, int/float64, time.Time, []any, map[string]any.
-func computeFrontmatterHash(metadata map[string]any, knownHash string) string {
+func computeFrontmatterHash(metadata map[string]any, knownHash string, taxonomyKeys []string) string {
 	if knownHash != "" {
 		return knownHash
 	}
-	hash, _ := hashing.GetFrontmatterHash(metadata)
+	hash, _ := hashing.GetFrontmatterHash(metadata, taxonomyKeys)
 	return hash
 }

@@ -9,8 +9,8 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// ListAllPosts returns all post IDs stored in the cache.
-func (manager *Manager) ListAllPosts() ([]string, error) {
+// ListAllItems returns all post IDs stored in the cache.
+func (manager *Manager) ListAllItems() ([]string, error) {
 	var ids []string
 	err := manager.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketPosts))
@@ -30,7 +30,7 @@ func (manager *Manager) Stats() (*core.CacheStats, error) {
 
 	err := manager.db.View(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
-		stats.TotalPosts = postsBucket.Stats().KeyN
+		stats.TotalItems = postsBucket.Stats().KeyN
 
 		ssrBucket := tx.Bucket([]byte(core.BucketSSR))
 		stats.TotalSSR = ssrBucket.Stats().KeyN
@@ -44,12 +44,12 @@ func (manager *Manager) Stats() (*core.CacheStats, error) {
 		}
 
 		return postsBucket.ForEach(func(_, value []byte) error {
-			var post core.PostMeta
+			var post core.ContentMeta
 			if err := core.Decode(value, &post); err == nil {
 				if len(post.InlineHTML) > 0 {
-					stats.InlinePosts++
+					stats.InlineItems++
 				} else if post.HTMLHash != "" {
-					stats.HashedPosts++
+					stats.HashedItems++
 				}
 			}
 			return nil

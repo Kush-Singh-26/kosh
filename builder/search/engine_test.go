@@ -13,7 +13,7 @@ import (
 func TestPerformSearch_PhraseBoost(t *testing.T) {
 	// Document 0 has the exact phrase "go programming"
 	// Document 1 has both words but not as a phrase
-	posts := map[string]models.PostRecord{
+	items := map[string]models.ContentRecord{
 		"0": {
 			ID:              0,
 			Title:           "Exact Phrase",
@@ -29,11 +29,11 @@ func TestPerformSearch_PhraseBoost(t *testing.T) {
 	}
 
 	index := &models.SearchIndex{
-		Posts:     posts,
-		Inverted:  make(map[string]map[string][]uint32),
-		DocLens:   map[string]int64{"0": 4, "1": 6},
-		TotalDocs: 2,
-		AvgDocLen: 5.0,
+		Items:      items,
+		Inverted:   make(map[string]map[string][]uint32),
+		ItemLens:   map[string]int64{"0": 4, "1": 6},
+		TotalItems: 2,
+		AvgDocLen:  5.0,
 	}
 
 	index.Inverted["go"] = map[string][]uint32{"0": {1}, "1": {0}}
@@ -126,7 +126,7 @@ func TestTokenize(t *testing.T) {
 
 func TestPerformSearch(t *testing.T) {
 	// Setup test index
-	posts := map[string]models.PostRecord{
+	items := map[string]models.ContentRecord{
 		"0": {
 			ID:              0,
 			Title:           "Go Guide",
@@ -151,19 +151,19 @@ func TestPerformSearch(t *testing.T) {
 	}
 
 	index := &models.SearchIndex{
-		Posts:     posts,
-		Inverted:  make(map[string]map[string][]uint32),
-		DocLens:   make(map[string]int64),
-		TotalDocs: 3,
-		AvgDocLen: 5.0,
+		Items:      items,
+		Inverted:   make(map[string]map[string][]uint32),
+		ItemLens:   make(map[string]int64),
+		TotalItems: 3,
+		AvgDocLen:  5.0,
 	}
 
 	// Helper to populate inverted index
-	addTerm := func(term string, postID string, pos uint32) {
+	addTerm := func(term string, ContentID string, pos uint32) {
 		if index.Inverted[term] == nil {
 			index.Inverted[term] = make(map[string][]uint32)
 		}
-		index.Inverted[term][postID] = append(index.Inverted[term][postID], pos)
+		index.Inverted[term][ContentID] = append(index.Inverted[term][ContentID], pos)
 	}
 
 	// "guide" appears in 0 and 1
@@ -177,9 +177,9 @@ func TestPerformSearch(t *testing.T) {
 	// "python" appears in 2
 	addTerm("python", "2", 2)
 
-	index.DocLens["0"] = 6
-	index.DocLens["1"] = 5
-	index.DocLens["2"] = 3
+	index.ItemLens["0"] = 6
+	index.ItemLens["1"] = 5
+	index.ItemLens["2"] = 3
 
 	tests := []struct {
 		name    string
@@ -339,7 +339,7 @@ func TestSlicesContainsForTags(t *testing.T) {
 
 // TestSearch_UnicodeHandling verifies proper handling of Unicode characters
 func TestSearch_UnicodeHandling(t *testing.T) {
-	posts := map[string]models.PostRecord{
+	items := map[string]models.ContentRecord{
 		"0": {
 			ID:              0,
 			Title:           "Unicode Test",
@@ -349,11 +349,11 @@ func TestSearch_UnicodeHandling(t *testing.T) {
 	}
 
 	index := &models.SearchIndex{
-		Posts:     posts,
-		Inverted:  make(map[string]map[string][]uint32),
-		DocLens:   map[string]int64{"0": 5},
-		TotalDocs: 1,
-		AvgDocLen: 5.0,
+		Items:      items,
+		Inverted:   make(map[string]map[string][]uint32),
+		ItemLens:   map[string]int64{"0": 5},
+		TotalItems: 1,
+		AvgDocLen:  5.0,
 	}
 
 	// Set up inverted index for searchable terms
@@ -369,7 +369,7 @@ func TestSearch_UnicodeHandling(t *testing.T) {
 
 // TestSearch_FuzzyMatchingThresholds verifies fuzzy matching behavior at boundary conditions
 func TestSearch_FuzzyMatchingThresholds(t *testing.T) {
-	posts := map[string]models.PostRecord{
+	items := map[string]models.ContentRecord{
 		"0": {
 			ID:              0,
 			Title:           "exact",
@@ -385,11 +385,11 @@ func TestSearch_FuzzyMatchingThresholds(t *testing.T) {
 	}
 
 	index := &models.SearchIndex{
-		Posts:     posts,
-		Inverted:  make(map[string]map[string][]uint32),
-		DocLens:   map[string]int64{"0": 4, "1": 5},
-		TotalDocs: 2,
-		AvgDocLen: 4.5,
+		Items:      items,
+		Inverted:   make(map[string]map[string][]uint32),
+		ItemLens:   map[string]int64{"0": 4, "1": 5},
+		TotalItems: 2,
+		AvgDocLen:  4.5,
 	}
 
 	index.Inverted["exact"] = map[string][]uint32{"0": {0}}

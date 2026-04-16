@@ -15,31 +15,31 @@ import (
 func TestGenerateSearchIndex(t *testing.T) {
 	sink := testutil.NewMemSink()
 
-	indexedPosts := []models.IndexedPost{
+	indexedItems := []models.IndexedContent{
 		{
-			Record: models.PostRecord{
+			Record: models.ContentRecord{
 				ID:      1,
-				Title:   "Post 1",
-				Link:    "/post1.html",
-				Content: "Body of post 1",
+				Title:   "Item 1",
+				Link:    "/item1.html",
+				Content: "Body of item 1",
 			},
 			DocLen: 4,
 			PositionalIndex: map[string][]uint32{
 				"body": {0},
-				"post": {2},
+				"item": {2},
 			},
 			ByteOffsets: map[string][]uint32{
 				"body": {0, 4},
-				"post": {8, 4}, // Format: [start1, length1, start2-start1, length2, ...]
+				"item": {8, 4}, // Format: [start1, length1, start2-start1, length2, ...]
 			},
 			StemMap: map[string]string{
 				"body": "body",
-				"post": "post",
+				"item": "item",
 			},
 		},
 	}
 
-	resultPath, size, err := GenerateSearchIndex(sink, indexedPosts)
+	resultPath, size, err := GenerateSearchIndex(sink, indexedItems)
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed: %v", err)
 	}
@@ -70,17 +70,17 @@ func TestGenerateSearchIndex(t *testing.T) {
 		t.Errorf("Expected schema version %d, got %d", models.CurrentSchemaVersion, index.SchemaVersion)
 	}
 
-	if index.TotalDocs != 1 {
-		t.Errorf("Expected 1 doc, got %d", index.TotalDocs)
+	if index.TotalItems != 1 {
+		t.Errorf("Expected 1 item, got %d", index.TotalItems)
 	}
 
-	// Verify post record
-	post, ok := index.Posts["1"]
+	// Verify item record
+	item, ok := index.Items["1"]
 	if !ok {
-		t.Fatal("Post 1 record missing in index")
+		t.Fatal("Item 1 record missing in index")
 	}
-	if post.Title != "Post 1" {
-		t.Errorf("Expected post title Post 1, got %s", post.Title)
+	if item.Title != "Item 1" {
+		t.Errorf("Expected item title Item 1, got %s", item.Title)
 	}
 
 	// Verify inverted index
@@ -96,9 +96,9 @@ func TestGenerateSearchIndex(t *testing.T) {
 
 func TestGenerateSearchIndex_Empty(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, _, err := GenerateSearchIndex(sink, []models.IndexedPost{})
+	_, _, err := GenerateSearchIndex(sink, []models.IndexedContent{})
 	if err != nil {
-		t.Fatalf("GenerateSearchIndex failed with empty posts: %v", err)
+		t.Fatalf("GenerateSearchIndex failed with empty items: %v", err)
 	}
 
 	content := sink.Files["search.bin"]
@@ -113,8 +113,8 @@ func TestGenerateSearchIndex_Empty(t *testing.T) {
 		t.Fatalf("Failed to decode empty search index: %v", err)
 	}
 
-	if index.TotalDocs != 0 {
-		t.Errorf("Expected 0 total docs, got %d", index.TotalDocs)
+	if index.TotalItems != 0 {
+		t.Errorf("Expected 0 total items, got %d", index.TotalItems)
 	}
 }
 
@@ -122,7 +122,7 @@ func TestGenerateSearchIndex_Nil(t *testing.T) {
 	sink := testutil.NewMemSink()
 	_, _, err := GenerateSearchIndex(sink, nil)
 	if err != nil {
-		t.Fatalf("GenerateSearchIndex failed with nil posts: %v", err)
+		t.Fatalf("GenerateSearchIndex failed with nil items: %v", err)
 	}
 
 	if _, ok := sink.Files["search.bin"]; !ok {

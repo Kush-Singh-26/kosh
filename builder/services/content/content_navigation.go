@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"time"
@@ -9,39 +9,39 @@ import (
 )
 
 type navInfo struct {
-	allPosts   []models.PostMetadata
+	allItems   []models.ContentMetadata
 	postPos    map[string]int
 	taxonomies map[string]models.TaxonomyData
 }
 
-func (service *postService) prepareNavigationInfo(files []models.ScannedResource) navInfo {
-	var allPosts []models.PostMetadata
-	taxonomyMap := make(map[string]map[string][]models.PostMetadata)
+func (service *contentService) prepareNavigationInfo(files []models.ScannedResource) navInfo {
+	var allItems []models.ContentMetadata
+	taxonomyMap := make(map[string]map[string][]models.ContentMetadata)
 
 	for _, file := range files {
 		if file.IsDraft && !service.cfg.ShouldIncludeDrafts {
 			continue
 		}
 
-		post := service.createPostMetadata(file)
-		allPosts = append(allPosts, post)
-		service.aggregateTaxonomies(taxonomyMap, post)
+		item := service.createContentMetadata(file)
+		allItems = append(allItems, item)
+		service.aggregateTaxonomies(taxonomyMap, item)
 	}
 
-	timeutil.SortPosts(allPosts)
-	postPos := buildPostPositionMap(allPosts)
+	timeutil.SortItems(allItems)
+	postPos := buildPostPositionMap(allItems)
 	taxonomies := service.buildTaxonomyData(taxonomyMap)
 
-	return navInfo{allPosts: allPosts, postPos: postPos, taxonomies: taxonomies}
+	return navInfo{allItems: allItems, postPos: postPos, taxonomies: taxonomies}
 }
 
-func (service *postService) createPostMetadata(file models.ScannedResource) models.PostMetadata {
+func (service *contentService) createContentMetadata(file models.ScannedResource) models.ContentMetadata {
 	date, _ := time.Parse("2006-01-02", file.Date)
 	if date.IsZero() && file.Info != nil {
 		date = file.Info.ModTime()
 	}
 
-	post := models.PostMetadata{
+	item := models.ContentMetadata{
 		Title: file.Title, Link: file.Link, Weight: file.Weight,
 		IsPinned: file.IsPinned, IsDraft: file.IsDraft,
 		DateObj: date, Description: file.Description,
@@ -52,16 +52,18 @@ func (service *postService) createPostMetadata(file models.ScannedResource) mode
 	if file.PreParsedMeta != nil {
 		for taxKey := range service.cfg.Taxonomies {
 			if val, ok := file.PreParsedMeta[taxKey]; ok {
-				post.Taxonomies[taxKey] = extractTerms(val)
+				item.Taxonomies[taxKey] = extractTerms(val)
 			}
 		}
 	}
 
-	if len(post.Taxonomies["tags"]) == 0 && len(file.Taxonomies["tags"]) > 0 {
-		post.Taxonomies["tags"] = file.Taxonomies["tags"]
+	for taxKey := range service.cfg.Taxonomies {
+		if len(item.Taxonomies[taxKey]) == 0 && len(file.Taxonomies[taxKey]) > 0 {
+			item.Taxonomies[taxKey] = file.Taxonomies[taxKey]
+		}
 	}
 
-	return post
+	return item
 }
 
 func extractTerms(val any) []string {
@@ -83,26 +85,26 @@ func extractTerms(val any) []string {
 	}
 }
 
-func (service *postService) aggregateTaxonomies(taxonomyMap map[string]map[string][]models.PostMetadata, post models.PostMetadata) {
-	for taxKey, terms := range post.Taxonomies {
+func (service *contentService) aggregateTaxonomies(taxonomyMap map[string]map[string][]models.ContentMetadata, item models.ContentMetadata) {
+	for taxKey, terms := range item.Taxonomies {
 		if taxonomyMap[taxKey] == nil {
-			taxonomyMap[taxKey] = make(map[string][]models.PostMetadata)
+			taxonomyMap[taxKey] = make(map[string][]models.ContentMetadata)
 		}
 		for _, term := range terms {
-			taxonomyMap[taxKey][term] = append(taxonomyMap[taxKey][term], post)
+			taxonomyMap[taxKey][term] = append(taxonomyMap[taxKey][term], item)
 		}
 	}
 }
 
-func buildPostPositionMap(posts []models.PostMetadata) map[string]int {
+func buildPostPositionMap(posts []models.ContentMetadata) map[string]int {
 	postPos := make(map[string]int, len(posts))
-	for idx, post := range posts {
-		postPos[post.Link] = idx
+	for idx, item := range posts {
+		postPos[item.Link] = idx
 	}
 	return postPos
 }
 
-func (service *postService) buildTaxonomyData(taxonomyMap map[string]map[string][]models.PostMetadata) map[string]models.TaxonomyData {
+func (service *contentService) buildTaxonomyData(taxonomyMap map[string]map[string][]models.ContentMetadata) map[string]models.TaxonomyData {
 	taxonomies := make(map[string]models.TaxonomyData)
 	for taxKey, plural := range service.cfg.Taxonomies {
 		if termMap, ok := taxonomyMap[taxKey]; ok {

@@ -236,7 +236,7 @@ func BenchmarkDecodeDependencies(b *testing.B) {
 }
 
 func TestMarshalUnmarshalPostMeta(t *testing.T) {
-	v := PostMeta{}
+	v := ContentMeta{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -259,7 +259,7 @@ func TestMarshalUnmarshalPostMeta(t *testing.T) {
 }
 
 func BenchmarkMarshalMsgPostMeta(b *testing.B) {
-	v := PostMeta{}
+	v := ContentMeta{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -268,7 +268,7 @@ func BenchmarkMarshalMsgPostMeta(b *testing.B) {
 }
 
 func BenchmarkAppendMsgPostMeta(b *testing.B) {
-	v := PostMeta{}
+	v := ContentMeta{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -280,7 +280,7 @@ func BenchmarkAppendMsgPostMeta(b *testing.B) {
 }
 
 func BenchmarkUnmarshalPostMeta(b *testing.B) {
-	v := PostMeta{}
+	v := ContentMeta{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -294,7 +294,7 @@ func BenchmarkUnmarshalPostMeta(b *testing.B) {
 }
 
 func TestEncodeDecodePostMeta(t *testing.T) {
-	v := PostMeta{}
+	v := ContentMeta{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -303,7 +303,7 @@ func TestEncodeDecodePostMeta(t *testing.T) {
 		t.Log("WARNING: TestEncodeDecodePostMeta Msgsize() is inaccurate")
 	}
 
-	vn := PostMeta{}
+	vn := ContentMeta{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -318,7 +318,7 @@ func TestEncodeDecodePostMeta(t *testing.T) {
 }
 
 func BenchmarkEncodePostMeta(b *testing.B) {
-	v := PostMeta{}
+	v := ContentMeta{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -332,7 +332,7 @@ func BenchmarkEncodePostMeta(b *testing.B) {
 }
 
 func BenchmarkDecodePostMeta(b *testing.B) {
-	v := PostMeta{}
+	v := ContentMeta{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

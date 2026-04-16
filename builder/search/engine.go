@@ -132,11 +132,11 @@ func finalizeResults(index *models.SearchIndex, opts *ScoringOptions) []Result {
 func convertResults(index *models.SearchIndex, scores map[string]float64) []Result {
 	results := make([]Result, 0, len(scores))
 	for id, score := range scores {
-		post := index.Posts[id]
+		item := index.Items[id]
 		idNum, _ := strconv.ParseUint(id, decimalBase, uint64Bits)
 		results = append(results, Result{
-			ID: idNum, Title: post.Title, Link: post.Link,
-			Description: post.Description, Taxonomies: post.Taxonomies,
+			ID: idNum, Title: item.Title, Link: item.Link,
+			Description: item.Description, Taxonomies: item.Taxonomies,
 			Score: score,
 		})
 	}
@@ -174,7 +174,7 @@ func sortResults(results []Result) {
 func enrichWithSnippets(index *models.SearchIndex, results []Result, highlightTerms []string) {
 	for i := range results {
 		id := strconv.FormatUint(results[i].ID, decimalBase)
-		post := index.Posts[id]
+		item := index.Items[id]
 		termOffsets := make(map[string][]int)
 		for _, term := range highlightTerms {
 			if docMap, ok := index.Offsets[term]; ok {
@@ -183,7 +183,7 @@ func enrichWithSnippets(index *models.SearchIndex, results []Result, highlightTe
 				}
 			}
 		}
-		results[i].Snippet = ExtractSnippet(post.Content, highlightTerms, termOffsets)
+		results[i].Snippet = ExtractSnippet(item.Content, highlightTerms, termOffsets)
 	}
 }
 

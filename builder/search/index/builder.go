@@ -26,7 +26,7 @@ const (
 )
 
 type partialResult struct {
-	posts         map[string]models.PostRecord
+	posts         map[string]models.ContentRecord
 	inverted      map[string]map[string][]uint32
 	offsets       map[string]map[string][]uint32
 	docLens       map[string]int64
@@ -38,12 +38,12 @@ type partialResult struct {
 func emptySearchIndex() *models.SearchIndex {
 	return &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         make(map[string]models.PostRecord),
+		Items:         make(map[string]models.ContentRecord),
 		Inverted:      make(map[string]map[string][]uint32),
 		TitleInverted: make(map[string][]uint64),
-		DocLens:       make(map[string]int64),
+		ItemLens:      make(map[string]int64),
 		StemMap:       make(map[string][]string),
-		TotalDocs:     0,
+		TotalItems:    0,
 		Offsets:       make(map[string]map[string][]uint32),
 		AvgDocLen:     0,
 	}
@@ -53,8 +53,8 @@ func mergePartialResults(index *models.SearchIndex, results []partialResult) int
 	var totalLen int64
 	for _, r := range results {
 		totalLen += r.totalLen
-		maps.Copy(index.Posts, r.posts)
-		maps.Copy(index.DocLens, r.docLens)
+		maps.Copy(index.Items, r.posts)
+		maps.Copy(index.ItemLens, r.docLens)
 		for word, docs := range r.inverted {
 			if _, ok := index.Inverted[word]; !ok {
 				index.Inverted[word] = docs
@@ -107,7 +107,7 @@ func buildStemOrigins(results []partialResult, globalCap int) map[string][]strin
 }
 
 // Build constructs an in-memory search index from a list of indexed posts.
-func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
+func Build(indexedPosts []models.IndexedContent) *models.SearchIndex {
 	sb := NewStreamBuilder(len(indexedPosts))
 	for _, ip := range indexedPosts {
 		sb.Add(ip)
@@ -118,7 +118,7 @@ func Build(indexedPosts []models.IndexedPost) *models.SearchIndex {
 // StreamBuilder manages concurrent search index building from a stream of posts.
 // It implements the models.SearchIngestor interface.
 type StreamBuilder struct {
-	postChan   chan models.IndexedPost
+	postChan   chan models.IndexedContent
 	results    []partialResult
 	numWorkers int
 	wg         sync.WaitGroup
@@ -129,7 +129,7 @@ type StreamBuilder struct {
 func NewStreamBuilder(expectedDocs int) *StreamBuilder {
 	numWorkers := min(runtime.NumCPU(), maxIndexWorkers)
 	sb := &StreamBuilder{
-		postChan:   make(chan models.IndexedPost, max(expectedDocs, 32)),
+		postChan:   make(chan models.IndexedContent, max(expectedDocs, 32)),
 		results:    make([]partialResult, numWorkers),
 		numWorkers: numWorkers,
 		totalDocs:  expectedDocs,
@@ -159,7 +159,7 @@ func (sb *StreamBuilder) runWorker(workerID int) {
 		workerCap = max(sb.totalDocs/sb.numWorkers, minWorkerCap)
 	}
 	res := partialResult{
-		posts:         make(map[string]models.PostRecord, workerCap),
+		posts:         make(map[string]models.ContentRecord, workerCap),
 		inverted:      make(map[string]map[string][]uint32, workerCap*2),
 		offsets:       make(map[string]map[string][]uint32, workerCap*2),
 		docLens:       make(map[string]int64, workerCap),
@@ -187,7 +187,7 @@ func (sb *StreamBuilder) runWorker(workerID int) {
 	sb.results[workerID] = res
 }
 
-func (sb *StreamBuilder) ingestWordIndices(res *partialResult, idStr string, ip models.IndexedPost) {
+func (sb *StreamBuilder) ingestWordIndices(res *partialResult, idStr string, ip models.IndexedContent) {
 	for word, positions := range ip.PositionalIndex {
 		if _, ok := res.inverted[word]; !ok {
 			res.inverted[word] = make(map[string][]uint32, perWordMapCap)
@@ -211,7 +211,7 @@ func (sb *StreamBuilder) ingestWordIndices(res *partialResult, idStr string, ip 
 }
 
 // Add enqueues a post for background indexing.
-func (sb *StreamBuilder) Add(ip models.IndexedPost) {
+func (sb *StreamBuilder) Add(ip models.IndexedContent) {
 	sb.postChan <- ip
 }
 
@@ -231,18 +231,18 @@ func (sb *StreamBuilder) Complete() *models.SearchIndex {
 
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         make(map[string]models.PostRecord, totalDocs),
+		Items:         make(map[string]models.ContentRecord, totalDocs),
 		Inverted:      make(map[string]map[string][]uint32, totalDocs*2),
 		TitleInverted: make(map[string][]uint64, totalDocs),
-		DocLens:       make(map[string]int64, totalDocs),
+		ItemLens:      make(map[string]int64, totalDocs),
 		StemMap:       make(map[string][]string, totalDocs),
-		TotalDocs:     int64(totalDocs),
+		TotalItems:    int64(totalDocs),
 		Offsets:       make(map[string]map[string][]uint32, totalDocs*2),
 	}
 
 	totalLen := mergePartialResults(index, sb.results)
-	if index.TotalDocs > 0 {
-		index.AvgDocLen = float64(totalLen) / float64(index.TotalDocs)
+	if index.TotalItems > 0 {
+		index.AvgDocLen = float64(totalLen) / float64(index.TotalItems)
 	}
 
 	index.StemMap = buildStemOrigins(sb.results, totalDocs*2)

@@ -25,7 +25,7 @@ func TestCacheService_StoreHTMLAndRetrieve(t *testing.T) {
 	post.HTMLHash = hash
 	post.InlineHTML = nil
 
-	if err := service.BatchCommit([]*cache.PostMeta{post}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*cache.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 
@@ -39,15 +39,15 @@ func TestCacheService_StoreHTMLAndRetrieve(t *testing.T) {
 	}
 }
 
-func TestCacheService_StoreHTMLForPost_Inline(t *testing.T) {
+func TestCacheService_StoreHTMLForItem_Inline(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
 	post := testutil.CreateSamplePostMeta()
 	smallContent := []byte("<p>Small content</p>")
 
-	if err := service.StoreHTMLForPost(post, smallContent); err != nil {
-		t.Fatalf("StoreHTMLForPost failed: %v", err)
+	if err := service.StoreHTMLForItem(post, smallContent); err != nil {
+		t.Fatalf("StoreHTMLForItem failed: %v", err)
 	}
 
 	if post.InlineHTML == nil {
@@ -63,15 +63,15 @@ func TestCacheService_StoreHTMLForPost_Inline(t *testing.T) {
 	}
 }
 
-func TestCacheService_StoreHTMLForPost_Large(t *testing.T) {
+func TestCacheService_StoreHTMLForItem_Large(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
 	post := testutil.CreateSamplePostMeta()
 	largeContent := testutil.CreateLargeHTML()
 
-	if err := service.StoreHTMLForPost(post, largeContent); err != nil {
-		t.Fatalf("StoreHTMLForPost failed: %v", err)
+	if err := service.StoreHTMLForItem(post, largeContent); err != nil {
+		t.Fatalf("StoreHTMLForItem failed: %v", err)
 	}
 
 	if post.InlineHTML != nil {

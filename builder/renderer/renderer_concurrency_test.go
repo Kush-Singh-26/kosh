@@ -45,7 +45,7 @@ func TestRenderer_ConcurrentRenderIndex(t *testing.T) {
 		go func(id int) {
 			data := models.PageData{
 				Title: "Index " + string(rune('a'+id)),
-				Posts: []models.PostMetadata{{Title: "Post"}},
+				Items: []models.ContentMetadata{{Title: "Item"}},
 			}
 			_ = r.RenderIndex("index_"+string(rune('a'+id))+".html", data)
 			done <- true

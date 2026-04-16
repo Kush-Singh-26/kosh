@@ -13,7 +13,7 @@ import (
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -66,7 +66,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := content.NewService(content.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -91,7 +91,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -121,4 +121,3 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		t.Logf("Caught expected error: %v", err)
 	}
 }
-

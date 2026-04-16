@@ -16,7 +16,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	svcContent "github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -88,7 +88,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 	wasmSvc := &mocks.MockWasmService{}
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := svcContent.NewService(svcContent.Dependencies{
 		Ctx:            buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -107,7 +107,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -142,7 +142,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 		Logger:  logger,
 	})
 	b.Deps.Cache = cacheSvc2
-	postSvc2 := post.NewService(post.Dependencies{
+	contentSvc2 := svcContent.NewService(svcContent.Dependencies{
 		Ctx:            buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc2,
@@ -155,7 +155,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 		SourceFs:       fs,
 		Sink:           sink,
 	})
-	b.Deps.Post = postSvc2
+	b.Deps.Content = contentSvc2
 
 	sink.Files = make(map[string][]byte)
 	if err := b.Build(ctx); err != nil {
@@ -166,8 +166,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stats failed: %v", err)
 	}
-	if stats.TotalPosts == 0 {
+	if stats.TotalItems == 0 {
 		t.Error("Expected posts in cache after rebuild")
 	}
 }
-

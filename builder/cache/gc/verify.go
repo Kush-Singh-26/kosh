@@ -30,7 +30,7 @@ func QuickVerify(db *bbolt.DB, cacheStore *store.Store) ([]string, error) {
 			}
 			sampleCount++
 
-			var post core.PostMeta
+			var post core.ContentMeta
 			if err := core.Decode(value, &post); err != nil {
 				verificationErrors = append(verificationErrors, fmt.Sprintf("corrupt post data: %s", string(key)))
 				continue
@@ -38,7 +38,7 @@ func QuickVerify(db *bbolt.DB, cacheStore *store.Store) ([]string, error) {
 
 			// Check HTML blob exists if referenced
 			if post.HTMLHash != "" && !cacheStore.Exists("html", post.HTMLHash) {
-				verificationErrors = append(verificationErrors, fmt.Sprintf("missing HTML blob: %s for post %s", post.HTMLHash, post.PostID))
+				verificationErrors = append(verificationErrors, fmt.Sprintf("missing HTML blob: %s for post %s", post.HTMLHash, post.ContentID))
 			}
 		}
 
@@ -57,7 +57,7 @@ func Verify(db *bbolt.DB, cacheStore *store.Store) ([]string, error) {
 		pathsBucket := tx.Bucket([]byte(core.BucketPaths))
 
 		return postsBucket.ForEach(func(key, value []byte) error {
-			var post core.PostMeta
+			var post core.ContentMeta
 			if err := core.Decode(value, &post); err != nil {
 				verificationErrors = append(verificationErrors, fmt.Sprintf("corrupt post data: %s", string(key)))
 				return nil
@@ -66,13 +66,13 @@ func Verify(db *bbolt.DB, cacheStore *store.Store) ([]string, error) {
 			normalizedPath := fspkg.NormalizePath(post.Path)
 			mappedID := pathsBucket.Get([]byte(normalizedPath))
 			if mappedID == nil {
-				verificationErrors = append(verificationErrors, fmt.Sprintf("missing path mapping: %s -> %s", normalizedPath, post.PostID))
-			} else if string(mappedID) != post.PostID {
-				verificationErrors = append(verificationErrors, fmt.Sprintf("path mapping mismatch: %s -> %s (expected %s)", normalizedPath, string(mappedID), post.PostID))
+				verificationErrors = append(verificationErrors, fmt.Sprintf("missing path mapping: %s -> %s", normalizedPath, post.ContentID))
+			} else if string(mappedID) != post.ContentID {
+				verificationErrors = append(verificationErrors, fmt.Sprintf("path mapping mismatch: %s -> %s (expected %s)", normalizedPath, string(mappedID), post.ContentID))
 			}
 
 			if post.HTMLHash != "" && !cacheStore.Exists("html", post.HTMLHash) {
-				verificationErrors = append(verificationErrors, fmt.Sprintf("missing HTML blob: %s for post %s", post.HTMLHash, post.PostID))
+				verificationErrors = append(verificationErrors, fmt.Sprintf("missing HTML blob: %s for post %s", post.HTMLHash, post.ContentID))
 			}
 
 			return nil

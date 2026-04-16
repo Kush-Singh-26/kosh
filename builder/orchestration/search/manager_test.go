@@ -7,52 +7,52 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 )
 
-func TestManager_UpdateIndexedPostCache(t *testing.T) {
+func TestManager_UpdateIndexedContentCache(t *testing.T) {
 	m := NewManager(ManagerDependencies{
 		Cfg: &config.Config{},
 	})
 
-	idxPost := models.IndexedPost{
+	idxPost := models.IndexedContent{
 		SourcePath: "test.md",
-		Record: models.PostRecord{
+		Record: models.ContentRecord{
 			Title: "Test",
 		},
 	}
-	m.SetIndexedPosts([]models.IndexedPost{idxPost})
+	m.SetIndexedPosts([]models.IndexedContent{idxPost})
 
 	// Update existing
-	newParseRes := &post.ParsedMarkdownResult{
-		SearchRecord: models.PostRecord{Title: "Updated"},
+	newParseRes := &content.ParsedMarkdownResult{
+		SearchRecord: models.ContentRecord{Title: "Updated"},
 	}
-	m.UpdateIndexedPostCache("test.md", newParseRes)
+	m.UpdateIndexedContentCache("test.md", newParseRes)
 
 	posts := m.GetIndexedPosts()
 	if len(posts) != 1 || posts[0].Record.Title != "Updated" {
-		t.Errorf("UpdateIndexedPostCache failed to update existing post, got title: %s", posts[0].Record.Title)
+		t.Errorf("UpdateIndexedContentCache failed to update existing Content, got title: %s", posts[0].Record.Title)
 	}
 
 	// Add new
-	m.UpdateIndexedPostCache("new.md", newParseRes)
+	m.UpdateIndexedContentCache("new.md", newParseRes)
 	posts = m.GetIndexedPosts()
 	if len(posts) != 2 {
-		t.Errorf("UpdateIndexedPostCache failed to add new post, got len: %d", len(posts))
+		t.Errorf("UpdateIndexedContentCache failed to add new Content, got len: %d", len(posts))
 	}
 }
 
-func TestManager_PruneDeletedPost(t *testing.T) {
+func TestManager_PruneDeletedItem(t *testing.T) {
 	m := NewManager(ManagerDependencies{})
-	m.SetIndexedPosts([]models.IndexedPost{
+	m.SetIndexedPosts([]models.IndexedContent{
 		{SourcePath: "a.md"},
 		{SourcePath: "b.md"},
 	})
 
-	m.PruneDeletedPost("a.md")
+	m.PruneDeletedItem("a.md")
 	posts := m.GetIndexedPosts()
 	if len(posts) != 1 || posts[0].SourcePath != "b.md" {
-		t.Error("PruneDeletedPost failed")
+		t.Error("PruneDeletedItem failed")
 	}
 }
 

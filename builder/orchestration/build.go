@@ -5,7 +5,7 @@
 //	Build() → processPosts() → runParsePhase() → parseWorkerTask() → PostService.Process()
 //
 // This 4-level chain is intentional: Build() coordinates high-level phases,
-// processPosts() handles post-specific logic, runParsePhase() manages worker pools,
+// processPosts() handles Content-specific logic, runParsePhase() manages worker pools,
 // and parseWorkerTask() executes individual parses. The separation enables
 // parallelism, progress tracking, and error isolation.
 package orchestration
@@ -69,7 +69,7 @@ func (engineInstance *Engine) buildAssetOnly(ctx context.Context) error {
 	engineInstance.refreshBuildSession()
 
 	return engineInstance.Assets.BuildAssetOnly(ctx, func(ctx context.Context) error {
-		engineInstance.Deps.Post.SetAssetsGate(nil)
+		engineInstance.Deps.Content.SetAssetsGate(nil)
 		engineInstance.State.ForceGenerators.Store(true)
 
 		metadataResult, scanError := engineInstance.Deps.Scanner.Scan(scanner.ScanOptions{
@@ -83,7 +83,7 @@ func (engineInstance *Engine) buildAssetOnly(ctx context.Context) error {
 			return fmt.Errorf("metadata scan failed: %w", scanError)
 		}
 
-		// For asset-only builds, we FORCE post re-rendering to update asset hashes in HTML.
+		// For asset-only builds, we FORCE Content re-rendering to update asset hashes in HTML.
 		shouldForce := true
 		forceSocialRebuild := false
 		outputMissing := false
@@ -95,7 +95,7 @@ func (engineInstance *Engine) buildAssetOnly(ctx context.Context) error {
 			Files:              metadataResult.Files,
 		})
 		if processError != nil {
-			return fmt.Errorf("post processing failed: %w", processError)
+			return fmt.Errorf("content processing failed: %w", processError)
 		}
 
 		// Remove original raster images when .webp equivalents exist

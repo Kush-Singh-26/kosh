@@ -147,7 +147,7 @@ func clearRefBucket(refBucket *bbolt.Bucket) {
 func recomputeCounts(postsBucket *bbolt.Bucket) map[string]uint32 {
 	counts := make(map[string]uint32)
 	_ = postsBucket.ForEach(func(_, value []byte) error {
-		var post core.PostMeta
+		var post core.ContentMeta
 		if err := core.Decode(value, &post); err != nil {
 			return nil
 		}

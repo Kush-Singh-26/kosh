@@ -102,7 +102,7 @@ func runCacheStats(_ *cobra.Command, _ []string) {
 	fmt.Println("📊 Cache Statistics")
 	fmt.Println("════════════════════════════════════════")
 	fmt.Printf("Schema Version:  %d\n", stats.SchemaVersion)
-	fmt.Printf("Total Posts:     %d\n", stats.TotalPosts)
+	fmt.Printf("Total Posts:     %d\n", stats.TotalItems)
 	fmt.Printf("Total SSR:       %d artifacts\n", stats.TotalSSR)
 	fmt.Printf("Store Size:      %.2f MB\n", float64(stats.StoreBytes)/bytesPerMiB)
 	fmt.Printf("Build Count:     %d\n", stats.BuildCount)
@@ -115,8 +115,8 @@ func runCacheStats(_ *cobra.Command, _ []string) {
 
 	fmt.Println("\n📦 Storage Metrics")
 	fmt.Println("────────────────────────────────────────")
-	fmt.Printf("Inline Posts:    %d (%.1f%%)\n", stats.InlinePosts, float64(stats.InlinePosts)*percentScale/float64(stats.TotalPosts))
-	fmt.Printf("Hashed Posts:    %d (%.1f%%)\n", stats.HashedPosts, float64(stats.HashedPosts)*percentScale/float64(stats.TotalPosts))
+	fmt.Printf("Inline Posts:    %d (%.1f%%)\n", stats.InlineItems, float64(stats.InlineItems)*percentScale/float64(stats.TotalItems))
+	fmt.Printf("Hashed Posts:    %d (%.1f%%)\n", stats.HashedItems, float64(stats.HashedItems)*percentScale/float64(stats.TotalItems))
 }
 
 func runCacheGC(_ *cobra.Command, _ []string) {
@@ -207,7 +207,7 @@ func runCacheInspect(_ *cobra.Command, args []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
-	post, err := cm.GetPostByPath(path)
+	post, err := cm.GetItemByPath(path)
 	if err != nil {
 		fmt.Printf("❌ Error looking up path: %v\n", err)
 		os.Exit(1) //nolint:gocritic
@@ -220,7 +220,7 @@ func runCacheInspect(_ *cobra.Command, args []string) {
 
 	fmt.Println("📄 Cache Entry")
 	fmt.Println("════════════════════════════════════════")
-	fmt.Printf("PostID:       %s\n", post.PostID)
+	fmt.Printf("ContentID:       %s\n", post.ContentID)
 	fmt.Printf("Path:         %s\n", post.Path)
 	fmt.Printf("Title:        %s\n", post.Title)
 	fmt.Printf("ModTime:      %s\n", time.Unix(post.ModTime, 0).Format(time.RFC3339))

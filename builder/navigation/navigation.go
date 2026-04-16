@@ -15,8 +15,8 @@ var (
 
 // FindPrevNext finds previous and next pages.
 // currentPost: the current post metadata
-// allPosts: all posts, must be pre-sorted via timeutil.SortPosts.
-func FindPrevNext(currentPost models.PostMetadata, allPosts []models.PostMetadata) (*models.NavPage, *models.NavPage, error) {
+// allPosts: all posts, must be pre-sorted via timeutil.SortItems.
+func FindPrevNext(currentPost models.ContentMetadata, allPosts []models.ContentMetadata) (*models.NavPage, *models.NavPage, error) {
 	if len(allPosts) == 0 {
 		return nil, nil, ErrEmptyList
 	}

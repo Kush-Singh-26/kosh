@@ -21,14 +21,14 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-var _ models.PostCache = (*Manager)(nil)
+var _ models.ContentCache = (*Manager)(nil)
 var _ models.SearchCache = (*Manager)(nil)
 var _ models.SocialCardCache = (*Manager)(nil)
 var _ models.BuildArtifactCache = (*Manager)(nil)
 
-// memoryCacheEntry holds a cached core.PostMeta with expiration
+// memoryCacheEntry holds a cached core.ContentMeta with expiration
 type memoryCacheEntry struct {
-	meta      *core.PostMeta
+	meta      *core.ContentMeta
 	expiresAt time.Time
 }
 
@@ -41,7 +41,7 @@ type Manager struct {
 	mutex    sync.RWMutex // protects dirty and cacheID
 	dirty    map[string]bool
 
-	// In-memory LRU cache for hot PostMeta data
+	// In-memory LRU cache for hot ContentMeta data
 	memCache    *lru.Cache[string, *memoryCacheEntry]
 	memCacheTTL time.Duration
 

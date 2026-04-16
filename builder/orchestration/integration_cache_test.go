@@ -36,14 +36,14 @@ func TestCacheService_DirtyTrackingIntegration(t *testing.T) {
 
 	isDirty := cacheSvc.IsDirty(postPath)
 	if !isDirty {
-		t.Error("Expected post to be marked as dirty")
+		t.Error("Expected Content to be marked as dirty")
 	}
 
 	cacheSvc.ClearDirty()
 
 	isDirty = cacheSvc.IsDirty(postPath)
 	if isDirty {
-		t.Error("Expected post to not be dirty after ClearDirty")
+		t.Error("Expected Content to not be dirty after ClearDirty")
 	}
 }
 
@@ -63,26 +63,26 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 		Logger:  logger,
 	})
 
-	posts := []*cache.PostMeta{
+	posts := []*cache.ContentMeta{
 		{
-			PostID:      "post-1",
-			Title:       "Post 1",
+			ContentID:      "Content-1",
+			Title:       "Content 1",
 			Path:        "content/posts/post1.md",
 			BodyHash:    "hash1",
 			WordCount:   100,
 			ReadingTime: 1,
 		},
 		{
-			PostID:      "post-2",
-			Title:       "Post 2",
+			ContentID:      "Content-2",
+			Title:       "Content 2",
 			Path:        "content/posts/post2.md",
 			BodyHash:    "hash2",
 			WordCount:   200,
 			ReadingTime: 2,
 		},
 		{
-			PostID:      "post-3",
-			Title:       "Post 3",
+			ContentID:      "Content-3",
+			Title:       "Content 3",
 			Path:        "content/posts/post3.md",
 			BodyHash:    "hash3",
 			WordCount:   300,
@@ -96,17 +96,17 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 	}
 
 	for i, expected := range posts {
-		meta, err := cacheManager.GetPostByID(expected.PostID)
+		meta, err := cacheManager.GetItemByID(expected.ContentID)
 		if err != nil {
-			t.Errorf("Failed to get post %d: %v", i, err)
+			t.Errorf("Failed to get Content %d: %v", i, err)
 			continue
 		}
 		if meta == nil {
-			t.Errorf("Post %d not found in cache", i)
+			t.Errorf("Content %d not found in cache", i)
 			continue
 		}
 		if meta.Title != expected.Title {
-			t.Errorf("Post %d title mismatch: %s vs %s", i, meta.Title, expected.Title)
+			t.Errorf("Content %d title mismatch: %s vs %s", i, meta.Title, expected.Title)
 		}
 	}
 }

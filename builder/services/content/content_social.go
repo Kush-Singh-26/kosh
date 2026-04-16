@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"io"
@@ -11,7 +11,7 @@ import (
 
 const socialCardCacheDirMode = 0755
 
-func (service *postService) generateSocialCard(task socialCardTask) {
+func (service *contentService) generateSocialCard(task socialCardTask) {
 	cachedCardPath := filepath.Join(service.cfg.CacheDir, "social-cards", task.frontmatterHash+".webp")
 	if service.loadSocialCardFromCache(task, cachedCardPath) {
 		return
@@ -37,7 +37,7 @@ func (service *postService) generateSocialCard(task socialCardTask) {
 	}
 }
 
-func (service *postService) loadSocialCardFromCache(task socialCardTask, cachedCardPath string) bool {
+func (service *contentService) loadSocialCardFromCache(task socialCardTask, cachedCardPath string) bool {
 	if task.frontmatterHash == "" {
 		return false
 	}
@@ -67,7 +67,7 @@ func (service *postService) loadSocialCardFromCache(task socialCardTask, cachedC
 	return true
 }
 
-func (service *postService) getLogoPath() string {
+func (service *contentService) getLogoPath() string {
 	logoPath := service.cfg.Logo
 	if logoPath != "" {
 		if _, err := service.sourceFs.Stat(logoPath); err != nil {
@@ -78,7 +78,7 @@ func (service *postService) getLogoPath() string {
 	return logoPath
 }
 
-func (service *postService) saveSocialCardToCache(task socialCardTask, cachedCardPath string) {
+func (service *contentService) saveSocialCardToCache(task socialCardTask, cachedCardPath string) {
 	cardDir := filepath.ToSlash(filepath.Dir(task.cardDestPath))
 	if err := service.sink.MkdirAll(cardDir); err != nil {
 		service.logger.Error("Failed to create social card directory", "path", cardDir, "error", err)
@@ -98,7 +98,7 @@ func (service *postService) saveSocialCardToCache(task socialCardTask, cachedCar
 	}
 }
 
-func (service *postService) generateSocialCardFallback(task socialCardTask, opts generators.SocialCardOptions) {
+func (service *contentService) generateSocialCardFallback(task socialCardTask, opts generators.SocialCardOptions) {
 	opts.Sink = service.sink
 	opts.DestPath = task.cardDestPath
 	if err := generators.GenerateSocialCard(opts); err != nil {

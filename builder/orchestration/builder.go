@@ -21,7 +21,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services/asset"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/services/wasm"
@@ -52,7 +52,7 @@ type buildSetup struct {
 	mdPool          *sync.Pool
 	renderSvc       render.Service
 	assetSvc        asset.Service
-	postSvc         post.Service
+	contentSvc      content.Service
 	wasmSvc         wasm.Service
 	metaScanner     scanner.Scanner
 	diagramAdapter  *cache.DiagramCacheAdapter
@@ -181,7 +181,7 @@ func (setup *buildSetup) initServices() {
 		setup.logger.Warn("Failed to initialize shortcodes", "error", err)
 	}
 
-	setup.postSvc = post.NewService(post.Dependencies{
+	setup.contentSvc = content.NewService(content.Dependencies{
 		Ctx:            setup.ctx,
 		Cfg:            setup.config,
 		Cache:          setup.cacheSvc,
@@ -219,7 +219,7 @@ func newEngineWithConfigFs(sourceFs afero.Fs, cfg *config.Config, reporter ui.Re
 		Ctx: setup.ctx,
 		Deps: EngineDependencies{
 			Cache:          setup.cacheSvc,
-			Post:           setup.postSvc,
+			Content:        setup.contentSvc,
 			Asset:          setup.assetSvc,
 			Render:         setup.renderSvc,
 			Wasm:           setup.wasmSvc,
@@ -239,7 +239,7 @@ func newEngineWithConfigFs(sourceFs afero.Fs, cfg *config.Config, reporter ui.Re
 		Health: NewBuildHealthRegistry(),
 	}
 
-	engineInstance.initManagers(setup.cacheSvc, setup.postSvc, setup.assetSvc, setup.renderSvc, setup.metaScanner, setup.diagramAdapter, setup.mdPool, setup.nativeRenderer, sourceFs)
+	engineInstance.initManagers(setup.cacheSvc, setup.contentSvc, setup.assetSvc, setup.renderSvc, setup.metaScanner, setup.diagramAdapter, setup.mdPool, setup.nativeRenderer, sourceFs)
 	engineInstance.initWatch(setup.cacheSvc)
 
 	return engineInstance

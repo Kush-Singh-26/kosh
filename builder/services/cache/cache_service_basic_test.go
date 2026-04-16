@@ -42,12 +42,12 @@ func TestCacheService_GetPost(t *testing.T) {
 	defer cleanup()
 
 	post := testutil.CreateSamplePostMeta()
-	posts := []*cache.PostMeta{post}
+	posts := []*cache.ContentMeta{post}
 	if err := service.BatchCommit(posts, nil, nil); err != nil {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 
-	retrieved, err := service.GetPostByID(post.PostID)
+	retrieved, err := service.GetItemByID(post.ContentID)
 	if err != nil {
 		t.Fatalf("GetPost failed: %v", err)
 	}
@@ -56,8 +56,8 @@ func TestCacheService_GetPost(t *testing.T) {
 		t.Fatal("GetPost should return the post")
 	}
 
-	if retrieved.PostID != post.PostID {
-		t.Errorf("PostID = %q, want %q", retrieved.PostID, post.PostID)
+	if retrieved.ContentID != post.ContentID {
+		t.Errorf("ContentID = %q, want %q", retrieved.ContentID, post.ContentID)
 	}
 }
 
@@ -65,7 +65,7 @@ func TestCacheService_GetPost_NotFound(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
-	retrieved, err := service.GetPostByID("non-existent-post")
+	retrieved, err := service.GetItemByID("non-existent-post")
 	if err == nil {
 		t.Fatal("GetPost should error for missing post")
 	}
@@ -79,13 +79,13 @@ func TestCacheService_GetPost_NotFound(t *testing.T) {
 	}
 }
 
-func TestCacheService_ListAllPosts(t *testing.T) {
+func TestCacheService_ListAllItems(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
-	posts, err := service.ListAllPosts()
+	posts, err := service.ListAllItems()
 	if err != nil {
-		t.Fatalf("ListAllPosts failed: %v", err)
+		t.Fatalf("ListAllItems failed: %v", err)
 	}
 
 	if len(posts) != 0 {
@@ -93,17 +93,17 @@ func TestCacheService_ListAllPosts(t *testing.T) {
 	}
 
 	post1 := testutil.CreateSamplePostMeta()
-	post1.PostID = "post-1"
+	post1.ContentID = "post-1"
 	post2 := testutil.CreateSamplePostMeta()
-	post2.PostID = "post-2"
+	post2.ContentID = "post-2"
 
-	if err := service.BatchCommit([]*cache.PostMeta{post1, post2}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*cache.ContentMeta{post1, post2}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit posts: %v", err)
 	}
 
-	posts, err = service.ListAllPosts()
+	posts, err = service.ListAllItems()
 	if err != nil {
-		t.Fatalf("ListAllPosts failed: %v", err)
+		t.Fatalf("ListAllItems failed: %v", err)
 	}
 
 	if len(posts) != 2 {
@@ -111,24 +111,24 @@ func TestCacheService_ListAllPosts(t *testing.T) {
 	}
 }
 
-func TestCacheService_GetPostByPath(t *testing.T) {
+func TestCacheService_GetItemByPath(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
 	post := testutil.CreateSamplePostMeta()
 	post.Path = "content/posts/my-post.md"
 
-	if err := service.BatchCommit([]*cache.PostMeta{post}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*cache.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 
-	retrieved, err := service.GetPostByPath("content/posts/my-post.md")
+	retrieved, err := service.GetItemByPath("content/posts/my-post.md")
 	if err != nil {
-		t.Fatalf("GetPostByPath failed: %v", err)
+		t.Fatalf("GetItemByPath failed: %v", err)
 	}
 
 	if retrieved == nil {
-		t.Fatal("GetPostByPath should return the post")
+		t.Fatal("GetItemByPath should return the post")
 	}
 
 	if retrieved.Path != post.Path {
@@ -136,13 +136,13 @@ func TestCacheService_GetPostByPath(t *testing.T) {
 	}
 }
 
-func TestCacheService_GetPostByPath_NotFound(t *testing.T) {
+func TestCacheService_GetItemByPath_NotFound(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
-	retrieved, err := service.GetPostByPath("non-existent.md")
+	retrieved, err := service.GetItemByPath("non-existent.md")
 	if err == nil {
-		t.Fatal("GetPostByPath should error for missing path")
+		t.Fatal("GetItemByPath should error for missing path")
 	}
 
 	if !IsCacheMiss(err) {
@@ -150,28 +150,28 @@ func TestCacheService_GetPostByPath_NotFound(t *testing.T) {
 	}
 
 	if retrieved != nil {
-		t.Error("GetPostByPath should return nil for missing path")
+		t.Error("GetItemByPath should return nil for missing path")
 	}
 }
 
-func TestCacheService_GetPostsByIDs(t *testing.T) {
+func TestCacheService_GetItemsByIDs(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
 	post1 := testutil.CreateSamplePostMeta()
-	post1.PostID = "post-1"
+	post1.ContentID = "post-1"
 	post2 := testutil.CreateSamplePostMeta()
-	post2.PostID = "post-2"
+	post2.ContentID = "post-2"
 	post3 := testutil.CreateSamplePostMeta()
-	post3.PostID = "post-3"
+	post3.ContentID = "post-3"
 
-	if err := service.BatchCommit([]*cache.PostMeta{post1, post2, post3}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*cache.ContentMeta{post1, post2, post3}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit posts: %v", err)
 	}
 
-	posts, err := service.GetPostsByIDs([]string{"post-1", "post-3", "non-existent"})
+	posts, err := service.GetItemsByIDs([]string{"post-1", "post-3", "non-existent"})
 	if err != nil {
-		t.Fatalf("GetPostsByIDs failed: %v", err)
+		t.Fatalf("GetItemsByIDs failed: %v", err)
 	}
 
 	if len(posts) != 2 {
@@ -187,16 +187,16 @@ func TestCacheService_GetPostsByIDs(t *testing.T) {
 	}
 }
 
-func TestCacheService_DeletePost(t *testing.T) {
+func TestCacheService_DeleteItem(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
 	post := testutil.CreateSamplePostMeta()
-	if err := service.BatchCommit([]*cache.PostMeta{post}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*cache.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 
-	retrieved, err := service.GetPostByID(post.PostID)
+	retrieved, err := service.GetItemByID(post.ContentID)
 	if err != nil {
 		t.Fatalf("GetPost failed: %v", err)
 	}
@@ -204,11 +204,11 @@ func TestCacheService_DeletePost(t *testing.T) {
 		t.Fatal("Post should exist before deletion")
 	}
 
-	if err := service.DeletePost(post.PostID); err != nil {
-		t.Fatalf("DeletePost failed: %v", err)
+	if err := service.DeleteItem(post.ContentID); err != nil {
+		t.Fatalf("DeleteItem failed: %v", err)
 	}
 
-	retrieved, err = service.GetPostByID(post.PostID)
+	retrieved, err = service.GetItemByID(post.ContentID)
 	if err == nil {
 		t.Fatal("GetPost should error after delete")
 	}

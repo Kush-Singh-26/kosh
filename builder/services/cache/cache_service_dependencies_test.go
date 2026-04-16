@@ -19,14 +19,14 @@ func TestCacheService_BatchCommit_WithDependencies(t *testing.T) {
 	}
 
 	depsMap := map[string]*cache.Dependencies{
-		post.PostID: deps,
+		post.ContentID: deps,
 	}
 
-	if err := service.BatchCommit([]*cache.PostMeta{post}, nil, depsMap); err != nil {
+	if err := service.BatchCommit([]*cache.ContentMeta{post}, nil, depsMap); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
-	retrieved, err := service.GetPostByID(post.PostID)
+	retrieved, err := service.GetItemByID(post.ContentID)
 	if err != nil {
 		t.Fatalf("GetPost failed: %v", err)
 	}
@@ -36,16 +36,16 @@ func TestCacheService_BatchCommit_WithDependencies(t *testing.T) {
 	}
 }
 
-func TestCacheService_GetPostsByTemplate(t *testing.T) {
+func TestCacheService_GetItemsByTemplate(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
-	posts, err := service.GetPostsByTemplate("layouts/post.html")
+	posts, err := service.GetItemsByTemplate("layouts/post.html")
 	if err != nil {
-		t.Fatalf("GetPostsByTemplate failed: %v", err)
+		t.Fatalf("GetItemsByTemplate failed: %v", err)
 	}
 
 	if len(posts) > 0 {
-		t.Error("GetPostsByTemplate should return empty results for non-existent template")
+		t.Error("GetItemsByTemplate should return empty results for non-existent template")
 	}
 }

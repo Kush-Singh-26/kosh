@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 )
 
-func (service *postService) processCachedMath(html string, expressions []models.MathExpression) (string, bool) {
+func (service *contentService) processCachedMath(html string, expressions []models.MathExpression) (string, bool) {
 	if service.diagramAdapter == nil || len(expressions) == 0 {
 		return html, true
 	}
@@ -38,7 +38,7 @@ func (service *postService) processCachedMath(html string, expressions []models.
 	return html, true
 }
 
-func (service *postService) processCachedD2(html string, expressions []models.D2Expression) (string, bool) {
+func (service *contentService) processCachedD2(html string, expressions []models.D2Expression) (string, bool) {
 	if service.diagramAdapter == nil || len(expressions) == 0 {
 		return html, true
 	}
@@ -66,7 +66,7 @@ func (service *postService) processCachedD2(html string, expressions []models.D2
 	return html, true
 }
 
-func (service *postService) renderSSRGlobal(ctx context.Context, tasks []renderTask) {
+func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []renderTask) {
 	if len(tasks) == 0 {
 		return
 	}
@@ -134,7 +134,7 @@ func collectExpressions(tasks []renderTask) (math map[string]models.MathExpressi
 }
 
 // renderMathWithCache renders Math expressions with caching.
-func (service *postService) renderMathWithCache(ctx context.Context, allMath map[string]models.MathExpression) (map[string]string, error) {
+func (service *contentService) renderMathWithCache(ctx context.Context, allMath map[string]models.MathExpression) (map[string]string, error) {
 	if len(allMath) == 0 {
 		return nil, nil
 	}
@@ -177,7 +177,7 @@ func (service *postService) renderMathWithCache(ctx context.Context, allMath map
 }
 
 // renderD2WithCache renders D2 expressions with caching.
-func (service *postService) renderD2WithCache(ctx context.Context, allD2 map[string]models.D2Expression) (map[string]models.SSRThemePair, error) {
+func (service *contentService) renderD2WithCache(ctx context.Context, allD2 map[string]models.D2Expression) (map[string]models.SSRThemePair, error) {
 	if len(allD2) == 0 {
 		return nil, nil
 	}
@@ -220,7 +220,7 @@ func (service *postService) renderD2WithCache(ctx context.Context, allD2 map[str
 }
 
 // replaceExpressionsInTasks replaces Math and D2 placeholders in task HTML content.
-func (service *postService) replaceExpressionsInTasks(tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) {
+func (service *contentService) replaceExpressionsInTasks(tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) {
 	numWorkers := runtime.NumCPU()
 	if numWorkers > len(tasks) {
 		numWorkers = len(tasks)

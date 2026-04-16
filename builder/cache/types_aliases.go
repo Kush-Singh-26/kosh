@@ -5,8 +5,8 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 )
 
-// PostMeta re-exports the core PostMeta type for backward compatibility.
-type PostMeta = core.PostMeta
+// ContentMeta re-exports the core ContentMeta type for backward compatibility.
+type ContentMeta = core.ContentMeta
 
 // SearchRecord re-exports the core SearchRecord type for backward compatibility.
 type SearchRecord = core.SearchRecord
@@ -14,8 +14,8 @@ type SearchRecord = core.SearchRecord
 // Dependencies re-exports the core Dependencies type for backward compatibility.
 type Dependencies = core.Dependencies
 
-// PostListMeta re-exports the core PostListMeta type for backward compatibility.
-type PostListMeta = core.PostListMeta
+// ContentListMeta re-exports the core ContentListMeta type for backward compatibility.
+type ContentListMeta = core.ContentListMeta
 
 // Stats re-exports the core CacheStats type for backward compatibility.
 type Stats = core.CacheStats
@@ -47,8 +47,8 @@ var HashContent = core.HashContent
 // HashString re-exports the string hashing function.
 var HashString = core.HashString
 
-// GeneratePostID re-exports the post ID generator.
-var GeneratePostID = core.GeneratePostID
+// GenerateContentID re-exports the content ID generator.
+var GenerateContentID = core.GenerateContentID
 
 // Encode re-exports the msgpack encoder.
 var Encode = core.Encode

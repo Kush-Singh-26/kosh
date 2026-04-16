@@ -14,14 +14,14 @@ func TestCacheService_GetSearchRecord(t *testing.T) {
 	post := testutil.CreateSamplePostMeta()
 	record := testutil.CreateSampleSearchRecord()
 	records := map[string]*cache.SearchRecord{
-		post.PostID: record,
+		post.ContentID: record,
 	}
 
-	if err := service.BatchCommit([]*cache.PostMeta{post}, records, nil); err != nil {
+	if err := service.BatchCommit([]*cache.ContentMeta{post}, records, nil); err != nil {
 		t.Fatalf("Failed to commit: %v", err)
 	}
 
-	retrieved, err := service.GetSearchRecord(post.PostID)
+	retrieved, err := service.GetSearchRecord(post.ContentID)
 	if err != nil {
 		t.Fatalf("GetSearchRecord failed: %v", err)
 	}
@@ -40,9 +40,9 @@ func TestCacheService_GetSearchRecords(t *testing.T) {
 	defer cleanup()
 
 	post1 := testutil.CreateSamplePostMeta()
-	post1.PostID = "post-1"
+	post1.ContentID = "post-1"
 	post2 := testutil.CreateSamplePostMeta()
-	post2.PostID = "post-2"
+	post2.ContentID = "post-2"
 
 	record1 := testutil.CreateSampleSearchRecord()
 	record1.Title = "Post 1"
@@ -54,7 +54,7 @@ func TestCacheService_GetSearchRecords(t *testing.T) {
 		"post-2": record2,
 	}
 
-	if err := service.BatchCommit([]*cache.PostMeta{post1, post2}, records, nil); err != nil {
+	if err := service.BatchCommit([]*cache.ContentMeta{post1, post2}, records, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 

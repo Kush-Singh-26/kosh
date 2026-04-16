@@ -29,7 +29,7 @@ const (
 	ssrInlineContentLimitSize = 16 * 1024
 )
 
-func encodePosts(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, dependencies map[string]*core.Dependencies) ([]EncodedPost, error) {
+func encodePosts(posts []*core.ContentMeta, searchRecords map[string]*core.SearchRecord, dependencies map[string]*core.Dependencies) ([]EncodedPost, error) {
 	encoded := make([]EncodedPost, len(posts))
 
 	var encodeMutex sync.Mutex
@@ -40,7 +40,7 @@ func encodePosts(posts []*core.PostMeta, searchRecords map[string]*core.SearchRe
 	for i, post := range posts {
 		index, currentPost := i, post
 		errorGroup.Go(func() error {
-			encodedPost, err := encodeSinglePost(currentPost, searchRecords[currentPost.PostID], dependencies[currentPost.PostID])
+			encodedPost, err := encodeSinglePost(currentPost, searchRecords[currentPost.ContentID], dependencies[currentPost.ContentID])
 			if err != nil {
 				encodeMutex.Lock()
 				if encodeError == nil {
@@ -85,30 +85,30 @@ func buildBucketOps(encoded []EncodedPost) bucketOps {
 	ops.includes = make([]batchOp, 0, totalIncludes)
 
 	for _, encodedPost := range encoded {
-		ops.posts = append(ops.posts, batchOp{key: encodedPost.PostID, value: encodedPost.Data})
-		ops.paths = append(ops.paths, batchOp{key: encodedPost.Path, value: encodedPost.PostID})
+		ops.posts = append(ops.posts, batchOp{key: encodedPost.ContentID, value: encodedPost.Data})
+		ops.paths = append(ops.paths, batchOp{key: encodedPost.Path, value: encodedPost.ContentID})
 
 		if encodedPost.SearchData != nil {
-			ops.search = append(ops.search, batchOp{key: encodedPost.PostID, value: encodedPost.SearchData})
+			ops.search = append(ops.search, batchOp{key: encodedPost.ContentID, value: encodedPost.SearchData})
 		}
 
 		if encodedPost.DepsData != nil {
-			ops.deps = append(ops.deps, batchOp{key: encodedPost.PostID, value: encodedPost.DepsData})
+			ops.deps = append(ops.deps, batchOp{key: encodedPost.ContentID, value: encodedPost.DepsData})
 
 			for tax, terms := range encodedPost.Taxonomies {
 				for _, term := range terms {
-					taxKey := []byte(tax + "/" + term + "/" + string(encodedPost.PostID))
+					taxKey := []byte(tax + "/" + term + "/" + string(encodedPost.ContentID))
 					ops.taxonomies = append(ops.taxonomies, batchOp{key: taxKey, value: nil})
 				}
 			}
 
 			for _, tmpl := range encodedPost.Templates {
-				tmplKey := []byte(tmpl + "/" + string(encodedPost.PostID))
+				tmplKey := []byte(tmpl + "/" + string(encodedPost.ContentID))
 				ops.templates = append(ops.templates, batchOp{key: tmplKey, value: nil})
 			}
 
 			for _, inc := range encodedPost.Includes {
-				incKey := []byte(inc + "/" + string(encodedPost.PostID))
+				incKey := []byte(inc + "/" + string(encodedPost.ContentID))
 				ops.includes = append(ops.includes, batchOp{key: incKey, value: nil})
 			}
 		}
@@ -118,7 +118,7 @@ func buildBucketOps(encoded []EncodedPost) bucketOps {
 
 func invalidateMemCache(manager *Manager, encoded []EncodedPost) {
 	for _, encodedPost := range encoded {
-		manager.memCacheDelete("id:" + string(encodedPost.PostID))
+		manager.memCacheDelete("id:" + string(encodedPost.ContentID))
 		manager.memCacheDelete("path:" + string(encodedPost.Path))
 	}
 }
@@ -126,10 +126,10 @@ func invalidateMemCache(manager *Manager, encoded []EncodedPost) {
 func collectOldHashes(postsBucket *bbolt.Bucket, encoded []EncodedPost) map[string]string {
 	oldHashes := make(map[string]string)
 	for _, encodedPost := range encoded {
-		if existing := postsBucket.Get(encodedPost.PostID); existing != nil {
-			var oldPost core.PostMeta
+		if existing := postsBucket.Get(encodedPost.ContentID); existing != nil {
+			var oldPost core.ContentMeta
 			if err := core.Decode(existing, &oldPost); err == nil && oldPost.HTMLHash != "" {
-				oldHashes[string(encodedPost.PostID)] = oldPost.HTMLHash
+				oldHashes[string(encodedPost.ContentID)] = oldPost.HTMLHash
 			}
 		}
 	}
@@ -171,11 +171,11 @@ func writeAllOps(tx *bbolt.Tx, ops bucketOps) error {
 
 func updateRefCounts(tx *bbolt.Tx, refCount *gc.RefCountManager, encoded []EncodedPost, oldHashes map[string]string) error {
 	for _, encodedPost := range encoded {
-		var newPost core.PostMeta
+		var newPost core.ContentMeta
 		if err := core.Decode(encodedPost.Data, &newPost); err != nil {
 			continue
 		}
-		oldHash := oldHashes[string(encodedPost.PostID)]
+		oldHash := oldHashes[string(encodedPost.ContentID)]
 		newHash := newPost.HTMLHash
 
 		if oldHash != "" && oldHash != newHash {
@@ -206,12 +206,12 @@ func bumpBuildCount(tx *bbolt.Tx) error {
 func logBatchCommitFailure(err error, encoded []EncodedPost) {
 	postIDs := make([]string, len(encoded))
 	for i, ep := range encoded {
-		postIDs[i] = string(ep.PostID)
+		postIDs[i] = string(ep.ContentID)
 	}
 	slog.Error("BatchCommit failed", "count", len(postIDs), "ids", postIDs, "error", err)
 }
 
-// BatchCommit atomically commits posts, search records, and dependencies in a single BoltDB transaction.
+// BatchCommit atomically commits items, search records, and dependencies in a single BoltDB transaction.
 // All data is encoded in parallel with bounded concurrency before the transaction begins.
 //
 // Error Contract:
@@ -224,8 +224,8 @@ func logBatchCommitFailure(err error, encoded []EncodedPost) {
 // BatchCommit is designed for asynchronous fire-and-forget calls from the build pipeline.
 // It is safe to call without checking the error - the caller should log the error for visibility,
 // but the build should continue. On failure, the cache will rebuild on the next run.
-func (manager *Manager) BatchCommit(posts []*core.PostMeta, searchRecords map[string]*core.SearchRecord, dependencies map[string]*core.Dependencies) error {
-	encoded, err := encodePosts(posts, searchRecords, dependencies)
+func (manager *Manager) BatchCommit(items []*core.ContentMeta, searchRecords map[string]*core.SearchRecord, dependencies map[string]*core.Dependencies) error {
+	encoded, err := encodePosts(items, searchRecords, dependencies)
 	if err != nil {
 		return err
 	}
@@ -300,10 +300,10 @@ func (manager *Manager) BatchStoreFragments(_ context.Context, entries map[strin
 	})
 }
 
-// StoreHTMLForPost stores HTML for a specific post, inlining if small.
+// StoreHTMLForItem stores HTML for a specific post, inlining if small.
 // Note: Refcount adjustments are handled atomically inside BatchCommit,
 // not here. This method only sets the HTMLHash/InlineHTML fields on the post struct.
-func (manager *Manager) StoreHTMLForPost(post *core.PostMeta, content []byte) error {
+func (manager *Manager) StoreHTMLForItem(post *core.ContentMeta, content []byte) error {
 	if len(content) < models.InlineHTMLThreshold {
 		// Small content is inlined directly, no hash needed
 		post.InlineHTML = content
@@ -459,16 +459,16 @@ func (manager *Manager) processSSREntry(_ context.Context, key string, value any
 	return ssrType + ":" + inputHash, data, nil
 }
 
-func encodeSinglePost(p *core.PostMeta, sr *core.SearchRecord, d *core.Dependencies) (EncodedPost, error) {
+func encodeSinglePost(p *core.ContentMeta, sr *core.SearchRecord, d *core.Dependencies) (EncodedPost, error) {
 	postData, err := core.Encode(p)
 	if err != nil {
 		return EncodedPost{}, err
 	}
 
 	ep := EncodedPost{
-		PostID: []byte(p.PostID),
-		Data:   postData,
-		Path:   []byte(fspkg.NormalizePath(p.Path)),
+		ContentID: []byte(p.ContentID),
+		Data:      postData,
+		Path:      []byte(fspkg.NormalizePath(p.Path)),
 	}
 
 	if sr != nil {
@@ -493,18 +493,18 @@ func encodeSinglePost(p *core.PostMeta, sr *core.SearchRecord, d *core.Dependenc
 	return ep, nil
 }
 
-// DeletePost removes a post and its associated data
-func (manager *Manager) DeletePost(postID string) error {
-	postPath, _, deleteErrors, err := manager.deletePostInTx(postID)
+// DeleteItem removes a post and its associated data
+func (manager *Manager) DeleteItem(contentID string) error {
+	postPath, _, deleteErrors, err := manager.DeleteItemInTx(contentID)
 
 	// Log any delete errors (best effort cleanup)
 	for _, delErr := range deleteErrors {
-		slog.Warn("Cache delete error", "postID", postID, "error", delErr)
+		slog.Warn("Cache delete error", "contentID", contentID, "error", delErr)
 	}
 
 	// Invalidate memory cache
 	if err == nil {
-		manager.memCacheDelete("id:" + postID)
+		manager.memCacheDelete("id:" + contentID)
 		if postPath != "" {
 			manager.memCacheDelete("path:" + postPath)
 		}
@@ -513,7 +513,8 @@ func (manager *Manager) DeletePost(postID string) error {
 	return err
 }
 
-func (manager *Manager) deletePostInTx(postID string) (string, string, []error, error) {
+// DeleteItemInTx deletes an item from the cache transactionally
+func (manager *Manager) DeleteItemInTx(contentID string) (string, string, []error, error) {
 	var postPath string
 	var htmlHash string
 	var deleteErrors []error
@@ -525,11 +526,11 @@ func (manager *Manager) deletePostInTx(postID string) (string, string, []error, 
 		depsBucket := tx.Bucket([]byte(core.BucketPostDeps))
 		taxonomiesBucket := tx.Bucket([]byte(core.BucketTaxonomies))
 
-		postIDBytes := []byte(postID)
+		postIDBytes := []byte(contentID)
 
 		data := postsBucket.Get(postIDBytes)
 		if data != nil {
-			var post core.PostMeta
+			var post core.ContentMeta
 			if decodeErr := core.Decode(data, &post); decodeErr == nil {
 				postPath = fspkg.NormalizePath(post.Path)
 				htmlHash = post.HTMLHash
@@ -539,7 +540,7 @@ func (manager *Manager) deletePostInTx(postID string) (string, string, []error, 
 
 				for tax, terms := range post.Taxonomies {
 					for _, term := range terms {
-						taxKey := []byte(tax + "/" + term + "/" + postID)
+						taxKey := []byte(tax + "/" + term + "/" + contentID)
 						if err := taxonomiesBucket.Delete(taxKey); err != nil {
 							deleteErrors = append(deleteErrors, fmt.Errorf("delete tax %s/%s: %w", tax, term, err))
 						}

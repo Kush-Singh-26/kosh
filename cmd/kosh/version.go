@@ -11,7 +11,7 @@ var (
 	versionInfo bool
 )
 
-const cliVersion = "v1.4.0"
+const cliVersion = "v2.0.0"
 
 var versionCmd = &cobra.Command{
 	Use:   "version",

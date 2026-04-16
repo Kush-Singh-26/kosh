@@ -6,20 +6,20 @@ import (
 	"time"
 )
 
-// PostMeta stores metadata about a cached post in BoltDB. It includes
-// hashes for content and body to detect changes, and can inline small
+// ContentMeta stores metadata about a cached item in BoltDB. It includes
+// hashes for frontmatter and body to detect changes, and can inline small
 // HTML content (<32KB) directly in the metadata bucket for O(1) retrieval.
-type PostMeta struct {
-	// PostID is a hex-encoded string (128-bit xxh3 hash) used as a unique
+type ContentMeta struct {
+	// ContentID is a hex-encoded string (128-bit xxh3 hash) used as a unique
 	// key in the cache. This is different from the decimal/uint64 ID used
 	// in the search index.
-	PostID         string
+	ContentID      string
 	Path           string
 	ModTime        int64
 	ContentHash    string // Frontmatter hash
 	BodyHash       string // Body content hash
-	HTMLHash       string // Only for large posts
-	InlineHTML     []byte // < 32KB posts stored inline
+	HTMLHash       string // Only for large items
+	InlineHTML     []byte // < 32KB items stored inline
 	SSRInputHashes []string
 	Section        string
 	Title          string
@@ -41,11 +41,11 @@ type PostMeta struct {
 	MathExpressions []MathExpression
 }
 
-// SearchRecord stores pre-computed search data for BM25
+// SearchRecord stores pre-computed search data for BM25 (v2)
 type SearchRecord struct {
 	Title           string
 	NormalizedTitle string
-	BM25Data        map[string]int // word -> frequency
+	WordFreqs       map[string]int // word -> frequency
 	DocLen          int
 	Content         string
 	Taxonomies      map[string][]string
@@ -55,35 +55,35 @@ type SearchRecord struct {
 	ByteOffsets     map[string][]uint32
 }
 
-// Dependencies tracks what a post depends on
+// Dependencies tracks what an item depends on
 type Dependencies struct {
-	Templates []string
-	Includes    []string
-	Taxonomies  map[string][]string
+	Templates  []string
+	Includes   []string
+	Taxonomies map[string][]string
 }
 
-// PostListMeta contains minimal metadata needed for navigation/sorting only.
-// It is used to quickly build navigation and post lists
-// without loading full PostMeta records from the cache.
-type PostListMeta struct {
-	Section string
-	Title   string
-	Link   string
-	Weight int
-	Date   time.Time
+// ContentListMeta contains minimal metadata needed for navigation/sorting only.
+// It is used to quickly build navigation and item lists
+// without loading full ContentMeta records from the cache.
+type ContentListMeta struct {
+	Section    string
+	Title      string
+	Link       string
+	Weight     int
+	Date       time.Time
 	Taxonomies map[string][]string
 }
 
 // CacheStats holds runtime statistics
 type CacheStats struct {
-	TotalPosts    int
+	TotalItems    int
 	TotalSSR      int
 	StoreBytes    int64
 	LastGC        int64
 	BuildCount    int
 	SchemaVersion int
-	InlinePosts   int
-	HashedPosts   int
+	InlineItems   int
+	HashedItems   int
 }
 
 // SSRArtifact stores server-side rendered content

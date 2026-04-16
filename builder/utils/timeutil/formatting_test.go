@@ -7,17 +7,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-func TestSortPosts(t *testing.T) {
+func TestSortItems(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
 		name     string
-		posts    []models.PostMetadata
+		items    []models.ContentMetadata
 		expected []string // Expected order of titles
 	}{
 		{
 			name: "sort by weight descending",
-			posts: []models.PostMetadata{
+			items: []models.ContentMetadata{
 				{Title: "Low Weight", Weight: 1, DateObj: now},
 				{Title: "High Weight", Weight: 10, DateObj: now},
 				{Title: "Medium Weight", Weight: 5, DateObj: now},
@@ -26,7 +26,7 @@ func TestSortPosts(t *testing.T) {
 		},
 		{
 			name: "same weight sort by date descending",
-			posts: []models.PostMetadata{
+			items: []models.ContentMetadata{
 				{Title: "Old", Weight: 5, DateObj: now.Add(-24 * time.Hour)},
 				{Title: "New", Weight: 5, DateObj: now},
 				{Title: "Medium", Weight: 5, DateObj: now.Add(-12 * time.Hour)},
@@ -35,7 +35,7 @@ func TestSortPosts(t *testing.T) {
 		},
 		{
 			name: "same weight and date sort by title descending",
-			posts: []models.PostMetadata{
+			items: []models.ContentMetadata{
 				{Title: "Apple", Weight: 5, DateObj: now},
 				{Title: "Zebra", Weight: 5, DateObj: now},
 				{Title: "Banana", Weight: 5, DateObj: now},
@@ -44,7 +44,7 @@ func TestSortPosts(t *testing.T) {
 		},
 		{
 			name: "mixed weight and date",
-			posts: []models.PostMetadata{
+			items: []models.ContentMetadata{
 				{Title: "Heavy Old", Weight: 10, DateObj: now.Add(-24 * time.Hour)},
 				{Title: "Light New", Weight: 1, DateObj: now},
 				{Title: "Heavy New", Weight: 10, DateObj: now},
@@ -53,12 +53,12 @@ func TestSortPosts(t *testing.T) {
 		},
 		{
 			name:     "empty slice",
-			posts:    []models.PostMetadata{},
+			items:    []models.ContentMetadata{},
 			expected: []string{},
 		},
 		{
-			name: "single post",
-			posts: []models.PostMetadata{
+			name: "single item",
+			items: []models.ContentMetadata{
 				{Title: "Only", Weight: 5, DateObj: now},
 			},
 			expected: []string{"Only"},
@@ -67,15 +67,15 @@ func TestSortPosts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			SortPosts(tt.posts)
+			SortItems(tt.items)
 
-			if len(tt.posts) != len(tt.expected) {
-				t.Fatalf("got %d posts, want %d", len(tt.posts), len(tt.expected))
+			if len(tt.items) != len(tt.expected) {
+				t.Fatalf("got %d items, want %d", len(tt.items), len(tt.expected))
 			}
 
-			for i, post := range tt.posts {
-				if post.Title != tt.expected[i] {
-					t.Errorf("position %d: got %q, want %q", i, post.Title, tt.expected[i])
+			for i, item := range tt.items {
+				if item.Title != tt.expected[i] {
+					t.Errorf("position %d: got %q, want %q", i, item.Title, tt.expected[i])
 				}
 			}
 		})

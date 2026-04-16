@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"context"
@@ -151,34 +151,34 @@ func (m *mockRenderServiceWithCapture) GetAssets() map[string]string { return ni
 // mockCacheService that can simulate failures
 type mockCacheService struct{}
 
-func (m *mockCacheService) GetPostByID(_ string) (*cache.PostMeta, error)   { return nil, nil }
-func (m *mockCacheService) ListAllPosts() ([]string, error)                 { return nil, nil }
-func (m *mockCacheService) GetPostByPath(_ string) (*cache.PostMeta, error) { return nil, nil }
-func (m *mockCacheService) GetPostsByIDs(_ []string) (map[string]*cache.PostMeta, error) {
+func (m *mockCacheService) GetItemByID(_ string) (*models.ContentMeta, error)   { return nil, nil }
+func (m *mockCacheService) ListAllItems() ([]string, error)                     { return nil, nil }
+func (m *mockCacheService) GetItemByPath(_ string) (*models.ContentMeta, error) { return nil, nil }
+func (m *mockCacheService) GetItemsByIDs(_ []string) (map[string]*models.ContentMeta, error) {
 	return nil, nil
 }
-func (m *mockCacheService) GetPostsByTemplate(_ string) ([]string, error) { return nil, nil }
-func (m *mockCacheService) GetSearchRecords(_ []string) (map[string]*cache.SearchRecord, error) {
+func (m *mockCacheService) GetItemsByTemplate(_ string) ([]string, error) { return nil, nil }
+func (m *mockCacheService) GetSearchRecords(_ []string) (map[string]*models.SearchRecord, error) {
 	return nil, nil
 }
-func (m *mockCacheService) GetSearchRecord(_ string) (*cache.SearchRecord, error) { return nil, nil }
-func (m *mockCacheService) GetHTMLContent(_ *cache.PostMeta) ([]byte, error)      { return nil, nil }
-func (m *mockCacheService) GetSocialCardHash(_ string) (string, error)            { return "", nil }
-func (m *mockCacheService) SetSocialCardHash(_, _ string) error                   { return nil }
-func (m *mockCacheService) BatchSetSocialCardHashes(_ map[string]string) error    { return nil }
-func (m *mockCacheService) GetGraphHash() (string, error)                         { return "", nil }
-func (m *mockCacheService) SetGraphHash(_ string) error                           { return nil }
-func (m *mockCacheService) GetWasmHash() (string, error)                          { return "", nil }
-func (m *mockCacheService) SetWasmHash(_ string) error                            { return nil }
-func (m *mockCacheService) GetAllPostsMetadata() ([]cache.PostListMeta, error) {
+func (m *mockCacheService) GetSearchRecord(_ string) (*models.SearchRecord, error) { return nil, nil }
+func (m *mockCacheService) GetHTMLContent(_ *models.ContentMeta) ([]byte, error)   { return nil, nil }
+func (m *mockCacheService) GetSocialCardHash(_ string) (string, error)             { return "", nil }
+func (m *mockCacheService) SetSocialCardHash(_, _ string) error                    { return nil }
+func (m *mockCacheService) BatchSetSocialCardHashes(_ map[string]string) error     { return nil }
+func (m *mockCacheService) GetGraphHash() (string, error)                          { return "", nil }
+func (m *mockCacheService) SetGraphHash(_ string) error                            { return nil }
+func (m *mockCacheService) GetWasmHash() (string, error)                           { return "", nil }
+func (m *mockCacheService) SetWasmHash(_ string) error                             { return nil }
+func (m *mockCacheService) GetAllItemsMetadata() ([]models.ContentListMeta, error) {
 	return nil, nil
 }
-func (m *mockCacheService) StoreHTML(_ []byte) (string, error)                 { return "", nil }
-func (m *mockCacheService) StoreHTMLForPost(_ *cache.PostMeta, _ []byte) error { return nil }
-func (m *mockCacheService) BatchCommit(_ []*cache.PostMeta, _ map[string]*cache.SearchRecord, _ map[string]*cache.Dependencies) error {
+func (m *mockCacheService) StoreHTML(_ []byte) (string, error)                     { return "", nil }
+func (m *mockCacheService) StoreHTMLForItem(_ *models.ContentMeta, _ []byte) error { return nil }
+func (m *mockCacheService) BatchCommit(_ []*models.ContentMeta, _ map[string]*models.SearchRecord, _ map[string]*models.Dependencies) error {
 	return nil
 }
-func (m *mockCacheService) DeletePost(_ string) error    { return nil }
+func (m *mockCacheService) DeleteItem(_ string) error    { return nil }
 func (m *mockCacheService) MarkDirty(_ string)           {}
 func (m *mockCacheService) IsDirty(_ string) bool        { return false }
 func (m *mockCacheService) ClearDirty()                  {}
@@ -186,7 +186,7 @@ func (m *mockCacheService) Stats() (*cache.Stats, error) { return nil, nil }
 func (m *mockCacheService) IncrementBuildCount() error   { return nil }
 func (m *mockCacheService) Close() error                 { return nil }
 
-func setupPostServiceTest(t *testing.T) *postService {
+func setupPostServiceTest(t *testing.T) *contentService {
 	t.Helper()
 
 	cfg := &config.Config{
@@ -230,7 +230,7 @@ func setupPostServiceTest(t *testing.T) *postService {
 		},
 	}
 
-	return &postService{
+	return &contentService{
 		ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -399,8 +399,8 @@ func TestDecoupledPipeline(t *testing.T) {
 		t.Fatalf("ParseMarkdownMetadata failed: %v", err)
 	}
 
-	if res.Post.Title != "Test" {
-		t.Errorf("Expected title 'Test', got %q", res.Post.Title)
+	if res.Item.Title != "Test" {
+		t.Errorf("Expected title 'Test', got %q", res.Item.Title)
 	}
 	if res.PlainText == "" {
 		t.Error("Expected non-empty PlainText")

@@ -26,7 +26,7 @@ func scanLiveHashes(db *bbolt.DB) (map[string]bool, map[string]bool, error) {
 	err := db.View(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		if err := postsBucket.ForEach(func(_, value []byte) error {
-			var post core.PostMeta
+			var post core.ContentMeta
 			if err := core.Decode(value, &post); err != nil {
 				return nil
 			}
@@ -94,7 +94,7 @@ func reconcileSSRRefCounts(db *bbolt.DB, cacheStore *store.Store) {
 		refCounts := make(map[string]int)
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
 		_ = postsBucket.ForEach(func(_, value []byte) error {
-			var post core.PostMeta
+			var post core.ContentMeta
 			if err := core.Decode(value, &post); err != nil {
 				return nil
 			}

@@ -7,7 +7,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 )
 
-func TestGetPostByPath(t *testing.T) {
+func TestGetItemByPath(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
@@ -15,102 +15,102 @@ func TestGetPostByPath(t *testing.T) {
 	post := createSamplePostMeta()
 	post.Path = "content/posts/my-post.md"
 
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Retrieve by path
-	retrieved, err := m.GetPostByPath("content/posts/my-post.md")
+	retrieved, err := m.GetItemByPath("content/posts/my-post.md")
 	if err != nil {
-		t.Fatalf("GetPostByPath failed: %v", err)
+		t.Fatalf("GetItemByPath failed: %v", err)
 	}
 
 	if retrieved == nil {
-		t.Fatal("GetPostByPath should return the post")
+		t.Fatal("GetItemByPath should return the post")
 	}
 
-	if retrieved.PostID != post.PostID {
-		t.Errorf("PostID = %q, want %q", retrieved.PostID, post.PostID)
+	if retrieved.ContentID != post.ContentID {
+		t.Errorf("ContentID = %q, want %q", retrieved.ContentID, post.ContentID)
 	}
 }
 
-func TestGetPostByPath_NotFound(t *testing.T) {
+func TestGetItemByPath_NotFound(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// Try to get non-existent path
-	retrieved, err := m.GetPostByPath("content/posts/non-existent.md")
+	retrieved, err := m.GetItemByPath("content/posts/non-existent.md")
 	if !errors.Is(err, core.ErrNoContent) {
 		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 
 	if retrieved != nil {
-		t.Error("GetPostByPath should return nil for non-existent path")
+		t.Error("GetItemByPath should return nil for non-existent path")
 	}
 }
 
-func TestGetPostByID(t *testing.T) {
+func TestGetItemByID(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// Create a post
 	post := createSamplePostMeta()
-	post.PostID = "my-unique-post-id"
+	post.ContentID = "my-unique-post-id"
 
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Retrieve by ID
-	retrieved, err := m.GetPostByID("my-unique-post-id")
+	retrieved, err := m.GetItemByID("my-unique-post-id")
 	if err != nil {
-		t.Fatalf("GetPostByID failed: %v", err)
+		t.Fatalf("GetItemByID failed: %v", err)
 	}
 
 	if retrieved == nil {
-		t.Fatal("GetPostByID should return the post")
+		t.Fatal("GetItemByID should return the post")
 	}
 
-	if retrieved.PostID != "my-unique-post-id" {
-		t.Errorf("PostID = %q, want %q", retrieved.PostID, "my-unique-post-id")
+	if retrieved.ContentID != "my-unique-post-id" {
+		t.Errorf("ContentID = %q, want %q", retrieved.ContentID, "my-unique-post-id")
 	}
 }
 
-func TestGetPostByID_NotFound(t *testing.T) {
+func TestGetItemByID_NotFound(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// Try to get non-existent ID
-	retrieved, err := m.GetPostByID("non-existent-id")
+	retrieved, err := m.GetItemByID("non-existent-id")
 	if !errors.Is(err, core.ErrNoContent) {
 		t.Fatalf("Expected core.ErrNoContent, got %v", err)
 	}
 
 	if retrieved != nil {
-		t.Error("GetPostByID should return nil for non-existent ID")
+		t.Error("GetItemByID should return nil for non-existent ID")
 	}
 }
 
-func TestGetPostsByIDs(t *testing.T) {
+func TestGetItemsByIDs(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// Create posts
 	post1 := createSamplePostMeta()
-	post1.PostID = "post-1"
+	post1.ContentID = "post-1"
 	post2 := createSamplePostMeta()
-	post2.PostID = "post-2"
+	post2.ContentID = "post-2"
 	post3 := createSamplePostMeta()
-	post3.PostID = "post-3"
+	post3.ContentID = "post-3"
 
-	if err := m.BatchCommit([]*core.PostMeta{post1, post2, post3}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post1, post2, post3}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Retrieve specific posts
-	posts, err := m.GetPostsByIDs([]string{"post-1", "post-3", "non-existent"})
+	posts, err := m.GetItemsByIDs([]string{"post-1", "post-3", "non-existent"})
 	if err != nil {
-		t.Fatalf("GetPostsByIDs failed: %v", err)
+		t.Fatalf("GetItemsByIDs failed: %v", err)
 	}
 
 	if len(posts) != 2 {
@@ -126,18 +126,18 @@ func TestGetPostsByIDs(t *testing.T) {
 	}
 }
 
-func TestGetPostsByIDs_Empty(t *testing.T) {
+func TestGetItemsByIDs_Empty(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// Empty list should return empty map
-	posts, err := m.GetPostsByIDs([]string{})
+	posts, err := m.GetItemsByIDs([]string{})
 	if err != nil {
-		t.Fatalf("GetPostsByIDs failed: %v", err)
+		t.Fatalf("GetItemsByIDs failed: %v", err)
 	}
 
 	if posts == nil {
-		t.Error("GetPostsByIDs should return empty map, not nil")
+		t.Error("GetItemsByIDs should return empty map, not nil")
 	}
 
 	if len(posts) != 0 {
@@ -154,21 +154,21 @@ func TestGetSearchRecord(t *testing.T) {
 	record := &core.SearchRecord{
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
-		BM25Data:        map[string]int{"test": 1, "post": 2},
+		WordFreqs:       map[string]int{"test": 1, "post": 2},
 		DocLen:          10,
 		NormalizedTaxs:  map[string][]string{"tags": {"test", "go"}},
 	}
 
 	records := map[string]*core.SearchRecord{
-		post.PostID: record,
+		post.ContentID: record,
 	}
 
-	if err := m.BatchCommit([]*core.PostMeta{post}, records, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, records, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Retrieve search record
-	retrieved, err := m.GetSearchRecord(post.PostID)
+	retrieved, err := m.GetSearchRecord(post.ContentID)
 	if err != nil {
 		t.Fatalf("GetSearchRecord failed: %v", err)
 	}
@@ -203,9 +203,9 @@ func TestGetSearchRecords(t *testing.T) {
 
 	// Create posts with search records
 	post1 := createSamplePostMeta()
-	post1.PostID = "post-1"
+	post1.ContentID = "post-1"
 	post2 := createSamplePostMeta()
-	post2.PostID = "post-2"
+	post2.ContentID = "post-2"
 
 	record1 := &core.SearchRecord{Title: "Post 1"}
 	record2 := &core.SearchRecord{Title: "Post 2"}
@@ -215,7 +215,7 @@ func TestGetSearchRecords(t *testing.T) {
 		"post-2": record2,
 	}
 
-	if err := m.BatchCommit([]*core.PostMeta{post1, post2}, records, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post1, post2}, records, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -285,15 +285,15 @@ func TestGetPostsByTag(t *testing.T) {
 
 	// Create posts with tags
 	post1 := createSamplePostMeta()
-	post1.PostID = "post-1"
+	post1.ContentID = "post-1"
 	post1.Taxonomies = map[string][]string{"tags": {"go", "tutorial"}}
 
 	post2 := createSamplePostMeta()
-	post2.PostID = "post-2"
+	post2.ContentID = "post-2"
 	post2.Taxonomies = map[string][]string{"tags": {"go", "advanced"}}
 
 	post3 := createSamplePostMeta()
-	post3.PostID = "post-3"
+	post3.ContentID = "post-3"
 	post3.Taxonomies = map[string][]string{"tags": {"python", "tutorial"}}
 
 	deps1 := &core.Dependencies{Taxonomies: post1.Taxonomies}
@@ -306,7 +306,7 @@ func TestGetPostsByTag(t *testing.T) {
 		"post-3": deps3,
 	}
 
-	if err := m.BatchCommit([]*core.PostMeta{post1, post2, post3}, nil, depsMap); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post1, post2, post3}, nil, depsMap); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -346,16 +346,16 @@ func TestGetPostsByTag_NotFound(t *testing.T) {
 	}
 }
 
-func TestGetPostsByTemplate(t *testing.T) {
+func TestGetItemsByTemplate(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// Create posts with templates
 	post1 := createSamplePostMeta()
-	post1.PostID = "post-1"
+	post1.ContentID = "post-1"
 
 	post2 := createSamplePostMeta()
-	post2.PostID = "post-2"
+	post2.ContentID = "post-2"
 
 	deps1 := &core.Dependencies{Templates: []string{"layouts/post.html", "partials/header.html"}}
 	deps2 := &core.Dependencies{Templates: []string{"layouts/post.html"}}
@@ -365,14 +365,14 @@ func TestGetPostsByTemplate(t *testing.T) {
 		"post-2": deps2,
 	}
 
-	if err := m.BatchCommit([]*core.PostMeta{post1, post2}, nil, depsMap); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post1, post2}, nil, depsMap); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Get posts by template
-	posts, err := m.GetPostsByTemplate("layouts/post.html")
+	posts, err := m.GetItemsByTemplate("layouts/post.html")
 	if err != nil {
-		t.Fatalf("GetPostsByTemplate failed: %v", err)
+		t.Fatalf("GetItemsByTemplate failed: %v", err)
 	}
 
 	// Should find both posts
@@ -385,18 +385,18 @@ func TestGetCachedItem_Generic(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
-	// Test the generic getCachedItem function through GetPostByID
+	// Test the generic getCachedItem function through GetItemByID
 	post := createSamplePostMeta()
-	post.PostID = "generic-test"
+	post.ContentID = "generic-test"
 
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// This internally uses getCachedItem
-	retrieved, err := m.GetPostByID("generic-test")
+	retrieved, err := m.GetItemByID("generic-test")
 	if err != nil {
-		t.Fatalf("GetPostByID failed: %v", err)
+		t.Fatalf("GetItemByID failed: %v", err)
 	}
 
 	if retrieved == nil {

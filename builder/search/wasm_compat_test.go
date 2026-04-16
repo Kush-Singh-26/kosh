@@ -11,22 +11,22 @@ import (
 func TestSearchIndex_RoundTrip(t *testing.T) {
 	original := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts: map[string]models.PostRecord{
+		Items: map[string]models.ContentRecord{
 			"0": {
 				ID:              0,
-				Title:           "Test Post",
-				NormalizedTitle: "test post",
-				Link:            "/posts/test.html",
-				Description:     "A test post",
+				Title:           "Test Item",
+				NormalizedTitle: "test item",
+				Link:            "/items/test.html",
+				Description:     "A test item",
 				Taxonomies:      map[string][]string{"tags": {"test", "demo"}},
 				NormalizedTaxs:  map[string][]string{"tags": {"test", "demo"}},
-				Content:         "This is the full content of the test post for snippet extraction.",
+				Content:         "This is the full content of the test item for snippet extraction.",
 			},
 		},
-		DocLens:   map[string]int64{"0": 12},
-		AvgDocLen: 12.0,
-		TotalDocs: 1,
-		StemMap:   map[string][]string{"test": {"tests", "testing"}},
+		ItemLens:   map[string]int64{"0": 12},
+		AvgDocLen:  12.0,
+		TotalItems: 1,
+		StemMap:    map[string][]string{"test": {"tests", "testing"}},
 		Inverted: map[string]map[string][]uint32{
 			"test": {"0": {0, 5, 10}},
 		},
@@ -51,19 +51,19 @@ func TestSearchIndex_RoundTrip(t *testing.T) {
 		t.Errorf("SchemaVersion mismatch: got %d, want %d", decoded.SchemaVersion, original.SchemaVersion)
 	}
 
-	if len(decoded.Posts) != len(original.Posts) {
-		t.Fatalf("Posts length mismatch: got %d, want %d", len(decoded.Posts), len(original.Posts))
+	if len(decoded.Items) != len(original.Items) {
+		t.Fatalf("Items length mismatch: got %d, want %d", len(decoded.Items), len(original.Items))
 	}
 
-	if decoded.Posts["0"].Content != original.Posts["0"].Content {
-		t.Errorf("Content field mismatch: got %q, want %q", decoded.Posts["0"].Content, original.Posts["0"].Content)
+	if decoded.Items["0"].Content != original.Items["0"].Content {
+		t.Errorf("Content field mismatch: got %q, want %q", decoded.Items["0"].Content, original.Items["0"].Content)
 	}
 
 	if !reflect.DeepEqual(decoded.Inverted, original.Inverted) {
 		t.Errorf("Inverted index mismatch: got %v, want %v", decoded.Inverted, original.Inverted)
 	}
 
-	if !reflect.DeepEqual(decoded.DocLens, original.DocLens) {
-		t.Errorf("DocLens mismatch: got %v, want %v", decoded.DocLens, original.DocLens)
+	if !reflect.DeepEqual(decoded.ItemLens, original.ItemLens) {
+		t.Errorf("ItemLens mismatch: got %v, want %v", decoded.ItemLens, original.ItemLens)
 	}
 }

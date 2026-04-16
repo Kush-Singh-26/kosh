@@ -118,7 +118,7 @@ func TestHashStringConsistency(t *testing.T) {
 	}
 }
 
-func TestGeneratePostID(t *testing.T) {
+func TestGenerateContentID(t *testing.T) {
 	tests := []struct {
 		name           string
 		uuid           string
@@ -153,35 +153,35 @@ func TestGeneratePostID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id := GeneratePostID(tt.uuid, tt.normalizedPath)
+			id := GenerateContentID(tt.uuid, tt.normalizedPath)
 			if id == "" && !tt.wantEmpty {
-				t.Error("GeneratePostID() returned empty string")
+				t.Error("GenerateContentID() returned empty string")
 			}
 			if len(id) != 32 {
-				t.Errorf("GeneratePostID() returned ID of length %d, want 32", len(id))
+				t.Errorf("GenerateContentID() returned ID of length %d, want 32", len(id))
 			}
 		})
 	}
 }
 
-func TestGeneratePostIDDeterministic(t *testing.T) {
+func TestGenerateContentIDDeterministic(t *testing.T) {
 	uuid := "test-uuid-123"
 	path := "/test/path"
 
-	id1 := GeneratePostID(uuid, path)
-	id2 := GeneratePostID(uuid, path)
+	id1 := GenerateContentID(uuid, path)
+	id2 := GenerateContentID(uuid, path)
 
 	if id1 != id2 {
-		t.Errorf("GeneratePostID() not deterministic: %s != %s", id1, id2)
+		t.Errorf("GenerateContentID() not deterministic: %s != %s", id1, id2)
 	}
 }
 
-func TestGeneratePostIDUUIDPriority(t *testing.T) {
+func TestGenerateContentIDUUIDPriority(t *testing.T) {
 	uuid := "uuid-value"
 	path := "path-value"
 
-	idWithUUID := GeneratePostID(uuid, path)
-	idWithoutUUID := GeneratePostID("", path)
+	idWithUUID := GenerateContentID(uuid, path)
+	idWithoutUUID := GenerateContentID("", path)
 
 	if idWithUUID == idWithoutUUID {
 		t.Error("UUID should take precedence over path")
@@ -194,9 +194,9 @@ func TestEncodeDecode(t *testing.T) {
 		data any
 	}{
 		{
-			name: "PostMeta",
-			data: &PostMeta{
-				PostID:      "test-id",
+			name: "ContentMeta",
+			data: &ContentMeta{
+				ContentID:   "test-id",
 				Title:       "Test Title",
 				Description: "Test Description",
 				Taxonomies:  map[string][]string{"tags": {"go", "testing"}},
@@ -210,14 +210,14 @@ func TestEncodeDecode(t *testing.T) {
 			data: &SearchRecord{
 				Title:           "Test",
 				NormalizedTitle: "test",
-				BM25Data:        map[string]int{"test": 1, "record": 2},
+				WordFreqs:       map[string]int{"test": 1, "record": 2},
 				DocLen:          10,
 			},
 		},
 		{
 			name: "CacheStats",
 			data: &CacheStats{
-				TotalPosts:    10,
+				TotalItems:    10,
 				TotalSSR:      5,
 				StoreBytes:    1024,
 				BuildCount:    3,
@@ -247,13 +247,13 @@ func TestEncodeDecode(t *testing.T) {
 
 			// Decode based on type
 			switch v := tt.data.(type) {
-			case *PostMeta:
-				var decoded PostMeta
+			case *ContentMeta:
+				var decoded ContentMeta
 				if err := Decode(encoded, &decoded); err != nil {
 					t.Fatalf("Decode() error = %v", err)
 				}
-				if decoded.PostID != v.PostID {
-					t.Errorf("PostID mismatch: got %q, want %q", decoded.PostID, v.PostID)
+				if decoded.ContentID != v.ContentID {
+					t.Errorf("ContentID mismatch: got %q, want %q", decoded.ContentID, v.ContentID)
 				}
 				if decoded.Title != v.Title {
 					t.Errorf("Title mismatch: got %q, want %q", decoded.Title, v.Title)
@@ -274,8 +274,8 @@ func TestEncodeDecode(t *testing.T) {
 				if err := Decode(encoded, &decoded); err != nil {
 					t.Fatalf("Decode() error = %v", err)
 				}
-				if decoded.TotalPosts != v.TotalPosts {
-					t.Errorf("TotalPosts mismatch: got %d, want %d", decoded.TotalPosts, v.TotalPosts)
+				if decoded.TotalItems != v.TotalItems {
+					t.Errorf("TotalItems mismatch: got %d, want %d", decoded.TotalItems, v.TotalItems)
 				}
 			case *Dependencies:
 				var decoded Dependencies
@@ -291,8 +291,8 @@ func TestEncodeDecode(t *testing.T) {
 }
 
 func TestEncodeDecodeComplex(t *testing.T) {
-	original := &PostMeta{
-		PostID:         "complex-id",
+	original := &ContentMeta{
+		ContentID:      "complex-id",
 		Path:           "/posts/complex.md",
 		ContentHash:    HashString("content"),
 		SSRInputHashes: []string{"hash1", "hash2"},
@@ -318,14 +318,14 @@ func TestEncodeDecodeComplex(t *testing.T) {
 		t.Fatalf("Encode() error = %v", err)
 	}
 
-	var decoded PostMeta
+	var decoded ContentMeta
 	if err := Decode(encoded, &decoded); err != nil {
 		t.Fatalf("Decode() error = %v", err)
 	}
 
 	// Verify all fields
-	if decoded.PostID != original.PostID {
-		t.Errorf("PostID mismatch")
+	if decoded.ContentID != original.ContentID {
+		t.Errorf("ContentID mismatch")
 	}
 	if decoded.Title != original.Title {
 		t.Errorf("Title mismatch")

@@ -53,9 +53,9 @@ type TagScorer struct{}
 func (scorer *TagScorer) Score(ctx *Context, opts *ScoringOptions) {
 	if ctx.TagFilter != "" && len(ctx.QueryTerms) == 0 {
 		opts.HighlightTerms[ctx.TagFilter] = true
-		for id, post := range ctx.Index.Posts {
+		for id, item := range ctx.Index.Items {
 			match := false
-			for _, terms := range post.NormalizedTaxs {
+			for _, terms := range item.NormalizedTaxs {
 				if slices.Contains(terms, ctx.TagFilter) {
 					match = true
 					break
@@ -83,19 +83,19 @@ func (scorer *BM25Scorer) Score(ctx *Context, opts *ScoringOptions) {
 	}
 }
 
-func (scorer *BM25Scorer) applyBM25Score(ctx *Context, posts map[string][]uint32, _ string, opts *ScoringOptions) {
-	docFreq := len(posts)
-	invDocFreq := math.Log(1 + (float64(ctx.Index.TotalDocs)-float64(docFreq)+bm25Smoothing)/(float64(docFreq)+bm25Smoothing))
+func (scorer *BM25Scorer) applyBM25Score(ctx *Context, items map[string][]uint32, _ string, opts *ScoringOptions) {
+	docFreq := len(items)
+	invDocFreq := math.Log(1 + (float64(ctx.Index.TotalItems)-float64(docFreq)+bm25Smoothing)/(float64(docFreq)+bm25Smoothing))
 	avgDocLen := ctx.Index.AvgDocLen
 
-	for postID, positions := range posts {
-		post, ok := ctx.Index.Posts[postID]
+	for ContentID, positions := range items {
+		item, ok := ctx.Index.Items[ContentID]
 		if !ok {
 			continue
 		}
 		if ctx.TagFilter != "" {
 			match := false
-			for _, terms := range post.NormalizedTaxs {
+			for _, terms := range item.NormalizedTaxs {
 				if slices.Contains(terms, ctx.TagFilter) {
 					match = true
 					break
@@ -107,9 +107,9 @@ func (scorer *BM25Scorer) applyBM25Score(ctx *Context, posts map[string][]uint32
 		}
 
 		freq := len(positions)
-		docLen := float64(ctx.Index.DocLens[postID])
+		docLen := float64(ctx.Index.ItemLens[ContentID])
 		score := invDocFreq * (float64(freq) * (opts.K1 + 1)) / (float64(freq) + opts.K1*(1-opts.B+opts.B*(docLen/avgDocLen)))
-		opts.Scores[postID] += score * opts.Modifier
+		opts.Scores[ContentID] += score * opts.Modifier
 	}
 }
 
@@ -147,7 +147,7 @@ func (scorer *PhraseScorer) Score(ctx *Context, opts *ScoringOptions) {
 	}
 
 	for _, phraseTerms := range ctx.Phrases {
-		for id := range ctx.Index.Posts {
+		for id := range ctx.Index.Items {
 			if !checkPhraseUnified(ctx.Index, id, phraseTerms) {
 				continue
 			}
@@ -184,19 +184,19 @@ func (scorer *TitleScorer) Score(ctx *Context, opts *ScoringOptions) {
 		}
 	}
 
-	for id := range ctx.Index.Posts {
-		post := ctx.Index.Posts[id]
+	for id := range ctx.Index.Items {
+		item := ctx.Index.Items[id]
 		idNum, _ := strconv.ParseUint(id, 10, 64)
 		switch {
-		case post.NormalizedTitle == queryLower:
+		case item.NormalizedTitle == queryLower:
 			titleMatches[idNum] += exactTitleBoost
-		case strings.HasPrefix(post.NormalizedTitle, queryLower):
+		case strings.HasPrefix(item.NormalizedTitle, queryLower):
 			titleMatches[idNum] += prefixTitleBoost
-		case strings.Contains(post.NormalizedTitle, queryLower):
+		case strings.Contains(item.NormalizedTitle, queryLower):
 			titleMatches[idNum] += substringTitleBoost
 		}
 
-		description := core.ToLower(post.Description)
+		description := core.ToLower(item.Description)
 		if strings.Contains(description, queryLower) {
 			idNum, _ := strconv.ParseUint(id, 10, 64)
 			titleMatches[idNum] += descriptionContainsBoost
@@ -227,13 +227,13 @@ func (scorer *BoostScorer) Score(ctx *Context, opts *ScoringOptions) {
 	}
 
 	for id := range opts.Scores {
-		post, ok := ctx.Index.Posts[id]
+		item, ok := ctx.Index.Items[id]
 		if !ok {
 			continue
 		}
 
 		// Exact taxonomy term matches
-		for _, terms := range post.NormalizedTaxs {
+		for _, terms := range item.NormalizedTaxs {
 			for _, term := range terms {
 				if term == ctx.OriginalQuery || term == ctx.TagFilter {
 					opts.Scores[id] += ScoreTagMatch * exactTagBoostFactor
@@ -359,20 +359,20 @@ type RecencyScorer struct{}
 
 // Score boosts newer results using an exponential decay.
 func (scorer *RecencyScorer) Score(ctx *Context, opts *ScoringOptions) {
-	if ctx.Index.TotalDocs == 0 {
+	if ctx.Index.TotalItems == 0 {
 		return
 	}
 
 	nowUnix := core.NowUnix()
 
 	for id, score := range opts.Scores {
-		post, ok := ctx.Index.Posts[id]
-		if !ok || post.Date == 0 {
+		item, ok := ctx.Index.Items[id]
+		if !ok || item.Date == 0 {
 			continue
 		}
 
 		// Calculate age in months
-		ageMonths := float64(nowUnix-post.Date) / float64(secondsPerMonth)
+		ageMonths := float64(nowUnix-item.Date) / float64(secondsPerMonth)
 		if ageMonths < 0 {
 			ageMonths = 0
 		}
@@ -384,22 +384,22 @@ func (scorer *RecencyScorer) Score(ctx *Context, opts *ScoringOptions) {
 	}
 }
 
-func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []string) bool {
+func checkPhraseUnified(index *models.SearchIndex, contentID string, phraseTerms []string) bool {
 	if len(phraseTerms) == 0 {
 		return false
 	}
 
 	if len(phraseTerms) == 1 {
-		return checkSingleTermInPost(index, postID, phraseTerms[0])
+		return checkSingleTermInPost(index, contentID, phraseTerms[0])
 	}
 
-	posList, ok := getInitialPositions(index, postID, phraseTerms[0])
+	posList, ok := getInitialPositions(index, contentID, phraseTerms[0])
 	if !ok {
 		return false
 	}
 
 	for i := 1; i < len(phraseTerms); i++ {
-		nextPositions, ok := getDecodedPositions(index, postID, phraseTerms[i])
+		nextPositions, ok := getDecodedPositions(index, contentID, phraseTerms[i])
 		if !ok {
 			return false
 		}
@@ -413,16 +413,16 @@ func checkPhraseUnified(index *models.SearchIndex, postID string, phraseTerms []
 	return true
 }
 
-func checkSingleTermInPost(index *models.SearchIndex, postID, term string) bool {
+func checkSingleTermInPost(index *models.SearchIndex, contentID, term string) bool {
 	if postMap, ok := index.Inverted[term]; ok {
-		_, found := postMap[postID]
+		_, found := postMap[contentID]
 		return found
 	}
 	return false
 }
 
-func getInitialPositions(index *models.SearchIndex, postID, term string) ([]int, bool) {
-	candidates, ok := getDecodedPositions(index, postID, term)
+func getInitialPositions(index *models.SearchIndex, contentID, term string) ([]int, bool) {
+	candidates, ok := getDecodedPositions(index, contentID, term)
 	if !ok {
 		return nil, false
 	}
@@ -431,12 +431,12 @@ func getInitialPositions(index *models.SearchIndex, postID, term string) ([]int,
 	return posList, true
 }
 
-func getDecodedPositions(index *models.SearchIndex, postID, term string) ([]int, bool) {
+func getDecodedPositions(index *models.SearchIndex, contentID, term string) ([]int, bool) {
 	postMap, ok := index.Inverted[term]
 	if !ok {
 		return nil, false
 	}
-	candidates, ok := postMap[postID]
+	candidates, ok := postMap[contentID]
 	if !ok {
 		return nil, false
 	}

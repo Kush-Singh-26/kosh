@@ -40,14 +40,14 @@ type RenderService interface {
 	SetAssetsGate(ch <-chan struct{})
 }
 
-// PostCache provides post metadata access.
-type PostCache interface {
-	GetPostByID(postID string) (*PostMeta, error)
-	ListAllPosts() ([]string, error)
-	GetPostByPath(path string) (*PostMeta, error)
-	GetPostsByIDs(ids []string) (map[string]*PostMeta, error)
-	GetPostsByTemplate(templatePath string) ([]string, error)
-	GetAllPostsMetadata() ([]PostListMeta, error)
+// ContentCache provides post metadata access.
+type ContentCache interface {
+	GetItemByID(ContentID string) (*ContentMeta, error)
+	ListAllItems() ([]string, error)
+	GetItemByPath(path string) (*ContentMeta, error)
+	GetItemsByIDs(ids []string) (map[string]*ContentMeta, error)
+	GetItemsByTemplate(templatePath string) ([]string, error)
+	GetAllItemsMetadata() ([]ContentListMeta, error)
 }
 
 // SearchCache provides access to search indices.
@@ -65,13 +65,13 @@ type SocialCardCache interface {
 
 // BuildArtifactCache provides operations for storing build results (HTML, etc).
 type BuildArtifactCache interface {
-	GetHTMLContent(post *PostMeta) ([]byte, error)
+	GetHTMLContent(item *ContentMeta) ([]byte, error)
 	StoreHTML(content []byte) (string, error)
-	StoreHTMLForPost(post *PostMeta, content []byte) error
-	BatchCommit(posts []*PostMeta, records map[string]*SearchRecord, deps map[string]*Dependencies) error
-	DeletePost(postID string) error
-	MarkDirty(postID string)
-	IsDirty(postID string) bool
+	StoreHTMLForItem(item *ContentMeta, content []byte) error
+	BatchCommit(items []*ContentMeta, records map[string]*SearchRecord, deps map[string]*Dependencies) error
+	DeleteItem(ContentID string) error
+	MarkDirty(ContentID string)
+	IsDirty(ContentID string) bool
 	ClearDirty()
 }
 

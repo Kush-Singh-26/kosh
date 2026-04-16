@@ -1,15 +1,17 @@
 package models
 
+//go:generate msgp
+
 // SearchIngestor defines an interface for pipelined search indexing.
 type SearchIngestor interface {
-	Add(post IndexedPost)
+	Add(item IndexedContent)
 }
 
-// PostRecord represents a search-optimized record for BM25 indexing and
+// ContentRecord represents a search-optimized record for BM25 indexing and
 // search functionality. It contains normalized fields for efficient text
 // matching and version-aware search.
-type PostRecord struct {
-	// ID is a uint64 representation of the post's link, used for compact
+type ContentRecord struct {
+	// ID is a uint64 representation of the item's link, used for compact
 	// in-memory indexing. Note that search.bin uses decimal strings of this ID
 	// for serialization compatibility, while BoltDB cache uses 128-bit hex strings.
 	ID              uint64
@@ -23,9 +25,9 @@ type PostRecord struct {
 	Date            int64               // Unix timestamp for recency scoring
 }
 
-// IndexedPost bundles a search record with pre-computed word frequencies for BM25
-type IndexedPost struct {
-	Record          PostRecord
+// IndexedContent bundles a search record with pre-computed word frequencies for BM25
+type IndexedContent struct {
+	Record          ContentRecord
 	SourcePath      string `msgp:"-"`
 	WordFreqs       map[string]int
 	DocLen          int
@@ -40,21 +42,21 @@ const CurrentSchemaVersion = 20
 // SearchIndex stores the serialized search index.
 type SearchIndex struct {
 	SchemaVersion int64
-	Posts         map[string]PostRecord
-	DocLens       map[string]int64 // postID (string) -> word count
+	Items         map[string]ContentRecord
+	ItemLens      map[string]int64 // contentID (string) -> word count
 	AvgDocLen     float64
-	TotalDocs     int64
+	TotalItems    int64
 	StemMap       map[string][]string // stemmed -> original forms
 	NgramIndex    map[string][]string // trigram -> terms (for fuzzy search)
 
-	// Inverted Index: word -> postID (string) -> delta-encoded positions
+	// Inverted Index: word -> contentID (string) -> delta-encoded positions
 	// Deltas: [pos1, pos2-pos1, pos3-pos2, ...] (v11+)
 	Inverted map[string]map[string][]uint32
-	// TitleInverted Index: word -> list of post IDs (v15+)
+	// TitleInverted Index: word -> list of content IDs (v15+)
 	// Enables O(TermCount) lookups for title matches instead of O(PostCount)
 	TitleInverted map[string][]uint64
 
-	// Byte offsets map: word -> postID (string) -> delta-encoded offsets
+	// Byte offsets map: word -> contentID (string) -> delta-encoded offsets
 	// Format: [start1, length1, start2-start1, length2, ...] (v11+)
 	Offsets map[string]map[string][]uint32
 }

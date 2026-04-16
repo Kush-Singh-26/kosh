@@ -19,17 +19,17 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 )
 
-// PostChangeType describes the kind of change detected for a post.
+// PostChangeType describes the kind of change detected for a Content.
 type PostChangeType int
 
 const (
 	// PostChangeNone indicates no meaningful change.
 	PostChangeNone PostChangeType = iota
-	// PostChangeNew indicates a new post.
+	// PostChangeNew indicates a new Content.
 	PostChangeNew
 	// PostChangeFrontmatter indicates frontmatter-only changes.
 	PostChangeFrontmatter
@@ -48,16 +48,16 @@ type SiteBuilder interface {
 	Commit(ctx context.Context) error
 	GetWatch() WatchCoordinator
 	GetRender() render.Service
-	GetPost() post.Service
+	GetContent() content.Service
 	LockBuild()
 	UnlockBuild()
-	RenderSiteWide(ctx context.Context, cb *post.ContentContext) error
+	RenderSiteWide(ctx context.Context, cb *content.Context) error
 }
 
 // SearchManager provides hooks for search index updates during incremental builds.
 type SearchManager interface {
-	UpdateIndexedPostCache(relPath string, parseRes *post.ParsedMarkdownResult)
-	PruneDeletedPost(relPath string)
+	UpdateIndexedContentCache(relPath string, parseRes *content.ParsedMarkdownResult)
+	PruneDeletedItem(relPath string)
 }
 
 // WatchCoordinator provides change classification during watch mode.
@@ -69,7 +69,7 @@ type WatchCoordinator interface {
 // Dependencies groups optional services used by the incremental manager.
 type Dependencies struct {
 	Cache    svcCache.Service
-	Post     post.Service
+	Content  content.Service
 	Render   render.Service
 	Diagrams *cache.DiagramCacheAdapter
 }
@@ -130,7 +130,7 @@ func (m *Manager) BuildSingleFileChange(ctx context.Context, path string, op fsn
 	m.cfg.BuildVersion = time.Now().UnixNano()
 	m.builder.GetRender().ReloadTemplates()
 	m.builder.GetRender().SetAssetsGate(nil)
-	m.builder.GetPost().SetAssetsGate(nil)
+	m.builder.GetContent().SetAssetsGate(nil)
 
 	watchCoordinator := m.builder.GetWatch()
 	if watchCoordinator != nil {
@@ -156,7 +156,7 @@ func (m *Manager) HandleMarkdownChange(ctx context.Context, path string) {
 	m.builder.LockBuild()
 	defer m.builder.UnlockBuild()
 
-	m.BuildSinglePost(ctx, path)
+	m.BuildSingleItem(ctx, path)
 }
 
 // HandleAssetChange handles CSS/JS changes
@@ -192,8 +192,8 @@ func (m *Manager) HandleOtherChange(ctx context.Context, _ string) {
 	m.builder.SaveCaches()
 }
 
-// BuildSinglePost rebuilds only the changed post with smart change detection
-func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
+// BuildSingleItem rebuilds only the changed Content with smart change detection
+func (m *Manager) BuildSingleItem(ctx context.Context, path string) {
 	source, err := afero.ReadFile(m.sourceFs, path)
 	if err != nil {
 		m.logger.Error("Error reading file", "path", path, "error", err)
@@ -232,13 +232,13 @@ func (m *Manager) BuildSinglePost(ctx context.Context, path string) {
 }
 
 func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, source []byte, relPath, htmlRelPath, cleanHTMLRelPath string) {
-	m.logger.Info("Content change detected, rebuilding single post...")
+	m.logger.Info("Content change detected, rebuilding single Content...")
 
 	// Only refresh session and commit for body-only changes.
 	// Full builds (via BuildLocked) manage their own session.
 	m.builder.RefreshBuildSession()
 
-	parseRes, err := post.ParseMarkdown(post.ParseOptions{
+	parseRes, err := content.ParseMarkdown(content.ParseOptions{
 		Source:           source,
 		Path:             path,
 		RelPath:          relPath,
@@ -255,8 +255,8 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 		return
 	}
 
-	if err := m.deps.Post.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
-		m.logger.Error("Failed to process single post", "error", err)
+	if err := m.deps.Content.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
+		m.logger.Error("Failed to process single Content", "error", err)
 		if err := m.builder.BuildLocked(ctx); err != nil {
 			m.logger.Error("Build failed", "error", err)
 		}
@@ -264,10 +264,10 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 	}
 
 	if m.search != nil {
-		m.search.UpdateIndexedPostCache(relPath, parseRes)
+		m.search.UpdateIndexedContentCache(relPath, parseRes)
 	}
 
-	metadataCtx, err := m.builder.GetPost().GetMetadataContext(ctx)
+	metadataCtx, err := m.builder.GetContent().GetMetadataContext(ctx)
 	if err != nil {
 		m.logger.Warn("Failed to retrieve metadata context for site-wide rendering", "error", err)
 	} else if err := m.builder.RenderSiteWide(ctx, metadataCtx); err != nil {
@@ -276,7 +276,7 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 
 	if err := m.builder.Commit(ctx); err != nil {
 		m.logger.Error("Sync/Commit failed", "error", err)
-		m.deletePostFromCache(path)
+		m.DeleteItemFromCache(path)
 		return
 	}
 
@@ -288,7 +288,8 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 	}
 }
 
-func (m *Manager) deletePostFromCache(path string) {
+// DeleteItemFromCache removes an item from the cache by its path.
+func (m *Manager) DeleteItemFromCache(path string) {
 	relPath, err := fspkg.SafeRel(m.cfg.ContentDir, path)
 	if err != nil {
 		m.logger.Error("Failed to get relative path for deletion", "path", path, "error", err)
@@ -299,17 +300,17 @@ func (m *Manager) deletePostFromCache(path string) {
 		return
 	}
 
-	postID := cache.GeneratePostID("", relPath)
-	if err := m.deps.Cache.DeletePost(postID); err != nil {
-		m.logger.Error("Failed to delete post from cache", "postID", postID, "error", err)
+	contentID := cache.GenerateContentID("", relPath)
+	if err := m.deps.Cache.DeleteItem(contentID); err != nil {
+		m.logger.Error("Failed to delete Content from cache", "contentID", contentID, "error", err)
 		return
 	}
 
 	if m.search != nil {
-		m.search.PruneDeletedPost(relPath)
+		m.search.PruneDeletedItem(relPath)
 	}
 
-	m.logger.Info("Removed deleted post from cache", "path", relPath)
+	m.logger.Info("Removed deleted Content from cache", "path", relPath)
 }
 
 // ResolveContentPaths resolves various path formats for incremental builds.
@@ -335,7 +336,11 @@ func (m *Manager) ResolveContentPaths(path string) (string, string, string, erro
 
 // ComputePostHashes calculates frontmatter and body hashes for change detection.
 func (m *Manager) ComputePostHashes(source []byte, fallbackTitle string) (frontmatterHash, bodyHash string) {
-	frontmatterHash, _ = hashing.GetFrontmatterHashFromSource(source, fallbackTitle)
+	taxonomyKeys := make([]string, 0, len(m.cfg.Taxonomies))
+	for k := range m.cfg.Taxonomies {
+		taxonomyKeys = append(taxonomyKeys, k)
+	}
+	frontmatterHash, _ = hashing.GetFrontmatterHashFromSource(source, fallbackTitle, taxonomyKeys)
 	bodyHash = hashing.GetBodyHash(source)
 	return frontmatterHash, bodyHash
 }
@@ -345,7 +350,7 @@ func (m *Manager) DeterminePostChange(relPath, newFrontmatterHash, newBodyHash s
 	if m.deps.Cache == nil {
 		return PostChangeNew
 	}
-	meta, err := m.deps.Cache.GetPostByPath(relPath)
+	meta, err := m.deps.Cache.GetItemByPath(relPath)
 	if err != nil || meta == nil {
 		return PostChangeNew
 	}

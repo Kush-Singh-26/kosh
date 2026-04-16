@@ -44,8 +44,8 @@ func TestManager_DeterminePostChange(t *testing.T) {
 
 	relPath := "test.md"
 
-	t.Run("New Post", func(t *testing.T) {
-		mockCache.GetPostByPathFn = func(_ string) (*models.PostMeta, error) {
+	t.Run("New Content", func(t *testing.T) {
+		mockCache.GetItemByPathFn = func(_ string) (*models.ContentMeta, error) {
 			return nil, nil
 		}
 		change := m.DeterminePostChange(relPath, "f1", "b1")
@@ -55,8 +55,8 @@ func TestManager_DeterminePostChange(t *testing.T) {
 	})
 
 	t.Run("Frontmatter Change", func(t *testing.T) {
-		mockCache.GetPostByPathFn = func(_ string) (*models.PostMeta, error) {
-			return &models.PostMeta{ContentHash: "f0", BodyHash: "b1"}, nil
+		mockCache.GetItemByPathFn = func(_ string) (*models.ContentMeta, error) {
+			return &models.ContentMeta{ContentHash: "f0", BodyHash: "b1"}, nil
 		}
 		change := m.DeterminePostChange(relPath, "f1", "b1")
 		if change != PostChangeFrontmatter {
@@ -65,8 +65,8 @@ func TestManager_DeterminePostChange(t *testing.T) {
 	})
 
 	t.Run("Body Change", func(t *testing.T) {
-		mockCache.GetPostByPathFn = func(_ string) (*models.PostMeta, error) {
-			return &models.PostMeta{ContentHash: "f1", BodyHash: "b0"}, nil
+		mockCache.GetItemByPathFn = func(_ string) (*models.ContentMeta, error) {
+			return &models.ContentMeta{ContentHash: "f1", BodyHash: "b0"}, nil
 		}
 		change := m.DeterminePostChange(relPath, "f1", "b1")
 		if change != PostChangeBody {
@@ -75,8 +75,8 @@ func TestManager_DeterminePostChange(t *testing.T) {
 	})
 
 	t.Run("No Change", func(t *testing.T) {
-		mockCache.GetPostByPathFn = func(_ string) (*models.PostMeta, error) {
-			return &models.PostMeta{ContentHash: "f1", BodyHash: "b1"}, nil
+		mockCache.GetItemByPathFn = func(_ string) (*models.ContentMeta, error) {
+			return &models.ContentMeta{ContentHash: "f1", BodyHash: "b1"}, nil
 		}
 		change := m.DeterminePostChange(relPath, "f1", "b1")
 		if change != PostChangeNone {

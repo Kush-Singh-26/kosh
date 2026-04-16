@@ -38,8 +38,8 @@ func getCachedItem[T any](db *bbolt.DB, bucketName string, key []byte) (*T, erro
 	return result, err
 }
 
-// memCacheGet retrieves a core.PostMeta from the in-memory cache
-func (manager *Manager) memCacheGet(key string) *core.PostMeta {
+// memCacheGet retrieves a core.ContentMeta from the in-memory cache
+func (manager *Manager) memCacheGet(key string) *core.ContentMeta {
 	entry, ok := manager.memCache.Get(key)
 	if !ok {
 		return nil
@@ -53,8 +53,8 @@ func (manager *Manager) memCacheGet(key string) *core.PostMeta {
 	return entry.meta
 }
 
-// memCacheSet stores a core.PostMeta in the in-memory cache
-func (manager *Manager) memCacheSet(key string, meta *core.PostMeta) {
+// memCacheSet stores a core.ContentMeta in the in-memory cache
+func (manager *Manager) memCacheSet(key string, meta *core.ContentMeta) {
 	manager.memCache.Add(key, &memoryCacheEntry{
 		meta:      meta,
 		expiresAt: time.Now().Add(manager.memCacheTTL),
@@ -66,8 +66,8 @@ func (manager *Manager) memCacheDelete(key string) {
 	manager.memCache.Remove(key)
 }
 
-// GetPostByPath looks up a post by its file path in a single transaction
-func (manager *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
+// GetItemByPath looks up a post by its file path in a single transaction
+func (manager *Manager) GetItemByPath(path string) (*core.ContentMeta, error) {
 	normalizedPath := fspkg.NormalizePath(path)
 
 	// Check in-memory cache first
@@ -75,15 +75,15 @@ func (manager *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
 		return cached, nil
 	}
 
-	var result *core.PostMeta
+	var result *core.ContentMeta
 	err := manager.db.View(func(tx *bbolt.Tx) error {
-		// First lookup the postID from paths bucket
+		// First lookup the ContentID from paths bucket
 		pathsBucket := tx.Bucket([]byte(core.BucketPaths))
 		if pathsBucket == nil {
 			return core.ErrNoContent
 		}
-		postID := pathsBucket.Get([]byte(normalizedPath))
-		if postID == nil {
+		ContentID := pathsBucket.Get([]byte(normalizedPath))
+		if ContentID == nil {
 			return core.ErrNoContent
 		}
 
@@ -92,12 +92,12 @@ func (manager *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
 		if postsBucket == nil {
 			return core.ErrNoContent
 		}
-		data := postsBucket.Get(postID)
+		data := postsBucket.Get(ContentID)
 		if data == nil {
 			return core.ErrNoContent
 		}
 
-		var meta core.PostMeta
+		var meta core.ContentMeta
 		if err := core.Decode(data, &meta); err != nil {
 			return err
 		}
@@ -113,25 +113,25 @@ func (manager *Manager) GetPostByPath(path string) (*core.PostMeta, error) {
 	return result, err
 }
 
-// GetPostByID retrieves a post by its PostID
-func (manager *Manager) GetPostByID(postID string) (*core.PostMeta, error) {
+// GetItemByID retrieves a post by its contentID
+func (manager *Manager) GetItemByID(contentID string) (*core.ContentMeta, error) {
 	// Check in-memory cache first
-	cacheKey := "id:" + postID
+	cacheKey := "id:" + contentID
 	if cached := manager.memCacheGet(cacheKey); cached != nil {
 		return cached, nil
 	}
 
-	result, err := getCachedItem[core.PostMeta](manager.db, core.BucketPosts, []byte(postID))
+	result, err := getCachedItem[core.ContentMeta](manager.db, core.BucketPosts, []byte(contentID))
 	if err == nil && result != nil {
 		manager.memCacheSet(cacheKey, result)
 	}
 	return result, err
 }
 
-// GetPostsByIDs retrieves multiple posts by their PostIDs in a single transaction
+// GetItemsByIDs retrieves multiple posts by their PostIDs in a single transaction
 // Uses parallel decoding for better performance with large batches
-func (manager *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMeta, error) {
-	result := make(map[string]*core.PostMeta, len(postIDs))
+func (manager *Manager) GetItemsByIDs(postIDs []string) (map[string]*core.ContentMeta, error) {
+	result := make(map[string]*core.ContentMeta, len(postIDs))
 	if len(postIDs) == 0 {
 		return result, nil
 	}
@@ -150,12 +150,12 @@ func (manager *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMe
 		for _, item := range rawItems {
 			currentItem := item
 			errorGroup.Go(func() error {
-				postMeta := new(core.PostMeta)
-				if err := core.Decode(currentItem.data, postMeta); err != nil {
+				ContentMeta := new(core.ContentMeta)
+				if err := core.Decode(currentItem.data, ContentMeta); err != nil {
 					return err
 				}
 				mutex.Lock()
-				result[currentItem.id] = postMeta
+				result[currentItem.id] = ContentMeta
 				mutex.Unlock()
 				return nil
 			})
@@ -166,9 +166,9 @@ func (manager *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMe
 	} else {
 		// Sequential for small batches (avoids goroutine overhead)
 		for _, item := range rawItems {
-			postMeta := new(core.PostMeta)
-			if err := core.Decode(item.data, postMeta); err == nil {
-				result[item.id] = postMeta
+			ContentMeta := new(core.ContentMeta)
+			if err := core.Decode(item.data, ContentMeta); err == nil {
+				result[item.id] = ContentMeta
 			}
 		}
 	}
@@ -176,8 +176,8 @@ func (manager *Manager) GetPostsByIDs(postIDs []string) (map[string]*core.PostMe
 	return result, nil
 }
 
-// GetPostsByTemplate retrieves all PostIDs associated with a template
-func (manager *Manager) GetPostsByTemplate(templatePath string) ([]string, error) {
+// GetItemsByTemplate retrieves all PostIDs associated with a template
+func (manager *Manager) GetItemsByTemplate(templatePath string) ([]string, error) {
 	var ids []string
 	key := []byte(templatePath)
 
@@ -190,8 +190,8 @@ func (manager *Manager) GetPostsByTemplate(templatePath string) ([]string, error
 		key = append(key, '/')
 		prefix := key
 		for k, _ := cursor.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = cursor.Next() {
-			postID := string(k[len(prefix):])
-			ids = append(ids, postID)
+			ContentID := string(k[len(prefix):])
+			ids = append(ids, ContentID)
 		}
 		return nil
 	})
@@ -227,8 +227,8 @@ func (manager *Manager) GetSearchRecords(postIDs []string) (map[string]*core.Sea
 }
 
 // GetSearchRecord retrieves the search record for a post
-func (manager *Manager) GetSearchRecord(postID string) (*core.SearchRecord, error) {
-	return getCachedItem[core.SearchRecord](manager.db, core.BucketSearch, []byte(postID))
+func (manager *Manager) GetSearchRecord(contentID string) (*core.SearchRecord, error) {
+	return getCachedItem[core.SearchRecord](manager.db, core.BucketSearch, []byte(contentID))
 }
 
 // GetSSRArtifact retrieves an SSR artifact
@@ -265,7 +265,7 @@ func (manager *Manager) GetSSRContent(ssrType string, artifact *core.SSRArtifact
 }
 
 // GetHTMLContent retrieves HTML content for a post
-func (manager *Manager) GetHTMLContent(post *core.PostMeta) ([]byte, error) {
+func (manager *Manager) GetHTMLContent(post *core.ContentMeta) ([]byte, error) {
 	if len(post.InlineHTML) > 0 {
 		return post.InlineHTML, nil
 	}
@@ -287,8 +287,8 @@ func (manager *Manager) GetPostsByTaxonomy(taxonomy, term string) ([]string, err
 		}
 		cursor := bucket.Cursor()
 		for k, _ := cursor.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = cursor.Next() {
-			postID := string(k[len(prefix):])
-			ids = append(ids, postID)
+			ContentID := string(k[len(prefix):])
+			ids = append(ids, ContentID)
 		}
 		return nil
 	})
@@ -296,9 +296,9 @@ func (manager *Manager) GetPostsByTaxonomy(taxonomy, term string) ([]string, err
 	return ids, err
 }
 
-// GetAllPostsMetadata retrieves minimal metadata for all posts
-func (manager *Manager) GetAllPostsMetadata() ([]PostListMeta, error) {
-	var result []PostListMeta
+// GetAllItemsMetadata retrieves minimal metadata for all posts
+func (manager *Manager) GetAllItemsMetadata() ([]ContentListMeta, error) {
+	var result []ContentListMeta
 
 	err := manager.db.View(func(tx *bbolt.Tx) error {
 		postsBucket := tx.Bucket([]byte(core.BucketPosts))
@@ -307,9 +307,9 @@ func (manager *Manager) GetAllPostsMetadata() ([]PostListMeta, error) {
 		}
 
 		return postsBucket.ForEach(func(_, value []byte) error {
-			var meta core.PostMeta
+			var meta core.ContentMeta
 			if err := core.Decode(value, &meta); err == nil {
-				result = append(result, PostListMeta{
+				result = append(result, ContentListMeta{
 					Title:      meta.Title,
 					Link:       meta.Link,
 					Weight:     meta.Weight,

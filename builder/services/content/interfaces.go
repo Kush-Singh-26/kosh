@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"context"
@@ -18,44 +18,44 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
-// ContentResult contains the aggregated results of content processing
-type ContentResult struct {
-	AllPosts       []models.PostMetadata
-	PinnedItems    []models.PostMetadata
+// Result contains the aggregated results of content processing
+type Result struct {
+	allItems       []models.ContentMetadata
+	PinnedItems    []models.ContentMetadata
 	Taxonomies     map[string]models.TaxonomyData
-	TaxonomyMap    map[string]map[string][]models.PostMetadata
-	IndexedPosts   []models.IndexedPost
-	AnyPostChanged bool
+	TaxonomyMap    map[string]map[string][]models.ContentMetadata
+	indexedItems   []models.IndexedContent
+	anyItemChanged bool
 	Has404         bool
 }
 
-// ContentContext holds aggregated content metadata ready for site-wide generators.
-type ContentContext struct {
-	AllPosts       []models.PostMetadata
-	PinnedItems    []models.PostMetadata
-	Taxonomies     map[string]models.TaxonomyData
-	TaxonomyMap    map[string]map[string][]models.PostMetadata
-	IndexedPosts        []models.IndexedPost
+// Context holds aggregated content metadata ready for site-wide generators.
+type Context struct {
+	AllItems            []models.ContentMetadata
+	PinnedItems         []models.ContentMetadata
+	Taxonomies          map[string]models.TaxonomyData
+	TaxonomyMap         map[string]map[string][]models.ContentMetadata
+	IndexedItems        []models.IndexedContent
 	PrebuiltSearchIndex *models.SearchIndex
-	AnyPostChanged      bool
+	AnyItemChanged      bool
 }
 
-// ToContentContext converts a ContentResult into its ContentContext subset.
-func (pr *ContentResult) ToContentContext() *ContentContext {
-	return &ContentContext{
-		AllPosts:       pr.AllPosts,
-		PinnedItems:    pr.PinnedItems,
-		Taxonomies:     pr.Taxonomies,
-		TaxonomyMap:    pr.TaxonomyMap,
-		IndexedPosts:        pr.IndexedPosts,
+// ToContext converts a Result into its Context subset.
+func (pr *Result) ToContext() *Context {
+	return &Context{
+		AllItems:            pr.allItems,
+		PinnedItems:         pr.PinnedItems,
+		Taxonomies:          pr.Taxonomies,
+		TaxonomyMap:         pr.TaxonomyMap,
+		IndexedItems:        pr.indexedItems,
 		PrebuiltSearchIndex: nil, // Will be set by orchestration if needed
-		AnyPostChanged:      pr.AnyPostChanged,
+		AnyItemChanged:      pr.anyItemChanged,
 	}
 }
 
-// Cache is a narrowed interface for PostService.
+// Cache is a narrowed interface for ContentService.
 type Cache interface {
-	models.PostCache
+	models.ContentCache
 	models.SearchCache
 	models.SocialCardCache
 	models.BuildArtifactCache
@@ -101,10 +101,10 @@ type Service interface {
 	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 	SetAssetsGate(ch <-chan struct{})
 	ReconfigureWithReporter(r ui.Reporter, l *slog.Logger)
-	Process(opts ProcessOptions) (*ContentResult, error)
-	ProcessStreaming(opts ProcessOptions) (*ContentResult, error)
+	Process(opts ProcessOptions) (*Result, error)
+	ProcessStreaming(opts ProcessOptions) (*Result, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
-	GetMetadataContext(ctx context.Context) (*ContentContext, error)
+	GetMetadataContext(ctx context.Context) (*Context, error)
 	WaitForCacheCommit()
 }

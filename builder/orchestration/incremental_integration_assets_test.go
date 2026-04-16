@@ -17,7 +17,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -105,7 +105,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := content.NewService(content.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -131,7 +131,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -240,7 +240,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := content.NewService(content.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -266,7 +266,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -323,4 +323,3 @@ func TestIncrementalBuild_AssetCopyTimestampPreservation(t *testing.T) {
 	_ = srcModTime
 	_ = dstInfo
 }
-

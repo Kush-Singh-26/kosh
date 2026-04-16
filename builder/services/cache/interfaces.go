@@ -18,7 +18,7 @@ func IsCacheMiss(err error) bool {
 
 // Service provides cache operations for all services.
 type Service interface {
-	models.PostCache
+	models.ContentCache
 	models.SearchCache
 	models.SocialCardCache
 	models.BuildArtifactCache

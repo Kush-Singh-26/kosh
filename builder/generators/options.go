@@ -9,8 +9,8 @@ import (
 type GeneratorOptions struct {
 	Sink            fspkg.ArtifactSink
 	BaseURL         string
-	Posts           []models.PostMetadata
-	Tags            map[string][]models.PostMetadata
+	Posts           []models.ContentMetadata
+	Tags            map[string][]models.ContentMetadata
 	OutputPath      string
 	Title           string
 	Description     string

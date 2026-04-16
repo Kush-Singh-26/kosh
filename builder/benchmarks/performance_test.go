@@ -17,7 +17,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -120,7 +120,7 @@ This is post number %d.
 		assetSvc := &mocks.MockAssetService{}
 		assetSvc.SetMetrics(buildMetrics)
 		wasmSvc := &mocks.MockWasmService{}
-		postSvc := post.NewService(post.Dependencies{
+		postSvc := content.NewService(content.Dependencies{
 			Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 				IsTesting:    true,
 				IsDev:        false,
@@ -143,7 +143,7 @@ This is post number %d.
 			Config:         cfg,
 			Render:         renderSvc,
 			Asset:          assetSvc,
-			Post:           postSvc,
+			Content:        postSvc,
 			Scanner:        metadataScanner,
 			Wasm:           wasmSvc,
 			Logger:         logger,
@@ -162,4 +162,3 @@ This is post number %d.
 		}
 	}
 }
-

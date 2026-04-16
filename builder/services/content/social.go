@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"io"
@@ -8,7 +8,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
-func (service *postService) queueSocialCard(options SocialCardOptions) {
+func (service *contentService) queueSocialCard(options SocialCardOptions) {
 	relativePath := options.RelativePath
 	result := options.Result
 	htmlRelativePath := options.HTMLRelativePath
@@ -36,7 +36,7 @@ func (service *postService) queueSocialCard(options SocialCardOptions) {
 	}
 }
 
-func (service *postService) copyCachedSocialCard(cardHash, cardDestinationPath string) {
+func (service *contentService) copyCachedSocialCard(cardHash, cardDestinationPath string) {
 	if cardHash == "" {
 		service.sink.Register(cardDestinationPath)
 		return

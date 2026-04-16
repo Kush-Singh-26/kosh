@@ -29,7 +29,7 @@ func main() {
 	println("WASM Search Engine Initializing (Schema v" + strconv.Itoa(models.CurrentSchemaVersion) + ")...")
 
 	js.Global().Set("initSearch", js.FuncOf(initSearch))
-	js.Global().Set("searchPosts", js.FuncOf(searchPosts))
+	js.Global().Set("searchItems", js.FuncOf(searchItems))
 	js.Global().Set("getSuggestions", js.FuncOf(getSuggestions))
 
 	println("WASM Search Engine Ready")
@@ -83,7 +83,7 @@ func initSearch(this js.Value, args []js.Value) any {
 			lastQuery = ""
 			lastResults = nil
 
-			resolve.Invoke(len(index.Posts))
+			resolve.Invoke(index.TotalItems)
 			return nil
 		})
 
@@ -181,7 +181,7 @@ func (e *jsError) Error() string {
 	return e.msg
 }
 
-func searchPosts(this js.Value, args []js.Value) any {
+func searchItems(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return nil
 	}

@@ -35,7 +35,7 @@ func TestIsAssetPath(t *testing.T) {
 		},
 		{
 			name:      "markdown file",
-			path:      "content/post.md",
+			path:      "content/Content.md",
 			staticDir: staticDir,
 			want:      false,
 		},
@@ -160,14 +160,14 @@ func TestInvalidateForTemplate(t *testing.T) {
 }
 
 func TestModTimeQuickBail(t *testing.T) {
-	cachedMeta := &cache.PostMeta{
+	cachedMeta := &cache.ContentMeta{
 		ModTime:  1000,
 		BodyHash: "hash123",
 	}
 
 	info := afero.NewMemMapFs()
-	_ = afero.WriteFile(info, "post.md", []byte("content"), 0644)
-	stat, _ := info.Stat("post.md")
+	_ = afero.WriteFile(info, "Content.md", []byte("content"), 0644)
+	stat, _ := info.Stat("Content.md")
 
 	shouldForce := false
 	exists := true

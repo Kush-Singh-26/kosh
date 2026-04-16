@@ -17,7 +17,7 @@ const (
 	percentScale = 100
 )
 
-// finalizeBuild writes post-build files and commits the transaction.
+// finalizeBuild writes Content-build files and commits the transaction.
 func (engineInstance *Engine) finalizeBuild(ctx context.Context, wasmWaitGroup *sync.WaitGroup, assetsReadySignal <-chan struct{}) error {
 	// Write .nojekyll file
 	if err := engineInstance.artifactSink.WriteFile(filepath.Join(engineInstance.Cfg.OutputDir, ".nojekyll"), []byte{}); err != nil {
@@ -64,9 +64,9 @@ func (engineInstance *Engine) finalizeBuild(ctx context.Context, wasmWaitGroup *
 	return nil
 }
 
-// finalizePhase handles post-build cleanup and commit.
+// finalizePhase handles Content-build cleanup and commit.
 func (engineInstance *Engine) finalizePhase(ctx context.Context, wasmWaitGroup *sync.WaitGroup, assetsReadySignal <-chan struct{}) error {
-	// Post-build files and commit
+	// Content-build files and commit
 	if err := engineInstance.finalizeBuild(ctx, wasmWaitGroup, assetsReadySignal); err != nil {
 		return err
 	}

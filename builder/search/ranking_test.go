@@ -11,7 +11,7 @@ import (
 )
 
 func buildRankingIndex() *models.SearchIndex {
-	posts := map[string]models.PostRecord{
+	items := map[string]models.ContentRecord{
 		"0": {
 			ID:              0,
 			Title:           "Go Programming Guide",
@@ -64,20 +64,20 @@ func buildRankingIndex() *models.SearchIndex {
 
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         posts,
+		Items:         items,
 		Inverted:      make(map[string]map[string][]uint32),
 		Offsets:       make(map[string]map[string][]uint32),
-		DocLens:       make(map[string]int64),
-		TotalDocs:     6,
+		ItemLens:      make(map[string]int64),
+		TotalItems:    6,
 		AvgDocLen:     10.0,
 		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]uint32)),
 	}
 
-	addTerm := func(term string, postID string, pos uint32) {
+	addTerm := func(term string, ContentID string, pos uint32) {
 		if index.Inverted[term] == nil {
 			index.Inverted[term] = make(map[string][]uint32)
 		}
-		index.Inverted[term][postID] = append(index.Inverted[term][postID], pos)
+		index.Inverted[term][ContentID] = append(index.Inverted[term][ContentID], pos)
 		if index.Offsets[term] == nil {
 			index.Offsets[term] = make(map[string][]uint32)
 		}
@@ -105,7 +105,7 @@ func buildRankingIndex() *models.SearchIndex {
 	addTerm("web", "5", 2)
 
 	for _, pid := range []string{"0", "1", "2", "3", "4", "5"} {
-		index.DocLens[pid] = 10
+		index.ItemLens[pid] = 10
 	}
 
 	return index
@@ -143,7 +143,7 @@ func TestRanking_TagBoost(t *testing.T) {
 
 	tagMatches := 0
 	for _, r := range results {
-		if slices.Contains(index.Posts[strconv.FormatUint(r.ID, 10)].NormalizedTaxs["tags"], "programming") {
+		if slices.Contains(index.Items[strconv.FormatUint(r.ID, 10)].NormalizedTaxs["tags"], "programming") {
 			tagMatches++
 		}
 	}
@@ -154,7 +154,7 @@ func TestRanking_TagBoost(t *testing.T) {
 }
 
 func TestRanking_PhraseMatch(t *testing.T) {
-	posts := map[string]models.PostRecord{
+	items := map[string]models.ContentRecord{
 		"0": {
 			ID:              0,
 			Title:           "Neural Network Basics",
@@ -173,11 +173,11 @@ func TestRanking_PhraseMatch(t *testing.T) {
 
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         posts,
+		Items:         items,
 		Inverted:      map[string]map[string][]uint32{},
 		Offsets:       map[string]map[string][]uint32{},
-		DocLens:       map[string]int64{"0": 5, "1": 5},
-		TotalDocs:     2,
+		ItemLens:      map[string]int64{"0": 5, "1": 5},
+		TotalItems:    2,
 		AvgDocLen:     5.0,
 	}
 
@@ -222,7 +222,7 @@ func TestRanking_TagPrefixQuery(t *testing.T) {
 	}
 
 	for _, r := range results {
-		if !slices.Contains(index.Posts[strconv.FormatUint(r.ID, 10)].NormalizedTaxs["tags"], "rust") {
+		if !slices.Contains(index.Items[strconv.FormatUint(r.ID, 10)].NormalizedTaxs["tags"], "rust") {
 			t.Errorf("Result ID %d does not have 'rust' tag", r.ID)
 		}
 	}
@@ -249,7 +249,7 @@ func TestRanking_EmptyQuery(t *testing.T) {
 }
 
 func TestRanking_FuzzyMatch(t *testing.T) {
-	posts := map[string]models.PostRecord{
+	items := map[string]models.ContentRecord{
 		"0": {
 			ID:              0,
 			Title:           "Programming Guide",
@@ -268,11 +268,11 @@ func TestRanking_FuzzyMatch(t *testing.T) {
 
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         posts,
+		Items:         items,
 		Inverted:      map[string]map[string][]uint32{},
 		Offsets:       map[string]map[string][]uint32{},
-		DocLens:       map[string]int64{"0": 3, "1": 5},
-		TotalDocs:     2,
+		ItemLens:      map[string]int64{"0": 3, "1": 5},
+		TotalItems:    2,
 		AvgDocLen:     4.0,
 		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]uint32)),
 	}
@@ -293,7 +293,7 @@ func TestRanking_FuzzyMatch(t *testing.T) {
 }
 
 func TestRanking_ScoreOrdering(t *testing.T) {
-	posts := map[string]models.PostRecord{
+	items := map[string]models.ContentRecord{
 		"0": {
 			ID:              0,
 			Title:           "Title Has Word",
@@ -312,11 +312,11 @@ func TestRanking_ScoreOrdering(t *testing.T) {
 
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         posts,
+		Items:         items,
 		Inverted:      map[string]map[string][]uint32{},
 		Offsets:       map[string]map[string][]uint32{},
-		DocLens:       map[string]int64{"0": 3, "1": 5},
-		TotalDocs:     2,
+		ItemLens:      map[string]int64{"0": 3, "1": 5},
+		TotalItems:    2,
 		AvgDocLen:     4.0,
 		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]uint32)),
 	}
@@ -336,15 +336,15 @@ func TestRanking_ScoreOrdering(t *testing.T) {
 }
 
 func TestRanking_TopKLimit(t *testing.T) {
-	posts := map[string]models.PostRecord{}
+	items := map[string]models.ContentRecord{}
 	inverted := map[string]map[string][]uint32{}
 
 	for i := 0; i < 50; i++ {
 		pid := strconv.Itoa(i)
-		posts[pid] = models.PostRecord{
+		items[pid] = models.ContentRecord{
 			ID:              uint64(i),
-			Title:           "Post",
-			NormalizedTitle: "post",
+			Title:           "Item",
+			NormalizedTitle: "item",
 			Content:         "test content",
 			NormalizedTaxs:  map[string][]string{},
 		}
@@ -353,17 +353,17 @@ func TestRanking_TopKLimit(t *testing.T) {
 
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         posts,
+		Items:         items,
 		Inverted:      inverted,
 		Offsets:       map[string]map[string][]uint32{},
-		DocLens:       map[string]int64{},
-		TotalDocs:     50,
+		ItemLens:      map[string]int64{},
+		TotalItems:    50,
 		AvgDocLen:     5.0,
 		NgramIndex:    core.BuildNgramIndex(inverted),
 	}
 
 	for i := 0; i < 50; i++ {
-		index.DocLens[strconv.Itoa(i)] = 5
+		index.ItemLens[strconv.Itoa(i)] = 5
 	}
 
 	results := PerformSearch(index, "test")
@@ -383,14 +383,14 @@ func TestRanking_TagOnlyQuery(t *testing.T) {
 	}
 
 	for _, r := range results {
-		if !slices.Contains(index.Posts[strconv.FormatUint(r.ID, 10)].NormalizedTaxs["tags"], "ml") {
+		if !slices.Contains(index.Items[strconv.FormatUint(r.ID, 10)].NormalizedTaxs["tags"], "ml") {
 			t.Errorf("Result ID %d does not have 'ml' tag", r.ID)
 		}
 	}
 }
 
 func TestRanking_PhraseWithQuotes(t *testing.T) {
-	posts := map[string]models.PostRecord{
+	items := map[string]models.ContentRecord{
 		"0": {
 			ID:              0,
 			Title:           "Neural Networks",
@@ -409,11 +409,11 @@ func TestRanking_PhraseWithQuotes(t *testing.T) {
 
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Posts:         posts,
+		Items:         items,
 		Inverted:      map[string]map[string][]uint32{},
 		Offsets:       map[string]map[string][]uint32{},
-		DocLens:       map[string]int64{"0": 5, "1": 5},
-		TotalDocs:     2,
+		ItemLens:      map[string]int64{"0": 5, "1": 5},
+		TotalItems:    2,
 		AvgDocLen:     5.0,
 	}
 
@@ -437,7 +437,7 @@ func TestRanking_SnippetPopulated(t *testing.T) {
 	results := PerformSearch(index, "go")
 
 	for _, r := range results {
-		if r.Snippet == "" && strings.TrimSpace(index.Posts[strconv.FormatUint(r.ID, 10)].Content) != "" {
+		if r.Snippet == "" && strings.TrimSpace(index.Items[strconv.FormatUint(r.ID, 10)].Content) != "" {
 			t.Logf("Result ID %d has empty snippet but non-empty content", r.ID)
 		}
 	}

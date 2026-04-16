@@ -17,7 +17,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	svcContent "github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -109,7 +109,7 @@ date: "2026-03-15"
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := svcContent.NewService(svcContent.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -135,7 +135,7 @@ date: "2026-03-15"
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -161,8 +161,7 @@ date: "2026-03-15"
 		done <- true
 	}()
 
-	b.Incremental.BuildSinglePost(ctx, absPath)
+	b.Incremental.BuildSingleItem(ctx, absPath)
 
 	<-done
 }
-

@@ -29,8 +29,8 @@ func TestTOCEntry_Msgp(t *testing.T) {
 	}
 }
 
-func TestPostRecord_Msgp(t *testing.T) {
-	v := PostRecord{
+func TestContentRecord_Msgp(t *testing.T) {
+	v := ContentRecord{
 		ID:              123,
 		Title:           "Title",
 		NormalizedTitle: "title",
@@ -46,23 +46,23 @@ func TestPostRecord_Msgp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var v2 PostRecord
+	var v2 ContentRecord
 	if err := msgp.Decode(&buf, &v2); err != nil {
 		t.Fatal(err)
 	}
 
 	if v.ID != v2.ID || v.Title != v2.Title || v.Content != v2.Content {
-		t.Errorf("PostRecord roundtrip failed")
+		t.Errorf("ContentRecord roundtrip failed")
 	}
 }
 
 func TestSearchIndex_Msgp(t *testing.T) {
 	v := SearchIndex{
 		SchemaVersion: CurrentSchemaVersion,
-		Posts:         map[string]PostRecord{"1": {ID: 1, Title: "P1"}},
-		DocLens:       map[string]int64{"1": 10},
+		Items:         map[string]ContentRecord{"1": {ID: 1, Title: "P1"}},
+		ItemLens:      map[string]int64{"1": 10},
 		AvgDocLen:     10.5,
-		TotalDocs:     1,
+		TotalItems:    1,
 		Inverted:      map[string]map[string][]uint32{"word": {"1": {1, 2}}},
 		Offsets:       map[string]map[string][]uint32{"word": {"1": {0, 4}}},
 	}
@@ -77,7 +77,7 @@ func TestSearchIndex_Msgp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if v.SchemaVersion != v2.SchemaVersion || v.TotalDocs != v2.TotalDocs {
+	if v.SchemaVersion != v2.SchemaVersion || v.TotalItems != v2.TotalItems {
 		t.Errorf("SearchIndex roundtrip failed")
 	}
 }

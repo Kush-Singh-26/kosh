@@ -17,13 +17,13 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
-func TestBuildSinglePost_BodyOnlyChangeDoesNotFallBackToFullBuild(t *testing.T) {
+func TestBuildSingleItem_BodyOnlyChangeDoesNotFallBackToFullBuild(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	absPath, _ := filepath.Abs("content/posts/hello.md")
 	contentDir, _ := filepath.Abs("content")
@@ -113,7 +113,7 @@ Initial body.
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := content.NewService(content.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -139,7 +139,7 @@ Initial body.
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -169,10 +169,10 @@ Updated body.
 	_ = afero.WriteFile(fs, absPath, []byte(updatedContent), 0644)
 
 	sink.Files = make(map[string][]byte)
-	b.Incremental.BuildSinglePost(ctx, absPath)
+	b.Incremental.BuildSingleItem(ctx, absPath)
 }
 
-func TestBuildSinglePost_FrontmatterChangeTriggersFullBuild(t *testing.T) {
+func TestBuildSingleItem_FrontmatterChangeTriggersFullBuild(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	absPath, _ := filepath.Abs("content/posts/hello.md")
 	contentDir, _ := filepath.Abs("content")
@@ -248,7 +248,7 @@ date: "2026-03-06"
 		Logger:   logger,
 	})
 
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := content.NewService(content.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -270,7 +270,7 @@ date: "2026-03-06"
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          &mocks.MockAssetService{},
-		Post:           postSvc,
+		Content:        contentSvc,
 		Cache:          cacheSvc,
 		Scanner:        scanner.NewScanner(),
 		Wasm:           &mocks.MockWasmService{},
@@ -295,6 +295,5 @@ date: "2026-03-06"
 `
 	_ = afero.WriteFile(fs, absPath, []byte(updatedContent), 0644)
 
-	b.Incremental.BuildSinglePost(ctx, absPath)
+	b.Incremental.BuildSingleItem(ctx, absPath)
 }
-

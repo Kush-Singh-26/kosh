@@ -8,23 +8,23 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
 type postStreamResult struct {
-	result *post.ContentResult
+	result *content.Result
 	error  error
 }
 
 func (engineInstance *Engine) startPostProcessingStream(ctx context.Context, setup *buildSetupResult, scan *buildScanResult, searchIngestor models.SearchIngestor) chan postStreamResult {
-	postResultChan := make(chan postStreamResult, 1)
+	contentResultChan := make(chan postStreamResult, 1)
 	logger := engineInstance.Deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	async.FireAndForget(ctx, logger, "post processing stream", func() error {
-		result, processError := engineInstance.Deps.Post.ProcessStreaming(post.ProcessOptions{
+	async.FireAndForget(ctx, logger, "Content processing stream", func() error {
+		result, processError := engineInstance.Deps.Content.ProcessStreaming(content.ProcessOptions{
 			Ctx:                ctx,
 			SearchIngestor:     searchIngestor,
 			ShouldForce:        engineInstance.Cfg.ShouldForceRebuild,
@@ -32,10 +32,10 @@ func (engineInstance *Engine) startPostProcessingStream(ctx context.Context, set
 			OutputMissing:      engineInstance.State.IsCleanBuild,
 			FileChan:           scan.fileChan,
 		})
-		postResultChan <- postStreamResult{result, processError}
+		contentResultChan <- postStreamResult{result, processError}
 		return nil
 	})
-	return postResultChan
+	return contentResultChan
 }
 
 func waitForDiscovery(ctx context.Context, discoverySignal <-chan struct{}) error {
@@ -50,19 +50,19 @@ func waitForDiscovery(ctx context.Context, discoverySignal <-chan struct{}) erro
 	}
 }
 
-func waitForPostProcessing(ctx context.Context, postResultChan chan postStreamResult) (*post.ContentResult, error) {
+func waitForPostProcessing(ctx context.Context, contentResultChan chan postStreamResult) (*content.Result, error) {
 	select {
-	case postStreamRes := <-postResultChan:
+	case postStreamRes := <-contentResultChan:
 		return postStreamRes.result, postStreamRes.error
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 }
 
-func (engineInstance *Engine) finalizePostPhase(ctx context.Context, postResultChan chan postStreamResult, searchStream *index.StreamBuilder) (*post.ContentResult, *models.SearchIndex, error) {
-	postResult, processError := waitForPostProcessing(ctx, postResultChan)
+func (engineInstance *Engine) finalizePostPhase(ctx context.Context, contentResultChan chan postStreamResult, searchStream *index.StreamBuilder) (*content.Result, *models.SearchIndex, error) {
+	contentResult, processError := waitForPostProcessing(ctx, contentResultChan)
 	if processError != nil {
-		return nil, nil, fmt.Errorf("post processing failed: %w", processError)
+		return nil, nil, fmt.Errorf("content processing failed: %w", processError)
 	}
 
 	finalSearchIndex := searchStream.Complete()
@@ -70,14 +70,14 @@ func (engineInstance *Engine) finalizePostPhase(ctx context.Context, postResultC
 		engineInstance.Deps.Reporter.EndPhase(ui.PhasePosts, 0)
 		engineInstance.Deps.Reporter.StartPhase(ui.PhaseSiteWide)
 	}
-	return postResult, finalSearchIndex, nil
+	return contentResult, finalSearchIndex, nil
 }
 
 func (engineInstance *Engine) runSiteWidePhase(
 	ctx context.Context,
 	setup *buildSetupResult,
 	assetsRes *buildAssetResult,
-	postResult *post.ContentResult,
+	contentResult *content.Result,
 	finalSearchIndex *models.SearchIndex,
 ) error {
 	runSiteWide, _ := engineInstance.setupSiteWideRendering(SiteWideOptions{
@@ -88,11 +88,11 @@ func (engineInstance *Engine) runSiteWidePhase(
 		SearchIndex:        finalSearchIndex,
 	})
 
-	metadataCtx := postResult.ToContentContext()
+	metadataCtx := contentResult.ToContext()
 	assetsChanged := engineInstance.Assets.CheckChanged(ctx, assetsRes.assetsReadySignal)
 	siteWideGroup, siteTimer := runSiteWide(metadataCtx, assetsChanged)
 
-	has404 := postResult.Has404 || engineInstance.Deps.Render.Has404Template()
+	has404 := contentResult.Has404 || engineInstance.Deps.Render.Has404Template()
 	if err := engineInstance.waitForSiteWideRendering(siteWideGroup, siteTimer, has404, metadataCtx); err != nil {
 		return fmt.Errorf("site-wide rendering failed: %w", err)
 	}
@@ -114,7 +114,7 @@ func (engineInstance *Engine) flushCaches(ctx context.Context) error {
 	return nil
 }
 
-// processPhase executes post processing and site-wide orchestration.
+// processPhase executes Content processing and site-wide orchestration.
 func (engineInstance *Engine) processPhase(
 	ctx context.Context,
 	setup *buildSetupResult,
@@ -122,7 +122,7 @@ func (engineInstance *Engine) processPhase(
 	scan *buildScanResult,
 ) error {
 	searchStream := index.NewStreamBuilder(0)
-	postResultChan := engineInstance.startPostProcessingStream(ctx, setup, scan, searchStream)
+	contentResultChan := engineInstance.startPostProcessingStream(ctx, setup, scan, searchStream)
 
 	_, discoverySignal, scannerError, assetError, _ := engineInstance.waitForScannerAndAssets(WaitScannerAssetsOptions{
 		Ctx:                  ctx,
@@ -149,12 +149,12 @@ func (engineInstance *Engine) processPhase(
 		return err
 	}
 
-	postResult, finalSearchIndex, err := engineInstance.finalizePostPhase(ctx, postResultChan, searchStream)
+	contentResult, finalSearchIndex, err := engineInstance.finalizePostPhase(ctx, contentResultChan, searchStream)
 	if err != nil {
 		return err
 	}
 
-	return engineInstance.runSiteWidePhase(ctx, setup, assetsRes, postResult, finalSearchIndex)
+	return engineInstance.runSiteWidePhase(ctx, setup, assetsRes, contentResult, finalSearchIndex)
 }
 
 // ProcessPostsOptions configures content processing for a build pass.
@@ -167,8 +167,8 @@ type ProcessPostsOptions struct {
 }
 
 // processPosts executes content processing and returns the result.
-func (engineInstance *Engine) processPosts(opts ProcessPostsOptions) (*post.ContentResult, error) {
-	return engineInstance.Deps.Post.Process(post.ProcessOptions{
+func (engineInstance *Engine) processPosts(opts ProcessPostsOptions) (*content.Result, error) {
+	return engineInstance.Deps.Content.Process(content.ProcessOptions{
 		Ctx:                opts.Ctx,
 		ShouldForce:        opts.ShouldForce,
 		ForceSocialRebuild: opts.ForceSocialRebuild,

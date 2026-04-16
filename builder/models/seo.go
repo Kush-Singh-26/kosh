@@ -24,14 +24,17 @@ type Author struct {
 	URL  string `json:"url,omitempty"`
 }
 
-// GeneratePostJSONLD builds a JSON-LD payload for a post.
-func GeneratePostJSONLD(post PostMetadata, author AuthorConfig, imageURL string) (template.HTML, error) {
+// GenerateContentJSONLD builds a JSON-LD payload for a post.
+func GenerateContentJSONLD(item ContentMetadata, author AuthorConfig, imageURL string, articleType string) (template.HTML, error) {
+	if articleType == "" {
+		articleType = "BlogPosting"
+	}
 	article := JSONLDArticle{
 		Context:       "https://schema.org",
-		Type:          "BlogPosting",
-		Headline:      post.Title,
-		DatePublished: post.DateObj.Format("2006-01-02"),
-		Description:   post.Description,
+		Type:          articleType,
+		Headline:      item.Title,
+		DatePublished: item.DateObj.Format("2006-01-02"),
+		Description:   item.Description,
 		Image:         imageURL,
 	}
 

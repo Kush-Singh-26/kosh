@@ -27,7 +27,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services/asset"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/services/wasm"
@@ -46,7 +46,7 @@ const (
 type EngineDependencies struct {
 	// Services
 	Cache     svcCache.Service
-	Post      post.Service
+	Content   content.Service
 	Asset     asset.Service
 	Render    render.Service
 	Wasm      wasm.Service
@@ -149,7 +149,7 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 		Health: NewBuildHealthRegistry(),
 	}
 
-	e.initManagers(deps.Cache, deps.Post, deps.Asset, deps.Render, deps.Scanner, deps.Diagrams, deps.MdPool, deps.NativeRenderer, deps.SourceFs)
+	e.initManagers(deps.Cache, deps.Content, deps.Asset, deps.Render, deps.Scanner, deps.Diagrams, deps.MdPool, deps.NativeRenderer, deps.SourceFs)
 	if deps.Render != nil {
 		e.Search.Reconfigure(nil, deps.Render)
 	}
@@ -161,7 +161,7 @@ func newEngineFromManual(deps EngineDependencies) *Engine {
 
 func (e *Engine) initManagers(
 	cacheSvc svcCache.Service,
-	postSvc post.Service,
+	contentSvc content.Service,
 	assetSvc asset.Service,
 	renderSvc render.Service,
 	_ scanner.Scanner,
@@ -193,7 +193,7 @@ func (e *Engine) initManagers(
 		SourceFs: sourceFs,
 		Deps: incremental.Dependencies{
 			Cache:    cacheSvc,
-			Post:     postSvc,
+			Content:  contentSvc,
 			Render:   renderSvc,
 			Diagrams: diagramAdapter,
 		},
@@ -232,7 +232,7 @@ func (e *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 }
 
 func (e *Engine) runAssetOnlyPostProcessing(ctx context.Context) error {
-	e.Deps.Post.SetAssetsGate(nil)
+	e.Deps.Content.SetAssetsGate(nil)
 	e.State.ForceGenerators.Store(true)
 
 	metadataResult, err := e.Deps.Scanner.Scan(scanner.ScanOptions{
@@ -258,8 +258,8 @@ func (e *Engine) runAssetOnlyPostProcessing(ctx context.Context) error {
 		ForceSocialRebuild: false,
 	})
 
-	// For asset-only builds, we FORCE post re-rendering to update asset hashes in HTML.
-	postResult, processError := e.Deps.Post.Process(post.ProcessOptions{
+	// For asset-only builds, we FORCE Content re-rendering to update asset hashes in HTML.
+	contentResult, processError := e.Deps.Content.Process(content.ProcessOptions{
 		Ctx:                ctx,
 		ShouldForce:        true,
 		ForceSocialRebuild: false,
@@ -267,15 +267,15 @@ func (e *Engine) runAssetOnlyPostProcessing(ctx context.Context) error {
 		Files:              metadataResult.Files,
 	})
 	if processError != nil {
-		return fmt.Errorf("post processing failed: %w", processError)
+		return fmt.Errorf("content processing failed: %w", processError)
 	}
 
 	// Run site-wide generators
-	metadataContext := postResult.ToContentContext()
+	metadataContext := contentResult.ToContext()
 	siteWideGroup, siteTimer := runSiteWide(metadataContext, true)
 
 	if siteWideGroup != nil {
-		if err := e.waitForSiteWideRendering(siteWideGroup, siteTimer, postResult.Has404 || e.Deps.Render.Has404Template(), metadataContext); err != nil {
+		if err := e.waitForSiteWideRendering(siteWideGroup, siteTimer, contentResult.Has404 || e.Deps.Render.Has404Template(), metadataContext); err != nil {
 			return fmt.Errorf("site-wide rendering failed: %w", err)
 		}
 	}
@@ -359,7 +359,7 @@ func (e *Engine) SetReporter(reporter ui.Reporter) {
 
 	// Update all services that hold onto the logger or reporter
 	e.Deps.Asset.ReconfigureWithReporter(reporter, e.Deps.Logger)
-	e.Deps.Post.ReconfigureWithReporter(reporter, e.Deps.Logger)
+	e.Deps.Content.ReconfigureWithReporter(reporter, e.Deps.Logger)
 	e.Deps.Render.ReconfigureWithLogger(e.Deps.Logger)
 	e.Assets.ReconfigureWithLogger(e.Deps.Logger)
 	e.Incremental.ReconfigureWithLogger(e.Deps.Logger)
@@ -375,7 +375,7 @@ func (e *Engine) SetDevMode(isDev bool) {
 func (e *Engine) SetSink(sink fspkg.ArtifactSink) {
 	e.artifactSink = sink
 	if sink != nil {
-		e.Deps.Post.ReconfigureForBuild(sink, e.Deps.SourceFs)
+		e.Deps.Content.ReconfigureForBuild(sink, e.Deps.SourceFs)
 		if e.Assets != nil {
 			e.Assets.Reconfigure(sink, e.Deps.SourceFs)
 		} else {
@@ -413,8 +413,8 @@ func (e *Engine) GetLogoPath() string {
 // Diagram cache flush is deferred to a background goroutine that completes during Close().
 func (e *Engine) SaveCaches() {
 	// Wait for background cache commit goroutines before closing BoltDB
-	if e.Deps.Post != nil {
-		e.Deps.Post.WaitForCacheCommit()
+	if e.Deps.Content != nil {
+		e.Deps.Content.WaitForCacheCommit()
 	}
 	if e.Deps.Diagrams != nil {
 		// Launch flush in background — completes during Close() before BoltDB closes.
@@ -524,9 +524,9 @@ func (e *Engine) GetRender() render.Service {
 	return e.Deps.Render
 }
 
-// GetPost returns the post service.
-func (e *Engine) GetPost() post.Service {
-	return e.Deps.Post
+// GetContent returns the Content service.
+func (e *Engine) GetContent() content.Service {
+	return e.Deps.Content
 }
 
 // handleWatchChange is the callback invoked by WatchCoordinator when a debounced

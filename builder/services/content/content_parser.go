@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"bytes"
@@ -45,7 +45,7 @@ func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
 		weight = int(w)
 	}
 
-	// Extract all possible taxonomy slices. We'll refine this in buildPostMetadata
+	// Extract all possible taxonomy slices. We'll refine this in buildContentMetadata
 	// by checking against config if needed, but for now we pull everything that looks like a slice.
 	taxonomies := make(map[string][]string)
 	for k := range metadata {
@@ -73,8 +73,8 @@ type ParsedMarkdownResult struct {
 	// Metadata contains YAML frontmatter decoded values.
 	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
 	Metadata        map[string]any
-	Post            models.PostMetadata
-	SearchRecord    models.PostRecord
+	Item            models.ContentMetadata
+	SearchRecord    models.ContentRecord
 	TOC             []models.TOCEntry
 	FrontmatterHash string
 	PlainText       string
@@ -141,16 +141,20 @@ func ParseMarkdownMetadata(options ParseOptions) (*ParsedMarkdownResult, error) 
 	postLink := navigation.BuildAbsoluteURL(options.Cfg.BaseURL, options.CleanHTMLRelPath)
 	readingTime := computeReadingTime(options.Source, options.KnownReadingTime)
 
-	result.Post = buildPostMetadata(frontmatter, postLink, readingTime)
+	result.Item = buildContentMetadata(frontmatter, postLink, readingTime)
 
 	// Step 5: Get plain text and build search record
 	result.PlainText = mdParser.GetPlainText(mdCtx)
-	result.SearchRecord = buildSearchRecord(result.Post, options.HTMLRelPath, result.PlainText)
+	result.SearchRecord = buildSearchRecord(result.Item, options.HTMLRelPath, result.PlainText)
 
 	// Step 6: Search Analysis (DEFERRED to background worker)
 
 	// Step 7: Compute frontmatter hash
-	result.FrontmatterHash = computeFrontmatterHash(result.Metadata, options.KnownFrontmatterHash)
+	taxonomyKeys := make([]string, 0, len(options.Cfg.Taxonomies))
+	for k := range options.Cfg.Taxonomies {
+		taxonomyKeys = append(taxonomyKeys, k)
+	}
+	result.FrontmatterHash = computeFrontmatterHash(result.Metadata, options.KnownFrontmatterHash, taxonomyKeys)
 
 	return result, nil
 }

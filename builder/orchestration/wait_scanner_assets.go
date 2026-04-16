@@ -19,7 +19,7 @@ type WaitScannerAssetsOptions struct {
 }
 
 // waitForScannerAndAssets waits for scanner and asset building to complete.
-// The discoveryReady signal unblocks post-processing while image compression continues.
+// The discoveryReady signal unblocks Content-processing while image compression continues.
 func (engineInstance *Engine) waitForScannerAndAssets(options WaitScannerAssetsOptions) (*models.MetadataScannerResult, <-chan struct{}, error, error, error) {
 	workingContext := options.Ctx
 	scannerReady := options.ScannerReady
@@ -44,7 +44,7 @@ func (engineInstance *Engine) waitForScannerAndAssets(options WaitScannerAssetsO
 		return nil, nil, nil, nil, workingContext.Err()
 	}
 
-	// Return discoveryReady separately so post-processing can unblock on it.
+	// Return discoveryReady separately so Content-processing can unblock on it.
 	// The caller will wait for assetWaitGroup separately if needed.
 	discoverySignal := discoveryReadySignal
 

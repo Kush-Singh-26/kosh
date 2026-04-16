@@ -39,6 +39,9 @@ func TestLoad_Defaults(t *testing.T) {
 		t.Errorf("Title = %q, want %q", cfg.Title, "Kosh Site")
 	}
 
+	if cfg.ItemsPerPage != 10 {
+		t.Errorf("ItemsPerPage = %d, want 10", cfg.ItemsPerPage)
+	}
 	if cfg.PostsPerPage != 10 {
 		t.Errorf("PostsPerPage = %d, want 10", cfg.PostsPerPage)
 	}
@@ -122,6 +125,9 @@ features:
 		t.Errorf("BaseURL = %q, want %q", cfg.BaseURL, "https://test.example.com")
 	}
 
+	if cfg.ItemsPerPage != 20 {
+		t.Errorf("ItemsPerPage = %d, want 20", cfg.ItemsPerPage)
+	}
 	if cfg.PostsPerPage != 20 {
 		t.Errorf("PostsPerPage = %d, want 20", cfg.PostsPerPage)
 	}

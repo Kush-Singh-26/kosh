@@ -23,10 +23,10 @@ const (
 	samplePostsPerPage = 10
 )
 
-// CreateSamplePostMeta creates a valid PostMeta for testing
-func CreateSamplePostMeta() *cache.PostMeta {
-	return &cache.PostMeta{
-		PostID:      "posts/test-post.md",
+// CreateSamplePostMeta creates a valid ContentMeta for testing
+func CreateSamplePostMeta() *cache.ContentMeta {
+	return &cache.ContentMeta{
+		ContentID:   "posts/test-post.md",
 		Path:        "content/posts/test-post.md",
 		Title:       "Test Post",
 		Date:        time.Date(sampleYear, sampleMonth, sampleDay, sampleHour, 0, 0, 0, time.UTC),
@@ -60,7 +60,7 @@ func CreateSampleSearchRecord() *cache.SearchRecord {
 	return &cache.SearchRecord{
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
-		BM25Data:        map[string]int{"test": 1, "post": 1},
+		WordFreqs:       map[string]int{"test": 1, "post": 1},
 		DocLen:          sampleDocLen,
 		Taxonomies:      map[string][]string{"tags": {"test", "go"}},
 		NormalizedTaxs:  map[string][]string{"tags": {"test", "go"}},
@@ -96,13 +96,14 @@ func CreateSampleConfig() *config.Config {
 			CacheDir:    ".kosh-cache",
 		},
 		BuildOptions: config.BuildOptions{
+			ItemsPerPage: samplePostsPerPage,
 			PostsPerPage: samplePostsPerPage,
 		},
 		Features: models.FeaturesConfig{
 			Generators: models.GeneratorsConfig{
 				IsSitemapEnabled: true,
 				IsRSSEnabled:     true,
-				Graph:           models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
+				Graph:            models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
 				IsPWAEnabled:     false,
 				IsSearchEnabled:  true,
 			},

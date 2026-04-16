@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"strings"
@@ -53,17 +53,17 @@ func TestDateParsingFidelity(t *testing.T) {
 				t.Fatalf("ParseMarkdownMetadata failed: %v", err)
 			}
 
-			if res.Post.DateObj.IsZero() {
+			if res.Item.DateObj.IsZero() {
 				t.Error("DateObj is zero (Jan 01, 0001)")
 			}
 
-			if res.Post.DateObj.Day() != tc.wantDay {
-				t.Errorf("Expected day %d, got %d (date: %v)", tc.wantDay, res.Post.DateObj.Day(), res.Post.DateObj)
+			if res.Item.DateObj.Day() != tc.wantDay {
+				t.Errorf("Expected day %d, got %d (date: %v)", tc.wantDay, res.Item.DateObj.Day(), res.Item.DateObj)
 			}
 
 			wantYear := 2026
-			if res.Post.DateObj.Year() != wantYear {
-				t.Errorf("Expected year %d, got %d", wantYear, res.Post.DateObj.Year())
+			if res.Item.DateObj.Year() != wantYear {
+				t.Errorf("Expected year %d, got %d", wantYear, res.Item.DateObj.Year())
 			}
 		})
 	}

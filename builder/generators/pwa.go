@@ -112,6 +112,8 @@ type ManifestOptions struct {
 	SiteDescription    string
 	BackgroundColor    string
 	ThemeColor         string
+	Icon192            string
+	Icon512            string
 	ShouldForceRebuild bool
 	IsTesting          bool
 }
@@ -127,25 +129,25 @@ const manifestTemplate = `{
     "description": "{{ .Description }}",
     "icons": [
         {
-            "src": "static/images/icon-192.png",
+            "src": "{{ default "static/images/icon-192.png" .Icon192 }}",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "static/images/icon-192.png",
+            "src": "{{ default "static/images/icon-192.png" .Icon192 }}",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "maskable"
         },
         {
-            "src": "static/images/icon-512.png",
+            "src": "{{ default "static/images/icon-512.png" .Icon512 }}",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "static/images/icon-512.png",
+            "src": "{{ default "static/images/icon-512.png" .Icon512 }}",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
@@ -168,7 +170,16 @@ func GenerateManifest(opts ManifestOptions) error {
 		}
 	}
 
-	tmpl, err := template.New("manifest").Parse(manifestTemplate)
+	funcMap := template.FuncMap{
+		"default": func(def, val string) string {
+			if val == "" {
+				return def
+			}
+			return val
+		},
+	}
+
+	tmpl, err := template.New("manifest").Funcs(funcMap).Parse(manifestTemplate)
 	if err != nil {
 		return err
 	}
@@ -183,12 +194,16 @@ func GenerateManifest(opts ManifestOptions) error {
 		BaseURL         string
 		BackgroundColor string
 		ThemeColor      string
+		Icon192         string
+		Icon512         string
 	}{
 		Title:           opts.SiteTitle,
 		Description:     opts.SiteDescription,
 		BaseURL:         opts.BaseURL,
 		BackgroundColor: opts.BackgroundColor,
 		ThemeColor:      opts.ThemeColor,
+		Icon192:         opts.Icon192,
+		Icon512:         opts.Icon512,
 	}
 
 	return opts.Sink.WriteStream(manifestPath, func(w io.Writer) error {

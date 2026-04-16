@@ -1,5 +1,8 @@
 package models
 
+//go:generate msgp
+//msgp:ignore PageContext Navbar Breadcrumb NavPage PageData TermData TaxonomyData ContentMetadata
+
 import (
 	"html/template"
 	"time"
@@ -44,10 +47,10 @@ type NavPage struct {
 	Link  string
 }
 
-// PostMetadata represents the frontmatter and derived data of a markdown post
+// ContentMetadata represents the frontmatter and derived data of a markdown item
 // for template rendering. It is the primary data structure passed to HTML templates
-// for displaying post lists, navigation, and page content.
-type PostMetadata struct {
+// for displaying item lists, navigation, and page content.
+type ContentMetadata struct {
 	Section     string
 	Title       string
 	Link        string
@@ -104,8 +107,8 @@ type PageData struct {
 	Navbar          Navbar
 	ContentPrefix   string
 	SectionIndexURL string
-	Posts           []PostMetadata
-	PinnedItems     []PostMetadata
+	Items           []ContentMetadata
+	PinnedItems     []ContentMetadata
 	Taxonomies      map[string]TaxonomyData // All aggregated taxonomies
 	ItemTaxonomies  map[string][]string     // Specific taxonomy terms for the current page (e.g. current post's tags)
 	BuildVersion    int64

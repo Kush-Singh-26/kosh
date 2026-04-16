@@ -18,8 +18,8 @@ import (
 var _ models.TemplateConfig = (*Config)(nil)
 
 const (
-	// DefaultPostsPerPage is the default number of posts per pagination page.
-	DefaultPostsPerPage = 10
+	// DefaultItemsPerPage is the default number of items per pagination page.
+	DefaultItemsPerPage = 10
 	// DefaultImageWorkers is the default number of image processing workers.
 	DefaultImageWorkers = 8
 	// MaxImageWorkers is the maximum number of image processing workers.
@@ -66,14 +66,16 @@ type SiteConfig struct {
 	Author      models.AuthorConfig         `yaml:"author"`
 	Menu        []models.MenuEntry          `yaml:"menu"`
 	FooterMenu  []models.MenuEntry          `yaml:"footerMenu"`
-	Taxonomies  map[string]string           `yaml:"taxonomies"` // Maps frontmatter key to plural folder name
-	Navbar      models.NavbarIdentityConfig `yaml:"navbar"`     // Context-aware branding
-	HomeBadge   string                      `yaml:"homeBadge"`  // Label for home page social card badge
+	Taxonomies  map[string]string           `yaml:"taxonomies"`  // Maps frontmatter key to plural folder name
+	Navbar      models.NavbarIdentityConfig `yaml:"navbar"`      // Context-aware branding
+	HomeBadge   string                      `yaml:"homeBadge"`   // Label for home page social card badge
+	ArticleType string                      `yaml:"articleType"` // Schema.org article type (default: "BlogPosting")
 }
 
 // BuildOptions defines build-time tuning parameters.
 type BuildOptions struct {
-	PostsPerPage         int    `yaml:"postsPerPage"`
+	ItemsPerPage         int    `yaml:"itemsPerPage"`           // Number of items per pagination page
+	PostsPerPage         int    `yaml:"postsPerPage,omitempty"` // Deprecated: use ItemsPerPage
 	ShouldCompressImages bool   `yaml:"shouldCompressImages"`
 	ShouldMinify         bool   `yaml:"shouldMinify"`
 	ImageWorkers         int    `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
@@ -95,6 +97,8 @@ type PathConfig struct {
 	TemplateDir string `yaml:"templateDir"`
 	StaticDir   string `yaml:"staticDir"`
 	Logo        string `yaml:"logo"`       // Path to site logo (unified source for branding, PWA icons, etc.)
+	Icon192     string `yaml:"icon192"`    // Path to 192x192 PWA icon (optional, defaults to generated from Logo)
+	Icon512     string `yaml:"icon512"`    // Path to 512x512 PWA icon (optional, defaults to generated from Logo)
 	ContentDir  string `yaml:"contentDir"` // Content source directory (default: "content")
 	LayoutsDir  string `yaml:"layoutsDir"` // Site-level template overrides (default: "layouts")
 	OutputDir   string `yaml:"outputDir"`  // Build output directory (default: "public")
@@ -151,10 +155,12 @@ func defaultConfig() *Config {
 				Home:    models.NavbarContextConfig{Title: "Kosh Site", BtnLabel: "Content"},
 				Section: models.NavbarContextConfig{Title: "Content", BtnLabel: "Home"},
 			},
-			HomeBadge: "Latest Items",
+			HomeBadge:   "Latest Items",
+			ArticleType: "BlogPosting",
 		},
 		BuildOptions: BuildOptions{
-			PostsPerPage:         DefaultPostsPerPage,
+			ItemsPerPage:         DefaultItemsPerPage,
+			PostsPerPage:         DefaultItemsPerPage, // Set for backward compatibility in templates/tests
 			ShouldCompressImages: true,
 			ShouldMinify:         true,
 			ImageWorkers:         DefaultImageWorkers,
@@ -318,6 +324,13 @@ func applyCLIOverrides(cfg *Config, args []string) {
 }
 
 func finalizeConfig(cfg *Config) {
+	// Sync deprecated PostsPerPage with ItemsPerPage
+	if cfg.PostsPerPage > 0 && cfg.ItemsPerPage == DefaultItemsPerPage {
+		cfg.ItemsPerPage = cfg.PostsPerPage
+	} else if cfg.ItemsPerPage > 0 {
+		cfg.PostsPerPage = cfg.ItemsPerPage
+	}
+
 	if cfg.WebPQuality < MinWebPQuality || cfg.WebPQuality > MaxWebPQuality {
 		cfg.WebPQuality = DefaultWebPQuality
 	}

@@ -29,7 +29,7 @@ func setupTestRenderer(t *testing.T) *Renderer {
 	}
 
 	layoutTmpl := loadStub(`{{define "content"}}{{.Content}}{{end}}`)
-	indexTmpl := loadStub(`{{define "content"}}<h1>Index</h1>{{range .Posts}}<p>{{.Title}}</p>{{end}}{{end}}`)
+	indexTmpl := loadStub(`{{define "content"}}<h1>Index</h1>{{range .Items}}<p>{{.Title}}</p>{{end}}{{end}}`)
 	graphTmpl := template.Must(baseTmpl.Clone()) // Graph is base-only
 	notFoundTmpl := loadStub(`{{define "content"}}<h1>404 - Page Not Found</h1>{{end}}`)
 

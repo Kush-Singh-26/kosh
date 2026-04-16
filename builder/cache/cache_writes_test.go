@@ -12,7 +12,7 @@ func TestBatchCommit_Empty(t *testing.T) {
 	defer cleanup()
 
 	// Empty commit should not error
-	if err := m.BatchCommit([]*core.PostMeta{}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit with empty posts failed: %v", err)
 	}
 }
@@ -23,9 +23,9 @@ func TestBatchCommit_RefCountAtomic(t *testing.T) {
 
 	// 1. Initial commit with HTML Hash "hashA"
 	post1 := createSamplePostMeta()
-	post1.PostID = "atomic-post"
+	post1.ContentID = "atomic-post"
 	post1.HTMLHash = "hashA"
-	if err := m.BatchCommit([]*core.PostMeta{post1}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post1}, nil, nil); err != nil {
 		t.Fatalf("Initial commit failed: %v", err)
 	}
 
@@ -35,9 +35,9 @@ func TestBatchCommit_RefCountAtomic(t *testing.T) {
 
 	// 2. Update post to have HTML Hash "hashB"
 	post2 := createSamplePostMeta()
-	post2.PostID = "atomic-post" // Same ID
+	post2.ContentID = "atomic-post" // Same ID
 	post2.HTMLHash = "hashB"
-	if err := m.BatchCommit([]*core.PostMeta{post2}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post2}, nil, nil); err != nil {
 		t.Fatalf("Update commit failed: %v", err)
 	}
 
@@ -55,14 +55,14 @@ func TestBatchCommit_SinglePost(t *testing.T) {
 
 	post := createSamplePostMeta()
 
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Verify post was stored
-	retrieved, err := m.GetPostByID(post.PostID)
+	retrieved, err := m.GetItemByID(post.ContentID)
 	if err != nil {
-		t.Fatalf("GetPostByID failed: %v", err)
+		t.Fatalf("GetItemByID failed: %v", err)
 	}
 
 	if retrieved == nil {
@@ -75,21 +75,21 @@ func TestBatchCommit_MultiplePosts(t *testing.T) {
 	defer cleanup()
 
 	post1 := createSamplePostMeta()
-	post1.PostID = "batch-post-1"
+	post1.ContentID = "batch-post-1"
 	post2 := createSamplePostMeta()
-	post2.PostID = "batch-post-2"
+	post2.ContentID = "batch-post-2"
 	post3 := createSamplePostMeta()
-	post3.PostID = "batch-post-3"
+	post3.ContentID = "batch-post-3"
 
-	if err := m.BatchCommit([]*core.PostMeta{post1, post2, post3}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post1, post2, post3}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Verify all posts were stored
 	for _, id := range []string{"batch-post-1", "batch-post-2", "batch-post-3"} {
-		retrieved, err := m.GetPostByID(id)
+		retrieved, err := m.GetItemByID(id)
 		if err != nil {
-			t.Fatalf("GetPostByID failed: %v", err)
+			t.Fatalf("GetItemByID failed: %v", err)
 		}
 		if retrieved == nil {
 			t.Errorf("Post %s should be stored", id)
@@ -105,21 +105,21 @@ func TestBatchCommit_WithSearchRecords(t *testing.T) {
 	record := &core.SearchRecord{
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
-		BM25Data:        map[string]int{"test": 1},
+		WordFreqs:       map[string]int{"test": 1},
 		DocLen:          10,
 		NormalizedTaxs:  map[string][]string{"tags": {"test"}},
 	}
 
 	records := map[string]*core.SearchRecord{
-		post.PostID: record,
+		post.ContentID: record,
 	}
 
-	if err := m.BatchCommit([]*core.PostMeta{post}, records, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, records, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Verify search record was stored
-	retrieved, err := m.GetSearchRecord(post.PostID)
+	retrieved, err := m.GetSearchRecord(post.ContentID)
 	if err != nil {
 		t.Fatalf("GetSearchRecord failed: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestBatchCommit_WithDependencies(t *testing.T) {
 	defer cleanup()
 
 	post := createSamplePostMeta()
-	post.PostID = "deps-test-post"
+	post.ContentID = "deps-test-post"
 
 	deps := &core.Dependencies{
 		Templates:  []string{"layouts/post.html", "partials/header.html"},
@@ -147,10 +147,10 @@ func TestBatchCommit_WithDependencies(t *testing.T) {
 	}
 
 	depsMap := map[string]*core.Dependencies{
-		post.PostID: deps,
+		post.ContentID: deps,
 	}
 
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, depsMap); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, depsMap); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -160,7 +160,7 @@ func TestBatchCommit_WithDependencies(t *testing.T) {
 		t.Fatalf("GetPostsByTaxonomy failed: %v", err)
 	}
 
-	found := slices.Contains(tagPosts, post.PostID)
+	found := slices.Contains(tagPosts, post.ContentID)
 
 	if !found {
 		t.Error("Post should be indexed by tag 'go'")
@@ -172,7 +172,7 @@ func TestBatchCommit_Complete(t *testing.T) {
 	defer cleanup()
 
 	post := createSamplePostMeta()
-	post.PostID = "complete-test"
+	post.ContentID = "complete-test"
 
 	record := &core.SearchRecord{
 		Title: "Complete Test",
@@ -185,20 +185,20 @@ func TestBatchCommit_Complete(t *testing.T) {
 	}
 
 	if err := m.BatchCommit(
-		[]*core.PostMeta{post},
-		map[string]*core.SearchRecord{post.PostID: record},
-		map[string]*core.Dependencies{post.PostID: deps},
+		[]*core.ContentMeta{post},
+		map[string]*core.SearchRecord{post.ContentID: record},
+		map[string]*core.Dependencies{post.ContentID: deps},
 	); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Verify all data was stored
-	retrievedPost, _ := m.GetPostByID(post.PostID)
+	retrievedPost, _ := m.GetItemByID(post.ContentID)
 	if retrievedPost == nil {
 		t.Error("Post should be stored")
 	}
 
-	retrievedRecord, _ := m.GetSearchRecord(post.PostID)
+	retrievedRecord, _ := m.GetSearchRecord(post.ContentID)
 	if retrievedRecord == nil {
 		t.Error("Search record should be stored")
 	}
@@ -220,7 +220,7 @@ func TestBatchCommit_UpdatesBuildCount(t *testing.T) {
 
 	// Commit some posts
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -236,7 +236,7 @@ func TestBatchCommit_UpdatesWriteStats(t *testing.T) {
 	defer cleanup()
 
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -278,15 +278,15 @@ func TestStoreHTML(t *testing.T) {
 	}
 }
 
-func TestStoreHTMLForPost_Inline(t *testing.T) {
+func TestStoreHTMLForItem_Inline(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	post := createSamplePostMeta()
 	smallContent := []byte("<p>Small content</p>")
 
-	if err := m.StoreHTMLForPost(post, smallContent); err != nil {
-		t.Fatalf("StoreHTMLForPost failed: %v", err)
+	if err := m.StoreHTMLForItem(post, smallContent); err != nil {
+		t.Fatalf("StoreHTMLForItem failed: %v", err)
 	}
 
 	// Small content should be inlined
@@ -303,7 +303,7 @@ func TestStoreHTMLForPost_Inline(t *testing.T) {
 	}
 }
 
-func TestStoreHTMLForPost_Large(t *testing.T) {
+func TestStoreHTMLForItem_Large(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
@@ -314,8 +314,8 @@ func TestStoreHTMLForPost_Large(t *testing.T) {
 		largeContent[i] = 'x'
 	}
 
-	if err := m.StoreHTMLForPost(post, largeContent); err != nil {
-		t.Fatalf("StoreHTMLForPost failed: %v", err)
+	if err := m.StoreHTMLForItem(post, largeContent); err != nil {
+		t.Fatalf("StoreHTMLForItem failed: %v", err)
 	}
 
 	// Large content should not be inlined
@@ -328,26 +328,26 @@ func TestStoreHTMLForPost_Large(t *testing.T) {
 	}
 }
 
-func TestStoreHTMLForPost_Retrieve(t *testing.T) {
+func TestStoreHTMLForItem_Retrieve(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	post := createSamplePostMeta()
 	content := []byte("<p>Test content to store</p>")
 
-	if err := m.StoreHTMLForPost(post, content); err != nil {
-		t.Fatalf("StoreHTMLForPost failed: %v", err)
+	if err := m.StoreHTMLForItem(post, content); err != nil {
+		t.Fatalf("StoreHTMLForItem failed: %v", err)
 	}
 
 	// Commit the post so we can retrieve it
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Retrieve the post and verify HTML content
-	retrieved, err := m.GetPostByID(post.PostID)
+	retrieved, err := m.GetItemByID(post.ContentID)
 	if err != nil {
-		t.Fatalf("GetPostByID failed: %v", err)
+		t.Fatalf("GetItemByID failed: %v", err)
 	}
 
 	htmlContent, err := m.GetHTMLContent(retrieved)
@@ -430,7 +430,7 @@ func TestStoreSSR_Retrieve(t *testing.T) {
 	}
 }
 
-func TestDeletePost(t *testing.T) {
+func TestDeleteItem(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
@@ -442,23 +442,23 @@ func TestDeletePost(t *testing.T) {
 		Taxonomies: map[string][]string{"tags": {"test", "delete"}},
 	}
 
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, map[string]*core.Dependencies{post.PostID: deps}); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, map[string]*core.Dependencies{post.ContentID: deps}); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Verify post exists
-	retrieved, _ := m.GetPostByID(post.PostID)
+	retrieved, _ := m.GetItemByID(post.ContentID)
 	if retrieved == nil {
 		t.Fatal("Post should exist before deletion")
 	}
 
 	// Delete the post
-	if err := m.DeletePost(post.PostID); err != nil {
-		t.Fatalf("DeletePost failed: %v", err)
+	if err := m.DeleteItem(post.ContentID); err != nil {
+		t.Fatalf("DeleteItem failed: %v", err)
 	}
 
 	// Verify post is deleted
-	retrieved, _ = m.GetPostByID(post.PostID)
+	retrieved, _ = m.GetItemByID(post.ContentID)
 	if retrieved != nil {
 		t.Error("Post should be deleted")
 	}
@@ -466,23 +466,23 @@ func TestDeletePost(t *testing.T) {
 	// Verify tags are removed
 	tagPosts, _ := m.GetPostsByTaxonomy("tags", "test")
 	for _, id := range tagPosts {
-		if id == post.PostID {
+		if id == post.ContentID {
 			t.Error("Post should not be indexed by tag after deletion")
 		}
 	}
 }
 
-func TestDeletePost_NotFound(t *testing.T) {
+func TestDeleteItem_NotFound(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// Delete non-existent post should not error
-	if err := m.DeletePost("non-existent-post"); err != nil {
-		t.Fatalf("DeletePost should not error for non-existent post: %v", err)
+	if err := m.DeleteItem("non-existent-post"); err != nil {
+		t.Fatalf("DeleteItem should not error for non-existent post: %v", err)
 	}
 }
 
-func TestDeletePost_WithSearchRecord(t *testing.T) {
+func TestDeleteItem_WithSearchRecord(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
@@ -490,45 +490,45 @@ func TestDeletePost_WithSearchRecord(t *testing.T) {
 	record := &core.SearchRecord{Title: "Test"}
 
 	if err := m.BatchCommit(
-		[]*core.PostMeta{post},
-		map[string]*core.SearchRecord{post.PostID: record},
+		[]*core.ContentMeta{post},
+		map[string]*core.SearchRecord{post.ContentID: record},
 		nil,
 	); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Delete the post
-	if err := m.DeletePost(post.PostID); err != nil {
-		t.Fatalf("DeletePost failed: %v", err)
+	if err := m.DeleteItem(post.ContentID); err != nil {
+		t.Fatalf("DeleteItem failed: %v", err)
 	}
 
 	// Verify search record is deleted
-	retrieved, _ := m.GetSearchRecord(post.PostID)
+	retrieved, _ := m.GetSearchRecord(post.ContentID)
 	if retrieved != nil {
 		t.Error("Search record should be deleted")
 	}
 }
 
-func TestDeletePost_ClearsMemoryCache(t *testing.T) {
+func TestDeleteItem_ClearsMemoryCache(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Load into memory cache
-	_, _ = m.GetPostByID(post.PostID)
-	_, _ = m.GetPostByPath(post.Path)
+	_, _ = m.GetItemByID(post.ContentID)
+	_, _ = m.GetItemByPath(post.Path)
 
 	// Delete the post
-	if err := m.DeletePost(post.PostID); err != nil {
-		t.Fatalf("DeletePost failed: %v", err)
+	if err := m.DeleteItem(post.ContentID); err != nil {
+		t.Fatalf("DeleteItem failed: %v", err)
 	}
 
 	// Verify memory cache is cleared
-	cachedByID := m.memCacheGet("id:" + post.PostID)
+	cachedByID := m.memCacheGet("id:" + post.ContentID)
 	if cachedByID != nil {
 		t.Error("Memory cache should be cleared for post ID")
 	}
@@ -539,27 +539,27 @@ func TestDeletePost_ClearsMemoryCache(t *testing.T) {
 	}
 }
 
-func TestDeletePost_BestEffortCleanup(t *testing.T) {
+func TestDeleteItem_BestEffortCleanup(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
-	// Test that DeletePost works even with missing data
+	// Test that DeleteItem works even with missing data
 	// This tests the best-effort cleanup behavior
 
 	// Create a minimal post without full data
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
 	// Delete should succeed even if some references are already gone
 	// (simulates partial cleanup scenarios)
-	if err := m.DeletePost(post.PostID); err != nil {
-		t.Fatalf("DeletePost failed: %v", err)
+	if err := m.DeleteItem(post.ContentID); err != nil {
+		t.Fatalf("DeleteItem failed: %v", err)
 	}
 
 	// Verify post is deleted
-	retrieved, _ := m.GetPostByID(post.PostID)
+	retrieved, _ := m.GetItemByID(post.ContentID)
 	if retrieved != nil {
 		t.Error("Post should be deleted")
 	}

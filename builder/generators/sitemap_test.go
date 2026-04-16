@@ -13,16 +13,16 @@ import (
 func TestGenerateSitemap(t *testing.T) {
 	sink := testutil.NewMemSink()
 	baseURL := "https://example.com"
-	posts := []models.PostMetadata{
+	items := []models.ContentMetadata{
 		{
-			Title:   "Post 1",
-			Link:    "https://example.com/post1",
+			Title:   "Item 1",
+			Link:    "https://example.com/item1",
 			DateObj: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC),
 		},
 	}
-	taxonomies := map[string]map[string][]models.PostMetadata{
+	taxonomies := map[string]map[string][]models.ContentMetadata{
 		"tags": {
-			"go": posts,
+			"go": items,
 		},
 	}
 	outputPath := "sitemap.xml"
@@ -30,7 +30,7 @@ func TestGenerateSitemap(t *testing.T) {
 	_, err := GenerateSitemap(SitemapOptions{
 		Sink:       sink,
 		BaseURL:    baseURL,
-		Posts:      posts,
+		Items:      items,
 		Taxonomies: taxonomies,
 		OutputPath: outputPath,
 	})
@@ -47,25 +47,25 @@ func TestGenerateSitemap(t *testing.T) {
 	if !strings.Contains(sitemapStr, "<loc>https://example.com/</loc>") {
 		t.Error("Sitemap missing home page")
 	}
-	if !strings.Contains(sitemapStr, "<loc>https://example.com/post1</loc>") {
-		t.Error("Sitemap missing post link")
+	if !strings.Contains(sitemapStr, "<loc>https://example.com/item1</loc>") {
+		t.Error("Sitemap missing item link")
 	}
 	if !strings.Contains(sitemapStr, "<loc>https://example.com/tags/go.html</loc>") {
 		t.Error("Sitemap missing tag link")
 	}
 }
 
-func TestGenerateSitemap_EmptyPosts(t *testing.T) {
+func TestGenerateSitemap_EmptyItems(t *testing.T) {
 	sink := testutil.NewMemSink()
 	_, err := GenerateSitemap(SitemapOptions{
 		Sink:       sink,
 		BaseURL:    "https://example.com",
-		Posts:      []models.PostMetadata{},
+		Items:      []models.ContentMetadata{},
 		Taxonomies: nil,
 		OutputPath: "sitemap.xml",
 	})
 	if err != nil {
-		t.Fatalf("GenerateSitemap failed with empty posts: %v", err)
+		t.Fatalf("GenerateSitemap failed with empty items: %v", err)
 	}
 
 	content, ok := sink.Files["sitemap.xml"]

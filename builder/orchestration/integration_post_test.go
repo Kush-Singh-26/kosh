@@ -17,7 +17,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	svcContent "github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
@@ -28,24 +28,24 @@ func TestPostService_ConcurrentPostProcessing(t *testing.T) {
 
 	postContents := map[string]string{
 		"content/posts/post1.md": `---
-title: "Post 1"
+title: "Content 1"
 date: "2026-03-15"
 ---
-# Post 1
+# Content 1
 Content 1
 `,
 		"content/posts/post2.md": `---
-title: "Post 2"
+title: "Content 2"
 date: "2026-03-15"
 ---
-# Post 2
+# Content 2
 Content 2
 `,
 		"content/posts/post3.md": `---
-title: "Post 3"
+title: "Content 3"
 date: "2026-03-15"
 ---
-# Post 3
+# Content 3
 Content 3
 `,
 	}
@@ -114,7 +114,7 @@ Content 3
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	sink := testutil.NewMemSink()
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := svcContent.NewService(svcContent.Dependencies{
 		Ctx:            buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -128,7 +128,7 @@ Content 3
 		Sink:           sink,
 	})
 
-	postSvc.ReconfigureForBuild(sink, fs)
+	contentSvc.ReconfigureForBuild(sink, fs)
 	renderSvc.ReconfigureForBuild(sink, fs)
 
 	ctx := context.Background()
@@ -146,7 +146,7 @@ Content 3
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := postSvc.Process(post.ProcessOptions{
+		_, err := contentSvc.Process(svcContent.ProcessOptions{
 			Ctx:                ctx,
 			ShouldForce:        false,
 			ForceSocialRebuild: false,
@@ -163,8 +163,7 @@ Content 3
 
 	for err := range errChan {
 		if err != nil {
-			t.Errorf("Concurrent post processing failed: %v", err)
+			t.Errorf("Concurrent Content processing failed: %v", err)
 		}
 	}
 }
-

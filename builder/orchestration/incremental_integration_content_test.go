@@ -20,7 +20,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -60,6 +60,7 @@ This is the initial body.
 			CacheDir:    cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
+			ItemsPerPage: 10,
 			PostsPerPage: 10,
 		},
 	}
@@ -114,7 +115,7 @@ This is the initial body.
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := content.NewService(content.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -140,7 +141,7 @@ This is the initial body.
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -160,7 +161,7 @@ This is the initial body.
 	b.SaveCaches()
 
 	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
-		t.Fatal("initial post output not found")
+		t.Fatal("initial Content output not found")
 	}
 	initialOutput := string(sink.Files["public/posts/hello.html"])
 	if !strings.Contains(initialOutput, "This is the initial body") {
@@ -180,10 +181,10 @@ This is the updated body.
 
 	sink.Files = make(map[string][]byte)
 
-	b.Incremental.BuildSinglePost(ctx, absPath)
+	b.Incremental.BuildSingleItem(ctx, absPath)
 
 	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
-		t.Fatal("expected single-post rebuild output not found")
+		t.Fatal("expected single-Content rebuild output not found")
 	}
 
 	updatedOutput := string(sink.Files["public/posts/hello.html"])
@@ -230,6 +231,7 @@ Body content.
 			CacheDir:    cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
+			ItemsPerPage: 10,
 			PostsPerPage: 10,
 		},
 	}
@@ -284,7 +286,7 @@ Body content.
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := content.NewService(content.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -310,7 +312,7 @@ Body content.
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -341,10 +343,10 @@ Body content.
 
 	sink.Files = make(map[string][]byte)
 
-	b.Incremental.BuildSinglePost(ctx, absPath)
+	b.Incremental.BuildSingleItem(ctx, absPath)
 
 	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
-		t.Fatal("expected post rebuild output not found")
+		t.Fatal("expected Content rebuild output not found")
 	}
 
 	output := string(sink.Files["public/posts/hello.html"])
@@ -352,4 +354,3 @@ Body content.
 		t.Error("output doesn't contain updated title")
 	}
 }
-

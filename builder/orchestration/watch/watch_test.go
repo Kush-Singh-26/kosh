@@ -32,7 +32,7 @@ func TestCoordinator_ClassifyChange(t *testing.T) {
 	}{
 		{
 			name:     "Markdown Content",
-			path:     filepath.Join(wd, "content/blog/post.md"),
+			path:     filepath.Join(wd, "content/blog/Content.md"),
 			op:       fsnotify.Write,
 			expected: ChangeTypeContent,
 		},
@@ -50,7 +50,7 @@ func TestCoordinator_ClassifyChange(t *testing.T) {
 		},
 		{
 			name:     "Delete Operation",
-			path:     filepath.Join(wd, "content/blog/post.md"),
+			path:     filepath.Join(wd, "content/blog/Content.md"),
 			op:       fsnotify.Remove,
 			expected: ChangeTypeDelete,
 		},
@@ -80,7 +80,7 @@ func TestIsSearchSourcePath(t *testing.T) {
 		{"cmd/search/main.go", true},
 		{"builder/search/core.go", true},
 		{"builder/models/models.go", true},
-		{"content/blog/post.md", false},
+		{"content/blog/Content.md", false},
 		{"static/js/app.js", false},
 	}
 
@@ -101,12 +101,12 @@ func TestCoordinator_IsContentPath(t *testing.T) {
 	}
 	c := New(CoordinatorDependencies{Cfg: cfg})
 
-	path := filepath.Join(contentDir, "post.md")
+	path := filepath.Join(contentDir, "Content.md")
 	if !c.IsContentPath(path) {
 		t.Errorf("expected %s to be content path", path)
 	}
 
-	path = filepath.Join(wd, "other/post.md")
+	path = filepath.Join(wd, "other/Content.md")
 	if c.IsContentPath(path) {
 		t.Errorf("expected %s NOT to be content path", path)
 	}

@@ -178,7 +178,7 @@ func (managerInstance *Manager) WaitForAvailability(workingContext context.Conte
 	}
 }
 
-// BuildAssetOnly handles incremental CSS/JS changes by rebuilding assets and re-triggering post processing.
+// BuildAssetOnly handles incremental CSS/JS changes by rebuilding assets and re-triggering Content processing.
 func (managerInstance *Manager) BuildAssetOnly(ctx context.Context, buildPass func(ctx context.Context) error) error {
 	return managerInstance.BuildAssetOnlyWithOptions(ctx, buildPass, true)
 }

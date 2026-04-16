@@ -8,7 +8,7 @@ import (
 )
 
 func TestFindPrevNext(t *testing.T) {
-	posts := []models.PostMetadata{
+	posts := []models.ContentMetadata{
 		{Title: "Post 1", Link: "/posts/1.html"},
 		{Title: "Post 2", Link: "/posts/2.html"},
 		{Title: "Post 3", Link: "/posts/3.html"},
@@ -16,8 +16,8 @@ func TestFindPrevNext(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		current  models.PostMetadata
-		all      []models.PostMetadata
+		current  models.ContentMetadata
+		all      []models.ContentMetadata
 		wantPrev string
 		wantNext string
 		wantErr  error
@@ -49,7 +49,7 @@ func TestFindPrevNext(t *testing.T) {
 		{
 			name:     "only post",
 			current:  posts[0],
-			all:      []models.PostMetadata{posts[0]},
+			all:      []models.ContentMetadata{posts[0]},
 			wantPrev: "",
 			wantNext: "",
 			wantErr:  nil,
@@ -57,12 +57,12 @@ func TestFindPrevNext(t *testing.T) {
 		{
 			name:    "empty list",
 			current: posts[0],
-			all:     []models.PostMetadata{},
+			all:     []models.ContentMetadata{},
 			wantErr: ErrEmptyList,
 		},
 		{
 			name:    "post not found",
-			current: models.PostMetadata{Title: "Other", Link: "/other.html"},
+			current: models.ContentMetadata{Title: "Other", Link: "/other.html"},
 			all:     posts,
 			wantErr: ErrPostNotFound,
 		},

@@ -10,7 +10,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 	"github.com/spf13/afero"
 )
@@ -28,7 +28,7 @@ func TestSetupPhase(t *testing.T) {
 	wasmSvc := &mocks.MockWasmService{}
 	renderSvc := mocks.NewMockRenderService()
 	assetSvc := &mocks.MockAssetService{}
-	postSvc := &mockPostService{}
+	contentSvc := &mockPostService{}
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
@@ -36,7 +36,7 @@ func TestSetupPhase(t *testing.T) {
 		Config:   cfg,
 		Render:   renderSvc,
 		Asset:    assetSvc,
-		Post:     postSvc,
+		Content:  contentSvc,
 		Wasm:     wasmSvc,
 		Logger:   logger,
 		Metrics:  buildMetrics,
@@ -179,8 +179,8 @@ func TestShouldSkipSiteWideRendering(t *testing.T) {
 	}))
 	b.State.ForceGenerators.Store(false)
 
-	cb := &post.ContentContext{
-		AnyPostChanged: false,
+	cb := &content.Context{
+		AnyItemChanged: false,
 	}
 
 	// In dev mode, not clean build, no changes -> should skip
@@ -188,12 +188,12 @@ func TestShouldSkipSiteWideRendering(t *testing.T) {
 		t.Error("expected to skip site-wide rendering")
 	}
 
-	// Any post changed -> should not skip
-	cb.AnyPostChanged = true
+	// Any Content changed -> should not skip
+	cb.AnyItemChanged = true
 	if b.shouldSkipSiteWideRendering(cb, false) {
 		t.Error("expected not to skip when posts changed")
 	}
-	cb.AnyPostChanged = false
+	cb.AnyItemChanged = false
 
 	// Assets changed -> should not skip
 	if b.shouldSkipSiteWideRendering(cb, true) {

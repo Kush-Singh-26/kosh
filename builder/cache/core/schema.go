@@ -3,18 +3,18 @@ package core
 // BoltDB bucket names
 const (
 	// Core buckets
-	BucketPosts      = "posts"       // {PostID} -> PostMeta
-	BucketPaths      = "paths"       // {filepath} -> PostID
-	BucketSearch     = "search"      // {PostID} -> SearchRecord
-	BucketPostDeps   = "post_deps"   // {PostID} -> Dependencies
+	BucketPosts      = "posts"       // {ContentID} -> ContentMeta
+	BucketPaths      = "paths"       // {filepath} -> ContentID
+	BucketSearch     = "search"      // {ContentID} -> SearchRecord
+	BucketPostDeps   = "post_deps"   // {ContentID} -> Dependencies
 	BucketSSR        = "ssr"         // {type}:{inputHash} -> SSRArtifact
 	BucketSocialCard = "social_card" // {path} -> hash
 	BucketFragments  = "fragments"   // {blockName:context:prefix} -> HTML
 
 	// Index buckets (set-based, value is empty)
-	BucketTaxonomies    = "taxonomies"     // {taxonomy}/{term}/{PostID} -> empty
-	BucketDepsTemplates = "deps_templates" // {template}/{PostID} -> empty
-	BucketDepsIncludes  = "deps_includes"  // {include}/{PostID} -> empty
+	BucketTaxonomies    = "taxonomies"     // {taxonomy}/{term}/{ContentID} -> empty
+	BucketDepsTemplates = "deps_templates" // {template}/{ContentID} -> empty
+	BucketDepsIncludes  = "deps_includes"  // {include}/{ContentID} -> empty
 
 	// Global metadata
 	BucketMeta  = "meta"  // schema_version, cache_id

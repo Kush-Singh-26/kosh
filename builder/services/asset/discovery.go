@@ -73,9 +73,14 @@ func (service *assetService) isWebPCandidate(path string) bool {
 		return false
 	}
 
-	if service.cfg != nil && service.cfg.Logo != "" {
-		logoBase := strings.ToLower(filepath.Base(service.cfg.Logo))
-		if base == logoBase {
+	if service.cfg != nil {
+		if service.cfg.Logo != "" && base == strings.ToLower(filepath.Base(service.cfg.Logo)) {
+			return false
+		}
+		if service.cfg.Icon192 != "" && base == strings.ToLower(filepath.Base(service.cfg.Icon192)) {
+			return false
+		}
+		if service.cfg.Icon512 != "" && base == strings.ToLower(filepath.Base(service.cfg.Icon512)) {
 			return false
 		}
 	}

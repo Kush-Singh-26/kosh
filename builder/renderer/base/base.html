@@ -72,6 +72,8 @@
     <script>
         window.siteBaseURL = "{{ .BaseURL }}";
         window.buildVersion = "{{ .BuildVersion }}";
+        window.taxonomyBaseURL = "{{ .Config.GetContentPrefix }}";
+        window.siteTaxonomies = {{ .Taxonomies | jsonify }};
         window.blogTags = {{ with index .Taxonomies "tags" }}{{ .Terms | jsonify }}{{ else }}[]{{ end }};
     </script>
     {{ if .Config.GetLogo }}
@@ -274,7 +276,7 @@
     <div id="search-modal" class="modal">
         <div class="modal-content">
             <div class="search-header">
-                <input type="text" id="search-input" placeholder="Search posts..." autocomplete="off">
+                <input type="text" id="search-input" placeholder="Search content..." autocomplete="off">
                 <span class="close-search">&times;</span>
             </div>
             <div id="search-suggestions" class="search-suggestions"></div>

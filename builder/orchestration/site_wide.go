@@ -11,7 +11,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
@@ -24,21 +24,21 @@ type SiteWideOptions struct {
 	SearchIndex        *models.SearchIndex
 }
 
-func (engineInstance *Engine) updateSearchIndex(metadataContext *post.ContentContext, psearchIndex *models.SearchIndex) {
-	if engineInstance.Search != nil && metadataContext.IndexedPosts != nil {
-		engineInstance.Search.SetIndexedPosts(metadataContext.IndexedPosts)
+func (engineInstance *Engine) updateSearchIndex(metadataContext *content.Context, psearchIndex *models.SearchIndex) {
+	if engineInstance.Search != nil && metadataContext.IndexedItems != nil {
+		engineInstance.Search.SetIndexedPosts(metadataContext.IndexedItems)
 	}
 	if metadataContext.PrebuiltSearchIndex != nil {
 		metadataContext.PrebuiltSearchIndex = psearchIndex
 	}
 }
 
-func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *errgroup.Group, metadataContext *post.ContentContext, assetsReadySignal <-chan struct{}, forceSocialRebuild bool) {
+func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *errgroup.Group, metadataContext *content.Context, assetsReadySignal <-chan struct{}, forceSocialRebuild bool) {
 	group.Go(func() error {
 		engineInstance.Assets.WaitForAvailability(ctx, assetsReadySignal)
 		return engineInstance.renderPagination(renderPaginationOptions{
 			workingContext: ctx,
-			allPosts:       metadataContext.AllPosts,
+			allPosts:       metadataContext.AllItems,
 			pinnedItems:    metadataContext.PinnedItems,
 			force:          engineInstance.Cfg.ShouldForceRebuild,
 			taxonomies:     metadataContext.Taxonomies,
@@ -50,7 +50,7 @@ func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *er
 	})
 	group.Go(func() error {
 		return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-			AllPosts:              metadataContext.AllPosts,
+			AllPosts:              metadataContext.AllItems,
 			TaxonomyMapSummarized: metadataContext.Taxonomies,
 			AssetsReadySignal:     assetsReadySignal,
 		})
@@ -74,13 +74,13 @@ func (engineInstance *Engine) handlePWAGeneration(ctx context.Context, wasmWaitG
 	})
 }
 
-func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (func(*post.ContentContext, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
+func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (func(*content.Context, bool) (*errgroup.Group, *timeutil.PhaseTimer), *timeutil.PhaseTimer) {
 	var siteWideGroup *errgroup.Group
 	var siteWideCtx context.Context
 	var siteTimer *timeutil.PhaseTimer
 	var siteWideOnce sync.Once
 
-	runSiteWide := func(metadataContext *post.ContentContext, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
+	runSiteWide := func(metadataContext *content.Context, assetsChanged bool) (*errgroup.Group, *timeutil.PhaseTimer) {
 		engineInstance.updateSearchIndex(metadataContext, options.SearchIndex)
 
 		if engineInstance.shouldSkipSiteWideRendering(metadataContext, assetsChanged) {
@@ -96,10 +96,10 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 			engineInstance.handlePWAGeneration(options.Ctx, options.WasmWaitGroup, options.AssetsReadySignal)
 		})
 
-		if metadataContext.IndexedPosts != nil || metadataContext.PrebuiltSearchIndex != nil {
+		if metadataContext.IndexedItems != nil || metadataContext.PrebuiltSearchIndex != nil {
 			siteWideGroup.Go(func() error {
 				return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-					IndexedPosts: metadataContext.IndexedPosts,
+					IndexedPosts: metadataContext.IndexedItems,
 					SearchIndex:  metadataContext.PrebuiltSearchIndex,
 				})
 			})
@@ -111,9 +111,9 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 	return runSiteWide, nil
 }
 
-func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *post.ContentContext, assetsChanged bool) bool {
+func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *content.Context, assetsChanged bool) bool {
 	useStaging := !engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild
-	if metadataContext.AnyPostChanged || engineInstance.State.IsCleanBuild || useStaging || engineInstance.State.ForceGenerators.Load() || assetsChanged {
+	if metadataContext.AnyItemChanged || engineInstance.State.IsCleanBuild || useStaging || engineInstance.State.ForceGenerators.Load() || assetsChanged {
 		engineInstance.State.ForceGenerators.Store(false)
 		return false
 	}
@@ -122,10 +122,10 @@ func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *post.
 
 // MetadataRenderOptions configures site-wide metadata generation.
 type MetadataRenderOptions struct {
-	AllPosts              []models.PostMetadata
+	AllPosts              []models.ContentMetadata
 	TaxonomyMapSummarized map[string]models.TaxonomyData
-	TaxonomyMap           map[string]map[string][]models.PostMetadata
-	IndexedPosts          []models.IndexedPost
+	TaxonomyMap           map[string]map[string][]models.ContentMetadata
+	IndexedPosts          []models.IndexedContent
 	SearchIndex           *models.SearchIndex
 	AssetsReadySignal     <-chan struct{}
 }
@@ -134,7 +134,7 @@ func (engineInstance *Engine) generateSitemap(options MetadataRenderOptions) err
 	_, err := generators.GenerateSitemap(generators.SitemapOptions{
 		Sink:          engineInstance.artifactSink,
 		BaseURL:       engineInstance.Cfg.BaseURL,
-		Posts:         options.AllPosts,
+		Items:         options.AllPosts,
 		Taxonomies:    options.TaxonomyMap,
 		ContentPrefix: engineInstance.Cfg.ContentPrefix,
 		OutputPath:    filepath.Join(engineInstance.Cfg.OutputDir, "sitemap/sitemap.xml"),
@@ -151,7 +151,7 @@ func (engineInstance *Engine) generateRSS(options MetadataRenderOptions) error {
 	_, err := generators.GenerateRSS(generators.RSSOptions{
 		Sink:        engineInstance.artifactSink,
 		BaseURL:     engineInstance.Cfg.BaseURL,
-		Posts:       options.AllPosts,
+		Items:       options.AllPosts,
 		Title:       engineInstance.Cfg.Title,
 		Description: engineInstance.Cfg.Description,
 		Author:      engineInstance.Cfg.Author.Name,
@@ -184,7 +184,7 @@ func (engineInstance *Engine) generateSearchIndex(options MetadataRenderOptions)
 	if engineInstance.Health != nil {
 		var docs int64
 		if options.SearchIndex != nil {
-			docs = options.SearchIndex.TotalDocs
+			docs = options.SearchIndex.TotalItems
 		} else {
 			docs = int64(len(options.IndexedPosts))
 		}
@@ -199,7 +199,7 @@ func (engineInstance *Engine) generateGraph(options MetadataRenderOptions) error
 	_, _, err := generators.GenerateGraph(generators.GraphOptions{
 		Sink:          engineInstance.artifactSink,
 		BaseURL:       engineInstance.Cfg.BaseURL,
-		Posts:         options.AllPosts,
+		Items:         options.AllPosts,
 		OutputPath:    filepath.Join(engineInstance.Cfg.OutputDir, "graph.json"),
 		Config:        engineInstance.Cfg.Features.Generators.Graph,
 		SiteTitle:     engineInstance.Cfg.Title,
@@ -264,18 +264,18 @@ func (engineInstance *Engine) renderSiteMetadata(options MetadataRenderOptions) 
 // RenderSiteWide triggers a subset of site-wide generators suitable for incremental builds.
 // In dev mode, this focuses on pagination (index.html) to maintain consistency without
 // the overhead of full metadata (RSS/Sitemap) or PWA regeneration.
-func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContext *post.ContentContext) error {
+func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContext *content.Context) error {
 	if engineInstance.shouldSkipSiteWideRendering(metadataContext, false) {
 		return nil
 	}
 
 	errorGroup, siteWideCtx := errgroup.WithContext(ctx)
 
-	// Always render pagination to ensure index.html consists of the latest post list/snippets.
+	// Always render pagination to ensure index.html consists of the latest Content list/snippets.
 	errorGroup.Go(func() error {
 		return engineInstance.renderPagination(renderPaginationOptions{
 			workingContext: siteWideCtx,
-			allPosts:       metadataContext.AllPosts,
+			allPosts:       metadataContext.AllItems,
 			pinnedItems:    metadataContext.PinnedItems,
 			force:          false,
 			taxonomies:     metadataContext.Taxonomies,
@@ -286,16 +286,16 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 	// if a change was detected.
 	errorGroup.Go(func() error {
 		return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-			AllPosts:              metadataContext.AllPosts,
+			AllPosts:              metadataContext.AllItems,
 			TaxonomyMapSummarized: metadataContext.Taxonomies,
 			TaxonomyMap:           metadataContext.TaxonomyMap,
 		})
 	})
 
-	if metadataContext.IndexedPosts != nil {
+	if metadataContext.IndexedItems != nil {
 		errorGroup.Go(func() error {
 			return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-				IndexedPosts: metadataContext.IndexedPosts,
+				IndexedPosts: metadataContext.IndexedItems,
 			})
 		})
 	}

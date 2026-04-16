@@ -18,7 +18,7 @@ type cacheService struct {
 	logger  *slog.Logger
 
 	// Dirty tracking using sync.Map for thread safety
-	dirtyPostsMap sync.Map // postID -> bool
+	dirtyItemsMap sync.Map // contentID -> bool
 }
 
 // NewService creates a new CacheService with the given dependencies.
@@ -31,44 +31,44 @@ func NewService(dependencies Dependencies) Service {
 	}
 }
 
-// GetPostByID returns a post by ID from the cache.
-func (service *cacheService) GetPostByID(postID string) (*models.PostMeta, error) {
-	return service.manager.GetPostByID(postID)
+// GetItemByID returns a post by ID from the cache.
+func (service *cacheService) GetItemByID(contentID string) (*models.ContentMeta, error) {
+	return service.manager.GetItemByID(contentID)
 }
 
-// ListAllPosts returns all post IDs in the cache.
-func (service *cacheService) ListAllPosts() ([]string, error) {
-	return service.manager.ListAllPosts()
+// ListAllItems returns all post IDs in the cache.
+func (service *cacheService) ListAllItems() ([]string, error) {
+	return service.manager.ListAllItems()
 }
 
-// GetPostByPath returns a post by its source path.
-func (service *cacheService) GetPostByPath(path string) (*models.PostMeta, error) {
-	return service.manager.GetPostByPath(path)
+// GetItemByPath returns a post by its source path.
+func (service *cacheService) GetItemByPath(path string) (*models.ContentMeta, error) {
+	return service.manager.GetItemByPath(path)
 }
 
-// GetPostsByIDs returns posts for the provided IDs.
-func (service *cacheService) GetPostsByIDs(postIDs []string) (map[string]*models.PostMeta, error) {
-	return service.manager.GetPostsByIDs(postIDs)
+// GetItemsByIDs returns posts for the provided IDs.
+func (service *cacheService) GetItemsByIDs(itemIDs []string) (map[string]*models.ContentMeta, error) {
+	return service.manager.GetItemsByIDs(itemIDs)
 }
 
-// GetPostsByTemplate returns post IDs that depend on a template.
-func (service *cacheService) GetPostsByTemplate(templatePath string) ([]string, error) {
-	return service.manager.GetPostsByTemplate(templatePath)
+// GetItemsByTemplate returns post IDs that depend on a template.
+func (service *cacheService) GetItemsByTemplate(templatePath string) ([]string, error) {
+	return service.manager.GetItemsByTemplate(templatePath)
 }
 
 // GetSearchRecords returns search records for the provided IDs.
-func (service *cacheService) GetSearchRecords(postIDs []string) (map[string]*models.SearchRecord, error) {
-	return service.manager.GetSearchRecords(postIDs)
+func (service *cacheService) GetSearchRecords(itemIDs []string) (map[string]*models.SearchRecord, error) {
+	return service.manager.GetSearchRecords(itemIDs)
 }
 
 // GetSearchRecord returns a search record by ID.
-func (service *cacheService) GetSearchRecord(postID string) (*models.SearchRecord, error) {
-	return service.manager.GetSearchRecord(postID)
+func (service *cacheService) GetSearchRecord(contentID string) (*models.SearchRecord, error) {
+	return service.manager.GetSearchRecord(contentID)
 }
 
 // GetHTMLContent returns cached HTML for a post.
-func (service *cacheService) GetHTMLContent(post *models.PostMeta) ([]byte, error) {
-	return service.manager.GetHTMLContent(post)
+func (service *cacheService) GetHTMLContent(item *models.ContentMeta) ([]byte, error) {
+	return service.manager.GetHTMLContent(item)
 }
 
 // GetSocialCardHash returns the cached social card hash for a path.
@@ -121,26 +121,26 @@ func (service *cacheService) StoreHTML(content []byte) (string, error) {
 	return service.manager.StoreHTML(content)
 }
 
-// StoreHTMLForPost stores HTML content and updates the post fields.
-func (service *cacheService) StoreHTMLForPost(post *models.PostMeta, content []byte) error {
-	return service.manager.StoreHTMLForPost(post, content)
+// StoreHTMLForItem stores HTML content and updates the post fields.
+func (service *cacheService) StoreHTMLForItem(item *models.ContentMeta, content []byte) error {
+	return service.manager.StoreHTMLForItem(item, content)
 }
 
 // BatchCommit commits posts, search records, and dependencies in a batch.
-func (service *cacheService) BatchCommit(posts []*models.PostMeta, records map[string]*models.SearchRecord, dependencies map[string]*models.Dependencies) error {
-	return service.manager.BatchCommit(posts, records, dependencies)
+func (service *cacheService) BatchCommit(items []*models.ContentMeta, records map[string]*models.SearchRecord, dependencies map[string]*models.Dependencies) error {
+	return service.manager.BatchCommit(items, records, dependencies)
 }
 
-// DeletePost removes a post from the cache.
-func (service *cacheService) DeletePost(postID string) error {
-	return service.manager.DeletePost(postID)
+// DeleteItem removes a post from the cache.
+func (service *cacheService) DeleteItem(contentID string) error {
+	return service.manager.DeleteItem(contentID)
 }
 
 // MarkDirty marks a post as dirty.
-func (service *cacheService) MarkDirty(postID string) {
-	service.dirtyPostsMap.Store(postID, true)
+func (service *cacheService) MarkDirty(contentID string) {
+	service.dirtyItemsMap.Store(contentID, true)
 	// We also call manager.MarkDirty if the manager still relies on it.
-	service.manager.MarkDirty(postID)
+	service.manager.MarkDirty(contentID)
 }
 
 // GetFragment retrieves a fragment from the cache.
@@ -159,8 +159,8 @@ func (service *cacheService) Flush(_ context.Context) error {
 }
 
 // IsDirty reports whether a post is marked dirty.
-func (service *cacheService) IsDirty(postID string) bool {
-	value, loaded := service.dirtyPostsMap.Load(postID)
+func (service *cacheService) IsDirty(contentID string) bool {
+	value, loaded := service.dirtyItemsMap.Load(contentID)
 	if !loaded {
 		return false
 	}
@@ -171,8 +171,8 @@ func (service *cacheService) IsDirty(postID string) bool {
 // ClearDirty clears all dirty markers.
 func (service *cacheService) ClearDirty() {
 	// Use Range+Delete instead of reassignment to prevent lost dirty marks
-	service.dirtyPostsMap.Range(func(key, _ any) bool {
-		service.dirtyPostsMap.Delete(key)
+	service.dirtyItemsMap.Range(func(key, _ any) bool {
+		service.dirtyItemsMap.Delete(key)
 		return true
 	})
 }
@@ -197,9 +197,9 @@ func (service *cacheService) Close() error {
 	return service.manager.Close()
 }
 
-// GetAllPostsMetadata returns a lightweight list of post metadata.
-func (service *cacheService) GetAllPostsMetadata() ([]models.PostListMeta, error) {
-	return service.manager.GetAllPostsMetadata()
+// GetAllItemsMetadata returns a lightweight list of post metadata.
+func (service *cacheService) GetAllItemsMetadata() ([]models.ContentListMeta, error) {
+	return service.manager.GetAllItemsMetadata()
 }
 
 // Manager exposes the underlying cache manager (avoid in production code).

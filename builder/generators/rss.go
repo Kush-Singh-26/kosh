@@ -14,7 +14,7 @@ import (
 type RSSOptions struct {
 	Sink        fspkg.ArtifactSink
 	BaseURL     string
-	Posts       []models.PostMetadata
+	Items       []models.ContentMetadata
 	Title       string
 	Description string
 	Author      string
@@ -26,8 +26,8 @@ type RSSOptions struct {
 func GenerateRSS(opts RSSOptions) (string, error) {
 	slog.Info("Generating RSS feed")
 
-	items, lastBuildDate := buildRSSItems(opts)
-	rss := createRSSObject(opts, items, lastBuildDate)
+	rssItems, lastBuildDate := buildRSSItems(opts)
+	rss := createRSSObject(opts, rssItems, lastBuildDate)
 
 	err := opts.Sink.WriteStream(opts.OutputPath, func(w io.Writer) error {
 		if _, err := w.Write([]byte(xml.Header)); err != nil {
@@ -45,13 +45,13 @@ func GenerateRSS(opts RSSOptions) (string, error) {
 }
 
 func buildRSSItems(opts RSSOptions) ([]models.Item, string) {
-	items := make([]models.Item, 0, len(opts.Posts))
+	rssItems := make([]models.Item, 0, len(opts.Items))
 	var lastBuildDate string
-	if len(opts.Posts) > 0 {
-		lastBuildDate = opts.Posts[0].DateObj.Format(time.RFC1123)
+	if len(opts.Items) > 0 {
+		lastBuildDate = opts.Items[0].DateObj.Format(time.RFC1123)
 	}
 
-	for _, p := range opts.Posts {
+	for _, p := range opts.Items {
 		var allTerms []string
 		for _, terms := range p.Taxonomies {
 			allTerms = append(allTerms, terms...)
@@ -67,9 +67,9 @@ func buildRSSItems(opts RSSOptions) ([]models.Item, string) {
 			Categories:     allTerms,
 			ContentEncoded: p.ContentHTML,
 		}
-		items = append(items, item)
+		rssItems = append(rssItems, item)
 	}
-	return items, lastBuildDate
+	return rssItems, lastBuildDate
 }
 
 func createRSSObject(opts RSSOptions, items []models.Item, lastBuildDate string) models.Rss {

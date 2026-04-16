@@ -10,15 +10,15 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// TestDeletePost_BoltDBError tests that DeletePost returns error when database is closed
-func TestDeletePost_BoltDBError(t *testing.T) {
+// TestDeleteItem_BoltDBError tests that DeleteItem returns error when database is closed
+func TestDeleteItem_BoltDBError(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// First, commit a post to ensure it exists
 	post := createSamplePostMeta()
-	post.PostID = "error-test-post"
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	post.ContentID = "error-test-post"
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -28,14 +28,14 @@ func TestDeletePost_BoltDBError(t *testing.T) {
 	}
 
 	// Attempt deletion should fail because database is closed
-	err := m.DeletePost(post.PostID)
+	err := m.DeleteItem(post.ContentID)
 	if err == nil {
-		t.Error("DeletePost should return error after database is closed")
+		t.Error("DeleteItem should return error after database is closed")
 	}
 }
 
-// TestDeletePost_Concurrent tests concurrent deletion operations
-func TestDeletePost_Concurrent(t *testing.T) {
+// TestDeleteItem_Concurrent tests concurrent deletion operations
+func TestDeleteItem_Concurrent(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
@@ -44,9 +44,9 @@ func TestDeletePost_Concurrent(t *testing.T) {
 	postIDs := make([]string, numPosts)
 	for i := range numPosts {
 		post := createSamplePostMeta()
-		post.PostID = "concurrent-post-" + string(rune(i))
-		postIDs[i] = post.PostID
-		if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+		post.ContentID = "concurrent-post-" + string(rune(i))
+		postIDs[i] = post.ContentID
+		if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 			t.Fatalf("BatchCommit failed for post %d: %v", i, err)
 		}
 	}
@@ -54,8 +54,8 @@ func TestDeletePost_Concurrent(t *testing.T) {
 	// Delete concurrently
 	errors := make(chan error, numPosts)
 	for _, id := range postIDs {
-		go func(postID string) {
-			errors <- m.DeletePost(postID)
+		go func(ContentID string) {
+			errors <- m.DeleteItem(ContentID)
 		}(id)
 	}
 
@@ -69,7 +69,7 @@ func TestDeletePost_Concurrent(t *testing.T) {
 
 	// Verify all posts deleted
 	for _, id := range postIDs {
-		retrieved, _ := m.GetPostByID(id)
+		retrieved, _ := m.GetItemByID(id)
 		if retrieved != nil {
 			t.Errorf("Post %s should be deleted", id)
 		}
@@ -83,7 +83,7 @@ func TestClearAll_FilesystemError(t *testing.T) {
 
 	// Add some data first
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -104,7 +104,7 @@ func TestClearAll_FilesystemError(t *testing.T) {
 	}
 
 	// Verify database is cleared (buckets deleted)
-	retrieved, _ := m.GetPostByID(post.PostID)
+	retrieved, _ := m.GetItemByID(post.ContentID)
 	if retrieved != nil {
 		t.Error("Post should be deleted from database after ClearAll")
 	}
@@ -117,7 +117,7 @@ func TestClear_FullResetError(t *testing.T) {
 
 	// Add some data
 	post := createSamplePostMeta()
-	if err := m.BatchCommit([]*core.PostMeta{post}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 
@@ -135,13 +135,13 @@ func TestClear_FullResetError(t *testing.T) {
 
 	// Verify cache is reset (new database should be created)
 	newPost := createSamplePostMeta()
-	newPost.PostID = "new-post"
-	err = m.BatchCommit([]*core.PostMeta{newPost}, nil, nil)
+	newPost.ContentID = "new-post"
+	err = m.BatchCommit([]*core.ContentMeta{newPost}, nil, nil)
 	if err != nil {
 		t.Fatalf("BatchCommit after Clear failed: %v", err)
 	}
 
-	retrieved, _ := m.GetPostByID(newPost.PostID)
+	retrieved, _ := m.GetItemByID(newPost.ContentID)
 	if retrieved == nil {
 		t.Error("New post should be stored after Clear")
 	}
@@ -173,13 +173,13 @@ func TestStoreDelete_BestEffort(t *testing.T) {
 	}
 }
 
-// TestDeletePost_CorruptedData tests deletion when core.PostMeta data is corrupted
-func TestDeletePost_CorruptedData(t *testing.T) {
+// TestDeleteItem_CorruptedData tests deletion when core.ContentMeta data is corrupted
+func TestDeleteItem_CorruptedData(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// Directly insert corrupted data into the database
-	postID := "corrupted-post"
+	ContentID := "corrupted-post"
 	path := "content/corrupted.md"
 
 	// Use a transaction to insert invalid data (malformed JSON)
@@ -195,7 +195,7 @@ func TestDeletePost_CorruptedData(t *testing.T) {
 		}
 		// Create a malformed JSON that will fail unmarshaling
 		corruptedData := []byte("{invalid json")
-		if err := postsBucket.Put([]byte(postID), corruptedData); err != nil {
+		if err := postsBucket.Put([]byte(ContentID), corruptedData); err != nil {
 			return err
 		}
 
@@ -208,7 +208,7 @@ func TestDeletePost_CorruptedData(t *testing.T) {
 			}
 			pathBucket = tx.Bucket([]byte(core.BucketPaths))
 		}
-		_ = pathBucket.Put([]byte(path), []byte(postID))
+		_ = pathBucket.Put([]byte(path), []byte(ContentID))
 
 		return nil
 	})
@@ -217,13 +217,13 @@ func TestDeletePost_CorruptedData(t *testing.T) {
 	}
 
 	// Deletion should succeed even with corrupted data (best-effort)
-	err = m.DeletePost(postID)
+	err = m.DeleteItem(ContentID)
 	if err != nil {
-		t.Errorf("DeletePost should handle corrupted data gracefully: %v", err)
+		t.Errorf("DeleteItem should handle corrupted data gracefully: %v", err)
 	}
 
 	// Verify post is removed
-	retrieved, _ := m.GetPostByID(postID)
+	retrieved, _ := m.GetItemByID(ContentID)
 	if retrieved != nil {
 		t.Error("Corrupted post should be deleted")
 	}

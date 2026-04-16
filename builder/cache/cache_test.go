@@ -22,10 +22,10 @@ func createTestCache(t *testing.T) (*Manager, func()) {
 	}
 }
 
-// createSamplePostMeta creates a sample core.PostMeta for testing
-func createSamplePostMeta() *core.PostMeta {
-	return &core.PostMeta{
-		PostID:      "test-post",
+// createSamplePostMeta creates a sample core.ContentMeta for testing
+func createSamplePostMeta() *core.ContentMeta {
+	return &core.ContentMeta{
+		ContentID:      "test-post",
 		Title:       "Test Post",
 		Path:        "content/posts/test-post.md",
 		Date:        time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
@@ -252,24 +252,24 @@ func TestManager_DirtyTracking(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
-	postID := "test-post-123"
+	ContentID := "test-post-123"
 
 	// Initially not dirty
-	if m.IsDirty(postID) {
+	if m.IsDirty(ContentID) {
 		t.Error("Post should not be dirty initially")
 	}
 
 	// Mark as dirty
-	m.MarkDirty(postID)
+	m.MarkDirty(ContentID)
 
 	// Should now be dirty
-	if !m.IsDirty(postID) {
+	if !m.IsDirty(ContentID) {
 		t.Error("Post should be dirty after MarkDirty")
 	}
 
 	// Check internal dirty map
 	m.mutex.RLock()
-	dirty := m.dirty[postID]
+	dirty := m.dirty[ContentID]
 	m.mutex.RUnlock()
 
 	if !dirty {
@@ -281,22 +281,22 @@ func TestManager_ClearDirty(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
-	postID := "test-post-123"
+	ContentID := "test-post-123"
 
 	// Mark as dirty
-	m.MarkDirty(postID)
+	m.MarkDirty(ContentID)
 
-	if !m.IsDirty(postID) {
+	if !m.IsDirty(ContentID) {
 		t.Fatal("Post should be dirty before clearing")
 	}
 
 	// Clear dirty (not exported, test via internal access)
 	m.mutex.Lock()
-	delete(m.dirty, postID)
+	delete(m.dirty, ContentID)
 	m.mutex.Unlock()
 
 	// Should not be dirty anymore
-	if m.IsDirty(postID) {
+	if m.IsDirty(ContentID) {
 		t.Error("Post should not be dirty after clearing")
 	}
 }
@@ -357,8 +357,8 @@ func TestManager_Stats(t *testing.T) {
 	}
 
 	// New cache should have 0 posts
-	if stats.TotalPosts != 0 {
-		t.Errorf("TotalPosts = %d, want 0", stats.TotalPosts)
+	if stats.TotalItems != 0 {
+		t.Errorf("TotalItems = %d, want 0", stats.TotalItems)
 	}
 }
 
@@ -400,14 +400,14 @@ func TestManager_IncrementBuildCount(t *testing.T) {
 	}
 }
 
-func TestManager_ListAllPosts(t *testing.T) {
+func TestManager_ListAllItems(t *testing.T) {
 	m, cleanup := createTestCache(t)
 	defer cleanup()
 
 	// Initially empty
-	posts, err := m.ListAllPosts()
+	posts, err := m.ListAllItems()
 	if err != nil {
-		t.Fatalf("ListAllPosts() failed: %v", err)
+		t.Fatalf("ListAllItems() failed: %v", err)
 	}
 
 	if len(posts) != 0 {
@@ -416,18 +416,18 @@ func TestManager_ListAllPosts(t *testing.T) {
 
 	// Add some posts
 	post1 := createSamplePostMeta()
-	post1.PostID = "post-1"
+	post1.ContentID = "post-1"
 	post2 := createSamplePostMeta()
-	post2.PostID = "post-2"
+	post2.ContentID = "post-2"
 
-	if err := m.BatchCommit([]*core.PostMeta{post1, post2}, nil, nil); err != nil {
+	if err := m.BatchCommit([]*core.ContentMeta{post1, post2}, nil, nil); err != nil {
 		t.Fatalf("BatchCommit() failed: %v", err)
 	}
 
 	// Should now have 2 posts
-	posts, err = m.ListAllPosts()
+	posts, err = m.ListAllItems()
 	if err != nil {
-		t.Fatalf("ListAllPosts() failed: %v", err)
+		t.Fatalf("ListAllItems() failed: %v", err)
 	}
 
 	if len(posts) != 2 {

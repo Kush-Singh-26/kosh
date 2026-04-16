@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 )
 
 // ProcessSingle processes and renders a single markdown file.
-func (service *postService) ProcessSingle(ctx context.Context, path string, source []byte) error {
+func (service *contentService) ProcessSingle(ctx context.Context, path string, source []byte) error {
 	return service.ProcessSingleWithResult(ctx, path, source, nil)
 }
 
@@ -33,13 +33,13 @@ type navResult struct {
 	taxonomies map[string]models.TaxonomyData
 }
 
-func (service *postService) resolveNavigation(post models.PostMetadata) *navResult {
-	var posts []models.PostMetadata
+func (service *contentService) resolveNavigation(item models.ContentMetadata) *navResult {
+	var items []models.ContentMetadata
 	if service.cache != nil {
-		if metas, err := service.cache.GetAllPostsMetadata(); err == nil {
-			posts = make([]models.PostMetadata, len(metas))
+		if metas, err := service.cache.GetAllItemsMetadata(); err == nil {
+			items = make([]models.ContentMetadata, len(metas))
 			for idx, meta := range metas {
-				p := models.PostMetadata{
+				p := models.ContentMetadata{
 					Title:      meta.Title,
 					Link:       meta.Link,
 					Weight:     meta.Weight,
@@ -47,35 +47,35 @@ func (service *postService) resolveNavigation(post models.PostMetadata) *navResu
 					DateObj:    meta.Date,
 					Taxonomies: meta.Taxonomies,
 				}
-				posts[idx] = p
+				items[idx] = p
 			}
 		}
 	}
 
 	found := false
-	for idx, postObj := range posts {
-		if postObj.Link == post.Link {
-			posts[idx] = post
+	for idx, itemObj := range items {
+		if itemObj.Link == item.Link {
+			items[idx] = item
 			found = true
 			break
 		}
 	}
 	if !found {
-		posts = append(posts, post)
+		items = append(items, item)
 	}
 
-	timeutil.SortPosts(posts)
-	prev, next, _ := navigation.FindPrevNext(post, posts)
+	timeutil.SortItems(items)
+	prev, next, _ := navigation.FindPrevNext(item, items)
 
 	// Build all taxonomies
-	taxonomyMap := make(map[string]map[string][]models.PostMetadata)
-	for _, p := range posts {
+	taxonomyMap := make(map[string]map[string][]models.ContentMetadata)
+	for _, p := range items {
 		if p.IsDraft && !service.cfg.ShouldIncludeDrafts {
 			continue
 		}
 		for taxKey, terms := range p.Taxonomies {
 			if taxonomyMap[taxKey] == nil {
-				taxonomyMap[taxKey] = make(map[string][]models.PostMetadata)
+				taxonomyMap[taxKey] = make(map[string][]models.ContentMetadata)
 			}
 			for _, t := range terms {
 				taxonomyMap[taxKey][t] = append(taxonomyMap[taxKey][t], p)
@@ -97,7 +97,7 @@ func (service *postService) resolveNavigation(post models.PostMetadata) *navResu
 	return &navResult{prev: prev, next: next, taxonomies: taxonomies}
 }
 
-func (service *postService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
+func (service *contentService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
 	if len(result.MathExpressions) == 0 && len(result.D2Expressions) == 0 {
 		return html
 	}
@@ -108,7 +108,7 @@ func (service *postService) renderSSR(ctx context.Context, html string, result *
 	return html
 }
 
-func (service *postService) renderMathSSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
+func (service *contentService) renderMathSSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
 	if len(result.MathExpressions) == 0 {
 		return html
 	}
@@ -144,7 +144,7 @@ func (service *postService) renderMathSSR(ctx context.Context, html string, resu
 	return mdParser.ReplaceMathExpressions(html, result.MathExpressions, rendered)
 }
 
-func (service *postService) renderD2SSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
+func (service *contentService) renderD2SSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
 	if len(result.D2Expressions) == 0 {
 		return html
 	}
@@ -181,7 +181,7 @@ func (service *postService) renderD2SSR(ctx context.Context, html string, result
 }
 
 // ProcessSingleWithResult processes and renders a single markdown file using an optional pre-parse result.
-func (service *postService) ProcessSingleWithResult(ctx context.Context, path string, source []byte, preParsed *ParsedMarkdownResult) error {
+func (service *contentService) ProcessSingleWithResult(ctx context.Context, path string, source []byte, preParsed *ParsedMarkdownResult) error {
 	info, source, err := service.validateAndReadSource(path, source)
 	if err != nil {
 		return err
@@ -195,7 +195,7 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 	if err != nil {
 		return err
 	}
-	parseRes.Post.Section = section
+	parseRes.Item.Section = section
 
 	htmlContent := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
 	relPrefix := fspkg.GetRelativePrefix(htmlRelPath)
@@ -204,9 +204,9 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 	service.handleRawMarkdown(destPath, source)
 
 	if service.cache != nil {
-		service.commitPostCache(commitPostCacheOptions{
+		service.commitContentCache(commitContentCacheOptions{
 			parseRes:    parseRes,
-			post:        parseRes.Post,
+			item:        parseRes.Item,
 			relPath:     relPath,
 			info:        info,
 			htmlContent: htmlContent,
@@ -218,7 +218,7 @@ func (service *postService) ProcessSingleWithResult(ctx context.Context, path st
 	return service.renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section, parseRes)
 }
 
-func (service *postService) validateAndReadSource(path string, source []byte) (os.FileInfo, []byte, error) {
+func (service *contentService) validateAndReadSource(path string, source []byte) (os.FileInfo, []byte, error) {
 	info, err := service.sourceFs.Stat(path)
 	if err != nil {
 		service.logger.Error("Error stating file", "path", path, "error", err)
@@ -253,7 +253,7 @@ func detectSection(relPath string, logger *slog.Logger) string {
 	return section
 }
 
-func (service *postService) ensureParsed(path, relPath, htmlRelPath string, source []byte, info os.FileInfo, preParsed *ParsedMarkdownResult) (*ParsedMarkdownResult, error) {
+func (service *contentService) ensureParsed(path, relPath, htmlRelPath string, source []byte, info os.FileInfo, preParsed *ParsedMarkdownResult) (*ParsedMarkdownResult, error) {
 	if preParsed != nil {
 		return preParsed, nil
 	}
@@ -273,7 +273,7 @@ func (service *postService) ensureParsed(path, relPath, htmlRelPath string, sour
 	})
 }
 
-func (service *postService) handleRawMarkdown(destPath string, source []byte) {
+func (service *contentService) handleRawMarkdown(destPath string, source []byte) {
 	if !service.cfg.Features.UseRawMarkdown {
 		return
 	}
@@ -286,9 +286,9 @@ func (service *postService) handleRawMarkdown(destPath string, source []byte) {
 	}
 }
 
-func (service *postService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult) error {
-	post := parseRes.Post
-	nav := service.resolveNavigation(post)
+func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult) error {
+	item := parseRes.Item
+	nav := service.resolveNavigation(item)
 	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
 
 	contentPrefix := strings.Trim(service.cfg.ContentPrefix, "/")
@@ -300,23 +300,23 @@ func (service *postService) renderFinalPage(destPath, htmlContent, relPrefix, ht
 	}
 
 	return service.renderer.RenderPage(destPath, models.PageData{
-		Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
+		Title: item.Title, Description: item.Description, Content: template.HTML(htmlContent),
 		Meta: parseRes.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
-		TabTitle: post.Title + " | " + service.cfg.Title, Permalink: post.Link, Image: cardImageURL,
-		TOC: parseRes.TOC, Config: service.cfg, ReadingTime: post.ReadingTime,
+		TabTitle: item.Title + " | " + service.cfg.Title, Permalink: item.Link, Image: cardImageURL,
+		TOC: parseRes.TOC, Config: service.cfg, ReadingTime: item.ReadingTime,
 		Taxonomies:     nav.taxonomies,
-		ItemTaxonomies: post.Taxonomies,
+		ItemTaxonomies: item.Taxonomies,
 		PrevPage:       nav.prev, NextPage: nav.next, RelativePrefix: relPrefix,
 		HasImages: parseRes.HasImages, Context: pageContext,
 		ContentPrefix:   contentPrefix,
 		SectionIndexURL: sectionIndexURL,
-		JSONLD:          service.generateJSONLD(post, cardImageURL),
+		JSONLD:          service.generateJSONLD(item, cardImageURL),
 		Section:         section,
 		IsCleanBuild:    service.ctx.IsCleanBuild,
 	})
 }
 
-func (service *postService) getSectionIndexURL(relPrefix, contentPrefix string) string {
+func (service *contentService) getSectionIndexURL(relPrefix, contentPrefix string) string {
 	if contentPrefix != "" {
 		return "/" + contentPrefix + "/"
 	}
@@ -336,34 +336,34 @@ func getLayoutVal(metadata map[string]any) string {
 	return ""
 }
 
-type commitPostCacheOptions struct {
+type commitContentCacheOptions struct {
 	parseRes    *ParsedMarkdownResult
-	post        models.PostMetadata
+	item        models.ContentMetadata
 	relPath     string
 	info        os.FileInfo
 	htmlContent string
 }
 
-func (service *postService) commitPostCache(options commitPostCacheOptions) {
+func (service *contentService) commitContentCache(options commitContentCacheOptions) {
 	if options.parseRes == nil {
-		panic("commitPostCache: parseRes is nil")
+		panic("commitContentCache: parseRes is nil")
 	}
 	if options.info == nil {
-		panic("commitPostCache: info is nil")
+		panic("commitContentCache: info is nil")
 	}
 	if options.relPath == "" {
-		panic("commitPostCache: relPath is empty")
+		panic("commitContentCache: relPath is empty")
 	}
 
-	postID := cache.GeneratePostID("", options.relPath)
-	newMeta := service.buildCacheMeta(options, postID)
+	ContentID := cache.GenerateContentID("", options.relPath)
+	newMeta := service.buildCacheMeta(options, ContentID)
 
-	if err := service.cache.StoreHTMLForPost(newMeta, []byte(options.htmlContent)); err != nil {
+	if err := service.cache.StoreHTMLForItem(newMeta, []byte(options.htmlContent)); err != nil {
 		service.logger.Error("Failed to store HTML in cache", "path", options.relPath, "error", err)
 	}
 
 	newSearch := service.buildSearchRecord(options.parseRes)
-	newDep := &models.Dependencies{Taxonomies: options.post.Taxonomies}
+	newDep := &models.Dependencies{Taxonomies: options.item.Taxonomies}
 
 	service.cacheWg.Add(1)
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
@@ -372,7 +372,7 @@ func (service *postService) commitPostCache(options commitPostCacheOptions) {
 		Operation: "cache commit",
 		Fn: func() error {
 			timer := timeutil.StartPhase("Cache commit (incremental)")
-			if err := service.cache.BatchCommit([]*cache.PostMeta{newMeta}, map[string]*cache.SearchRecord{postID: newSearch}, map[string]*models.Dependencies{postID: newDep}); err != nil {
+			if err := service.cache.BatchCommit([]*cache.ContentMeta{newMeta}, map[string]*cache.SearchRecord{ContentID: newSearch}, map[string]*models.Dependencies{ContentID: newDep}); err != nil {
 				service.logger.Error("Failed to commit post to cache", "path", options.relPath, "error", err)
 			}
 			timer.Stop()
@@ -382,31 +382,31 @@ func (service *postService) commitPostCache(options commitPostCacheOptions) {
 	})
 }
 
-func (service *postService) buildCacheMeta(options commitPostCacheOptions, postID string) *cache.PostMeta {
+func (service *contentService) buildCacheMeta(options commitContentCacheOptions, contentID string) *cache.ContentMeta {
 	cacheTOC := make([]models.TOCEntry, len(options.parseRes.TOC))
 	for idx, tocEntry := range options.parseRes.TOC {
 		cacheTOC[idx] = models.TOCEntry{ID: tocEntry.ID, Text: tocEntry.Text, Level: tocEntry.Level}
 	}
 
-	return &cache.PostMeta{
-		PostID: postID, Path: options.relPath, ModTime: options.info.ModTime().UnixNano(),
+	return &cache.ContentMeta{
+		ContentID: contentID, Path: options.relPath, ModTime: options.info.ModTime().UnixNano(),
 		ContentHash: options.parseRes.FrontmatterHash, BodyHash: hashing.GetBodyHash(nil),
-		Title: options.post.Title, Date: options.post.DateObj, Taxonomies: options.post.Taxonomies,
-		ReadingTime: options.post.ReadingTime, Description: options.post.Description,
-		Link: options.post.Link, IsPinned: options.post.IsPinned, Weight: options.post.Weight,
-		Section: options.post.Section,
-		IsDraft: options.post.IsDraft, Meta: options.parseRes.Metadata, TOC: cacheTOC,
+		Title: options.item.Title, Date: options.item.DateObj, Taxonomies: options.item.Taxonomies,
+		ReadingTime: options.item.ReadingTime, Description: options.item.Description,
+		Link: options.item.Link, IsPinned: options.item.IsPinned, Weight: options.item.Weight,
+		Section: options.item.Section,
+		IsDraft: options.item.IsDraft, Meta: options.parseRes.Metadata, TOC: cacheTOC,
 		SSRInputHashes: options.parseRes.SSRHashes,
 		CardHash:       options.parseRes.FrontmatterHash,
 		HasImages:      options.parseRes.HasImages,
 	}
 }
 
-func (service *postService) buildSearchRecord(parseRes *ParsedMarkdownResult) *cache.SearchRecord {
+func (service *contentService) buildSearchRecord(parseRes *ParsedMarkdownResult) *cache.SearchRecord {
 	return &cache.SearchRecord{
-		Title:           parseRes.Post.Title,
-		NormalizedTitle: strings.ToLower(parseRes.Post.Title),
-		BM25Data:        parseRes.WordFreqs,
+		Title:           parseRes.Item.Title,
+		NormalizedTitle: strings.ToLower(parseRes.Item.Title),
+		WordFreqs:       parseRes.WordFreqs,
 		DocLen:          parseRes.DocLen,
 		Content:         parseRes.PlainText,
 		Taxonomies:      parseRes.SearchRecord.Taxonomies,
@@ -417,7 +417,7 @@ func (service *postService) buildSearchRecord(parseRes *ParsedMarkdownResult) *c
 	}
 }
 
-func (service *postService) handleSocialCard(parseRes *ParsedMarkdownResult, relPath, cardRelPath, cardDestPath string) {
+func (service *contentService) handleSocialCard(parseRes *ParsedMarkdownResult, relPath, cardRelPath, cardDestPath string) {
 	cachedHash, _ := service.cache.GetSocialCardHash(relPath)
 	if cachedHash != "" && cachedHash == parseRes.FrontmatterHash {
 		service.sink.Register(cardDestPath)

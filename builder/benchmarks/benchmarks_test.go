@@ -65,24 +65,24 @@ func BenchmarkGetFrontmatterHash(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = hashing.GetFrontmatterHash(metaData)
+		_, _ = hashing.GetFrontmatterHash(metaData, nil)
 	}
 }
 
-// BenchmarkSortPosts tests post sorting performance
-func BenchmarkSortPosts(b *testing.B) {
+// BenchmarkSortItems tests item sorting performance
+func BenchmarkSortItems(b *testing.B) {
 	sizes := []int{10, 50, 100, 500, 1000}
 
 	for _, size := range sizes {
 		b.Run(fmt.Sprintf("Size-%d", size), func(b *testing.B) {
-			posts := createMockPosts(size)
+			items := createMockItems(size)
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				// Create a copy to avoid sorting already sorted slice
-				postsCopy := make([]models.PostMetadata, len(posts))
-				copy(postsCopy, posts)
-				timeutil.SortPosts(postsCopy)
+				itemsCopy := make([]models.ContentMetadata, len(items))
+				copy(itemsCopy, items)
+				timeutil.SortItems(itemsCopy)
 			}
 		})
 	}
@@ -268,26 +268,26 @@ func BenchmarkLevenshteinDistance(b *testing.B) {
 
 func createMockSearchIndex(size int) *models.SearchIndex {
 	index := &models.SearchIndex{
-		Posts:     make(map[string]models.PostRecord, size),
-		Inverted:  make(map[string]map[string][]uint32),
-		DocLens:   make(map[string]int64),
-		TotalDocs: int64(size),
+		Items:      make(map[string]models.ContentRecord, size),
+		Inverted:   make(map[string]map[string][]uint32),
+		ItemLens:   make(map[string]int64),
+		TotalItems: int64(size),
 	}
 
 	totalLen := 0
 	for i := range size {
 		idStr := strconv.Itoa(i)
-		index.Posts[idStr] = models.PostRecord{
+		index.Items[idStr] = models.ContentRecord{
 			ID:             uint64(i),
-			Title:          fmt.Sprintf("Post %d", i),
-			Link:           fmt.Sprintf("/posts/post-%d", i),
-			Description:    fmt.Sprintf("Description for post %d", i),
+			Title:          fmt.Sprintf("Item %d", i),
+			Link:           fmt.Sprintf("/items/item-%d", i),
+			Description:    fmt.Sprintf("Description for item %d", i),
 			Taxonomies:     map[string][]string{"tags": {"go", "ssg", "web"}},
 			NormalizedTaxs: map[string][]string{"tags": {"go", "ssg", "web"}},
 		}
 
 		// Add some inverted index entries
-		words := []string{"test", "content", "post", "go", "ssg", "programming", "optimization", "performance"}
+		words := []string{"test", "content", "item", "go", "ssg", "programming", "optimization", "performance"}
 		for j, word := range words {
 			if _, ok := index.Inverted[word]; !ok {
 				index.Inverted[word] = make(map[string][]uint32)
@@ -295,8 +295,8 @@ func createMockSearchIndex(size int) *models.SearchIndex {
 			index.Inverted[word][idStr] = []uint32{uint32(j)}
 		}
 
-		index.DocLens[idStr] = int64(100 + i)
-		totalLen += int(index.DocLens[idStr])
+		index.ItemLens[idStr] = int64(100 + i)
+		totalLen += int(index.ItemLens[idStr])
 	}
 
 	if size > 0 {
@@ -312,14 +312,14 @@ func createMockSearchIndexWithNgrams(size int) *models.SearchIndex {
 	return index
 }
 
-func createMockPosts(count int) []models.PostMetadata {
-	posts := make([]models.PostMetadata, count)
+func createMockItems(count int) []models.ContentMetadata {
+	items := make([]models.ContentMetadata, count)
 	for i := range count {
-		posts[i] = models.PostMetadata{
-			Title:    fmt.Sprintf("Post %d", i),
+		items[i] = models.ContentMetadata{
+			Title:    fmt.Sprintf("Item %d", i),
 			DateObj:  time.Now().Add(-time.Duration(i) * time.Hour),
 			IsPinned: i%5 == 0,
 		}
 	}
-	return posts
+	return items
 }

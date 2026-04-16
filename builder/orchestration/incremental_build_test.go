@@ -17,7 +17,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -115,7 +115,7 @@ Initial body.
 	assetSvc := &mocks.MockAssetService{}
 	assetSvc.SetMetrics(buildMetrics)
 	wasmSvc := &mocks.MockWasmService{}
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := content.NewService(content.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -141,7 +141,7 @@ Initial body.
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -171,10 +171,9 @@ Updated body.
 	_ = afero.WriteFile(fs, absPath, []byte(updatedContent), 0644)
 
 	sink.Files = make(map[string][]byte)
-	b.Incremental.BuildSinglePost(ctx, absPath)
+	b.Incremental.BuildSingleItem(ctx, absPath)
 
 	if _, ok := sink.Files["public/posts/hello.html"]; !ok {
-		t.Fatalf("expected single-post rebuild output for absolute path")
+		t.Fatalf("expected single-Content rebuild output for absolute path")
 	}
 }
-

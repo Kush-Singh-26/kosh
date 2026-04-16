@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"context"
@@ -21,12 +21,12 @@ import (
 const (
 	navReadyBuffer       = 1
 	renderChanMultiplier = 2
-	indexedPostsCap      = 50
+	indexedItemsCap      = 50
 	collectedFilesBuffer = 1024
 )
 
 // Process processes a set of files with a buffered channel.
-func (service *postService) Process(opts ProcessOptions) (*ContentResult, error) {
+func (service *contentService) Process(opts ProcessOptions) (*Result, error) {
 	fileChan := make(chan models.ScannedResource, len(opts.Files))
 	for _, file := range opts.Files {
 		fileChan <- file
@@ -36,7 +36,7 @@ func (service *postService) Process(opts ProcessOptions) (*ContentResult, error)
 	return service.ProcessStreaming(opts)
 }
 
-func (service *postService) startCardPool(ctx context.Context, numWorkers int) *async.WorkerPool[socialCardTask] {
+func (service *contentService) startCardPool(ctx context.Context, numWorkers int) *async.WorkerPool[socialCardTask] {
 	pool := async.NewWorkerPool(ctx, numWorkers, func(task socialCardTask) error {
 		service.generateSocialCard(task)
 		return nil
@@ -45,7 +45,7 @@ func (service *postService) startCardPool(ctx context.Context, numWorkers int) *
 	return pool
 }
 
-func (service *postService) startSearchPool(ctx context.Context, numWorkers int) *async.WorkerPool[searchTask] {
+func (service *contentService) startSearchPool(ctx context.Context, numWorkers int) *async.WorkerPool[searchTask] {
 	pool := async.NewWorkerPool(ctx, numWorkers, func(task searchTask) error {
 		wordFreqs, docLen, stemMap, posIndex, byteOffsets := tokenizeSearchData(task.record, task.plainText)
 
@@ -56,7 +56,7 @@ func (service *postService) startSearchPool(ctx context.Context, numWorkers int)
 		task.indexed.ByteOffsets = byteOffsets
 
 		if task.cached != nil {
-			task.cached.BM25Data = wordFreqs
+			task.cached.WordFreqs = wordFreqs
 			task.cached.DocLen = docLen
 			task.cached.StemMap = stemMap
 			task.cached.PositionalIndex = posIndex
@@ -132,35 +132,35 @@ func waitForRenderTasks(collector *renderTaskCollector) []renderTask {
 	return append([]renderTask(nil), collector.renderTasks...)
 }
 
-func finalizePostProcessing(processCtx *postProcessContext) {
-	timeutil.SortPosts(processCtx.allPosts)
-	timeutil.SortPosts(processCtx.pinnedItems)
+func finalizePostProcessing(processCtx *contentProcessContext) {
+	timeutil.SortItems(processCtx.allItems)
+	timeutil.SortItems(processCtx.pinnedItems)
 	for _, termMap := range processCtx.taxonomyMap {
 		for _, posts := range termMap {
-			timeutil.SortPosts(posts)
+			timeutil.SortItems(posts)
 		}
 	}
 }
 
-func (service *postService) newPostProcessContext(totalFiles int) *postProcessContext {
-	return &postProcessContext{
-		allPosts:         make([]models.PostMetadata, 0, totalFiles),
-		pinnedItems:      make([]models.PostMetadata, 0, totalFiles/4),
-		taxonomyMap:      make(map[string]map[string][]models.PostMetadata),
+func (service *contentService) newcontentProcessContext(totalFiles int) *contentProcessContext {
+	return &contentProcessContext{
+		allItems:         make([]models.ContentMetadata, 0, totalFiles),
+		pinnedItems:      make([]models.ContentMetadata, 0, totalFiles/4),
+		taxonomyMap:      make(map[string]map[string][]models.ContentMetadata),
 		newSearchRecords: make(map[string]*models.SearchRecord),
 		newDependencies:  make(map[string]*models.Dependencies),
-		indexedPosts:     make([]models.IndexedPost, 0, totalFiles),
-		newPostsMeta:     make([]*models.PostMeta, 0, totalFiles),
+		indexedItems:     make([]models.IndexedContent, 0, totalFiles),
+		newItemsMeta:     make([]*models.ContentMeta, 0, totalFiles),
 	}
 }
 
-func (service *postService) setupStreamingContext(ctx context.Context, numWorkers int) (*async.WorkerPool[socialCardTask], *async.WorkerPool[searchTask]) {
+func (service *contentService) setupStreamingContext(ctx context.Context, numWorkers int) (*async.WorkerPool[socialCardTask], *async.WorkerPool[searchTask]) {
 	cardPool := service.startCardPool(ctx, numWorkers)
 	searchPool := service.startSearchPool(ctx, numWorkers)
 	return cardPool, searchPool
 }
 
-func (service *postService) getLogger() *slog.Logger {
+func (service *contentService) getLogger() *slog.Logger {
 	if service.logger != nil {
 		return service.logger
 	}
@@ -168,7 +168,7 @@ func (service *postService) getLogger() *slog.Logger {
 }
 
 // ProcessStreaming processes posts using streaming parse and render phases.
-func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResult, error) {
+func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, error) {
 	ctx := opts.Ctx
 	numWorkers := models.GetDefaultWorkerCount()
 
@@ -176,7 +176,7 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResul
 	defer func() { buildctx.IgnoreError(cardPool.Stop(), "stop card pool") }()
 	defer func() { buildctx.IgnoreError(searchPool.Stop(), "stop search pool") }()
 
-	processCtx := service.newPostProcessContext(len(opts.Files))
+	processCtx := service.newcontentProcessContext(len(opts.Files))
 	logger := service.getLogger()
 
 	collectedFilesChan, navReady, collectWg := startNavCollector(ctx, logger, service.prepareNavigationInfo)
@@ -210,37 +210,37 @@ func (service *postService) ProcessStreaming(opts ProcessOptions) (*ContentResul
 	service.finalizeBuild(processCtx)
 	finalizePostProcessing(processCtx)
 
-	return &ContentResult{
-		AllPosts: processCtx.allPosts, PinnedItems: processCtx.pinnedItems, TaxonomyMap: processCtx.taxonomyMap,
-		IndexedPosts: processCtx.indexedPosts, AnyPostChanged: processCtx.anyPostChanged.Load(), Has404: false,
+	return &Result{
+		allItems: processCtx.allItems, PinnedItems: processCtx.pinnedItems, TaxonomyMap: processCtx.taxonomyMap,
+		indexedItems: processCtx.indexedItems, anyItemChanged: processCtx.anyItemChanged.Load(), Has404: false,
 	}, nil
 }
 
 // GetMetadataContext retrieves the full site metadata context from the post cache.
-func (service *postService) GetMetadataContext(_ context.Context) (*ContentContext, error) {
+func (service *contentService) GetMetadataContext(_ context.Context) (*Context, error) {
 	if service.cache == nil {
-		return &ContentContext{}, nil
+		return &Context{}, nil
 	}
 
-	ids, err := service.cache.ListAllPosts()
+	ids, err := service.cache.ListAllItems()
 	if err != nil {
 		return nil, err
 	}
 
-	metas, err := service.cache.GetPostsByIDs(ids)
+	metas, err := service.cache.GetItemsByIDs(ids)
 	if err != nil {
 		return nil, err
 	}
 
-	var allPosts []models.PostMetadata
-	pinnedItems := make([]models.PostMetadata, 0)
-	taxonomyMap := make(map[string]map[string][]models.PostMetadata)
+	var allItems []models.ContentMetadata
+	pinnedItems := make([]models.ContentMetadata, 0)
+	taxonomyMap := make(map[string]map[string][]models.ContentMetadata)
 
 	for _, meta := range metas {
 		if meta.IsDraft && !service.cfg.ShouldIncludeDrafts {
 			continue
 		}
-		postMeta := models.PostMetadata{
+		ContentMeta := models.ContentMetadata{
 			Title: meta.Title, Link: meta.Link, Description: meta.Description,
 			IsPinned: meta.IsPinned, Weight: meta.Weight,
 			ReadingTime: meta.ReadingTime, DateObj: meta.Date,
@@ -250,39 +250,39 @@ func (service *postService) GetMetadataContext(_ context.Context) (*ContentConte
 
 		// Taxonomy extraction logic removed: directly utilizing meta.Taxonomies from cache.
 
-		allPosts = append(allPosts, postMeta)
-		if postMeta.IsPinned {
-			pinnedItems = append(pinnedItems, postMeta)
+		allItems = append(allItems, ContentMeta)
+		if ContentMeta.IsPinned {
+			pinnedItems = append(pinnedItems, ContentMeta)
 		}
 
 		// Aggregate into taxonomyMap
-		for taxKey, terms := range postMeta.Taxonomies {
+		for taxKey, terms := range ContentMeta.Taxonomies {
 			if taxonomyMap[taxKey] == nil {
-				taxonomyMap[taxKey] = make(map[string][]models.PostMetadata)
+				taxonomyMap[taxKey] = make(map[string][]models.ContentMetadata)
 			}
 			for _, term := range terms {
 				normTerm := strings.ToLower(strings.TrimSpace(term))
-				taxonomyMap[taxKey][normTerm] = append(taxonomyMap[taxKey][normTerm], postMeta)
+				taxonomyMap[taxKey][normTerm] = append(taxonomyMap[taxKey][normTerm], ContentMeta)
 			}
 		}
 	}
 
-	timeutil.SortPosts(allPosts)
-	timeutil.SortPosts(pinnedItems)
+	timeutil.SortItems(allItems)
+	timeutil.SortItems(pinnedItems)
 	for _, termMap := range taxonomyMap {
 		for _, posts := range termMap {
-			timeutil.SortPosts(posts)
+			timeutil.SortItems(posts)
 		}
 	}
 
-	return &ContentContext{
-		AllPosts:    allPosts,
+	return &Context{
+		AllItems:    allItems,
 		PinnedItems: pinnedItems,
 		TaxonomyMap: taxonomyMap,
 	}, nil
 }
 
-func (service *postService) runStreamingParsePhase(numWorkers int, fileChan <-chan models.ScannedResource, collector chan<- models.ScannedResource, workerCtx WorkerContext) error {
+func (service *contentService) runStreamingParsePhase(numWorkers int, fileChan <-chan models.ScannedResource, collector chan<- models.ScannedResource, workerCtx WorkerContext) error {
 	service.logger.Info("Processing posts (streaming mode)")
 	timer := timeutil.StartPhase("Process posts (stream)")
 	defer timer.Stop()
@@ -291,11 +291,11 @@ func (service *postService) runStreamingParsePhase(numWorkers int, fileChan <-ch
 	expectedPerWorker := (len(fileChan) / numWorkers) + 1
 	for i := range locals {
 		locals[i] = &workerLocalState{
-			allPosts:         make([]models.PostMetadata, 0, expectedPerWorker),
-			pinnedItems:      make([]models.PostMetadata, 0, expectedPerWorker/4),
-			indexedPosts:     make([]models.IndexedPost, 0, expectedPerWorker),
+			allItems:         make([]models.ContentMetadata, 0, expectedPerWorker),
+			pinnedItems:      make([]models.ContentMetadata, 0, expectedPerWorker/4),
+			indexedItems:     make([]models.IndexedContent, 0, expectedPerWorker),
 			searchTasks:      make([]deferredSearchTask, 0, expectedPerWorker),
-			newPostsMeta:     make([]*models.PostMeta, 0, expectedPerWorker),
+			newItemsMeta:     make([]*models.ContentMeta, 0, expectedPerWorker),
 			newSearchRecords: make(map[string]*models.SearchRecord),
 			newDependencies:  make(map[string]*models.Dependencies),
 		}
@@ -322,20 +322,20 @@ func (service *postService) runStreamingParsePhase(numWorkers int, fileChan <-ch
 	return err
 }
 
-func (service *postService) setupNavPages(nav navInfo, link string) (prev, next *models.NavPage) {
+func (service *contentService) setupNavPages(nav navInfo, link string) (prev, next *models.NavPage) {
 	if position, ok := nav.postPos[link]; ok {
-		allPosts := nav.allPosts
+		allItems := nav.allItems
 		if position > 0 {
-			prev = &models.NavPage{Title: allPosts[position-1].Title, Link: allPosts[position-1].Link}
+			prev = &models.NavPage{Title: allItems[position-1].Title, Link: allItems[position-1].Link}
 		}
-		if position < len(allPosts)-1 {
-			next = &models.NavPage{Title: allPosts[position+1].Title, Link: allPosts[position+1].Link}
+		if position < len(allItems)-1 {
+			next = &models.NavPage{Title: allItems[position+1].Title, Link: allItems[position+1].Link}
 		}
 	}
 	return
 }
 
-func (service *postService) getPageLayout(renderTaskInstance renderTask) string {
+func (service *contentService) getPageLayout(renderTaskInstance renderTask) string {
 	layoutVal := strings.ToLower(renderTaskInstance.file.Layout)
 	if layoutVal == "" {
 		if l, ok := renderTaskInstance.parseResult.Metadata["layout"].(string); ok {
@@ -345,12 +345,12 @@ func (service *postService) getPageLayout(renderTaskInstance renderTask) string 
 	return layoutVal
 }
 
-func (service *postService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask) {
+func (service *contentService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask) {
 	processed := atomic.Int32{}
 	totalFiles := len(tasks)
 
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(renderTaskInstance renderTask) error {
-		post := renderTaskInstance.parseResult.Post
+		item := renderTaskInstance.parseResult.Item
 		htmlContent := renderTaskInstance.htmlContent
 		relPrefix := fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath)
 		htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
@@ -366,18 +366,18 @@ func (service *postService) runStreamingRenderPhase(ctx context.Context, numWork
 		}
 
 		if err := service.renderer.RenderPage(renderTaskInstance.destinationPath, models.PageData{
-			Title: post.Title, Description: post.Description, Content: template.HTML(htmlContent),
+			Title: item.Title, Description: item.Description, Content: template.HTML(htmlContent),
 			Meta: renderTaskInstance.parseResult.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
-			TabTitle: post.Title + " | " + service.cfg.Title, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
-			TOC: renderTaskInstance.parseResult.TOC, Config: service.cfg, ReadingTime: post.ReadingTime,
+			TabTitle: item.Title + " | " + service.cfg.Title, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
+			TOC: renderTaskInstance.parseResult.TOC, Config: service.cfg, ReadingTime: item.ReadingTime,
 			Taxonomies: nav.taxonomies,
 			PrevPage:   prev, NextPage: next, RelativePrefix: relPrefix,
 			HasImages: renderTaskInstance.parseResult.HasImages, Context: pageContext,
 			ContentPrefix:   service.cfg.ContentPrefix,
 			SectionIndexURL: sectionIndexURL,
 			SiteData:        service.cfg.SiteData,
-			JSONLD:          service.generateJSONLD(post, cardImageURL),
-			Section:         post.Section,
+			JSONLD:          service.generateJSONLD(item, cardImageURL),
+			Section:         item.Section,
 			IsCleanBuild:    service.ctx.IsCleanBuild,
 		}); err != nil {
 			return err

@@ -33,23 +33,23 @@ func BenchmarkLevenshteinDistance(b *testing.B) {
 }
 
 func BenchmarkPerformSearch(b *testing.B) {
-	// Setup a mock index with 100 posts
-	posts := make(map[string]models.PostRecord)
+	// Setup a mock index with 100 items
+	items := make(map[string]models.ContentRecord)
 	for i := 0; i < 100; i++ {
 		id := fmt.Sprintf("%d", i)
-		posts[id] = models.PostRecord{
+		items[id] = models.ContentRecord{
 			ID:              uint64(i),
-			Title:           fmt.Sprintf("Post %d", i),
-			NormalizedTitle: fmt.Sprintf("post %d", i),
+			Title:           fmt.Sprintf("Item %d", i),
+			NormalizedTitle: fmt.Sprintf("item %d", i),
 			Content:         "This is some content for searching. It contains the word kosh.",
 		}
 	}
 	index := &models.SearchIndex{
-		Posts:     posts,
-		Inverted:  map[string]map[string][]uint32{"kosh": {"1": {10}}},
-		DocLens:   make(map[string]int64),
-		TotalDocs: 100,
-		AvgDocLen: 10,
+		Items:      items,
+		Inverted:   map[string]map[string][]uint32{"kosh": {"1": {10}}},
+		ItemLens:   make(map[string]int64),
+		TotalItems: 100,
+		AvgDocLen:  10,
 	}
 
 	b.ResetTimer()

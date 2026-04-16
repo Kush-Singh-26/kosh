@@ -1,4 +1,4 @@
-package post
+package content
 
 const wordsPerMinute = 120.0
 

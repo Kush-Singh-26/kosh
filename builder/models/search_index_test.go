@@ -7,7 +7,7 @@ import (
 func TestSearchIndex_SchemaVersion(t *testing.T) {
 	index := SearchIndex{
 		SchemaVersion: CurrentSchemaVersion,
-		Posts:         make(map[string]PostRecord),
+		Items:         make(map[string]ContentRecord),
 	}
 
 	if index.SchemaVersion != CurrentSchemaVersion {
@@ -24,15 +24,15 @@ func TestSearchIndex_SchemaVersion(t *testing.T) {
 func TestSearchIndex_MsgpackEncoding(t *testing.T) {
 	index := SearchIndex{
 		SchemaVersion: CurrentSchemaVersion,
-		Posts: map[string]PostRecord{
-			"1": {ID: 1, Title: "Test Post"},
+		Items: map[string]ContentRecord{
+			"1": {ID: 1, Title: "Test Item"},
 		},
 		Inverted: map[string]map[string][]uint32{
 			"test": {"1": {1, 10}},
 		},
-		DocLens:   map[string]int64{"1": 100},
-		AvgDocLen: 100.0,
-		TotalDocs: 1,
+		ItemLens:   map[string]int64{"1": 100},
+		AvgDocLen:  100.0,
+		TotalItems: 1,
 		StemMap: map[string][]string{
 			"run":  {"running", "runner"},
 			"test": {"test", "testing"},

@@ -55,24 +55,19 @@ This is your first post. You can edit this file in ` + "`content/hello-world.md`
 
 ## Getting Started
 
-1.  **Themes**: Kosh requires a theme. Install the official blog theme:
-    ` + "```bash" + `
-    git clone https://github.com/Kush-Singh-26/kosh-theme-blog themes/blog
-    ` + "```" + `
-    
-    Or create your own theme with this structure:
-    ` + "```" + `
-    themes/your-theme/
-    ├── templates/
-    │   ├── layout.html
-    │   └── index.html
-    ├── static/
-    │   ├── css/
-    │   └── js/
-    └── theme.yaml
-    ` + "```" + `
+1. **Themes**: Kosh requires a theme. Create your theme structure:
+` + "```" + `
+themes/your-theme/
+├── templates/
+│ ├── layout.html
+│ └── index.html
+├── static/
+│ ├── css/
+│ └── js/
+└── theme.yaml
+` + "```" + `
 
-2.  **Run**: Start the dev server.
+2. **Run**: Start the dev server.
     ` + "```bash" + `
     kosh serve --dev
     ` + "```" + `

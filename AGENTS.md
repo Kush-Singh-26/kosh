@@ -2,7 +2,14 @@
 
 This file is the detailed working guide for coding agents operating in the Kosh repository.
 
-## What Kosh Is
+## Terminology Conventions
+
+As of v2.0, Kosh uses general-purpose terminology:
+
+- Use `content.Service` (lowercase package) for content processing.
+- Use `models.ContentMeta` or `models.Item` for content metadata.
+- Avoid "Post" prefix - use "Content" or "Item" instead.
+- `PostsPerPage` -> `ItemsPerPage` in config.
 
 Kosh is a Go-based static site generator for blogs. It supports:
 
@@ -42,8 +49,9 @@ Rules for agents:
 
 ## Current Stable State
 
-- Version string in CLI: `v1.4.0`
+- Version string in CLI: `v2.0.0`
 - Production-ready
+- v2.0 introduces generalized taxonomy support and terminology changes (ContentMeta, ItemsPerPage)
 - Dev-mode correctness issues recently fixed:
   - search schema mismatch in dev
   - stale asset-map lag on CSS changes

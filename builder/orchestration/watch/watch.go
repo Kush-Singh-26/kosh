@@ -14,7 +14,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 )
 
 const (
@@ -72,7 +72,7 @@ type SearchRegenerationCallback func(workingContext context.Context)
 type CoordinatorDependencies struct {
 	Cfg           *config.Config
 	BuildMu       *sync.Mutex // guards build execution in watch mode
-	Cache         post.Cache
+	Cache         content.Cache
 	OnChange      func(ChangeEvent)
 	OnSearchRegen SearchRegenerationCallback
 }
@@ -81,7 +81,7 @@ type CoordinatorDependencies struct {
 type Coordinator struct {
 	config     *config.Config
 	buildMu    *sync.Mutex // guards build execution in watch mode
-	cache      post.Cache
+	cache      content.Cache
 	onChange   func(ChangeEvent)
 	onSearch   SearchRegenerationCallback
 	buildQueue chan BuildRequest
@@ -210,13 +210,13 @@ func (coordinatorInstance *Coordinator) InvalidateForTemplate(templatePath strin
 		}
 
 		if coordinatorInstance.cache != nil {
-			postIdentifiers, cacheError := coordinatorInstance.cache.GetPostsByTemplate(relativeTemplate)
+			postIdentifiers, cacheError := coordinatorInstance.cache.GetItemsByTemplate(relativeTemplate)
 			if cacheError == nil && len(postIdentifiers) > 0 {
-				posts, postsError := coordinatorInstance.cache.GetPostsByIDs(postIdentifiers)
+				posts, postsError := coordinatorInstance.cache.GetItemsByIDs(postIdentifiers)
 				if postsError == nil && len(posts) > 0 {
 					paths := make([]string, 0, len(posts))
-					for _, postMetadata := range posts {
-						paths = append(paths, postMetadata.Path)
+					for _, ContentMetadata := range posts {
+						paths = append(paths, ContentMetadata.Path)
 					}
 					return paths
 				}

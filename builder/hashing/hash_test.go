@@ -135,7 +135,7 @@ func TestGetFrontmatterHash(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hash, err := GetFrontmatterHash(tt.metaData)
+			hash, err := GetFrontmatterHash(tt.metaData, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetFrontmatterHash() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -159,12 +159,12 @@ func TestGetFrontmatterHashDeterministic(t *testing.T) {
 		"pinned":      true,
 	}
 
-	hash1, err := GetFrontmatterHash(metaData)
+	hash1, err := GetFrontmatterHash(metaData, nil)
 	if err != nil {
 		t.Fatalf("First hash computation failed: %v", err)
 	}
 
-	hash2, err := GetFrontmatterHash(metaData)
+	hash2, err := GetFrontmatterHash(metaData, nil)
 	if err != nil {
 		t.Fatalf("Second hash computation failed: %v", err)
 	}

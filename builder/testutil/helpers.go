@@ -154,7 +154,7 @@ This is a test post.
 	_ = fs.MkdirAll(themeDir, testDirMode)
 
 	layoutTmpl := `{{ define "content" }}{{ .Content }}{{ end }}`
-	indexTmpl := `{{ define "content" }}{{ range .Posts }}<h2>{{ .Title }}</h2>{{ end }}{{ .Content }}{{ end }}`
+	indexTmpl := `{{ define "content" }}{{ range .Items }}<h2>{{ .Title }}</h2>{{ end }}{{ .Content }}{{ end }}`
 
 	_ = afero.WriteFile(fs, filepath.Join(themeDir, "layout.html"), []byte(layoutTmpl), testFileMode)
 	_ = afero.WriteFile(fs, filepath.Join(themeDir, "index.html"), []byte(indexTmpl), testFileMode)

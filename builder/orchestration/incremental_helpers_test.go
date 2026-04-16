@@ -59,9 +59,9 @@ func TestComputePostHashes_Consistency(t *testing.T) {
 	engine := NewEngine(WithDeps(EngineDependencies{Logger: InitLogger()}))
 
 	// Test with frontmatter
-	sourceWithFrontmatter := []byte("---\ntitle: Test\n---\n\n# Test Post\n\nThis is a test.")
-	frontmatterHash1, bodyHash1 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter, "post")
-	frontmatterHash2, bodyHash2 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter, "post")
+	sourceWithFrontmatter := []byte("---\ntitle: Test\n---\n\n# Test Content\n\nThis is a test.")
+	frontmatterHash1, bodyHash1 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter, "Content")
+	frontmatterHash2, bodyHash2 := engine.Incremental.ComputePostHashes(sourceWithFrontmatter, "Content")
 
 	// Hashes should be deterministic
 	assert.Equal(t, frontmatterHash1, frontmatterHash2)
@@ -70,8 +70,8 @@ func TestComputePostHashes_Consistency(t *testing.T) {
 	assert.NotEmpty(t, bodyHash1, "Body hash should not be empty")
 
 	// Different content should produce different hashes
-	source2 := []byte("---\ntitle: Different\n---\n\n# Different Post\n\nThis is different.")
-	frontmatterHash3, bodyHash3 := engine.Incremental.ComputePostHashes(source2, "post")
+	source2 := []byte("---\ntitle: Different\n---\n\n# Different Content\n\nThis is different.")
+	frontmatterHash3, bodyHash3 := engine.Incremental.ComputePostHashes(source2, "Content")
 
 	assert.NotEqual(t, frontmatterHash1, frontmatterHash3)
 	assert.NotEqual(t, bodyHash1, bodyHash3)

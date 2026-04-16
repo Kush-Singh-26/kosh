@@ -17,7 +17,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	svcContent "github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -46,6 +46,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 				CacheDir:    cacheDir,
 			},
 			BuildOptions: config.BuildOptions{
+				ItemsPerPage: 10,
 				PostsPerPage: 10,
 			},
 		}
@@ -91,7 +92,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		assetSvc.SetMetrics(buildMetrics)
 		wasmSvc := &mocks.MockWasmService{}
 		metadataScanner := scanner.NewScanner()
-		postSvc := post.NewService(post.Dependencies{
+		contentSvc := svcContent.NewService(svcContent.Dependencies{
 			Ctx:            buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 			Cfg:            cfg,
 			Cache:          cacheSvc,
@@ -100,7 +101,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 			Metrics:        buildMetrics,
 			MdPool:         mdPool,
 			NativeRenderer: nativeRenderer,
-		Fragments:      nil,
+			Fragments:      nil,
 			SourceFs:       fs,
 			Sink:           sink,
 		})
@@ -110,7 +111,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 			Config:         cfg,
 			Render:         renderSvc,
 			Asset:          assetSvc,
-			Post:           postSvc,
+			Content:        contentSvc,
 			Scanner:        metadataScanner,
 			Wasm:           wasmSvc,
 			Logger:         logger,
@@ -118,7 +119,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 			SourceFs:       fs,
 			MdPool:         mdPool,
 			NativeRenderer: nativeRenderer,
-		Fragments:      nil,
+			Fragments:      nil,
 			Cache:          nil,
 			Diagrams:       nil,
 		}))
@@ -126,7 +127,7 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		b.buildTransaction = tx
 
 		renderSvc.ReconfigureForBuild(sink, fs)
-		postSvc.ReconfigureForBuild(sink, fs)
+		contentSvc.ReconfigureForBuild(sink, fs)
 
 		ctx := context.Background()
 		_ = b.Build(ctx)
@@ -232,7 +233,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	wasmSvc := &mocks.MockWasmService{}
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := svcContent.NewService(svcContent.Dependencies{
 		Ctx:            buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -251,7 +252,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          failingAssetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -277,4 +278,3 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		t.Logf("Sink has %d files after failed build (may be expected with mock transaction)", len(sink.Files))
 	}
 }
-

@@ -16,16 +16,16 @@ func TestGenerateGraph(t *testing.T) {
 	baseURL := "https://example.com"
 	outputPath := "graph.json"
 
-	posts := []models.PostMetadata{
+	items := []models.ContentMetadata{
 		{
-			Title:      "Post 1",
-			Link:       "https://example.com/post1.html",
+			Title:      "Item 1",
+			Link:       "https://example.com/item1.html",
 			Taxonomies: map[string][]string{"tags": {"Go", "Testing"}},
 			DateObj:    time.Now(),
 		},
 		{
-			Title:      "Post 2",
-			Link:       "https://example.com/post2.html",
+			Title:      "Item 2",
+			Link:       "https://example.com/item2.html",
 			Taxonomies: map[string][]string{"tags": {"Go", "Web"}},
 			DateObj:    time.Now(),
 		},
@@ -34,7 +34,7 @@ func TestGenerateGraph(t *testing.T) {
 	resultPath, _, err := GenerateGraph(GraphOptions{
 		Sink:       sink,
 		BaseURL:    baseURL,
-		Posts:      posts,
+		Items:      items,
 		OutputPath: outputPath,
 		Config:     models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
 		SiteTitle:  "Test Site",
@@ -58,7 +58,7 @@ func TestGenerateGraph(t *testing.T) {
 	}
 
 	// Verify Nodes
-	// 1 root + 2 posts + 3 unique tags (go, testing, web) = 6 nodes
+	// 1 root + 2 items + 3 unique tags (go, testing, web) = 6 nodes
 	if len(data.Nodes) != 6 {
 		t.Errorf("Expected 6 nodes, got %d", len(data.Nodes))
 	}
@@ -68,16 +68,16 @@ func TestGenerateGraph(t *testing.T) {
 		nodeMap[node.ID] = node
 	}
 
-	// Check post node
-	post1, ok := nodeMap["https://example.com/post1.html"]
+	// Check item node
+	item1, ok := nodeMap["https://example.com/item1.html"]
 	if !ok {
-		t.Error("Post 1 node missing")
+		t.Error("Item 1 node missing")
 	} else {
-		if post1.Label != "Post 1" {
-			t.Errorf("Expected label Post 1, got %s", post1.Label)
+		if item1.Label != "Item 1" {
+			t.Errorf("Expected label Item 1, got %s", item1.Label)
 		}
-		if post1.Group != 1 {
-			t.Errorf("Expected group 1 for post, got %d", post1.Group)
+		if item1.Group != 1 {
+			t.Errorf("Expected group 1 for item, got %d", item1.Group)
 		}
 	}
 
@@ -99,8 +99,8 @@ func TestGenerateGraph(t *testing.T) {
 
 	// Verify Links
 	// Root -> tags (3 links: root to go, testing, web)
-	// Post 1 -> tags (2 links: post1 to go, testing)
-	// Post 2 -> tags (2 links: post2 to go, web)
+	// Item 1 -> tags (2 links: item1 to go, testing)
+	// Item 2 -> tags (2 links: item2 to go, web)
 	// Total 7 links
 	if len(data.Links) != 7 {
 		t.Errorf("Expected 7 links, got %d", len(data.Links))
@@ -108,7 +108,7 @@ func TestGenerateGraph(t *testing.T) {
 
 	foundLink := false
 	for _, link := range data.Links {
-		if link.Source == "https://example.com/post1.html" && link.Target == "term-tags-testing" {
+		if link.Source == "https://example.com/item1.html" && link.Target == "term-tags-testing" {
 			foundLink = true
 			if link.Type != "tags" {
 				t.Errorf("Expected link type 'tags', got %s", link.Type)
@@ -117,7 +117,7 @@ func TestGenerateGraph(t *testing.T) {
 		}
 	}
 	if !foundLink {
-		t.Error("Link from Post 1 to 'testing' tag missing")
+		t.Error("Link from Item 1 to 'testing' tag missing")
 	}
 }
 
@@ -126,13 +126,13 @@ func TestGenerateGraph_Empty(t *testing.T) {
 	_, _, err := GenerateGraph(GraphOptions{
 		Sink:       sink,
 		BaseURL:    "https://example.com",
-		Posts:      []models.PostMetadata{},
+		Items:      []models.ContentMetadata{},
 		OutputPath: "empty.json",
 		Config:     models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
 		SiteTitle:  "Test Site",
 	})
 	if err != nil {
-		t.Fatalf("GenerateGraph failed with empty posts: %v", err)
+		t.Fatalf("GenerateGraph failed with empty items: %v", err)
 	}
 
 	content := sink.Files["empty.json"]
@@ -146,10 +146,10 @@ func TestGenerateGraph_Empty(t *testing.T) {
 
 func TestGenerateGraph_DisableTags(t *testing.T) {
 	sink := testutil.NewMemSink()
-	posts := []models.PostMetadata{
+	items := []models.ContentMetadata{
 		{
-			Title:      "Post 1",
-			Link:       "https://example.com/post1.html",
+			Title:      "Item 1",
+			Link:       "https://example.com/item1.html",
 			Taxonomies: map[string][]string{"tags": {"Go"}},
 			DateObj:    time.Now(),
 		},
@@ -158,7 +158,7 @@ func TestGenerateGraph_DisableTags(t *testing.T) {
 	_, _, err := GenerateGraph(GraphOptions{
 		Sink:       sink,
 		BaseURL:    "https://example.com",
-		Posts:      posts,
+		Items:      items,
 		OutputPath: "graph.json",
 		Config:     models.GraphConfig{IsEnabled: true, ShowsTaxonomies: false},
 		SiteTitle:  "Test Site",
@@ -171,9 +171,9 @@ func TestGenerateGraph_DisableTags(t *testing.T) {
 	var data models.GraphData
 	_ = json.Unmarshal(content, &data)
 
-	// 1 root + 1 post = 2 nodes (no tags when disabled)
+	// 1 root + 1 item = 2 nodes (no tags when disabled)
 	if len(data.Nodes) != 2 {
-		t.Errorf("Expected 2 nodes (root + post), got %d", len(data.Nodes))
+		t.Errorf("Expected 2 nodes (root + item), got %d", len(data.Nodes))
 	}
 
 	if len(data.Links) != 0 {
@@ -181,28 +181,28 @@ func TestGenerateGraph_DisableTags(t *testing.T) {
 	}
 }
 
-func TestComputeGraphHash_DifferentPosts(t *testing.T) {
-	postsA := []models.PostMetadata{
-		{Title: "Post 1", Link: "/post1.html", Taxonomies: map[string][]string{"tags": {"Go"}}},
-		{Title: "Post 2", Link: "/post2.html", Taxonomies: map[string][]string{"tags": {"Go"}}},
+func TestComputeGraphHash_DifferentItems(t *testing.T) {
+	itemsA := []models.ContentMetadata{
+		{Title: "Item 1", Link: "/item1.html", Taxonomies: map[string][]string{"tags": {"Go"}}},
+		{Title: "Item 2", Link: "/item2.html", Taxonomies: map[string][]string{"tags": {"Go"}}},
 	}
 
-	postsB := []models.PostMetadata{
-		{Title: "Post 1", Link: "/post1.html", Taxonomies: map[string][]string{"tags": {"Go", "Testing"}}},
-		{Title: "Post 2", Link: "/post2.html", Taxonomies: map[string][]string{"tags": {"Go"}}},
+	itemsB := []models.ContentMetadata{
+		{Title: "Item 1", Link: "/item1.html", Taxonomies: map[string][]string{"tags": {"Go", "Testing"}}},
+		{Title: "Item 2", Link: "/item2.html", Taxonomies: map[string][]string{"tags": {"Go"}}},
 	}
 
-	hashA, err := ComputeGraphHash(postsA)
+	hashA, err := ComputeGraphHash(itemsA)
 	if err != nil {
 		t.Fatalf("ComputeGraphHash failed: %v", err)
 	}
 
-	hashB, err := ComputeGraphHash(postsB)
+	hashB, err := ComputeGraphHash(itemsB)
 	if err != nil {
 		t.Fatalf("ComputeGraphHash failed: %v", err)
 	}
 
 	if hashA == hashB {
-		t.Error("Hashes should differ when post tags change")
+		t.Error("Hashes should differ when item tags change")
 	}
 }

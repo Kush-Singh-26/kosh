@@ -1,4 +1,4 @@
-package post
+package content
 
 const (
 	// DefaultMathBatchSize is the default batch size for math SSR processing

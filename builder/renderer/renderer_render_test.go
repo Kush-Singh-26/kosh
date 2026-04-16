@@ -85,10 +85,10 @@ func TestRenderer_RenderIndex_Success(t *testing.T) {
 	r := setupTestRenderer(t)
 
 	data := models.PageData{
-		Title: "Blog Index",
-		Posts: []models.PostMetadata{
-			{Title: "Post 1", Link: "/posts/post1"},
-			{Title: "Post 2", Link: "/posts/post2"},
+		Title: "Item Index",
+		Items: []models.ContentMetadata{
+			{Title: "Item 1", Link: "/items/item1"},
+			{Title: "Item 2", Link: "/items/item2"},
 		},
 		Content: template.HTML("<p>Index Content</p>"),
 	}

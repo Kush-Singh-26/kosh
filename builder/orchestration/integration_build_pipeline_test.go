@@ -20,7 +20,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	svcContent "github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -49,6 +49,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 			CacheDir:    cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
+			ItemsPerPage: 10,
 			PostsPerPage: 10,
 		},
 		Features: models.FeaturesConfig{
@@ -117,7 +118,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	wasmSvc := &mocks.MockWasmService{}
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := svcContent.NewService(svcContent.Dependencies{
 		Ctx: buildctx.NewBuildContext(buildctx.ContextOptions{
 			IsTesting:    true,
 			IsDev:        false,
@@ -142,7 +143,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -184,7 +185,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stats failed: %v", err)
 	}
-	if stats.TotalPosts == 0 {
+	if stats.TotalItems == 0 {
 		t.Error("Expected posts in cache after build")
 	}
 }
@@ -210,6 +211,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 			CacheDir:    cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
+			ItemsPerPage: 10,
 			PostsPerPage: 10,
 		},
 	}
@@ -258,7 +260,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	wasmSvc := &mocks.MockWasmService{}
 	metadataScanner := scanner.NewScanner()
 	sink := testutil.NewMemSink()
-	postSvc := post.NewService(post.Dependencies{
+	contentSvc := svcContent.NewService(svcContent.Dependencies{
 		Ctx:            buildctx.NewBuildContext(buildctx.ContextOptions{IsTesting: true, IsDev: false, IsCleanBuild: false, Scheduler: scheduler.NewBuildScheduler(), Logger: logger}),
 		Cfg:            cfg,
 		Cache:          cacheSvc,
@@ -277,7 +279,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		Config:         cfg,
 		Render:         renderSvc,
 		Asset:          assetSvc,
-		Post:           postSvc,
+		Content:        contentSvc,
 		Scanner:        metadataScanner,
 		Wasm:           wasmSvc,
 		Logger:         logger,
@@ -313,8 +315,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("after Stats failed: %v", err)
 	}
-	if afterStats.TotalPosts != initialStats.TotalPosts {
-		t.Errorf("Expected same post count, got %d vs %d", afterStats.TotalPosts, initialStats.TotalPosts)
+	if afterStats.TotalItems != initialStats.TotalItems {
+		t.Errorf("Expected same Content count, got %d vs %d", afterStats.TotalItems, initialStats.TotalItems)
 	}
 }
-

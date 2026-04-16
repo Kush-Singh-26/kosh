@@ -9,8 +9,8 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
-func TestMarshalUnmarshalIndexedPost(t *testing.T) {
-	v := IndexedPost{}
+func TestMarshalUnmarshalContentRecord(t *testing.T) {
+	v := ContentRecord{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -32,8 +32,8 @@ func TestMarshalUnmarshalIndexedPost(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgIndexedPost(b *testing.B) {
-	v := IndexedPost{}
+func BenchmarkMarshalMsgContentRecord(b *testing.B) {
+	v := ContentRecord{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -41,8 +41,8 @@ func BenchmarkMarshalMsgIndexedPost(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgIndexedPost(b *testing.B) {
-	v := IndexedPost{}
+func BenchmarkAppendMsgContentRecord(b *testing.B) {
+	v := ContentRecord{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -53,8 +53,8 @@ func BenchmarkAppendMsgIndexedPost(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalIndexedPost(b *testing.B) {
-	v := IndexedPost{}
+func BenchmarkUnmarshalContentRecord(b *testing.B) {
+	v := ContentRecord{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -67,17 +67,17 @@ func BenchmarkUnmarshalIndexedPost(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeIndexedPost(t *testing.T) {
-	v := IndexedPost{}
+func TestEncodeDecodeContentRecord(t *testing.T) {
+	v := ContentRecord{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Log("WARNING: TestEncodeDecodeIndexedPost Msgsize() is inaccurate")
+		t.Log("WARNING: TestEncodeDecodeContentRecord Msgsize() is inaccurate")
 	}
 
-	vn := IndexedPost{}
+	vn := ContentRecord{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -91,8 +91,8 @@ func TestEncodeDecodeIndexedPost(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeIndexedPost(b *testing.B) {
-	v := IndexedPost{}
+func BenchmarkEncodeContentRecord(b *testing.B) {
+	v := ContentRecord{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -105,8 +105,8 @@ func BenchmarkEncodeIndexedPost(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeIndexedPost(b *testing.B) {
-	v := IndexedPost{}
+func BenchmarkDecodeContentRecord(b *testing.B) {
+	v := ContentRecord{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -122,8 +122,8 @@ func BenchmarkDecodeIndexedPost(b *testing.B) {
 	}
 }
 
-func TestMarshalUnmarshalPostRecord(t *testing.T) {
-	v := PostRecord{}
+func TestMarshalUnmarshalIndexedContent(t *testing.T) {
+	v := IndexedContent{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -145,8 +145,8 @@ func TestMarshalUnmarshalPostRecord(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgPostRecord(b *testing.B) {
-	v := PostRecord{}
+func BenchmarkMarshalMsgIndexedContent(b *testing.B) {
+	v := IndexedContent{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -154,8 +154,8 @@ func BenchmarkMarshalMsgPostRecord(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgPostRecord(b *testing.B) {
-	v := PostRecord{}
+func BenchmarkAppendMsgIndexedContent(b *testing.B) {
+	v := IndexedContent{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -166,8 +166,8 @@ func BenchmarkAppendMsgPostRecord(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalPostRecord(b *testing.B) {
-	v := PostRecord{}
+func BenchmarkUnmarshalIndexedContent(b *testing.B) {
+	v := IndexedContent{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -180,17 +180,17 @@ func BenchmarkUnmarshalPostRecord(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodePostRecord(t *testing.T) {
-	v := PostRecord{}
+func TestEncodeDecodeIndexedContent(t *testing.T) {
+	v := IndexedContent{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Log("WARNING: TestEncodeDecodePostRecord Msgsize() is inaccurate")
+		t.Log("WARNING: TestEncodeDecodeIndexedContent Msgsize() is inaccurate")
 	}
 
-	vn := PostRecord{}
+	vn := IndexedContent{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -204,8 +204,8 @@ func TestEncodeDecodePostRecord(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodePostRecord(b *testing.B) {
-	v := PostRecord{}
+func BenchmarkEncodeIndexedContent(b *testing.B) {
+	v := IndexedContent{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -218,8 +218,8 @@ func BenchmarkEncodePostRecord(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodePostRecord(b *testing.B) {
-	v := PostRecord{}
+func BenchmarkDecodeIndexedContent(b *testing.B) {
+	v := IndexedContent{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -333,119 +333,6 @@ func BenchmarkEncodeSearchIndex(b *testing.B) {
 
 func BenchmarkDecodeSearchIndex(b *testing.B) {
 	v := SearchIndex{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
-	b.SetBytes(int64(buf.Len()))
-	rd := msgp.NewEndlessReader(buf.Bytes(), b)
-	dc := msgp.NewReader(rd)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		err := v.DecodeMsg(dc)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func TestMarshalUnmarshalTOCEntry(t *testing.T) {
-	v := TOCEntry{}
-	bts, err := v.MarshalMsg(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	left, err := v.UnmarshalMsg(bts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(left) > 0 {
-		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
-	}
-
-	left, err = msgp.Skip(bts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(left) > 0 {
-		t.Errorf("%d bytes left over after Skip(): %q", len(left), left)
-	}
-}
-
-func BenchmarkMarshalMsgTOCEntry(b *testing.B) {
-	v := TOCEntry{}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		v.MarshalMsg(nil)
-	}
-}
-
-func BenchmarkAppendMsgTOCEntry(b *testing.B) {
-	v := TOCEntry{}
-	bts := make([]byte, 0, v.Msgsize())
-	bts, _ = v.MarshalMsg(bts[0:0])
-	b.SetBytes(int64(len(bts)))
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		bts, _ = v.MarshalMsg(bts[0:0])
-	}
-}
-
-func BenchmarkUnmarshalTOCEntry(b *testing.B) {
-	v := TOCEntry{}
-	bts, _ := v.MarshalMsg(nil)
-	b.ReportAllocs()
-	b.SetBytes(int64(len(bts)))
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := v.UnmarshalMsg(bts)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func TestEncodeDecodeTOCEntry(t *testing.T) {
-	v := TOCEntry{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
-
-	m := v.Msgsize()
-	if buf.Len() > m {
-		t.Log("WARNING: TestEncodeDecodeTOCEntry Msgsize() is inaccurate")
-	}
-
-	vn := TOCEntry{}
-	err := msgp.Decode(&buf, &vn)
-	if err != nil {
-		t.Error(err)
-	}
-
-	buf.Reset()
-	msgp.Encode(&buf, &v)
-	err = msgp.NewReader(&buf).Skip()
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func BenchmarkEncodeTOCEntry(b *testing.B) {
-	v := TOCEntry{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
-	b.SetBytes(int64(buf.Len()))
-	en := msgp.NewWriter(msgp.Nowhere)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		v.EncodeMsg(en)
-	}
-	en.Flush()
-}
-
-func BenchmarkDecodeTOCEntry(b *testing.B) {
-	v := TOCEntry{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

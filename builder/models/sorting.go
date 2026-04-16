@@ -2,10 +2,10 @@ package models
 
 import "sort"
 
-// SortPosts sorts posts by weight and date, descending.
-func SortPosts(posts []PostMetadata) {
-	sort.Slice(posts, func(i, j int) bool {
-		weightI, weightJ := posts[i].Weight, posts[j].Weight
+// SortItems sorts content items by weight and date, descending.
+func SortItems(items []ContentMetadata) {
+	sort.Slice(items, func(i, j int) bool {
+		weightI, weightJ := items[i].Weight, items[j].Weight
 
 		// Sort by Weight Descending (Higher weight first)
 		if weightI != weightJ {
@@ -13,10 +13,10 @@ func SortPosts(posts []PostMetadata) {
 		}
 
 		// Use Unix timestamps for faster integer comparison
-		timeI, timeJ := posts[i].DateObj.Unix(), posts[j].DateObj.Unix()
+		timeI, timeJ := items[i].DateObj.Unix(), items[j].DateObj.Unix()
 		if timeI == timeJ {
 			// Title Descending if dates match (arbitrary, stable)
-			return posts[i].Title > posts[j].Title
+			return items[i].Title > items[j].Title
 		}
 		// Date Descending (Newer first)
 		return timeI > timeJ

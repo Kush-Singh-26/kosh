@@ -48,13 +48,13 @@ type TaxonomyOptions struct {
 	Render             models.RenderService
 	Cache              models.SocialCardCache
 	SourceFs           afero.Fs
-	TaxonomyMap        map[string]map[string][]models.PostMetadata
+	TaxonomyMap        map[string]map[string][]models.ContentMetadata
 	ForceSocialRebuild bool
 	LogoPath           string
 }
 
 // BuildTaxonomyData builds a list of TermData from a term map for a specific taxonomy.
-func BuildTaxonomyData(prefix, plural string, termMap map[string][]models.PostMetadata) []models.TermData {
+func BuildTaxonomyData(prefix, plural string, termMap map[string][]models.ContentMetadata) []models.TermData {
 	allTerms := make([]models.TermData, 0, len(termMap))
 	prefix = strings.Trim(prefix, "/")
 	cleanPlural := strings.TrimPrefix(strings.Trim(plural, "/"), prefix+"/")
@@ -178,8 +178,8 @@ func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxono
 	})
 }
 
-func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, plural, termName, slug string, posts []models.PostMetadata) error {
-	timeutil.SortPosts(posts)
+func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, plural, termName, slug string, items []models.ContentMetadata) error {
+	timeutil.SortItems(items)
 	prefix := strings.Trim(cfg.ContentPrefix, "/")
 	// Normalize plural to not have the prefix if we are going to prepend it
 	cleanPlural := strings.TrimPrefix(strings.Trim(plural, "/"), prefix+"/")
@@ -190,7 +190,7 @@ func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, p
 	}
 	sectionIndexURL := navigation.ResolveSectionIndex(termPath)
 	return render.RenderPage(filepath.Join(cfg.OutputDir, termPath), models.PageData{
-		Title: termName, IsIndex: true, Context: models.ContextSection, Posts: posts,
+		Title: termName, IsIndex: true, Context: models.ContextSection, Items: items,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 		Permalink: fmt.Sprintf("%s/%s", cfg.BaseURL, termPath),
 		Image:     fmt.Sprintf("%s/static/images/cards/%s/%s.webp", cfg.BaseURL, plural, slug),
@@ -199,7 +199,7 @@ func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, p
 			taxonomy: {
 				Name:   taxonomy,
 				Plural: plural,
-				Terms:  BuildTaxonomyData(cfg.ContentPrefix, plural, map[string][]models.PostMetadata{termName: posts}),
+				Terms:  BuildTaxonomyData(cfg.ContentPrefix, plural, map[string][]models.ContentMetadata{termName: items}),
 			},
 		},
 		Weight:         0,
@@ -231,7 +231,7 @@ func RenderTaxonomies(opts TaxonomyOptions) error {
 	return g.Wait()
 }
 
-func renderSingleTaxonomy(opts TaxonomyOptions, taxKey, taxPlural string, termMap map[string][]models.PostMetadata, cardPool *async.WorkerPool[TaxonomySocialCardTask], g *errgroup.Group) error {
+func renderSingleTaxonomy(opts TaxonomyOptions, taxKey, taxPlural string, termMap map[string][]models.ContentMetadata, cardPool *async.WorkerPool[TaxonomySocialCardTask], g *errgroup.Group) error {
 	cfg := opts.Cfg
 	allTerms := BuildTaxonomyData(cfg.ContentPrefix, taxPlural, termMap)
 
@@ -287,6 +287,6 @@ func handleTaxonomySocialCard(opts TaxonomyOptions, taxKey, taxPlural, termName,
 	}
 }
 
-func lenAll(m map[string][]models.PostMetadata) int {
+func lenAll(m map[string][]models.ContentMetadata) int {
 	return len(m)
 }

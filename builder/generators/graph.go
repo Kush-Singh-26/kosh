@@ -35,7 +35,7 @@ const (
 type GraphOptions struct {
 	Sink          fspkg.ArtifactSink
 	BaseURL       string
-	Posts         []models.PostMetadata
+	Items         []models.ContentMetadata
 	OutputPath    string
 	Config        models.GraphConfig
 	SiteTitle     string
@@ -43,9 +43,9 @@ type GraphOptions struct {
 }
 
 // ComputeGraphHash computes a stable hash for the knowledge graph data
-func ComputeGraphHash(posts []models.PostMetadata) (string, error) {
-	graphInfo := make([]postGraphInfo, 0, len(posts))
-	for _, p := range posts {
+func ComputeGraphHash(items []models.ContentMetadata) (string, error) {
+	graphInfo := make([]postGraphInfo, 0, len(items))
+	for _, p := range items {
 		graphInfo = append(graphInfo, postGraphInfo{
 			Title:       p.Title,
 			Link:        p.Link,
@@ -81,7 +81,7 @@ func GenerateGraph(opts GraphOptions) (string, string, error) {
 		return "", "", err
 	}
 
-	hash, err := ComputeGraphHash(opts.Posts)
+	hash, err := ComputeGraphHash(opts.Items)
 	if err != nil {
 		return "", "", err
 	}
@@ -109,7 +109,7 @@ func collectTaxonomyTerms(opts GraphOptions, nodeExists map[string]bool) map[str
 		return termNodes
 	}
 
-	for _, p := range opts.Posts {
+	for _, p := range opts.Items {
 		for taxKey, terms := range p.Taxonomies {
 			for _, t := range terms {
 				slug := taxKey + "-" + timeutil.Slugify(t)
@@ -148,12 +148,12 @@ func addTermNodes(nodes *[]models.GraphNode, links *[]models.GraphLink, termNode
 	}
 }
 
-// addPostNodes adds post nodes and taxonomy links
+// addPostNodes adds item nodes and taxonomy links
 func addPostNodes(nodes *[]models.GraphNode, links *[]models.GraphLink, opts GraphOptions, nodeExists map[string]bool) {
-	for _, p := range opts.Posts {
-		postURL := p.Link
-		if opts.BaseURL != "" && postURL != "" && postURL[0] == '/' {
-			postURL = opts.BaseURL + postURL
+	for _, p := range opts.Items {
+		itemURL := p.Link
+		if opts.BaseURL != "" && itemURL != "" && itemURL[0] == '/' {
+			itemURL = opts.BaseURL + itemURL
 		}
 		if !nodeExists[p.Link] {
 			*nodes = append(*nodes, models.GraphNode{
@@ -161,7 +161,7 @@ func addPostNodes(nodes *[]models.GraphNode, links *[]models.GraphLink, opts Gra
 				Label:   p.Title,
 				Group:   graphItemGroup,
 				Value:   graphItemValue,
-				URL:     postURL,
+				URL:     itemURL,
 				Excerpt: p.Description,
 				Date:    p.DateObj.Format(graphDateFormat),
 			})

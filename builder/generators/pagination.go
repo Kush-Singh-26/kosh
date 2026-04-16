@@ -23,7 +23,7 @@ import (
 const (
 	homeDescMaxLen      = 100
 	homeDescEllipsis    = "..."
-	defaultPostsPerPage = 10
+	defaultItemsPerPage = 10
 	firstPageIndex      = 1
 	secondPageIndex     = 2
 )
@@ -36,8 +36,8 @@ type PaginationOptions struct {
 	Render      models.RenderService
 	Cache       models.SocialCardCache
 	SourceFs    afero.Fs
-	AllPosts    []models.PostMetadata
-	PinnedItems []models.PostMetadata
+	AllPosts    []models.ContentMetadata
+	PinnedItems []models.ContentMetadata
 	Force       bool
 	Logger      *slog.Logger
 	LogoPath    string
@@ -93,25 +93,30 @@ func ensureHomeSocialCard(opts PaginationOptions) {
 	}
 }
 
-func resolvePostsPerPage(cfg *config.Config) int {
-	if cfg.PostsPerPage <= 0 {
-		return defaultPostsPerPage
+func resolveItemsPerPage(cfg *config.Config) int {
+	itemsPerPage := cfg.ItemsPerPage
+	if itemsPerPage <= 0 {
+		if cfg.PostsPerPage > 0 {
+			itemsPerPage = cfg.PostsPerPage
+		} else {
+			return defaultItemsPerPage
+		}
 	}
-	return cfg.PostsPerPage
+	return itemsPerPage
 }
 
-func resolveTotalPages(totalPosts, postsPerPage int) int {
-	totalPages := int(math.Ceil(float64(totalPosts) / float64(postsPerPage)))
+func resolveTotalPages(totalItems, itemsPerPage int) int {
+	totalPages := int(math.Ceil(float64(totalItems) / float64(itemsPerPage)))
 	if totalPages == 0 {
 		return 1
 	}
 	return totalPages
 }
 
-func pageWindow(pageIdx, postsPerPage, totalPosts int) (int, int) {
-	start, end := (pageIdx-1)*postsPerPage, pageIdx*postsPerPage
-	if end > totalPosts {
-		end = totalPosts
+func pageWindow(pageIdx, itemsPerPage, totalItems int) (int, int) {
+	start, end := (pageIdx-1)*itemsPerPage, pageIdx*itemsPerPage
+	if end > totalItems {
+		end = totalItems
 	}
 	return start, end
 }
@@ -169,10 +174,10 @@ func RenderPagination(opts PaginationOptions) error {
 
 	ensureHomeSocialCard(opts)
 
-	latestPosts := opts.AllPosts
+	allItems := opts.AllPosts
 
-	postsPerPage := resolvePostsPerPage(cfg)
-	totalPages := resolveTotalPages(len(latestPosts), postsPerPage)
+	itemsPerPage := resolveItemsPerPage(cfg)
+	totalPages := resolveTotalPages(len(allItems), itemsPerPage)
 
 	g, _ := errgroup.WithContext(opts.Ctx)
 	g.SetLimit(runtime.NumCPU())
@@ -180,11 +185,11 @@ func RenderPagination(opts PaginationOptions) error {
 	for i := firstPageIndex; i <= totalPages; i++ {
 		pageIdx := i
 		g.Go(func() error {
-			start, end := pageWindow(pageIdx, postsPerPage, len(latestPosts))
-			pagePosts := latestPosts[start:end]
+			start, end := pageWindow(pageIdx, itemsPerPage, len(allItems))
+			pageItems := allItems[start:end]
 			destPath, permalink, relPath := pagePaths(cfg, sink, pageIdx)
 			paginator := buildPaginator(cfg, pageIdx, totalPages)
-			var curPinned []models.PostMetadata
+			var curPinned []models.ContentMetadata
 			if pageIdx == firstPageIndex {
 				curPinned = opts.PinnedItems
 			}
@@ -198,14 +203,14 @@ func RenderPagination(opts PaginationOptions) error {
 			relPrefix := fspkg.GetRelativePrefix(relPath)
 			sectionIndexURL := navigation.ResolveSectionIndex(relPath)
 			if err := render.RenderIndex(destPath, models.PageData{
-				Title: cfg.Title, Posts: pagePosts, PinnedItems: curPinned,
+				Title: cfg.Title, Items: pageItems, PinnedItems: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
 				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
 				Paginator: paginator, Config: cfg, Context: context,
 				RelativePrefix: relPrefix, ContentPrefix: cfg.ContentPrefix,
 				SectionIndexURL: sectionIndexURL,
-				Taxonomies:   opts.Taxonomies,
-				SiteData:     cfg.SiteData,
+				Taxonomies:      opts.Taxonomies,
+				SiteData:        cfg.SiteData,
 			}); err != nil {
 				return fmt.Errorf("failed to render index page %d: %w", pageIdx, err)
 			}

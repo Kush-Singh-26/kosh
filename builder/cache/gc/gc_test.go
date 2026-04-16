@@ -41,7 +41,7 @@ func TestRunGC(t *testing.T) {
 	refCount := NewRefCountManager(db)
 
 	// 1. Store a post with an HTML artifact
-	postID := "test-post"
+	ContentID := "test-post"
 	htmlContent := []byte("<html><body>Hello</body></html>")
 	var htmlHash string
 
@@ -56,13 +56,13 @@ func TestRunGC(t *testing.T) {
 	}
 
 	err = db.Update(func(tx *bbolt.Tx) error {
-		post := &core.PostMeta{
-			PostID:   postID,
+		post := &core.ContentMeta{
+			ContentID:   ContentID,
 			Path:     "test.md",
 			HTMLHash: htmlHash,
 		}
 		data, _ := core.Encode(post)
-		return tx.Bucket([]byte(core.BucketPosts)).Put([]byte(postID), data)
+		return tx.Bucket([]byte(core.BucketPosts)).Put([]byte(ContentID), data)
 	})
 	if err != nil {
 		t.Fatalf("Failed to setup post: %v", err)
@@ -84,7 +84,7 @@ func TestRunGC(t *testing.T) {
 
 	// 3. Delete the post from BoltDB (simulating source file deletion)
 	err = db.Update(func(tx *bbolt.Tx) error {
-		return tx.Bucket([]byte(core.BucketPosts)).Delete([]byte(postID))
+		return tx.Bucket([]byte(core.BucketPosts)).Delete([]byte(ContentID))
 	})
 	if err != nil {
 		t.Fatalf("Failed to delete post: %v", err)

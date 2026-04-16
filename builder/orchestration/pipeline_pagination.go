@@ -9,8 +9,8 @@ import (
 
 type renderPaginationOptions struct {
 	workingContext context.Context
-	allPosts       []models.PostMetadata
-	pinnedItems    []models.PostMetadata
+	allPosts       []models.ContentMetadata
+	pinnedItems    []models.ContentMetadata
 	force          bool
 	taxonomies     map[string]models.TaxonomyData
 }
@@ -38,7 +38,7 @@ func (engineInstance *Engine) renderPagination(options renderPaginationOptions) 
 	})
 }
 
-func (engineInstance *Engine) renderTaxonomies(workingContext context.Context, taxonomyMap map[string]map[string][]models.PostMetadata, forceSocialRebuild bool) error {
+func (engineInstance *Engine) renderTaxonomies(workingContext context.Context, taxonomyMap map[string]map[string][]models.ContentMetadata, forceSocialRebuild bool) error {
 	return generators.RenderTaxonomies(generators.TaxonomyOptions{
 		Ctx:                workingContext,
 		Cfg:                engineInstance.Cfg,

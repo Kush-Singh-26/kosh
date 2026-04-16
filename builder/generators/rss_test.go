@@ -13,16 +13,16 @@ import (
 func TestGenerateRSS(t *testing.T) {
 	sink := testutil.NewMemSink()
 	baseURL := "https://example.com"
-	posts := []models.PostMetadata{
+	items := []models.ContentMetadata{
 		{
-			Title:       "Post 1",
-			Link:        "/post1",
+			Title:       "Item 1",
+			Link:        "/item1",
 			Description: "Description 1",
 			DateObj:     time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC),
 		},
 		{
-			Title:       "Post 2",
-			Link:        "/post2",
+			Title:       "Item 2",
+			Link:        "/item2",
 			Description: "Description 2",
 			DateObj:     time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC),
 		},
@@ -34,7 +34,7 @@ func TestGenerateRSS(t *testing.T) {
 	_, err := GenerateRSS(RSSOptions{
 		Sink:        sink,
 		BaseURL:     baseURL,
-		Posts:       posts,
+		Items:       items,
 		Title:       title,
 		Description: description,
 		OutputPath:  outputPath,
@@ -55,23 +55,23 @@ func TestGenerateRSS(t *testing.T) {
 	if !strings.Contains(rssStr, "<link>https://example.com</link>") {
 		t.Error("RSS missing channel link")
 	}
-	if !strings.Contains(rssStr, "<title>Post 1</title>") {
+	if !strings.Contains(rssStr, "<title>Item 1</title>") {
 		t.Error("RSS missing item title")
 	}
 }
 
-func TestGenerateRSS_EmptyPosts(t *testing.T) {
+func TestGenerateRSS_EmptyItems(t *testing.T) {
 	sink := testutil.NewMemSink()
 	_, err := GenerateRSS(RSSOptions{
 		Sink:        sink,
 		BaseURL:     "https://example.com",
-		Posts:       []models.PostMetadata{},
+		Items:       []models.ContentMetadata{},
 		Title:       "Empty Blog",
-		Description: "No posts",
+		Description: "No items",
 		OutputPath:  "rss.xml",
 	})
 	if err != nil {
-		t.Fatalf("GenerateRSS failed with empty posts: %v", err)
+		t.Fatalf("GenerateRSS failed with empty items: %v", err)
 	}
 
 	content, ok := sink.Files["rss.xml"]
@@ -86,10 +86,10 @@ func TestGenerateRSS_EmptyPosts(t *testing.T) {
 
 func TestGenerateRSS_SpecialCharacters(t *testing.T) {
 	sink := testutil.NewMemSink()
-	posts := []models.PostMetadata{
+	items := []models.ContentMetadata{
 		{
-			Title:       "Post & <More>",
-			Link:        "/post?id=1&name=test",
+			Title:       "Item & <More>",
+			Link:        "/item?id=1&name=test",
 			Description: "Special chars: \"quote\" 'apostrophe'",
 			DateObj:     time.Now(),
 		},
@@ -98,7 +98,7 @@ func TestGenerateRSS_SpecialCharacters(t *testing.T) {
 	_, err := GenerateRSS(RSSOptions{
 		Sink:        sink,
 		BaseURL:     "https://example.com",
-		Posts:       posts,
+		Items:       items,
 		Title:       "Blog & Sitemap",
 		Description: "Desc <tag>",
 		OutputPath:  "rss.xml",
@@ -109,10 +109,10 @@ func TestGenerateRSS_SpecialCharacters(t *testing.T) {
 
 	rssStr := string(sink.Files["rss.xml"])
 	// XML encoder should escape these
-	if !strings.Contains(rssStr, "Post &amp; &lt;More&gt;") {
+	if !strings.Contains(rssStr, "Item &amp; &lt;More&gt;") {
 		t.Error("RSS title not escaped correctly")
 	}
-	if !strings.Contains(rssStr, "/post?id=1&amp;name=test") {
+	if !strings.Contains(rssStr, "/item?id=1&amp;name=test") {
 		t.Error("RSS link not escaped correctly")
 	}
 }

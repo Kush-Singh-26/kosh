@@ -28,10 +28,10 @@ const (
 )
 
 // GetFrontmatterHash computes the canonical frontmatter hash from the raw metadata map.
-func GetFrontmatterHash(metadata map[string]any) (string, error) {
+func GetFrontmatterHash(metadata map[string]any, taxonomyKeys []string) (string, error) {
 	h := xxh3.New()
 
-	standardFields := extractStandardFields(metadata)
+	standardFields := extractStandardFields(metadata, taxonomyKeys)
 	hashStandardFields(HashStandardFieldsOptions{
 		Hasher:      h,
 		Title:       standardFields.Title,
@@ -43,21 +43,25 @@ func GetFrontmatterHash(metadata map[string]any) (string, error) {
 		Weight:      standardFields.Weight,
 	})
 
-	hashCustomFields(h, metadata)
+	hashCustomFields(h, metadata, taxonomyKeys)
 
 	sum := h.Sum128()
 	b := sum.Bytes()
 	return hex.EncodeToString(b[:]), nil
 }
 
-func extractStandardFields(metadata map[string]any) FrontmatterHashOptions {
+func extractStandardFields(metadata map[string]any, taxonomyKeys []string) FrontmatterHashOptions {
 	opts := FrontmatterHashOptions{
 		Title:       timeutil.ExtractStringFromMap(metadata, "title"),
 		Description: timeutil.ExtractStringFromMap(metadata, "description"),
 		Date:        timeutil.ExtractDateStringFromMap(metadata, "date"),
-		Taxonomies: map[string][]string{
-			"tags": timeutil.ExtractSliceFromMap(metadata, "tags"),
-		},
+		Taxonomies:  make(map[string][]string),
+	}
+
+	for _, k := range taxonomyKeys {
+		if terms := timeutil.ExtractSliceFromMap(metadata, k); len(terms) > 0 {
+			opts.Taxonomies[k] = terms
+		}
 	}
 
 	if p, ok := metadata["pinned"].(bool); ok {
@@ -77,10 +81,13 @@ func extractStandardFields(metadata map[string]any) FrontmatterHashOptions {
 	return opts
 }
 
-func hashCustomFields(h *xxh3.Hasher, other map[string]any) {
+func hashCustomFields(h *xxh3.Hasher, other map[string]any, taxonomyKeys []string) {
 	standardKeys := map[string]bool{
-		"title": true, "description": true, "date": true, "tags": true,
+		"title": true, "description": true, "date": true,
 		"pinned": true, "draft": true, "weight": true,
+	}
+	for _, k := range taxonomyKeys {
+		standardKeys[k] = true
 	}
 
 	var keys []string
@@ -129,7 +136,8 @@ func GetFrontmatterHashFromValues(opts FrontmatterHashOptions) string {
 		Weight:      opts.Weight,
 	})
 
-	hashCustomFields(h, opts.Other)
+	// Pass empty taxonomyKeys as they are already in opts.Taxonomies
+	hashCustomFields(h, opts.Other, nil)
 
 	sum := h.Sum128()
 	b := sum.Bytes()
@@ -238,7 +246,7 @@ func GetBodyHash(source []byte) string {
 
 // GetFrontmatterHashFromSource extracts frontmatter from raw source and computes its hash.
 // If title is missing in metadata, it uses fallbackTitle to ensure consistency with the scanner.
-func GetFrontmatterHashFromSource(source []byte, fallbackTitle string) (string, error) {
+func GetFrontmatterHashFromSource(source []byte, fallbackTitle string, taxonomyKeys []string) (string, error) {
 	parts := bytes.SplitN(source, YAMLDelim, yamlFrontmatterParts)
 	if len(parts) < yamlFrontmatterParts {
 		return "", nil
@@ -258,7 +266,7 @@ func GetFrontmatterHashFromSource(source []byte, fallbackTitle string) (string, 
 		metadata["title"] = fallbackTitle
 	}
 
-	return GetFrontmatterHash(metadata)
+	return GetFrontmatterHash(metadata, taxonomyKeys)
 }
 
 // ParseFrontmatter parses YAML frontmatter into a map.

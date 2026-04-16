@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"context"
@@ -24,22 +24,22 @@ type renderTask struct {
 }
 
 type searchTask struct {
-	record         models.PostRecord
+	record         models.ContentRecord
 	plainText      string
-	indexed        *models.IndexedPost
+	indexed        *models.IndexedContent
 	cached         *models.SearchRecord
 	SearchIngestor models.SearchIngestor
 }
 
 // workerLocalState accumulates results within a single parse worker,
-// eliminating contention on the shared postProcessContext.
+// eliminating contention on the shared contentProcessContext.
 type workerLocalState struct {
-	allPosts         []models.PostMetadata
-	pinnedItems      []models.PostMetadata
+	allItems         []models.ContentMetadata
+	pinnedItems      []models.ContentMetadata
 	taxonomyEntries  []taxonomyEntry
-	indexedPosts     []models.IndexedPost
+	indexedItems     []models.IndexedContent
 	searchTasks      []deferredSearchTask
-	newPostsMeta     []*models.PostMeta
+	newItemsMeta     []*models.ContentMeta
 	newSearchRecords map[string]*models.SearchRecord
 	newDependencies  map[string]*models.Dependencies
 	anyChanged       bool
@@ -49,20 +49,20 @@ type workerLocalState struct {
 type taxonomyEntry struct {
 	taxonomy string
 	term     string
-	post     models.PostMetadata
+	item     models.ContentMetadata
 }
 
 type deferredSearchTask struct {
-	record     models.PostRecord
+	record     models.ContentRecord
 	plainText  string
-	localIndex int // index into this worker's indexedPosts
+	localIndex int // index into this worker's indexedItems
 	cached     *models.SearchRecord
 }
 
 // WorkerContext holds shared dependencies and configuration for streaming workers.
 type WorkerContext struct {
 	Ctx                context.Context
-	ProcessContext     *postProcessContext
+	ProcessContext     *contentProcessContext
 	CardPool           *async.WorkerPool[socialCardTask]
 	SearchPool         *async.WorkerPool[searchTask]
 	SearchIngestor     models.SearchIngestor
@@ -71,23 +71,23 @@ type WorkerContext struct {
 	ForceSocialRebuild bool
 }
 
-type postProcessContext struct {
-	allPosts         []models.PostMetadata
-	pinnedItems      []models.PostMetadata
-	taxonomyMap      map[string]map[string][]models.PostMetadata // Taxonomy -> Term -> Posts
-	anyPostChanged   atomic.Bool
-	newPostsMeta     []*models.PostMeta
+type contentProcessContext struct {
+	allItems         []models.ContentMetadata
+	pinnedItems      []models.ContentMetadata
+	taxonomyMap      map[string]map[string][]models.ContentMetadata // Taxonomy -> Term -> Items
+	anyItemChanged   atomic.Bool
+	newItemsMeta     []*models.ContentMeta
 	newSearchRecords map[string]*models.SearchRecord
 	newDependencies  map[string]*models.Dependencies
-	indexedPosts     []models.IndexedPost
+	indexedItems     []models.IndexedContent
 	errs             []error
 }
 
-// AggregateContext bundles inputs needed to aggregate a single post result.
+// AggregateContext bundles inputs needed to aggregate a single item result.
 type AggregateContext struct {
 	Ctx              context.Context
 	Result           *ParsedMarkdownResult
-	Post             models.PostMetadata
+	Item             models.ContentMetadata
 	HTMLContent      string
 	DestinationPath  string
 	RelativePath     string

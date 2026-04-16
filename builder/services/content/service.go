@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"html/template"
@@ -19,7 +19,7 @@ import (
 )
 
 // postService implements PostService.
-type postService struct {
+type contentService struct {
 	ctx            *buildctx.BuildContext
 	cfg            *config.Config
 	cache          Cache
@@ -40,7 +40,7 @@ type postService struct {
 
 // NewService constructs the PostService with injected dependencies.
 func NewService(deps Dependencies) Service {
-	return &postService{
+	return &contentService{
 		ctx:            deps.Ctx,
 		cfg:            deps.Cfg,
 		cache:          deps.Cache,
@@ -59,29 +59,29 @@ func NewService(deps Dependencies) Service {
 }
 
 // ReconfigureForBuild updates the sink and source filesystem for a new build.
-func (service *postService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
+func (service *contentService) ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs) {
 	service.sink = sink
 	service.sourceFs = fs
 }
 
 // SetAssetsGate sets the assets-ready signal channel.
-func (service *postService) SetAssetsGate(assetsReadyChan <-chan struct{}) {
+func (service *contentService) SetAssetsGate(assetsReadyChan <-chan struct{}) {
 	service.assetsReady = assetsReadyChan
 }
 
 // ReconfigureWithReporter updates the reporter and logger for subsequent builds.
-func (service *postService) ReconfigureWithReporter(reporter ui.Reporter, logger *slog.Logger) {
+func (service *contentService) ReconfigureWithReporter(reporter ui.Reporter, logger *slog.Logger) {
 	service.reporter = reporter
 	service.logger = logger
 }
 
 // WaitForCacheCommit blocks until cache commits complete.
-func (service *postService) WaitForCacheCommit() { service.cacheWg.Wait() }
+func (service *contentService) WaitForCacheCommit() { service.cacheWg.Wait() }
 
-func (service *postService) generateJSONLD(post models.PostMetadata, cardImageURL string) template.HTML {
-	jsonld, err := models.GeneratePostJSONLD(post, service.cfg.Author, cardImageURL)
+func (service *contentService) generateJSONLD(item models.ContentMetadata, cardImageURL string) template.HTML {
+	jsonld, err := models.GenerateContentJSONLD(item, service.cfg.Author, cardImageURL, service.cfg.ArticleType)
 	if err != nil {
-		service.logger.Error("Failed to generate JSON-LD", "post", post.Link, "error", err)
+		service.logger.Error("Failed to generate JSON-LD", "post", item.Link, "error", err)
 		return ""
 	}
 	return jsonld

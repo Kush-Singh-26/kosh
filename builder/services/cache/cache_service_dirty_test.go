@@ -12,21 +12,21 @@ func TestCacheService_DirtyTracking(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
-	postID := "test-post-123"
+	ContentID := "test-post-123"
 
-	if service.IsDirty(postID) {
+	if service.IsDirty(ContentID) {
 		t.Error("Post should not be dirty initially")
 	}
 
-	service.MarkDirty(postID)
+	service.MarkDirty(ContentID)
 
-	if !service.IsDirty(postID) {
+	if !service.IsDirty(ContentID) {
 		t.Error("Post should be dirty after MarkDirty")
 	}
 
-	service.MarkDirty(postID)
+	service.MarkDirty(ContentID)
 
-	if !service.IsDirty(postID) {
+	if !service.IsDirty(ContentID) {
 		t.Error("Post should still be dirty")
 	}
 }
@@ -94,14 +94,14 @@ func TestCacheService_EmptyBodyHash_Invalidation(t *testing.T) {
 	defer cleanup()
 
 	post := testutil.CreateSamplePostMeta()
-	post.PostID = "test-empty-body"
+	post.ContentID = "test-empty-body"
 	post.BodyHash = ""
 
-	if err := service.BatchCommit([]*cache.PostMeta{post}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*cache.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 
-	retrieved, err := service.GetPostByID("test-empty-body")
+	retrieved, err := service.GetItemByID("test-empty-body")
 	if err != nil {
 		t.Fatalf("GetPost failed: %v", err)
 	}
@@ -128,9 +128,9 @@ func TestCacheService_ConcurrentDirtyTracking(t *testing.T) {
 		go func(base int) {
 			defer wg.Done()
 			for i := 0; i < opsPerGoroutine; i++ {
-				postID := string(rune(base%26+'a')) + string(rune(i%26+'a'))
-				service.MarkDirty(postID)
-				_ = service.IsDirty(postID)
+				ContentID := string(rune(base%26+'a')) + string(rune(i%26+'a'))
+				service.MarkDirty(ContentID)
+				_ = service.IsDirty(ContentID)
 			}
 		}(g)
 	}
@@ -140,9 +140,9 @@ func TestCacheService_ConcurrentDirtyTracking(t *testing.T) {
 	service.ClearDirty()
 
 	for i := 0; i < 10; i++ {
-		postID := string(rune(i%26+'a')) + "0"
-		if service.IsDirty(postID) {
-			t.Errorf("Post %s should be clean after ClearDirty", postID)
+		ContentID := string(rune(i%26+'a')) + "0"
+		if service.IsDirty(ContentID) {
+			t.Errorf("Post %s should be clean after ClearDirty", ContentID)
 		}
 	}
 }
@@ -158,9 +158,9 @@ func TestCacheService_ConcurrentMarkAndCheck(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			postID := string(rune(id%26 + 'a'))
-			service.MarkDirty(postID)
-			_ = service.IsDirty(postID)
+			ContentID := string(rune(id%26 + 'a'))
+			service.MarkDirty(ContentID)
+			_ = service.IsDirty(ContentID)
 		}(i)
 	}
 
@@ -173,18 +173,18 @@ func TestCacheService_DirtyTrackingIdempotency(t *testing.T) {
 	service, _, cleanup := setupCacheServiceTest(t)
 	defer cleanup()
 
-	postID := "test-idempotent"
+	ContentID := "test-idempotent"
 
 	for i := 0; i < 10; i++ {
-		service.MarkDirty(postID)
+		service.MarkDirty(ContentID)
 	}
 
-	if !service.IsDirty(postID) {
+	if !service.IsDirty(ContentID) {
 		t.Error("Post should be dirty after multiple MarkDirty calls")
 	}
 
 	service.ClearDirty()
-	if service.IsDirty(postID) {
+	if service.IsDirty(ContentID) {
 		t.Error("Post should be clean after ClearDirty")
 	}
 }

@@ -16,19 +16,19 @@ import (
 
 // SitemapOptions configures sitemap generation.
 type SitemapOptions struct {
-	Sink       fspkg.ArtifactSink
-	BaseURL    string
-	Posts      []models.PostMetadata
-	Taxonomies      map[string]map[string][]models.PostMetadata
-	ContentPrefix   string
-	OutputPath      string
+	Sink          fspkg.ArtifactSink
+	BaseURL       string
+	Items         []models.ContentMetadata
+	Taxonomies    map[string]map[string][]models.ContentMetadata
+	ContentPrefix string
+	OutputPath    string
 }
 
 // GenerateSitemap builds and writes the sitemap XML.
 func GenerateSitemap(opts SitemapOptions) (string, error) {
 	sink := opts.Sink
 	baseURL := opts.BaseURL
-	posts := opts.Posts
+	items := opts.Items
 	taxonomies := opts.Taxonomies
 	outputPath := opts.OutputPath
 
@@ -44,8 +44,8 @@ func GenerateSitemap(opts SitemapOptions) (string, error) {
 		LastMod: time.Now().Format("2006-01-02"),
 	})
 
-	// 2. Add Blog Posts
-	for _, p := range posts {
+	// 2. Add Content Items
+	for _, p := range items {
 		urls = append(urls, models.URL{
 			Loc:     p.Link,
 			LastMod: p.DateObj.Format("2006-01-02"),
@@ -54,10 +54,10 @@ func GenerateSitemap(opts SitemapOptions) (string, error) {
 
 	// 3. Add Taxonomy Pages
 	for taxKey, terms := range taxonomies {
-		for term, termPosts := range terms {
-			// Find the latest date among posts with this term
+		for term, termItems := range terms {
+			// Find the latest date among items with this term
 			var latest time.Time
-			for _, p := range termPosts {
+			for _, p := range termItems {
 				if p.DateObj.After(latest) {
 					latest = p.DateObj
 				}

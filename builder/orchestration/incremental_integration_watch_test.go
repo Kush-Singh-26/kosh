@@ -20,7 +20,7 @@ func TestIncrementalBuild_SearchSourceChange(t *testing.T) {
 		{"cmd/search path", "cmd/search/main.go", true},
 		{"builder/search path", "builder/search/fuzzy.go", true},
 		{"builder/models path", "builder/models/models.go", true},
-		{"content path", "content/post.md", false},
+		{"content path", "content/Content.md", false},
 		{"template path", "themes/template.html", false},
 	}
 
@@ -35,14 +35,14 @@ func TestIncrementalBuild_SearchSourceChange(t *testing.T) {
 }
 
 func TestIncrementalBuild_ModTimeQuickBail(t *testing.T) {
-	cachedMeta := &cache.PostMeta{
+	cachedMeta := &cache.ContentMeta{
 		ModTime:  1000,
 		BodyHash: "hash123",
 	}
 
 	info := afero.NewMemMapFs()
-	_ = afero.WriteFile(info, "post.md", []byte("content"), 0644)
-	stat, _ := info.Stat("post.md")
+	_ = afero.WriteFile(info, "Content.md", []byte("content"), 0644)
+	stat, _ := info.Stat("Content.md")
 	modTime := stat.ModTime().Unix()
 
 	cachedMeta.ModTime = modTime
@@ -65,10 +65,10 @@ func TestIncrementalBuild_ModTimeQuickBail(t *testing.T) {
 }
 
 func TestIncrementalBuild_DedupeIndexedPosts(t *testing.T) {
-	posts := []models.IndexedPost{
-		{SourcePath: "content/post1.md", Record: models.PostRecord{Link: "post1"}},
-		{SourcePath: "content/post2.md", Record: models.PostRecord{Link: "post2"}},
-		{SourcePath: "content/post1.md", Record: models.PostRecord{Link: "post1"}},
+	posts := []models.IndexedContent{
+		{SourcePath: "content/post1.md", Record: models.ContentRecord{Link: "post1"}},
+		{SourcePath: "content/post2.md", Record: models.ContentRecord{Link: "post2"}},
+		{SourcePath: "content/post1.md", Record: models.ContentRecord{Link: "post1"}},
 	}
 
 	deduped := dedupeIndexedPosts(posts)
@@ -77,19 +77,19 @@ func TestIncrementalBuild_DedupeIndexedPosts(t *testing.T) {
 	}
 }
 
-func indexedPostStableKey(ip models.IndexedPost) string {
+func indexedPostStableKey(ip models.IndexedContent) string {
 	if ip.SourcePath != "" {
 		return fspkg.NormalizePath(ip.SourcePath)
 	}
 	return fspkg.NormalizePath(ip.Record.Link)
 }
 
-func dedupeIndexedPosts(posts []models.IndexedPost) []models.IndexedPost {
+func dedupeIndexedPosts(posts []models.IndexedContent) []models.IndexedContent {
 	if len(posts) < 2 {
 		return posts
 	}
 	seen := make(map[string]int, len(posts))
-	result := make([]models.IndexedPost, 0, len(posts))
+	result := make([]models.IndexedContent, 0, len(posts))
 	for _, ip := range posts {
 		key := indexedPostStableKey(ip)
 		if idx, ok := seen[key]; ok {

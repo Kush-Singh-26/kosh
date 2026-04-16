@@ -15,8 +15,8 @@ import (
 // ErrNoContent indicates a cache miss when reading content.
 var ErrNoContent = errors.New("no content found in cache")
 
-// PostMeta stores metadata about a cached post
-type PostMeta = models.PostMeta
+// ContentMeta stores metadata about a cached post
+type ContentMeta = models.ContentMeta
 
 // SSRArtifact stores server-side rendered content (D2 diagrams, KaTeX math)
 type SSRArtifact = models.SSRArtifact
@@ -27,8 +27,8 @@ type SearchRecord = models.SearchRecord
 // Dependencies tracks what a post depends on
 type Dependencies = models.Dependencies
 
-// PostListMeta contains minimal metadata needed for navigation/sorting
-type PostListMeta = models.PostListMeta
+// ContentListMeta contains minimal metadata needed for navigation/sorting
+type ContentListMeta = models.ContentListMeta
 
 // CacheStats holds runtime statistics
 type CacheStats = models.CacheStats
@@ -64,8 +64,8 @@ func HashString(inputString string) string {
 	return HashContent([]byte(inputString))
 }
 
-// GeneratePostID derives a post ID from UUID or normalized path.
-func GeneratePostID(uuid string, normalizedPath string) string {
+// GenerateContentID derives an item ID from UUID or normalized path.
+func GenerateContentID(uuid string, normalizedPath string) string {
 	if uuid != "" {
 		return HashString(uuid)
 	}

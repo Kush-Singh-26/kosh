@@ -5,14 +5,14 @@ import (
 	"path/filepath"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services/post"
+	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"golang.org/x/sync/errgroup"
 )
 
 // waitForSiteWideRendering waits for site-wide generators and renders 404 if needed.
-func (engineInstance *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTimer *timeutil.PhaseTimer, siteWideHas404 bool, metadataContext *post.ContentContext) error {
+func (engineInstance *Engine) waitForSiteWideRendering(siteWideGroup *errgroup.Group, siteTimer *timeutil.PhaseTimer, siteWideHas404 bool, metadataContext *content.Context) error {
 	if siteWideGroup == nil {
 		return nil
 	}

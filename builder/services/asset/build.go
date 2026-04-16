@@ -125,9 +125,6 @@ func (service *assetService) buildEsbuildAssets(forceBuild bool) (map[string]str
 	destinationStaticDir, _ := filepath.Abs(filepath.Join(service.cfg.OutputDir, "static"))
 
 	sourceDir := service.cfg.StaticDir
-	if sourceDir == "" {
-		sourceDir = "themes/blog/static"
-	}
 
 	var buildScheduler scheduler.BuildScheduler
 	if service.ctx != nil {

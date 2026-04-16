@@ -12,8 +12,8 @@ import (
 
 // MockCacheService is a test double for the cache service.
 type MockCacheService struct {
-	Posts              map[string]*cache.PostMeta
-	PostsByPath        map[string]*cache.PostMeta
+	Posts              map[string]*cache.ContentMeta
+	PostsByPath        map[string]*cache.ContentMeta
 	HTML               map[string][]byte
 	SearchRecords      map[string]*cache.SearchRecord
 	Dirty              map[string]bool
@@ -24,17 +24,17 @@ type MockCacheService struct {
 	SearchHash         string
 	Err                error
 	CallCount          map[string]int
-	BatchCommitPosts   []*cache.PostMeta
+	BatchCommitPosts   []*cache.ContentMeta
 	BatchCommitRecords map[string]*cache.SearchRecord
 	BatchCommitDeps    map[string]*cache.Dependencies
-	GetPostByPathFn    func(path string) (*cache.PostMeta, error)
+	GetItemByPathFn    func(path string) (*cache.ContentMeta, error)
 }
 
 // NewMockCacheService returns a new mock cache service with initialized maps.
 func NewMockCacheService() *MockCacheService {
 	return &MockCacheService{
-		Posts:              make(map[string]*cache.PostMeta),
-		PostsByPath:        make(map[string]*cache.PostMeta),
+		Posts:              make(map[string]*cache.ContentMeta),
+		PostsByPath:        make(map[string]*cache.ContentMeta),
 		HTML:               make(map[string][]byte),
 		SearchRecords:      make(map[string]*cache.SearchRecord),
 		Dirty:              make(map[string]bool),
@@ -53,18 +53,18 @@ func (m *MockCacheService) recordCall(method string) {
 	m.CallCount[method]++
 }
 
-// GetPostByID returns the cached post by ID.
-func (m *MockCacheService) GetPostByID(id string) (*cache.PostMeta, error) {
-	m.recordCall("GetPostByID")
+// GetItemByID returns the cached post by ID.
+func (m *MockCacheService) GetItemByID(id string) (*cache.ContentMeta, error) {
+	m.recordCall("GetItemByID")
 	if m.Err != nil {
 		return nil, m.Err
 	}
 	return m.Posts[id], nil
 }
 
-// ListAllPosts lists all post IDs stored in the mock.
-func (m *MockCacheService) ListAllPosts() ([]string, error) {
-	m.recordCall("ListAllPosts")
+// ListAllItems lists all post IDs stored in the mock.
+func (m *MockCacheService) ListAllItems() ([]string, error) {
+	m.recordCall("ListAllItems")
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -75,11 +75,11 @@ func (m *MockCacheService) ListAllPosts() ([]string, error) {
 	return ids, nil
 }
 
-// GetPostByPath returns the cached post by its path.
-func (m *MockCacheService) GetPostByPath(path string) (*cache.PostMeta, error) {
-	m.recordCall("GetPostByPath")
-	if m.GetPostByPathFn != nil {
-		return m.GetPostByPathFn(path)
+// GetItemByPath returns the cached post by its path.
+func (m *MockCacheService) GetItemByPath(path string) (*cache.ContentMeta, error) {
+	m.recordCall("GetItemByPath")
+	if m.GetItemByPathFn != nil {
+		return m.GetItemByPathFn(path)
 	}
 	if m.Err != nil {
 		return nil, m.Err
@@ -87,13 +87,13 @@ func (m *MockCacheService) GetPostByPath(path string) (*cache.PostMeta, error) {
 	return m.PostsByPath[path], nil
 }
 
-// GetPostsByIDs returns cached posts for a set of IDs.
-func (m *MockCacheService) GetPostsByIDs(ids []string) (map[string]*cache.PostMeta, error) {
-	m.recordCall("GetPostsByIDs")
+// GetItemsByIDs returns cached posts for a set of IDs.
+func (m *MockCacheService) GetItemsByIDs(ids []string) (map[string]*cache.ContentMeta, error) {
+	m.recordCall("GetItemsByIDs")
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	result := make(map[string]*cache.PostMeta)
+	result := make(map[string]*cache.ContentMeta)
 	for _, id := range ids {
 		if post, ok := m.Posts[id]; ok {
 			result[id] = post
@@ -102,9 +102,9 @@ func (m *MockCacheService) GetPostsByIDs(ids []string) (map[string]*cache.PostMe
 	return result, nil
 }
 
-// GetPostsByTemplate returns post IDs that depend on a template.
-func (m *MockCacheService) GetPostsByTemplate(_ string) ([]string, error) {
-	m.recordCall("GetPostsByTemplate")
+// GetItemsByTemplate returns post IDs that depend on a template.
+func (m *MockCacheService) GetItemsByTemplate(_ string) ([]string, error) {
+	m.recordCall("GetItemsByTemplate")
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -136,7 +136,7 @@ func (m *MockCacheService) GetSearchRecord(id string) (*cache.SearchRecord, erro
 }
 
 // GetHTMLContent returns cached HTML for a post.
-func (m *MockCacheService) GetHTMLContent(post *cache.PostMeta) ([]byte, error) {
+func (m *MockCacheService) GetHTMLContent(post *cache.ContentMeta) ([]byte, error) {
 	m.recordCall("GetHTMLContent")
 	if m.Err != nil {
 		return nil, m.Err
@@ -276,9 +276,9 @@ func (m *MockCacheService) StoreHTML(content []byte) (string, error) {
 	return hash, nil
 }
 
-// StoreHTMLForPost stores HTML content for a post and updates its fields.
-func (m *MockCacheService) StoreHTMLForPost(post *cache.PostMeta, content []byte) error {
-	m.recordCall("StoreHTMLForPost")
+// StoreHTMLForItem stores HTML content for a post and updates its fields.
+func (m *MockCacheService) StoreHTMLForItem(post *cache.ContentMeta, content []byte) error {
+	m.recordCall("StoreHTMLForItem")
 	if m.Err != nil {
 		return m.Err
 	}
@@ -295,7 +295,7 @@ func (m *MockCacheService) StoreHTMLForPost(post *cache.PostMeta, content []byte
 }
 
 // BatchCommit records a batch commit in the mock.
-func (m *MockCacheService) BatchCommit(posts []*cache.PostMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error {
+func (m *MockCacheService) BatchCommit(posts []*cache.ContentMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error {
 	m.recordCall("BatchCommit")
 	if m.Err != nil {
 		return m.Err
@@ -304,32 +304,32 @@ func (m *MockCacheService) BatchCommit(posts []*cache.PostMeta, records map[stri
 	m.BatchCommitRecords = records
 	m.BatchCommitDeps = deps
 	for _, post := range posts {
-		m.Posts[post.PostID] = post
+		m.Posts[post.ContentID] = post
 		m.PostsByPath[post.Path] = post
 	}
 	return nil
 }
 
-// DeletePost removes a post from the mock.
-func (m *MockCacheService) DeletePost(postID string) error {
-	m.recordCall("DeletePost")
+// DeleteItem removes a post from the mock.
+func (m *MockCacheService) DeleteItem(contentID string) error {
+	m.recordCall("DeleteItem")
 	if m.Err != nil {
 		return m.Err
 	}
-	delete(m.Posts, postID)
+	delete(m.Posts, contentID)
 	return nil
 }
 
 // MarkDirty marks a post as dirty in the mock.
-func (m *MockCacheService) MarkDirty(postID string) {
+func (m *MockCacheService) MarkDirty(contentID string) {
 	m.recordCall("MarkDirty")
-	m.Dirty[postID] = true
+	m.Dirty[contentID] = true
 }
 
 // IsDirty reports whether a post is marked dirty.
-func (m *MockCacheService) IsDirty(postID string) bool {
+func (m *MockCacheService) IsDirty(contentID string) bool {
 	m.recordCall("IsDirty")
-	return m.Dirty[postID]
+	return m.Dirty[contentID]
 }
 
 // ClearDirty clears the dirty state for all posts.
@@ -377,15 +377,15 @@ func (m *MockCacheService) Flush(_ context.Context) error {
 	return nil
 }
 
-// GetAllPostsMetadata returns a lightweight list of post metadata.
-func (m *MockCacheService) GetAllPostsMetadata() ([]cache.PostListMeta, error) {
-	m.recordCall("GetAllPostsMetadata")
+// GetAllItemsMetadata returns a lightweight list of post metadata.
+func (m *MockCacheService) GetAllItemsMetadata() ([]cache.ContentListMeta, error) {
+	m.recordCall("GetAllItemsMetadata")
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	var result []cache.PostListMeta
+	var result []cache.ContentListMeta
 	for _, post := range m.Posts {
-		result = append(result, cache.PostListMeta{
+		result = append(result, cache.ContentListMeta{
 			Title:      post.Title,
 			Link:       post.Link,
 			Weight:     post.Weight,

@@ -1,4 +1,4 @@
-package post
+package content
 
 import (
 	"context"
@@ -6,15 +6,15 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 )
 
-func (service *postService) finalizeBuild(processContext *postProcessContext) {
-	if len(processContext.newPostsMeta) > 0 && service.cache != nil {
+func (service *contentService) finalizeBuild(processContext *contentProcessContext) {
+	if len(processContext.newItemsMeta) > 0 && service.cache != nil {
 		service.cacheWg.Add(1)
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 			Ctx:       context.Background(),
 			Logger:    service.logger,
 			Operation: "cache commit",
 			Fn: func() error {
-				return service.cache.BatchCommit(processContext.newPostsMeta, processContext.newSearchRecords, processContext.newDependencies)
+				return service.cache.BatchCommit(processContext.newItemsMeta, processContext.newSearchRecords, processContext.newDependencies)
 			},
 			Cleanup: func() {
 				service.cacheWg.Done()
