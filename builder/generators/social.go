@@ -1,21 +1,22 @@
 package generators
 
 import (
-	"bytes"
-	"fmt"
-	"image"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
+"bytes"
+"fmt"
+"image"
+"io"
+"log/slog"
+"os"
+"path/filepath"
+"strings"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
-	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
-	"github.com/Kush-Singh-26/kosh/builder/models"
+"github.com/Kush-Singh-26/kosh/builder/cache/core"
+buildctx "github.com/Kush-Singh-26/kosh/builder/context"
+"github.com/Kush-Singh-26/kosh/builder/models"
 
-	"github.com/chai2010/webp"
-	"github.com/fogleman/gg"
-	"github.com/spf13/afero"
+"github.com/chai2010/webp"
+"github.com/fogleman/gg"
+"github.com/spf13/afero"
 )
 
 const (
@@ -46,7 +47,7 @@ const (
 // SocialCardHash generates a stable hash for social card content
 func SocialCardHash(title, description string) string {
 	cardContent := fmt.Sprintf("%s|%s", title, description)
-	return cache.HashString(cardContent)
+	return core.HashString(cardContent)
 }
 
 // CheckSocialCardOptions configures social card cache checks.
@@ -121,6 +122,7 @@ func ProvideSocialCard(opts ProvideSocialCardOptions) {
 			LogoPath:    opts.LogoPath,
 		})
 		if err != nil {
+			slog.Error("Social card generation failed", "error", err, "path", cachedCardPath)
 			return
 		}
 		if opts.Cache != nil {

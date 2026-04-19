@@ -69,7 +69,7 @@ func TestFullBuild(t *testing.T) {
 			CacheDir:    ".kosh-cache",
 		},
 		BuildOptions: config.BuildOptions{
-			PostsPerPage: 10,
+			ItemsPerPage: 10,
 		},
 		Features: models.FeaturesConfig{
 			Generators: models.GeneratorsConfig{

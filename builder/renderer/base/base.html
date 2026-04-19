@@ -116,10 +116,10 @@
 
     <header>
         <div class="nav-container">
-            {{ block "navbar-identity" . }}
-                {{ if index .Fragments "navbar-identity" }}
-                    {{ index .Fragments "navbar-identity" }}
-                {{ else }}
+            {{ with index .Fragments "navbar-identity" }}
+                {{ . }}
+            {{ else }}
+                {{ block "navbar-identity" . }}
                     <a href="{{ if or (hasPrefix .Navbar.TitleURL "http") (hasPrefix .Navbar.TitleURL "/") }}{{ .Navbar.TitleURL }}{{ else }}{{ relativize .BaseURL .RelativePrefix "/" }}{{ end }}" class="site-title">
                         {{ if .Config.GetLogo }}
                         <img src="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}" alt="Logo" class="site-logo" width="32" height="32" fetchpriority="high" loading="eager">
@@ -298,10 +298,10 @@
     {{ if not .IsGraphPage }}
     <footer class="colophon">
         <div class="colophon-grid">
-            {{ block "footer" . }}
-                {{ if index .Fragments "footer" }}
-                    {{ index .Fragments "footer" }}
-                {{ else }}
+            {{ with index .Fragments "footer" }}
+                {{ . }}
+            {{ else }}
+                {{ block "footer" . }}
                     <div class="colophon-left">
                         <span class="colophon-title">{{ .Config.GetSiteTitle }}</span>
                         <span class="colophon-tagline">&copy; {{ now.Year }} &bull; {{ .Config.GetSiteTitle }}</span>

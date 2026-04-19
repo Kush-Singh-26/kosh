@@ -323,10 +323,10 @@ GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
 
 ### Schema Version Alignment
 
-**Important:** Cache schema version (`core.SchemaVersion`) and search schema version (`models.CurrentSchemaVersion`) are now aligned at version 10 (as of 2026-03-19).
+**Important:** Cache schema version (`core.SchemaVersion`) and search schema version (`models.CurrentSchemaVersion`) are now aligned at version 22 (as of 2026-03-19).
 
 When making changes that affect serialized data structures:
-1. Update `models.CurrentSchemaVersion` in `builder/models/models.go`
+1. Update `models.CurrentSchemaVersion` in `builder/models/search.go`
 2. Update `core.SchemaVersion` in `builder/cache/core/types.go` to match
 3. Add appropriate migrations in `builder/cache/migrate/migrations.go` if needed
 4. Update search WASM if search schema changes
@@ -338,7 +338,7 @@ Files:
 - `builder/cache/migrate/migrations.go` - Cache migrations
 - `builder/models/cache.go` - Cache stats and types
 
-Current schema version: 10
+Current schema version: 22
 
 ### RepoRoot Implementation
 

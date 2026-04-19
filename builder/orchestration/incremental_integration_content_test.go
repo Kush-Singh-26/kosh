@@ -61,7 +61,6 @@ This is the initial body.
 		},
 		BuildOptions: config.BuildOptions{
 			ItemsPerPage: 10,
-			PostsPerPage: 10,
 		},
 	}
 
@@ -232,7 +231,6 @@ Body content.
 		},
 		BuildOptions: config.BuildOptions{
 			ItemsPerPage: 10,
-			PostsPerPage: 10,
 		},
 	}
 

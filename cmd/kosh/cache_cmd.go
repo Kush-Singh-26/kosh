@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
@@ -123,7 +124,7 @@ func runCacheGC(_ *cobra.Command, _ []string) {
 	cm := openCache()
 	defer func() { _ = cm.Close() }()
 
-	cfg := cache.DefaultGCConfig()
+	cfg := gc.DefaultConfig()
 	cfg.DryRun = cacheDryRun
 	cfg.MinBuildsBetweenGC = defaultMinBuildsBetweenGC
 
@@ -223,7 +224,7 @@ func runCacheInspect(_ *cobra.Command, args []string) {
 	fmt.Printf("ContentID:       %s\n", post.ContentID)
 	fmt.Printf("Path:         %s\n", post.Path)
 	fmt.Printf("Title:        %s\n", post.Title)
-	fmt.Printf("ModTime:      %s\n", time.Unix(post.ModTime, 0).Format(time.RFC3339))
+	fmt.Printf("ModTime:      %s\n", time.Unix(0, post.ModTime).Format(time.RFC3339))
 	fmt.Printf("ContentHash:  %s\n", truncateHash(post.ContentHash))
 	fmt.Printf("HTMLHash:     %s\n", truncateHash(post.HTMLHash))
 	fmt.Printf("Date:         %s\n", post.Date.Format("2006-01-02"))

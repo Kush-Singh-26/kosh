@@ -30,7 +30,7 @@ func (engineInstance *Engine) setupPhase(ctx context.Context) (*buildSetupResult
 	}
 
 	// Always start each full build pass with a fresh session/tracking state.
-	engineInstance.refreshBuildSession()
+	engineInstance.refreshBuildSession(ctx)
 
 	// Check for cancellation early.
 	select {

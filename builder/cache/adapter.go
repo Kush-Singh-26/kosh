@@ -191,7 +191,7 @@ func (adapter *DiagramCacheAdapter) Close() error {
 // FragmentCacheAdapter provides a write-buffered FragmentCache implementation.
 type FragmentCacheAdapter struct {
 	manager *Manager
-	dirty   map[string]string
+	dirty   map[string][]byte
 	mutex   sync.Mutex
 }
 
@@ -199,26 +199,26 @@ type FragmentCacheAdapter struct {
 func NewFragmentCacheAdapter(manager *Manager) *FragmentCacheAdapter {
 	return &FragmentCacheAdapter{
 		manager: manager,
-		dirty:   make(map[string]string),
+		dirty:   make(map[string][]byte),
 	}
 }
 
 // GetFragment retrieves a fragment from BoltDB.
-func (adapter *FragmentCacheAdapter) GetFragment(key string) (string, error) {
+func (adapter *FragmentCacheAdapter) GetFragment(key string) ([]byte, error) {
 	if adapter == nil || adapter.manager == nil {
-		return "", fmt.Errorf("no cache manager available")
+		return nil, fmt.Errorf("no cache manager available")
 	}
 	return adapter.manager.GetFragment(key)
 }
 
 // StoreFragment buffers a fragment for later flushing.
-func (adapter *FragmentCacheAdapter) StoreFragment(key string, html string) error {
+func (adapter *FragmentCacheAdapter) StoreFragment(key string, data []byte) error {
 	if adapter == nil {
 		return nil
 	}
 	adapter.mutex.Lock()
 	defer adapter.mutex.Unlock()
-	adapter.dirty[key] = html
+	adapter.dirty[key] = data
 	return nil
 }
 
@@ -230,7 +230,7 @@ func (adapter *FragmentCacheAdapter) Flush(ctx context.Context) error {
 
 	adapter.mutex.Lock()
 	dirty := adapter.dirty
-	adapter.dirty = make(map[string]string)
+	adapter.dirty = make(map[string][]byte)
 	adapter.mutex.Unlock()
 
 	return adapter.manager.BatchStoreFragments(ctx, dirty)

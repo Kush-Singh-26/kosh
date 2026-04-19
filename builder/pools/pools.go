@@ -293,3 +293,71 @@ func (pool *ImageSlicePool) Put(buffer *[]byte) {
 
 // SharedImageSlicePool is the shared image slice pool instance.
 var SharedImageSlicePool = NewImageSlicePool()
+
+// MapStringStringPool manages a pool of map[string]string objects.
+type MapStringStringPool struct {
+	pool sync.Pool // stores map[string]string
+}
+
+// NewMapStringStringPool returns a new MapStringStringPool.
+func NewMapStringStringPool() *MapStringStringPool {
+	return &MapStringStringPool{
+		pool: sync.Pool{
+			New: func() any {
+				return make(map[string]string)
+			},
+		},
+	}
+}
+
+// Get returns a map from the pool.
+func (pool *MapStringStringPool) Get() map[string]string {
+	return pool.pool.Get().(map[string]string)
+}
+
+// Put returns a map to the pool.
+func (pool *MapStringStringPool) Put(m map[string]string) {
+	if m == nil {
+		return
+	}
+	clear(m)
+	pool.pool.Put(m)
+}
+
+// MapStringSSRThemePairPool manages a pool of map[string]models.SSRThemePair objects.
+type MapStringSSRThemePairPool struct {
+	pool sync.Pool // stores map[string]models.SSRThemePair
+}
+
+// NewMapStringSSRThemePairPool returns a new MapStringSSRThemePairPool.
+func NewMapStringSSRThemePairPool() *MapStringSSRThemePairPool {
+	return &MapStringSSRThemePairPool{
+		pool: sync.Pool{
+			New: func() any {
+				return make(map[string]models.SSRThemePair)
+			},
+		},
+	}
+}
+
+// Get returns a map from the pool.
+func (pool *MapStringSSRThemePairPool) Get() map[string]models.SSRThemePair {
+	return pool.pool.Get().(map[string]models.SSRThemePair)
+}
+
+// Put returns a map to the pool.
+func (pool *MapStringSSRThemePairPool) Put(m map[string]models.SSRThemePair) {
+	if m == nil {
+		return
+	}
+	clear(m)
+	pool.pool.Put(m)
+}
+
+// Global shared map pool instances.
+var (
+	// SharedMapStringStringPool is the shared map[string]string pool instance.
+	SharedMapStringStringPool = NewMapStringStringPool()
+	// SharedMapStringSSRThemePairPool is the shared map[string]models.SSRThemePair pool instance.
+	SharedMapStringSSRThemePairPool = NewMapStringSSRThemePairPool()
+)

@@ -1,16 +1,17 @@
 package content
 
 import (
-	"bytes"
-	"context"
-	"path/filepath"
-	"strings"
+"bytes"
+"context"
+"path/filepath"
+"strings"
 
-	"github.com/zeebo/xxh3"
+"github.com/zeebo/xxh3"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
-	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/navigation"
+"github.com/Kush-Singh-26/kosh/builder/cache/core"
+"github.com/Kush-Singh-26/kosh/builder/hashing"
+"github.com/Kush-Singh-26/kosh/builder/models"
+"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
 func (service *contentService) loadCachedItem(_ string, htmlRelPath string, _ models.ScannedResource, cachedMeta *models.ContentMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
@@ -188,14 +189,14 @@ func (service *contentService) handleSearchTasks(aggregateContext AggregateConte
 		aggregateContext.WorkerContext.SearchIngestor.Add(indexed)
 	}
 
-	if !aggregateContext.UseCache && service.cache != nil {
+if !aggregateContext.UseCache && service.cache != nil {
 		newSearch := &models.SearchRecord{
 			Title: aggregateContext.Item.Title, NormalizedTitle: aggregateContext.Result.SearchRecord.NormalizedTitle,
-			Content:        aggregateContext.Result.SearchRecord.Content,
-			Taxonomies:     aggregateContext.Result.SearchRecord.Taxonomies,
+			Content: aggregateContext.Result.SearchRecord.Content,
+			Taxonomies: aggregateContext.Result.SearchRecord.Taxonomies,
 			NormalizedTaxs: aggregateContext.Result.SearchRecord.NormalizedTaxs,
 		}
-		ContentID := cache.GenerateContentID("", aggregateContext.RelativePath)
+		ContentID := core.GenerateContentID("", aggregateContext.RelativePath)
 		aggregateContext.Local.newSearchRecords[ContentID] = newSearch
 
 		if service.cfg.Features.Generators.Search.IsEnabled {
@@ -211,10 +212,10 @@ func (service *contentService) storeCacheMetadata(aggregateContext AggregateCont
 		return
 	}
 
-	ContentID := cache.GenerateContentID("", aggregateContext.RelativePath)
+	ContentID := core.GenerateContentID("", aggregateContext.RelativePath)
 	newMeta := &models.ContentMeta{
 		ContentID: ContentID, Path: aggregateContext.RelativePath, ModTime: aggregateContext.ScannedFile.Info.ModTime().UnixNano(),
-		ContentHash: aggregateContext.Result.FrontmatterHash, BodyHash: aggregateContext.ScannedFile.BodyHash,
+		ContentHash: aggregateContext.Result.FrontmatterHash, BodyHash: hashing.GetBodyHash(aggregateContext.SourceBytes),
 		Title: aggregateContext.Item.Title, Date: aggregateContext.Item.DateObj,
 		WordCount:  int(aggregateContext.ScannedFile.Info.Size()),
 		Taxonomies: aggregateContext.Item.Taxonomies, ReadingTime: aggregateContext.Item.ReadingTime,

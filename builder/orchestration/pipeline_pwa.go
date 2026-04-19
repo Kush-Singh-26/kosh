@@ -6,14 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"golang.org/x/sync/errgroup"
-
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-
 	"github.com/spf13/afero"
+	"golang.org/x/sync/errgroup"
 )
+
 
 const (
 	pwaCacheDirMode  = 0755
@@ -87,17 +86,29 @@ func (engineInstance *Engine) writeGeneratedPWAIcons(cacheDir, hash string, icon
 	}
 }
 
-func (engineInstance *Engine) copyCachedPWAIcons(cache192, cache512 string) {
+func (engineInstance *Engine) copyCachedPWAIcons(cache192, cache512 string) error {
+	var errs []error
 	if data, err := os.ReadFile(cache192); err == nil {
 		iconPath := filepath.Join(engineInstance.Cfg.OutputDir, "static/images/icon-192.png")
 		_ = engineInstance.artifactSink.WriteFile(iconPath, data)
 		engineInstance.Deps.Render.RegisterFile(iconPath)
+	} else if !os.IsNotExist(err) {
+		errs = append(errs, fmt.Errorf("failed to read cached PWA icon 192: %w", err))
 	}
 	if data, err := os.ReadFile(cache512); err == nil {
 		iconPath := filepath.Join(engineInstance.Cfg.OutputDir, "static/images/icon-512.png")
 		_ = engineInstance.artifactSink.WriteFile(iconPath, data)
 		engineInstance.Deps.Render.RegisterFile(iconPath)
+	} else if !os.IsNotExist(err) {
+		errs = append(errs, fmt.Errorf("failed to read cached PWA icon 512: %w", err))
 	}
+
+	if len(errs) > 0 {
+		for _, e := range errs {
+			engineInstance.Deps.Logger.Warn("PWA icon cache issue", "error", e)
+		}
+	}
+	return nil // Non-critical, continue build
 }
 
 func (engineInstance *Engine) generatePWAIcons(shouldForce bool) error {
@@ -116,7 +127,7 @@ func (engineInstance *Engine) generatePWAIcons(shouldForce bool) error {
 	sourceFileInfo, _ := engineInstance.Deps.SourceFs.Stat(logoPath)
 
 	hashContent := fmt.Sprintf("%s-%d-%d", logoPath, sourceFileInfo.Size(), sourceFileInfo.ModTime().UnixNano())
-	currentHash := cache.HashString(hashContent)
+	currentHash := core.HashString(hashContent)
 
 	cacheDir := filepath.Join(engineInstance.Cfg.CacheDir, "pwa-icons")
 	cacheHashFile, cache192, cache512 := pwaCachePaths(cacheDir, currentHash)
@@ -128,17 +139,20 @@ func (engineInstance *Engine) generatePWAIcons(shouldForce bool) error {
 	if needsGeneration {
 		icons, err := generators.GeneratePWAIconBytes(engineInstance.Deps.SourceFs, logoPath, engineInstance.Deps.Logger)
 		if err != nil {
-			return nil
+			engineInstance.Deps.Logger.Error("Failed to generate PWA icons", "error", err)
+			return err
 		}
 		if writeError := generators.WritePWAIcons(engineInstance.artifactSink, filepath.Join(engineInstance.Cfg.OutputDir, "static/images"), icons); writeError == nil {
 			registerPWAIcons(engineInstance.Deps.Render, engineInstance.Cfg.OutputDir)
+		} else {
+			engineInstance.Deps.Logger.Error("Failed to write PWA icons", "error", writeError)
+			return writeError
 		}
 		engineInstance.writeGeneratedPWAIcons(cacheDir, currentHash, icons)
 		return nil
 	}
 
-	engineInstance.copyCachedPWAIcons(cache192, cache512)
-	return nil
+	return engineInstance.copyCachedPWAIcons(cache192, cache512)
 }
 
 func (engineInstance *Engine) generatePWA(ctx context.Context, shouldForce bool) error {

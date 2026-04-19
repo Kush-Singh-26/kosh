@@ -6,13 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/afero"
-	"gopkg.in/yaml.v3"
-
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	cachepkg "github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	pathFs "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/spf13/afero"
+	"gopkg.in/yaml.v3"
 )
+
 
 const (
 	cacheDirMode       = 0755
@@ -106,9 +107,9 @@ func SetupCacheDirectoriesFs(sourceFs afero.Fs, configInstance *config.Config, l
 }
 
 // SetupCacheManager opens and verifies the bolt DB cache
-func SetupCacheManager(configInstance *config.Config, logger *slog.Logger) (*cache.Manager, *cache.DiagramCacheAdapter, error) {
+func SetupCacheManager(configInstance *config.Config, logger *slog.Logger) (*cachepkg.Manager, *cachepkg.DiagramCacheAdapter, error) {
 	cacheTimeout := configInstance.Build.CacheDBTimeout
-	cacheManager, err := cache.OpenWithTimeout(configInstance.CacheDir, configInstance.IsDev, cacheTimeout)
+	cacheManager, err := cachepkg.OpenWithTimeout(configInstance.CacheDir, configInstance.IsDev, cacheTimeout)
 	if err != nil {
 		logger.Warn("Failed to open cache database", "error", err)
 		return nil, nil, err
@@ -145,7 +146,7 @@ func SetupCacheManager(configInstance *config.Config, logger *slog.Logger) (*cac
 		}
 	}
 
-	diagramAdapter := cache.NewDiagramCacheAdapter(cacheManager)
+	diagramAdapter := cachepkg.NewDiagramCacheAdapter(cacheManager)
 	return cacheManager, diagramAdapter, nil
 }
 
@@ -164,7 +165,7 @@ func generateCacheID() string {
 		cacheIDBuilder.WriteString("|")
 	}
 
-	return cache.HashString(cacheIDBuilder.String())
+	return core.HashString(cacheIDBuilder.String())
 }
 
 // LoadThemeMetadata reads the metadata out of the theme yaml

@@ -168,20 +168,26 @@ func (r *Renderer) RenderFragment(context string, blockName string, data models.
 	}
 
 	// Persistent cache lookup: skip if this is a clean build to ensure branding/config updates
-	if r.Cache != nil && !data.IsCleanBuild {
-		if cached, err := r.Cache.GetFragment(cacheKey); err == nil && cached != "" {
-			html := template.HTML(cached)
+	// Also skip in dev mode to avoid stale fragments from prior broken builds
+	if r.Cache != nil && !data.IsCleanBuild && !r.devMode {
+		if cached, err := r.Cache.GetFragment(cacheKey); err == nil && len(cached) > 0 {
+			html := template.HTML(string(cached))
 			r.fragmentCache.Store(cacheKey, html)
 			return html, nil
 		}
 	}
 
 	r.mu.RLock()
-	tmpl := r.Layout
+	parentTmpl := r.Layout
 	r.mu.RUnlock()
 
-	if tmpl == nil {
+	if parentTmpl == nil {
 		return "", fmt.Errorf("no template available for fragment rendering")
+	}
+
+	tmpl := parentTmpl.Lookup(blockName)
+	if tmpl == nil {
+		return "", fmt.Errorf("template block %s not found", blockName)
 	}
 
 	buf := pools.SharedBufferPool.Get()
@@ -192,19 +198,24 @@ func (r *Renderer) RenderFragment(context string, blockName string, data models.
 	// with global fragment pre-rendering.
 	r.PrepareAssets(&data)
 
-	if err := tmpl.ExecuteTemplate(buf, blockName, data); err != nil {
+	// Always execute the block from the parent template set using ExecuteTemplate.
+	// This ensures that ONLY the named block is rendered, avoiding accidental
+	// inheritance of the full "base.html" document which happens if we call
+	// Execute() on the block template directly.
+	if err := parentTmpl.ExecuteTemplate(buf, blockName, data); err != nil {
 		return "", err
+	}
+
+	// Persist fragment for cross-build reuse using raw bytes from buffer to avoid extra allocation
+	// Skip persisting in dev mode to avoid polluting the persistent cache
+	if r.Cache != nil && !r.devMode {
+		if err := r.Cache.StoreFragment(cacheKey, buf.Bytes()); err != nil {
+			r.logger.Debug("Failed to persist fragment", "key", cacheKey, "error", err)
+		}
 	}
 
 	html := template.HTML(buf.String())
 	r.fragmentCache.Store(cacheKey, html)
-
-	// Persist fragment for cross-build reuse
-	if r.Cache != nil {
-		if err := r.Cache.StoreFragment(cacheKey, string(html)); err != nil {
-			r.logger.Debug("Failed to persist fragment", "key", cacheKey, "error", err)
-		}
-	}
 
 	return html, nil
 }
@@ -322,9 +333,9 @@ func dateFormatFunc(layout string, value any) string {
 	return fmt.Sprintf("%v", value)
 }
 
-func jsonifyFunc(value any) (string, error) {
+func jsonifyFunc(value any) (template.JS, error) {
 	jsonBytes, err := json.Marshal(value)
-	return string(jsonBytes), err
+	return template.JS(jsonBytes), err
 }
 
 func defaultFunc(defaultValue, value any) any {

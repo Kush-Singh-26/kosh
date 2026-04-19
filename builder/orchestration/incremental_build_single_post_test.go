@@ -59,7 +59,7 @@ Initial body.
 			CacheDir:    ".kosh-cache",
 		},
 		BuildOptions: config.BuildOptions{
-			PostsPerPage: 10,
+			ItemsPerPage: 10,
 		},
 	}
 

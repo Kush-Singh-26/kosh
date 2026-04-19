@@ -14,6 +14,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 
 	"go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
@@ -55,7 +56,9 @@ func encodePosts(posts []*core.ContentMeta, searchRecords map[string]*core.Searc
 			return nil
 		})
 	}
-	_ = errorGroup.Wait()
+	if err := errorGroup.Wait(); err != nil && encodeError == nil {
+		encodeError = err
+	}
 
 	if encodeError != nil {
 		return nil, encodeError
@@ -270,18 +273,18 @@ func (manager *Manager) StoreHTML(content []byte) (string, error) {
 }
 
 // StoreFragment persists a pre-rendered UI fragment in the cache.
-func (manager *Manager) StoreFragment(key string, html string) error {
+func (manager *Manager) StoreFragment(key string, data []byte) error {
 	return manager.db.Batch(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketFragments))
 		if bucket == nil {
 			return fmt.Errorf("fragment bucket not found")
 		}
-		return bucket.Put([]byte(key), []byte(html))
+		return bucket.Put([]byte(key), data)
 	})
 }
 
 // BatchStoreFragments persists multiple UI fragments in a single transaction.
-func (manager *Manager) BatchStoreFragments(_ context.Context, entries map[string]string) error {
+func (manager *Manager) BatchStoreFragments(_ context.Context, entries map[string][]byte) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -291,8 +294,8 @@ func (manager *Manager) BatchStoreFragments(_ context.Context, entries map[strin
 		if bucket == nil {
 			return fmt.Errorf("fragment bucket not found")
 		}
-		for key, html := range entries {
-			if err := bucket.Put([]byte(key), []byte(html)); err != nil {
+		for key, data := range entries {
+			if err := bucket.Put([]byte(key), data); err != nil {
 				return err
 			}
 		}
@@ -338,7 +341,13 @@ func (manager *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*co
 		IsCompressed: compressionType != core.CompressionNone,
 	}
 
-	key := ssrType + ":" + inputHash
+	buf := pools.SharedBufferPool.Get()
+	defer pools.SharedBufferPool.Put(buf)
+	buf.WriteString(ssrType)
+	buf.WriteByte(':')
+	buf.WriteString(inputHash)
+	key := buf.Bytes()
+
 	data, err := core.Encode(artifact)
 	if err != nil {
 		return nil, err
@@ -346,7 +355,7 @@ func (manager *Manager) StoreSSR(ssrType, inputHash string, content []byte) (*co
 
 	err = manager.db.Batch(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(core.BucketSSR))
-		return bucket.Put([]byte(key), data)
+		return bucket.Put(key, data)
 	})
 
 	return artifact, err

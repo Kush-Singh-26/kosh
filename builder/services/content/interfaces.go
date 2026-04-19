@@ -97,17 +97,37 @@ type ProcessOptions struct {
 	FileChan           <-chan models.ScannedResource
 }
 
-// Service handles markdown parsing and content processing.
-type Service interface {
+// LifecycleManager handles service configuration and build-time updates.
+type LifecycleManager interface {
 	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 	SetAssetsGate(ch <-chan struct{})
 	SetMarkdownRenderer(renderer func([]byte) ([]byte, error))
 	ReconfigureWithReporter(r ui.Reporter, l *slog.Logger)
+}
+
+// Processor handles markdown parsing and content transformations.
+type Processor interface {
 	Process(opts ProcessOptions) (*Result, error)
 	ProcessStreaming(opts ProcessOptions) (*Result, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
 	ProcessShortcodes(source []byte) ([]byte, error)
+}
+
+// ContextProvider provides aggregated site metadata.
+type ContextProvider interface {
 	GetMetadataContext(ctx context.Context) (*Context, error)
+}
+
+// CacheManager manages asynchronous cache operations.
+type CacheManager interface {
 	WaitForCacheCommit()
+}
+
+// Service handles markdown parsing and content processing.
+type Service interface {
+	LifecycleManager
+	Processor
+	ContextProvider
+	CacheManager
 }

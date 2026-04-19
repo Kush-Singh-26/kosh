@@ -1,8 +1,6 @@
 package fs
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/pools"
-
 	"bufio"
 	"fmt"
 	"io"
@@ -11,22 +9,17 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 )
 
-// ArtifactSink provides an interface for streaming file writes during the build process.
-type ArtifactSink interface {
-	WriteFile(path string, data []byte) error
-	WriteStream(path string, fn func(io.Writer) error) error
-	CopyFile(srcPath, destPath string) error
-	MkdirAll(path string) error
-	Register(path string)
-	GetWrittenFiles() map[string]bool
-	GetOutputDir() string
-	SetMtime(path string, mtime time.Time) error
-	Stat(path string) (os.FileInfo, error)
-}
+// ArtifactSink is an alias for models.ArtifactSink within the fs package.
+type ArtifactSink = models.ArtifactSink
 
-// DiskSink implements ArtifactSink for disk-based writes with staging directory support
+// DiskSink implements models.ArtifactSink for disk-based writes with staging directory support
+
+// DiskSink implements ArtifactSink for disk-based writes with staging directory support.
 type DiskSink struct {
 	stagingDir         string
 	realOutputDir      string
@@ -221,7 +214,7 @@ func (sink *DiskSink) WriteFile(path string, data []byte) error {
 }
 
 // WriteStream streams content into a file inside the sink and registers it.
-func (sink *DiskSink) WriteStream(path string, fn func(io.Writer) error) error {
+func (sink *DiskSink) WriteStream(path string, fn func(io.Writer) error) (err error) {
 	target, err := sink.resolvePathForWrite(path)
 	if err != nil {
 		return err
@@ -245,8 +238,12 @@ func (sink *DiskSink) WriteStream(path string, fn func(io.Writer) error) error {
 		bufWriter.Reset(nil)
 		sink.bufPool.Put(bufWriter)
 
-		// Close file handle (ignore error, already tracked)
-		_ = file.Close()
+		// Close file handle
+		if closeErr := file.Close(); closeErr != nil && !strings.Contains(closeErr.Error(), "file already closed") {
+			if err == nil {
+				err = closeErr
+			}
+		}
 
 		// Recover from panic, clean up partial file, and re-panic
 		if rec := recover(); rec != nil {

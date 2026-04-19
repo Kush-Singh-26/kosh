@@ -1,14 +1,15 @@
 package cache
 
 import (
-	"errors"
-	"log/slog"
+"errors"
+"log/slog"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
+	cachepkg "github.com/Kush-Singh-26/kosh/builder/cache"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
-	"github.com/Kush-Singh-26/kosh/builder/models"
+
+"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // IsCacheMiss returns true if the error is a cache miss (sentinel ErrNoContent).
@@ -31,7 +32,7 @@ type Service interface {
 	GetSearchHash() (string, error)
 	SetSearchHash(hash string) error
 
-	Stats() (*cache.Stats, error)
+Stats() (*core.CacheStats, error)
 	IncrementBuildCount() (uint32, error)
 	RunGC(config gc.Config) (*gc.Result, error)
 	Close() error
@@ -39,7 +40,8 @@ type Service interface {
 
 // Dependencies holds all dependencies for CacheService.
 type Dependencies struct {
-	Ctx     *buildctx.BuildContext
-	Manager *cache.Manager
-	Logger  *slog.Logger
+	Ctx *buildctx.BuildContext
+	Manager *cachepkg.Manager
+	Logger *slog.Logger
 }
+

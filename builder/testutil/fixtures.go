@@ -2,13 +2,13 @@
 package testutil
 
 import (
-	"html/template"
+"html/template"
 	"strings"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/models"
+
+"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 const (
@@ -24,8 +24,8 @@ const (
 )
 
 // CreateSamplePostMeta creates a valid ContentMeta for testing
-func CreateSamplePostMeta() *cache.ContentMeta {
-	return &cache.ContentMeta{
+func CreateSamplePostMeta() *models.ContentMeta {
+	return &models.ContentMeta{
 		ContentID:   "posts/test-post.md",
 		Path:        "content/posts/test-post.md",
 		Title:       "Test Post",
@@ -56,8 +56,8 @@ func CreateSamplePageData() models.PageData {
 }
 
 // CreateSampleSearchRecord creates a valid SearchRecord for testing
-func CreateSampleSearchRecord() *cache.SearchRecord {
-	return &cache.SearchRecord{
+func CreateSampleSearchRecord() *models.SearchRecord {
+	return &models.SearchRecord{
 		Title:           "Test Post",
 		NormalizedTitle: "test post",
 		WordFreqs:       map[string]int{"test": 1, "post": 1},
@@ -68,8 +68,8 @@ func CreateSampleSearchRecord() *cache.SearchRecord {
 }
 
 // CreateSampleDependencies creates valid Dependencies for testing
-func CreateSampleDependencies() *cache.Dependencies {
-	return &cache.Dependencies{
+func CreateSampleDependencies() *models.Dependencies {
+	return &models.Dependencies{
 		Templates:  []string{"layouts/post.html", "partials/header.html"},
 		Taxonomies: map[string][]string{"tags": {"go", "tutorial"}},
 		Includes:   []string{"partials/footer.html"},
@@ -97,7 +97,6 @@ func CreateSampleConfig() *config.Config {
 		},
 		BuildOptions: config.BuildOptions{
 			ItemsPerPage: samplePostsPerPage,
-			PostsPerPage: samplePostsPerPage,
 		},
 		Features: models.FeaturesConfig{
 			Generators: models.GeneratorsConfig{

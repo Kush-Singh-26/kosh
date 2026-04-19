@@ -138,7 +138,7 @@ type PageData struct {
 	Config TemplateConfig // To access Config fields in templates (Menu, Author, etc.)
 
 	// SEO
-	JSONLD template.HTML
+	JSONLD          template.JS
 
 	// Universal Fragment Cache
 	Fragments    map[string]template.HTML

@@ -53,7 +53,8 @@ func NewAssetManifest() *AssetManifest {
 func (m *AssetManifest) Get(path string) (AssetManifestEntry, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	entry, ok := m.Entries[path]
+	normalizedPath := fspkg.NormalizePath(path)
+	entry, ok := m.Entries[normalizedPath]
 	return entry, ok
 }
 
@@ -61,7 +62,8 @@ func (m *AssetManifest) Get(path string) (AssetManifestEntry, bool) {
 func (m *AssetManifest) Set(path string, entry AssetManifestEntry) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.Entries[path] = entry
+	normalizedPath := fspkg.NormalizePath(path)
+	m.Entries[normalizedPath] = entry
 }
 
 // LoadManifest loads the asset manifest from the cache directory.
@@ -231,7 +233,7 @@ func handleImageTask(task fileTask, opts taskWorkerOptions) {
 		// URL format mapping - register all variants
 		relativeSrc := "/" + strings.TrimPrefix(filepath.ToSlash(task.originalRelPath), "/")
 		relativeDst := "/" + strings.TrimPrefix(filepath.ToSlash(task.relPath), "/")
-		registerImageVariants(relativeSrc, relativeDst)
+		RecordConvertedImage(relativeSrc, relativeDst)
 	}
 }
 

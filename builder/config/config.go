@@ -74,8 +74,7 @@ type SiteConfig struct {
 
 // BuildOptions defines build-time tuning parameters.
 type BuildOptions struct {
-	ItemsPerPage         int    `yaml:"itemsPerPage"`           // Number of items per pagination page
-	PostsPerPage         int    `yaml:"postsPerPage,omitempty"` // Deprecated: use ItemsPerPage
+	ItemsPerPage         int    `yaml:"itemsPerPage"` // Number of items per pagination page
 	ShouldCompressImages bool   `yaml:"shouldCompressImages"`
 	ShouldMinify         bool   `yaml:"shouldMinify"`
 	ImageWorkers         int    `yaml:"imageWorkers"`  // Number of parallel image workers (default: 8)
@@ -175,7 +174,6 @@ func defaultSiteConfig() SiteConfig {
 func defaultBuildOptions() BuildOptions {
 	return BuildOptions{
 		ItemsPerPage:         DefaultItemsPerPage,
-		PostsPerPage:         DefaultItemsPerPage, // Set for backward compatibility in templates/tests
 		ShouldCompressImages: true,
 		ShouldMinify:         true,
 		ImageWorkers:         DefaultImageWorkers,
@@ -356,13 +354,6 @@ func applyCLIOverrides(cfg *Config, args []string) {
 }
 
 func finalizeConfig(cfg *Config) {
-	// Sync deprecated PostsPerPage with ItemsPerPage
-	if cfg.PostsPerPage > 0 && cfg.ItemsPerPage == DefaultItemsPerPage {
-		cfg.ItemsPerPage = cfg.PostsPerPage
-	} else if cfg.ItemsPerPage > 0 {
-		cfg.PostsPerPage = cfg.ItemsPerPage
-	}
-
 	if cfg.WebPQuality < MinWebPQuality || cfg.WebPQuality > MaxWebPQuality {
 		cfg.WebPQuality = DefaultWebPQuality
 	}

@@ -174,6 +174,40 @@ func TestGetFrontmatterHashDeterministic(t *testing.T) {
 	}
 }
 
+func TestGetFrontmatterHashFromValuesWithTaxonomyKeys(t *testing.T) {
+	metaData := map[string]any{
+		"title":       "Test Post",
+		"description": "A test description",
+		"date":        "2026-02-12",
+		"tags":        []any{"go", "testing"},
+		"categories": []any{"tech"},
+		"pinned":     true,
+	}
+	taxonomyKeys := []string{"tags", "categories"}
+
+	hashFromMap, err := GetFrontmatterHash(metaData, taxonomyKeys)
+	if err != nil {
+		t.Fatalf("GetFrontmatterHash failed: %v", err)
+	}
+
+	hashFromValues := GetFrontmatterHashFromValues(FrontmatterHashOptions{
+		Title:       "Test Post",
+		Description: "A test description",
+		Date:       "2026-02-12",
+		Taxonomies: map[string][]string{
+			"tags":        {"go", "testing"},
+			"categories": {"tech"},
+		},
+		IsPinned:    true,
+		Other:      metaData,
+		TaxonomyKeys: taxonomyKeys,
+	})
+
+	if hashFromMap != hashFromValues {
+		t.Errorf("Hash mismatch:\n  from GetFrontmatterHash:    %s\n  from GetFrontmatterHashFromValues: %s", hashFromMap, hashFromValues)
+	}
+}
+
 func TestParseFrontmatter(t *testing.T) {
 	tests := []struct {
 		name    string

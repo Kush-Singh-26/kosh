@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/afero"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
@@ -35,7 +34,7 @@ func TestIncrementalBuild_SearchSourceChange(t *testing.T) {
 }
 
 func TestIncrementalBuild_ModTimeQuickBail(t *testing.T) {
-	cachedMeta := &cache.ContentMeta{
+	cachedMeta := &models.ContentMeta{
 		ModTime:  1000,
 		BodyHash: "hash123",
 	}

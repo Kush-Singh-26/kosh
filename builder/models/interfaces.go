@@ -4,11 +4,11 @@ import (
 	"context"
 	"html/template"
 	"io"
+	"os"
 	"time"
 )
 
 // ArtifactSink is an interface for writing build artifacts.
-// Mirrors fs.ArtifactSink for use by models-layer consumers.
 type ArtifactSink interface {
 	WriteFile(path string, data []byte) error
 	WriteStream(path string, writer func(io.Writer) error) error
@@ -18,6 +18,7 @@ type ArtifactSink interface {
 	GetWrittenFiles() map[string]bool
 	GetOutputDir() string
 	SetMtime(path string, mtime time.Time) error
+	Stat(path string) (os.FileInfo, error)
 }
 
 // HTML is a type alias for template.HTML to avoid importing html/template everywhere
@@ -77,8 +78,8 @@ type BuildArtifactCache interface {
 
 // FragmentCache provides persistent storage for pre-rendered UI components.
 type FragmentCache interface {
-	GetFragment(key string) (string, error)
-	StoreFragment(key string, html string) error
+	GetFragment(key string) ([]byte, error)
+	StoreFragment(key string, data []byte) error
 	Flush(ctx context.Context) error
 }
 

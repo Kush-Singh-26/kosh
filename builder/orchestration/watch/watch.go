@@ -70,6 +70,7 @@ type SearchRegenerationCallback func(workingContext context.Context)
 
 // CoordinatorDependencies bundles dependencies for the watch coordinator.
 type CoordinatorDependencies struct {
+	Ctx           context.Context
 	Cfg           *config.Config
 	BuildMu       *sync.Mutex // guards build execution in watch mode
 	Cache         content.Cache
@@ -79,6 +80,7 @@ type CoordinatorDependencies struct {
 
 // Coordinator manages debounced change handling during watch mode.
 type Coordinator struct {
+	ctx        context.Context
 	config     *config.Config
 	buildMu    *sync.Mutex // guards build execution in watch mode
 	cache      content.Cache
@@ -100,7 +102,13 @@ type BuildRequest struct {
 
 // New constructs a new watch Coordinator.
 func New(deps CoordinatorDependencies) *Coordinator {
+	ctx := deps.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	return &Coordinator{
+		ctx:        ctx,
 		config:     deps.Cfg,
 		buildMu:    deps.BuildMu,
 		cache:      deps.Cache,
@@ -114,11 +122,11 @@ func New(deps CoordinatorDependencies) *Coordinator {
 
 // Start begins processing of build and search queues.
 func (coordinatorInstance *Coordinator) Start() {
-	async.FireAndForget(context.Background(), slog.Default(), "watch build queue", func() error {
+	async.FireAndForget(coordinatorInstance.ctx, slog.Default(), "watch build queue", func() error {
 		coordinatorInstance.processBuildQueue()
 		return nil
 	})
-	async.FireAndForget(context.Background(), slog.Default(), "watch search queue", func() error {
+	async.FireAndForget(coordinatorInstance.ctx, slog.Default(), "watch search queue", func() error {
 		coordinatorInstance.processSearchQueue()
 		return nil
 	})
@@ -365,12 +373,12 @@ func (coordinatorInstance *Coordinator) processSearchQueue() {
 				timer = time.AfterFunc(delay, func() {
 					if pending {
 						pending = false
-						async.FireAndForget(context.Background(), slog.Default(), "watch search regen", func() error {
+						async.FireAndForget(coordinatorInstance.ctx, slog.Default(), "watch search regen", func() error {
 							coordinatorInstance.buildMu.Lock()
 							defer coordinatorInstance.buildMu.Unlock()
 							coordinatorInstance.lastSearchReg = time.Now()
 							if coordinatorInstance.onSearch != nil {
-								coordinatorInstance.onSearch(context.Background())
+								coordinatorInstance.onSearch(coordinatorInstance.ctx)
 							}
 							return nil
 						})

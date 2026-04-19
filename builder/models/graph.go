@@ -47,24 +47,11 @@ func (gc *GraphConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	type graphConfigAlias GraphConfig
 	var aux struct {
 		*graphConfigAlias `yaml:",inline"`
-		ShowsTags         *bool `yaml:"showsTags,omitempty"`
-		MinTagFrequency   *int  `yaml:"minTagFrequency,omitempty"`
 	}
 	aux.graphConfigAlias = (*graphConfigAlias)(gc)
 
 	if err := unmarshal(&aux); err != nil {
 		return err
-	}
-
-	if aux.ShowsTags != nil {
-		gc.ShowsTaxonomies = *aux.ShowsTags
-	}
-	if aux.MinTagFrequency != nil {
-		gc.MinTermFrequency = *aux.MinTagFrequency
-	}
-
-	if !gc.ShowsTaxonomies && aux.ShowsTags == nil {
-		gc.ShowsTaxonomies = true
 	}
 	return nil
 }

@@ -121,7 +121,7 @@ func (m *MockTransaction) Commit(_ context.Context) error {
 }
 
 // Rollback is a no-op for MockTransaction.
-func (m *MockTransaction) Rollback() error { return nil }
+func (m *MockTransaction) Rollback(_ context.Context) error { return nil }
 
 // GetLastBuildTime returns a zero time for MockTransaction.
 func (m *MockTransaction) GetLastBuildTime() time.Time { return time.Time{} }

@@ -42,9 +42,6 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.ItemsPerPage != 10 {
 		t.Errorf("ItemsPerPage = %d, want 10", cfg.ItemsPerPage)
 	}
-	if cfg.PostsPerPage != 10 {
-		t.Errorf("PostsPerPage = %d, want 10", cfg.PostsPerPage)
-	}
 
 	// Default ImageWorkers is 8
 	if cfg.ImageWorkers != 8 {
@@ -97,7 +94,7 @@ func TestLoad_FromYAML(t *testing.T) {
 title: "Test Site"
 description: "A test site"
 baseURL: "https://test.example.com"
-postsPerPage: 20
+itemsPerPage: 20
 theme: "docs"
 author:
   name: "Test Author"
@@ -127,9 +124,6 @@ features:
 
 	if cfg.ItemsPerPage != 20 {
 		t.Errorf("ItemsPerPage = %d, want 20", cfg.ItemsPerPage)
-	}
-	if cfg.PostsPerPage != 20 {
-		t.Errorf("PostsPerPage = %d, want 20", cfg.PostsPerPage)
 	}
 
 	if cfg.Theme != "docs" {

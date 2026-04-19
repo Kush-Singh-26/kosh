@@ -23,17 +23,24 @@ func (engineInstance *Engine) startPostProcessingStream(ctx context.Context, set
 	if logger == nil {
 		logger = slog.Default()
 	}
-	async.FireAndForget(ctx, logger, "Content processing stream", func() error {
-		result, processError := engineInstance.Deps.Content.ProcessStreaming(content.ProcessOptions{
-			Ctx:                ctx,
-			SearchIngestor:     searchIngestor,
-			ShouldForce:        engineInstance.Cfg.ShouldForceRebuild,
-			ForceSocialRebuild: setup.forceSocialRebuild,
-			OutputMissing:      engineInstance.State.IsCleanBuild,
-			FileChan:           scan.fileChan,
-		})
-		contentResultChan <- postStreamResult{result, processError}
-		return nil
+	engineInstance.buildWaitGroup.Add(1)
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "Content processing stream",
+		Fn: func() error {
+			result, processError := engineInstance.Deps.Content.ProcessStreaming(content.ProcessOptions{
+				Ctx:                ctx,
+				SearchIngestor:     searchIngestor,
+				ShouldForce:        engineInstance.Cfg.ShouldForceRebuild,
+				ForceSocialRebuild: setup.forceSocialRebuild,
+				OutputMissing:      engineInstance.State.IsCleanBuild,
+				FileChan:           scan.fileChan,
+			})
+			contentResultChan <- postStreamResult{result, processError}
+			return nil
+		},
+		Cleanup: engineInstance.buildWaitGroup.Done,
 	})
 	return contentResultChan
 }

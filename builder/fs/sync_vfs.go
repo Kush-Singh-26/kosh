@@ -321,12 +321,13 @@ func atomicWrite(ctx context.Context, path string, data []byte) error {
 	}
 
 	err = writer.Flush()
-	pools.SharedBufioWriterPool.Put(writer)
 	if err != nil {
+		pools.SharedBufioWriterPool.Put(writer)
 		_ = file.Close()
 		_ = os.Remove(tmpPath)
 		return err
 	}
+	pools.SharedBufioWriterPool.Put(writer)
 
 	err = file.Close()
 	if err != nil {

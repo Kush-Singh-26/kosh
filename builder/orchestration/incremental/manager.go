@@ -10,17 +10,17 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/afero"
-
 	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
+	"github.com/spf13/afero"
 )
 
 // PostChangeType describes the kind of change detected for a Content.
@@ -224,14 +224,16 @@ func (m *Manager) BuildSingleItem(ctx context.Context, path string) {
 		}
 
 	case PostChangeBody:
-		m.handleSinglePostBodyChange(ctx, path, source, relPath, htmlRelPath, cleanHTMLRelPath)
+		if err := m.handleSinglePostBodyChange(ctx, path, source, relPath, htmlRelPath, cleanHTMLRelPath); err != nil {
+			m.logger.Error("Single post body rebuild failed", "error", err)
+		}
 
 	case PostChangeNone:
 		m.logger.Info("No changes detected, skipping...")
 	}
 }
 
-func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, source []byte, relPath, htmlRelPath, cleanHTMLRelPath string) {
+func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, source []byte, relPath, htmlRelPath, cleanHTMLRelPath string) error {
 	m.logger.Info("Content change detected, rebuilding single Content...")
 
 	// Only refresh session and commit for body-only changes.
@@ -259,32 +261,27 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 
 	if err != nil {
 		m.logger.Error("Error parsing markdown", "path", path, "error", err)
-		return
+		return err
 	}
 
 	if err := m.deps.Content.ProcessSingleWithResult(ctx, path, source, parseRes); err != nil {
 		m.logger.Error("Failed to process single Content", "error", err)
 		if err := m.builder.BuildLocked(ctx); err != nil {
-			m.logger.Error("Build failed", "error", err)
+			m.logger.Error("Full build failed", "error", err)
 		}
-		return
+		return err
 	}
 
 	if m.search != nil {
 		m.search.UpdateIndexedContentCache(relPath, parseRes)
 	}
 
-	metadataCtx, err := m.builder.GetContent().GetMetadataContext(ctx)
-	if err != nil {
-		m.logger.Warn("Failed to retrieve metadata context for site-wide rendering", "error", err)
-	} else if err := m.builder.RenderSiteWide(ctx, metadataCtx); err != nil {
-		m.logger.Warn("Failed to update site-wide assets during incremental build", "error", err)
+	if err := m.renderIncrementalSiteWide(ctx); err != nil {
+		return err
 	}
 
-	if err := m.builder.Commit(ctx); err != nil {
-		m.logger.Error("Sync/Commit failed", "error", err)
-		m.DeleteItemFromCache(path)
-		return
+	if err := m.commitIncrementalBuild(ctx, path); err != nil {
+		return err
 	}
 
 	m.builder.SaveCaches()
@@ -293,6 +290,30 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 	if watch := m.builder.GetWatch(); watch != nil {
 		watch.TriggerSearchRegeneration()
 	}
+
+	return nil
+}
+
+func (m *Manager) renderIncrementalSiteWide(ctx context.Context) error {
+	metadataCtx, err := m.builder.GetContent().GetMetadataContext(ctx)
+	if err != nil {
+		m.logger.Error("Failed to retrieve metadata context for site-wide rendering", "error", err)
+		return err
+	}
+	if err := m.builder.RenderSiteWide(ctx, metadataCtx); err != nil {
+		m.logger.Error("Failed to update site-wide assets during incremental build", "error", err)
+		return err
+	}
+	return nil
+}
+
+func (m *Manager) commitIncrementalBuild(ctx context.Context, path string) error {
+	if err := m.builder.Commit(ctx); err != nil {
+		m.logger.Error("Sync/Commit failed", "error", err)
+		m.DeleteItemFromCache(path)
+		return err
+	}
+	return nil
 }
 
 // DeleteItemFromCache removes an item from the cache by its path.
@@ -307,7 +328,7 @@ func (m *Manager) DeleteItemFromCache(path string) {
 		return
 	}
 
-	contentID := cache.GenerateContentID("", relPath)
+	contentID := core.GenerateContentID("", relPath)
 	if err := m.deps.Cache.DeleteItem(contentID); err != nil {
 		m.logger.Error("Failed to delete Content from cache", "contentID", contentID, "error", err)
 		return

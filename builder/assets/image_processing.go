@@ -321,7 +321,7 @@ func registerWebPRelPath(relPath string) {
 	}
 	relativeSrc := "/" + strings.TrimPrefix(filepath.ToSlash(relPath), "/")
 	relativeDst := relativeSrc[:len(relativeSrc)-len(filepath.Ext(relativeSrc))] + ".webp"
-	registerImageVariants(relativeSrc, relativeDst)
+	RecordConvertedImage(relativeSrc, relativeDst)
 }
 
 func maybeCopyOriginalBestEffort(options ProcessImageOptions) {
@@ -484,7 +484,7 @@ func encodeWebP(image image.Image, quality int) ([]byte, error) {
 func writeEncodedWebP(options ProcessImageOptions, key imageCacheKey, cacheFile string, cacheData []byte) error {
 	GetImageCache().Set(key, cacheData)
 	if cacheFile != "" {
-		queueImageCacheWrite(cacheFile, cacheData, true)
+		queueImageCacheWrite(cacheFile, cacheData)
 	}
 
 	if !isNil(options.Opts.Metrics) {

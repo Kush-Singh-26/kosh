@@ -1,21 +1,23 @@
 package cache
 
 import (
-	"context"
-	"log/slog"
-	"sync"
+"context"
+"log/slog"
+"sync"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
+	cachepkg "github.com/Kush-Singh-26/kosh/builder/cache"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
-	"github.com/Kush-Singh-26/kosh/builder/models"
+
+"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // cacheService implements CacheService
 type cacheService struct {
-	ctx     *buildctx.BuildContext
-	manager *cache.Manager
-	logger  *slog.Logger
+	ctx *buildctx.BuildContext
+	manager *cachepkg.Manager
+	logger *slog.Logger
 
 	// Dirty tracking using sync.Map for thread safety
 	dirtyItemsMap sync.Map // contentID -> bool
@@ -144,13 +146,13 @@ func (service *cacheService) MarkDirty(contentID string) {
 }
 
 // GetFragment retrieves a fragment from the cache.
-func (service *cacheService) GetFragment(key string) (string, error) {
+func (service *cacheService) GetFragment(key string) ([]byte, error) {
 	return service.manager.GetFragment(key)
 }
 
 // StoreFragment stores a fragment in the cache.
-func (service *cacheService) StoreFragment(key string, html string) error {
-	return service.manager.StoreFragment(key, html)
+func (service *cacheService) StoreFragment(key string, data []byte) error {
+	return service.manager.StoreFragment(key, data)
 }
 
 // Flush flushes the fragment cache. No-op for direct service as it writes immediately.
@@ -178,7 +180,7 @@ func (service *cacheService) ClearDirty() {
 }
 
 // Stats returns cache stats.
-func (service *cacheService) Stats() (*cache.Stats, error) {
+func (service *cacheService) Stats() (*core.CacheStats, error) {
 	return service.manager.Stats()
 }
 
@@ -203,6 +205,6 @@ func (service *cacheService) GetAllItemsMetadata() ([]models.ContentListMeta, er
 }
 
 // Manager exposes the underlying cache manager (avoid in production code).
-func (service *cacheService) Manager() *cache.Manager {
+func (service *cacheService) Manager() *cachepkg.Manager {
 	return service.manager
 }

@@ -1,9 +1,9 @@
 package generators
 
 import (
-	"testing"
+"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+"github.com/Kush-Singh-26/kosh/builder/cache/core"
 )
 
 func TestBoundedTaxonomySocialCardWorkers(t *testing.T) {
@@ -22,7 +22,7 @@ func TestSocialCardHash_Stable(t *testing.T) {
 	if h1 != h2 {
 		t.Fatalf("hash should be deterministic")
 	}
-	if h1 != cache.HashString("Title|Description") {
+	if h1 != core.HashString("Title|Description") {
 		t.Fatalf("hash should match cache hashing strategy")
 	}
 }

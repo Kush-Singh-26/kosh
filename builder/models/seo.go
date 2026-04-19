@@ -25,7 +25,7 @@ type Author struct {
 }
 
 // GenerateContentJSONLD builds a JSON-LD payload for a post.
-func GenerateContentJSONLD(item ContentMetadata, author AuthorConfig, imageURL string, articleType string) (template.HTML, error) {
+func GenerateContentJSONLD(item ContentMetadata, author AuthorConfig, imageURL string, articleType string) (template.JS, error) {
 	if articleType == "" {
 		articleType = "BlogPosting"
 	}
@@ -51,5 +51,5 @@ func GenerateContentJSONLD(item ContentMetadata, author AuthorConfig, imageURL s
 		return "", err
 	}
 
-	return template.HTML(data), nil
+	return template.JS(data), nil
 }

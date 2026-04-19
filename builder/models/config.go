@@ -68,31 +68,6 @@ type NavbarIdentityConfig struct {
 	Section NavbarContextConfig `yaml:"section"`
 }
 
-// UnmarshalYAML implements custom unmarshalling to support legacy aliases.
-func (c *NavbarIdentityConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	type alias NavbarIdentityConfig
-	var aux struct {
-		*alias `yaml:",inline"`
-		Posts  *NavbarContextConfig `yaml:"posts,omitempty"`
-		Blog   *NavbarContextConfig `yaml:"blog,omitempty"`
-	}
-	aux.alias = (*alias)(c)
-
-	if err := unmarshal(&aux); err != nil {
-		return err
-	}
-
-	// Fallback to legacy config keys if section is empty
-	if c.Section.Title == "" && c.Section.BtnLabel == "" {
-		if aux.Posts != nil {
-			c.Section = *aux.Posts
-		} else if aux.Blog != nil {
-			c.Section = *aux.Blog
-		}
-	}
-	return nil
-}
-
 // TemplateConfig defines the strictly-typed subset of project configuration
 // accessible within HTML templates. This prevents tight coupling between
 // models and the main config package while restoring type safety.

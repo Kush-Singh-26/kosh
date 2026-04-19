@@ -9,6 +9,8 @@ import (
 	"github.com/yuin/goldmark/ast"
 )
 
+var d2LateReplaceRe = regexp.MustCompile(`<!--KOSH_D2:([a-f0-9]+)-->(?:<!--KOSH_D2_REG:([a-f0-9]+):([^:]+):([^:]+)-->)?`)
+
 // d2BlockInfo holds D2 diagram block information for deduplication.
 type d2BlockInfo struct {
 	node *ast.FencedCodeBlock
@@ -57,10 +59,8 @@ func LateReplaceD2(htmlContent string, rendered map[string]models.SSRThemePair) 
 		return htmlContent
 	}
 
-	re := regexp.MustCompile(`<!--KOSH_D2:([a-f0-9]+)-->(?:<!--KOSH_D2_REG:([a-f0-9]+):([^:]+):([^:]+)-->)?`)
-
-	return re.ReplaceAllStringFunc(htmlContent, func(match string) string {
-		parts := re.FindStringSubmatch(match)
+	return d2LateReplaceRe.ReplaceAllStringFunc(htmlContent, func(match string) string {
+		parts := d2LateReplaceRe.FindStringSubmatch(match)
 		if len(parts) < 2 {
 			return match
 		}

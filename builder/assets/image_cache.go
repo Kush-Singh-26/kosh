@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -60,7 +59,7 @@ type imageCacheKey struct {
 // ImageCache is an LRU cache for processed images.
 type ImageCache struct {
 	cache    *lru.Cache[imageCacheKey, []byte]
-	size     atomicInt64
+	size     atomic.Int64
 	capacity int64
 }
 
@@ -76,7 +75,7 @@ func newImageCache(maxItems int, maxBytes int64) *ImageCache {
 
 	onEvict := func(key imageCacheKey, value []byte) {
 		overhead := imageCacheEntryOverhead + len(key.path)
-		cacheInstance.size.Add(-int64(len(value)) + int64(overhead))
+		cacheInstance.size.Add(-(int64(len(value)) + int64(overhead)))
 	}
 
 	cache, _ := lru.NewWithEvict[imageCacheKey, []byte](maxItems, onEvict)
@@ -171,168 +170,94 @@ func getImageHash(key imageCacheKey) string {
 	return hex.EncodeToString(resultBytes[:])
 }
 
-type atomicInt64 struct{ v int64 }
-
-// Load returns the current value.
-func (a *atomicInt64) Load() int64 { return atomic.LoadInt64(&a.v) }
-
-// Add increments the value by delta.
-func (a *atomicInt64) Add(delta int64) { atomic.AddInt64(&a.v, delta) }
-
 var imageCacheWriter struct {
+	mu      sync.RWMutex
 	channel chan imageCacheEntry
 	once    sync.Once
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
+	logger  *slog.Logger
 }
 
-func initImageCacheWriter() {
+// InitImageCacheWriter initializes the background writer for the image cache.
+func InitImageCacheWriter(ctx context.Context, logger *slog.Logger) {
 	imageCacheWriter.once.Do(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		if logger == nil {
+			logger = slog.Default()
+		}
+
+		ctx, cancel := context.WithCancel(ctx)
+		ch := make(chan imageCacheEntry, imageCacheWriterBuffer)
+
+		imageCacheWriter.mu.Lock()
+		imageCacheWriter.logger = logger
 		imageCacheWriter.cancel = cancel
-		imageCacheWriter.channel = make(chan imageCacheEntry, imageCacheWriterBuffer)
+		imageCacheWriter.channel = ch
+		imageCacheWriter.mu.Unlock()
+
 		imageCacheWriter.wg.Add(1)
 
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
 			Ctx:       ctx,
-			Logger:    slog.Default(),
+			Logger:    logger,
 			Operation: "image cache writer",
 			Fn: func() error {
-				for cacheEntry := range imageCacheWriter.channel {
-					_ = os.MkdirAll(filepath.Dir(cacheEntry.path), imageCacheDirMode)
-					if err := os.WriteFile(cacheEntry.path, cacheEntry.data, imageCacheFileMode); err != nil {
-						slog.Warn("Failed to write image cache file", "path", cacheEntry.path, "error", err)
+				for {
+					select {
+					case cacheEntry, ok := <-ch:
+						if !ok {
+							return nil
+						}
+						_ = os.MkdirAll(filepath.Dir(cacheEntry.path), imageCacheDirMode)
+						if err := os.WriteFile(cacheEntry.path, cacheEntry.data, imageCacheFileMode); err != nil {
+							logger.Warn("Failed to write image cache file", "path", cacheEntry.path, "error", err)
+						}
+					case <-ctx.Done():
+						return ctx.Err()
 					}
 				}
-				return nil
 			},
 			Cleanup: imageCacheWriter.wg.Done,
 		})
 	})
 }
 
-// StopImageCacheWriter flushes the queue and stops the background writer.
+// StopImageCacheWriter gracefully shuts down the background writer for the image cache.
 func StopImageCacheWriter() {
-	if imageCacheWriter.channel == nil {
-		return
+	imageCacheWriter.mu.Lock()
+	ch := imageCacheWriter.channel
+	imageCacheWriter.channel = nil
+	imageCacheWriter.mu.Unlock()
+
+	if ch != nil {
+		close(ch)
+		imageCacheWriter.wg.Wait()
 	}
-	close(imageCacheWriter.channel)
-	if imageCacheWriter.cancel != nil {
-		imageCacheWriter.cancel()
-	}
-	imageCacheWriter.wg.Wait()
 }
 
-func queueImageCacheWrite(path string, data []byte, isCloned bool) {
-	initImageCacheWriter()
+func queueImageCacheWrite(path string, data []byte) {
+	imageCacheWriter.mu.RLock()
+	ch := imageCacheWriter.channel
+	logger := imageCacheWriter.logger
+	imageCacheWriter.mu.RUnlock()
 
-	var dataCopy []byte
-	if isCloned {
-		dataCopy = data
-	} else {
-		dataCopy = make([]byte, len(data))
-		copy(dataCopy, data)
+	if ch == nil {
+		InitImageCacheWriter(context.Background(), slog.Default())
+		imageCacheWriter.mu.RLock()
+		ch = imageCacheWriter.channel
+		logger = imageCacheWriter.logger
+		imageCacheWriter.mu.RUnlock()
+	}
+
+	if ch == nil {
+		return
 	}
 
 	select {
-	case imageCacheWriter.channel <- imageCacheEntry{path: path, data: dataCopy}:
+	case ch <- imageCacheEntry{path: path, data: data}:
 	default:
-		_ = os.MkdirAll(filepath.Dir(path), imageCacheDirMode)
-		_ = os.WriteFile(path, dataCopy, imageCacheFileMode)
-	}
-}
-
-// ErrCacheMiss is returned when an image is not in the disk cache.
-var ErrCacheMiss = errors.New("image not in disk cache")
-
-// CopyFromDiskCacheOptions bundles parameters for CopyFromDiskCache.
-type CopyFromDiskCacheOptions struct {
-	SrcFs        afero.Fs
-	Sink         fspkg.ArtifactSink
-	RelPath      string
-	SrcPath      string
-	DstPath      string
-	CacheDir     string
-	SrcInfo      fs.FileInfo
-	Metrics      ImageMetrics
-	OnWrite      func(string)
-	KeepOriginal bool
-	MuteMetrics  bool
-}
-
-// CopyFromDiskCache checks the on-disk WebP cache for an image and, if found,
-// writes it to the sink and registers it in the converted-images map.
-// Returns nil on cache hit, ErrCacheMiss on miss, or a real error.
-// Called from the asset discovery goroutine to speed up image registration
-// before background workers process the remaining cache-miss images.
-func CopyFromDiskCache(options CopyFromDiskCacheOptions) error {
-	cacheFs := afero.NewOsFs()
-	memoryCacheKey := imageCacheKey{
-		path:    options.SrcPath,
-		size:    options.SrcInfo.Size(),
-		modTime: options.SrcInfo.ModTime().UnixNano(),
-	}
-	hash := getImageHash(memoryCacheKey)
-	cacheFile := filepath.Join(options.CacheDir, hash+".webp")
-
-	cachedData, err := afero.ReadFile(cacheFs, cacheFile)
-	if err != nil {
-		return ErrCacheMiss
-	}
-
-	if err := options.Sink.WriteFile(options.DstPath, cachedData); err != nil {
-		return err
-	}
-
-	if options.Metrics != nil && !options.MuteMetrics {
-		options.Metrics.RecordImageOptimization(options.SrcInfo.Size(), int64(len(cachedData)))
-		options.Metrics.IncrementAssetsProcessed()
-	}
-
-	relativeSource := "/" + strings.TrimPrefix(filepath.ToSlash(options.RelPath), "/")
-	relativeDestination := relativeSource[:len(relativeSource)-len(filepath.Ext(relativeSource))] + ".webp"
-	registerImageVariants(relativeSource, relativeDestination)
-
-	if options.OnWrite != nil {
-		options.OnWrite(options.DstPath)
-	}
-
-	// If keepOriginal is requested, also copy the source file to its destination
-	if options.KeepOriginal {
-		extension := strings.ToLower(filepath.Ext(options.SrcPath))
-		originalDestination := strings.TrimSuffix(options.DstPath, filepath.Ext(options.DstPath)) + extension
-		_ = fspkg.CopyFileVFS(fspkg.CopyFileOptions{
-			SrcFs:   options.SrcFs,
-			Sink:    options.Sink,
-			SrcPath: options.SrcPath,
-			DstPath: originalDestination,
-			ModTime: options.SrcInfo.ModTime().UnixNano(),
-			OnWrite: options.OnWrite,
-		})
-	}
-
-	return nil
-}
-
-// registerImageVariants records an image conversion mapping in all common
-// path forms so that both "/static/foo.png" and "static/foo.png" references
-// in HTML can be found during the rewrite phase. Also registers case variants
-// to handle case-insensitive file references (e.g. "Foo.PNG" vs "foo.png").
-func registerImageVariants(srcPath, webpPath string) {
-	RecordConvertedImage(srcPath, webpPath)
-	if strings.HasPrefix(srcPath, "/") {
-		RecordConvertedImage(strings.TrimPrefix(srcPath, "/"), webpPath)
-	} else {
-		RecordConvertedImage("/"+srcPath, webpPath)
-	}
-	// Case variants to catch case-insensitive references in raw HTML
-	lowerSrc := strings.ToLower(srcPath)
-	if lowerSrc != srcPath {
-		RecordConvertedImage(lowerSrc, webpPath)
-		if strings.HasPrefix(lowerSrc, "/") {
-			RecordConvertedImage(strings.TrimPrefix(lowerSrc, "/"), webpPath)
-		} else {
-			RecordConvertedImage("/"+lowerSrc, webpPath)
+		if logger != nil {
+			logger.Warn("Image cache writer channel full, dropping write", "path", path)
 		}
 	}
 }
@@ -342,11 +267,7 @@ func shouldPreserveOriginal(name string) bool {
 	return ok
 }
 
-func collectOriginalsToDelete(outputDir string, converted map[string]string) []string {
-	if len(converted) == 0 {
-		return nil
-	}
-
+func collectOriginalsToDelete(ctx context.Context, outputDir string, converted map[string]string) []string {
 	keys := make([]string, 0, len(converted))
 	for k := range converted {
 		keys = append(keys, k)
@@ -355,7 +276,7 @@ func collectOriginalsToDelete(outputDir string, converted map[string]string) []s
 	toDelete := make([]string, 0, len(keys))
 	var mu sync.Mutex
 
-	g, _ := errgroup.WithContext(context.Background())
+	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(runtime.NumCPU())
 
 	for _, k := range keys {
@@ -371,7 +292,7 @@ func collectOriginalsToDelete(outputDir string, converted map[string]string) []s
 				return nil
 			}
 
-			absolutePath := filepath.Join(outputDir, strings.TrimPrefix(filepath.ToSlash(originalPath), "/"))
+			absolutePath := fspkg.NormalizePath(filepath.Join(outputDir, originalPath))
 			mu.Lock()
 			toDelete = append(toDelete, absolutePath)
 			mu.Unlock()
@@ -383,7 +304,7 @@ func collectOriginalsToDelete(outputDir string, converted map[string]string) []s
 	return toDelete
 }
 
-func deleteOriginals(paths []string) int64 {
+func deleteOriginals(ctx context.Context, paths []string) int64 {
 	if len(paths) == 0 {
 		return 0
 	}
@@ -397,7 +318,7 @@ func deleteOriginals(paths []string) int64 {
 		numWorkers = 1
 	}
 
-	errorGroup, _ := errgroup.WithContext(context.Background())
+	errorGroup, _ := errgroup.WithContext(ctx)
 	errorGroup.SetLimit(numWorkers)
 
 	for _, fullPath := range paths {
@@ -406,27 +327,121 @@ func deleteOriginals(paths []string) int64 {
 			if err := os.Remove(path); err == nil {
 				deleted.Add(1)
 			} else if !os.IsNotExist(err) {
-				return err // Propagate real errors instead of swallowing them
+				return err
 			}
 			return nil
 		})
 	}
-	_ = errorGroup.Wait() // Best-effort cleanup; errors are already filtered above.
+	_ = errorGroup.Wait()
 
 	return deleted.Load()
 }
 
 // CleanupOriginalImages removes source image files (.png/.jpg/.jpeg) from the
-// output directory when a corresponding .webp file exists. It uses the known
-// conversion map, eliminating expensive filesystem sweeps.
-func CleanupOriginalImages(outputDir string) {
+// output directory when a corresponding .webp file exists.
+func CleanupOriginalImages(ctx context.Context, outputDir string) {
 	converted := GetConvertedImages()
 	if len(converted) == 0 {
 		return
 	}
-	toDelete := collectOriginalsToDelete(outputDir, converted)
-	deleted := deleteOriginals(toDelete)
+	toDelete := collectOriginalsToDelete(ctx, outputDir, converted)
+	deleted := deleteOriginals(ctx, toDelete)
 	if deleted > 0 {
 		slog.Info("Cleaned up original images", "deleted", deleted)
 	}
 }
+
+// ErrCacheMiss indicates the image was not found in the disk cache.
+var ErrCacheMiss = errors.New("image not found in disk cache")
+
+// CopyFromDiskCacheOptions configures a cache lookup and copy operation.
+type CopyFromDiskCacheOptions struct {
+	SrcFs        afero.Fs
+	Sink         fspkg.ArtifactSink
+	RelPath      string
+	SrcPath      string
+	DstPath      string
+	CacheDir     string
+	SrcInfo      os.FileInfo
+	Metrics      ImageMetrics
+	OnWrite      func(string)
+	KeepOriginal bool
+	MuteMetrics  bool
+}
+
+// CopyFromDiskCache attempts to copy an image from the persistent disk cache.
+func CopyFromDiskCache(opts CopyFromDiskCacheOptions) error {
+	if opts.CacheDir == "" {
+		return ErrCacheMiss
+	}
+
+	key := imageCacheKey{
+		path:    opts.SrcPath,
+		size:    opts.SrcInfo.Size(),
+		modTime: opts.SrcInfo.ModTime().UnixNano(),
+	}
+
+	hashStr := getImageHash(key)
+	cacheFile := filepath.Join(opts.CacheDir, hashStr+".webp")
+
+	if _, err := os.Stat(cacheFile); err != nil {
+		return ErrCacheMiss
+	}
+
+	data, err := os.ReadFile(cacheFile)
+	if err != nil {
+		return err
+	}
+
+	// Update memory cache
+	GetImageCache().Set(key, data)
+
+	if !opts.MuteMetrics && opts.Metrics != nil {
+		opts.Metrics.RecordImageOptimization(opts.SrcInfo.Size(), int64(len(data)))
+		opts.Metrics.IncrementAssetsProcessed()
+	}
+
+	if err := opts.Sink.MkdirAll(filepath.Dir(opts.DstPath)); err != nil {
+		return err
+	}
+
+	if err := opts.Sink.WriteFile(opts.DstPath, data); err != nil {
+		return err
+	}
+
+	if opts.OnWrite != nil {
+		opts.OnWrite(opts.DstPath)
+	}
+
+	// Record conversion
+	recordConvertedImage(opts.RelPath)
+
+	if opts.KeepOriginal {
+		_ = copyOriginalImage(opts)
+	}
+
+	return nil
+}
+
+func recordConvertedImage(relPath string) {
+	relSource := "/" + strings.TrimPrefix(filepath.ToSlash(relPath), "/")
+	relDest := relSource[:len(relSource)-len(filepath.Ext(relSource))] + ".webp"
+	RecordConvertedImage(relSource, relDest)
+}
+
+func copyOriginalImage(opts CopyFromDiskCacheOptions) error {
+	ext := strings.ToLower(filepath.Ext(opts.SrcPath))
+	if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+		originalDest := strings.TrimSuffix(opts.DstPath, ".webp") + ext
+		return fspkg.CopyFileVFS(fspkg.CopyFileOptions{
+			SrcFs:   opts.SrcFs,
+			Sink:    opts.Sink,
+			SrcPath: opts.SrcPath,
+			DstPath: originalDest,
+			ModTime: opts.SrcInfo.ModTime().UnixNano(),
+			OnWrite: opts.OnWrite,
+		})
+	}
+	return nil
+}
+

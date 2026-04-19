@@ -119,6 +119,9 @@ type FrontmatterHashOptions struct {
 	// Other contains custom frontmatter fields not in the standard whitelist.
 	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
 	Other map[string]any
+	// TaxonomyKeys is the list of configured taxonomy keys (e.g., tags, categories).
+	// These are excluded from Other to prevent double-hashing of taxonomy fields.
+	TaxonomyKeys []string
 }
 
 // GetFrontmatterHashFromValues computes the canonical frontmatter hash from already-parsed values.
@@ -136,8 +139,7 @@ func GetFrontmatterHashFromValues(opts FrontmatterHashOptions) string {
 		Weight:      opts.Weight,
 	})
 
-	// Pass empty taxonomyKeys as they are already in opts.Taxonomies
-	hashCustomFields(h, opts.Other, nil)
+	hashCustomFields(h, opts.Other, opts.TaxonomyKeys)
 
 	sum := h.Sum128()
 	b := sum.Bytes()

@@ -22,7 +22,7 @@ import (
 )
 
 // refreshBuildSession creates a fresh Transaction and Sink for a new build pass.
-func (engineInstance *Engine) refreshBuildSession() {
+func (engineInstance *Engine) refreshBuildSession(ctx context.Context) {
 	// Clear per-file content cache so dev rebuilds don't serve stale data
 	fspkg.ClearSyncCache()
 	// If we already have a sink/tx (e.g. injected in tests), don't overwrite it
@@ -30,9 +30,9 @@ func (engineInstance *Engine) refreshBuildSession() {
 		useStaging := (!engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild) && !engineInstance.Cfg.NoStaging
 		// Explicit cleanup before creating new transaction for clean builds
 		if useStaging {
-			tx.CleanupStaleBuildDirs(engineInstance.Cfg.OutputDir)
+			tx.CleanupStaleBuildDirs(ctx, engineInstance.Cfg.OutputDir)
 		}
-		engineInstance.buildTransaction = tx.NewBuildTransaction(engineInstance.Cfg.OutputDir, useStaging)
+		engineInstance.buildTransaction = tx.NewBuildTransaction(ctx, engineInstance.Cfg.OutputDir, useStaging)
 		engineInstance.SetSink(fspkg.NewDiskSink(engineInstance.buildTransaction.StagingDir(), engineInstance.Cfg.OutputDir))
 	} else {
 		// Even if sink is already set (e.g. in tests), reconfigure services with current Fs
@@ -66,7 +66,7 @@ func (engineInstance *Engine) buildAssetOnly(ctx context.Context) error {
 	defer func() { engineInstance.State.IsAssetOnlyBuild = false }()
 
 	// Start fresh session/tracking state
-	engineInstance.refreshBuildSession()
+	engineInstance.refreshBuildSession(ctx)
 
 	return engineInstance.Assets.BuildAssetOnly(ctx, func(ctx context.Context) error {
 		engineInstance.Deps.Content.SetAssetsGate(nil)
@@ -99,7 +99,7 @@ func (engineInstance *Engine) buildAssetOnly(ctx context.Context) error {
 		}
 
 		// Remove original raster images when .webp equivalents exist
-		assets.CleanupOriginalImages(engineInstance.buildTransaction.StagingDir())
+		assets.CleanupOriginalImages(ctx, engineInstance.buildTransaction.StagingDir())
 
 		if commitError := engineInstance.buildTransaction.Commit(ctx); commitError != nil {
 			return fmt.Errorf("failed to publish build transaction: %w", commitError)
@@ -117,6 +117,10 @@ func (engineInstance *Engine) buildAssetOnly(ctx context.Context) error {
 
 // Build runs a full build with concurrency and locking safeguards.
 func (engineInstance *Engine) Build(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer engineInstance.buildWaitGroup.Wait()
+	defer cancel()
+
 	// Prevent concurrent builds
 	engineInstance.State.BuildMu.Lock()
 	defer engineInstance.State.BuildMu.Unlock()

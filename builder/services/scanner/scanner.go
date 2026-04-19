@@ -57,7 +57,12 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 	}
 
 	async.FireAndForget(contextValue, slog.Default(), "metadata scan stream", func() error {
-		sections := service.discoverSections(contextValue, options.SrcFs, options.ContentDir, options.Cfg)
+		sections, err := service.discoverSections(contextValue, options.SrcFs, options.ContentDir, options.Cfg)
+		if err != nil {
+			resultChan <- nil
+			errorChan <- err
+			return err
+		}
 
 		result := &models.MetadataScannerResult{
 			Files:         make([]models.ScannedResource, 0, scanResultFilesCap),
@@ -68,7 +73,7 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 		errorGroup, groupCtx := errgroup.WithContext(contextValue)
 		errorGroup.SetLimit(runtime.NumCPU() * scanConcurrencyMultiplier)
 
-		err := fspkg.ParallelWalk(fspkg.WalkOptions{
+		err = fspkg.ParallelWalk(fspkg.WalkOptions{
 			Ctx:         contextValue,
 			SourceFs:    options.SrcFs,
 			Root:        options.ContentDir,
@@ -98,8 +103,7 @@ func (service *metadataScanner) ScanStreaming(options ScanOptions) (<-chan *mode
 	return resultChan, errorChan
 }
 
-// discoverSections performs Pass 1: discover all _index.md files to build data cascade.
-func (service *metadataScanner) discoverSections(ctx context.Context, sourceFs afero.Fs, contentDir string, siteConfig *config.Config) map[string]map[string]any {
+func (service *metadataScanner) discoverSections(ctx context.Context, sourceFs afero.Fs, contentDir string, siteConfig *config.Config) (map[string]map[string]any, error) {
 	sections := make(map[string]map[string]any)
 	var sectionsMu sync.Mutex
 
@@ -128,11 +132,7 @@ func (service *metadataScanner) discoverSections(ctx context.Context, sourceFs a
 		},
 	})
 
-	if err != nil {
-		slog.Warn("Scanner Pass 1 (sections) failed", "error", err)
-	}
-
-	return sections
+	return sections, err
 }
 
 // processScanPath processes a single path during the scan walk.
@@ -341,7 +341,9 @@ func (service *metadataScanner) parseScannedMetadata(siteConfig *config.Config, 
 	dateObj, _ := time.ParseInLocation("2006-01-02", date, time.UTC)
 
 	taxonomies := make(map[string][]string)
+	taxonomyKeys := make([]string, 0, len(siteConfig.Taxonomies))
 	for taxKey := range siteConfig.Taxonomies {
+		taxonomyKeys = append(taxonomyKeys, taxKey)
 		if terms := timeutil.ExtractSliceFromMap(metadata, taxKey); len(terms) > 0 {
 			taxonomies[taxKey] = terms
 		}
@@ -359,6 +361,7 @@ func (service *metadataScanner) parseScannedMetadata(siteConfig *config.Config, 
 		IsDraft:     isDraft,
 		Weight:      weight,
 		Other:       metadata,
+		TaxonomyKeys: taxonomyKeys,
 	})
 
 	return models.ScannedResource{

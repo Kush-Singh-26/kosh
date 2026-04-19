@@ -17,7 +17,7 @@ import (
 
 	"github.com/spf13/afero"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -182,7 +182,7 @@ func (m *mockCacheService) DeleteItem(_ string) error    { return nil }
 func (m *mockCacheService) MarkDirty(_ string)           {}
 func (m *mockCacheService) IsDirty(_ string) bool        { return false }
 func (m *mockCacheService) ClearDirty()                  {}
-func (m *mockCacheService) Stats() (*cache.Stats, error) { return nil, nil }
+func (m *mockCacheService) Stats() (*core.CacheStats, error) { return nil, nil }
 func (m *mockCacheService) IncrementBuildCount() error   { return nil }
 func (m *mockCacheService) Close() error                 { return nil }
 

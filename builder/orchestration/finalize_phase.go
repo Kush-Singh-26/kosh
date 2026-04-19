@@ -53,7 +53,7 @@ func (engineInstance *Engine) finalizeBuild(ctx context.Context, wasmWaitGroup *
 
 	// Remove original raster images (.png/.jpg/.jpeg) when .webp equivalents exist.
 	// This ensures the published output contains only WebP images (except critical assets).
-	assets.CleanupOriginalImages(engineInstance.buildTransaction.StagingDir())
+	assets.CleanupOriginalImages(ctx, engineInstance.buildTransaction.StagingDir())
 
 	if err := engineInstance.buildTransaction.Commit(ctx); err != nil {
 		syncTimer.Stop()

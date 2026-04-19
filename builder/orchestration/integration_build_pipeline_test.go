@@ -50,7 +50,6 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		},
 		BuildOptions: config.BuildOptions{
 			ItemsPerPage: 10,
-			PostsPerPage: 10,
 		},
 		Features: models.FeaturesConfig{
 			Generators: models.GeneratorsConfig{
@@ -212,7 +211,6 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		},
 		BuildOptions: config.BuildOptions{
 			ItemsPerPage: 10,
-			PostsPerPage: 10,
 		},
 	}
 

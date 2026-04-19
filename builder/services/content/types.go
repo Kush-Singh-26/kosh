@@ -2,6 +2,7 @@ package content
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
@@ -35,6 +36,7 @@ type searchTask struct {
 // workerLocalState accumulates results within a single parse worker,
 // eliminating contention on the shared contentProcessContext.
 type workerLocalState struct {
+	mu              sync.Mutex
 	allItems         []models.ContentMetadata
 	pinnedItems      []models.ContentMetadata
 	taxonomyEntries  []taxonomyEntry

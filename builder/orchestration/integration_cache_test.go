@@ -10,6 +10,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestCacheService_DirtyTrackingIntegration(t *testing.T) {
@@ -63,9 +64,9 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 		Logger:  logger,
 	})
 
-	posts := []*cache.ContentMeta{
+	posts := []*models.ContentMeta{
 		{
-			ContentID:      "Content-1",
+			ContentID:   "Content-1",
 			Title:       "Content 1",
 			Path:        "content/posts/post1.md",
 			BodyHash:    "hash1",
@@ -73,7 +74,7 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 			ReadingTime: 1,
 		},
 		{
-			ContentID:      "Content-2",
+			ContentID:   "Content-2",
 			Title:       "Content 2",
 			Path:        "content/posts/post2.md",
 			BodyHash:    "hash2",
@@ -81,7 +82,7 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 			ReadingTime: 2,
 		},
 		{
-			ContentID:      "Content-3",
+			ContentID:   "Content-3",
 			Title:       "Content 3",
 			Path:        "content/posts/post3.md",
 			BodyHash:    "hash3",

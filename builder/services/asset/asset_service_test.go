@@ -371,7 +371,7 @@ func TestAssetService_Build_ImageCompression(t *testing.T) {
 	}
 
 	// Manually trigger cleanup as orchestration would do
-	assets.CleanupOriginalImages(outputDir)
+	assets.CleanupOriginalImages(context.Background(), outputDir)
 
 	originalOutputPath := filepath.Join(outputDir, "static", "images", "test.png")
 	if _, err := os.Stat(originalOutputPath); err == nil {

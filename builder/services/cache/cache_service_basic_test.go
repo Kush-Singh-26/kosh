@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -42,7 +42,7 @@ func TestCacheService_GetPost(t *testing.T) {
 	defer cleanup()
 
 	post := testutil.CreateSamplePostMeta()
-	posts := []*cache.ContentMeta{post}
+	posts := []*models.ContentMeta{post}
 	if err := service.BatchCommit(posts, nil, nil); err != nil {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestCacheService_ListAllItems(t *testing.T) {
 	post2 := testutil.CreateSamplePostMeta()
 	post2.ContentID = "post-2"
 
-	if err := service.BatchCommit([]*cache.ContentMeta{post1, post2}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*models.ContentMeta{post1, post2}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit posts: %v", err)
 	}
 
@@ -118,7 +118,7 @@ func TestCacheService_GetItemByPath(t *testing.T) {
 	post := testutil.CreateSamplePostMeta()
 	post.Path = "content/posts/my-post.md"
 
-	if err := service.BatchCommit([]*cache.ContentMeta{post}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*models.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 
@@ -165,7 +165,7 @@ func TestCacheService_GetItemsByIDs(t *testing.T) {
 	post3 := testutil.CreateSamplePostMeta()
 	post3.ContentID = "post-3"
 
-	if err := service.BatchCommit([]*cache.ContentMeta{post1, post2, post3}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*models.ContentMeta{post1, post2, post3}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit posts: %v", err)
 	}
 
@@ -192,7 +192,7 @@ func TestCacheService_DeleteItem(t *testing.T) {
 	defer cleanup()
 
 	post := testutil.CreateSamplePostMeta()
-	if err := service.BatchCommit([]*cache.ContentMeta{post}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*models.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 

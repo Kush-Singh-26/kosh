@@ -2,47 +2,48 @@
 package mocks
 
 import (
-	"context"
-	"maps"
+"context"
+"maps"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
-	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
-	"github.com/Kush-Singh-26/kosh/builder/models"
+"github.com/Kush-Singh-26/kosh/builder/cache/core"
+"github.com/Kush-Singh-26/kosh/builder/cache/gc"
+"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // MockCacheService is a test double for the cache service.
 type MockCacheService struct {
-	Posts              map[string]*cache.ContentMeta
-	PostsByPath        map[string]*cache.ContentMeta
-	HTML               map[string][]byte
-	SearchRecords      map[string]*cache.SearchRecord
-	Dirty              map[string]bool
-	SocialCardHashes   map[string]string
-	Fragments          map[string]string
-	GraphHash          string
-	WasmHash           string
-	SearchHash         string
-	Err                error
-	CallCount          map[string]int
-	BatchCommitPosts   []*cache.ContentMeta
-	BatchCommitRecords map[string]*cache.SearchRecord
-	BatchCommitDeps    map[string]*cache.Dependencies
-	GetItemByPathFn    func(path string) (*cache.ContentMeta, error)
+	Posts map[string]*models.ContentMeta
+	PostsByPath map[string]*models.ContentMeta
+	HTML map[string][]byte
+	SearchRecords map[string]*models.SearchRecord
+	Dirty map[string]bool
+	SocialCardHashes map[string]string
+	Fragments map[string][]byte
+	GraphHash string
+	WasmHash string
+	SearchHash string
+	Err error
+	CallCount map[string]int
+	BatchCommitPosts []*models.ContentMeta
+	BatchCommitRecords map[string]*models.SearchRecord
+	BatchCommitDeps map[string]*models.Dependencies
+	GetItemByPathFn func(path string) (*models.ContentMeta, error)
 }
 
 // NewMockCacheService returns a new mock cache service with initialized maps.
 func NewMockCacheService() *MockCacheService {
+
 	return &MockCacheService{
-		Posts:              make(map[string]*cache.ContentMeta),
-		PostsByPath:        make(map[string]*cache.ContentMeta),
-		HTML:               make(map[string][]byte),
-		SearchRecords:      make(map[string]*cache.SearchRecord),
-		Dirty:              make(map[string]bool),
-		SocialCardHashes:   make(map[string]string),
-		Fragments:          make(map[string]string),
-		CallCount:          make(map[string]int),
-		BatchCommitRecords: make(map[string]*cache.SearchRecord),
-		BatchCommitDeps:    make(map[string]*cache.Dependencies),
+		Posts: make(map[string]*models.ContentMeta),
+		PostsByPath: make(map[string]*models.ContentMeta),
+		HTML: make(map[string][]byte),
+		SearchRecords: make(map[string]*models.SearchRecord),
+		Dirty: make(map[string]bool),
+		SocialCardHashes: make(map[string]string),
+		Fragments: make(map[string][]byte),
+		CallCount: make(map[string]int),
+		BatchCommitRecords: make(map[string]*models.SearchRecord),
+		BatchCommitDeps: make(map[string]*models.Dependencies),
 	}
 }
 
@@ -54,7 +55,7 @@ func (m *MockCacheService) recordCall(method string) {
 }
 
 // GetItemByID returns the cached post by ID.
-func (m *MockCacheService) GetItemByID(id string) (*cache.ContentMeta, error) {
+func (m *MockCacheService) GetItemByID(id string) (*models.ContentMeta, error) {
 	m.recordCall("GetItemByID")
 	if m.Err != nil {
 		return nil, m.Err
@@ -76,7 +77,7 @@ func (m *MockCacheService) ListAllItems() ([]string, error) {
 }
 
 // GetItemByPath returns the cached post by its path.
-func (m *MockCacheService) GetItemByPath(path string) (*cache.ContentMeta, error) {
+func (m *MockCacheService) GetItemByPath(path string) (*models.ContentMeta, error) {
 	m.recordCall("GetItemByPath")
 	if m.GetItemByPathFn != nil {
 		return m.GetItemByPathFn(path)
@@ -88,12 +89,12 @@ func (m *MockCacheService) GetItemByPath(path string) (*cache.ContentMeta, error
 }
 
 // GetItemsByIDs returns cached posts for a set of IDs.
-func (m *MockCacheService) GetItemsByIDs(ids []string) (map[string]*cache.ContentMeta, error) {
+func (m *MockCacheService) GetItemsByIDs(ids []string) (map[string]*models.ContentMeta, error) {
 	m.recordCall("GetItemsByIDs")
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	result := make(map[string]*cache.ContentMeta)
+	result := make(map[string]*models.ContentMeta)
 	for _, id := range ids {
 		if post, ok := m.Posts[id]; ok {
 			result[id] = post
@@ -112,12 +113,12 @@ func (m *MockCacheService) GetItemsByTemplate(_ string) ([]string, error) {
 }
 
 // GetSearchRecords returns search records for the given IDs.
-func (m *MockCacheService) GetSearchRecords(ids []string) (map[string]*cache.SearchRecord, error) {
+func (m *MockCacheService) GetSearchRecords(ids []string) (map[string]*models.SearchRecord, error) {
 	m.recordCall("GetSearchRecords")
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	result := make(map[string]*cache.SearchRecord)
+	result := make(map[string]*models.SearchRecord)
 	for _, id := range ids {
 		if rec, ok := m.SearchRecords[id]; ok {
 			result[id] = rec
@@ -127,7 +128,7 @@ func (m *MockCacheService) GetSearchRecords(ids []string) (map[string]*cache.Sea
 }
 
 // GetSearchRecord returns a search record by ID.
-func (m *MockCacheService) GetSearchRecord(id string) (*cache.SearchRecord, error) {
+func (m *MockCacheService) GetSearchRecord(id string) (*models.SearchRecord, error) {
 	m.recordCall("GetSearchRecord")
 	if m.Err != nil {
 		return nil, m.Err
@@ -136,7 +137,7 @@ func (m *MockCacheService) GetSearchRecord(id string) (*cache.SearchRecord, erro
 }
 
 // GetHTMLContent returns cached HTML for a post.
-func (m *MockCacheService) GetHTMLContent(post *cache.ContentMeta) ([]byte, error) {
+func (m *MockCacheService) GetHTMLContent(post *models.ContentMeta) ([]byte, error) {
 	m.recordCall("GetHTMLContent")
 	if m.Err != nil {
 		return nil, m.Err
@@ -237,21 +238,21 @@ func (m *MockCacheService) SetSearchHash(hash string) error {
 }
 
 // GetFragment retrieves a cached fragment.
-func (m *MockCacheService) GetFragment(key string) (string, error) {
+func (m *MockCacheService) GetFragment(key string) ([]byte, error) {
 	m.recordCall("GetFragment")
 	if m.Err != nil {
-		return "", m.Err
+		return nil, m.Err
 	}
 	return m.Fragments[key], nil
 }
 
 // StoreFragment stores a fragment in the cache.
-func (m *MockCacheService) StoreFragment(key, content string) error {
+func (m *MockCacheService) StoreFragment(key string, data []byte) error {
 	m.recordCall("StoreFragment")
 	if m.Err != nil {
 		return m.Err
 	}
-	m.Fragments[key] = content
+	m.Fragments[key] = data
 	return nil
 }
 
@@ -277,7 +278,7 @@ func (m *MockCacheService) StoreHTML(content []byte) (string, error) {
 }
 
 // StoreHTMLForItem stores HTML content for a post and updates its fields.
-func (m *MockCacheService) StoreHTMLForItem(post *cache.ContentMeta, content []byte) error {
+func (m *MockCacheService) StoreHTMLForItem(post *models.ContentMeta, content []byte) error {
 	m.recordCall("StoreHTMLForItem")
 	if m.Err != nil {
 		return m.Err
@@ -295,7 +296,7 @@ func (m *MockCacheService) StoreHTMLForItem(post *cache.ContentMeta, content []b
 }
 
 // BatchCommit records a batch commit in the mock.
-func (m *MockCacheService) BatchCommit(posts []*cache.ContentMeta, records map[string]*cache.SearchRecord, deps map[string]*cache.Dependencies) error {
+func (m *MockCacheService) BatchCommit(posts []*models.ContentMeta, records map[string]*models.SearchRecord, deps map[string]*models.Dependencies) error {
 	m.recordCall("BatchCommit")
 	if m.Err != nil {
 		return m.Err
@@ -339,12 +340,12 @@ func (m *MockCacheService) ClearDirty() {
 }
 
 // Stats returns cache stats for the mock.
-func (m *MockCacheService) Stats() (*cache.Stats, error) {
+func (m *MockCacheService) Stats() (*core.CacheStats, error) {
 	m.recordCall("Stats")
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	return &cache.Stats{}, nil
+	return &core.CacheStats{}, nil
 }
 
 // IncrementBuildCount increments and returns the build count.
@@ -378,14 +379,14 @@ func (m *MockCacheService) Flush(_ context.Context) error {
 }
 
 // GetAllItemsMetadata returns a lightweight list of post metadata.
-func (m *MockCacheService) GetAllItemsMetadata() ([]cache.ContentListMeta, error) {
+func (m *MockCacheService) GetAllItemsMetadata() ([]models.ContentListMeta, error) {
 	m.recordCall("GetAllItemsMetadata")
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	var result []cache.ContentListMeta
+	var result []models.ContentListMeta
 	for _, post := range m.Posts {
-		result = append(result, cache.ContentListMeta{
+		result = append(result, models.ContentListMeta{
 			Title:      post.Title,
 			Link:       post.Link,
 			Weight:     post.Weight,

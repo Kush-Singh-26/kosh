@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	"github.com/yuin/goldmark/ast"
@@ -28,10 +29,10 @@ const (
 func slugify(s string) string {
 	s = strings.ToLower(s)
 	// Handle math placeholders to keep IDs stable and unique
-	mathRe := regexp.MustCompile(`<!--kosh_math:(.*?)-->`)
 	s = mathRe.ReplaceAllString(s, "math-$1")
 
-	var buf strings.Builder
+	buf := pools.SharedStringBuilderPool.Get()
+	defer pools.SharedStringBuilderPool.Put(buf)
 	buf.Grow(len(s))
 	for _, r := range s {
 		if ('a' <= r && r <= 'z') || ('0' <= r && r <= '9') {
@@ -107,6 +108,13 @@ type transformState struct {
 }
 
 var (
+	mathRe      = regexp.MustCompile(`<!--kosh_math:(.*?)-->`)
+	mathRegRe   = regexp.MustCompile(`<!--KOSH_MATH_REG:(.*?):(.*?):(.*?):(.*?)-->`)
+	tocRegRe    = regexp.MustCompile(`<!--KOSH_TOC_REG:(.*?)-->`)
+	searchRegRe = regexp.MustCompile(`<!--KOSH_SEARCH_REG:(.*?)-->`)
+	d2RegRe     = regexp.MustCompile(`<!--KOSH_D2_REG:(.*?):(.*?):(.*?)-->`)
+	imgRe       = regexp.MustCompile(`(?i)<img\b[^>]*?\balt=["'](.*?)["'][^>]*?>`)
+
 	transformStatePool = sync.Pool{
 		New: func() any {
 			return &transformState{
@@ -330,7 +338,8 @@ func (s *transformState) checkImageA11y(img *ast.Image) {
 }
 
 func (s *transformState) handleImageCaption(img *ast.Image) {
-	var altSB strings.Builder
+	altSB := pools.SharedStringBuilderPool.Get()
+	defer pools.SharedStringBuilderPool.Put(altSB)
 	for child := img.FirstChild(); child != nil; child = child.NextSibling() {
 		if tNode, ok := child.(*ast.Text); ok {
 			altSB.Write(tNode.Segment.Value(s.source))
@@ -379,7 +388,8 @@ func (s *transformState) handleHTML(n ast.Node, kind ast.NodeKind) {
 }
 
 func (s *transformState) extractHTML(n ast.Node, kind ast.NodeKind) string {
-	var sb strings.Builder
+	sb := pools.SharedStringBuilderPool.Get()
+	defer pools.SharedStringBuilderPool.Put(sb)
 	if kind == ast.KindHTMLBlock {
 		hb := n.(*ast.HTMLBlock)
 		for i := 0; i < hb.Lines().Len(); i++ {
@@ -397,7 +407,6 @@ func (s *transformState) extractHTML(n ast.Node, kind ast.NodeKind) string {
 }
 
 func (s *transformState) recoverMath(htmlContent string) {
-	mathRegRe := regexp.MustCompile(`<!--KOSH_MATH_REG:(.*?):(.*?):(.*?):(.*?)-->`)
 	mathMatches := mathRegRe.FindAllStringSubmatch(htmlContent, -1)
 	for _, m := range mathMatches {
 		if len(m) < 5 {
@@ -422,7 +431,6 @@ func (s *transformState) recoverMath(htmlContent string) {
 }
 
 func (s *transformState) recoverTOC(htmlContent string) {
-	tocRegRe := regexp.MustCompile(`<!--KOSH_TOC_REG:(.*?)-->`)
 	tocMatches := tocRegRe.FindAllStringSubmatch(htmlContent, -1)
 	for _, m := range tocMatches {
 		if len(m) < 2 {
@@ -439,7 +447,6 @@ func (s *transformState) recoverTOC(htmlContent string) {
 }
 
 func (s *transformState) recoverSearch(htmlContent string) {
-	searchRegRe := regexp.MustCompile(`<!--KOSH_SEARCH_REG:(.*?)-->`)
 	searchMatches := searchRegRe.FindAllStringSubmatch(htmlContent, -1)
 	for _, m := range searchMatches {
 		if len(m) < 2 {
@@ -453,7 +460,6 @@ func (s *transformState) recoverSearch(htmlContent string) {
 }
 
 func (s *transformState) recoverD2(htmlContent string) {
-	d2RegRe := regexp.MustCompile(`<!--KOSH_D2_REG:(.*?):(.*?):(.*?)-->`)
 	d2Matches := d2RegRe.FindAllStringSubmatch(htmlContent, -1)
 	for _, m := range d2Matches {
 		if len(m) < 4 {
@@ -474,7 +480,6 @@ func (s *transformState) recoverD2(htmlContent string) {
 }
 
 func (s *transformState) processImages(n ast.Node, kind ast.NodeKind, htmlContent string) {
-	imgRe := regexp.MustCompile(`(?i)<img\b[^>]*?\balt=["'](.*?)["'][^>]*?>`)
 	if !imgRe.MatchString(htmlContent) {
 		return
 	}
@@ -505,7 +510,8 @@ func (s *transformState) processImages(n ast.Node, kind ast.NodeKind, htmlConten
 func (s *transformState) handleD2(cb *ast.FencedCodeBlock) {
 	lang := string(cb.Language(s.source))
 	if lang == "d2" {
-		var lines strings.Builder
+		lines := pools.SharedStringBuilderPool.Get()
+		defer pools.SharedStringBuilderPool.Put(lines)
 		l := cb.Lines().Len()
 		for i := 0; i < l; i++ {
 			line := cb.Lines().At(i)
@@ -596,7 +602,8 @@ func (s *transformState) extractLaTeX(n ast.Node, kind ast.NodeKind) (latex stri
 		displayMode = false
 	case passthrough.KindPassthroughBlock:
 		m := n.(*passthrough.PassthroughBlock)
-		var sb strings.Builder
+		sb := pools.SharedStringBuilderPool.Get()
+		defer pools.SharedStringBuilderPool.Put(sb)
 		l := m.Lines().Len()
 		for i := 0; i < l; i++ {
 			line := m.Lines().At(i)

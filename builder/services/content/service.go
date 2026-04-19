@@ -93,7 +93,7 @@ func (service *contentService) ProcessShortcodes(source []byte) ([]byte, error) 
 	return service.shortcodes.Process(source)
 }
 
-func (service *contentService) generateJSONLD(item models.ContentMetadata, cardImageURL string) template.HTML {
+func (service *contentService) generateJSONLD(item models.ContentMetadata, cardImageURL string) template.JS {
 	jsonld, err := models.GenerateContentJSONLD(item, service.cfg.Author, cardImageURL, service.cfg.ArticleType)
 	if err != nil {
 		service.logger.Error("Failed to generate JSON-LD", "post", item.Link, "error", err)

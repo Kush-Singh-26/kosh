@@ -37,26 +37,33 @@ func (engineInstance *Engine) scanPhase(ctx context.Context, contentAssetsChan c
 	if logger == nil {
 		logger = slog.Default()
 	}
-		async.FireAndForget(ctx, logger, "metadata scan", func() error {
-		defer close(scannerReady)
-		defer close(fileChannel)
-		defer close(metadataResultChan)
-		defer close(scannerErrChan)
+	engineInstance.buildWaitGroup.Add(1)
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "metadata scan",
+		Fn: func() error {
+			defer close(scannerReady)
+			defer close(fileChannel)
+			defer close(metadataResultChan)
+			defer close(scannerErrChan)
 
-		metadataResult, scannerError := engineInstance.Deps.Scanner.Scan(scanner.ScanOptions{
-			Ctx:        ctx,
-			ContentDir: engineInstance.Cfg.ContentDir,
-			SrcFs:      engineInstance.Deps.SourceFs,
-			Cfg:        engineInstance.Cfg,
-			FileChan:   fileChannel,
-		})
-		if scannerError == nil {
-			contentAssetsChan <- metadataResult.ContentAssets
-		}
-		// Always send result and error (even if nil).
-		metadataResultChan <- metadataResult
-		scannerErrChan <- scannerError
-		return nil
+			metadataResult, scannerError := engineInstance.Deps.Scanner.Scan(scanner.ScanOptions{
+				Ctx:        ctx,
+				ContentDir: engineInstance.Cfg.ContentDir,
+				SrcFs:      engineInstance.Deps.SourceFs,
+				Cfg:        engineInstance.Cfg,
+				FileChan:   fileChannel,
+			})
+			if scannerError == nil {
+				contentAssetsChan <- metadataResult.ContentAssets
+			}
+			// Always send result and error (even if nil).
+			metadataResultChan <- metadataResult
+			scannerErrChan <- scannerError
+			return nil
+		},
+		Cleanup: engineInstance.buildWaitGroup.Done,
 	})
 
 	return &buildScanResult{

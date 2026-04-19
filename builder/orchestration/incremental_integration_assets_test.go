@@ -51,7 +51,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 			CacheDir:    cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
-			PostsPerPage: 10,
+			ItemsPerPage: 10,
 		},
 	}
 
@@ -186,7 +186,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 			CacheDir:    cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
-			PostsPerPage: 10,
+			ItemsPerPage: 10,
 		},
 	}
 

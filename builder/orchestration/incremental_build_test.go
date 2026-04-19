@@ -61,7 +61,7 @@ Initial body.
 			CacheDir:    cacheDir,
 		},
 		BuildOptions: config.BuildOptions{
-			PostsPerPage: 10,
+			ItemsPerPage: 10,
 		},
 	}
 

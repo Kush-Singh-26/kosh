@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/afero"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestIsAssetPath(t *testing.T) {
@@ -160,7 +160,7 @@ func TestInvalidateForTemplate(t *testing.T) {
 }
 
 func TestModTimeQuickBail(t *testing.T) {
-	cachedMeta := &cache.ContentMeta{
+	cachedMeta := &models.ContentMeta{
 		ModTime:  1000,
 		BodyHash: "hash123",
 	}

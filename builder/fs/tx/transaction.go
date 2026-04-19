@@ -27,7 +27,7 @@ const (
 type BuildTransaction interface {
 	StagingDir() string
 	Commit(ctx context.Context) error
-	Rollback() error
+	Rollback(ctx context.Context) error
 	GetLastBuildTime() time.Time
 }
 
@@ -45,7 +45,7 @@ var buildTxnCounter atomic.Uint64
 // CleanupStaleBuildDirs removes stale staging and backup directories from previous builds.
 // This should be called explicitly before NewBuildTransaction if cleanup is desired.
 // Only removes directories older than 1 hour to avoid deleting active builds.
-func CleanupStaleBuildDirs(outputDir string) {
+func CleanupStaleBuildDirs(ctx context.Context, outputDir string) {
 	parent := filepath.Dir(outputDir)
 	base := filepath.Base(outputDir)
 	entries, err := os.ReadDir(parent)
@@ -62,7 +62,7 @@ func CleanupStaleBuildDirs(outputDir string) {
 			if info, err := os.Stat(fullPath); err == nil {
 				// Only cleanup if older than 1 hour to avoid deleting active staging dirs from other processes
 				if time.Since(info.ModTime()) > time.Hour {
-					_ = retry.RemoveAllWithRetry(context.Background(), fullPath, cleanupRetryMax, cleanupRetryDelay)
+					_ = retry.RemoveAllWithRetry(ctx, fullPath, cleanupRetryMax, cleanupRetryDelay)
 				}
 			}
 		}
@@ -71,7 +71,7 @@ func CleanupStaleBuildDirs(outputDir string) {
 
 // NewBuildTransaction initializes a transaction. If isCleanBuild is true, it uses a .tmp directory for staging.
 // Caller is responsible for calling CleanupStaleBuildDirs(outputDir) before this function if cleanup is desired.
-func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
+func NewBuildTransaction(ctx context.Context, outputDir string, isCleanBuild bool) *DirectoryTx {
 	outputDir = fspkg.NormalizePath(outputDir)
 	var stagingDir string
 	var backupDir string
@@ -85,7 +85,7 @@ func NewBuildTransaction(outputDir string, isCleanBuild bool) *DirectoryTx {
 			name := entry.Name()
 			if strings.HasPrefix(name, base+".bak-") {
 				fullPath := filepath.Join(parent, name)
-				_ = retry.RemoveAllWithRetry(context.Background(), fullPath, cleanupRetryMax, cleanupRetryDelay)
+				_ = retry.RemoveAllWithRetry(ctx, fullPath, cleanupRetryMax, cleanupRetryDelay)
 			}
 		}
 		timestamp := fmt.Sprintf("%d-%d", time.Now().UnixNano(), buildTxnCounter.Add(1))
@@ -118,52 +118,12 @@ func (txn *DirectoryTx) Commit(ctx context.Context) error {
 		return nil // No swap needed for incremental builds
 	}
 
-	// 1. Rename outputDir -> outputDir.bak (if it exists)
-	backupDir := txn.backupDir
-	if _, err := os.Stat(txn.realOutputDir); err == nil {
-		// Try to remove old backup if it somehow exists
-		_ = retry.RemoveAllWithRetry(ctx, backupDir, cleanupRetryMax, cleanupRetryDelay)
-		if err := retry.RenameWithRetry(retry.RenameOptions{
-			Ctx:        ctx,
-			OldPath:    txn.realOutputDir,
-			NewPath:    backupDir,
-			MaxRetries: renameRetryMax,
-			BaseDelay:  renameRetryDelay,
-		}); err != nil {
-			return fmt.Errorf("failed to backup output directory: %w", err)
-		}
+	if err := txn.backupCurrentOutput(ctx); err != nil {
+		return err
 	}
 
-	// 2. Rename outputDir.tmp -> outputDir
-	if err := retry.RenameWithRetry(retry.RenameOptions{
-		Ctx:        ctx,
-		OldPath:    txn.stagingDir,
-		NewPath:    txn.realOutputDir,
-		MaxRetries: renameRetryMax,
-		BaseDelay:  renameRetryDelay,
-	}); err != nil {
-		// Attempt to restore backup on failure
-		var rollbackErr error
-		if backupDir != "" {
-			rollbackErr = retry.RenameWithRetry(retry.RenameOptions{
-				Ctx:        ctx,
-				OldPath:    backupDir,
-				NewPath:    txn.realOutputDir,
-				MaxRetries: renameRetryMax,
-				BaseDelay:  renameRetryDelay,
-			})
-			if rollbackErr != nil {
-				slog.Error("CRITICAL: Both publish and rollback failed",
-					"publish_error", err,
-					"rollback_error", rollbackErr,
-					"staging_dir", txn.stagingDir,
-					"backup_dir", backupDir)
-			}
-		}
-		if rollbackErr != nil {
-			return fmt.Errorf("failed to publish staging directory: %w (rollback also failed: %w)", err, rollbackErr)
-		}
-		return fmt.Errorf("failed to publish staging directory: %w (rolled back successfully)", err)
+	if err := txn.publishStaging(ctx); err != nil {
+		return err
 	}
 
 	// 3. Commit complete. Remove backup directory as it's no longer needed for rollback.
@@ -174,13 +134,74 @@ func (txn *DirectoryTx) Commit(ctx context.Context) error {
 	return nil
 }
 
+func (txn *DirectoryTx) backupCurrentOutput(ctx context.Context) error {
+	if _, err := os.Stat(txn.realOutputDir); err != nil {
+		return nil // No output to backup
+	}
+	// Try to remove old backup if it somehow exists
+	_ = retry.RemoveAllWithRetry(ctx, txn.backupDir, cleanupRetryMax, cleanupRetryDelay)
+	if err := retry.RenameWithRetry(retry.RenameOptions{
+		Ctx:        ctx,
+		OldPath:    txn.realOutputDir,
+		NewPath:    txn.backupDir,
+		MaxRetries: renameRetryMax,
+		BaseDelay:  renameRetryDelay,
+	}); err != nil {
+		return fmt.Errorf("failed to backup output directory: %w", err)
+	}
+	return nil
+}
+
+func (txn *DirectoryTx) publishStaging(ctx context.Context) error {
+	if err := retry.RenameWithRetry(retry.RenameOptions{
+		Ctx:        ctx,
+		OldPath:    txn.stagingDir,
+		NewPath:    txn.realOutputDir,
+		MaxRetries: renameRetryMax,
+		BaseDelay:  renameRetryDelay,
+	}); err != nil {
+		return txn.handlePublishFailure(ctx, err)
+	}
+	return nil
+}
+
+func (txn *DirectoryTx) handlePublishFailure(ctx context.Context, err error) error {
+	var rollbackErr error
+	if txn.backupDir != "" {
+		rollbackErr = retry.RenameWithRetry(retry.RenameOptions{
+			Ctx:        ctx,
+			OldPath:    txn.backupDir,
+			NewPath:    txn.realOutputDir,
+			MaxRetries: renameRetryMax,
+			BaseDelay:  renameRetryDelay,
+		})
+		if rollbackErr != nil {
+			slog.Error("CRITICAL: Both publish and rollback failed",
+				"publish_error", err,
+				"rollback_error", rollbackErr,
+				"staging_dir", txn.stagingDir,
+				"backup_dir", txn.backupDir)
+			_ = retry.RemoveAllWithRetry(ctx, txn.stagingDir, cleanupRetryMax, cleanupRetryDelay)
+		}
+	}
+
+	if rollbackErr == nil {
+		_ = retry.RemoveAllWithRetry(ctx, txn.stagingDir, cleanupRetryMax, cleanupRetryDelay)
+	}
+
+	if rollbackErr != nil {
+		return fmt.Errorf("failed to publish staging directory: %w (rollback also failed: %w)", err, rollbackErr)
+	}
+	return fmt.Errorf("failed to publish staging directory: %w (rolled back successfully)", err)
+}
+
 // Rollback cleans up the staging directory after a failed publish.
-func (txn *DirectoryTx) Rollback() error {
+func (txn *DirectoryTx) Rollback(ctx context.Context) error {
 	if txn.isCommitted || !txn.isCleanBuild {
 		return nil
 	}
 	// Clean up staging dir on failure
-	return retry.RemoveAllWithRetry(context.Background(), txn.stagingDir, cleanupRetryMax, cleanupRetryDelay)
+	return retry.RemoveAllWithRetry(ctx, txn.stagingDir, cleanupRetryMax, cleanupRetryDelay)
 }
 
 // GetLastBuildTime returns the mod time of the output directory.

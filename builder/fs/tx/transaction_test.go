@@ -9,9 +9,10 @@ import (
 )
 
 func TestNewBuildTransaction_UsesUniqueDirsForCleanBuild(t *testing.T) {
+	ctx := context.Background()
 	outputDir := filepath.Join(t.TempDir(), "public")
-	tx1 := NewBuildTransaction(outputDir, true)
-	tx2 := NewBuildTransaction(outputDir, true)
+	tx1 := NewBuildTransaction(ctx, outputDir, true)
+	tx2 := NewBuildTransaction(ctx, outputDir, true)
 
 	if tx1.StagingDir() == tx2.StagingDir() {
 		t.Fatalf("expected unique staging dirs, got %s", tx1.StagingDir())
@@ -43,7 +44,7 @@ func TestCleanupStaleBuildDirs_RemovesOldTempDirs(t *testing.T) {
 	_ = os.Chtimes(staleTmp, oldTime, oldTime)
 	_ = os.Chtimes(staleBak, oldTime, oldTime)
 
-	CleanupStaleBuildDirs(outputDir)
+	CleanupStaleBuildDirs(context.Background(), outputDir)
 
 	if _, err := os.Stat(staleTmp); !os.IsNotExist(err) {
 		t.Fatalf("expected stale tmp dir removed")
@@ -58,8 +59,9 @@ func TestCleanupStaleBuildDirs_RemovesOldTempDirs(t *testing.T) {
 
 // TestTransaction_RenameFailure verifies retry logic on rename failure
 func TestTransaction_RenameFailure(t *testing.T) {
+	ctx := context.Background()
 	outputDir := filepath.Join(t.TempDir(), "public")
-	txn := NewBuildTransaction(outputDir, true)
+	txn := NewBuildTransaction(ctx, outputDir, true)
 
 	// Create a file in staging
 	stagingFile := filepath.Join(txn.StagingDir(), "test.txt")
@@ -95,7 +97,8 @@ func TestTransaction_RollbackRestoresState(t *testing.T) {
 		t.Fatalf("failed to create initial file: %v", err)
 	}
 
-	txn := NewBuildTransaction(outputDir, true)
+	ctx := context.Background()
+	txn := NewBuildTransaction(ctx, outputDir, true)
 
 	// Create file in staging
 	stagingFile := filepath.Join(txn.StagingDir(), "new.txt")
@@ -107,7 +110,7 @@ func TestTransaction_RollbackRestoresState(t *testing.T) {
 	}
 
 	// Rollback (simulating failed build)
-	_ = txn.Rollback()
+	_ = txn.Rollback(ctx)
 
 	// Initial file should still exist
 	if _, err := os.Stat(initialFile); err != nil {
@@ -123,13 +126,14 @@ func TestTransaction_RollbackRestoresState(t *testing.T) {
 
 // TestTransaction_ConcurrentBuildAttempts verifies unique temp dirs prevent conflicts
 func TestTransaction_ConcurrentBuildAttempts(t *testing.T) {
+	ctx := context.Background()
 	outputDir := filepath.Join(t.TempDir(), "public")
 
 	// Create multiple transactions concurrently
 	const numConcurrent = 5
 	txs := make([]*DirectoryTx, numConcurrent)
 	for i := 0; i < numConcurrent; i++ {
-		txs[i] = NewBuildTransaction(outputDir, true)
+		txs[i] = NewBuildTransaction(ctx, outputDir, true)
 	}
 
 	// Verify all have unique staging dirs

@@ -197,7 +197,7 @@ func (service *assetService) setupAssetWorker(ctx context.Context, assetChan <-c
 				group.Go(func() error {
 					destinationPath := filepath.Join(service.cfg.OutputDir, currentTask.relativePath)
 					options := assets.CopyOptions{
-						Compress:     service.cfg.ShouldCompressImages,
+						Compress:     service.cfg.ShouldCompressImages && service.isWebPCandidate(currentTask.sourcePath),
 						MinifySVGs:   service.cfg.ShouldMinify,
 						KeepOriginal: false,
 						CacheDir:     service.cfg.CacheDir + "/images",

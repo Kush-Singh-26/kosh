@@ -2,7 +2,6 @@ package orchestration
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"path/filepath"
 	"runtime"
@@ -10,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
+	assetpkg "github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
@@ -114,9 +114,13 @@ func (setup *buildSetup) initNativeRenderer() {
 		workers = setup.config.ParserWorkers
 	}
 	buildScheduler := setup.ctx.Scheduler
-	setup.nativeRenderer = native.New(native.WithWorkers(workers), native.WithScheduler(buildScheduler))
-	async.FireAndForget(context.Background(), setup.logger, "native renderer warmup", func() error {
-		setup.nativeRenderer.EnsureInitialized(context.Background())
+	setup.nativeRenderer = native.New(
+		native.WithWorkers(workers),
+		native.WithScheduler(buildScheduler),
+		native.WithContext(setup.ctx.Ctx),
+	)
+	async.FireAndForget(setup.ctx.Ctx, setup.logger, "native renderer warmup", func() error {
+		setup.nativeRenderer.EnsureInitialized(setup.ctx.Ctx)
 		return nil
 	})
 
@@ -143,6 +147,9 @@ func (setup *buildSetup) initNativeRenderer() {
 func (setup *buildSetup) initServices() {
 	rendererInstance := setup.createRenderer()
 	assetsReady := make(chan struct{})
+
+	// Initialize background image cache writer with proper context and logger
+	assetpkg.InitImageCacheWriter(setup.ctx.Ctx, setup.logger)
 
 	setup.renderSvc = render.NewService(render.Dependencies{
 		Ctx:      setup.ctx,

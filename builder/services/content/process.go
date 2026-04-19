@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
-	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
@@ -173,8 +172,16 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 	numWorkers := models.GetDefaultWorkerCount()
 
 	cardPool, searchPool := service.setupStreamingContext(ctx, numWorkers)
-	defer func() { buildctx.IgnoreError(cardPool.Stop(), "stop card pool") }()
-	defer func() { buildctx.IgnoreError(searchPool.Stop(), "stop search pool") }()
+	defer func() {
+		if err := cardPool.Stop(); err != nil {
+			service.logger.Error("Failed to stop card pool", "error", err)
+		}
+	}()
+	defer func() {
+		if err := searchPool.Stop(); err != nil {
+			service.logger.Error("Failed to stop search pool", "error", err)
+		}
+	}()
 
 	processCtx := service.newcontentProcessContext(len(opts.Files))
 	logger := service.getLogger()
@@ -201,10 +208,6 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 
 	if err != nil {
 		return nil, err
-	}
-
-	if err := searchPool.Stop(); err != nil {
-		service.logger.Error("Failed to stop search pool", "error", err)
 	}
 
 	service.finalizeBuild(processCtx)
@@ -304,6 +307,8 @@ func (service *contentService) runStreamingParsePhase(numWorkers int, fileChan <
 
 	parsePool := async.NewWorkerPool(workerCtx.Ctx, numWorkers, func(file models.ScannedResource) error {
 		idx := int(workerIdx.Add(1)-1) % numWorkers
+		locals[idx].mu.Lock()
+		defer locals[idx].mu.Unlock()
 		service.parseWorkerTaskLocal(file, workerCtx, locals[idx])
 		return nil
 	}).WithScheduler(service.ctx.Scheduler, scheduler.TaskMarkdown)
@@ -400,5 +405,7 @@ func (service *contentService) runStreamingRenderPhase(ctx context.Context, numW
 	for _, renderTaskInstance := range tasks {
 		renderPool.Submit(renderTaskInstance)
 	}
-	buildctx.IgnoreError(renderPool.Stop(), "stop render pool")
+	if err := renderPool.Stop(); err != nil {
+		service.logger.Error("Failed to stop render pool", "error", err)
+	}
 }

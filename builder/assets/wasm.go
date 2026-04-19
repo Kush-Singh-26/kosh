@@ -237,12 +237,14 @@ func CalculateSearchSourceHash(repoRoot string) (string, error) {
 	sort.Strings(files)
 
 	for _, file := range files {
-		f, err := os.Open(file)
-		if err != nil {
-			continue
-		}
-		_, _ = io.Copy(hasher, f)
-		_ = f.Close()
+		func() {
+			f, err := os.Open(file)
+			if err != nil {
+				return
+			}
+			defer func() { _ = f.Close() }()
+			_, _ = io.Copy(hasher, f)
+		}()
 	}
 
 	sum := hasher.Sum128()

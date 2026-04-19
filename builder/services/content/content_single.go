@@ -9,18 +9,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/afero"
-
 	"github.com/Kush-Singh-26/kosh/builder/async"
-	"github.com/Kush-Singh-26/kosh/builder/cache"
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
-	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
-
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
+	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/spf13/afero"
 )
 
 // ProcessSingle processes and renders a single markdown file.
@@ -113,7 +113,9 @@ func (service *contentService) renderMathSSR(ctx context.Context, html string, r
 		return html, nil
 	}
 
-	cached := make(map[string]string)
+	cached := pools.SharedMapStringStringPool.Get()
+	defer pools.SharedMapStringStringPool.Put(cached)
+
 	if service.diagramAdapter != nil {
 		for _, expr := range result.MathExpressions {
 			key := "math:" + expr.Hash
@@ -149,7 +151,9 @@ func (service *contentService) renderD2SSR(ctx context.Context, html string, res
 		return html, nil
 	}
 
-	cached := make(map[string]models.SSRThemePair)
+	cached := pools.SharedMapStringSSRThemePairPool.Get()
+	defer pools.SharedMapStringSSRThemePairPool.Put(cached)
+
 	if service.diagramAdapter != nil {
 		for _, expr := range result.D2Expressions {
 			key := "d2:" + expr.Hash
@@ -210,6 +214,7 @@ func (service *contentService) ProcessSingleWithResult(ctx context.Context, path
 			relPath:     relPath,
 			info:        info,
 			htmlContent: htmlContent,
+			source:      source,
 		})
 		cardRelPath, cardDestPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
 		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
@@ -352,6 +357,7 @@ type commitContentCacheOptions struct {
 	relPath     string
 	info        os.FileInfo
 	htmlContent string
+	source      []byte
 }
 
 func (service *contentService) commitContentCache(options commitContentCacheOptions) {
@@ -365,7 +371,7 @@ func (service *contentService) commitContentCache(options commitContentCacheOpti
 		panic("commitContentCache: relPath is empty")
 	}
 
-	ContentID := cache.GenerateContentID("", options.relPath)
+	ContentID := core.GenerateContentID("", options.relPath)
 	newMeta := service.buildCacheMeta(options, ContentID)
 
 	if err := service.cache.StoreHTMLForItem(newMeta, []byte(options.htmlContent)); err != nil {
@@ -375,32 +381,32 @@ func (service *contentService) commitContentCache(options commitContentCacheOpti
 	newSearch := service.buildSearchRecord(options.parseRes)
 	newDep := &models.Dependencies{Taxonomies: options.item.Taxonomies}
 
-	service.cacheWg.Add(1)
+service.cacheWg.Add(1)
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-		Ctx:       context.Background(),
-		Logger:    service.logger,
+		Ctx: service.ctx.Ctx,
+		Logger: service.logger,
 		Operation: "cache commit",
 		Fn: func() error {
-			timer := timeutil.StartPhase("Cache commit (incremental)")
-			if err := service.cache.BatchCommit([]*cache.ContentMeta{newMeta}, map[string]*cache.SearchRecord{ContentID: newSearch}, map[string]*models.Dependencies{ContentID: newDep}); err != nil {
-				service.logger.Error("Failed to commit post to cache", "path", options.relPath, "error", err)
-			}
-			timer.Stop()
-			return nil
-		},
-		Cleanup: service.cacheWg.Done,
-	})
+		timer := timeutil.StartPhase("Cache commit (incremental)")
+		if err := service.cache.BatchCommit([]*models.ContentMeta{newMeta}, map[string]*models.SearchRecord{ContentID: newSearch}, map[string]*models.Dependencies{ContentID: newDep}); err != nil {
+			service.logger.Error("Failed to commit post to cache", "path", options.relPath, "error", err)
+		}
+		timer.Stop()
+		return nil
+	},
+	Cleanup: service.cacheWg.Done,
+})
 }
 
-func (service *contentService) buildCacheMeta(options commitContentCacheOptions, contentID string) *cache.ContentMeta {
+func (service *contentService) buildCacheMeta(options commitContentCacheOptions, contentID string) *models.ContentMeta {
 	cacheTOC := make([]models.TOCEntry, len(options.parseRes.TOC))
 	for idx, tocEntry := range options.parseRes.TOC {
 		cacheTOC[idx] = models.TOCEntry{ID: tocEntry.ID, Text: tocEntry.Text, Level: tocEntry.Level}
 	}
 
-	return &cache.ContentMeta{
+	return &models.ContentMeta{
 		ContentID: contentID, Path: options.relPath, ModTime: options.info.ModTime().UnixNano(),
-		ContentHash: options.parseRes.FrontmatterHash, BodyHash: hashing.GetBodyHash(nil),
+		ContentHash: options.parseRes.FrontmatterHash, BodyHash: hashing.GetBodyHash(options.source),
 		Title: options.item.Title, Date: options.item.DateObj, Taxonomies: options.item.Taxonomies,
 		ReadingTime: options.item.ReadingTime, Description: options.item.Description,
 		Link: options.item.Link, IsPinned: options.item.IsPinned, Weight: options.item.Weight,
@@ -412,8 +418,8 @@ func (service *contentService) buildCacheMeta(options commitContentCacheOptions,
 	}
 }
 
-func (service *contentService) buildSearchRecord(parseRes *ParsedMarkdownResult) *cache.SearchRecord {
-	return &cache.SearchRecord{
+func (service *contentService) buildSearchRecord(parseRes *ParsedMarkdownResult) *models.SearchRecord {
+	return &models.SearchRecord{
 		Title:           parseRes.Item.Title,
 		NormalizedTitle: strings.ToLower(parseRes.Item.Title),
 		WordFreqs:       parseRes.WordFreqs,

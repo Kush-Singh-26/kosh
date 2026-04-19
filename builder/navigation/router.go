@@ -20,25 +20,26 @@ type PostPaths struct {
 
 // ComputePathVars returns HTML-relative and destination paths for a post.
 func ComputePathVars(outputDir, relPath string) (string, string, string) {
-	relPath = filepath.ToSlash(relPath)
+	relPath = fs.NormalizePath(relPath)
 	htmlRelPath := fs.MarkdownToHTMLPath(relPath)
 
 	cleanHTMLRelPath := htmlRelPath
-	destPath := filepath.Join(outputDir, htmlRelPath)
+	destPath := filepath.Join(outputDir, filepath.FromSlash(htmlRelPath))
 	return htmlRelPath, cleanHTMLRelPath, destPath
 }
 
 // BuildAbsoluteURL joins a base URL with a relative path.
 func BuildAbsoluteURL(baseURL, relPath string) string {
 	baseURL = strings.TrimSuffix(baseURL, "/")
-	relPath = strings.TrimPrefix(relPath, "/")
+	relPath = strings.TrimPrefix(fs.NormalizePath(relPath), "/")
 	return baseURL + "/" + relPath
 }
 
 // CardPaths computes social card paths and URLs for a post.
 func CardPaths(baseURL, outputDir, htmlRelPath string) (string, string, string) {
+	htmlRelPath = fs.NormalizePath(htmlRelPath)
 	cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
-	cardDestPath := filepath.ToSlash(filepath.Join(outputDir, "static", "images", "cards", cardRelPath))
+	cardDestPath := filepath.Join(outputDir, "static", "images", "cards", filepath.FromSlash(cardRelPath))
 	cardImageURL := baseURL + "/static/images/cards/" + cardRelPath
 	return cardRelPath, cardDestPath, cardImageURL
 }

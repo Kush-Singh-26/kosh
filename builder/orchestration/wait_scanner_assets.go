@@ -52,9 +52,10 @@ func (engineInstance *Engine) waitForScannerAndAssets(options WaitScannerAssetsO
 	select {
 	case err := <-assetErrorChan:
 		assetError = err
+	case <-discoverySignal:
+		// Discovery ready, continue
 	case <-workingContext.Done():
 		return nil, nil, nil, nil, workingContext.Err()
-	default:
 	}
 
 	return metadataResult, discoverySignal, scannerError, assetError, nil

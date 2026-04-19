@@ -258,21 +258,22 @@ func relativizeAsset(assetPath, baseURL, relativePrefix string) string {
 
 	// If baseURL is provided, prepend it
 	if baseURL != "" {
-		return baseURL + assetPath
+		return strings.TrimSuffix(baseURL, "/") + "/" + strings.TrimPrefix(filepath.ToSlash(assetPath), "/")
 	}
 
 	// Handle root-relative prefix specifically
 	if relativePrefix == "/" {
-		return assetPath
+		return filepath.ToSlash(assetPath)
 	}
 
 	// If relativePrefix is provided, prepend it (for moving up directories)
 	// But first, strip leading slash from assetPath to avoid double slashes
 	if relativePrefix != "" {
-		if len(assetPath) > 0 && assetPath[0] == '/' {
-			return relativePrefix + assetPath[1:]
+		prefix := relativePrefix
+		if !strings.HasSuffix(prefix, "/") {
+			prefix += "/"
 		}
-		return relativePrefix + assetPath
+		return prefix + strings.TrimPrefix(filepath.ToSlash(assetPath), "/")
 	}
 
 	// Otherwise, remove leading slash if present (for root-relative paths)

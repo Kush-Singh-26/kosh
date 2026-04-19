@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
@@ -97,7 +97,7 @@ func TestCacheService_EmptyBodyHash_Invalidation(t *testing.T) {
 	post.ContentID = "test-empty-body"
 	post.BodyHash = ""
 
-	if err := service.BatchCommit([]*cache.ContentMeta{post}, nil, nil); err != nil {
+	if err := service.BatchCommit([]*models.ContentMeta{post}, nil, nil); err != nil {
 		t.Fatalf("Failed to commit post: %v", err)
 	}
 

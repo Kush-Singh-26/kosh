@@ -92,6 +92,9 @@ type Engine struct {
 	// Background cache flush coordination
 	flushWaitGroup sync.WaitGroup
 
+	// Build phase coordination - ensures background goroutines finish before returning from Build.
+	buildWaitGroup sync.WaitGroup
+
 	// Build output
 	artifactMu       sync.Mutex
 	artifactSink     fspkg.ArtifactSink
@@ -206,6 +209,7 @@ func (e *Engine) initManagers(
 
 func (e *Engine) initWatch(cacheSvc svcCache.Service) {
 	e.Watch = watch.New(watch.CoordinatorDependencies{
+		Ctx:           e.Ctx.Ctx,
 		Cfg:           e.Cfg,
 		BuildMu:       &e.State.BuildMu,
 		Cache:         cacheSvc,
@@ -226,7 +230,7 @@ func (e *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 	defer func() { e.State.IsAssetOnlyBuild = false }()
 
 	// Start fresh session/tracking state
-	e.refreshBuildSession()
+	e.refreshBuildSession(ctx)
 
 	return e.Assets.BuildAssetOnlyWithOptions(ctx, e.runAssetOnlyPostProcessing, forceImages)
 }
@@ -281,7 +285,7 @@ func (e *Engine) runAssetOnlyPostProcessing(ctx context.Context) error {
 	}
 
 	// Remove original raster images when .webp equivalents exist
-	assetpkg.CleanupOriginalImages(e.buildTransaction.StagingDir())
+	assetpkg.CleanupOriginalImages(ctx, e.buildTransaction.StagingDir())
 
 	// Finalize the build
 	if err := e.buildTransaction.Commit(ctx); err != nil {
@@ -421,11 +425,11 @@ func (e *Engine) SaveCaches() {
 		// Cache loss on process crash is acceptable: entries are regenerated next build.
 		e.flushWaitGroup.Add(1)
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       context.Background(),
+			Ctx:       e.Ctx.Ctx,
 			Logger:    e.Deps.Logger,
 			Operation: "diagram cache flush",
 			Fn: func() error {
-				if err := e.Deps.Diagrams.Flush(context.Background()); err != nil {
+				if err := e.Deps.Diagrams.Flush(e.Ctx.Ctx); err != nil {
 					e.Deps.Logger.Warn("Diagram cache flush failed", "error", err)
 				}
 				return nil
@@ -436,11 +440,11 @@ func (e *Engine) SaveCaches() {
 	if e.Deps.Fragments != nil {
 		e.flushWaitGroup.Add(1)
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       context.Background(),
+			Ctx:       e.Ctx.Ctx,
 			Logger:    e.Deps.Logger,
 			Operation: "fragment cache flush",
 			Fn: func() error {
-				if err := e.Deps.Fragments.Flush(context.Background()); err != nil {
+				if err := e.Deps.Fragments.Flush(e.Ctx.Ctx); err != nil {
 					e.Deps.Logger.Warn("Fragment cache flush failed", "error", err)
 				}
 				return nil
@@ -496,7 +500,7 @@ func (e *Engine) Close() {
 
 // RefreshBuildSession refreshes build session state.
 func (e *Engine) RefreshBuildSession() {
-	e.refreshBuildSession()
+	e.refreshBuildSession(e.Ctx.Ctx)
 }
 
 // Commit commits the current transaction.
@@ -545,7 +549,7 @@ func (e *Engine) handleWatchChange(evt watch.ChangeEvent) {
 	}()
 
 	if e.Incremental != nil {
-		e.Incremental.BuildSingleFileChange(context.Background(), evt.Path, evt.Op)
+		e.Incremental.BuildSingleFileChange(e.Ctx.Ctx, evt.Path, evt.Op)
 	}
 }
 
@@ -574,7 +578,7 @@ func Run(args []string, reporter ui.Reporter) error {
 	}
 	defer e.Close()
 	defer e.SaveCaches()
-	if err := e.Build(context.Background()); err != nil {
+	if err := e.Build(e.Ctx.Ctx); err != nil {
 		e.Deps.Logger.Error("Build failed", "error", err)
 		return err
 	}

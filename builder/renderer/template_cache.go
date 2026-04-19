@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/singleflight"
 )
@@ -176,6 +176,6 @@ func (tc *templateCache) setTemplate(name string, tmpl *template.Template, mtime
 	tc.templates[name] = tmpl
 	tc.mtimes[name] = mtime
 	if len(content) > 0 {
-		tc.hashes[name] = cache.HashContent(content)
+		tc.hashes[name] = core.HashContent(content)
 	}
 }

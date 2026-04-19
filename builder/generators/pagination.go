@@ -94,15 +94,10 @@ func ensureHomeSocialCard(opts PaginationOptions) {
 }
 
 func resolveItemsPerPage(cfg *config.Config) int {
-	itemsPerPage := cfg.ItemsPerPage
-	if itemsPerPage <= 0 {
-		if cfg.PostsPerPage > 0 {
-			itemsPerPage = cfg.PostsPerPage
-		} else {
-			return defaultItemsPerPage
-		}
+	if cfg.ItemsPerPage > 0 {
+		return cfg.ItemsPerPage
 	}
-	return itemsPerPage
+	return defaultItemsPerPage
 }
 
 func resolveTotalPages(totalItems, itemsPerPage int) int {
@@ -136,7 +131,7 @@ func pagePaths(cfg *config.Config, sink models.ArtifactSink, pageIdx int) (strin
 		destPath = filepath.Join(cfg.OutputDir, prefix, fmt.Sprintf("page/%d/index.html", pageIdx))
 		permalink = fmt.Sprintf("%s%s/page/%d/", cfg.BaseURL, prefix, pageIdx)
 		relPath = filepath.Join(prefix, fmt.Sprintf("page/%d/index.html", pageIdx))
-		_ = sink.MkdirAll(filepath.Dir(destPath))
+		buildctx.IgnoreError(sink.MkdirAll(filepath.Dir(destPath)), "create pagination page directory")
 	}
 	return destPath, permalink, filepath.ToSlash(relPath)
 }

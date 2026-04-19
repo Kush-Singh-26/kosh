@@ -3,7 +3,7 @@ package cache
 import (
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
@@ -13,11 +13,11 @@ func TestCacheService_GetSearchRecord(t *testing.T) {
 
 	post := testutil.CreateSamplePostMeta()
 	record := testutil.CreateSampleSearchRecord()
-	records := map[string]*cache.SearchRecord{
+	records := map[string]*models.SearchRecord{
 		post.ContentID: record,
 	}
 
-	if err := service.BatchCommit([]*cache.ContentMeta{post}, records, nil); err != nil {
+	if err := service.BatchCommit([]*models.ContentMeta{post}, records, nil); err != nil {
 		t.Fatalf("Failed to commit: %v", err)
 	}
 
@@ -49,12 +49,12 @@ func TestCacheService_GetSearchRecords(t *testing.T) {
 	record2 := testutil.CreateSampleSearchRecord()
 	record2.Title = "Post 2"
 
-	records := map[string]*cache.SearchRecord{
+	records := map[string]*models.SearchRecord{
 		"post-1": record1,
 		"post-2": record2,
 	}
 
-	if err := service.BatchCommit([]*cache.ContentMeta{post1, post2}, records, nil); err != nil {
+	if err := service.BatchCommit([]*models.ContentMeta{post1, post2}, records, nil); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 

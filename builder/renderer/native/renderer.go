@@ -51,20 +51,21 @@ var katexBytecode []byte
 
 // Renderer manages a pool of native rendering instances for concurrency
 type Renderer struct {
+	ctx            context.Context
 	pool           chan *instance
-	rulerPool      sync.Pool // stores *textmeasure.Ruler instances
-	mathBatchPool  sync.Pool // stores *[]mathRequest
 	numWorkers     int
 	mathBatchSize  int
-	initOnce       sync.Once
-	katexBytecode  []byte
 	initReady      chan struct{}
-	taskWg         sync.WaitGroup
-	mu             sync.Mutex // protects closed during pool initialization
-	isClosed       bool
-	D2Singleflight singleflight.Group // Shared group to deduplicate D2 diagram rendering across posts
 	scheduler      scheduler.BuildScheduler
 	mathQueue      chan mathRequest
+	mu             sync.Mutex
+	isClosed       bool
+	taskWg         sync.WaitGroup
+	katexBytecode  []byte
+	rulerPool      sync.Pool
+	mathBatchPool  sync.Pool
+	D2Singleflight singleflight.Group
+	initOnce       sync.Once
 }
 
 type mathRequest struct {
@@ -75,6 +76,15 @@ type mathRequest struct {
 
 // RendererOption configures a Renderer.
 type RendererOption func(*Renderer)
+
+// WithContext sets the base context for background operations in the renderer.
+func WithContext(ctx context.Context) RendererOption {
+	return func(r *Renderer) {
+		if ctx != nil {
+			r.ctx = ctx
+		}
+	}
+}
 
 // WithWorkers sets the worker pool size for the renderer.
 func WithWorkers(numWorkers int) RendererOption {
@@ -106,6 +116,7 @@ func New(opts ...RendererOption) *Renderer {
 	numWorkers := max(runtime.NumCPU(), minWorkers)
 
 	r := &Renderer{
+		ctx:  context.Background(),
 		pool: make(chan *instance, numWorkers),
 		rulerPool: sync.Pool{
 			New: func() any {
@@ -137,7 +148,7 @@ func New(opts ...RendererOption) *Renderer {
 
 	// Start math batcher workers
 	for i := 0; i < r.numWorkers; i++ {
-		async.FireAndForget(context.Background(), slog.Default(), "math batch worker", func() error {
+		async.FireAndForget(r.ctx, slog.Default(), "math batch worker", func() error {
 			r.mathBatchWorker()
 			return nil
 		})
@@ -173,7 +184,7 @@ func (r *Renderer) mathBatchWorker() {
 			exprs[idx] = item.expr
 		}
 
-		results, renderErrors, err := r.RenderMathBatch(context.Background(), exprs)
+		results, renderErrors, err := r.RenderMathBatch(r.ctx, exprs)
 		if err != nil {
 			for _, b := range batch {
 				select {
@@ -257,7 +268,7 @@ func (r *Renderer) ensureInitialized() {
 		initWg.Add(r.numWorkers)
 		for i := 0; i < r.numWorkers; i++ {
 			async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-				Ctx:       context.Background(),
+				Ctx:       r.ctx,
 				Logger:    slog.Default(),
 				Operation: "native renderer init worker",
 				Fn: func() error {
@@ -278,7 +289,7 @@ func (r *Renderer) ensureInitialized() {
 		}
 
 		// Close initReady in background when all workers are started
-		async.FireAndForget(context.Background(), slog.Default(), "native renderer init", func() error {
+		async.FireAndForget(r.ctx, slog.Default(), "native renderer init", func() error {
 			initWg.Wait()
 			close(r.initReady)
 			return nil
@@ -313,8 +324,6 @@ func (r *Renderer) Close() error {
 	r.taskWg.Wait()
 
 	// Ensure initialization is complete before draining pool.
-	// If it was never started, ensureInitialized will start it and we wait.
-	// This ensures we don't leave goroutines or runtimes dangling.
 	r.ensureInitialized()
 	<-r.initReady
 
@@ -343,7 +352,9 @@ func (r *Renderer) Close() error {
 // HashContent generates a XXH3 hash for cache keys
 func HashContent(contentType, content string) string {
 	hasher := xxh3.New()
-	_, _ = hasher.WriteString(contentType + ":" + content)
+	_, _ = hasher.WriteString(contentType)
+	_, _ = hasher.WriteString(":")
+	_, _ = hasher.WriteString(content)
 	sum := hasher.Sum128()
 	hashBytes := sum.Bytes()
 	return hex.EncodeToString(hashBytes[:])[:hashPrefixLength]

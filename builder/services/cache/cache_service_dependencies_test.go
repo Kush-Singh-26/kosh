@@ -3,7 +3,7 @@ package cache
 import (
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
@@ -12,17 +12,17 @@ func TestCacheService_BatchCommit_WithDependencies(t *testing.T) {
 	defer cleanup()
 
 	post := testutil.CreateSamplePostMeta()
-	deps := &cache.Dependencies{
+	deps := &models.Dependencies{
 		Templates: []string{"layouts/post.html", "partials/header.html"},
 		Taxonomies:      map[string][]string{"tags": {"go", "tutorial"}},
 		Includes:  []string{"partials/footer.html"},
 	}
 
-	depsMap := map[string]*cache.Dependencies{
+	depsMap := map[string]*models.Dependencies{
 		post.ContentID: deps,
 	}
 
-	if err := service.BatchCommit([]*cache.ContentMeta{post}, nil, depsMap); err != nil {
+	if err := service.BatchCommit([]*models.ContentMeta{post}, nil, depsMap); err != nil {
 		t.Fatalf("BatchCommit failed: %v", err)
 	}
 

@@ -15,7 +15,10 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
-var mathExpressionsKey = parser.NewContextKey()
+var (
+	mathExpressionsKey = parser.NewContextKey()
+	mathLateReplaceRe  = regexp.MustCompile(`<!--KOSH_MATH:([a-f0-9]+)-->(?:<!--KOSH_MATH_REG:([a-f0-9]+):([^:]+):([^:]+):([^:]+)-->)?`)
+)
 
 // ReplaceMathExpressions replaces LaTeX placeholders in HTML with rendered output.
 func ReplaceMathExpressions(htmlContent string, expressions []models.MathExpression, rendered map[string]string) string {
@@ -121,12 +124,8 @@ func LateReplaceMath(htmlContent string, rendered map[string]string) string {
 		return htmlContent
 	}
 
-	// Pattern to match both placeholder and registry:
-	// <!--KOSH_MATH:HASH--><!--KOSH_MATH_REG:HASH:BASE64_LATEX:DISPLAY:LINE-->
-	re := regexp.MustCompile(`<!--KOSH_MATH:([a-f0-9]+)-->(?:<!--KOSH_MATH_REG:([a-f0-9]+):([^:]+):([^:]+):([^:]+)-->)?`)
-
-	return re.ReplaceAllStringFunc(htmlContent, func(match string) string {
-		parts := re.FindStringSubmatch(match)
+	return mathLateReplaceRe.ReplaceAllStringFunc(htmlContent, func(match string) string {
+		parts := mathLateReplaceRe.FindStringSubmatch(match)
 		if len(parts) < 2 {
 			return match
 		}

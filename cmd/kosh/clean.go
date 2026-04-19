@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"os"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
@@ -43,8 +42,10 @@ func runClean(_ *cobra.Command, _ []string) {
 		filteredArgs = append(filteredArgs, "-debug")
 	}
 
-	printStartupBanner(mode, config.Load(filteredArgs))
-	if err := clean.Run(os.Args, cleanCache); err != nil {
+	cfg := config.Load(filteredArgs)
+	printStartupBanner(mode, cfg)
+
+	if err := clean.RunWithConfig(cfg, cleanCache); err != nil {
 		orchestration.DevLogError("Clean failed: " + err.Error())
 	}
 
