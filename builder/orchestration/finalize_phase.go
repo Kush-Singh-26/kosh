@@ -85,7 +85,7 @@ func (engineInstance *Engine) finalizePhase(ctx context.Context, wasmWaitGroup *
 	engineInstance.Deps.Metrics.RecordEnd()
 	engineInstance.printBuildInsights()
 	if engineInstance.Health != nil {
-		engineInstance.Health.LogSummary()
+		engineInstance.Health.LogSummary(ctx)
 	}
 
 	if engineInstance.Deps.Reporter != nil {

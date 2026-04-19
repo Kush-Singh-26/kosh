@@ -1,5 +1,7 @@
 package models
 
+//go:generate msgp
+
 // GraphNode represents a node in the knowledge graph.
 type GraphNode struct {
 	ID          string `json:"id"`
@@ -28,10 +30,10 @@ type GraphData struct {
 
 // GraphConfig defines knowledge graph generation options.
 type GraphConfig struct {
-	IsEnabled       bool `yaml:"isEnabled"`
-	ShowsTaxonomies bool `yaml:"showsTaxonomies"`
-	MaxNodes        int  `yaml:"maxNodes"`
-	MinTermFrequency int `yaml:"minTermFrequency"`
+	IsEnabled        bool `yaml:"isEnabled"`
+	ShowsTaxonomies  bool `yaml:"showsTaxonomies"`
+	MaxNodes         int  `yaml:"maxNodes"`
+	MinTermFrequency int  `yaml:"minTermFrequency"`
 }
 
 // UnmarshalYAML implements custom unmarshalling for GraphConfig.
@@ -49,18 +51,18 @@ func (gc *GraphConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		MinTagFrequency   *int  `yaml:"minTagFrequency,omitempty"`
 	}
 	aux.graphConfigAlias = (*graphConfigAlias)(gc)
-	
+
 	if err := unmarshal(&aux); err != nil {
 		return err
 	}
-	
+
 	if aux.ShowsTags != nil {
 		gc.ShowsTaxonomies = *aux.ShowsTags
 	}
 	if aux.MinTagFrequency != nil {
 		gc.MinTermFrequency = *aux.MinTagFrequency
 	}
-	
+
 	if !gc.ShowsTaxonomies && aux.ShowsTags == nil {
 		gc.ShowsTaxonomies = true
 	}

@@ -97,20 +97,20 @@ func (service *contentService) resolveNavigation(item models.ContentMetadata) *n
 	return &navResult{prev: prev, next: next, taxonomies: taxonomies}
 }
 
-func (service *contentService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
+func (service *contentService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]string, map[string]models.SSRThemePair) {
 	if len(result.MathExpressions) == 0 && len(result.D2Expressions) == 0 {
-		return html
+		return html, nil, nil
 	}
 
-	html = service.renderMathSSR(ctx, html, result)
-	html = service.renderD2SSR(ctx, html, result)
+	html, renderedMath := service.renderMathSSR(ctx, html, result)
+	html, renderedD2 := service.renderD2SSR(ctx, html, result)
 
-	return html
+	return html, renderedMath, renderedD2
 }
 
-func (service *contentService) renderMathSSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
+func (service *contentService) renderMathSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]string) {
 	if len(result.MathExpressions) == 0 {
-		return html
+		return html, nil
 	}
 
 	cached := make(map[string]string)
@@ -127,7 +127,7 @@ func (service *contentService) renderMathSSR(ctx context.Context, html string, r
 
 	rendered, err := service.nativeRenderer.RenderAllMath(ctx, result.MathExpressions, cached)
 	if err != nil {
-		return html
+		return html, nil
 	}
 
 	if service.diagramAdapter != nil && len(rendered) > 0 {
@@ -141,12 +141,12 @@ func (service *contentService) renderMathSSR(ctx context.Context, html string, r
 			service.diagramAdapter.Merge(newMath)
 		}
 	}
-	return mdParser.ReplaceMathExpressions(html, result.MathExpressions, rendered)
+	return mdParser.ReplaceMathExpressions(html, result.MathExpressions, rendered), rendered
 }
 
-func (service *contentService) renderD2SSR(ctx context.Context, html string, result *ParsedMarkdownResult) string {
+func (service *contentService) renderD2SSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]models.SSRThemePair) {
 	if len(result.D2Expressions) == 0 {
-		return html
+		return html, nil
 	}
 
 	cached := make(map[string]models.SSRThemePair)
@@ -163,7 +163,7 @@ func (service *contentService) renderD2SSR(ctx context.Context, html string, res
 
 	rendered, err := service.nativeRenderer.RenderAllD2(ctx, result.D2Expressions, cached)
 	if err != nil {
-		return html
+		return html, nil
 	}
 
 	if service.diagramAdapter != nil && len(rendered) > 0 {
@@ -177,7 +177,7 @@ func (service *contentService) renderD2SSR(ctx context.Context, html string, res
 			service.diagramAdapter.Merge(newD2)
 		}
 	}
-	return mdParser.ReplaceD2Expressions(html, result.D2Expressions, rendered)
+	return mdParser.ReplaceD2Expressions(html, result.D2Expressions, rendered), rendered
 }
 
 // ProcessSingleWithResult processes and renders a single markdown file using an optional pre-parse result.
@@ -191,13 +191,13 @@ func (service *contentService) ProcessSingleWithResult(ctx context.Context, path
 	htmlRelPath, _, destPath := navigation.ComputePathVars(service.cfg.OutputDir, relPath)
 	section := detectSection(relPath, service.logger)
 
-	parseRes, err := service.ensureParsed(path, relPath, htmlRelPath, source, info, preParsed)
+	parseRes, err := service.ensureParsed(ctx, path, relPath, htmlRelPath, source, info, preParsed)
 	if err != nil {
 		return err
 	}
 	parseRes.Item.Section = section
 
-	htmlContent := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
+	htmlContent, renderedMath, renderedD2 := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
 	relPrefix := fspkg.GetRelativePrefix(htmlRelPath)
 	htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
 
@@ -215,7 +215,7 @@ func (service *contentService) ProcessSingleWithResult(ctx context.Context, path
 		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
 	}
 
-	return service.renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section, parseRes)
+	return service.renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section, parseRes, renderedMath, renderedD2)
 }
 
 func (service *contentService) validateAndReadSource(path string, source []byte) (os.FileInfo, []byte, error) {
@@ -253,11 +253,19 @@ func detectSection(relPath string, logger *slog.Logger) string {
 	return section
 }
 
-func (service *contentService) ensureParsed(path, relPath, htmlRelPath string, source []byte, info os.FileInfo, preParsed *ParsedMarkdownResult) (*ParsedMarkdownResult, error) {
+func (service *contentService) ensureParsed(ctx context.Context, path, relPath, htmlRelPath string, source []byte, info os.FileInfo, preParsed *ParsedMarkdownResult) (*ParsedMarkdownResult, error) {
 	if preParsed != nil {
 		return preParsed, nil
 	}
-	return ParseMarkdown(ParseOptions{
+	if service.shortcodes != nil && len(source) > 0 {
+		processed, err := service.shortcodes.Process(source)
+		if err == nil {
+			source = processed
+		} else {
+			service.logger.Warn("Shortcode processing failed", "path", path, "error", err)
+		}
+	}
+	return ParseMarkdown(ctx, ParseOptions{
 		Path:             path,
 		RelPath:          relPath,
 		Source:           source,
@@ -286,7 +294,7 @@ func (service *contentService) handleRawMarkdown(destPath string, source []byte)
 	}
 }
 
-func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult) error {
+func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) error {
 	item := parseRes.Item
 	nav := service.resolveNavigation(item)
 	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
@@ -313,6 +321,8 @@ func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix,
 		JSONLD:          service.generateJSONLD(item, cardImageURL),
 		Section:         section,
 		IsCleanBuild:    service.ctx.IsCleanBuild,
+		SSRMath:         renderedMath,
+		SSRD2:           renderedD2,
 	})
 }
 

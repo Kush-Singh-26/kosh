@@ -182,21 +182,45 @@ func (a *atomicInt64) Add(delta int64) { atomic.AddInt64(&a.v, delta) }
 var imageCacheWriter struct {
 	channel chan imageCacheEntry
 	once    sync.Once
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 func initImageCacheWriter() {
 	imageCacheWriter.once.Do(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		imageCacheWriter.cancel = cancel
 		imageCacheWriter.channel = make(chan imageCacheEntry, imageCacheWriterBuffer)
-		async.FireAndForget(context.Background(), slog.Default(), "image cache writer", func() error {
-			for cacheEntry := range imageCacheWriter.channel {
-				_ = os.MkdirAll(filepath.Dir(cacheEntry.path), imageCacheDirMode)
-				if err := os.WriteFile(cacheEntry.path, cacheEntry.data, imageCacheFileMode); err != nil {
-					slog.Warn("Failed to write image cache file", "path", cacheEntry.path, "error", err)
+		imageCacheWriter.wg.Add(1)
+
+		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+			Ctx:       ctx,
+			Logger:    slog.Default(),
+			Operation: "image cache writer",
+			Fn: func() error {
+				for cacheEntry := range imageCacheWriter.channel {
+					_ = os.MkdirAll(filepath.Dir(cacheEntry.path), imageCacheDirMode)
+					if err := os.WriteFile(cacheEntry.path, cacheEntry.data, imageCacheFileMode); err != nil {
+						slog.Warn("Failed to write image cache file", "path", cacheEntry.path, "error", err)
+					}
 				}
-			}
-			return nil
+				return nil
+			},
+			Cleanup: imageCacheWriter.wg.Done,
 		})
 	})
+}
+
+// StopImageCacheWriter flushes the queue and stops the background writer.
+func StopImageCacheWriter() {
+	if imageCacheWriter.channel == nil {
+		return
+	}
+	close(imageCacheWriter.channel)
+	if imageCacheWriter.cancel != nil {
+		imageCacheWriter.cancel()
+	}
+	imageCacheWriter.wg.Wait()
 }
 
 func queueImageCacheWrite(path string, data []byte, isCloned bool) {

@@ -19,6 +19,7 @@ type GeneratorOptions struct {
 	GraphConfig     models.GraphConfig
 	BuildVersion    int64
 	ShouldForceRebuild bool
-	Assets          map[string]string
-	IsTesting       bool
+	Assets             map[string]string
+	IsTesting          bool
+	Data               map[string]any
 }

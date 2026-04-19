@@ -76,6 +76,7 @@ type Dependencies struct {
 	DiagramAdapter *cache.DiagramCacheAdapter
 	Fragments      *cache.FragmentCacheAdapter
 	Reporter       ui.Reporter
+	Health         models.HealthRecorder
 	Shortcodes     ShortcodeProcessor
 }
 
@@ -100,11 +101,13 @@ type ProcessOptions struct {
 type Service interface {
 	ReconfigureForBuild(sink fspkg.ArtifactSink, fs afero.Fs)
 	SetAssetsGate(ch <-chan struct{})
+	SetMarkdownRenderer(renderer func([]byte) ([]byte, error))
 	ReconfigureWithReporter(r ui.Reporter, l *slog.Logger)
 	Process(opts ProcessOptions) (*Result, error)
 	ProcessStreaming(opts ProcessOptions) (*Result, error)
 	ProcessSingle(ctx context.Context, path string, source []byte) error
 	ProcessSingleWithResult(ctx context.Context, path string, source []byte, result *ParsedMarkdownResult) error
+	ProcessShortcodes(source []byte) ([]byte, error)
 	GetMetadataContext(ctx context.Context) (*Context, error)
 	WaitForCacheCommit()
 }

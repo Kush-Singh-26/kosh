@@ -387,7 +387,7 @@ func TestDecoupledPipeline(t *testing.T) {
 	source := []byte("---\ntitle: Test\ndate: 2024-01-01\n---\n# Hello World\n\nThis is a test.")
 
 	// 1. Semantic Parse
-	res, err := ParseMarkdownMetadata(ParseOptions{
+	res, err := ParseMarkdownMetadata(context.Background(), ParseOptions{
 		Source:           source,
 		Path:             "content/test.md",
 		CleanHTMLRelPath: "test.html",

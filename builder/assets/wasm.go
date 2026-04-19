@@ -14,10 +14,11 @@ import (
 	"sort"
 	"sync"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/andybalholm/brotli"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
+
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 const (
@@ -36,12 +37,12 @@ var wasmExecJs []byte
 
 // CheckWASM ensures the search engine WASM is present and up-to-date.
 // Uses hash comparison to avoid unnecessary writes when WASM hasn't changed.
-func CheckWASM(sink fspkg.ArtifactSink, cacheDir string) bool {
+func CheckWASM(sink fspkg.ArtifactSink, cacheDir string) (bool, error) {
 	return CheckWASMFs(afero.NewOsFs(), sink, cacheDir)
 }
 
 // CheckWASMFs verifies the deployed WASM using the provided filesystem.
-func CheckWASMFs(sourceFs afero.Fs, sink fspkg.ArtifactSink, cacheDir string) bool {
+func CheckWASMFs(sourceFs afero.Fs, sink fspkg.ArtifactSink, cacheDir string) (bool, error) {
 	return CheckWASMFsWithSource(CheckWASMOptions{
 		Fs:       sourceFs,
 		Sink:     sink,
@@ -73,17 +74,18 @@ func resolveWasmPaths(outputDir string) (string, string, string, string) {
 	return wasmRelativePath, brotliRelativePath, wasmOutputPath, brotliOutputPath
 }
 
-func loadWasmSource(sourceWasm []byte) ([]byte, string, []byte, bool) {
+func loadWasmSource(sourceWasm []byte) ([]byte, string, []byte, error) {
 	if len(sourceWasm) == 0 {
-		return nil, SearchWasmHash, searchWasmBr, true
+		return nil, SearchWasmHash, searchWasmBr, nil
 	}
-	return sourceWasm, hashBytes(sourceWasm), nil, true
+	return sourceWasm, hashBytes(sourceWasm), nil, nil
 }
 
-func ensureWasmDir(sink fspkg.ArtifactSink, wasmRelativePath string) {
+func ensureWasmDir(sink fspkg.ArtifactSink, wasmRelativePath string) error {
 	if err := sink.MkdirAll(filepath.Dir(wasmRelativePath)); err != nil {
-		slog.Warn("Failed to create WASM directory", "error", err)
+		return fmt.Errorf("failed to create WASM directory: %w", err)
 	}
+	return nil
 }
 
 func hasDeployedWasm(sourceFs afero.Fs, wasmOutputPath, brotliOutputPath, wasmHash string) bool {
@@ -97,28 +99,25 @@ func hasDeployedWasm(sourceFs afero.Fs, wasmOutputPath, brotliOutputPath, wasmHa
 	return false
 }
 
-func prepareEmbeddedWasm(wasmBrotliBytes []byte) ([]byte, []byte, bool) {
+func prepareEmbeddedWasm(wasmBrotliBytes []byte) ([]byte, []byte, error) {
 	wasmBytes, err := decompressBrotli(wasmBrotliBytes)
 	if err != nil {
-		slog.Error("Failed to decompress embedded WASM", "error", err)
-		return nil, nil, false
+		return nil, nil, fmt.Errorf("failed to decompress embedded WASM: %w", err)
 	}
-	return wasmBytes, wasmBrotliBytes, true
+	return wasmBytes, wasmBrotliBytes, nil
 }
 
-func writeWasmOutputs(sink fspkg.ArtifactSink, wasmRelativePath, brotliRelativePath string, wasmBytes, wasmBrotliBytes []byte) bool {
+func writeWasmOutputs(sink fspkg.ArtifactSink, wasmRelativePath, brotliRelativePath string, wasmBytes, wasmBrotliBytes []byte) error {
 	if err := sink.WriteFile(wasmRelativePath, wasmBytes); err != nil {
-		slog.Error("Failed to write WASM", "error", err)
-		return false
+		return fmt.Errorf("failed to write WASM: %w", err)
 	}
 	if err := sink.WriteFile(brotliRelativePath, wasmBrotliBytes); err != nil {
-		slog.Error("Failed to write WASM.br", "error", err)
-		return false
+		return fmt.Errorf("failed to write WASM.br: %w", err)
 	}
 	slog.Info("WASM deployed",
 		"uncompressed", formatSize(len(wasmBytes)),
 		"compressed", formatSize(len(wasmBrotliBytes)))
-	return true
+	return nil
 }
 
 var (
@@ -127,13 +126,13 @@ var (
 )
 
 // DeployWasmExec deploys the Go WASM runtime stub to static/js/
-// Returns true if deployment was successful or already present
-func DeployWasmExec(sink fspkg.ArtifactSink) bool {
+// Returns nil if deployment was successful or already present
+func DeployWasmExec(sink fspkg.ArtifactSink) error {
 	wasmExecJsMu.Lock()
 	defer wasmExecJsMu.Unlock()
 
 	if wasmExecJsDeployed {
-		return true
+		return nil
 	}
 
 	jsPath := "static/js/wasm_exec.js"
@@ -141,17 +140,16 @@ func DeployWasmExec(sink fspkg.ArtifactSink) bool {
 	// Check if already deployed by comparing hash
 	if _, err := sink.Stat(jsPath); err == nil {
 		wasmExecJsDeployed = true
-		return true
+		return nil
 	}
 
 	if err := sink.WriteFile(jsPath, wasmExecJs); err != nil {
-		slog.Error("Failed to deploy wasm_exec.js", "error", err)
-		return false
+		return fmt.Errorf("failed to deploy wasm_exec.js: %w", err)
 	}
 
 	slog.Info("WASM exec deployed", "size", formatSize(len(wasmExecJs)))
 	wasmExecJsDeployed = true
-	return true
+	return nil
 }
 
 // ResetWasmExecDeployment resets the deployment flag for testing
@@ -170,29 +168,32 @@ func ResetWasmExecForBuild() {
 }
 
 // CheckWASMFsWithSource checks and deploys WASM using a provided source payload.
-func CheckWASMFsWithSource(options CheckWASMOptions) bool {
+func CheckWASMFsWithSource(options CheckWASMOptions) (bool, error) {
 	sourceFs := options.Fs
 	sink := options.Sink
 
 	outputDir := sink.GetOutputDir()
 	wasmRelativePath, brotliRelativePath, wasmOutputPath, brotliOutputPath := resolveWasmPaths(outputDir)
 
-	wasmBytes, wasmHash, wasmBrotliBytes, ok := loadWasmSource(options.SourceWasm)
-	if !ok {
-		return false
+	wasmBytes, wasmHash, wasmBrotliBytes, err := loadWasmSource(options.SourceWasm)
+	if err != nil {
+		return false, err
 	}
 	isEmbedded := len(options.SourceWasm) == 0
 
-	ensureWasmDir(sink, wasmRelativePath)
+	if err := ensureWasmDir(sink, wasmRelativePath); err != nil {
+		return false, err
+	}
 
 	if hasDeployedWasm(sourceFs, wasmOutputPath, brotliOutputPath, wasmHash) {
-		return false
+		return false, nil
 	}
 
 	if isEmbedded {
-		wasmBytes, wasmBrotliBytes, ok = prepareEmbeddedWasm(wasmBrotliBytes)
-		if !ok {
-			return false
+		var err error
+		wasmBytes, wasmBrotliBytes, err = prepareEmbeddedWasm(wasmBrotliBytes)
+		if err != nil {
+			return false, err
 		}
 	} else {
 		// This path is used when a sourceWasm payload is provided (e.g., from tests)
@@ -201,12 +202,12 @@ func CheckWASMFsWithSource(options CheckWASMOptions) bool {
 		brotliWriter := brotli.NewWriterLevel(&buffer, resolveCompressionLevel(options.CompressionLevel))
 		_, _ = brotliWriter.Write(wasmBytes)
 		if err := brotliWriter.Close(); err != nil {
-			slog.Warn("Failed to close Brotli writer", "error", err)
+			return false, fmt.Errorf("failed to close Brotli writer: %w", err)
 		}
 		wasmBrotliBytes = buffer.Bytes()
 	}
 
-	return writeWasmOutputs(sink, wasmRelativePath, brotliRelativePath, wasmBytes, wasmBrotliBytes)
+	return true, writeWasmOutputs(sink, wasmRelativePath, brotliRelativePath, wasmBytes, wasmBrotliBytes)
 }
 
 // CalculateSearchSourceHash computes the XXH3 hash of the search engine source code.

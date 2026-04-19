@@ -2,9 +2,11 @@ package parser
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"html"
 	"log/slog"
+	"regexp"
 	"strings"
 
 	"github.com/yuin/goldmark/parser"
@@ -110,4 +112,44 @@ func GetMathExpressions(pc parser.Context) []models.MathExpression {
 // HasMathPlaceholders checks if the HTML content has math placeholders.
 func HasMathPlaceholders(html string) bool {
 	return strings.Contains(html, "<!--KOSH_MATH:")
+}
+
+// LateReplaceMath performs a final replacement of Math placeholders using registry comments.
+// This is used for TOC and theme fragments where normal AST-based replacement isn't possible.
+func LateReplaceMath(htmlContent string, rendered map[string]string) string {
+	if len(rendered) == 0 || !HasMathPlaceholders(htmlContent) {
+		return htmlContent
+	}
+
+	// Pattern to match both placeholder and registry:
+	// <!--KOSH_MATH:HASH--><!--KOSH_MATH_REG:HASH:BASE64_LATEX:DISPLAY:LINE-->
+	re := regexp.MustCompile(`<!--KOSH_MATH:([a-f0-9]+)-->(?:<!--KOSH_MATH_REG:([a-f0-9]+):([^:]+):([^:]+):([^:]+)-->)?`)
+
+	return re.ReplaceAllStringFunc(htmlContent, func(match string) string {
+		parts := re.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		hash := parts[1]
+		renderedHTML, ok := rendered[hash]
+		if !ok {
+			return match
+		}
+
+		// If we have registry info, we can build a full KaTeX container
+		if len(parts) >= 6 && parts[3] != "" {
+			latexBytes, _ := base64.StdEncoding.DecodeString(parts[3])
+			escapedLatex := html.EscapeString(string(latexBytes))
+			displayMode := parts[4] == "true"
+			copyBtn := `<button class="katex-copy-btn" aria-label="Copy LaTeX">Copy</button>`
+
+			if displayMode {
+				return fmt.Sprintf(`<div class="katex-display" data-latex="%s">%s%s</div>`, escapedLatex, copyBtn, renderedHTML)
+			}
+			return fmt.Sprintf(`<span class="katex-inline" data-latex="%s">%s%s</span>`, escapedLatex, copyBtn, renderedHTML)
+		}
+
+		// Fallback for when registry is missing (should not happen with new parser)
+		return renderedHTML
+	})
 }

@@ -105,7 +105,7 @@ func CreateSampleConfig() *config.Config {
 				IsRSSEnabled:     true,
 				Graph:            models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
 				IsPWAEnabled:     false,
-				IsSearchEnabled:  true,
+				Search:           models.SearchOptionsConfig{IsEnabled: true},
 			},
 		},
 	}

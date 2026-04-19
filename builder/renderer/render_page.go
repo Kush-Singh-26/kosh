@@ -12,6 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/assets"
 	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 )
 
@@ -33,6 +34,20 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 	}
 
 	finalBytes := buf.Bytes()
+
+	// Late-pass SSR Replacement (Full-Page: Body + Fragments + TOC)
+	if len(data.SSRMath) > 0 || len(data.SSRD2) > 0 {
+		htmlStr := string(finalBytes)
+		if len(data.SSRMath) > 0 {
+			htmlStr = parser.LateReplaceMath(htmlStr, data.SSRMath)
+		}
+		if len(data.SSRD2) > 0 {
+			htmlStr = parser.LateReplaceD2(htmlStr, data.SSRD2)
+		}
+		// Final cleanup of any remaining registry comments (TOC, SEARCH, or leftovers)
+		htmlStr = parser.StripRegistryComments(htmlStr)
+		finalBytes = []byte(htmlStr)
+	}
 
 	// Rewrite PNG/JPG/JPEG image references to WebP if compression is enabled
 	if r.Compress {

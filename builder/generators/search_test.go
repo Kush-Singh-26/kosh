@@ -39,7 +39,7 @@ func TestGenerateSearchIndex(t *testing.T) {
 		},
 	}
 
-	resultPath, size, err := GenerateSearchIndex(sink, indexedItems)
+	resultPath, size, err := GenerateSearchIndex(sink, indexedItems, models.SearchRankingConfig{})
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestGenerateSearchIndex(t *testing.T) {
 
 func TestGenerateSearchIndex_Empty(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, _, err := GenerateSearchIndex(sink, []models.IndexedContent{})
+	_, _, err := GenerateSearchIndex(sink, []models.IndexedContent{}, models.SearchRankingConfig{})
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with empty items: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestGenerateSearchIndex_Empty(t *testing.T) {
 
 func TestGenerateSearchIndex_Nil(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, _, err := GenerateSearchIndex(sink, nil)
+	_, _, err := GenerateSearchIndex(sink, nil, models.SearchRankingConfig{})
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with nil items: %v", err)
 	}

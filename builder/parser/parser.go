@@ -2,6 +2,9 @@
 package parser
 
 import (
+	"regexp"
+	"strings"
+
 	chroma_html "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	"github.com/yuin/goldmark"
@@ -41,11 +44,21 @@ func codeBlockWrapper(writer util.BufWriter, codeCtx highlighting.CodeBlockConte
 			}
 		}
 
-		// Write the wrapper div with data-lang attribute
+		// Write the header bar
 		_, _ = writer.WriteString(`<div class="code-block-container">`)
+		_, _ = writer.WriteString(`<div class="code-header-bar">`)
+		_, _ = writer.WriteString(`<div class="code-header-left">`)
+		_, _ = writer.WriteString(`<span class="code-lang-label">` + strings.ToUpper(lang) + `</span>`)
 		if title != "" {
-			_, _ = writer.WriteString(`<div class="code-header">` + title + `</div>`)
+			_, _ = writer.WriteString(`<span class="code-header-divider"></span>`)
+			_, _ = writer.WriteString(`<span class="code-header-title">` + title + `</span>`)
 		}
+		_, _ = writer.WriteString(`</div>`)
+		_, _ = writer.WriteString(`<button class="copy-btn-explicit" aria-label="Copy code">`)
+		_, _ = writer.WriteString(`<span class="copy-text">Copy</span>`)
+		_, _ = writer.WriteString(`</button>`)
+		_, _ = writer.WriteString(`</div>`)
+
 		_, _ = writer.WriteString(`<div class="code-wrapper" data-lang="` + lang + `">`)
 	} else {
 		_, _ = writer.WriteString(`</div></div>`)
@@ -83,7 +96,14 @@ func WithD2Group(group *singleflight.Group) Option {
 	}
 }
 
-// New creates a new Goldmark markdown parser with SSR support for diagrams
+// StripRegistryComments removes Kosh internal registry comments from HTML content.
+func StripRegistryComments(html string) string {
+	// Pattern to match all KOSH registry comments
+	re := regexp.MustCompile(`<!--KOSH_(MATH|D2|TOC|SEARCH)_REG:[^>]+-->`)
+	return re.ReplaceAllString(html, "")
+}
+
+// New creates a new Goldmark markdown parser with SSR support for diagrams.
 func New(cfg *config.Config, opts ...Option) goldmark.Markdown {
 	options := &Options{}
 	for _, opt := range opts {

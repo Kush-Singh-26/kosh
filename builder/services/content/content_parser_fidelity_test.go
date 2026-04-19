@@ -1,6 +1,7 @@
 package content
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -41,7 +42,7 @@ func TestDateParsingFidelity(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := ParseMarkdownMetadata(ParseOptions{
+			res, err := ParseMarkdownMetadata(context.Background(), ParseOptions{
 				Source:           []byte(tc.source),
 				Path:             "content/test.md",
 				CleanHTMLRelPath: "test.html",
@@ -89,7 +90,7 @@ title: Shortcode Test
     <div class="callout-content">Beware of bugs</div>
 </div>`)
 
-	res, err := ParseMarkdown(ParseOptions{
+	res, err := ParseMarkdown(context.Background(), ParseOptions{
 		Source:           processedSource,
 		Path:             "content/test.md",
 		CleanHTMLRelPath: "test.html",

@@ -72,7 +72,7 @@ This is post number %d.
 
 	cfg := config.LoadFs(fs, []string{})
 	cfg.OutputDir = "public"
-	cfg.Features.Generators.IsSearchEnabled = true
+	cfg.Features.Generators.Search.IsEnabled = true
 	cfg.Features.Generators.IsRSSEnabled = true
 	cfg.Features.Generators.IsSitemapEnabled = true
 

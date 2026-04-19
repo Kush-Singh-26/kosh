@@ -55,6 +55,9 @@ func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *er
 			AssetsReadySignal:     assetsReadySignal,
 		})
 	})
+	group.Go(func() error {
+		return engineInstance.renderDataPages(ctx)
+	})
 }
 
 func (engineInstance *Engine) handlePWAGeneration(ctx context.Context, wasmWaitGroup *sync.WaitGroup, assetsReadySignal <-chan struct{}) {
@@ -172,9 +175,10 @@ func (engineInstance *Engine) generateSearchIndex(options MetadataRenderOptions)
 	var err error
 
 	if options.SearchIndex != nil {
+		options.SearchIndex.Ranking = engineInstance.Cfg.Features.Generators.Search.Ranking
 		searchPath, size, err = generators.GenerateSearchIndexFromObject(engineInstance.artifactSink, options.SearchIndex)
 	} else {
-		searchPath, size, err = generators.GenerateSearchIndex(engineInstance.artifactSink, options.IndexedPosts)
+		searchPath, size, err = generators.GenerateSearchIndex(engineInstance.artifactSink, options.IndexedPosts, engineInstance.Cfg.Features.Generators.Search.Ranking)
 	}
 
 	if err != nil {
@@ -188,7 +192,9 @@ func (engineInstance *Engine) generateSearchIndex(options MetadataRenderOptions)
 		} else {
 			docs = int64(len(options.IndexedPosts))
 		}
-		engineInstance.Health.RecordSearchStats(docs, size)
+		isEnabled := engineInstance.Cfg.Features.Generators.Search.IsEnabled
+		// Search is always "in sync" if regenerated successfully here
+		engineInstance.Health.RecordSearchStats(docs, size, isEnabled, true)
 	}
 
 	engineInstance.Deps.Logger.Debug("Search index generated", "path", searchPath, "size", size)
@@ -246,7 +252,7 @@ func (engineInstance *Engine) renderSiteMetadata(options MetadataRenderOptions) 
 		})
 	}
 
-	if engineInstance.Cfg.Features.Generators.IsSearchEnabled && (options.IndexedPosts != nil || options.SearchIndex != nil) {
+	if engineInstance.Cfg.Features.Generators.Search.IsEnabled && (options.IndexedPosts != nil || options.SearchIndex != nil) {
 		errorGroup.Go(func() error {
 			return engineInstance.generateSearchIndex(options)
 		})
@@ -301,4 +307,13 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 	}
 
 	return errorGroup.Wait()
+}
+
+func (engineInstance *Engine) renderDataPages(ctx context.Context) error {
+	return generators.RenderDataPages(generators.DataPagesOptions{
+		Ctx:    ctx,
+		Cfg:    engineInstance.Cfg,
+		Render: engineInstance.Deps.Render,
+		Data:   engineInstance.Cfg.SiteData,
+	})
 }

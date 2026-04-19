@@ -37,7 +37,7 @@ type IndexedContent struct {
 }
 
 // CurrentSchemaVersion is the active search schema version.
-const CurrentSchemaVersion = 20
+const CurrentSchemaVersion = 22
 
 // SearchIndex stores the serialized search index.
 type SearchIndex struct {
@@ -46,6 +46,7 @@ type SearchIndex struct {
 	ItemLens      map[string]int64 // contentID (string) -> word count
 	AvgDocLen     float64
 	TotalItems    int64
+	Ranking       SearchRankingConfig // Configurable ranking weights
 	StemMap       map[string][]string // stemmed -> original forms
 	NgramIndex    map[string][]string // trigram -> terms (for fuzzy search)
 

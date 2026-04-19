@@ -80,6 +80,17 @@ type BuildHealthRegistry struct {
 	searchDocs atomic.Int64
 	searchSize atomic.Int64 // in bytes
 
+	// Asset metrics
+	assetConversionRate atomic.Int64 // as percentage * 10
+
+	// Diagnostics
+	hasDrafts          atomic.Bool
+	hasMath            atomic.Bool
+	mathFailures       atomic.Int64
+	searchConfigured   atomic.Bool
+	searchWASMSync     atomic.Bool
+	a11yMissingAltText atomic.Int64
+
 	// Timing
 	startTime time.Time
 }
@@ -169,13 +180,36 @@ func (registry *BuildHealthRegistry) RecordRollback(message string) {
 }
 
 // RecordSearchStats stores the latest search index metrics.
-func (registry *BuildHealthRegistry) RecordSearchStats(docs int64, size int64) {
+func (registry *BuildHealthRegistry) RecordSearchStats(docs int64, size int64, configured bool, wasmSync bool) {
 	registry.searchDocs.Store(docs)
 	registry.searchSize.Store(size)
+	registry.searchConfigured.Store(configured)
+	registry.searchWASMSync.Store(wasmSync)
+}
+
+// RecordAssetStats stores asset processing metrics.
+func (registry *BuildHealthRegistry) RecordAssetStats(conversionRate float64) {
+	registry.assetConversionRate.Store(int64(conversionRate * 10))
+}
+
+// RecordFeatureUsage stores whether certain features are active in the build.
+func (registry *BuildHealthRegistry) RecordFeatureUsage(hasDrafts, hasMath bool) {
+	registry.hasDrafts.Store(hasDrafts)
+	registry.hasMath.Store(hasMath)
+}
+
+// RecordMathFailure records a LaTeX rendering failure.
+func (registry *BuildHealthRegistry) RecordMathFailure() {
+	registry.mathFailures.Add(1)
+}
+
+// RecordA11yCount stores the number of accessibility warnings.
+func (registry *BuildHealthRegistry) RecordA11yCount(missingAltCount int64) {
+	registry.a11yMissingAltText.Store(missingAltCount)
 }
 
 // RecordSlowPhase records a slow phase event with timing information.
-func (registry *BuildHealthRegistry) RecordSlowPhase(phase string, duration time.Duration) {
+func (registry *BuildHealthRegistry) RecordSlowPhase(ctx context.Context, phase string, duration time.Duration) {
 	threshold := slowPhaseThreshold
 	event := HealthEvent{
 		Level:    HealthLevelWarning,
@@ -185,7 +219,7 @@ func (registry *BuildHealthRegistry) RecordSlowPhase(phase string, duration time
 	}
 	registry.slowPhases.Add(1)
 	registry.recordEvent(event)
-	if slog.Default().Enabled(context.TODO(), slog.LevelWarn) {
+	if slog.Default().Enabled(ctx, slog.LevelWarn) {
 		slog.Warn("Slow phase detected",
 			"phase", phase,
 			"duration", duration.String(),
@@ -244,32 +278,71 @@ func (registry *BuildHealthRegistry) recordEvent(event HealthEvent) {
 
 // BuildHealthReport summarizes health metrics for a build.
 type BuildHealthReport struct {
-	TotalDuration  time.Duration `json:"total_duration"`
-	Warnings       int64         `json:"warnings"`
-	Errors         int64         `json:"errors"`
-	CriticalEvents int64         `json:"critical_events"`
-	Retries        int64         `json:"retries"`
-	Rollbacks      int64         `json:"rollbacks"`
-	SlowPhases     int64         `json:"slow_phases"`
-	HealthScore    int           `json:"health_score"`
-	HealthLevel    string        `json:"health_level"`
-	EventCount     int           `json:"event_count"`
-	SearchDocs     int64         `json:"search_docs"`
-	SearchSize     int64         `json:"search_size"`
+	TotalDuration       time.Duration `json:"total_duration"`
+	Warnings            int64         `json:"warnings"`
+	Errors              int64         `json:"errors"`
+	CriticalEvents      int64         `json:"critical_events"`
+	Retries             int64         `json:"retries"`
+	Rollbacks           int64         `json:"rollbacks"`
+	SlowPhases          int64         `json:"slow_phases"`
+	HealthScore         int           `json:"health_score"`
+	HealthLevel         string        `json:"health_level"`
+	EventCount          int           `json:"event_count"`
+	SearchDocs          int64         `json:"search_docs"`
+	SearchSize          int64         `json:"search_size"`
+	AssetConversionRate float64       `json:"asset_conversion_rate"`
+	HasDrafts           bool          `json:"has_drafts"`
+	HasMath             bool          `json:"has_math"`
+	MathFailures        int64         `json:"math_failures"`
+	SearchConfigured    bool          `json:"search_configured"`
+	SearchWASMSync      bool          `json:"search_wasm_sync"`
+	A11yMissingAltText  int64         `json:"a11y_missing_alt_text"`
+	Messages            []string      `json:"messages"`
 }
 
 // Report builds a summary report for the current registry state.
 func (registry *BuildHealthRegistry) Report() BuildHealthReport {
-	totalDuration := time.Since(registry.startTime)
-	warnings := registry.warnings.Load()
+	rollbacks := registry.rollbacks.Load()
 	errors := registry.errors.Load()
 	critical := registry.criticalEvents.Load()
-	retries := registry.retries.Load()
-	rollbacks := registry.rollbacks.Load()
 	slowPhases := registry.slowPhases.Load()
-	searchDocs := registry.searchDocs.Load()
-	searchSize := registry.searchSize.Load()
 
+	healthScore := registry.calculateHealthScore(rollbacks, critical, errors, slowPhases)
+	healthLevel := registry.determineHealthLevel(healthScore)
+
+	registry.mu.Lock()
+	eventCount := len(registry.events)
+	messages := make([]string, 0, eventCount)
+	for _, e := range registry.events {
+		messages = append(messages, e.Message)
+	}
+	registry.mu.Unlock()
+
+	return BuildHealthReport{
+		TotalDuration:       time.Since(registry.startTime),
+		Warnings:            registry.warnings.Load(),
+		Errors:              errors,
+		CriticalEvents:      critical,
+		Retries:             registry.retries.Load(),
+		Rollbacks:           rollbacks,
+		SlowPhases:          slowPhases,
+		HealthScore:         healthScore,
+		HealthLevel:         healthLevel,
+		EventCount:          eventCount,
+		SearchDocs:          registry.searchDocs.Load(),
+		SearchSize:          registry.searchSize.Load(),
+		AssetConversionRate: float64(registry.assetConversionRate.Load()) / 10.0,
+		HasDrafts:           registry.hasDrafts.Load(),
+		HasMath:             registry.hasMath.Load(),
+		MathFailures:        registry.mathFailures.Load(),
+		SearchConfigured:    registry.searchConfigured.Load(),
+		SearchWASMSync:      registry.searchWASMSync.Load(),
+		A11yMissingAltText:  registry.a11yMissingAltText.Load(),
+		Messages:            messages,
+	}
+}
+
+func (registry *BuildHealthRegistry) calculateHealthScore(rollbacks, critical, errors, slowPhases int64) int {
 	healthScore := healthScoreStart
 	if rollbacks > 0 {
 		healthScore -= int(rollbacks) * rollbackPenalty
@@ -286,42 +359,27 @@ func (registry *BuildHealthRegistry) Report() BuildHealthReport {
 	if healthScore < healthScoreMin {
 		healthScore = healthScoreMin
 	}
+	return healthScore
+}
 
-	healthLevel := "healthy"
+func (registry *BuildHealthRegistry) determineHealthLevel(healthScore int) string {
 	switch {
 	case healthScore < healthLevelCriticalThreshold:
-		healthLevel = "critical"
+		return "critical"
 	case healthScore < healthLevelDegradedThreshold:
-		healthLevel = "degraded"
+		return "degraded"
 	case healthScore < healthLevelHealthyMax:
-		healthLevel = "healthy_with_warnings"
-	}
-
-	registry.mu.Lock()
-	eventCount := len(registry.events)
-	registry.mu.Unlock()
-
-	return BuildHealthReport{
-		TotalDuration:  totalDuration,
-		Warnings:       warnings,
-		Errors:         errors,
-		CriticalEvents: critical,
-		Retries:        retries,
-		Rollbacks:      rollbacks,
-		SlowPhases:     slowPhases,
-		HealthScore:    healthScore,
-		HealthLevel:    healthLevel,
-		EventCount:     eventCount,
-		SearchDocs:     searchDocs,
-		SearchSize:     searchSize,
+		return "healthy_with_warnings"
+	default:
+		return "healthy"
 	}
 }
 
 // LogSummary logs a summary of build health metrics.
-func (registry *BuildHealthRegistry) LogSummary() {
+func (registry *BuildHealthRegistry) LogSummary(ctx context.Context) {
 	report := registry.Report()
 
-	if slog.Default().Enabled(context.TODO(), slog.LevelInfo) {
+	if slog.Default().Enabled(ctx, slog.LevelInfo) {
 		slog.Info("Build health report",
 			"duration", report.TotalDuration.String(),
 			"warnings", report.Warnings,
@@ -330,6 +388,7 @@ func (registry *BuildHealthRegistry) LogSummary() {
 			"slow_phases", report.SlowPhases,
 			"health_score", report.HealthScore,
 			"health_level", report.HealthLevel,
+			"math_failures", report.MathFailures,
 			"search_docs", report.SearchDocs,
 			"search_size_kb", report.SearchSize/bytesPerKiB)
 	}

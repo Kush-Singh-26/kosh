@@ -179,7 +179,7 @@ func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxono
 }
 
 func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, plural, termName, slug string, items []models.ContentMetadata) error {
-	timeutil.SortItems(items)
+	timeutil.SortItemsByTaxonomy(taxonomy, items)
 	prefix := strings.Trim(cfg.ContentPrefix, "/")
 	// Normalize plural to not have the prefix if we are going to prepend it
 	cleanPlural := strings.TrimPrefix(strings.Trim(plural, "/"), prefix+"/")

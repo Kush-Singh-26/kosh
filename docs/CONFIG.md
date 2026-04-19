@@ -49,14 +49,27 @@ Enable or disable specific SSG sub-modules.
 
 ```yaml
 features:
-  rawMarkdown: true      # Emits .md files alongside .html
+  useRawMarkdown: true   # Emits .md files alongside .html
   generators:
     sitemap: true        # Generate sitemap.xml
     rss: true            # Generate index.xml (Atom/RSS)
     graph: true          # Generate knowledge graph data
     pwa: true            # Generate PWA manifest and service worker
-    search: true         # Generate Go+WASM search index
+    search:
+      isEnabled: true    # Generate Go+WASM search index
+      ranking:           # Optional: Tune BM25 and field boosts
+        titleBoost: 50.0
+        tagBoost: 10.0
+        descriptionBoost: 5.0
+      endpoints:         # Optional: Federated search indices
+        - "/search.bin"
 ```
+
+| Field | Description | Default |
+| :--- | :--- | :--- |
+| `useRawMarkdown` | If true, copies raw `.md` files to the output directory alongside `.html` pages. | `false` |
+| `generators.search.ranking` | Optional BM25 and field boost weights. | Internal defaults |
+| `generators.search.endpoints` | List of URLs to fetch remote search indices from. | `["/search.bin"]` |
 
 ## Taxonomies
 
@@ -64,7 +77,17 @@ Define custom taxonomies for your content.
 
 | Field | Description | Default |
 | :--- | :--- | :--- |
-| `taxonomies` | Map of internal names to plural URL segments. | `tags: tags` |
+| `taxonomies` | Map of internal names to plural URL segments. | `tags: tags`, `series: series`, `events: events` |
+
+> [!NOTE]
+> **Sorting Specifics**: Taxonomies named `series` or `events` are automatically sorted **chronologically** (earliest first) to support structured narratives and timelines. All other taxonomies are sorted reverse-chronologically.
+
+## Data Directory
+
+Kosh supports a `data/` directory for structured site data (YAML or JSON).
+
+- **Global Context**: Files like `data/team.yaml` are available to templates via `Site.Data.team`.
+- **Auto-Generated Pages**: If a data file contains `slug` and `layout` keys at the root, Kosh will automatically render it as a standalone page using the specified layout.
 
 ## Advanced & Performance
 

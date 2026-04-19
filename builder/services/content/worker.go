@@ -1,6 +1,7 @@
 package content
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"strings"
@@ -52,7 +53,7 @@ func (service *contentService) loadSourceIfNeeded(file models.ScannedResource, u
 	return file.SourceLoader()
 }
 
-func (service *contentService) parseIfNeeded(_ context.Context, file models.ScannedResource, cachedMeta *models.ContentMeta, htmlRelPath string, sourceBytes []byte, useCache bool) (*ParsedMarkdownResult, string, []string, bool, error) {
+func (service *contentService) parseIfNeeded(ctx context.Context, file models.ScannedResource, cachedMeta *models.ContentMeta, htmlRelPath string, sourceBytes []byte, useCache bool) (*ParsedMarkdownResult, string, []string, bool, error) {
 	if useCache {
 		return nil, "", nil, true, nil
 	}
@@ -66,8 +67,10 @@ func (service *contentService) parseIfNeeded(_ context.Context, file models.Scan
 		readingTime = cachedMeta.ReadingTime
 	}
 
-	// Apply shortcode processing if processor is available
 	if service.shortcodes != nil && len(sourceBytes) > 0 {
+		if bytes.Contains(sourceBytes, []byte("{{<")) {
+			service.logger.Debug("Processing shortcodes", "path", file.Path)
+		}
 		processed, err := service.shortcodes.Process(sourceBytes)
 		if err == nil {
 			sourceBytes = processed
@@ -76,7 +79,7 @@ func (service *contentService) parseIfNeeded(_ context.Context, file models.Scan
 		}
 	}
 
-	parseRes, err := ParseMarkdown(ParseOptions{
+	parseRes, err := ParseMarkdown(ctx, ParseOptions{
 		Path:                 file.Path,
 		RelPath:              file.RelPath,
 		Source:               sourceBytes,
@@ -195,7 +198,7 @@ func (service *contentService) handleSearchTasks(aggregateContext AggregateConte
 		ContentID := cache.GenerateContentID("", aggregateContext.RelativePath)
 		aggregateContext.Local.newSearchRecords[ContentID] = newSearch
 
-		if service.cfg.Features.Generators.IsSearchEnabled {
+		if service.cfg.Features.Generators.Search.IsEnabled {
 			aggregateContext.Local.searchTasks = append(aggregateContext.Local.searchTasks, deferredSearchTask{
 				record: indexed.Record, plainText: aggregateContext.Result.PlainText, localIndex: localIndex, cached: newSearch,
 			})

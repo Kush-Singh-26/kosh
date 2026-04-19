@@ -81,8 +81,9 @@ func PerformSearch(index *models.SearchIndex, query string) []Result {
 		Scores:         make(map[string]float64, defaultScoreMapCap),
 		HighlightTerms: make(map[string]bool),
 		TermInfos:      parsed.TermInfos,
-		K1:             defaultBM25K1,
-		B:              defaultBM25B,
+		K1:             index.Ranking.BM25K1,
+		B:              index.Ranking.BM25B,
+		Ranking:        index.Ranking,
 	}
 
 	for _, term := range opts.QueryTerms {

@@ -195,9 +195,9 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 	close(renderCollector.renderChan)
 	renderTasks := waitForRenderTasks(renderCollector)
 
-	service.renderSSRGlobal(ctx, renderTasks)
+	renderedMath, renderedD2 := service.renderSSRGlobal(ctx, renderTasks)
 	nav := <-navReady
-	service.runStreamingRenderPhase(ctx, numWorkers, nav, renderTasks)
+	service.runStreamingRenderPhase(ctx, numWorkers, nav, renderTasks, renderedMath, renderedD2)
 
 	if err != nil {
 		return nil, err
@@ -345,7 +345,7 @@ func (service *contentService) getPageLayout(renderTaskInstance renderTask) stri
 	return layoutVal
 }
 
-func (service *contentService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask) {
+func (service *contentService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) {
 	processed := atomic.Int32{}
 	totalFiles := len(tasks)
 
@@ -370,8 +370,8 @@ func (service *contentService) runStreamingRenderPhase(ctx context.Context, numW
 			Meta: renderTaskInstance.parseResult.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 			TabTitle: item.Title + " | " + service.cfg.Title, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
 			TOC: renderTaskInstance.parseResult.TOC, Config: service.cfg, ReadingTime: item.ReadingTime,
-			Taxonomies: nav.taxonomies,
-			PrevPage:   prev, NextPage: next, RelativePrefix: relPrefix,
+			Taxonomies: nav.taxonomies, ItemTaxonomies: item.Taxonomies,
+			PrevPage: prev, NextPage: next, RelativePrefix: relPrefix,
 			HasImages: renderTaskInstance.parseResult.HasImages, Context: pageContext,
 			ContentPrefix:   service.cfg.ContentPrefix,
 			SectionIndexURL: sectionIndexURL,
@@ -379,6 +379,8 @@ func (service *contentService) runStreamingRenderPhase(ctx context.Context, numW
 			JSONLD:          service.generateJSONLD(item, cardImageURL),
 			Section:         item.Section,
 			IsCleanBuild:    service.ctx.IsCleanBuild,
+			SSRMath:         renderedMath,
+			SSRD2:           renderedD2,
 		}); err != nil {
 			return err
 		}

@@ -1,0 +1,163 @@
+# Kosh Configuration Example (Exhaustive)
+# This file demonstrates all available configuration options for Kosh SSG.
+
+###############################################################################
+# Site Information
+###############################################################################
+
+# The title of your site.
+title: "My Awesome Kosh Site"
+
+# A brief description for SEO and RSS feeds.
+description: "A blog about everything and nothing."
+
+# The base URL of your site (e.g., https://example.com).
+# Leave empty for relative paths or local development.
+baseURL: "https://kosh-ssg.org"
+
+# Site language (used in HTML lang attribute).
+language: "en"
+
+# Schema.org article type for content (default: "BlogPosting").
+articleType: "BlogPosting"
+
+# Author information.
+author:
+  name: "Jane Doe"
+  url: "https://janedoe.me"
+
+# Label for the "Latest Items" badge on the home page social card.
+homeBadge: "Freshly Picked"
+
+###############################################################################
+# Navigation & Branding
+###############################################################################
+
+# Main navigation menu.
+menu:
+  - name: "Home"
+    url: "/"
+  - name: "Blog"
+    url: "/blog/"
+  - name: "GitHub"
+    url: "https://github.com/Kush-Singh-26/kosh"
+    target: "_blank" # Optional: open in new tab
+
+# Footer menu entries.
+footerMenu:
+  - name: "RSS"
+    url: "/index.xml"
+  - name: "Sitemap"
+    url: "/sitemap.xml"
+
+# Context-aware navbar branding.
+# Defines unique identity for Home root (/) vs Blog section (/blog/).
+navbar:
+  home:
+    title: "Zen Scholar"
+    btnLabel: "Read Blog"
+  section:
+    title: "The Journal"
+    btnLabel: "Exit to Home"
+
+###############################################################################
+# Taxonomies
+###############################################################################
+
+# Maps frontmatter keys to the plural directory name for indices.
+# Default: tags, series, events
+taxonomies:
+  tags: "tags"
+  categories: "categories"
+  # Taxonomies named 'series' or 'events' use chronological sorting by default.
+  series: "series"
+  events: "events"
+
+###############################################################################
+# Build Tuning & Performance
+###############################################################################
+
+# Number of items per pagination page.
+itemsPerPage: 10
+
+# Global asset minification.
+shouldMinify: true
+
+# Image processing configuration.
+shouldCompressImages: true
+webpQuality: 80 # (1-100, default: 80)
+imageWorkers: 8 # Number of parallel workers (default: 8, max: 32)
+
+# Markdown parser workers.
+# 0 uses the number of CPU cores (default: 0, max: 64).
+parserWorkers: 0
+
+# Prefix for content-related output.
+# If set to "blog", all posts go to /blog/ instead of root.
+contentPrefix: "blog"
+
+###############################################################################
+# Filesystem Paths
+###############################################################################
+
+# Theme configuration.
+theme: "default"
+themeDir: "themes"
+
+# Content & Layout overrides.
+contentDir: "content"   # Default: "content"
+layoutsDir: "layouts"   # Default: "layouts"
+outputDir: "public"     # Default: "public"
+cacheDir: ".kosh-cache" # Default: ".kosh-cache"
+
+# Global Branding Assets.
+# The Logo is the source for site branding and PWA icons.
+logo: "static/logo.svg"
+# Optional: explicitly provide PWA icon paths if you don't want them generated from Logo.
+# icon192: "static/icon-192.png"
+# icon512: "static/icon-512.png"
+
+###############################################################################
+# Features & Generators
+###############################################################################
+
+features:
+  # If true, disables markdown parsing and serves raw .md files.
+  useRawMarkdown: false
+  
+  generators:
+    # SEO & Feeds.
+    isSitemapEnabled: true
+    isRSSEnabled: true
+    
+    # Interactive Content graph (graph.html).
+    graph:
+      isEnabled: true
+      showsTaxonomies: true
+      
+    # Progressive Web App (manifest.json, service worker).
+    isPWAEnabled: true
+    
+    # High-performance Go+WASM client-side search.
+    isSearchEnabled: true
+
+###############################################################################
+# Social Cards (Open Graph Images)
+###############################################################################
+
+# Parameters for auto-generated social share images.
+socialCards:
+  background: "#fafafa" # Solid background color
+  gradient:              # Optional gradient colors
+    - "#e0d8c0"
+    - "#c0b090"
+  angle: 135             # Gradient angle (degrees)
+  textColor: "#262626"   # Text color for title/description
+
+###############################################################################
+# Development Server
+###############################################################################
+
+server:
+  # Serve an additional root directory alongside the site (used for assets/demos).
+  rootDirectory: "../static-assets"

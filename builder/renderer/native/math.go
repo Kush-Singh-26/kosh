@@ -43,7 +43,7 @@ func (r *Renderer) chunkAndRender(ctx context.Context, expressions []models.Math
 			Logger:    slog.Default(),
 			Operation: operation,
 			Fn: func() error {
-				rendered, err := r.RenderMathBatch(ctx, chunk)
+				rendered, errors, err := r.RenderMathBatch(ctx, chunk)
 				mu.Lock()
 				defer mu.Unlock()
 				if err != nil {
@@ -53,7 +53,11 @@ func (r *Renderer) chunkAndRender(ctx context.Context, expressions []models.Math
 					return nil
 				}
 				for j, html := range rendered {
-					results[chunk[j].Hash] = html
+					if errors[j] != "" {
+						results[chunk[j].Hash] = "error:" + errors[j]
+					} else {
+						results[chunk[j].Hash] = html
+					}
 				}
 				return nil
 			},
@@ -153,13 +157,13 @@ func (r *Renderer) RenderMath(ctx context.Context, latex string, displayMode boo
 }
 
 // RenderMathBatch renders a slice of LaTeX expressions in a single Go-to-JS bridge crossing.
-func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.MathExpression) ([]string, error) {
+func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.MathExpression) ([]string, []string, error) {
 	if len(expressions) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	if err := r.acquireTask(ctx, scheduler.TaskMath); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer r.releaseTask(scheduler.TaskMath)
 
@@ -167,23 +171,23 @@ func (r *Renderer) RenderMathBatch(ctx context.Context, expressions []models.Mat
 
 	instance, err := r.acquireWorker()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer r.releaseWorker(instance)
 
 	if instance.ctx == nil || instance.renderBatchFn == nil {
-		return nil, errRenderBatchNotInit
+		return nil, nil, errRenderBatchNotInit
 	}
 
 	jsInput, err := encodeMathBatch(instance.ctx, expressions)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer jsInput.Free()
 
 	res, err := instance.ctx.Invoke(instance.renderBatchFn, instance.ctx.Global(), jsInput)
 	if err != nil {
-		return nil, fmt.Errorf("KaTeX batch render failed: %w", err)
+		return nil, nil, fmt.Errorf("KaTeX batch render failed: %w", err)
 	}
 	defer res.Free()
 
@@ -253,21 +257,42 @@ func encodeMathBatch(ctx *qjs.Context, expressions []models.MathExpression) (*qj
 	return jsInput, nil
 }
 
-func decodeMathResults(res *qjs.Value) ([]string, error) {
+func decodeMathResults(res *qjs.Value) ([]string, []string, error) {
 	if !res.IsArray() {
-		return nil, fmt.Errorf("expected array response from renderBatch, got %s", res.String())
+		return nil, nil, fmt.Errorf("expected array response from renderBatch, got %s", res.String())
 	}
 
 	length := res.Len()
 	results := make([]string, length)
+	errors := make([]string, length)
+
 	arr := qjs.NewArray(res)
 	for i := 0; i < int(length); i++ {
 		item := arr.Get(int64(i))
-		results[i] = item.String()
+		if item.IsObject() {
+			htmlVal := item.GetPropertyStr("h")
+			errVal := item.GetPropertyStr("e")
+
+			if htmlVal != nil && !htmlVal.IsNull() && !htmlVal.IsUndefined() {
+				results[i] = htmlVal.String()
+			}
+			if errVal != nil && !errVal.IsNull() && !errVal.IsUndefined() {
+				errors[i] = errVal.String()
+			}
+
+			if htmlVal != nil {
+				htmlVal.Free()
+			}
+			if errVal != nil {
+				errVal.Free()
+			}
+		} else {
+			results[i] = item.String()
+		}
 		item.Free()
 	}
 
-	return results, nil
+	return results, errors, nil
 }
 
 // RenderAllMath renders multiple math expressions in a single batch.

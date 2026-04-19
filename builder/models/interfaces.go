@@ -81,3 +81,10 @@ type FragmentCache interface {
 	StoreFragment(key string, html string) error
 	Flush(ctx context.Context) error
 }
+
+// HealthRecorder provides operations for recording build health events and metrics.
+type HealthRecorder interface {
+	AddWarning(message string)
+	AddError(message string)
+	RecordMathFailure()
+}

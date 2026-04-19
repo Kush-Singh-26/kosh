@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -37,7 +38,7 @@ type Manager struct {
 
 // HealthRegistry records search-related health metrics.
 type HealthRegistry interface {
-	RecordSearchStats(docs int64, size int64)
+	RecordSearchStats(docs int64, size int64, configured bool, wasmSync bool)
 }
 
 // ManagerDependencies holds dependencies for the search Manager.
@@ -177,7 +178,7 @@ func (managerInstance *Manager) RegenerateIndex(_ context.Context) error {
 	managerInstance.indexedPosts = indexedPosts
 	managerInstance.mu.Unlock()
 
-	indexPath, indexSize, generateError := generators.GenerateSearchIndex(sink, indexedPosts)
+	indexPath, indexSize, generateError := generators.GenerateSearchIndex(sink, indexedPosts, managerInstance.cfg.Features.Generators.Search.Ranking)
 	if generateError != nil {
 		return generateError
 	}
@@ -189,7 +190,9 @@ func (managerInstance *Manager) RegenerateIndex(_ context.Context) error {
 	}
 
 	if managerInstance.health != nil {
-		managerInstance.health.RecordSearchStats(int64(len(indexedPosts)), indexSize)
+		isEnabled := managerInstance.cfg.Features.Generators.Search.IsEnabled
+		// Search is always "in sync" if regenerated successfully here
+		managerInstance.health.RecordSearchStats(int64(len(indexedPosts)), indexSize, isEnabled, true)
 	}
 
 	return nil
@@ -208,10 +211,20 @@ func (managerInstance *Manager) calculateSearchHash(posts []models.IndexedConten
 	})
 
 	hasher := xxh3.New()
+	// Include schema version and logic version to force rebuild on engine changes
+	_, _ = hasher.WriteString(strconv.Itoa(models.CurrentSchemaVersion))
+	
+	// Include ranking configuration so changing kosh.yaml triggers a re-index
+	ranking := managerInstance.cfg.Features.Generators.Search.Ranking
+	_, _ = hasher.WriteString(strconv.FormatFloat(ranking.TitleBoost, 'f', -1, 64))
+	_, _ = hasher.WriteString(strconv.FormatFloat(ranking.TagBoost, 'f', -1, 64))
+	_, _ = hasher.WriteString(strconv.FormatFloat(ranking.DescriptionBoost, 'f', -1, 64))
+	_, _ = hasher.WriteString(strconv.FormatFloat(ranking.BM25K1, 'f', -1, 64))
+	_, _ = hasher.WriteString(strconv.FormatFloat(ranking.BM25B, 'f', -1, 64))
+
 	for _, p := range sorted {
 		_, _ = hasher.WriteString(indexedPostStableKey(p))
 		// Use the Title and some content-based field for hashing.
-		// Since WordFreqs represents the searchable content, it's a good proxy.
 		_, _ = hasher.WriteString(p.Record.Title)
 		_, _ = hasher.WriteString(p.Record.Description)
 	}

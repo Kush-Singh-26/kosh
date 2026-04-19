@@ -210,12 +210,21 @@ func (r *Renderer) RenderFragment(context string, blockName string, data models.
 }
 
 func (r *Renderer) applyTemplateCache(tc *templateCache) {
+	funcMap := templateFuncMap()
+
+	applyFuncs := func(t *template.Template) *template.Template {
+		if t != nil {
+			return t.Funcs(funcMap)
+		}
+		return t
+	}
+
 	r.mu.Lock()
-	r.Layout = tc.templates["layout"]
-	r.Index = tc.templates["index"]
-	r.Home = tc.templates["home"]
-	r.Graph = tc.templates["graph"]
-	r.NotFound = tc.templates["404"]
+	r.Layout = applyFuncs(tc.templates["layout"])
+	r.Index = applyFuncs(tc.templates["index"])
+	r.Home = applyFuncs(tc.templates["home"])
+	r.Graph = applyFuncs(tc.templates["graph"])
+	r.NotFound = applyFuncs(tc.templates["404"])
 	r.mu.Unlock()
 }
 
@@ -232,6 +241,9 @@ func templateFuncMap() template.FuncMap {
 		"dateFormat": dateFormatFunc,
 		"jsonify":    jsonifyFunc,
 		"default":    defaultFunc,
+		"safeHTML": func(s string) template.HTML {
+			return template.HTML(s)
+		},
 		"add": func(a, b int) int {
 			return a + b
 		},
@@ -395,10 +407,15 @@ func (r *Renderer) handleTemplateLoadError(name string, err error) error {
 }
 
 func (r *Renderer) loadGraphTemplate(tc *templateCache, baseTmpl *template.Template) (*template.Template, error) {
+	funcMap := templateFuncMap()
+
 	t, err := baseTmpl.Clone()
 	if err != nil {
 		return nil, err
 	}
+
+	t = t.Funcs(funcMap)
+
 	if _, err := r.loadPartials(t); err != nil {
 		return nil, err
 	}
@@ -407,6 +424,8 @@ func (r *Renderer) loadGraphTemplate(tc *templateCache, baseTmpl *template.Templ
 }
 
 func (r *Renderer) loadSlotTmpl(tc *templateCache, baseTmpl *template.Template, mu *sync.Mutex, name, fileName string) (*template.Template, error) {
+	funcMap := templateFuncMap()
+
 	// 1. Check Site Layouts
 	path := filepath.Join(r.layoutsDir, fileName)
 	content, err := afero.ReadFile(r.SourceFs, path)
@@ -424,6 +443,8 @@ func (r *Renderer) loadSlotTmpl(tc *templateCache, baseTmpl *template.Template, 
 	if err != nil {
 		return nil, err
 	}
+
+	t = t.Funcs(funcMap)
 
 	// Load partials from both site and theme
 	if _, err := r.loadPartials(t); err != nil {

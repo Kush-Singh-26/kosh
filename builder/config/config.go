@@ -145,54 +145,86 @@ func Load(args []string) *Config {
 
 func defaultConfig() *Config {
 	return &Config{
-		SiteConfig: SiteConfig{
-			Title:   "Kosh Site",
-			BaseURL: "",
-			Taxonomies: map[string]string{
-				"tags": "tags",
-			},
-			Navbar: models.NavbarIdentityConfig{
-				Home:    models.NavbarContextConfig{Title: "Kosh Site", BtnLabel: "Content"},
-				Section: models.NavbarContextConfig{Title: "Content", BtnLabel: "Home"},
-			},
-			HomeBadge:   "Latest Items",
-			ArticleType: "BlogPosting",
-		},
-		BuildOptions: BuildOptions{
-			ItemsPerPage:         DefaultItemsPerPage,
-			PostsPerPage:         DefaultItemsPerPage, // Set for backward compatibility in templates/tests
-			ShouldCompressImages: true,
-			ShouldMinify:         true,
-			ImageWorkers:         DefaultImageWorkers,
-			WebPQuality:          DefaultWebPQuality,
-			ParserWorkers:        DefaultParserWorkers,
-			ContentPrefix:        "",
-			NoStaging:            true,
-		},
-		PathConfig: PathConfig{
-			Theme:      DefaultTheme,
-			ThemeDir:   DefaultThemeDir,
-			ContentDir: DefaultContentDir,
-			OutputDir:  DefaultOutputDir,
-			CacheDir:   DefaultCacheDir,
-		},
+		SiteConfig:   defaultSiteConfig(),
+		BuildOptions: defaultBuildOptions(),
+		PathConfig:   defaultPathConfig(),
+		Features:     defaultFeaturesConfig(),
+		SocialCards:  defaultSocialCardsConfig(),
 		BuildVersion: 0,
-		Features: models.FeaturesConfig{
-			UseRawMarkdown: false,
-			Generators: models.GeneratorsConfig{
-				IsSitemapEnabled: true,
-				IsRSSEnabled:     true,
-				Graph:            models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
-				IsPWAEnabled:     true,
-				IsSearchEnabled:  true,
+	}
+}
+
+func defaultSiteConfig() SiteConfig {
+	return SiteConfig{
+		Title:   "Kosh Site",
+		BaseURL: "",
+		Taxonomies: map[string]string{
+			"tags":   "tags",
+			"series": "series",
+			"events": "events",
+		},
+		Navbar: models.NavbarIdentityConfig{
+			Home:    models.NavbarContextConfig{Title: "Kosh Site", BtnLabel: "Content"},
+			Section: models.NavbarContextConfig{Title: "Content", BtnLabel: "Home"},
+		},
+		HomeBadge:   "Latest Items",
+		ArticleType: "BlogPosting",
+	}
+}
+
+func defaultBuildOptions() BuildOptions {
+	return BuildOptions{
+		ItemsPerPage:         DefaultItemsPerPage,
+		PostsPerPage:         DefaultItemsPerPage, // Set for backward compatibility in templates/tests
+		ShouldCompressImages: true,
+		ShouldMinify:         true,
+		ImageWorkers:         DefaultImageWorkers,
+		WebPQuality:          DefaultWebPQuality,
+		ParserWorkers:        DefaultParserWorkers,
+		ContentPrefix:        "",
+		NoStaging:            true,
+	}
+}
+
+func defaultPathConfig() PathConfig {
+	return PathConfig{
+		Theme:      DefaultTheme,
+		ThemeDir:   DefaultThemeDir,
+		ContentDir: DefaultContentDir,
+		OutputDir:  DefaultOutputDir,
+		CacheDir:   DefaultCacheDir,
+	}
+}
+
+func defaultFeaturesConfig() models.FeaturesConfig {
+	return models.FeaturesConfig{
+		UseRawMarkdown: false,
+		Generators: models.GeneratorsConfig{
+			IsSitemapEnabled: true,
+			IsRSSEnabled:     true,
+			Graph:            models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
+			IsPWAEnabled:     true,
+			Search: models.SearchOptionsConfig{
+				IsEnabled: true,
+				Ranking: models.SearchRankingConfig{
+					TitleBoost:       50.0,
+					TagBoost:         5.0,
+					DescriptionBoost: 5.0,
+					BM25K1:           1.2,
+					BM25B:            0.75,
+				},
+				Endpoints: nil,
 			},
 		},
-		SocialCards: models.SocialCardsConfig{
-			Background: "#fafafa",
-			Gradient:   []string{"#e0d8c0", "#c0b090"},
-			Angle:      DefaultSocialCardAngle,
-			TextColor:  "#262626",
-		},
+	}
+}
+
+func defaultSocialCardsConfig() models.SocialCardsConfig {
+	return models.SocialCardsConfig{
+		Background: "#fafafa",
+		Gradient:   []string{"#e0d8c0", "#c0b090"},
+		Angle:      DefaultSocialCardAngle,
+		TextColor:  "#262626",
 	}
 }
 

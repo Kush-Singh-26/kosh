@@ -238,7 +238,14 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 	// Full builds (via BuildLocked) manage their own session.
 	m.builder.RefreshBuildSession()
 
-	parseRes, err := content.ParseMarkdown(content.ParseOptions{
+	if m.deps.Content != nil {
+		processed, err := m.deps.Content.ProcessShortcodes(source)
+		if err == nil {
+			source = processed
+		}
+	}
+
+	parseRes, err := content.ParseMarkdown(ctx, content.ParseOptions{
 		Source:           source,
 		Path:             path,
 		RelPath:          relPath,

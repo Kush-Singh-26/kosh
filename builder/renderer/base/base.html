@@ -65,7 +65,7 @@
     {{ end }}
     {{ end }}
 
-    {{ if and .Config.GetFeatures.Generators.IsSearchEnabled (not .Config.IsDevMode) }}
+    {{ if and .Config.GetFeatures.Generators.Search.IsEnabled (not .Config.IsDevMode) }}
     <link rel="prefetch" href="{{ relativize .BaseURL .RelativePrefix "/static/wasm/search.wasm" }}" as="fetch" crossorigin fetchpriority="low">
     {{ end }}
 
@@ -75,6 +75,7 @@
         window.taxonomyBaseURL = "{{ .Config.GetContentPrefix }}";
         window.siteTaxonomies = {{ .Taxonomies | jsonify }};
         window.blogTags = {{ with index .Taxonomies "tags" }}{{ .Terms | jsonify }}{{ else }}[]{{ end }};
+        window.searchEndpoints = {{ with .Config.GetFeatures.Generators.Search.Endpoints }}{{ . | jsonify }}{{ else }}[]{{ end }};
     </script>
     {{ if .Config.GetLogo }}
     <link rel="icon" type="image/png" href="{{ relativize .BaseURL .RelativePrefix (printf "/%s" .Config.GetLogo) }}">
@@ -264,7 +265,7 @@
                 <ul>
                     {{ range .TOC }}
                     <li class="toc-level-{{ .Level }}">
-                        <a href="#{{ .ID }}" class="toc-modal-link">{{ .Text }}</a>
+                        <a href="#{{ .ID }}" class="toc-modal-link">{{ .Text | safeHTML }}</a>
                     </li>
                     {{ end }}
                 </ul>
@@ -383,7 +384,7 @@
                     }
                 };
                 source.onerror = function () {
-                    source.close();
+                    console.debug("🚀 Kosh Live Reload connection lost. Reconnecting...");
                 };
             } else {
                 if ('serviceWorker' in navigator) {

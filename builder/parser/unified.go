@@ -1,9 +1,12 @@
 package parser
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -24,6 +27,10 @@ const (
 // slugify creates a URL-safe slug from text (same logic as goldmark's auto-heading-ID)
 func slugify(s string) string {
 	s = strings.ToLower(s)
+	// Handle math placeholders to keep IDs stable and unique
+	mathRe := regexp.MustCompile(`<!--kosh_math:(.*?)-->`)
+	s = mathRe.ReplaceAllString(s, "math-$1")
+
 	var buf strings.Builder
 	buf.Grow(len(s))
 	for _, r := range s {
@@ -132,7 +139,7 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 
 	_ = ast.Walk(node, state.walkFunc)
 
-	// Post-walk: Collect D2 expressions and add placeholders
+	// Post-walk: Collect D2 expressions
 	if len(state.d2Blocks) > 0 {
 		d2Exprs := make([]models.D2Expression, len(state.d2Blocks))
 		for i, block := range state.d2Blocks {
@@ -140,11 +147,6 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 				Code: block.code,
 				Hash: block.hash,
 			}
-			placeholder := "<!--KOSH_D2:" + block.hash + "-->"
-			state.toReplace = append(state.toReplace, replacement{
-				old: block.node,
-				new: &RawHTMLBlock{Content: []byte(placeholder)},
-			})
 		}
 		pc.Set(d2ExpressionsKey, d2Exprs)
 	}
@@ -155,6 +157,18 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 		if parent != nil {
 			parent.ReplaceChild(parent, r.old, r.new)
 		}
+	}
+
+	// Registry Emission for TOC and Search (for sub-render recovery)
+	if len(state.toc) > 0 {
+		if tocJSON, err := json.Marshal(state.toc); err == nil {
+			tocReg := fmt.Sprintf("<!--KOSH_TOC_REG:%s-->", base64.StdEncoding.EncodeToString(tocJSON))
+			node.AppendChild(node, &RawHTMLBlock{Content: []byte(tocReg)})
+		}
+	}
+	if state.plainText.Len() > 0 {
+		searchReg := fmt.Sprintf("<!--KOSH_SEARCH_REG:%s-->", base64.StdEncoding.EncodeToString([]byte(state.plainText.String())))
+		node.AppendChild(node, &RawHTMLBlock{Content: []byte(searchReg)})
 	}
 
 	// Extract results
@@ -354,46 +368,136 @@ func (s *transformState) isSoleImage(p *ast.Paragraph, img *ast.Image) bool {
 }
 
 func (s *transformState) handleHTML(n ast.Node, kind ast.NodeKind) {
-	var htmlContent string
+	htmlContent := s.extractHTML(n, kind)
+
+	s.recoverMath(htmlContent)
+	s.recoverTOC(htmlContent)
+	s.recoverSearch(htmlContent)
+	s.recoverD2(htmlContent)
+
+	s.processImages(n, kind, htmlContent)
+}
+
+func (s *transformState) extractHTML(n ast.Node, kind ast.NodeKind) string {
+	var sb strings.Builder
 	if kind == ast.KindHTMLBlock {
 		hb := n.(*ast.HTMLBlock)
-		var sb strings.Builder
 		for i := 0; i < hb.Lines().Len(); i++ {
 			line := hb.Lines().At(i)
 			sb.Write(line.Value(s.source))
 		}
-		htmlContent = sb.String()
 	} else {
 		ri := n.(*ast.RawHTML)
-		var sb strings.Builder
 		for i := 0; i < ri.Segments.Len(); i++ {
 			seg := ri.Segments.At(i)
 			sb.Write(seg.Value(s.source))
 		}
-		htmlContent = sb.String()
+	}
+	return sb.String()
+}
+
+func (s *transformState) recoverMath(htmlContent string) {
+	mathRegRe := regexp.MustCompile(`<!--KOSH_MATH_REG:(.*?):(.*?):(.*?):(.*?)-->`)
+	mathMatches := mathRegRe.FindAllStringSubmatch(htmlContent, -1)
+	for _, m := range mathMatches {
+		if len(m) < 5 {
+			continue
+		}
+		hash := m[1]
+		latexBase64 := m[2]
+		displayMode := m[3] == "true"
+		lineNum, _ := strconv.Atoi(m[4])
+
+		latex, err := base64.StdEncoding.DecodeString(latexBase64)
+		if err == nil {
+			s.mathExpressions = append(s.mathExpressions, models.MathExpression{
+				LaTeX:       string(latex),
+				Hash:        hash,
+				DisplayMode: displayMode,
+				Line:        lineNum,
+			})
+			AddSSRHash(s.pc, hash)
+		}
+	}
+}
+
+func (s *transformState) recoverTOC(htmlContent string) {
+	tocRegRe := regexp.MustCompile(`<!--KOSH_TOC_REG:(.*?)-->`)
+	tocMatches := tocRegRe.FindAllStringSubmatch(htmlContent, -1)
+	for _, m := range tocMatches {
+		if len(m) < 2 {
+			continue
+		}
+		tocJSON, err := base64.StdEncoding.DecodeString(m[1])
+		if err == nil {
+			var recoveredTOC []models.TOCEntry
+			if err := json.Unmarshal(tocJSON, &recoveredTOC); err == nil {
+				s.toc = append(s.toc, recoveredTOC...)
+			}
+		}
+	}
+}
+
+func (s *transformState) recoverSearch(htmlContent string) {
+	searchRegRe := regexp.MustCompile(`<!--KOSH_SEARCH_REG:(.*?)-->`)
+	searchMatches := searchRegRe.FindAllStringSubmatch(htmlContent, -1)
+	for _, m := range searchMatches {
+		if len(m) < 2 {
+			continue
+		}
+		text, err := base64.StdEncoding.DecodeString(m[1])
+		if err == nil {
+			s.plainText.Write(text)
+		}
+	}
+}
+
+func (s *transformState) recoverD2(htmlContent string) {
+	d2RegRe := regexp.MustCompile(`<!--KOSH_D2_REG:(.*?):(.*?):(.*?)-->`)
+	d2Matches := d2RegRe.FindAllStringSubmatch(htmlContent, -1)
+	for _, m := range d2Matches {
+		if len(m) < 4 {
+			continue
+		}
+		hash := m[1]
+		codeBase64 := m[2]
+		code, err := base64.StdEncoding.DecodeString(codeBase64)
+		if err == nil {
+			s.d2Blocks = append(s.d2Blocks, d2BlockInfo{
+				node: nil, // Node is nil for recovered blocks
+				code: string(code),
+				hash: hash,
+			})
+			AddSSRHash(s.pc, hash)
+		}
+	}
+}
+
+func (s *transformState) processImages(n ast.Node, kind ast.NodeKind, htmlContent string) {
+	imgRe := regexp.MustCompile(`(?i)<img\b[^>]*?\balt=["'](.*?)["'][^>]*?>`)
+	if !imgRe.MatchString(htmlContent) {
+		return
 	}
 
-	imgRe := regexp.MustCompile(`(?i)<img\b[^>]*?\balt=["'](.*?)["'][^>]*?>`)
-	if imgRe.MatchString(htmlContent) {
-		newHTML := imgRe.ReplaceAllStringFunc(htmlContent, func(imgTag string) string {
-			matches := imgRe.FindStringSubmatch(imgTag)
-			if len(matches) > 1 {
-				alt := strings.TrimSpace(matches[1])
-				if alt != "" && strings.ToLower(alt) != "image" {
-					if !strings.Contains(htmlContent, "<figure") {
-						return fmt.Sprintf("<figure>%s<figcaption>%s</figcaption></figure>", imgTag, alt)
-					}
+	newHTML := imgRe.ReplaceAllStringFunc(htmlContent, func(imgTag string) string {
+		matches := imgRe.FindStringSubmatch(imgTag)
+		if len(matches) > 1 {
+			alt := strings.TrimSpace(matches[1])
+			if alt != "" && strings.ToLower(alt) != "image" {
+				if !strings.Contains(htmlContent, "<figure") {
+					return fmt.Sprintf("<figure>%s<figcaption>%s</figcaption></figure>", imgTag, alt)
 				}
 			}
-			return imgTag
-		})
+		}
+		return imgTag
+	})
 
-		if newHTML != htmlContent {
-			if kind == ast.KindHTMLBlock {
-				s.toReplace = append(s.toReplace, replacement{old: n, new: &RawHTMLBlock{Content: []byte(newHTML)}})
-			} else {
-				s.toReplace = append(s.toReplace, replacement{old: n, new: &RawHTMLInline{Content: []byte(newHTML)}})
-			}
+	if newHTML != htmlContent {
+		switch kind {
+		case ast.KindHTMLBlock:
+			s.toReplace = append(s.toReplace, replacement{old: n, new: &RawHTMLBlock{Content: []byte(newHTML)}})
+		default:
+			s.toReplace = append(s.toReplace, replacement{old: n, new: &RawHTMLInline{Content: []byte(newHTML)}})
 		}
 	}
 }
@@ -412,6 +516,12 @@ func (s *transformState) handleD2(cb *ast.FencedCodeBlock) {
 
 		s.d2Blocks = append(s.d2Blocks, d2BlockInfo{node: cb, code: code, hash: hash})
 		AddSSRHash(s.pc, hash)
+
+		// Add registry comment for sub-renders
+		registry := fmt.Sprintf("<!--KOSH_D2_REG:%s:%s:d2-->",
+			hash, base64.StdEncoding.EncodeToString([]byte(code)))
+		placeholder := "<!--KOSH_D2:" + hash + "-->" + registry
+		s.toReplace = append(s.toReplace, replacement{old: cb, new: &RawHTMLBlock{Content: []byte(placeholder)}})
 	}
 }
 
@@ -420,33 +530,70 @@ func (s *transformState) handleMath(n ast.Node, kind ast.NodeKind) (ast.WalkStat
 
 	if latex != "" {
 		hash := native.HashContent(typeStr, latex)
+
+		// Get line number safely to avoid Goldmark panic on inline nodes
+		lineNum := 0
+		offset := -1
+		switch kind {
+		case passthrough.KindPassthroughInline:
+			m := n.(*passthrough.PassthroughInline)
+			offset = m.Segment.Start
+		case passthrough.KindPassthroughBlock:
+			m := n.(*passthrough.PassthroughBlock)
+			if m.Lines().Len() > 0 {
+				offset = m.Lines().At(0).Start
+			}
+		}
+
+		// Fallback for line number if offset is still -1
+		if offset == -1 {
+			// Try to get offset from the node's first line if it's a block node
+			if n.Lines().Len() > 0 {
+				offset = n.Lines().At(0).Start
+			}
+		}
+
+		if offset != -1 {
+			lineNum = s.calculateLineNumber(offset)
+		}
+
 		s.mathExpressions = append(s.mathExpressions, models.MathExpression{
 			LaTeX:       latex,
 			DisplayMode: displayMode,
 			Hash:        hash,
+			Line:        lineNum,
 		})
 
-		newNode := s.createMathReplacement(hash, displayMode)
+		// If we are inside a heading, capture the math placeholder in the heading text
+		if s.ctx.inHeading {
+			s.ctx.headingText.WriteString("<!--KOSH_MATH:" + hash + "-->")
+		}
+
+		newNode := s.createMathReplacement(hash, latex, displayMode, lineNum)
 		s.toReplace = append(s.toReplace, replacement{old: n, new: newNode})
 		return ast.WalkSkipChildren, nil
 	}
 	return ast.WalkContinue, nil
 }
 
+func (s *transformState) calculateLineNumber(offset int) int {
+	line := 1
+	for i := 0; i < offset && i < len(s.source); i++ {
+		if s.source[i] == '\n' {
+			line++
+		}
+	}
+	return line
+}
+
 func (s *transformState) extractLaTeX(n ast.Node, kind ast.NodeKind) (latex string, typeStr string, displayMode bool) {
+	var raw []byte
 	switch kind {
 	case passthrough.KindPassthroughInline:
 		m := n.(*passthrough.PassthroughInline)
-		val := string(m.Segment.Value(s.source))
-		switch {
-		case strings.HasPrefix(val, "$") && strings.HasSuffix(val, "$"):
-			latex = val[1 : len(val)-1]
-		case strings.HasPrefix(val, `\(`) && strings.HasSuffix(val, `\)`):
-			latex = val[2 : len(val)-2]
-		default:
-			latex = val
-		}
-		return strings.TrimSpace(latex), "math-inline", false
+		raw = m.Segment.Value(s.source)
+		typeStr = "math-inline"
+		displayMode = false
 	case passthrough.KindPassthroughBlock:
 		m := n.(*passthrough.PassthroughBlock)
 		var sb strings.Builder
@@ -455,23 +602,32 @@ func (s *transformState) extractLaTeX(n ast.Node, kind ast.NodeKind) (latex stri
 			line := m.Lines().At(i)
 			sb.Write(line.Value(s.source))
 		}
-		val := sb.String()
-		vTrim := strings.TrimSpace(val)
-		switch {
-		case strings.HasPrefix(vTrim, "$$") && strings.HasSuffix(vTrim, "$$"):
-			latex = vTrim[2 : len(vTrim)-2]
-		case strings.HasPrefix(vTrim, `\[`) && strings.HasSuffix(vTrim, `\]`):
-			latex = vTrim[2 : len(vTrim)-2]
-		default:
-			latex = vTrim
-		}
-		return strings.TrimSpace(latex), "math-block", true
+		raw = []byte(sb.String())
+		typeStr = "math-block"
+		displayMode = true
 	}
-	return "", "", false
+
+	val := strings.TrimSpace(string(raw))
+	// Robustly strip delimiters
+	switch {
+	case strings.HasPrefix(val, "$$") && strings.HasSuffix(val, "$$"):
+		latex = val[2 : len(val)-2]
+	case strings.HasPrefix(val, "$") && strings.HasSuffix(val, "$"):
+		latex = val[1 : len(val)-1]
+	case strings.HasPrefix(val, `\[`) && strings.HasSuffix(val, `\]`):
+		latex = val[2 : len(val)-2]
+	case strings.HasPrefix(val, `\(`) && strings.HasSuffix(val, `\)`):
+		latex = val[2 : len(val)-2]
+	default:
+		latex = val
+	}
+	return strings.TrimSpace(latex), typeStr, displayMode
 }
 
-func (s *transformState) createMathReplacement(hash string, displayMode bool) ast.Node {
-	placeholder := "<!--KOSH_MATH:" + hash + "-->"
+func (s *transformState) createMathReplacement(hash string, latex string, displayMode bool, line int) ast.Node {
+	registry := fmt.Sprintf("<!--KOSH_MATH_REG:%s:%s:%t:%d-->",
+		hash, base64.StdEncoding.EncodeToString([]byte(latex)), displayMode, line)
+	placeholder := "<!--KOSH_MATH:" + hash + "-->" + registry
 	if displayMode {
 		return &RawHTMLBlock{Content: []byte(placeholder)}
 	}

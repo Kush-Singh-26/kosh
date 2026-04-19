@@ -83,7 +83,7 @@ func TestLoad_Defaults(t *testing.T) {
 		t.Error("Graph showsTags should be enabled by default")
 	}
 
-	if !cfg.Features.Generators.IsSearchEnabled {
+	if !cfg.Features.Generators.Search.IsEnabled {
 		t.Error("Search generator should be enabled by default")
 	}
 }

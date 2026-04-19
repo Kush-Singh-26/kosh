@@ -225,6 +225,12 @@ func computeReadingTime(source []byte, knownReadingTime int) int {
 	return int(math.Ceil(float64(wordCount) / wordsPerMinute))
 }
 
+// computeReadingTimeFromText calculates reading time from plain text
+func computeReadingTimeFromText(text string) int {
+	wordCount := timeutil.CountWords([]byte(text))
+	return int(math.Ceil(float64(wordCount) / wordsPerMinute))
+}
+
 // computeFrontmatterHash computes the frontmatter hash if not already known.
 // Expected value types (from YAML decoding): string, bool, int/float64, time.Time, []any, map[string]any.
 func computeFrontmatterHash(metadata map[string]any, knownHash string, taxonomyKeys []string) string {

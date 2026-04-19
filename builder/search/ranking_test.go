@@ -71,6 +71,13 @@ func buildRankingIndex() *models.SearchIndex {
 		TotalItems:    6,
 		AvgDocLen:     10.0,
 		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]uint32)),
+		Ranking: models.SearchRankingConfig{
+			TitleBoost:       50.0,
+			TagBoost:         5.0,
+			DescriptionBoost: 5.0,
+			BM25K1:           1.2,
+			BM25B:            0.75,
+		},
 	}
 
 	addTerm := func(term string, ContentID string, pos uint32) {
@@ -179,6 +186,13 @@ func TestRanking_PhraseMatch(t *testing.T) {
 		ItemLens:      map[string]int64{"0": 5, "1": 5},
 		TotalItems:    2,
 		AvgDocLen:     5.0,
+		Ranking: models.SearchRankingConfig{
+			TitleBoost:       50.0,
+			TagBoost:         5.0,
+			DescriptionBoost: 5.0,
+			BM25K1:           1.2,
+			BM25B:            0.75,
+		},
 	}
 
 	index.Inverted["neural"] = map[string][]uint32{"0": {0}}
@@ -275,6 +289,13 @@ func TestRanking_FuzzyMatch(t *testing.T) {
 		TotalItems:    2,
 		AvgDocLen:     4.0,
 		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]uint32)),
+		Ranking: models.SearchRankingConfig{
+			TitleBoost:       50.0,
+			TagBoost:         5.0,
+			DescriptionBoost: 5.0,
+			BM25K1:           1.2,
+			BM25B:            0.75,
+		},
 	}
 
 	index.Inverted["program"] = map[string][]uint32{"0": {0}}
@@ -319,6 +340,13 @@ func TestRanking_ScoreOrdering(t *testing.T) {
 		TotalItems:    2,
 		AvgDocLen:     4.0,
 		NgramIndex:    core.BuildNgramIndex(make(map[string]map[string][]uint32)),
+		Ranking: models.SearchRankingConfig{
+			TitleBoost:       50.0,
+			TagBoost:         5.0,
+			DescriptionBoost: 5.0,
+			BM25K1:           1.2,
+			BM25B:            0.75,
+		},
 	}
 
 	index.Inverted["word"] = map[string][]uint32{"0": {2}, "1": {3}}
@@ -360,6 +388,13 @@ func TestRanking_TopKLimit(t *testing.T) {
 		TotalItems:    50,
 		AvgDocLen:     5.0,
 		NgramIndex:    core.BuildNgramIndex(inverted),
+		Ranking: models.SearchRankingConfig{
+			TitleBoost:       50.0,
+			TagBoost:         5.0,
+			DescriptionBoost: 5.0,
+			BM25K1:           1.2,
+			BM25B:            0.75,
+		},
 	}
 
 	for i := 0; i < 50; i++ {
@@ -415,6 +450,13 @@ func TestRanking_PhraseWithQuotes(t *testing.T) {
 		ItemLens:      map[string]int64{"0": 5, "1": 5},
 		TotalItems:    2,
 		AvgDocLen:     5.0,
+		Ranking: models.SearchRankingConfig{
+			TitleBoost:       50.0,
+			TagBoost:         5.0,
+			DescriptionBoost: 5.0,
+			BM25K1:           1.2,
+			BM25B:            0.75,
+		},
 	}
 
 	index.Inverted["neural"] = map[string][]uint32{"0": {0}, "1": {0}}

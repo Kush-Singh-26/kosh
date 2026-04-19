@@ -173,7 +173,7 @@ func (r *Renderer) mathBatchWorker() {
 			exprs[idx] = item.expr
 		}
 
-		results, err := r.RenderMathBatch(context.Background(), exprs)
+		results, renderErrors, err := r.RenderMathBatch(context.Background(), exprs)
 		if err != nil {
 			for _, b := range batch {
 				select {
@@ -187,7 +187,11 @@ func (r *Renderer) mathBatchWorker() {
 		}
 
 		for i, res := range results {
-			batch[i].res <- res
+			if renderErrors[i] != "" {
+				batch[i].res <- "error:" + renderErrors[i]
+			} else {
+				batch[i].res <- res
+			}
 		}
 
 		*batchPtr = batch[:0]

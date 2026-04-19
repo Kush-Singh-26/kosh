@@ -40,7 +40,7 @@ func TestFullBuildIntegration(t *testing.T) {
 	cfg.TemplateDir = absTemplateDir
 	cfg.StaticDir = absStaticDir
 
-	cfg.Features.Generators.IsSearchEnabled = true
+	cfg.Features.Generators.Search.IsEnabled = true
 	cfg.Features.Generators.IsRSSEnabled = true
 	cfg.Features.Generators.IsSitemapEnabled = true
 	cfg.Features.Generators.Graph = models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true}

@@ -59,6 +59,10 @@ type MathExpression struct {
 	DisplayMode bool `json:"displayMode" msg:"displayMode"`
 	// Hash is the content hash used for caching and deduplication
 	Hash string `json:"-" msg:"hash"`
+	// Line is the line number in the source file
+	Line int `json:"-" msg:"line"`
+	// Error is any rendering error encountered
+	Error string `json:"-" msg:"error"`
 }
 
 // SSRThemePair stores both light and dark versions together for atomic access.

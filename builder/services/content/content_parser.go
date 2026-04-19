@@ -115,14 +115,14 @@ type ParseOptions struct {
 
 // ParseMarkdownMetadata handles the semantic parsing and metadata extraction.
 // This is a refactored version using helper functions for better maintainability.
-func ParseMarkdownMetadata(options ParseOptions) (*ParsedMarkdownResult, error) {
+func ParseMarkdownMetadata(ctx context.Context, options ParseOptions) (*ParsedMarkdownResult, error) {
 	result := &ParsedMarkdownResult{}
 
 	// Step 1: Strip frontmatter
 	result.BodyOnly = stripFrontmatter(options.Source, options.BodyOffset)
 
 	// Step 2: Parse markdown with panic recovery
-	docNode, mdCtx, parseErr := parseMarkdownWithRecovery(context.Background(), result.BodyOnly, options.Path, options.MdPool)
+	docNode, mdCtx, parseErr := parseMarkdownWithRecovery(ctx, result.BodyOnly, options.Path, options.MdPool)
 	if parseErr != nil {
 		return nil, parseErr
 	}
@@ -146,6 +146,11 @@ func ParseMarkdownMetadata(options ParseOptions) (*ParsedMarkdownResult, error) 
 	// Step 5: Get plain text and build search record
 	result.PlainText = mdParser.GetPlainText(mdCtx)
 	result.SearchRecord = buildSearchRecord(result.Item, options.HTMLRelPath, result.PlainText)
+
+	// Step 5.5: Update reading time based on actual plain text (more accurate)
+	if options.KnownReadingTime <= 0 && result.PlainText != "" {
+		result.Item.ReadingTime = computeReadingTimeFromText(result.PlainText)
+	}
 
 	// Step 6: Search Analysis (DEFERRED to background worker)
 
@@ -203,7 +208,8 @@ func RenderParsedMarkdown(options MarkdownRenderOptions) error {
 	result.HasImages = bytes.Contains(body, []byte("![")) || bytes.Contains(body, []byte("<img"))
 
 	// Math discovery (deferred to global orchestration)
-	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) || bytes.Contains(source, []byte("\\[")) {
+	// Check for raw LaTeX delimiters OR Kosh placeholders (from shortcode preprocessing)
+	if bytes.Contains(source, []byte("$")) || bytes.Contains(source, []byte("\\(")) || bytes.Contains(source, []byte("\\[")) || bytes.Contains(source, []byte("<!--KOSH_MATH:")) {
 		result.MathExpressions = mdParser.GetMathExpressions(result.Context)
 		for _, expr := range result.MathExpressions {
 			result.SSRHashes = append(result.SSRHashes, expr.Hash)
@@ -211,7 +217,8 @@ func RenderParsedMarkdown(options MarkdownRenderOptions) error {
 	}
 
 	// D2 discovery (deferred to global orchestration)
-	if bytes.Contains(source, []byte("```d2")) {
+	// Check for raw D2 blocks OR Kosh placeholders (from shortcode preprocessing)
+	if bytes.Contains(source, []byte("```d2")) || bytes.Contains(source, []byte("<!--KOSH_D2:")) {
 		result.D2Expressions = mdParser.GetD2Expressions(result.Context)
 		for _, expr := range result.D2Expressions {
 			result.SSRHashes = append(result.SSRHashes, expr.Hash)
@@ -222,8 +229,8 @@ func RenderParsedMarkdown(options MarkdownRenderOptions) error {
 }
 
 // ParseMarkdown handles the safe parsing and processing of markdown files
-func ParseMarkdown(options ParseOptions) (*ParsedMarkdownResult, error) {
-	result, err := ParseMarkdownMetadata(options)
+func ParseMarkdown(ctx context.Context, options ParseOptions) (*ParsedMarkdownResult, error) {
+	result, err := ParseMarkdownMetadata(ctx, options)
 	if err != nil {
 		return nil, err
 	}

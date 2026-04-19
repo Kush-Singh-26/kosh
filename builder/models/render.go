@@ -143,4 +143,8 @@ type PageData struct {
 	// Universal Fragment Cache
 	Fragments    map[string]template.HTML
 	IsCleanBuild bool
+
+	// SSR Replacement Maps (for late-pass rendering in TOC/Fragments)
+	SSRMath map[string]string       `json:"-"`
+	SSRD2   map[string]SSRThemePair `json:"-"`
 }

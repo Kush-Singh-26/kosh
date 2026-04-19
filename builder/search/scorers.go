@@ -15,13 +15,16 @@ const (
 	scoreModifierPrefixMatch   = 0.9
 	phraseFullQueryBoostFactor = 1.2
 	exactTagBoostFactor        = 2.0
-	exactTitleBoost            = 50.0
-	prefixTitleBoost           = 30.0
-	substringTitleBoost        = 15.0
-	exactTitleWordBoost        = 20.0
-	prefixTitleWordBoost       = 10.0
+	exactTitleBoost            = 100.0
+	prefixTitleBoost           = 70.0
+	substringTitleBoost        = 30.0
+	exactTitleWordBoost        = 50.0
+	prefixTitleWordBoost       = 25.0
+	tier1ExactFloor            = 10000.0 // Exact Title/Tag match
+	tier2PrefixFloor           = 5000.0  // Prefix Title match
+	tier3WordFloor             = 1000.0  // Individual word match in title
 	descriptionContainsBoost   = 5.0
-	minHighlightTermLength     = 2
+	minHighlightTermLength     = 1
 	maxProximitySlop           = 15
 	proximityBoost             = 3.0
 	secondsPerMonth            = 2592000
@@ -62,7 +65,7 @@ func (scorer *TagScorer) Score(ctx *Context, opts *ScoringOptions) {
 				}
 			}
 			if match {
-				opts.Scores[id] += ScoreTagMatch
+				opts.Scores[id] += opts.Ranking.TagBoost
 			}
 		}
 	}
@@ -115,7 +118,9 @@ func (scorer *BM25Scorer) applyBM25Score(ctx *Context, items map[string][]uint32
 
 func (scorer *BM25Scorer) scoreFuzzy(ctx *Context, term string, opts *ScoringOptions) {
 	var candidates []string
-	if ctx.Index.NgramIndex != nil {
+	// Trigram indices (size 3) cannot reliably match 2-character queries like "ke".
+	// For queries < 3 chars, we must bypass the index and use a full inverted scan (FuzzyExpand).
+	if ctx.Index.NgramIndex != nil && len([]rune(term)) >= 3 {
 		candidates = core.FuzzyExpandWithNgrams(term, ctx.Index.NgramIndex, core.MaxEditDistance)
 	} else {
 		candidates = core.FuzzyExpand(term, ctx.Index.Inverted, core.MaxEditDistance)
@@ -177,7 +182,7 @@ func (scorer *TitleScorer) Score(ctx *Context, opts *ScoringOptions) {
 		for _, term := range ctx.QueryTerms {
 			if ids, ok := ctx.Index.TitleInverted[term]; ok {
 				for _, id := range ids {
-					titleMatches[id] += exactTitleWordBoost
+					titleMatches[id] += opts.Ranking.TitleBoost * 0.5 // Boost for term presence in title
 				}
 				opts.HighlightTerms[term] = true
 			}
@@ -189,17 +194,17 @@ func (scorer *TitleScorer) Score(ctx *Context, opts *ScoringOptions) {
 		idNum, _ := strconv.ParseUint(id, 10, 64)
 		switch {
 		case item.NormalizedTitle == queryLower:
-			titleMatches[idNum] += exactTitleBoost
+			titleMatches[idNum] += opts.Ranking.TitleBoost*2.0 + tier1ExactFloor
 		case strings.HasPrefix(item.NormalizedTitle, queryLower):
-			titleMatches[idNum] += prefixTitleBoost
+			titleMatches[idNum] += opts.Ranking.TitleBoost*0.8 + tier2PrefixFloor
 		case strings.Contains(item.NormalizedTitle, queryLower):
-			titleMatches[idNum] += substringTitleBoost
+			titleMatches[idNum] += opts.Ranking.TitleBoost*0.3 + tier3WordFloor
 		}
 
 		description := core.ToLower(item.Description)
 		if strings.Contains(description, queryLower) {
 			idNum, _ := strconv.ParseUint(id, 10, 64)
-			titleMatches[idNum] += descriptionContainsBoost
+			titleMatches[idNum] += opts.Ranking.DescriptionBoost
 		}
 	}
 
@@ -236,7 +241,7 @@ func (scorer *BoostScorer) Score(ctx *Context, opts *ScoringOptions) {
 		for _, terms := range item.NormalizedTaxs {
 			for _, term := range terms {
 				if term == ctx.OriginalQuery || term == ctx.TagFilter {
-					opts.Scores[id] += ScoreTagMatch * exactTagBoostFactor
+					opts.Scores[id] += opts.Ranking.TagBoost * exactTagBoostFactor
 					opts.HighlightTerms[term] = true
 				}
 			}

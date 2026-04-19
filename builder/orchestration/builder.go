@@ -1,6 +1,7 @@
 package orchestration
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/shortcodes"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/spf13/afero"
+	"github.com/yuin/goldmark"
 )
 
 func init() {
@@ -139,22 +141,7 @@ func (setup *buildSetup) initNativeRenderer() {
 }
 
 func (setup *buildSetup) initServices() {
-	// assetsReady is created per-build and closed by AssetService when assets are ready.
-	// RenderService receives it via SetAssetsGate and waits before rendering pages.
-	// This is a one-way synchronization channel, not a bidirectional dependency.
-	// AssetService owns the channel lifecycle; RenderService only waits on it.
-	rendererInstance := renderer.NewWithFs(renderer.Options{
-		SourceFs:    setup.sourceFs,
-		Compress:    setup.config.ShouldCompressImages,
-		Minify:      setup.config.ShouldMinify,
-		Sink:        nil,
-		TemplateDir: setup.config.TemplateDir,
-		LayoutsDir:  setup.config.LayoutsDir,
-		DevMode:     setup.config.IsDev,
-		Logger:      setup.logger,
-		Cache:       setup.fragmentAdapter,
-	})
-
+	rendererInstance := setup.createRenderer()
 	assetsReady := make(chan struct{})
 
 	setup.renderSvc = render.NewService(render.Dependencies{
@@ -175,11 +162,7 @@ func (setup *buildSetup) initServices() {
 		Reporter: setup.reporter,
 	}, asset.WithAssetsReadySignal(assetsReady))
 
-	themeShortcodesDir := filepath.Join(setup.config.TemplateDir, "shortcodes")
-	shortcodeProc, err := shortcodes.New(setup.sourceFs, themeShortcodesDir)
-	if err != nil {
-		setup.logger.Warn("Failed to initialize shortcodes", "error", err)
-	}
+	shortcodeProc := setup.initShortcodes()
 
 	setup.contentSvc = content.NewService(content.Dependencies{
 		Ctx:            setup.ctx,
@@ -195,6 +178,7 @@ func (setup *buildSetup) initServices() {
 		Reporter:       setup.reporter,
 		Shortcodes:     shortcodeProc,
 	})
+	setup.contentSvc.SetMarkdownRenderer(setup.createMarkdownRenderer())
 	setup.metaScanner = scanner.NewScanner()
 
 	setup.wasmSvc = wasm.NewService(wasm.Dependencies{
@@ -203,6 +187,45 @@ func (setup *buildSetup) initServices() {
 		Logger:   setup.logger,
 		SourceFs: setup.sourceFs,
 	})
+}
+
+func (setup *buildSetup) createRenderer() *renderer.Renderer {
+	return renderer.NewWithFs(renderer.Options{
+		SourceFs:    setup.sourceFs,
+		Compress:    setup.config.ShouldCompressImages,
+		Minify:      setup.config.ShouldMinify,
+		Sink:        nil,
+		TemplateDir: setup.config.TemplateDir,
+		LayoutsDir:  setup.config.LayoutsDir,
+		DevMode:     setup.config.IsDev,
+		Logger:      setup.logger,
+		Cache:       setup.fragmentAdapter,
+	})
+}
+
+func (setup *buildSetup) initShortcodes() content.ShortcodeProcessor {
+	themeShortcodesDir := filepath.Join(setup.config.TemplateDir, "shortcodes")
+	shortcodeProc, err := shortcodes.New(setup.sourceFs, themeShortcodesDir)
+	if err != nil {
+		setup.logger.Warn("Failed to initialize shortcodes", "error", err)
+	}
+
+	if shortcodeProc != nil {
+		shortcodeProc.SetRenderer(setup.createMarkdownRenderer())
+	}
+	return shortcodeProc
+}
+
+func (setup *buildSetup) createMarkdownRenderer() func(content []byte) ([]byte, error) {
+	return func(content []byte) ([]byte, error) {
+		md := setup.mdPool.Get().(goldmark.Markdown)
+		defer setup.mdPool.Put(md)
+		var buf bytes.Buffer
+		if err := md.Convert(content, &buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	}
 }
 
 func newEngineWithConfigFs(sourceFs afero.Fs, cfg *config.Config, reporter ui.Reporter) *Engine {

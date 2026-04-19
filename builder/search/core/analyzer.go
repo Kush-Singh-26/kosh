@@ -11,7 +11,7 @@ import (
 
 const (
 	tokenPoolCap           = 512
-	minTokenLength         = 2
+	minTokenLength         = 1
 	estUniqueDivisor       = 4
 	minEstUnique           = 4
 	positionsCap           = 1

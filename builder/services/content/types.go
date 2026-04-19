@@ -11,6 +11,7 @@ import (
 // ShortcodeProcessor processes shortcodes in markdown content.
 type ShortcodeProcessor interface {
 	Process(markdown []byte) ([]byte, error)
+	SetRenderer(renderer func([]byte) ([]byte, error))
 }
 
 type renderTask struct {

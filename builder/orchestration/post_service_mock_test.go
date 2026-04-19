@@ -27,6 +27,8 @@ func (serviceMock *mockPostService) ReconfigureForBuild(sink fspkg.ArtifactSink,
 // SetAssetsGate sets the assets gate for the mock.
 func (serviceMock *mockPostService) SetAssetsGate(_ <-chan struct{}) {}
 
+func (serviceMock *mockPostService) SetMarkdownRenderer(_ func([]byte) ([]byte, error)) {}
+
 // ReconfigureWithReporter is a no-op for the mock.
 func (serviceMock *mockPostService) ReconfigureWithReporter(_ ui.Reporter, _ *slog.Logger) {}
 
@@ -56,6 +58,10 @@ func (serviceMock *mockPostService) ProcessSingle(_ context.Context, _ string, _
 
 func (serviceMock *mockPostService) ProcessSingleWithResult(_ context.Context, _ string, _ []byte, _ *content.ParsedMarkdownResult) error {
 	return serviceMock.ProcessSingleErr
+}
+
+func (serviceMock *mockPostService) ProcessShortcodes(source []byte) ([]byte, error) {
+	return source, nil
 }
 
 // WaitForCacheCommit is a no-op for the mock.

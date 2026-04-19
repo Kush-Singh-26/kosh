@@ -31,13 +31,14 @@ func (i *instance) setupJSContext(rt *qjs.Runtime) (*qjs.Context, error) {
 			var input = JSON.parse(jsonInput);
 			return input.map(function(item) {
 				try {
-					return katex.renderToString(item.l, {
+					var html = katex.renderToString(item.l, {
 						displayMode: !!item.d,
-						throwOnError: false,
+						throwOnError: true,
 						output: 'html'
 					});
+					return { h: html, e: null };
 				} catch (err) {
-					return "error: " + err.message;
+					return { h: null, e: err.message };
 				}
 			});
 		};

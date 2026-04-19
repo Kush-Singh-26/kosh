@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -100,15 +101,16 @@ func runDevServe(ctx context.Context, filteredArgs []string) {
 	startWatcher(ctx, engine)
 
 	server.Run(server.Options{
-		Ctx:           ctx,
-		Args:          filteredArgs,
-		OutputDir:     engine.Cfg.OutputDir,
-		RootDirectory: engine.Cfg.Server.RootDirectory,
-		SiteRoot:      engine.Cfg.SiteRoot,
-		BaseURL:       engine.Cfg.BaseURL,
-		BuildConfig:   engine.Cfg.Build,
-		Reporter:      reporter,
-		IsDev:         true,
+		Ctx:            ctx,
+		Args:           filteredArgs,
+		OutputDir:      engine.Cfg.OutputDir,
+		RootDirectory:  engine.Cfg.Server.RootDirectory,
+		SiteRoot:       engine.Cfg.SiteRoot,
+		BaseURL:        engine.Cfg.BaseURL,
+		BuildConfig:    engine.Cfg.Build,
+		Reporter:       reporter,
+		IsDev:          true,
+		HealthRegistry: engine.Health,
 	})
 }
 
@@ -152,26 +154,21 @@ func runStaticServe(ctx context.Context, filteredArgs []string) {
 	cfg := config.Load(filteredArgs)
 	printStartupBanner("Static Preview", cfg)
 
-	// Run a build first to ensure images are processed
-	orchestration.DevLogInfo("Building site...")
-	buildEngine := orchestration.NewEngine(orchestration.WithConfig(cfg))
-	if reporter != nil {
-		buildEngine.SetReporter(reporter)
-		reporter.Start("Static Preview")
-	}
-	if err := buildEngine.Build(ctx); err != nil {
-		orchestration.DevLogError("Build failed: " + err.Error())
+	// Verify output directory exists
+	if _, err := os.Stat(cfg.OutputDir); os.IsNotExist(err) {
+		orchestration.DevLogError(fmt.Sprintf("Output directory '%s' not found. Run 'kosh build' first.", cfg.OutputDir))
 		os.Exit(1)
 	}
 
 	server.Run(server.Options{
-		Ctx:           ctx,
-		Args:          filteredArgs,
-		OutputDir:     cfg.OutputDir,
-		RootDirectory: cfg.Server.RootDirectory,
-		SiteRoot:      cfg.SiteRoot,
-		BaseURL:       cfg.BaseURL,
-		BuildConfig:   cfg.Build,
-		Reporter:      reporter,
+		Ctx:            ctx,
+		Args:           filteredArgs,
+		OutputDir:      cfg.OutputDir,
+		RootDirectory:  cfg.Server.RootDirectory,
+		SiteRoot:       cfg.SiteRoot,
+		BaseURL:        cfg.BaseURL,
+		BuildConfig:    cfg.Build,
+		Reporter:       reporter,
+		HealthRegistry: orchestration.NewBuildHealthRegistry(),
 	})
 }

@@ -15,7 +15,7 @@ const (
 	intSlicePoolCap      = 32
 	runeSlicePoolCap     = 32
 	maxPooledSliceCap    = 256
-	minPrefixMatchLength = 3
+	minPrefixMatchLength = 1
 	trigramSize          = 3
 	maxNgramWorkers      = 8
 	minCandidateScore    = 1

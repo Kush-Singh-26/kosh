@@ -29,7 +29,7 @@ func Slugify(s string) string {
 	return strings.Trim(res.String(), "-")
 }
 
-// SortItems sorts content items by weight and date, descending.
+// SortItems sorts content items by weight and date, descending (default for blogs/news).
 func SortItems(items []models.ContentMetadata) {
 	sort.Slice(items, func(i, j int) bool {
 		wi, wj := items[i].Weight, items[j].Weight
@@ -48,6 +48,30 @@ func SortItems(items []models.ContentMetadata) {
 		// Date Descending (Newer first)
 		return ti > tj
 	})
+}
+
+// SortItemsAscending sorts content items by date ascending (chronological).
+func SortItemsAscending(items []models.ContentMetadata) {
+	sort.Slice(items, func(i, j int) bool {
+		ti, tj := items[i].DateObj.Unix(), items[j].DateObj.Unix()
+		if ti == tj {
+			return items[i].Title < items[j].Title
+		}
+		return ti < tj
+	})
+}
+
+// SortItemsByTaxonomy sorts items based on the taxonomy context.
+func SortItemsByTaxonomy(taxonomy string, items []models.ContentMetadata) {
+	switch strings.ToLower(taxonomy) {
+	case "series":
+		SortItemsAscending(items)
+	case "events":
+		// Events usually want upcoming first or chronological
+		SortItemsAscending(items)
+	default:
+		SortItems(items)
+	}
 }
 
 // ExtractStringFromMap returns a string value from a metadata map.

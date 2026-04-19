@@ -151,7 +151,7 @@ func extractOperator(term string) (string, int) {
 
 func processTerm(term string) string {
 	term = strings.TrimSpace(term)
-	if len(term) < 2 {
+	if len(term) < 1 {
 		return ""
 	}
 	if IsStopWord(term) {

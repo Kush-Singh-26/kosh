@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -81,9 +82,10 @@ type Options struct {
 	RootDirectory string
 	SiteRoot      string
 	BaseURL       string
-	BuildConfig   *config.BuildConfig
-	Reporter      ui.Reporter
-	IsDev         bool
+	BuildConfig    *config.BuildConfig
+	Reporter       ui.Reporter
+	IsDev          bool
+	HealthRegistry *orchestration.BuildHealthRegistry
 }
 
 type serveConfig struct {
@@ -288,6 +290,31 @@ func Run(opts Options) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/events", handleSSE)
+	
+	// Dev Dashboard endpoints
+	if opts.IsDev && opts.HealthRegistry != nil {
+		mux.HandleFunc("/api/health", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+
+			report := opts.HealthRegistry.Report()
+
+			// Marshal health report logic
+			importJSON := false // hack context
+			_ = importJSON
+
+			// Need to import encoding/json
+			if err := json.NewEncoder(w).Encode(report); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		})
+
+		mux.HandleFunc("/_kosh", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(devDashboardHTML))
+		})
+	}
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		opts.handleRequest(cfg, w, r)
 	})

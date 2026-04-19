@@ -75,7 +75,7 @@ func TestFullBuild(t *testing.T) {
 			Generators: models.GeneratorsConfig{
 				IsSitemapEnabled: true,
 				IsRSSEnabled:     true,
-				IsSearchEnabled:  true,
+				Search:           models.SearchOptionsConfig{IsEnabled: true},
 				Graph:            models.GraphConfig{IsEnabled: true, ShowsTaxonomies: true},
 			},
 		},

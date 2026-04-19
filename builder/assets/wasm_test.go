@@ -253,7 +253,7 @@ func TestCheckWASMFsWithEmbedded(t *testing.T) {
 	sink := newFsSink(outputDir, fs)
 
 	// Test with embedded WASM (sourceWasm = nil)
-	result := CheckWASMFsWithSource(CheckWASMOptions{
+	result, err := CheckWASMFsWithSource(CheckWASMOptions{
 		Fs:               fs,
 		Sink:             sink,
 		CacheDir:         cacheDir,
@@ -262,8 +262,8 @@ func TestCheckWASMFsWithEmbedded(t *testing.T) {
 	})
 
 	// Should deploy embedded WASM successfully
-	if !result {
-		t.Error("CheckWASMFsWithSource() with embedded WASM should return true")
+	if err != nil || !result {
+		t.Errorf("CheckWASMFsWithSource() with embedded WASM failed: %v", err)
 	}
 
 	// Verify files were created
@@ -291,7 +291,7 @@ func TestCheckWASMFsWithSourceWasm(t *testing.T) {
 	// Create test WASM data
 	sourceWasm := []byte("test wasm content")
 
-	result := CheckWASMFsWithSource(CheckWASMOptions{
+	result, err := CheckWASMFsWithSource(CheckWASMOptions{
 		Fs:               fs,
 		Sink:             sink,
 		CacheDir:         cacheDir,
@@ -299,8 +299,8 @@ func TestCheckWASMFsWithSourceWasm(t *testing.T) {
 		CompressionLevel: 0,
 	})
 
-	if !result {
-		t.Error("CheckWASMFsWithSource() with source WASM should return true")
+	if err != nil || !result {
+		t.Errorf("CheckWASMFsWithSource() with source WASM failed: %v", err)
 	}
 
 	// Verify files were created
@@ -320,27 +320,27 @@ func TestCheckWASMFsNoChange(t *testing.T) {
 
 	// First call - should deploy
 	sourceWasm := []byte("test wasm content")
-	result1 := CheckWASMFsWithSource(CheckWASMOptions{
+	result1, err := CheckWASMFsWithSource(CheckWASMOptions{
 		Fs:               fs,
 		Sink:             sink,
 		CacheDir:         cacheDir,
 		SourceWasm:       sourceWasm,
 		CompressionLevel: 0,
 	})
-	if !result1 {
-		t.Error("First CheckWASMFsWithSource() should deploy WASM")
+	if err != nil || !result1 {
+		t.Errorf("First CheckWASMFsWithSource() failed: %v", err)
 	}
 
 	// Second call with same content - should return false (no change)
-	result2 := CheckWASMFsWithSource(CheckWASMOptions{
+	result2, err := CheckWASMFsWithSource(CheckWASMOptions{
 		Fs:               fs,
 		Sink:             sink,
 		CacheDir:         cacheDir,
 		SourceWasm:       sourceWasm,
 		CompressionLevel: 0,
 	})
-	if result2 {
-		t.Error("Second CheckWASMFsWithSource() with same content should return false")
+	if err != nil || result2 {
+		t.Errorf("Second CheckWASMFsWithSource() should not have deployed: err=%v, result=%v", err, result2)
 	}
 }
 
@@ -351,7 +351,7 @@ func TestCheckWASMFsDirectoryCreation(t *testing.T) {
 	sink := newFsSink(outputDir, fs)
 
 	sourceWasm := []byte("test wasm content")
-	result := CheckWASMFsWithSource(CheckWASMOptions{
+	result, err := CheckWASMFsWithSource(CheckWASMOptions{
 		Fs:               fs,
 		Sink:             sink,
 		CacheDir:         cacheDir,
@@ -359,8 +359,8 @@ func TestCheckWASMFsDirectoryCreation(t *testing.T) {
 		CompressionLevel: 0,
 	})
 
-	if !result {
-		t.Error("CheckWASMFsWithSource() should succeed with nested output path")
+	if err != nil || !result {
+		t.Errorf("CheckWASMFsWithSource() failed: %v", err)
 	}
 
 	// Verify directory was created
@@ -458,9 +458,9 @@ func TestCheckWASM(t *testing.T) {
 	cacheDir := ""
 	sink := newDirSink(tmpDir)
 
-	result := CheckWASM(sink, cacheDir)
-	if !result {
-		t.Error("CheckWASM() should return true on success")
+	result, err := CheckWASM(sink, cacheDir)
+	if err != nil || !result {
+		t.Errorf("CheckWASM() failed: %v", err)
 	}
 
 	// Verify files were created on real filesystem
@@ -477,8 +477,8 @@ func TestCheckWASMFs(t *testing.T) {
 	cacheDir := "/cache"
 	sink := newFsSink(outputDir, fs)
 
-	result := CheckWASMFs(fs, sink, cacheDir)
-	if !result {
-		t.Error("CheckWASMFs() should return true on success")
+	result, err := CheckWASMFs(fs, sink, cacheDir)
+	if err != nil || !result {
+		t.Errorf("CheckWASMFs() failed: %v", err)
 	}
 }

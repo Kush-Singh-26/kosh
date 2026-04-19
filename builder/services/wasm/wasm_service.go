@@ -66,10 +66,14 @@ func (service *wasmService) Deploy(_ context.Context, sink fspkg.ArtifactSink) e
 	}
 
 	// Always deploy the embedded WASM in the simplified workflow.
-	assets.CheckWASM(sink, service.cfg.CacheDir)
+	if _, err := assets.CheckWASM(sink, service.cfg.CacheDir); err != nil {
+		return err
+	}
 
 	// Deploy wasm_exec.js (Go WASM runtime stub)
-	assets.DeployWasmExec(sink)
+	if err := assets.DeployWasmExec(sink); err != nil {
+		return err
+	}
 
 	return nil
 }

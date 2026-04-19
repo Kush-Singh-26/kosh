@@ -31,6 +31,7 @@ type contentService struct {
 	sourceFs       afero.Fs
 	sink           fspkg.ArtifactSink
 	reporter       ui.Reporter
+	health         models.HealthRecorder
 	assetsReady    <-chan struct{}
 	diagramAdapter *cache.DiagramCacheAdapter
 	fragments      *cache.FragmentCacheAdapter
@@ -52,6 +53,7 @@ func NewService(deps Dependencies) Service {
 		sourceFs:       deps.SourceFs,
 		sink:           deps.Sink,
 		reporter:       deps.Reporter,
+		health:         deps.Health,
 		diagramAdapter: deps.DiagramAdapter,
 		fragments:      deps.Fragments,
 		shortcodes:     deps.Shortcodes,
@@ -69,6 +71,12 @@ func (service *contentService) SetAssetsGate(assetsReadyChan <-chan struct{}) {
 	service.assetsReady = assetsReadyChan
 }
 
+func (service *contentService) SetMarkdownRenderer(renderer func([]byte) ([]byte, error)) {
+	if service.shortcodes != nil {
+		service.shortcodes.SetRenderer(renderer)
+	}
+}
+
 // ReconfigureWithReporter updates the reporter and logger for subsequent builds.
 func (service *contentService) ReconfigureWithReporter(reporter ui.Reporter, logger *slog.Logger) {
 	service.reporter = reporter
@@ -77,6 +85,13 @@ func (service *contentService) ReconfigureWithReporter(reporter ui.Reporter, log
 
 // WaitForCacheCommit blocks until cache commits complete.
 func (service *contentService) WaitForCacheCommit() { service.cacheWg.Wait() }
+
+func (service *contentService) ProcessShortcodes(source []byte) ([]byte, error) {
+	if service.shortcodes == nil || len(source) == 0 {
+		return source, nil
+	}
+	return service.shortcodes.Process(source)
+}
 
 func (service *contentService) generateJSONLD(item models.ContentMetadata, cardImageURL string) template.HTML {
 	jsonld, err := models.GenerateContentJSONLD(item, service.cfg.Author, cardImageURL, service.cfg.ArticleType)

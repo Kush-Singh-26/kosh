@@ -1209,6 +1209,12 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "TotalItems")
 				return
 			}
+		case "Ranking":
+			err = z.Ranking.DecodeMsg(dc)
+			if err != nil {
+				err = msgp.WrapError(err, "Ranking")
+				return
+			}
 		case "StemMap":
 			var zb0004 uint32
 			zb0004, err = dc.ReadMapHeader()
@@ -1471,9 +1477,9 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 10
+	// map header, size 11
 	// write "SchemaVersion"
-	err = en.Append(0x8a, 0xad, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	err = en.Append(0x8b, 0xad, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	if err != nil {
 		return
 	}
@@ -1544,6 +1550,16 @@ func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
 	err = en.WriteInt64(z.TotalItems)
 	if err != nil {
 		err = msgp.WrapError(err, "TotalItems")
+		return
+	}
+	// write "Ranking"
+	err = en.Append(0xa7, 0x52, 0x61, 0x6e, 0x6b, 0x69, 0x6e, 0x67)
+	if err != nil {
+		return
+	}
+	err = z.Ranking.EncodeMsg(en)
+	if err != nil {
+		err = msgp.WrapError(err, "Ranking")
 		return
 	}
 	// write "StemMap"
@@ -1721,9 +1737,9 @@ func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *SearchIndex) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 10
+	// map header, size 11
 	// string "SchemaVersion"
-	o = append(o, 0x8a, 0xad, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = append(o, 0x8b, 0xad, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendInt64(o, z.SchemaVersion)
 	// string "Items"
 	o = append(o, 0xa5, 0x49, 0x74, 0x65, 0x6d, 0x73)
@@ -1749,6 +1765,13 @@ func (z *SearchIndex) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "TotalItems"
 	o = append(o, 0xaa, 0x54, 0x6f, 0x74, 0x61, 0x6c, 0x49, 0x74, 0x65, 0x6d, 0x73)
 	o = msgp.AppendInt64(o, z.TotalItems)
+	// string "Ranking"
+	o = append(o, 0xa7, 0x52, 0x61, 0x6e, 0x6b, 0x69, 0x6e, 0x67)
+	o, err = z.Ranking.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "Ranking")
+		return
+	}
 	// string "StemMap"
 	o = append(o, 0xa7, 0x53, 0x74, 0x65, 0x6d, 0x4d, 0x61, 0x70)
 	o = msgp.AppendMapHeader(o, uint32(len(z.StemMap)))
@@ -1900,6 +1923,12 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			z.TotalItems, bts, err = msgp.ReadInt64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "TotalItems")
+				return
+			}
+		case "Ranking":
+			bts, err = z.Ranking.UnmarshalMsg(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Ranking")
 				return
 			}
 		case "StemMap":
@@ -2179,7 +2208,7 @@ func (z *SearchIndex) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0003) + msgp.Int64Size
 		}
 	}
-	s += 10 + msgp.Float64Size + 11 + msgp.Int64Size + 8 + msgp.MapHeaderSize
+	s += 10 + msgp.Float64Size + 11 + msgp.Int64Size + 8 + z.Ranking.Msgsize() + 8 + msgp.MapHeaderSize
 	if z.StemMap != nil {
 		for za0005, za0006 := range z.StemMap {
 			_ = za0006

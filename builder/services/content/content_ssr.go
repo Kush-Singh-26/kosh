@@ -66,15 +66,15 @@ func (service *contentService) processCachedD2(html string, expressions []models
 	return html, true
 }
 
-func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []renderTask) {
+func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []renderTask) (map[string]string, map[string]models.SSRThemePair) {
 	if len(tasks) == 0 {
-		return
+		return nil, nil
 	}
 
 	allMath, allD2 := collectExpressions(tasks)
 
 	if len(allMath) == 0 && len(allD2) == 0 {
-		return
+		return nil, nil
 	}
 
 	var (
@@ -106,10 +106,11 @@ func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []rend
 	wg.Wait()
 
 	if len(renderedMath) == 0 && len(renderedD2) == 0 {
-		return
+		return nil, nil
 	}
 
 	service.replaceExpressionsInTasks(tasks, renderedMath, renderedD2)
+	return renderedMath, renderedD2
 }
 
 // collectExpressions gathers all Math and D2 expressions from tasks.
@@ -247,6 +248,26 @@ func (service *contentService) replaceExpressionsInTasks(tasks []renderTask, ren
 
 			for i := start; i < end; i++ {
 				if len(renderedMath) > 0 && len(tasks[i].parseResult.MathExpressions) > 0 && mdParser.HasMathPlaceholders(tasks[i].htmlContent) {
+					// Check for math errors and log warnings
+					for _, expr := range tasks[i].parseResult.MathExpressions {
+						if html, ok := renderedMath[expr.Hash]; ok {
+							if strings.HasPrefix(html, "error:") {
+								errMsg := strings.TrimPrefix(html, "error:")
+								filePath := tasks[i].relativePath
+								line := expr.Line
+
+								service.logger.Warn("LaTeX syntax error",
+									"file", filePath,
+									"line", line,
+									"error", errMsg,
+									"latex", expr.LaTeX)
+
+								if service.health != nil {
+									service.health.RecordMathFailure()
+								}
+							}
+						}
+					}
 					tasks[i].htmlContent = mdParser.ReplaceMathExpressions(tasks[i].htmlContent, tasks[i].parseResult.MathExpressions, renderedMath)
 				}
 				if len(renderedD2) > 0 && len(tasks[i].parseResult.D2Expressions) > 0 && mdParser.HasD2Placeholders(tasks[i].htmlContent) {

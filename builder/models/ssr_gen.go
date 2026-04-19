@@ -170,6 +170,18 @@ func (z *MathExpression) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Hash")
 				return
 			}
+		case "line":
+			z.Line, err = dc.ReadInt()
+			if err != nil {
+				err = msgp.WrapError(err, "Line")
+				return
+			}
+		case "error":
+			z.Error, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Error")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -182,10 +194,10 @@ func (z *MathExpression) DecodeMsg(dc *msgp.Reader) (err error) {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z MathExpression) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 3
+func (z *MathExpression) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 5
 	// write "latex"
-	err = en.Append(0x83, 0xa5, 0x6c, 0x61, 0x74, 0x65, 0x78)
+	err = en.Append(0x85, 0xa5, 0x6c, 0x61, 0x74, 0x65, 0x78)
 	if err != nil {
 		return
 	}
@@ -214,15 +226,35 @@ func (z MathExpression) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Hash")
 		return
 	}
+	// write "line"
+	err = en.Append(0xa4, 0x6c, 0x69, 0x6e, 0x65)
+	if err != nil {
+		return
+	}
+	err = en.WriteInt(z.Line)
+	if err != nil {
+		err = msgp.WrapError(err, "Line")
+		return
+	}
+	// write "error"
+	err = en.Append(0xa5, 0x65, 0x72, 0x72, 0x6f, 0x72)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.Error)
+	if err != nil {
+		err = msgp.WrapError(err, "Error")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z MathExpression) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *MathExpression) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 3
+	// map header, size 5
 	// string "latex"
-	o = append(o, 0x83, 0xa5, 0x6c, 0x61, 0x74, 0x65, 0x78)
+	o = append(o, 0x85, 0xa5, 0x6c, 0x61, 0x74, 0x65, 0x78)
 	o = msgp.AppendString(o, z.LaTeX)
 	// string "displayMode"
 	o = append(o, 0xab, 0x64, 0x69, 0x73, 0x70, 0x6c, 0x61, 0x79, 0x4d, 0x6f, 0x64, 0x65)
@@ -230,6 +262,12 @@ func (z MathExpression) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "hash"
 	o = append(o, 0xa4, 0x68, 0x61, 0x73, 0x68)
 	o = msgp.AppendString(o, z.Hash)
+	// string "line"
+	o = append(o, 0xa4, 0x6c, 0x69, 0x6e, 0x65)
+	o = msgp.AppendInt(o, z.Line)
+	// string "error"
+	o = append(o, 0xa5, 0x65, 0x72, 0x72, 0x6f, 0x72)
+	o = msgp.AppendString(o, z.Error)
 	return
 }
 
@@ -269,6 +307,18 @@ func (z *MathExpression) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Hash")
 				return
 			}
+		case "line":
+			z.Line, bts, err = msgp.ReadIntBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Line")
+				return
+			}
+		case "error":
+			z.Error, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Error")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -282,8 +332,8 @@ func (z *MathExpression) UnmarshalMsg(bts []byte) (o []byte, err error) {
 }
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z MathExpression) Msgsize() (s int) {
-	s = 1 + 6 + msgp.StringPrefixSize + len(z.LaTeX) + 12 + msgp.BoolSize + 5 + msgp.StringPrefixSize + len(z.Hash)
+func (z *MathExpression) Msgsize() (s int) {
+	s = 1 + 6 + msgp.StringPrefixSize + len(z.LaTeX) + 12 + msgp.BoolSize + 5 + msgp.StringPrefixSize + len(z.Hash) + 5 + msgp.IntSize + 6 + msgp.StringPrefixSize + len(z.Error)
 	return
 }
 

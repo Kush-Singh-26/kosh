@@ -475,6 +475,9 @@ func (e *Engine) Close() {
 			e.Watch.Close()
 		}
 
+		// Gracefully stop the image cache background writer
+		assetpkg.StopImageCacheWriter()
+
 		// Wait for any background cache flush to complete before closing BoltDB
 		e.flushWaitGroup.Wait()
 

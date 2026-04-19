@@ -1,6 +1,9 @@
 package search
 
-import "github.com/Kush-Singh-26/kosh/builder/search/core"
+import (
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/search/core"
+)
 
 // ScoringOptions defines parameters for the BM25 scoring engine.
 type ScoringOptions struct {
@@ -12,6 +15,7 @@ type ScoringOptions struct {
 	K1             float64
 	B              float64
 	Modifier       float64
+	Ranking        models.SearchRankingConfig
 }
 
 // ScoringResult holds the output of a scoring pass.

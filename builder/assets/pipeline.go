@@ -146,6 +146,14 @@ type CopyDirOptions struct {
 	CopyOptions
 }
 
+type taskWorkerOptions struct {
+	ctx          context.Context
+	directoryCtx copyDirContext
+	options      CopyDirOptions
+	errorMutex   *sync.Mutex
+	errorsList   *[]error
+}
+
 func validateCopyDirOptions(ctx context.Context, options CopyDirOptions) (context.Context, copyDirContext, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -193,31 +201,31 @@ func appendWorkerError(errorMutex *sync.Mutex, errorsList *[]error, err error) {
 	errorMutex.Unlock()
 }
 
-func handleImageTask(ctx context.Context, directoryCtx copyDirContext, task fileTask, options CopyDirOptions, errorMutex *sync.Mutex, errorsList *[]error) {
+func handleImageTask(task fileTask, opts taskWorkerOptions) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("Image worker panic recovered", "panic", r)
-			appendWorkerError(errorMutex, errorsList, fmt.Errorf("image worker panicked on %s: %v", task.path, r))
+			appendWorkerError(opts.errorMutex, opts.errorsList, fmt.Errorf("image worker panicked on %s: %v", task.path, r))
 		}
 	}()
 
-	target := filepath.Join(directoryCtx.dstDir, task.relPath)
+	target := filepath.Join(opts.directoryCtx.dstDir, task.relPath)
 	if err := convertToWebPVFS(ProcessImageOptions{
-		Ctx:       ctx,
-		SrcFs:     directoryCtx.srcFs,
-		Sink:      directoryCtx.sink,
+		Ctx:       opts.ctx,
+		SrcFs:     opts.directoryCtx.srcFs,
+		Sink:      opts.directoryCtx.sink,
 		SrcPath:   task.path,
 		DstPath:   target,
 		SrcInfo:   task.info,
-		Opts:      options.CopyOptions,
-		Scheduler: options.Scheduler,
+		Opts:      opts.options.CopyOptions,
+		Scheduler: opts.options.Scheduler,
 	}); err != nil {
-		appendWorkerError(errorMutex, errorsList, fmt.Errorf("failed to process image %s: %w", task.path, err))
+		appendWorkerError(opts.errorMutex, opts.errorsList, fmt.Errorf("failed to process image %s: %w", task.path, err))
 		return
 	}
 
-	if options.OnWrite != nil {
-		options.OnWrite(target)
+	if opts.options.OnWrite != nil {
+		opts.options.OnWrite(target)
 	}
 	if task.originalRelPath != "" {
 		// URL format mapping - register all variants
@@ -227,49 +235,49 @@ func handleImageTask(ctx context.Context, directoryCtx copyDirContext, task file
 	}
 }
 
-func handleNonImageTask(directoryCtx copyDirContext, task fileTask, options CopyDirOptions, errorMutex *sync.Mutex, errorsList *[]error) {
-	destPath := filepath.Join(directoryCtx.dstDir, task.relPath)
+func handleNonImageTask(task fileTask, opts taskWorkerOptions) {
+	destPath := filepath.Join(opts.directoryCtx.dstDir, task.relPath)
 	if err := fspkg.CopyFileVFS(fspkg.CopyFileOptions{
-		SrcFs:   directoryCtx.srcFs,
-		Sink:    directoryCtx.sink,
+		SrcFs:   opts.directoryCtx.srcFs,
+		Sink:    opts.directoryCtx.sink,
 		SrcPath: task.path,
 		DstPath: destPath,
 		ModTime: task.info.ModTime().UnixNano(),
-		OnWrite: options.OnWrite,
+		OnWrite: opts.options.OnWrite,
 	}); err != nil {
-		appendWorkerError(errorMutex, errorsList, err)
+		appendWorkerError(opts.errorMutex, opts.errorsList, err)
 		return
 	}
-	if options.Manifest != nil {
-		options.Manifest.Set(task.path, AssetManifestEntry{
+	if opts.options.Manifest != nil {
+		opts.options.Manifest.Set(task.path, AssetManifestEntry{
 			Size:    task.info.Size(),
 			ModTime: task.info.ModTime().UnixNano(),
 		})
 	}
-	if options.Metrics != nil {
-		options.Metrics.IncrementAssetsProcessed()
+	if opts.options.Metrics != nil {
+		opts.options.Metrics.IncrementAssetsProcessed()
 	}
 }
 
-func startImageWorkers(ctx context.Context, directoryCtx copyDirContext, options CopyDirOptions, workerCount int, errorMutex *sync.Mutex, errorsList *[]error) (chan fileTask, *sync.WaitGroup) {
+func startImageWorkers(opts taskWorkerOptions, workerCount int) (chan fileTask, *sync.WaitGroup) {
 	imageQueue := make(chan fileTask, fileTaskQueueSize)
 	waitGroup := &sync.WaitGroup{}
 	for i := 0; i < workerCount; i++ {
 		waitGroup.Add(1)
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       ctx,
+			Ctx:       opts.ctx,
 			Logger:    slog.Default(),
 			Operation: "asset image worker",
 			Fn: func() error {
 				for {
 					select {
-					case <-ctx.Done():
+					case <-opts.ctx.Done():
 						return nil
 					case task, ok := <-imageQueue:
 						if !ok {
 							return nil
 						}
-						handleImageTask(ctx, directoryCtx, task, options, errorMutex, errorsList)
+						handleImageTask(task, opts)
 					}
 				}
 			},
@@ -279,25 +287,25 @@ func startImageWorkers(ctx context.Context, directoryCtx copyDirContext, options
 	return imageQueue, waitGroup
 }
 
-func startNonImageWorkers(ctx context.Context, directoryCtx copyDirContext, options CopyDirOptions, workerCount int, errorMutex *sync.Mutex, errorsList *[]error) (chan fileTask, *sync.WaitGroup) {
+func startNonImageWorkers(opts taskWorkerOptions, workerCount int) (chan fileTask, *sync.WaitGroup) {
 	nonImageQueue := make(chan fileTask, fileTaskQueueSize)
 	waitGroup := &sync.WaitGroup{}
 	for i := 0; i < workerCount; i++ {
 		waitGroup.Add(1)
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       ctx,
+			Ctx:       opts.ctx,
 			Logger:    slog.Default(),
 			Operation: "asset copy worker",
 			Fn: func() error {
 				for {
 					select {
-					case <-ctx.Done():
+					case <-opts.ctx.Done():
 						return nil
 					case task, ok := <-nonImageQueue:
 						if !ok {
 							return nil
 						}
-						handleNonImageTask(directoryCtx, task, options, errorMutex, errorsList)
+						handleNonImageTask(task, opts)
 					}
 				}
 			},
@@ -401,8 +409,16 @@ func CopyDirVFS(ctx context.Context, options CopyDirOptions) error {
 	var errorsList []error
 	var errorMutex sync.Mutex
 
-	imageQueue, imageWg := startImageWorkers(ctx, directoryCtx, options, workerCount, &errorMutex, &errorsList)
-	nonImageQueue, nonImageWg := startNonImageWorkers(ctx, directoryCtx, options, nonImageWorkers, &errorMutex, &errorsList)
+	workerOpts := taskWorkerOptions{
+		ctx:          ctx,
+		directoryCtx: directoryCtx,
+		options:      options,
+		errorMutex:   &errorMutex,
+		errorsList:   &errorsList,
+	}
+
+	imageQueue, imageWg := startImageWorkers(workerOpts, workerCount)
+	nonImageQueue, nonImageWg := startNonImageWorkers(workerOpts, nonImageWorkers)
 
 	imageTasks, walkErr := collectImageTasks(ctx, directoryCtx, options, nonImageQueue)
 
@@ -420,7 +436,7 @@ func CopyDirVFS(ctx context.Context, options CopyDirOptions) error {
 		return walkErr
 	}
 	if len(errorsList) > 0 {
-		return errorsList[0]
+		return errors.Join(errorsList...)
 	}
 
 	return nil

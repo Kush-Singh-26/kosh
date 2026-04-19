@@ -46,7 +46,7 @@ const liveReloadScript = `
                 }, 250);
             }
         };
-        source.onerror = function() { source.close(); };
+        source.onerror = function() { console.debug("🚀 Kosh Live Reload connection lost. Reconnecting..."); };
     }
 })();
 </script>
