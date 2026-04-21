@@ -108,8 +108,17 @@ func (engineInstance *Engine) checkSocialCardRebuild() bool {
 		return false
 	}
 	socialGo := filepath.Join(engineInstance.Cfg.KoshSourceRoot, "builder/generators/social.go")
-	fileInfo, err := os.Stat(socialGo)
-	return err == nil && fileInfo.ModTime().After(lastBuildTime)
+	koshYaml := filepath.Join(engineInstance.Cfg.SiteRoot, "kosh.yaml")
+
+	// Rebuild if social generator code or main config changed
+	if fileInfo, err := os.Stat(socialGo); err == nil && fileInfo.ModTime().After(lastBuildTime) {
+		return true
+	}
+	if fileInfo, err := os.Stat(koshYaml); err == nil && fileInfo.ModTime().After(lastBuildTime) {
+		return true
+	}
+
+	return false
 }
 
 // initializeNativeRenderer warms up the JS renderer pool asynchronously.

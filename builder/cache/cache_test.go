@@ -33,7 +33,7 @@ func createSamplePostMeta() *core.ContentMeta {
 		Description: "A test post for testing purposes",
 		IsDraft:     false,
 		Weight:      10,
-		WordCount:   150,
+		FileSize:   150,
 		ReadingTime: 1,
 		Meta:        make(map[string]any),
 	}

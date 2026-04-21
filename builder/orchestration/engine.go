@@ -70,6 +70,7 @@ type EngineState struct {
 	BuildMu sync.Mutex
 
 	ForceGenerators atomic.Bool
+	ForceRerender   atomic.Bool
 
 	// True when output directory did not exist at build start.
 	IsCleanBuild bool
@@ -220,8 +221,9 @@ func (e *Engine) initWatch(cacheSvc svcCache.Service) {
 }
 
 // BuildAssetOnly runs asset-only incremental build (exposed for SiteBuilder interface).
+// Delegates to BuildAssetOnlyWithOptions with forceImages=false.
 func (e *Engine) BuildAssetOnly(ctx context.Context) error {
-	return e.buildAssetOnly(ctx)
+	return e.BuildAssetOnlyWithOptions(ctx, false)
 }
 
 // BuildAssetOnlyWithOptions runs asset-only incremental build with options.
@@ -265,7 +267,8 @@ func (e *Engine) runAssetOnlyPostProcessing(ctx context.Context) error {
 	// For asset-only builds, we FORCE Content re-rendering to update asset hashes in HTML.
 	contentResult, processError := e.Deps.Content.Process(content.ProcessOptions{
 		Ctx:                ctx,
-		ShouldForce:        true,
+		ShouldForce:        false,
+		ForceRerender:      true,
 		ForceSocialRebuild: false,
 		OutputMissing:      false,
 		Files:              metadataResult.Files,
@@ -290,6 +293,14 @@ func (e *Engine) runAssetOnlyPostProcessing(ctx context.Context) error {
 	// Finalize the build
 	if err := e.buildTransaction.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	e.cleanupOrphans()
+
+	if e.Deps.Metrics != nil {
+		e.Deps.Metrics.RecordEnd()
+		e.Deps.Logger.Info("Build complete")
+		e.Deps.Metrics.Print()
 	}
 
 	return nil
@@ -547,6 +558,20 @@ func (e *Engine) handleWatchChange(evt watch.ChangeEvent) {
 			e.OnBuildDone()
 		}
 	}()
+
+	// Check if kosh.yaml changed - requires full config reload and rebuild
+	if evt.Path == "kosh.yaml" || evt.Path == "config.yaml" {
+		DevLogInfo("Config file changed, reloading configuration...")
+		if err := e.ReloadConfig(e.Ctx.Ctx); err != nil {
+			DevLogError("Failed to reload config: " + err.Error())
+			return
+		}
+		// Trigger full rebuild with the new config
+		if e.Incremental != nil {
+			e.Incremental.BuildSingleFileChange(e.Ctx.Ctx, evt.Path, evt.Op)
+		}
+		return
+	}
 
 	if e.Incremental != nil {
 		e.Incremental.BuildSingleFileChange(e.Ctx.Ctx, evt.Path, evt.Op)

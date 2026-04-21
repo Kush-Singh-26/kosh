@@ -92,6 +92,7 @@ type ProcessOptions struct {
 	Ctx                context.Context
 	ShouldForce        bool
 	ForceSocialRebuild bool
+	ForceRerender      bool
 	OutputMissing      bool
 	Files              []models.ScannedResource
 	FileChan           <-chan models.ScannedResource

@@ -2,12 +2,20 @@
 package clean
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/retry"
 	"github.com/spf13/afero"
+)
+
+const (
+	cleanupRetryMax   = 5
+	cleanupRetryDelay = 10 * time.Millisecond
 )
 
 var (
@@ -16,21 +24,20 @@ var (
 )
 
 // Run removes the build output directory and potentially the cache.
-func Run(args []string, cleanCache bool) error {
+func Run(ctx context.Context, args []string, cleanCache bool) error {
 	cfg := config.Load(args)
-	return RunWithConfig(cfg, cleanCache)
+	return RunWithConfig(ctx, cfg, cleanCache)
 }
 
 // RunWithConfig removes the build output directory and potentially the cache using the provided config.
 // This allows callers to reuse the same config instance loaded once for banner and cleanup.
-func RunWithConfig(cfg *config.Config, cleanCache bool) error {
-	fs := afero.NewOsFs()
+func RunWithConfig(ctx context.Context, cfg *config.Config, cleanCache bool) error {
 	var cleanupErrors []error
 
 	// Remove output directory
 	if cfg.OutputDir != "" {
 		slog.Info("Cleaning output directory", "path", cfg.OutputDir)
-		if err := fs.RemoveAll(cfg.OutputDir); err != nil {
+		if err := retry.RemoveAllWithRetry(ctx, cfg.OutputDir, cleanupRetryMax, cleanupRetryDelay); err != nil {
 			slog.Error("Failed to remove output directory", "path", cfg.OutputDir, "error", err)
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("%w: %w", errOutputRemoval, err))
 		}
@@ -39,7 +46,7 @@ func RunWithConfig(cfg *config.Config, cleanCache bool) error {
 	// Remove cache directory if requested
 	if cleanCache && cfg.CacheDir != "" {
 		slog.Info("Cleaning cache directory", "path", cfg.CacheDir)
-		if err := fs.RemoveAll(cfg.CacheDir); err != nil {
+		if err := retry.RemoveAllWithRetry(ctx, cfg.CacheDir, cleanupRetryMax, cleanupRetryDelay); err != nil {
 			slog.Error("Failed to remove cache directory", "path", cfg.CacheDir, "error", err)
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("%w: %w", errCacheRemoval, err))
 		}
@@ -52,23 +59,23 @@ func RunWithConfig(cfg *config.Config, cleanCache bool) error {
 }
 
 // RunFs is a testing entry point that allows providing a custom filesystem.
-func RunFs(fs afero.Fs, args []string, cleanCache bool) error {
+func RunFs(ctx context.Context, fs afero.Fs, args []string, cleanCache bool) error {
 	cfg := config.Load(args)
-	return RunFsWithConfig(fs, cfg, cleanCache)
+	return RunFsWithConfig(ctx, fs, cfg, cleanCache)
 }
 
 // RunFsWithConfig is a testing entry point that allows providing a custom filesystem and config.
-func RunFsWithConfig(fs afero.Fs, cfg *config.Config, cleanCache bool) error {
+func RunFsWithConfig(ctx context.Context, _ afero.Fs, cfg *config.Config, cleanCache bool) error {
 	var cleanupErrors []error
 
 	if cfg.OutputDir != "" {
-		if err := fs.RemoveAll(cfg.OutputDir); err != nil {
+		if err := retry.RemoveAllWithRetry(ctx, cfg.OutputDir, cleanupRetryMax, cleanupRetryDelay); err != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("%w: %w", errOutputRemoval, err))
 		}
 	}
 
 	if cleanCache && cfg.CacheDir != "" {
-		if err := fs.RemoveAll(cfg.CacheDir); err != nil {
+		if err := retry.RemoveAllWithRetry(ctx, cfg.CacheDir, cleanupRetryMax, cleanupRetryDelay); err != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("%w: %w", errCacheRemoval, err))
 		}
 	}

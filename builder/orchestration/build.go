@@ -2,23 +2,20 @@
 //
 // Build orchestration call chain:
 //
-//	Build() → processPosts() → runParsePhase() → parseWorkerTask() → PostService.Process()
+//	Build() → processPhase() → PostService.ProcessStreaming()
 //
-// This 4-level chain is intentional: Build() coordinates high-level phases,
-// processPosts() handles Content-specific logic, runParsePhase() manages worker pools,
-// and parseWorkerTask() executes individual parses. The separation enables
-// parallelism, progress tracking, and error isolation.
+// Build() coordinates high-level phases; individual Content processing,
+// parallelism, progress tracking, and error isolation are handled by the
+// Content service's streaming worker pipeline.
 package orchestration
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/Kush-Singh-26/kosh/builder/assets"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
 	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 )
 
 // refreshBuildSession creates a fresh Transaction and Sink for a new build pass.
@@ -40,6 +37,28 @@ func (engineInstance *Engine) refreshBuildSession(ctx context.Context) {
 	}
 }
 
+// ReloadConfig reloads the configuration from disk.
+func (engineInstance *Engine) ReloadConfig(ctx context.Context) error {
+	engineInstance.State.BuildMu.Lock()
+	defer engineInstance.State.BuildMu.Unlock()
+
+	if err := engineInstance.Cfg.Reload(engineInstance.Deps.SourceFs); err != nil {
+		return err
+	}
+
+	// Force clean build to invalidate fragment caches (navbar, footer) and regenerate everything
+	engineInstance.State.IsCleanBuild = true
+	engineInstance.State.ForceGenerators.Store(true)
+	engineInstance.State.ForceRerender.Store(true)
+
+	// Refresh build session to pick up new config fields
+	engineInstance.refreshBuildSession(ctx)
+
+	DevLogSuccess("Configuration reloaded, triggering full rebuild")
+
+	return nil
+}
+
 // BuildLocked executes the build logic without locking.
 // This is used internally and by the incremental manager when it already holds the build lock.
 func (engineInstance *Engine) BuildLocked(ctx context.Context) error {
@@ -59,60 +78,6 @@ func (engineInstance *Engine) BuildLocked(ctx context.Context) error {
 
 	close(contentAssetsChan)
 	return engineInstance.finalizePhase(ctx, setup.wasmWg, assetsResult.assetsReadySignal)
-}
-
-func (engineInstance *Engine) buildAssetOnly(ctx context.Context) error {
-	engineInstance.State.IsAssetOnlyBuild = true
-	defer func() { engineInstance.State.IsAssetOnlyBuild = false }()
-
-	// Start fresh session/tracking state
-	engineInstance.refreshBuildSession(ctx)
-
-	return engineInstance.Assets.BuildAssetOnly(ctx, func(ctx context.Context) error {
-		engineInstance.Deps.Content.SetAssetsGate(nil)
-		engineInstance.State.ForceGenerators.Store(true)
-
-		metadataResult, scanError := engineInstance.Deps.Scanner.Scan(scanner.ScanOptions{
-			Ctx:        ctx,
-			ContentDir: engineInstance.Cfg.ContentDir,
-			SrcFs:      engineInstance.Deps.SourceFs,
-			Cfg:        engineInstance.Cfg,
-			FileChan:   nil,
-		})
-		if scanError != nil {
-			return fmt.Errorf("metadata scan failed: %w", scanError)
-		}
-
-		// For asset-only builds, we FORCE Content re-rendering to update asset hashes in HTML.
-		shouldForce := true
-		forceSocialRebuild := false
-		outputMissing := false
-		_, processError := engineInstance.processPosts(ProcessPostsOptions{
-			Ctx:                ctx,
-			ShouldForce:        shouldForce,
-			ForceSocialRebuild: forceSocialRebuild,
-			OutputMissing:      outputMissing,
-			Files:              metadataResult.Files,
-		})
-		if processError != nil {
-			return fmt.Errorf("content processing failed: %w", processError)
-		}
-
-		// Remove original raster images when .webp equivalents exist
-		assets.CleanupOriginalImages(ctx, engineInstance.buildTransaction.StagingDir())
-
-		if commitError := engineInstance.buildTransaction.Commit(ctx); commitError != nil {
-			return fmt.Errorf("failed to publish build transaction: %w", commitError)
-		}
-
-		engineInstance.cleanupOrphans()
-
-		engineInstance.Deps.Metrics.RecordEnd()
-		engineInstance.Deps.Logger.Info("Build complete")
-		engineInstance.Deps.Metrics.Print()
-
-		return nil
-	})
 }
 
 // Build runs a full build with concurrency and locking safeguards.

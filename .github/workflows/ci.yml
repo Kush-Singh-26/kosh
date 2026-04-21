@@ -14,13 +14,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      
+
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
-      
+
+      - name: Run Linter
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
       - name: Run Tests
         run: go test -race ./...
-      
+
       - name: Build CLI
         run: go build -race -o kosh ./cmd/kosh

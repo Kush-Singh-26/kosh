@@ -106,6 +106,7 @@ func parseServeFlags(args []string) (string, string) {
 	_ = fs.Bool("drafts", false, "Include drafts (handled by builder)")
 	_ = fs.String("baseurl", "", "Base URL (handled by builder)")
 	_ = fs.Bool("compress", false, "Enable compression (handled by builder)")
+	_ = fs.Bool("debug", false, "Enable debug output (handled by builder)")
 
 	_ = fs.Parse(args)
 	return *host, *port

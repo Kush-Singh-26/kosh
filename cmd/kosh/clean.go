@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -45,7 +47,7 @@ func runClean(_ *cobra.Command, _ []string) {
 	cfg := config.Load(filteredArgs)
 	printStartupBanner(mode, cfg)
 
-	if err := clean.RunWithConfig(cfg, cleanCache); err != nil {
+	if err := clean.RunWithConfig(context.Background(), cfg, cleanCache); err != nil {
 		orchestration.DevLogError("Clean failed: " + err.Error())
 	}
 

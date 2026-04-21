@@ -33,7 +33,7 @@ menu:
     url: "/tags/index.html"
 
 # Features
-postsPerPage: 10
+itemsPerPage: 10
 shouldCompressImages: true
 
 # Theme Configuration
@@ -51,7 +51,7 @@ draft: false
 
 # Welcome to Kosh!
 
-This is your first post. You can edit this file in ` + "`content/hello-world.md`" + `.
+This is your first item. You can edit this file in ` + "`content/hello-world.md`" + `.
 
 ## Getting Started
 
@@ -110,12 +110,12 @@ func RunFs(fs afero.Fs, _ []string) {
 		slog.Warn("kosh.yaml already exists, skipping")
 	}
 
-	// 3. Create first post
+	// 3. Create first item
 	exists, _ = afero.Exists(fs, "content/hello-world.md")
 	if !exists {
 		content := fmt.Sprintf(firstPost, time.Now().Format("2006-01-02"))
 		if err := afero.WriteFile(fs, "content/hello-world.md", []byte(content), scaffoldFileMode); err != nil {
-			slog.Error("Failed to create first post", "error", err)
+			slog.Error("Failed to create first item", "error", err)
 		} else {
 			slog.Info("Created content/hello-world.md")
 		}

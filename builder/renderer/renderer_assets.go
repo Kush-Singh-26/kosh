@@ -143,7 +143,6 @@ func (r *Renderer) PrepareAssets(data *models.PageData) {
 	if data.Navbar.Title == "" {
 		setupNavbar(data, r.logger)
 	}
-
 }
 
 // PreparePageData performs full page preparation including global fragment pre-rendering.
@@ -177,8 +176,10 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 	contentPrefix := strings.Trim(cfg.GetContentPrefix(), "/")
 
 	// Determine context: enforce home context for root index and graph pages
+	// Also handle when context is already set to ensure correct behavior
 	ctx := data.Context
-	if ctx == "" {
+	shouldOverride := ctx == "" // Allow override only if context not explicitly set
+	if shouldOverride {
 		switch {
 		case data.IsIndex && (data.RelativePrefix == "" || data.RelativePrefix == "./"):
 			ctx = models.ContextHome
@@ -187,6 +188,9 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 		default:
 			ctx = models.ContextSection
 		}
+	} else if ctx != models.ContextHome && (data.IsGraphPage || (data.IsIndex && data.RelativePrefix == "")) {
+		// Explicitly override to Home if page characteristics indicate home but context differs
+		ctx = models.ContextHome
 	}
 
 	// Apply branding from Config based on context
@@ -199,6 +203,7 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 		} else {
 			data.Navbar.BtnURL = "/"
 		}
+		logger.Debug("setupNavbar: using home context", "homeTitle", navCfg.Home.Title, "sectionTitle", navCfg.Section.Title)
 	} else {
 		data.Navbar.Title = navCfg.Section.Title
 		data.Navbar.BtnLabel = navCfg.Section.BtnLabel
@@ -208,10 +213,12 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 			data.Navbar.TitleURL = "/"
 		}
 		data.Navbar.BtnURL = "/"
+		logger.Debug("setupNavbar: using section context", "homeTitle", navCfg.Home.Title, "sectionTitle", navCfg.Section.Title)
 	}
 
 	// Fallback to Site Title if navbar title is empty in config
 	if data.Navbar.Title == "" {
+		logger.Debug("setupNavbar: title is empty, falling back to GetSiteTitle", "siteTitle", cfg.GetSiteTitle())
 		data.Navbar.Title = cfg.GetSiteTitle()
 	}
 
@@ -234,15 +241,12 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 
 // isExternalURL returns true if the URL is an absolute/external URL.
 func isExternalURL(url string) bool {
-	if len(url) < 5 {
-		return false
-	}
-	return url[:5] == "http:" || url[:5] == "https"
+	return strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://")
 }
 
 // isDataURI returns true if the URL is a data URI.
 func isDataURI(url string) bool {
-	return len(url) >= 5 && url[:5] == "data:"
+	return strings.HasPrefix(url, "data:")
 }
 
 // relativizeAsset applies BaseURL and RelativePrefix to an asset path.

@@ -9,6 +9,8 @@ This document provides a comprehensive reference for the `kosh.yaml` configurati
 | `title` | The global site title. | `Kosh Site` |
 | `description` | Site description used for SEO and meta tags. | `A Kosh site` |
 | `baseURL` | The root URL for your site (no trailing slash). | `""` (root-relative) |
+| `articleType` | Schema.org type (e.g., `BlogPosting`, `Article`). | `BlogPosting` |
+| `homeBadge` | Label for the home page social card badge. | `Latest Items` |
 
 ## Navigation & Branding
 
@@ -19,7 +21,7 @@ navbar:
   home:
     title: "John Doe"
     btnLabel: "My Work"
-  posts:
+  section:
     title: "Modern SSG"
     btnLabel: "Home"
 ```
@@ -38,9 +40,9 @@ navbar:
 | `contentDir` | Directory containing markdown content. | `content` |
 | `staticDir` | Directory containing global static assets. | `static` |
 | `outputDir` | Directory where the site will be built. | `public` |
-| `postsPerPage` | Number of posts to show per page on indices. | `10` |
+| `itemsPerPage` | Number of items to show per page on indices. | `10` |
 | `shouldCompressImages` | Convert raster images to WebP. | `true` |
-| `shouldMinifySVGs` | Minify SVG assets during build. | `true` |
+| `shouldMinify` | Minify CSS/JS assets and SVGs during build. | `true` |
 | `imageWorkers` | Number of parallel image processing workers. | `8` |
 
 ## Features & Generators
@@ -51,10 +53,11 @@ Enable or disable specific SSG sub-modules.
 features:
   useRawMarkdown: true   # Emits .md files alongside .html
   generators:
-    sitemap: true        # Generate sitemap.xml
-    rss: true            # Generate index.xml (Atom/RSS)
-    graph: true          # Generate knowledge graph data
-    pwa: true            # Generate PWA manifest and service worker
+    isSitemapEnabled: true        # Generate sitemap.xml
+    isRSSEnabled: true            # Generate index.xml (Atom/RSS)
+    graph:
+      isEnabled: true    # Generate knowledge graph data
+    isPWAEnabled: true            # Generate PWA manifest and service worker
     search:
       isEnabled: true    # Generate Go+WASM search index
       ranking:           # Optional: Tune BM25 and field boosts

@@ -1,18 +1,19 @@
 package content
 
 import (
-"bytes"
-"context"
-"path/filepath"
-"strings"
+	"bytes"
+	"context"
+	"strings"
 
-"github.com/zeebo/xxh3"
+	"github.com/zeebo/xxh3"
 
-"github.com/Kush-Singh-26/kosh/builder/cache/core"
-"github.com/Kush-Singh-26/kosh/builder/hashing"
-"github.com/Kush-Singh-26/kosh/builder/models"
-"github.com/Kush-Singh-26/kosh/builder/navigation"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
+	"github.com/Kush-Singh-26/kosh/builder/hashing"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
+
+
 
 func (service *contentService) loadCachedItem(_ string, htmlRelPath string, _ models.ScannedResource, cachedMeta *models.ContentMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
 	var parseRes *ParsedMarkdownResult
@@ -111,22 +112,13 @@ func (service *contentService) parseIfNeeded(ctx context.Context, file models.Sc
 	return parseRes, htmlContent, finalSSRHashes, false, nil
 }
 
-func (service *contentService) calculateSection(relativePath string) string {
-	cleanRel := filepath.ToSlash(relativePath)
-	cleanRel = strings.TrimPrefix(cleanRel, "./")
-	cleanRel = strings.TrimPrefix(cleanRel, "/")
-	parts := strings.Split(cleanRel, "/")
-	if len(parts) > 1 {
-		return parts[0]
-	}
-	return ""
-}
+
 
 func (service *contentService) parseWorkerTaskLocal(file models.ScannedResource, workerContext WorkerContext, local *workerLocalState) {
 	relativePath := file.RelPath
 	htmlRelativePath, _, destinationPath := navigation.ComputePathVars(service.cfg.OutputDir, relativePath)
 
-	cachedMeta, useCache := service.checkCache(relativePath, file, workerContext.ShouldForce)
+	cachedMeta, useCache := service.checkCache(relativePath, file, workerContext.ShouldForce, workerContext.ForceRerender)
 	parseResult, htmlContent, finalSSRHashes, useCache := service.loadCachedItem(relativePath, htmlRelativePath, file, cachedMeta, useCache)
 
 	sourceBytes, err := service.loadSourceIfNeeded(file, useCache)
@@ -147,14 +139,12 @@ func (service *contentService) parseWorkerTaskLocal(file models.ScannedResource,
 		local.anyChanged = true
 	}
 
-	item := parseResult.Item
-	if item.IsDraft && !service.cfg.ShouldIncludeDrafts {
+	if parseResult.Item.IsDraft && !service.cfg.ShouldIncludeDrafts {
 		return
 	}
 
-	section := service.calculateSection(relativePath)
-	item.Section = section
-	parseResult.Item.Section = section
+	parseResult.Item.Section = detectSection(relativePath, service.logger)
+	item := parseResult.Item // capture after Section is set
 
 	service.queueSocialCard(SocialCardOptions{
 		RelativePath:       relativePath,
@@ -174,6 +164,7 @@ func (service *contentService) parseWorkerTaskLocal(file models.ScannedResource,
 	}
 }
 
+
 func (service *contentService) prepareIndexedItem(aggregateContext AggregateContext) models.IndexedContent {
 	searchRecord := aggregateContext.Result.SearchRecord
 	searchRecord.ID = xxh3.HashString(searchRecord.Link)
@@ -189,7 +180,7 @@ func (service *contentService) handleSearchTasks(aggregateContext AggregateConte
 		aggregateContext.WorkerContext.SearchIngestor.Add(indexed)
 	}
 
-if !aggregateContext.UseCache && service.cache != nil {
+	if !aggregateContext.UseCache && service.cache != nil {
 		newSearch := &models.SearchRecord{
 			Title: aggregateContext.Item.Title, NormalizedTitle: aggregateContext.Result.SearchRecord.NormalizedTitle,
 			Content: aggregateContext.Result.SearchRecord.Content,
@@ -217,7 +208,7 @@ func (service *contentService) storeCacheMetadata(aggregateContext AggregateCont
 		ContentID: ContentID, Path: aggregateContext.RelativePath, ModTime: aggregateContext.ScannedFile.Info.ModTime().UnixNano(),
 		ContentHash: aggregateContext.Result.FrontmatterHash, BodyHash: hashing.GetBodyHash(aggregateContext.SourceBytes),
 		Title: aggregateContext.Item.Title, Date: aggregateContext.Item.DateObj,
-		WordCount:  int(aggregateContext.ScannedFile.Info.Size()),
+		FileSize:    int(aggregateContext.ScannedFile.Info.Size()),
 		Taxonomies: aggregateContext.Item.Taxonomies, ReadingTime: aggregateContext.Item.ReadingTime,
 		Description: aggregateContext.Item.Description, Link: aggregateContext.Item.Link,
 		IsPinned: aggregateContext.Item.IsPinned, Weight: aggregateContext.Item.Weight,

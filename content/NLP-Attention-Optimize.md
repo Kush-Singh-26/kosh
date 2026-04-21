@@ -164,7 +164,7 @@ $$ [t - \frac{w}{2}, \cdots , t + \frac{w}{2}] $$
 
 > Input **→** SWA Layer 1 **→** SWA Layer 2 **→** SWA Layer 3 **→** ...
 
-```css
+```
     A  B  C  D  E  F  G  H
 A [ X  X  .  .  .  .  .  . ]
 B [ X  X  X  .  .  .  .  . ]

@@ -27,6 +27,7 @@ type TaxonomySocialCardTask struct {
 	Slug     string
 	Title    string
 	Count    int
+	Hash     string
 }
 
 const maxTaxonomySocialCardWorkers = 4
@@ -80,7 +81,7 @@ func startTaxonomyCardPool(opts TaxonomyOptions, workers int) *async.WorkerPool[
 	render := opts.Render
 
 	pool := async.NewWorkerPool(opts.Ctx, workers, func(task TaxonomySocialCardTask) error {
-		cardPath := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/%s/%s.webp", task.Plural, task.Slug))
+		cardPath := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/%s/%s.%s.webp", task.Plural, task.Slug, task.Hash))
 		ProvideSocialCard(ProvideSocialCardOptions{
 			Sink:        sink,
 			Cache:       opts.Cache,
@@ -110,9 +111,9 @@ func ensureTaxonomyIndexCard(opts TaxonomyOptions, _ string, plural, desc string
 	render := opts.Render
 
 	title := fmt.Sprintf("All %s", plural)
-	indexHash := SocialCardHash(title, desc)
+	indexHash := SocialCardHash(title, desc, &cfg.SocialCards)
 	indexCache := filepath.Join(cfg.CacheDir, "social-cards", indexHash+".webp")
-	indexCard := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/%s/index.webp", plural))
+	indexCard := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/%s/index.%s.webp", plural, indexHash))
 
 	if ShouldGenerateSocialCard(CheckSocialCardOptions{
 		Cache:          opts.Cache,
@@ -148,7 +149,7 @@ func ensureTaxonomyIndexCard(opts TaxonomyOptions, _ string, plural, desc string
 	}
 }
 
-func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxonomy, plural string, terms []models.TermData) error {
+func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxonomy, plural string, terms []models.TermData, hash string) error {
 	prefix := strings.Trim(cfg.ContentPrefix, "/")
 	// Normalize plural to not have the prefix if we are going to prepend it
 	cleanPlural := strings.TrimPrefix(strings.Trim(plural, "/"), prefix+"/")
@@ -163,7 +164,7 @@ func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxono
 		Title: fmt.Sprintf("All %s", plural), IsTaxonomyIndex: true, Context: models.ContextSection,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 		Permalink: cfg.BaseURL + "/" + indexPath,
-		Image:     fmt.Sprintf("%s/static/images/cards/%s/index.webp", cfg.BaseURL, plural),
+		Image:     fmt.Sprintf("%s/static/images/cards/%s/index.%s.webp", cfg.BaseURL, plural, hash),
 		TabTitle:  fmt.Sprintf("All %s | %s", plural, cfg.Title), Config: cfg,
 		Taxonomies: map[string]models.TaxonomyData{
 			taxonomy: {
@@ -178,7 +179,7 @@ func renderTaxonomyIndex(cfg *config.Config, render models.RenderService, taxono
 	})
 }
 
-func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, plural, termName, slug string, items []models.ContentMetadata) error {
+func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, plural, termName, slug, hash string, items []models.ContentMetadata) error {
 	timeutil.SortItemsByTaxonomy(taxonomy, items)
 	prefix := strings.Trim(cfg.ContentPrefix, "/")
 	// Normalize plural to not have the prefix if we are going to prepend it
@@ -193,7 +194,7 @@ func renderTermPage(cfg *config.Config, render models.RenderService, taxonomy, p
 		Title: termName, IsIndex: true, Context: models.ContextSection, Items: items,
 		BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion,
 		Permalink: fmt.Sprintf("%s/%s", cfg.BaseURL, termPath),
-		Image:     fmt.Sprintf("%s/static/images/cards/%s/%s.webp", cfg.BaseURL, plural, slug),
+		Image:     fmt.Sprintf("%s/static/images/cards/%s/%s.%s.webp", cfg.BaseURL, plural, slug, hash),
 		TabTitle:  termName + " | " + cfg.Title, Config: cfg,
 		Taxonomies: map[string]models.TaxonomyData{
 			taxonomy: {
@@ -236,9 +237,10 @@ func renderSingleTaxonomy(opts TaxonomyOptions, taxKey, taxPlural string, termMa
 	allTerms := BuildTaxonomyData(cfg.ContentPrefix, taxPlural, termMap)
 
 	desc := fmt.Sprintf("Browse all %d %s", lenAll(termMap), taxPlural)
+	indexHash := SocialCardHash(fmt.Sprintf("All %s", taxPlural), desc, &cfg.SocialCards)
 	ensureTaxonomyIndexCard(opts, taxKey, taxPlural, desc)
 
-	if err := renderTaxonomyIndex(cfg, opts.Render, taxKey, taxPlural, allTerms); err != nil {
+	if err := renderTaxonomyIndex(cfg, opts.Render, taxKey, taxPlural, allTerms, indexHash); err != nil {
 		return fmt.Errorf("failed to render taxonomy index %s: %w", taxKey, err)
 	}
 
@@ -249,8 +251,9 @@ func renderSingleTaxonomy(opts TaxonomyOptions, taxKey, taxPlural string, termMa
 
 		handleTaxonomySocialCard(opts, taxKey, taxPlural, termName, slug, len(termPosts), cardPool)
 
+		termHash := SocialCardHash(termName, fmt.Sprintf("%d items in %s: %s", len(termPosts), taxPlural, termName), &cfg.SocialCards)
 		g.Go(func() error {
-			if err := renderTermPage(cfg, opts.Render, taxKey, taxPlural, termName, slug, termPosts); err != nil {
+			if err := renderTermPage(cfg, opts.Render, taxKey, taxPlural, termName, slug, termHash, termPosts); err != nil {
 				return fmt.Errorf("failed to render term page %s/%s: %w", taxPlural, slug, err)
 			}
 			return nil
@@ -262,7 +265,7 @@ func renderSingleTaxonomy(opts TaxonomyOptions, taxKey, taxPlural string, termMa
 func handleTaxonomySocialCard(opts TaxonomyOptions, taxKey, taxPlural, termName, slug string, count int, cardPool *async.WorkerPool[TaxonomySocialCardTask]) {
 	cfg := opts.Cfg
 	termDesc := fmt.Sprintf("%d items in %s: %s", count, taxPlural, termName)
-	hash := SocialCardHash(termName, termDesc)
+	hash := SocialCardHash(termName, termDesc, &cfg.SocialCards)
 	cached := filepath.Join(cfg.CacheDir, "social-cards", hash+".webp")
 
 	if ShouldGenerateSocialCard(CheckSocialCardOptions{
@@ -278,9 +281,10 @@ func handleTaxonomySocialCard(opts TaxonomyOptions, taxKey, taxPlural, termName,
 			Slug:     slug,
 			Title:    termName,
 			Count:    count,
+			Hash:     hash,
 		})
 	} else if data, err := afero.ReadFile(afero.NewOsFs(), cached); err == nil {
-		cardPath := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/%s/%s.webp", taxPlural, slug))
+		cardPath := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/%s/%s.%s.webp", taxPlural, slug, hash))
 		buildctx.IgnoreError(opts.Sink.MkdirAll(filepath.Dir(cardPath)), "create taxonomy card dir")
 		buildctx.IgnoreError(opts.Sink.WriteFile(cardPath, data), "write cached taxonomy card")
 		opts.Render.RegisterFile(cardPath)

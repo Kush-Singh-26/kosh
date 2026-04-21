@@ -30,7 +30,7 @@ scripts\benchmark-clean-warm.ps1
 - Warm full builds (`kosh clean`) are in a good place.
 - Cold full builds (`kosh clean --cache`) are still dominated by:
   - `Asset copy root/static`
-  - `Parse 39 posts`
+  - `Parse 39 items`
 - The benchmarked best overall stable image settings on the reference machine are:
 
 ```yaml
@@ -72,7 +72,7 @@ Representative recent observations after the latest full-build work:
   - expected `0/39` cache hits
   - dominant phases remain:
     - `Asset copy root/static`
-    - `Parse 39 posts`
+    - `Parse 39 items`
 - `kosh clean`
   - roughly `1.5s`
   - `39/39` cache hits

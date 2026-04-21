@@ -70,7 +70,7 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 			Title:       "Content 1",
 			Path:        "content/posts/post1.md",
 			BodyHash:    "hash1",
-			WordCount:   100,
+			FileSize:   100,
 			ReadingTime: 1,
 		},
 		{
@@ -78,7 +78,7 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 			Title:       "Content 2",
 			Path:        "content/posts/post2.md",
 			BodyHash:    "hash2",
-			WordCount:   200,
+			FileSize:   200,
 			ReadingTime: 2,
 		},
 		{
@@ -86,7 +86,7 @@ func TestCacheService_BatchCommitIntegration(t *testing.T) {
 			Title:       "Content 3",
 			Path:        "content/posts/post3.md",
 			BodyHash:    "hash3",
-			WordCount:   300,
+			FileSize:   300,
 			ReadingTime: 3,
 		},
 	}

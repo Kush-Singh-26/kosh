@@ -25,7 +25,7 @@ type ContentMeta struct {
 	Title          string
 	Date           time.Time
 	Taxonomies     map[string][]string
-	WordCount      int
+	FileSize       int
 	ReadingTime    int
 	Description    string
 	Link           string

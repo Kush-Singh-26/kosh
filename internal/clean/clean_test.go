@@ -1,35 +1,52 @@
 package clean
 
 import (
+	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/spf13/afero"
 )
 
 func TestRunFs_CleanAll(t *testing.T) {
-	fs := afero.NewMemMapFs()
-
-	// Create Project structure
-	// We need to match what config.LoadFs returns
-	cfg := config.LoadFs(fs, []string{})
+	cfg := config.Load([]string{})
 	outputDir := cfg.OutputDir
 	cacheDir := cfg.CacheDir
 
-	_ = fs.MkdirAll(filepath.Join(outputDir, "v1"), 0755)
-	_ = afero.WriteFile(fs, filepath.Join(outputDir, "index.html"), []byte("test"), 0644)
-	_ = fs.MkdirAll(cacheDir, 0755)
+	tmpDir := t.TempDir()
 
-	_ = RunFs(fs, []string{}, true)
+	outputPath := filepath.Join(tmpDir, outputDir)
+	cachePath := filepath.Join(tmpDir, cacheDir)
 
-	exists, _ := afero.DirExists(fs, outputDir)
-	if exists {
+	oldCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldCwd)
+
+	if err := os.MkdirAll(filepath.Join(outputPath, "v1"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outputPath, "index.html"), []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cachePath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RunFs(context.Background(), nil, []string{}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
 		t.Errorf("output directory %s should have been cleaned", outputDir)
 	}
 
-	exists, _ = afero.DirExists(fs, cacheDir)
-	if exists {
+	if _, err := os.Stat(cachePath); !os.IsNotExist(err) {
 		t.Errorf("cache directory %s should have been cleaned", cacheDir)
 	}
 }

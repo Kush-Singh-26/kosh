@@ -114,6 +114,7 @@ type PageData struct {
 	BuildVersion    int64
 	Permalink       string
 	Image           string
+	SocialHash      string
 	TOC             []TOCEntry
 	Paginator       Paginator
 	Assets          map[string]string

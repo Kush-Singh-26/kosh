@@ -6,7 +6,7 @@ Kosh is a high-performance static site generator written in Go. It focuses on fa
 
 ## Current State
 
-- Version: `v1.4.0`
+- Version: `v2.0.0`
 - Status: production-ready
 - Best benchmarked image settings on the reference Windows machine:
   - `imageWorkers: 8`
@@ -95,17 +95,19 @@ navbar:
   home:
     title: "John Doe"
     btnLabel: "John Doe"
-  posts:
+  section:
     title: "Project Blog"
     btnLabel: "Home"
 
 features:
   generators:
-    sitemap: true
-    rss: true
-    graph: true
-    pwa: true
-    search: true
+    isSitemapEnabled: true
+    isRSSEnabled: true
+    graph:
+      isEnabled: true
+    isPWAEnabled: true
+    search:
+      isEnabled: true
 ```
 
 ### Configuration Reference
@@ -116,9 +118,9 @@ For a full list of all configuration options, see [docs/CONFIG.md](docs/CONFIG.m
 
 - `imageWorkers`
   - controls image work concurrency
-- `compressImages: true`
+- `shouldCompressImages: true`
   - converts eligible local raster images to `.webp`
-- `rawMarkdown: true`
+- `useRawMarkdown: true`
   - emits `.md` files alongside generated `.html`
 
 ## Content and Theme Layout
@@ -129,13 +131,13 @@ Kosh uses standard Markdown files with YAML frontmatter.
 
 ```yaml
 ---
-title: "My Post Title"
+title: "My Item Title"
 date: "2026-03-21"
-description: "A short summary of the post"
+description: "A short summary of the item"
 tags: ["go", "static-site"]
 pinned: false
 draft: false
-weight: 10  # Optional: Higher weight posts appear first
+weight: 10  # Optional: Higher weight items appear first
 ---
 ```
 
@@ -219,10 +221,10 @@ Kosh releases are built by GitHub Actions when a version tag is pushed. The work
 ```bash
 git status
 git add -A
-git commit -m "Release v1.4.2"
+git commit -m "Release v2.0.0"
 git push origin main
-git tag v1.4.2
-git push origin v1.4.2
+git tag v2.0.0
+git push origin v2.0.0
 ```
 
 After the tag is pushed, the workflow uploads the binaries to the GitHub Release for that tag. The release artifacts should appear under `Releases` on GitHub.
@@ -232,10 +234,10 @@ After the tag is pushed, the workflow uploads the binaries to the GitHub Release
 Only do this if the tag is wrong and you have not published widely:
 
 ```bash
-git tag -d v1.4.2
-git push origin --delete v1.4.2
-git tag v1.4.2
-git push origin v1.4.2
+git tag -d v2.0.0
+git push origin --delete v2.0.0
+git tag v2.0.0
+git push origin v2.0.0
 ```
 
 ## Local Theme Development (Windows)

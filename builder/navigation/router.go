@@ -36,9 +36,14 @@ func BuildAbsoluteURL(baseURL, relPath string) string {
 }
 
 // CardPaths computes social card paths and URLs for a post.
-func CardPaths(baseURL, outputDir, htmlRelPath string) (string, string, string) {
+func CardPaths(baseURL, outputDir, htmlRelPath, hash string) (string, string, string) {
 	htmlRelPath = fs.NormalizePath(htmlRelPath)
-	cardRelPath := strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
+	var cardRelPath string
+	if hash != "" {
+		cardRelPath = strings.TrimSuffix(htmlRelPath, ".html") + "." + hash + ".webp"
+	} else {
+		cardRelPath = strings.TrimSuffix(htmlRelPath, ".html") + ".webp"
+	}
 	cardDestPath := filepath.Join(outputDir, "static", "images", "cards", filepath.FromSlash(cardRelPath))
 	cardImageURL := baseURL + "/static/images/cards/" + cardRelPath
 	return cardRelPath, cardDestPath, cardImageURL

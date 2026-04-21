@@ -163,7 +163,9 @@ func (r *Renderer) RenderFragment(context string, blockName string, data models.
 	// Cache key includes block name, context and relative prefix to ensure path safety
 	cacheKey := fmt.Sprintf("%s:%s:%s", blockName, context, data.RelativePrefix)
 
-	if val, ok := r.fragmentCache.Load(cacheKey); ok && !data.IsCleanBuild {
+	// In-memory cache lookup: skip in dev mode to always use fresh fragment data
+	// This prevents stale navbar/footer from broken builds affecting new renders
+	if val, ok := r.fragmentCache.Load(cacheKey); ok && !data.IsCleanBuild && !r.devMode {
 		return val.(template.HTML), nil
 	}
 
@@ -207,7 +209,7 @@ func (r *Renderer) RenderFragment(context string, blockName string, data models.
 	}
 
 	// Persist fragment for cross-build reuse using raw bytes from buffer to avoid extra allocation
-	// Skip persisting in dev mode to avoid polluting the persistent cache
+	// Skip persisting in dev mode to avoid polluting both caches
 	if r.Cache != nil && !r.devMode {
 		if err := r.Cache.StoreFragment(cacheKey, buf.Bytes()); err != nil {
 			r.logger.Debug("Failed to persist fragment", "key", cacheKey, "error", err)
@@ -215,7 +217,10 @@ func (r *Renderer) RenderFragment(context string, blockName string, data models.
 	}
 
 	html := template.HTML(buf.String())
-	r.fragmentCache.Store(cacheKey, html)
+	// Only store to in-memory cache if not in dev mode to avoid stale data on next render
+	if !r.devMode {
+		r.fragmentCache.Store(cacheKey, html)
+	}
 
 	return html, nil
 }

@@ -41,10 +41,10 @@ This is where you spend most of your time. Kosh mirrors the structure of this fo
 Anything here is copied directly to the output. Images placed here can be referenced in your Markdown as `/static/images/hero.jpg`.
 
 ### 4. `themes/`
-Themes are modular. You can swap themes by changing the `theme` field in your `kosh.yaml`. A theme must contain a `templates/` folder with at least `main.html` and `index.html`.
+Themes are modular. You can swap themes by changing the `theme` field in your `kosh.yaml`. A theme must contain a `templates/` folder with at least `layout.html` and `index.html`.
 
 ### 5. `data/`
-Structured data files (YAML/JSON). Any file placed here is available to all templates via `Site.Data`.
+Structured data files (YAML/JSON). Any file placed here is available to all templates via `.SiteData`.
 - **Pages**: Files with `slug` and `layout` keys (e.g., `data/events.yaml`) automatically generate standalone pages.
 
 ### 6. `public/`

@@ -333,6 +333,13 @@ func (service *assetService) createWalkFn(dir string, isSite bool, opts discover
 				return nil
 			}
 		}
+
+		// Skip images/cards directory - these are managed by the social card generator
+		// and should not be copied from static source
+		if strings.HasPrefix(relative, "images/cards/") || relative == "images/cards" {
+			return nil
+		}
+
 		fullRel := "static/" + relative
 
 		if _, loaded := opts.syncCtx.seen.LoadOrStore(fullRel, true); !loaded {

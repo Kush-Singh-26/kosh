@@ -6,7 +6,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
-func (s *contentService) checkCache(relPath string, f models.ScannedResource, shouldForce bool) (*models.ContentMeta, bool) {
+func (s *contentService) checkCache(relPath string, f models.ScannedResource, shouldForce bool, forceRerender bool) (*models.ContentMeta, bool) {
 	if s.cache == nil || shouldForce {
 		return nil, false
 	}
@@ -15,7 +15,11 @@ func (s *contentService) checkCache(relPath string, f models.ScannedResource, sh
 		return nil, false
 	}
 	// Check both mod time and size for fast bail. ModTime now uses UnixNano for precision.
-	fastBail := cachedMeta.ModTime == f.Info.ModTime().UnixNano() && cachedMeta.WordCount == int(f.Info.Size())
+	fastBail := cachedMeta.ModTime == f.Info.ModTime().UnixNano() && cachedMeta.FileSize == int(f.Info.Size())
+
+	if forceRerender {
+		return cachedMeta, fastBail
+	}
 	return cachedMeta, fastBail
 }
 

@@ -110,10 +110,6 @@
     {{ block "head-extra" . }}{{ end }}
 </head>
 <body{{ if .IsGraphPage }} class="graph-mode"{{ end }}>
-    {{ if not .IsGraphPage }}
-    <div id="scroll-ghost"><div id="scroll-ghost-fill"></div></div>
-    {{ end }}
-
     <header>
         <div class="nav-container">
             {{ with index .Fragments "navbar-identity" }}
@@ -304,7 +300,7 @@
                 {{ block "footer" . }}
                     <div class="colophon-left">
                         <span class="colophon-title">{{ .Config.GetSiteTitle }}</span>
-                        <span class="colophon-tagline">&copy; {{ now.Year }} &bull; {{ .Config.GetSiteTitle }}</span>
+                        <span class="colophon-tagline">&copy; {{ now.Format "2006" }}</span>
                     </div>
                     <div class="colophon-center">
                         <div class="scholar-seal">

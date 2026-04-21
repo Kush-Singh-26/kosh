@@ -28,12 +28,12 @@ func (engineInstance *Engine) updateSearchIndex(metadataContext *content.Context
 	if engineInstance.Search != nil && metadataContext.IndexedItems != nil {
 		engineInstance.Search.SetIndexedPosts(metadataContext.IndexedItems)
 	}
-	if metadataContext.PrebuiltSearchIndex != nil {
+	if psearchIndex != nil {
 		metadataContext.PrebuiltSearchIndex = psearchIndex
 	}
 }
 
-func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *errgroup.Group, metadataContext *content.Context, assetsReadySignal <-chan struct{}, forceSocialRebuild bool) {
+func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *errgroup.Group, metadataContext *content.Context, assetsReadySignal <-chan struct{}, forceSocialRebuild bool, searchIndex *models.SearchIndex) {
 	group.Go(func() error {
 		engineInstance.Assets.WaitForAvailability(ctx, assetsReadySignal)
 		return engineInstance.renderPagination(renderPaginationOptions{
@@ -52,13 +52,17 @@ func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *er
 		return engineInstance.renderSiteMetadata(MetadataRenderOptions{
 			AllPosts:              metadataContext.AllItems,
 			TaxonomyMapSummarized: metadataContext.Taxonomies,
+			TaxonomyMap:           metadataContext.TaxonomyMap,
 			AssetsReadySignal:     assetsReadySignal,
+			IndexedPosts:          metadataContext.IndexedItems,
+			SearchIndex:           searchIndex,
 		})
 	})
 	group.Go(func() error {
 		return engineInstance.renderDataPages(ctx)
 	})
 }
+
 
 func (engineInstance *Engine) handlePWAGeneration(ctx context.Context, wasmWaitGroup *sync.WaitGroup, assetsReadySignal <-chan struct{}) {
 	wasmWaitGroup.Add(1)
@@ -95,24 +99,16 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 			siteTimer = timeutil.StartPhase("Site-wide rendering")
 			siteWideGroup, siteWideCtx = errgroup.WithContext(options.Ctx)
 
-			engineInstance.submitSiteWideTasks(siteWideCtx, siteWideGroup, metadataContext, options.AssetsReadySignal, options.ForceSocialRebuild)
+			engineInstance.submitSiteWideTasks(siteWideCtx, siteWideGroup, metadataContext, options.AssetsReadySignal, options.ForceSocialRebuild, options.SearchIndex)
 			engineInstance.handlePWAGeneration(options.Ctx, options.WasmWaitGroup, options.AssetsReadySignal)
 		})
-
-		if metadataContext.IndexedItems != nil || metadataContext.PrebuiltSearchIndex != nil {
-			siteWideGroup.Go(func() error {
-				return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-					IndexedPosts: metadataContext.IndexedItems,
-					SearchIndex:  metadataContext.PrebuiltSearchIndex,
-				})
-			})
-		}
 
 		return siteWideGroup, siteTimer
 	}
 
 	return runSiteWide, nil
 }
+
 
 func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *content.Context, assetsChanged bool) bool {
 	useStaging := !engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild
@@ -240,13 +236,13 @@ func (engineInstance *Engine) generateGraph(options MetadataRenderOptions) error
 func (engineInstance *Engine) renderSiteMetadata(options MetadataRenderOptions) error {
 	errorGroup := new(errgroup.Group)
 
-	if engineInstance.Cfg.Features.Generators.IsSitemapEnabled && options.AllPosts != nil && options.IndexedPosts == nil {
+	if engineInstance.Cfg.Features.Generators.IsSitemapEnabled && options.AllPosts != nil {
 		errorGroup.Go(func() error {
 			return engineInstance.generateSitemap(options)
 		})
 	}
 
-	if engineInstance.Cfg.Features.Generators.IsRSSEnabled && options.AllPosts != nil && options.IndexedPosts == nil {
+	if engineInstance.Cfg.Features.Generators.IsRSSEnabled && options.AllPosts != nil {
 		errorGroup.Go(func() error {
 			return engineInstance.generateRSS(options)
 		})
@@ -267,9 +263,8 @@ func (engineInstance *Engine) renderSiteMetadata(options MetadataRenderOptions) 
 	return errorGroup.Wait()
 }
 
-// RenderSiteWide triggers a subset of site-wide generators suitable for incremental builds.
-// In dev mode, this focuses on pagination (index.html) to maintain consistency without
-// the overhead of full metadata (RSS/Sitemap) or PWA regeneration.
+// RenderSiteWide triggers site-wide generators for incremental builds.
+// Runs pagination, taxonomies, sitemap/RSS/graph/search and data pages.
 func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContext *content.Context) error {
 	if engineInstance.shouldSkipSiteWideRendering(metadataContext, false) {
 		return nil
@@ -277,7 +272,7 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 
 	errorGroup, siteWideCtx := errgroup.WithContext(ctx)
 
-	// Always render pagination to ensure index.html consists of the latest Content list/snippets.
+	// Pagination — always update index.html with the latest content list.
 	errorGroup.Go(func() error {
 		return engineInstance.renderPagination(renderPaginationOptions{
 			workingContext: siteWideCtx,
@@ -288,26 +283,25 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 		})
 	})
 
-	// Also render site-wide metadata (graph, RSS, sitemap) during incremental builds
-	// if a change was detected.
+	// Taxonomy pages — update tag/category indices on content change.
+	errorGroup.Go(func() error {
+		return engineInstance.renderTaxonomies(siteWideCtx, metadataContext.TaxonomyMap, false)
+	})
+
+	// Metadata (RSS, sitemap, graph) + search index in one consolidated call.
 	errorGroup.Go(func() error {
 		return engineInstance.renderSiteMetadata(MetadataRenderOptions{
 			AllPosts:              metadataContext.AllItems,
 			TaxonomyMapSummarized: metadataContext.Taxonomies,
 			TaxonomyMap:           metadataContext.TaxonomyMap,
+			IndexedPosts:          metadataContext.IndexedItems,
+			SearchIndex:           metadataContext.PrebuiltSearchIndex,
 		})
 	})
 
-	if metadataContext.IndexedItems != nil {
-		errorGroup.Go(func() error {
-			return engineInstance.renderSiteMetadata(MetadataRenderOptions{
-				IndexedPosts: metadataContext.IndexedItems,
-			})
-		})
-	}
-
 	return errorGroup.Wait()
 }
+
 
 func (engineInstance *Engine) renderDataPages(ctx context.Context) error {
 	return generators.RenderDataPages(generators.DataPagesOptions{

@@ -43,6 +43,7 @@ type SiteBuilder interface {
 	BuildLocked(ctx context.Context) error
 	BuildAssetOnly(ctx context.Context) error
 	BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool) error
+	ReloadConfig(ctx context.Context) error
 	SaveCaches()
 	RefreshBuildSession()
 	Commit(ctx context.Context) error
@@ -181,9 +182,17 @@ func (m *Manager) HandleAssetChange(ctx context.Context, path string) {
 }
 
 // HandleOtherChange handles other file changes
-func (m *Manager) HandleOtherChange(ctx context.Context, _ string) {
+func (m *Manager) HandleOtherChange(ctx context.Context, path string) {
 	m.builder.LockBuild()
 	defer m.builder.UnlockBuild()
+
+	base := filepath.Base(path)
+	if base == "kosh.yaml" || base == "config.yaml" {
+		m.logger.Info("Configuration change detected, reloading config and forcing full rebuild...")
+		if err := m.builder.ReloadConfig(ctx); err != nil {
+			m.logger.Error("Failed to reload configuration", "error", err)
+		}
+	}
 
 	if err := m.builder.BuildLocked(ctx); err != nil {
 		m.logger.Error("Build failed", "error", err)

@@ -807,10 +807,10 @@ func (z *ContentMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 				z.Taxonomies[za0002] = za0003
 			}
-		case "WordCount":
-			z.WordCount, err = dc.ReadInt()
+		case "FileSize":
+			z.FileSize, err = dc.ReadInt()
 			if err != nil {
-				err = msgp.WrapError(err, "WordCount")
+				err = msgp.WrapError(err, "FileSize")
 				return
 			}
 		case "ReadingTime":
@@ -1087,14 +1087,14 @@ func (z *ContentMeta) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
-	// write "WordCount"
-	err = en.Append(0xa9, 0x57, 0x6f, 0x72, 0x64, 0x43, 0x6f, 0x75, 0x6e, 0x74)
+	// write "FileSize"
+	err = en.Append(0xa8, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65)
 	if err != nil {
 		return
 	}
-	err = en.WriteInt(z.WordCount)
+	err = en.WriteInt(z.FileSize)
 	if err != nil {
-		err = msgp.WrapError(err, "WordCount")
+		err = msgp.WrapError(err, "FileSize")
 		return
 	}
 	// write "ReadingTime"
@@ -1286,9 +1286,9 @@ func (z *ContentMeta) MarshalMsg(b []byte) (o []byte, err error) {
 			o = msgp.AppendString(o, za0003[za0004])
 		}
 	}
-	// string "WordCount"
-	o = append(o, 0xa9, 0x57, 0x6f, 0x72, 0x64, 0x43, 0x6f, 0x75, 0x6e, 0x74)
-	o = msgp.AppendInt(o, z.WordCount)
+	// string "FileSize"
+	o = append(o, 0xa8, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65)
+	o = msgp.AppendInt(o, z.FileSize)
 	// string "ReadingTime"
 	o = append(o, 0xab, 0x52, 0x65, 0x61, 0x64, 0x69, 0x6e, 0x67, 0x54, 0x69, 0x6d, 0x65)
 	o = msgp.AppendInt(o, z.ReadingTime)
@@ -1485,10 +1485,10 @@ func (z *ContentMeta) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 				z.Taxonomies[za0002] = za0003
 			}
-		case "WordCount":
-			z.WordCount, bts, err = msgp.ReadIntBytes(bts)
+		case "FileSize":
+			z.FileSize, bts, err = msgp.ReadIntBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "WordCount")
+				err = msgp.WrapError(err, "FileSize")
 				return
 			}
 		case "ReadingTime":
@@ -1633,7 +1633,7 @@ func (z *ContentMeta) Msgsize() (s int) {
 			}
 		}
 	}
-	s += 10 + msgp.IntSize + 12 + msgp.IntSize + 12 + msgp.StringPrefixSize + len(z.Description) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 9 + msgp.BoolSize + 8 + msgp.BoolSize + 5 + msgp.MapHeaderSize
+	s += 9 + msgp.IntSize + 12 + msgp.IntSize + 12 + msgp.StringPrefixSize + len(z.Description) + 5 + msgp.StringPrefixSize + len(z.Link) + 7 + msgp.IntSize + 9 + msgp.BoolSize + 8 + msgp.BoolSize + 5 + msgp.MapHeaderSize
 	if z.Meta != nil {
 		for za0005, za0006 := range z.Meta {
 			_ = za0006

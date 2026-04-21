@@ -9,7 +9,13 @@ As of v2.0, Kosh uses general-purpose terminology:
 - Use `content.Service` (lowercase package) for content processing.
 - Use `models.ContentMeta` or `models.Item` for content metadata.
 - Avoid "Post" prefix - use "Content" or "Item" instead.
-- `PostsPerPage` -> `ItemsPerPage` in config.
+- `PostsPerPage` -> `itemsPerPage` in config.
+- `compressImages` -> `shouldCompressImages` in config.
+- `rawMarkdown` -> `useRawMarkdown` in config.
+- `sitemap: true` -> `isSitemapEnabled: true` in config.
+- `rss: true` -> `isRSSEnabled: true` in config.
+- `pwa: true` -> `isPWAEnabled: true` in config.
+- `search: true` -> `search: { isEnabled: true }` in config.
 
 Kosh is a Go-based static site generator for blogs. It supports:
 
@@ -26,26 +32,27 @@ Repository root:
 
 - `C:\Users\KIIT0001\blogs`
 
-Typical consumer site repo example used during development:
+Typical consumer site repo used during development:
 
-- `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src`
+- `C:\Users\KIIT0001\Kush-Singh-26.github.io`
 
-## Theme Development Layout (Junctions)
+## Theme Development Layout (Symlinks/Junctions)
 
 Theme work is centralized in the Kosh submodule path:
 
 - Canonical theme path: `C:\Users\KIIT0001\blogs\themes\blog`
 
-Two convenience junctions point to the same files for local testing:
+Two convenience symlinks point to the same files for local testing:
 
-- `C:\Users\KIIT0001\kosh-theme-blog` (junction)
-- `C:\Users\KIIT0001\Kush-Singh-26.github.io\blogs-src\themes\blog` (junction)
+- `C:\Users\KIIT0001\kosh-theme-blog` (symlink)
+- `C:\Users\KIIT0001\Kush-Singh-26.github.io\themes\blog` (symlink)
 
 Rules for agents:
 
 1. Treat `C:\Users\KIIT0001\blogs\themes\blog` as the source of truth.
 2. Commit and push theme changes from the canonical path only.
-3. Avoid editing any `*.bak` backup folders.
+3. Modifying `kosh.yaml` files or other site-specific content/data must be done in the site repo: `C:\Users\KIIT0001\Kush-Singh-26.github.io`.
+4. Avoid editing any `*.bak` backup folders.
 
 ## Current Stable State
 
@@ -63,6 +70,13 @@ Rules for agents:
   - **navbar branding stabilization** (context-aware Home vs Blog identity)
   - **stale fragment cache prevention** (clean-build cache invalidation)
   - **taxonomy index restoration** (Terms population in PageData)
+- **niche markdown attributes** (title, nolang, hide-lang in code blocks)
+- **smart figure wrapping** (auto-caption from alt text)
+- **link normalization** (auto .md -> .html, external link blanking)
+- **cascade metadata** (inheritance via _index.md)
+- **data-driven pages** (auto-generation from data/ directory)
+- **kosh.build.yaml** (deep tuning of workers and search scoring)
+- **knowledge graph** (graph.html and graph.json generation)
 - New features implemented:
   - Pipelined parse+render with streaming workers
   - Overlapping asset discovery and copying via channels

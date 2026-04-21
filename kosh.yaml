@@ -4,7 +4,7 @@ description: "Deep dives into Machine Learning, Systems Engineering, and LLMs by
 logo: "static/images/kush3.png"
 baseURL: "" # Empty for local dev, GitHub Actions will override this via CLI flag
 language: "en"
-blogPrefix: "blogs"
+contentPrefix: "blogs"
 
 # Author
 author:
@@ -16,7 +16,7 @@ navbar:
   home:
     title: "Kush Singh"
     btnLabel: "Blogs"
-  blog:
+  section:
     title: "Kush Blogs"
     btnLabel: "Home"
 
@@ -55,20 +55,20 @@ features:
       isEnabled: true      # Generate knowledge graph data
       showsTags: true
     isPWAEnabled: true            # Enable Service Workers, Manifest, and Icons
-    isSearchEnabled: true         # Build the WASM search index
+    search:
+      isEnabled: true         # Build the WASM search index
 
 # Social Cards (Open Graph Images)
 socialCards:
-  background: "#faf8f5"    # Base background color (warm cream)
-  gradient:                # Gradient colors - visible beige to brown
-    - "#e8e0d0"            # Medium beige
-    - "#c9b896"            # Darker tan (middle tone)
-    - "#b8a078"            # Darker brown-beige
-  angle: 135               # Gradient angle in degrees
-  textColor: "#1a1a1a"     # Text color (dark for light backgrounds)
+  background: "#141816"    # Deep Inky Black/Sage (matches --bg-body)
+  gradient:                # Gradient from Sage Ink to Aged Gold
+    - "#8ba395"            # Sage Ink (matches --accent-primary)
+    - "#b59d6d"            # Aged Gold (matches --accent-secondary)
+  angle: 135               # Gradient angle
+  textColor: "#e1e9e4"     # Slate Text (matches --text-main)
 
 # Build Optimization
-postsPerPage: 10
+itemsPerPage: 10
 shouldCompressImages: true     # Auto-convert PNG/JPG to optimized WebP
 imageWorkers: 8
 

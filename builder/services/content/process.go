@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
@@ -192,7 +193,10 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 	workerCtx := WorkerContext{
 		Ctx: ctx, ProcessContext: processCtx, CardPool: cardPool, SearchPool: searchPool,
 		SearchIngestor: opts.SearchIngestor,
-		RenderChan:     renderCollector.renderChan, ShouldForce: opts.ShouldForce, ForceSocialRebuild: opts.ForceSocialRebuild,
+		RenderChan:     renderCollector.renderChan,
+		ShouldForce:    opts.ShouldForce,
+		ForceSocialRebuild: opts.ForceSocialRebuild,
+		ForceRerender:      opts.ForceRerender,
 	}
 
 	err := service.runStreamingParsePhase(numWorkers, opts.FileChan, collectedFilesChan, workerCtx)
@@ -355,50 +359,7 @@ func (service *contentService) runStreamingRenderPhase(ctx context.Context, numW
 	totalFiles := len(tasks)
 
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(renderTaskInstance renderTask) error {
-		item := renderTaskInstance.parseResult.Item
-		htmlContent := renderTaskInstance.htmlContent
-		relPrefix := fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath)
-		htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
-
-		_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, renderTaskInstance.htmlRelativePath)
-		prev, next := service.setupNavPages(nav, renderTaskInstance.file.Link)
-		sectionIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
-
-		layoutVal := service.getPageLayout(renderTaskInstance)
-		pageContext := models.ContextSection
-		if layoutVal == "home" {
-			pageContext = models.ContextHome
-		}
-
-		if err := service.renderer.RenderPage(renderTaskInstance.destinationPath, models.PageData{
-			Title: item.Title, Description: item.Description, Content: template.HTML(htmlContent),
-			Meta: renderTaskInstance.parseResult.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
-			TabTitle: item.Title + " | " + service.cfg.Title, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
-			TOC: renderTaskInstance.parseResult.TOC, Config: service.cfg, ReadingTime: item.ReadingTime,
-			Taxonomies: nav.taxonomies, ItemTaxonomies: item.Taxonomies,
-			PrevPage: prev, NextPage: next, RelativePrefix: relPrefix,
-			HasImages: renderTaskInstance.parseResult.HasImages, Context: pageContext,
-			ContentPrefix:   service.cfg.ContentPrefix,
-			SectionIndexURL: sectionIndexURL,
-			SiteData:        service.cfg.SiteData,
-			JSONLD:          service.generateJSONLD(item, cardImageURL),
-			Section:         item.Section,
-			IsCleanBuild:    service.ctx.IsCleanBuild,
-			SSRMath:         renderedMath,
-			SSRD2:           renderedD2,
-		}); err != nil {
-			return err
-		}
-
-		if service.cfg.Features.UseRawMarkdown {
-			service.handleRawMarkdown(renderTaskInstance.destinationPath, renderTaskInstance.source)
-		}
-
-		if service.reporter != nil {
-			curr := int(processed.Add(1))
-			service.reporter.UpdateProgress(ui.PhasePosts, curr, totalFiles, renderTaskInstance.relativePath)
-		}
-		return nil
+		return service.renderSingleTask(renderTaskInstance, renderedMath, renderedD2, nav, &processed, totalFiles)
 	}).WithScheduler(service.ctx.Scheduler, scheduler.TaskMarkdown)
 
 	renderPool.Start()
@@ -408,4 +369,67 @@ func (service *contentService) runStreamingRenderPhase(ctx context.Context, numW
 	if err := renderPool.Stop(); err != nil {
 		service.logger.Error("Failed to stop render pool", "error", err)
 	}
+}
+
+func (service *contentService) renderSingleTask(renderTaskInstance renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, nav navInfo, processed *atomic.Int32, totalFiles int) error {
+	item := renderTaskInstance.parseResult.Item
+	htmlContent := renderTaskInstance.htmlContent
+	relPrefix := fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath)
+	htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
+
+	title, _ := renderTaskInstance.parseResult.Metadata["title"].(string)
+	description, _ := renderTaskInstance.parseResult.Metadata["description"].(string)
+	if title == "" {
+		title = item.Title
+	}
+	if description == "" {
+		description = item.Description
+	}
+	socialHash := generators.SocialCardHash(title, description, &service.cfg.SocialCards)
+
+	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, renderTaskInstance.htmlRelativePath, socialHash)
+	prev, next := service.setupNavPages(nav, renderTaskInstance.file.Link)
+	sectionIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
+
+	layoutVal := service.getPageLayout(renderTaskInstance)
+	pageContext := models.ContextSection
+	if layoutVal == "home" {
+		pageContext = models.ContextHome
+	}
+
+	tabTitle := item.Title + " | " + service.cfg.Title
+	if pageContext == models.ContextHome {
+		tabTitle = service.cfg.Title
+	}
+
+	if err := service.renderer.RenderPage(renderTaskInstance.destinationPath, models.PageData{
+		Title: item.Title, Description: item.Description, Content: template.HTML(htmlContent),
+		Meta: renderTaskInstance.parseResult.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
+		TabTitle: tabTitle, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
+		SocialHash: socialHash,
+		TOC:        renderTaskInstance.parseResult.TOC, Config: service.cfg, ReadingTime: item.ReadingTime,
+		Taxonomies: nav.taxonomies, ItemTaxonomies: item.Taxonomies,
+		PrevPage: prev, NextPage: next, RelativePrefix: relPrefix,
+		HasImages: renderTaskInstance.parseResult.HasImages, Context: pageContext,
+		ContentPrefix:   service.cfg.ContentPrefix,
+		SectionIndexURL: sectionIndexURL,
+		SiteData:        service.cfg.SiteData,
+		JSONLD:          service.generateJSONLD(item, cardImageURL),
+		Section:         item.Section,
+		IsCleanBuild:    service.ctx.IsCleanBuild,
+		SSRMath:         renderedMath,
+		SSRD2:           renderedD2,
+	}); err != nil {
+		return err
+	}
+
+	if service.cfg.Features.UseRawMarkdown {
+		service.handleRawMarkdown(renderTaskInstance.destinationPath, renderTaskInstance.source)
+	}
+
+	if service.reporter != nil {
+		curr := int(processed.Add(1))
+		service.reporter.UpdateProgress(ui.PhasePosts, curr, totalFiles, renderTaskInstance.relativePath)
+	}
+	return nil
 }

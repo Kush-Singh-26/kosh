@@ -16,7 +16,7 @@ themes/[theme-name]/
 │   └── images/
 │       └── logo.png        <-- Recommended: High-res branding
 ├── templates/
-│   ├── layout.html         <-- Required: Slot for single posts/pages
+│   ├── layout.html         <-- Required: Slot for single items/pages
 │   ├── index.html          <-- Required: Slot for home page
 │   └── 404.html            <-- Required: Slot for error page
 └── theme.yaml              <-- Required: Theme metadata
@@ -60,21 +60,21 @@ Kosh is hardcoded to link `/static/css/layout.css` as the primary stylesheet. Us
 
 Unlike traditional SSGs, you do not write complete HTML documents. Instead, you define two primary slots: `content` and `head-extra`.
 
-#### `layout.html` (Single Post/Page)
+#### `layout.html` (Single Item/Page)
 This template defines how a single article should look inside the shell.
 
 ```html
 {{ define "content" }}
-<article class="post-container">
-    <header class="post-header">
+<article class="item-container">
+    <header class="item-header">
         <h1>{{ .Title }}</h1>
-        <div class="post-meta">
+        <div class="item-meta">
             <span>{{ .DateObj.Format "January 2, 2006" }}</span>
             <span class="dot">&bull;</span>
             <span>{{ .ReadingTime }} min read</span>
         </div>
     </header>
-    <div class="post-content">
+    <div class="item-content">
         {{ .Content }}
     </div>
 </article>
@@ -91,9 +91,9 @@ This template defines the landing page experience.
     <p>{{ .Description }}</p>
 </section>
 
-<div class="post-list">
-    {{ range .Posts }}
-    {{ template "partials/post-card.html" . }}
+<div class="item-list">
+    {{ range .Items }}
+    {{ template "partials/item-card.html" . }}
     {{ end }}
 </div>
 {{ end }}
@@ -103,9 +103,9 @@ This template defines the landing page experience.
 
 Kosh supports **Partials** — small, reusable template snippets stored in `templates/partials/`. These are pre-loaded and available to every page template using Go's native `template` action.
 
-#### Example: `templates/partials/post-card.html`
+#### Example: `templates/partials/item-card.html`
 ```html
-<div class="post-card">
+<div class="item-card">
     <h3>{{ .Title }}</h3>
     <p>{{ .Description }}</p>
     <a href="{{ relativize $.BaseURL $.RelativePrefix .Link }}">Read more</a>
@@ -117,13 +117,13 @@ To use a partial, call it by its path relative to the `templates` directory, whi
 
 ```html
 <!-- In any page template -->
-{{ range .Posts }}
-    {{ template "partials/post-card.html" . }}
+{{ range .Items }}
+    {{ template "partials/item-card.html" . }}
 {{ end }}
 ```
 
 > [!NOTE]
-> **Context Passing**: The second argument (the `.` in the example above) is the data context passed to the partial. Inside the partial, `.` will refer precisely to what you passed (in this case, a single Post object).
+> **Context Passing**: The second argument (the `.` in the example above) is the data context passed to the partial. Inside the partial, `.` will refer precisely to what you passed (in this case, a single Item object).
 
 ### 4. Data Files
 

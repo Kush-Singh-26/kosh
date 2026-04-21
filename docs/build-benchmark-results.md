@@ -12,7 +12,7 @@ This file stores the detailed `kosh clean --cache` benchmark matrix used to choo
 
 ## Settings Matrix
 
-| vipsConcurrency | imageWorkers | Run | Total Build | Asset copy root/static | Asset building | Parse 39 posts | Notes |
+| vipsConcurrency | imageWorkers | Run | Total Build | Asset copy root/static | Asset building | Parse 39 items | Notes |
 |---|---:|---:|---:|---:|---:|---:|---|
 | 4 | 8 | 1 | 9.7275337s | 8.21s | 8.38s | 7.55s | bench-v4-w8-run1-20260308-154509.log |
 | 4 | 8 | 2 | 9.6776511s | 8.31s | 8.36s | 7.86s | bench-v4-w8-run2-20260308-154519.log |

@@ -34,6 +34,7 @@ func (engineInstance *Engine) startPostProcessingStream(ctx context.Context, set
 				SearchIngestor:     searchIngestor,
 				ShouldForce:        engineInstance.Cfg.ShouldForceRebuild,
 				ForceSocialRebuild: setup.forceSocialRebuild,
+				ForceRerender:      engineInstance.State.ForceRerender.Load(),
 				OutputMissing:      engineInstance.State.IsCleanBuild,
 				FileChan:           scan.fileChan,
 			})
@@ -164,22 +165,4 @@ func (engineInstance *Engine) processPhase(
 	return engineInstance.runSiteWidePhase(ctx, setup, assetsRes, contentResult, finalSearchIndex)
 }
 
-// ProcessPostsOptions configures content processing for a build pass.
-type ProcessPostsOptions struct {
-	Ctx                context.Context
-	ShouldForce        bool
-	ForceSocialRebuild bool
-	OutputMissing      bool
-	Files              []models.ScannedResource
-}
 
-// processPosts executes content processing and returns the result.
-func (engineInstance *Engine) processPosts(opts ProcessPostsOptions) (*content.Result, error) {
-	return engineInstance.Deps.Content.Process(content.ProcessOptions{
-		Ctx:                opts.Ctx,
-		ShouldForce:        opts.ShouldForce,
-		ForceSocialRebuild: opts.ForceSocialRebuild,
-		OutputMissing:      opts.OutputMissing,
-		Files:              opts.Files,
-	})
-}

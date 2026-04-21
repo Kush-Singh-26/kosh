@@ -216,8 +216,19 @@ func (service *contentService) ProcessSingleWithResult(ctx context.Context, path
 			htmlContent: htmlContent,
 			source:      source,
 		})
-		cardRelPath, cardDestPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
-		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath)
+
+		title, _ := parseRes.Metadata["title"].(string)
+		description, _ := parseRes.Metadata["description"].(string)
+		if title == "" {
+			title = parseRes.Item.Title
+		}
+		if description == "" {
+			description = parseRes.Item.Description
+		}
+		socialHash := generators.SocialCardHash(title, description, &service.cfg.SocialCards)
+
+		cardRelPath, cardDestPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath, socialHash)
+		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath, socialHash)
 	}
 
 	return service.renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section, parseRes, renderedMath, renderedD2)
@@ -302,7 +313,18 @@ func (service *contentService) handleRawMarkdown(destPath string, source []byte)
 func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) error {
 	item := parseRes.Item
 	nav := service.resolveNavigation(item)
-	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath)
+
+	title, _ := parseRes.Metadata["title"].(string)
+	description, _ := parseRes.Metadata["description"].(string)
+	if title == "" {
+		title = item.Title
+	}
+	if description == "" {
+		description = item.Description
+	}
+	socialHash := generators.SocialCardHash(title, description, &service.cfg.SocialCards)
+
+	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath, socialHash)
 
 	contentPrefix := strings.Trim(service.cfg.ContentPrefix, "/")
 	sectionIndexURL := service.getSectionIndexURL(relPrefix, contentPrefix)
@@ -312,11 +334,17 @@ func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix,
 		pageContext = models.ContextHome
 	}
 
+	tabTitle := item.Title + " | " + service.cfg.Title
+	if pageContext == models.ContextHome {
+		tabTitle = service.cfg.Title
+	}
+
 	return service.renderer.RenderPage(destPath, models.PageData{
 		Title: item.Title, Description: item.Description, Content: template.HTML(htmlContent),
 		Meta: parseRes.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
-		TabTitle: item.Title + " | " + service.cfg.Title, Permalink: item.Link, Image: cardImageURL,
-		TOC: parseRes.TOC, Config: service.cfg, ReadingTime: item.ReadingTime,
+		TabTitle: tabTitle, Permalink: item.Link, Image: cardImageURL,
+		SocialHash: socialHash,
+		TOC:        parseRes.TOC, Config: service.cfg, ReadingTime: item.ReadingTime,
 		Taxonomies:     nav.taxonomies,
 		ItemTaxonomies: item.Taxonomies,
 		PrevPage:       nav.prev, NextPage: nav.next, RelativePrefix: relPrefix,
@@ -381,21 +409,21 @@ func (service *contentService) commitContentCache(options commitContentCacheOpti
 	newSearch := service.buildSearchRecord(options.parseRes)
 	newDep := &models.Dependencies{Taxonomies: options.item.Taxonomies}
 
-service.cacheWg.Add(1)
+	service.cacheWg.Add(1)
 	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-		Ctx: service.ctx.Ctx,
-		Logger: service.logger,
+		Ctx:       service.ctx.Ctx,
+		Logger:    service.logger,
 		Operation: "cache commit",
 		Fn: func() error {
-		timer := timeutil.StartPhase("Cache commit (incremental)")
-		if err := service.cache.BatchCommit([]*models.ContentMeta{newMeta}, map[string]*models.SearchRecord{ContentID: newSearch}, map[string]*models.Dependencies{ContentID: newDep}); err != nil {
-			service.logger.Error("Failed to commit post to cache", "path", options.relPath, "error", err)
-		}
-		timer.Stop()
-		return nil
-	},
-	Cleanup: service.cacheWg.Done,
-})
+			timer := timeutil.StartPhase("Cache commit (incremental)")
+			if err := service.cache.BatchCommit([]*models.ContentMeta{newMeta}, map[string]*models.SearchRecord{ContentID: newSearch}, map[string]*models.Dependencies{ContentID: newDep}); err != nil {
+				service.logger.Error("Failed to commit post to cache", "path", options.relPath, "error", err)
+			}
+			timer.Stop()
+			return nil
+		},
+		Cleanup: service.cacheWg.Done,
+	})
 }
 
 func (service *contentService) buildCacheMeta(options commitContentCacheOptions, contentID string) *models.ContentMeta {
@@ -433,9 +461,9 @@ func (service *contentService) buildSearchRecord(parseRes *ParsedMarkdownResult)
 	}
 }
 
-func (service *contentService) handleSocialCard(parseRes *ParsedMarkdownResult, relPath, cardRelPath, cardDestPath string) {
+func (service *contentService) handleSocialCard(parseRes *ParsedMarkdownResult, relPath, cardRelPath, cardDestPath, socialHash string) {
 	cachedHash, _ := service.cache.GetSocialCardHash(relPath)
-	if cachedHash != "" && cachedHash == parseRes.FrontmatterHash {
+	if cachedHash != "" && cachedHash == socialHash {
 		service.sink.Register(cardDestPath)
 		return
 	}
@@ -447,6 +475,6 @@ func (service *contentService) handleSocialCard(parseRes *ParsedMarkdownResult, 
 		relPath:         cardRelPath,
 		cardDestPath:    cardDestPath,
 		metadata:        parseRes.Metadata,
-		frontmatterHash: parseRes.FrontmatterHash,
+		frontmatterHash: socialHash,
 	})
 }

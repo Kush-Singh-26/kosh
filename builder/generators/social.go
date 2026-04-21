@@ -44,9 +44,21 @@ const (
 	descSpacingY         = 25.0
 )
 
-// SocialCardHash generates a stable hash for social card content
-func SocialCardHash(title, description string) string {
-	cardContent := fmt.Sprintf("%s|%s", title, description)
+// SocialCardHash generates a stable hash for social card content including visual config
+func SocialCardHash(title, description string, cfg *models.SocialCardsConfig) string {
+	var cardContent string
+	if cfg != nil {
+		cardContent = fmt.Sprintf("%s|%s|%s|%s|%d|%s",
+			title,
+			description,
+			cfg.Background,
+			strings.Join(cfg.Gradient, ","),
+			cfg.Angle,
+			cfg.TextColor,
+		)
+	} else {
+		cardContent = fmt.Sprintf("%s|%s", title, description)
+	}
 	return core.HashString(cardContent)
 }
 
@@ -95,7 +107,7 @@ type ProvideSocialCardOptions struct {
 
 // ProvideSocialCard ensures a social card exists in the VFS, using cache if possible
 func ProvideSocialCard(opts ProvideSocialCardOptions) {
-	currentHash := SocialCardHash(opts.CardTitle, opts.Description)
+	currentHash := SocialCardHash(opts.CardTitle, opts.Description, opts.SocialCfg)
 	cachedCardPath := filepath.Join(opts.CacheDir, "social-cards", currentHash+".webp")
 
 	needsGen := ShouldGenerateSocialCard(CheckSocialCardOptions{

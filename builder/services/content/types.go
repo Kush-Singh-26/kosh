@@ -72,6 +72,7 @@ type WorkerContext struct {
 	RenderChan         chan<- renderTask
 	ShouldForce        bool
 	ForceSocialRebuild bool
+	ForceRerender      bool
 }
 
 type contentProcessContext struct {

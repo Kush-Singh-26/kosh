@@ -73,6 +73,20 @@ Database -> Server: Result
 Server -> Browser: HTTP Response
 ```
 
+## Knowledge Graph
+Kosh automatically generates an interactive knowledge graph of your site.
+- **Interactive View**: Accessible at `/graph.html`.
+- **Data Export**: Raw JSON available at `/graph.json`.
+- **Connections**: Maps links between pages and shared taxonomy terms.
+
+## Advanced Markdown
+Kosh supports powerful Markdown extensions for technical writing:
+- **Attributes**: Add `{#id .class}` to any element.
+- **Enhanced Code Blocks**: Support for `title` and `.nolang` attributes.
+- **Smart Figures**: Automatic wrapping of images in figures with captions.
+
+*See the [Markdown Guide](./MARKDOWN_GUIDE.md) and [Advanced Features](./ADVANCED_FEATURES.md) for more.*
+
 ## Automated Features
 
 ### 1. Table of Contents (TOC)

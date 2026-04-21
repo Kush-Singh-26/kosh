@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
@@ -15,7 +16,17 @@ func (service *contentService) queueSocialCard(options SocialCardOptions) {
 	shouldForce := options.ForceSocialRebuild
 	cardPool := options.CardPool
 
-	cardRelativePath, cardDestinationPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelativePath)
+	title, _ := result.Metadata["title"].(string)
+	description, _ := result.Metadata["description"].(string)
+	if title == "" {
+		title = result.Item.Title
+	}
+	if description == "" {
+		description = result.Item.Description
+	}
+
+	currentHash := generators.SocialCardHash(title, description, &service.cfg.SocialCards)
+	cardRelativePath, cardDestinationPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelativePath, currentHash)
 
 	cacheDir := service.cfg.CacheDir
 	if !filepath.IsAbs(cacheDir) {
@@ -24,14 +35,14 @@ func (service *contentService) queueSocialCard(options SocialCardOptions) {
 			cacheDir = absoluteCacheDir
 		}
 	}
-	cachedCardPath := filepath.Join(cacheDir, "social-cards", result.FrontmatterHash+".webp")
+	cachedCardPath := filepath.Join(cacheDir, "social-cards", currentHash+".webp")
 
-	if _, err := os.Stat(cachedCardPath); err == nil && !shouldForce && result.FrontmatterHash != "" {
-		service.copyCachedSocialCard(result.FrontmatterHash, cardDestinationPath)
+	if _, err := os.Stat(cachedCardPath); err == nil && !shouldForce && currentHash != "" {
+		service.copyCachedSocialCard(currentHash, cardDestinationPath)
 	} else {
 		cardPool.Submit(socialCardTask{
 			path: relativePath, relPath: cardRelativePath,
-			cardDestPath: cardDestinationPath, metadata: result.Metadata, frontmatterHash: result.FrontmatterHash,
+			cardDestPath: cardDestinationPath, metadata: result.Metadata, frontmatterHash: currentHash,
 		})
 	}
 }

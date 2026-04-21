@@ -70,13 +70,24 @@ func (t *unifiedTransformer) processDestination(n ast.Node, dest []byte, _ parse
 	}
 }
 
-func hasTextChild(n ast.Node, _ []byte) bool {
-	for child := n.FirstChild(); child != nil; child = child.NextSibling() {
-		if _, ok := child.(*ast.Text); ok {
-			return true
+func hasTextChild(n ast.Node, source []byte) bool {
+	hasText := false
+	_ = ast.Walk(n, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
 		}
-	}
-	return false
+		if node == n {
+			return ast.WalkContinue, nil
+		}
+		if t, ok := node.(*ast.Text); ok {
+			if len(strings.TrimSpace(string(t.Segment.Value(source)))) > 0 {
+				hasText = true
+				return ast.WalkStop, nil
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+	return hasText
 }
 
 func getAttrValue(n ast.Node, key string) string {

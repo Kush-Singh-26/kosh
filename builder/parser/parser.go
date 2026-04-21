@@ -28,41 +28,89 @@ const (
 func codeBlockWrapper(writer util.BufWriter, codeCtx highlighting.CodeBlockContext, entering bool) {
 	if entering {
 		langBytes, _ := codeCtx.Language()
-		lang := string(langBytes)
+		originalLang := string(langBytes)
+		lang := originalLang
 		if lang == "" {
 			lang = "text"
 		}
 
-		title := ""
-		if attrs := codeCtx.Attributes(); attrs != nil {
-			if titleVal, ok := attrs.Get([]byte("title")); ok {
-				if titleBytes, ok := titleVal.([]byte); ok {
-					title = string(titleBytes)
-				} else if titleStr, ok := titleVal.(string); ok {
-					title = titleStr
-				}
-			}
-		}
+		title, hideLang := parseCodeAttributes(codeCtx)
 
 		// Write the header bar
 		_, _ = writer.WriteString(`<div class="code-block-container">`)
-		_, _ = writer.WriteString(`<div class="code-header-bar">`)
-		_, _ = writer.WriteString(`<div class="code-header-left">`)
-		_, _ = writer.WriteString(`<span class="code-lang-label">` + strings.ToUpper(lang) + `</span>`)
-		if title != "" {
-			_, _ = writer.WriteString(`<span class="code-header-divider"></span>`)
-			_, _ = writer.WriteString(`<span class="code-header-title">` + title + `</span>`)
-		}
-		_, _ = writer.WriteString(`</div>`)
-		_, _ = writer.WriteString(`<button class="copy-btn-explicit" aria-label="Copy code">`)
-		_, _ = writer.WriteString(`<span class="copy-text">Copy</span>`)
-		_, _ = writer.WriteString(`</button>`)
-		_, _ = writer.WriteString(`</div>`)
+		writeCodeHeader(writer, originalLang, title, hideLang)
 
 		_, _ = writer.WriteString(`<div class="code-wrapper" data-lang="` + lang + `">`)
+
+		// If no language is provided, goldmark-highlighting often doesn't wrap it in <pre><code>
+		// We add a fallback class but let the highlighter do its work if it can.
+		if originalLang == "" {
+			_, _ = writer.WriteString(`<pre class="chroma"><code>`)
+		}
 	} else {
+		langBytes, _ := codeCtx.Language()
+		if len(langBytes) == 0 {
+			_, _ = writer.WriteString(`</code></pre>`)
+		}
 		_, _ = writer.WriteString(`</div></div>`)
 	}
+}
+
+func parseCodeAttributes(codeCtx highlighting.CodeBlockContext) (string, bool) {
+	title := ""
+	hideLang := false
+	if attrs := codeCtx.Attributes(); attrs != nil {
+		// Check for title
+		if titleVal, ok := attrs.Get([]byte("title")); ok {
+			if titleBytes, ok := titleVal.([]byte); ok {
+				title = string(titleBytes)
+			} else if titleStr, ok := titleVal.(string); ok {
+				title = titleStr
+			}
+		}
+		// Check for nolang or hide-lang
+		if _, ok := attrs.Get([]byte("nolang")); ok {
+			hideLang = true
+		} else if _, ok := attrs.Get([]byte("hide-lang")); ok {
+			hideLang = true
+		}
+
+		// Check for nolang or hide-lang in classes (e.g. {.nolang})
+		if classVal, ok := attrs.Get([]byte("class")); ok {
+			classStr := ""
+			if classBytes, ok := classVal.([]byte); ok {
+				classStr = string(classBytes)
+			} else if s, ok := classVal.(string); ok {
+				classStr = s
+			}
+			if strings.Contains(classStr, "nolang") || strings.Contains(classStr, "hide-lang") {
+				hideLang = true
+			}
+		}
+	}
+	return title, hideLang
+}
+
+func writeCodeHeader(writer util.BufWriter, originalLang, title string, hideLang bool) {
+	_, _ = writer.WriteString(`<div class="code-header-bar">`)
+	_, _ = writer.WriteString(`<div class="code-header-left">`)
+
+	// Only show language label if it's explicit and not hidden
+	if originalLang != "" && !hideLang {
+		_, _ = writer.WriteString(`<span class="code-lang-label">` + strings.ToUpper(originalLang) + `</span>`)
+		if title != "" {
+			_, _ = writer.WriteString(`<span class="code-header-divider"></span>`)
+		}
+	}
+
+	if title != "" {
+		_, _ = writer.WriteString(`<span class="code-header-title">` + title + `</span>`)
+	}
+	_, _ = writer.WriteString(`</div>`)
+	_, _ = writer.WriteString(`<button class="copy-btn-explicit" aria-label="Copy code">`)
+	_, _ = writer.WriteString(`<span class="copy-text">Copy</span>`)
+	_, _ = writer.WriteString(`</button>`)
+	_, _ = writer.WriteString(`</div>`)
 }
 
 // Options controls the configuration of the markdown parser.
@@ -141,6 +189,7 @@ func New(cfg *config.Config, opts ...Option) goldmark.Markdown {
 				}, unifiedTransformerPriority),
 			),
 			parser.WithAutoHeadingID(),
+			parser.WithAttribute(),
 		),
 		goldmark.WithRendererOptions(
 			html.WithUnsafe(),

@@ -201,7 +201,7 @@ func TestEncodeDecode(t *testing.T) {
 				Description: "Test Description",
 				Taxonomies:  map[string][]string{"tags": {"go", "testing"}},
 				Date:        time.Now(),
-				WordCount:   100,
+				FileSize:   100,
 				ReadingTime: 5,
 			},
 		},
@@ -299,7 +299,7 @@ func TestEncodeDecodeComplex(t *testing.T) {
 		Title:          "Complex Post",
 		Date:           time.Now().UTC(),
 		Taxonomies:     map[string][]string{"tags": {"go", "testing", "cache"}},
-		WordCount:      1500,
+		FileSize:      1500,
 		ReadingTime:    8,
 		Description:    "A complex post for testing",
 		Link:           "/posts/complex",
@@ -330,8 +330,8 @@ func TestEncodeDecodeComplex(t *testing.T) {
 	if decoded.Title != original.Title {
 		t.Errorf("Title mismatch")
 	}
-	if decoded.WordCount != original.WordCount {
-		t.Errorf("WordCount mismatch")
+	if decoded.FileSize != original.FileSize {
+		t.Errorf("FileSize mismatch")
 	}
 	if decoded.IsPinned != original.IsPinned {
 		t.Errorf("IsPinned mismatch")

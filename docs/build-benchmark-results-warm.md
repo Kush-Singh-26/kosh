@@ -12,7 +12,7 @@ This file stores `kosh clean` benchmark runs used to compare warm-cache full-bui
 
 ## Settings Matrix
 
-| vipsConcurrency | imageWorkers | Run | Total Build | Asset copy root/static | Asset building | Parse 39 posts | Cache Hits | Notes |
+| vipsConcurrency | imageWorkers | Run | Total Build | Asset copy root/static | Asset building | Parse 39 items | Cache Hits | Notes |
 |---|---:|---:|---:|---:|---:|---:|---|---|
 | 4 | 8  | 1 |  |  |  |  |  |  |
 | 4 | 8  | 2 |  |  |  |  |  |  |

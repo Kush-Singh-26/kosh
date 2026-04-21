@@ -17,7 +17,7 @@ const (
 	sampleDay          = 15
 	sampleHour         = 10
 	sampleWeight       = 10
-	sampleWordCount    = 150
+	sampleFileSize    = 150
 	sampleDocLen       = 10
 	largeHTMLSize      = 35000
 	samplePostsPerPage = 10
@@ -34,7 +34,7 @@ func CreateSamplePostMeta() *models.ContentMeta {
 		Description: "A test post for testing purposes",
 		IsDraft:     false,
 		Weight:      sampleWeight,
-		WordCount:   sampleWordCount,
+		FileSize:   sampleFileSize,
 		ReadingTime: 1,
 		// Meta values mirror YAML frontmatter decoding (string, bool, int/float64, time.Time, []any, map[string]any).
 		Meta: make(map[string]any),

@@ -401,6 +401,28 @@ func LoadFs(fs afero.Fs, args []string) *Config {
 	return cfg
 }
 
+// Reload reloads the configuration from disk into the existing instance.
+func (c *Config) Reload(fs afero.Fs) error {
+	// 1. Re-load from YAML file
+	loadConfigFile(fs, c)
+
+	// 2. Validate and set defaults for ImageWorkers
+	validateWorkerConfig(c)
+
+	// 3. Re-load build configuration
+	c.Build = LoadBuildConfigFs(fs)
+
+	// 4. Re-resolve paths to absolute paths (critical for dev mode)
+	isTesting := fspkg.DetectTestingMode()
+	resolveThemePaths(c, isTesting)
+	resolveContentPaths(c, isTesting)
+
+	// 5. Finalize
+	finalizeConfig(c)
+
+	return nil
+}
+
 // SetDevMode toggles dev mode on the config.
 func SetDevMode(cfg *Config, isDev bool) {
 	cfg.IsDev = isDev

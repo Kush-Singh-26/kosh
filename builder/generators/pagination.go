@@ -49,13 +49,13 @@ func ensureHomeSocialCard(opts PaginationOptions) {
 	sink := opts.Sink
 	render := opts.Render
 
-	homeCardPath := filepath.Join(cfg.OutputDir, "static/images/cards/home.webp")
 	desc := cfg.Description
 	if len(desc) > homeDescMaxLen {
 		desc = desc[:homeDescMaxLen-len(homeDescEllipsis)] + homeDescEllipsis
 	}
-	homeHash := SocialCardHash(cfg.Title, desc)
+	homeHash := SocialCardHash(cfg.Title, desc, &cfg.SocialCards)
 	homeCached := filepath.Join(cfg.CacheDir, "social-cards", homeHash+".webp")
+	homeCardPath := filepath.Join(cfg.OutputDir, fmt.Sprintf("static/images/cards/home.%s.webp", homeHash))
 
 	if ShouldGenerateSocialCard(CheckSocialCardOptions{
 		Cache:          opts.Cache,
@@ -169,6 +169,13 @@ func RenderPagination(opts PaginationOptions) error {
 
 	ensureHomeSocialCard(opts)
 
+	desc := cfg.Description
+	if len(desc) > homeDescMaxLen {
+		desc = desc[:homeDescMaxLen-len(homeDescEllipsis)] + homeDescEllipsis
+	}
+	homeHash := SocialCardHash(cfg.Title, desc, &cfg.SocialCards)
+	homeImageURL := fmt.Sprintf("%s/static/images/cards/home.%s.webp", cfg.BaseURL, homeHash)
+
 	allItems := opts.AllPosts
 
 	itemsPerPage := resolveItemsPerPage(cfg)
@@ -200,8 +207,9 @@ func RenderPagination(opts PaginationOptions) error {
 			if err := render.RenderIndex(destPath, models.PageData{
 				Title: cfg.Title, Items: pageItems, PinnedItems: curPinned,
 				BaseURL: cfg.BaseURL, BuildVersion: cfg.BuildVersion, TabTitle: cfg.Title,
-				Description: cfg.Description, Permalink: permalink, Image: cfg.BaseURL + "/static/images/cards/home.webp",
-				Paginator: paginator, Config: cfg, Context: context,
+				Description: cfg.Description, Permalink: permalink, Image: homeImageURL,
+				SocialHash: homeHash,
+				Paginator:  paginator, Config: cfg, Context: context,
 				RelativePrefix: relPrefix, ContentPrefix: cfg.ContentPrefix,
 				SectionIndexURL: sectionIndexURL,
 				Taxonomies:      opts.Taxonomies,

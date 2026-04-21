@@ -340,11 +340,15 @@ func (s *transformState) checkImageA11y(img *ast.Image) {
 func (s *transformState) handleImageCaption(img *ast.Image) {
 	altSB := pools.SharedStringBuilderPool.Get()
 	defer pools.SharedStringBuilderPool.Put(altSB)
-	for child := img.FirstChild(); child != nil; child = child.NextSibling() {
-		if tNode, ok := child.(*ast.Text); ok {
+	_ = ast.Walk(img, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering || n == img {
+			return ast.WalkContinue, nil
+		}
+		if tNode, ok := n.(*ast.Text); ok {
 			altSB.Write(tNode.Segment.Value(s.source))
 		}
-	}
+		return ast.WalkContinue, nil
+	})
 	altStr := strings.TrimSpace(altSB.String())
 
 	if altStr != "" && strings.ToLower(altStr) != "image" {

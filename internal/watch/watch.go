@@ -98,6 +98,10 @@ func (w *Watcher) addWatchDirs() {
 				}
 				return w.watcher.Add(path)
 			}
+			// If the explicitly provided path is a file, watch it directly
+			if path == dir {
+				return w.watcher.Add(path)
+			}
 			return nil
 		})
 		if err != nil {

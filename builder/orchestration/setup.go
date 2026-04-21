@@ -152,7 +152,7 @@ func SetupCacheManager(configInstance *config.Config, logger *slog.Logger) (*cac
 
 func generateCacheID() string {
 	components := []string{
-		"kosh:1.0",
+		"kosh:2.0",
 		"goldmark:1.7",
 		"d2:0.7",
 		"katex:embedded",

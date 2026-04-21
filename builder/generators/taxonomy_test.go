@@ -17,8 +17,8 @@ func TestBoundedTaxonomySocialCardWorkers(t *testing.T) {
 }
 
 func TestSocialCardHash_Stable(t *testing.T) {
-	h1 := SocialCardHash("Title", "Description")
-	h2 := SocialCardHash("Title", "Description")
+	h1 := SocialCardHash("Title", "Description", nil)
+	h2 := SocialCardHash("Title", "Description", nil)
 	if h1 != h2 {
 		t.Fatalf("hash should be deterministic")
 	}

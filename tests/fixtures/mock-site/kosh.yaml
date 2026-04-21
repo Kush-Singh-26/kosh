@@ -7,7 +7,7 @@ staticDir: "static"
 contentDir: "content"
 imageWorkers: 2
 shouldCompressImages: true
-shouldMinifySVGs: true
+shouldMinify: true
 contentPrefix: "blogs"
 menu:
   - name: "Search"
@@ -19,7 +19,8 @@ features:
     graph:
       isEnabled: true
     isPWAEnabled: true
-    isSearchEnabled: true
+    search:
+      isEnabled: true
 socialCards:
   background: "#fafafa"
   gradient: ["#e0d8c0", "#c0b090"]

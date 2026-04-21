@@ -139,7 +139,8 @@ features:
     isPWAEnabled: true
     
     # High-performance Go+WASM client-side search.
-    isSearchEnabled: true
+    search:
+      isEnabled: true
 
 ###############################################################################
 # Social Cards (Open Graph Images)

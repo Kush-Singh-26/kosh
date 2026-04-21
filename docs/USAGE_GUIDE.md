@@ -57,7 +57,7 @@ go install ./cmd/kosh
 ### 1. Project Structure
 Kosh follows a simple convention-based structure:
 - `kosh.yaml`: Site configuration.
-- `content/`: Markdown files for your pages and blog posts.
+- `content/`: Markdown files for your pages and content items.
 - `static/`: Global static assets (images, fonts, scripts).
 - `themes/`: Theme templates and theme-specific assets.
 - `layouts/`: (Optional) Site-level template overrides.
@@ -98,7 +98,7 @@ Kosh supports native "Series" and "Events" taxonomies.
 - **Others**: (Tags, Categories) continue to be sorted reverse-chronologically.
 
 ## Site Branding
-Kosh supports context-aware branding. You can define different titles and button labels for the Home page vs the Blog section in your `kosh.yaml`. This is useful for professional portfolios that also host a blog.
+Kosh supports context-aware branding. You can define different titles and button labels for the Home page vs the content section in your `kosh.yaml`. This is useful for professional portfolios that also host a blog.
 
 ## Next Steps
 - Learn about [Shortcodes and Advanced Features](file:///c:/Users/KIIT0001/blogs/docs/FEATURES.md).
