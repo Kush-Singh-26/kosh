@@ -9,6 +9,7 @@ public/
 .ruff_cache/
 .gocache/
 perf-results/
+.golangci-cache/
 
 # Build artifacts in builder/run/
 builder/run/.kosh-cache/

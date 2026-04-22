@@ -1,3 +1,4 @@
+// Package main implements the kosh build command.
 package main
 
 import (
