@@ -5,10 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
+
 
 func BenchmarkExtractSnippet(b *testing.B) {
 	content := strings.Repeat("The quick brown fox jumps over the lazy dog. ", 10)
@@ -29,11 +30,11 @@ func BenchmarkLevenshteinDistance(b *testing.B) {
 }
 
 func BenchmarkPerformSearch(b *testing.B) {
-	var indexedPosts []models.IndexedContent
+	var indexedPosts []searchpkg.IndexedContent
 	for i := 0; i < 100; i++ {
-		indexedPosts = append(indexedPosts, models.IndexedContent{
+		indexedPosts = append(indexedPosts, searchpkg.IndexedContent{
 			DenseID: uint32(i),
-			Record: models.ContentRecord{
+			Record: searchpkg.ContentRecord{
 				Title: fmt.Sprintf("Item %d", i),
 				Content: "This is some content kosh.",
 			},

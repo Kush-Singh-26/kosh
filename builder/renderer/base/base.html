@@ -74,8 +74,8 @@
         window.siteBaseURL = "{{ .BaseURL }}";
         window.buildVersion = "{{ .BuildVersion }}";
         window.taxonomyBaseURL = "{{ .Config.GetContentPrefix }}";
-        window.siteTaxonomies = {{ .Taxonomies | jsonify }};
-        window.blogTags = {{ with index .Taxonomies "tags" }}{{ .Terms | jsonify }}{{ else }}[]{{ end }};
+        window.siteTaxonomies = {{ if .Taxonomies }}{{ .Taxonomies | jsonify }}{{ else }}{{ "{}" }}{{ end }};
+        window.blogTags = {{ if and .Taxonomies (index .Taxonomies "tags") }}{{ (index .Taxonomies "tags").Terms | jsonify }}{{ else }}[]{{ end }};
         window.searchEndpoints = {{ with .Config.GetFeatures.Generators.Search.Endpoints }}{{ . | jsonify }}{{ else }}[]{{ end }};
     </script>
     {{ if .Config.GetLogo }}

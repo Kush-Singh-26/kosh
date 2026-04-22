@@ -4,9 +4,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
+
 
 const (
 	minSuggestionPrefixLen = 2
@@ -20,7 +21,7 @@ type suggestion struct {
 }
 
 // GetSuggestions returns a list of suggested terms based on a prefix
-func GetSuggestions(index *models.SearchIndex, prefix string) []string {
+func GetSuggestions(index *searchpkg.SearchIndex, prefix string) []string {
 	prefix = core.ToLower(strings.TrimSpace(prefix))
 	if len(prefix) < minSuggestionPrefixLen {
 		return nil

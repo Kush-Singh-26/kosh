@@ -32,8 +32,19 @@ func main() {
 	_ = os.MkdirAll(filepath.Dir(wasmDest), 0755)
 
 	log.Printf("Compiling %s -> %s...", cmdSearch, wasmDest)
-	cmd := exec.CommandContext(context.Background(), "go", "build", "-o", wasmDest, cmdSearch)
-	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm", "CGO_ENABLED=0")
+	
+	// Try TinyGo first if available
+	var cmd *exec.Cmd
+	tinygoPath, _ := exec.LookPath("tinygo")
+	if tinygoPath != "" {
+		log.Printf("Using TinyGo for optimized WASM...")
+		cmd = exec.CommandContext(context.Background(), tinygoPath, "build", "-o", wasmDest, "-target=wasm", cmdSearch)
+	} else {
+		log.Printf("TinyGo not found, falling back to standard Go...")
+		cmd = exec.CommandContext(context.Background(), "go", "build", "-ldflags=-s -w", "-o", wasmDest, cmdSearch)
+		cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm", "CGO_ENABLED=0")
+	}
+	
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

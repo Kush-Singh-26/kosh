@@ -79,7 +79,7 @@ func TestIsSearchSourcePath(t *testing.T) {
 	}{
 		{"cmd/search/main.go", true},
 		{"builder/search/core.go", true},
-		{"builder/models/models.go", true},
+		{"builder/models/searchpkg/search.go", true},
 		{"content/blog/Content.md", false},
 		{"static/js/app.js", false},
 	}

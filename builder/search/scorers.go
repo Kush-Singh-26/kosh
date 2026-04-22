@@ -5,9 +5,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
+
 
 const (
 	scoreModifierBase          = 1.0
@@ -31,7 +32,7 @@ const (
 
 // Context holds the context for a search execution.
 type Context struct {
-	Index         *models.SearchIndex
+	Index         *searchpkg.SearchIndex
 	QueryTerms    []string
 	Phrases       [][]string
 	TagFilter     string
@@ -94,7 +95,7 @@ func (scorer *BM25Scorer) applyBM25Score(ctx *Context, termIdx int, opts *Scorin
 	}
 
 	docIDs := ctx.Index.DocIDs[start:end]
-	absDocIDs := models.DecodeDocIDs(docIDs)
+	absDocIDs := searchpkg.DecodeDocIDs(docIDs)
 	docFreq := len(absDocIDs)
 
 	invDocFreq := math.Log(1 + (float64(ctx.Index.TotalItems)-float64(docFreq)+bm25Smoothing)/(float64(docFreq)+bm25Smoothing))
@@ -195,7 +196,7 @@ func (scorer *TitleScorer) Score(ctx *Context, opts *ScoringOptions) {
 		if termIdx >= 0 {
 			tIDs := ctx.Index.GetTitlePostings(termIdx)
 			if len(tIDs) > 0 {
-				absTIDs := models.DecodeDocIDs(tIDs)
+				absTIDs := searchpkg.DecodeDocIDs(tIDs)
 				for _, tid := range absTIDs {
 					opts.Scores[tid] += opts.Ranking.TitleBoost * 0.5
 				}
@@ -285,7 +286,7 @@ func (scorer *FilterScorer) Score(ctx *Context, opts *ScoringOptions) {
 			hasTerm := false
 			if termIdx >= 0 {
 				docIDs, _ := ctx.Index.GetPostings(termIdx)
-				absIDs := models.DecodeDocIDs(docIDs)
+				absIDs := searchpkg.DecodeDocIDs(docIDs)
 				hasTerm = slices.Contains(absIDs, id)
 			}
 
@@ -327,7 +328,7 @@ func (scorer *ProximityScorer) calculateProximityScore(ctx *Context, id uint32) 
 		}
 
 		docIDs, _ := ctx.Index.GetPostings(termIdx)
-		absIDs := models.DecodeDocIDs(docIDs)
+		absIDs := searchpkg.DecodeDocIDs(docIDs)
 		idx := -1
 		for i, aid := range absIDs {
 			if aid == id {
@@ -341,7 +342,7 @@ func (scorer *ProximityScorer) calculateProximityScore(ctx *Context, id uint32) 
 			pStart := ctx.Index.DocPosOffsets[postingIdx]
 			pEnd := ctx.Index.DocPosOffsets[postingIdx+1]
 			posDeltas := ctx.Index.Positions[pStart:pEnd]
-			termPositions = append(termPositions, models.DecodePositions(posDeltas))
+			termPositions = append(termPositions, searchpkg.DecodePositions(posDeltas))
 		}
 	}
 
@@ -393,7 +394,7 @@ func (pipeline *Pipeline) Execute(ctx *Context, opts *ScoringOptions) {
 }
 
 // Helpers for phrase matching
-func checkPhraseUnified(index *models.SearchIndex, docID uint32, phraseTerms []string) bool {
+func checkPhraseUnified(index *searchpkg.SearchIndex, docID uint32, phraseTerms []string) bool {
 	if len(phraseTerms) == 0 {
 		return false
 	}
@@ -416,21 +417,21 @@ func checkPhraseUnified(index *models.SearchIndex, docID uint32, phraseTerms []s
 	return true
 }
 
-func getDocPositions(index *models.SearchIndex, docID uint32, term string) ([]int, bool) {
+func getDocPositions(index *searchpkg.SearchIndex, docID uint32, term string) ([]int, bool) {
 	termIdx := index.LookupTerm(term)
 	if termIdx < 0 {
 		return nil, false
 	}
 
 	docIDs, _ := index.GetPostings(termIdx)
-	absIDs := models.DecodeDocIDs(docIDs)
+	absIDs := searchpkg.DecodeDocIDs(docIDs)
 	for i, aid := range absIDs {
 		if aid == docID {
 			startIdx := index.PostingOffsets[termIdx]
 			postingIdx := int(startIdx) + i
 			pStart := index.DocPosOffsets[postingIdx]
 			pEnd := index.DocPosOffsets[postingIdx+1]
-			return models.DecodePositions(index.Positions[pStart:pEnd]), true
+			return searchpkg.DecodePositions(index.Positions[pStart:pEnd]), true
 		}
 	}
 	return nil, false

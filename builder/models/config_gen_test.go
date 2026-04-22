@@ -7,7 +7,10 @@ import (
 	"testing"
 
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 )
+
 
 func TestMarshalUnmarshalAuthorConfig(t *testing.T) {
 	v := AuthorConfig{}
@@ -801,7 +804,7 @@ func BenchmarkDecodeSearchOptionsConfig(b *testing.B) {
 }
 
 func TestMarshalUnmarshalSearchRankingConfig(t *testing.T) {
-	v := SearchRankingConfig{}
+	v := searchpkg.SearchRankingConfig{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -824,7 +827,7 @@ func TestMarshalUnmarshalSearchRankingConfig(t *testing.T) {
 }
 
 func BenchmarkMarshalMsgSearchRankingConfig(b *testing.B) {
-	v := SearchRankingConfig{}
+	v := searchpkg.SearchRankingConfig{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -833,7 +836,7 @@ func BenchmarkMarshalMsgSearchRankingConfig(b *testing.B) {
 }
 
 func BenchmarkAppendMsgSearchRankingConfig(b *testing.B) {
-	v := SearchRankingConfig{}
+	v := searchpkg.SearchRankingConfig{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -845,7 +848,7 @@ func BenchmarkAppendMsgSearchRankingConfig(b *testing.B) {
 }
 
 func BenchmarkUnmarshalSearchRankingConfig(b *testing.B) {
-	v := SearchRankingConfig{}
+	v := searchpkg.SearchRankingConfig{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -859,7 +862,7 @@ func BenchmarkUnmarshalSearchRankingConfig(b *testing.B) {
 }
 
 func TestEncodeDecodeSearchRankingConfig(t *testing.T) {
-	v := SearchRankingConfig{}
+	v := searchpkg.SearchRankingConfig{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -868,7 +871,7 @@ func TestEncodeDecodeSearchRankingConfig(t *testing.T) {
 		t.Log("WARNING: TestEncodeDecodeSearchRankingConfig Msgsize() is inaccurate")
 	}
 
-	vn := SearchRankingConfig{}
+	vn := searchpkg.SearchRankingConfig{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -883,7 +886,7 @@ func TestEncodeDecodeSearchRankingConfig(t *testing.T) {
 }
 
 func BenchmarkEncodeSearchRankingConfig(b *testing.B) {
-	v := SearchRankingConfig{}
+	v := searchpkg.SearchRankingConfig{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -897,7 +900,7 @@ func BenchmarkEncodeSearchRankingConfig(b *testing.B) {
 }
 
 func BenchmarkDecodeSearchRankingConfig(b *testing.B) {
-	v := SearchRankingConfig{}
+	v := searchpkg.SearchRankingConfig{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

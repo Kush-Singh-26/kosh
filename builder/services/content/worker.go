@@ -8,18 +8,19 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
 
 
-func (service *contentService) loadCachedItem(_ string, htmlRelPath string, _ models.ScannedResource, cachedMeta *models.ContentMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
+func (service *contentService) loadCachedItem(_ string, _ string, _ models.ScannedResource, cachedMeta *models.ContentMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
 	var parseRes *ParsedMarkdownResult
 	var htmlContent string
 	var finalSSRHashes []string
 
 	if useCache {
-		parseRes, htmlContent, useCache = service.loadFromCache(cachedMeta, htmlRelPath)
+		parseRes, htmlContent, useCache = service.loadFromCache(cachedMeta)
 		if useCache {
 			finalSSRHashes = cachedMeta.SSRInputHashes
 			if service.metrics != nil {
@@ -163,11 +164,11 @@ func (service *contentService) parseWorkerTaskLocal(file models.ScannedResource,
 }
 
 
-func (service *contentService) prepareIndexedItem(aggregateContext AggregateContext) models.IndexedContent {
+func (service *contentService) prepareIndexedItem(aggregateContext AggregateContext) searchpkg.IndexedContent {
 	searchRecord := aggregateContext.Result.SearchRecord
 	denseID := aggregateContext.WorkerContext.DenseIDCounter.Add(1) - 1
 
-	return models.IndexedContent{
+	return searchpkg.IndexedContent{
 		DenseID:         denseID,
 		Record:          searchRecord,
 		WordFreqs:       aggregateContext.Result.WordFreqs,
@@ -177,7 +178,7 @@ func (service *contentService) prepareIndexedItem(aggregateContext AggregateCont
 	}
 }
 
-func (service *contentService) handleSearchTasks(aggregateContext AggregateContext, indexed models.IndexedContent, localIndex int) {
+func (service *contentService) handleSearchTasks(aggregateContext AggregateContext, indexed searchpkg.IndexedContent, localIndex int) {
 	if aggregateContext.UseCache && aggregateContext.WorkerContext.SearchIngestor != nil {
 		aggregateContext.WorkerContext.SearchIngestor.Add(indexed)
 	}

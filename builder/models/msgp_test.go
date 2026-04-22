@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 )
+
 
 func TestTOCEntry_Msgp(t *testing.T) {
 	v := TOCEntry{
@@ -30,7 +33,7 @@ func TestTOCEntry_Msgp(t *testing.T) {
 }
 
 func TestContentRecord_Msgp(t *testing.T) {
-	v := ContentRecord{
+	v := searchpkg.ContentRecord{
 		Title:           "Title",
 		Link:            "/link",
 		Description:     "Desc",
@@ -44,20 +47,20 @@ func TestContentRecord_Msgp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var v2 ContentRecord
+	var v2 searchpkg.ContentRecord
 	if err := msgp.Decode(&buf, &v2); err != nil {
 		t.Fatal(err)
 	}
 
 	if v.Title != v2.Title || v.Content != v2.Content {
-		t.Errorf("ContentRecord roundtrip failed")
+		t.Errorf("searchpkg.ContentRecord roundtrip failed")
 	}
 }
 
 func TestSearchIndex_Msgp(t *testing.T) {
-	v := SearchIndex{
-		SchemaVersion: CurrentSchemaVersion,
-		Items:         []ContentRecord{{Title: "P1"}},
+	v := searchpkg.SearchIndex{
+		SchemaVersion: searchpkg.CurrentSchemaVersion,
+		Items:         []searchpkg.ContentRecord{{Title: "P1"}},
 		ItemLens:      []int32{10},
 		AvgDocLen:     10.5,
 		TotalItems:    1,
@@ -74,7 +77,7 @@ func TestSearchIndex_Msgp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var v2 SearchIndex
+	var v2 searchpkg.SearchIndex
 	if err := msgp.Decode(&buf, &v2); err != nil {
 		t.Fatal(err)
 	}

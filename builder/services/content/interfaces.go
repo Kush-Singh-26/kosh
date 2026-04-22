@@ -13,9 +13,11 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	renderSvc "github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
+
 )
 
 // Result contains the aggregated results of content processing
@@ -24,7 +26,7 @@ type Result struct {
 	PinnedItems    []models.ContentMetadata
 	Taxonomies     map[string]models.TaxonomyData
 	TaxonomyMap    map[string]map[string][]models.ContentMetadata
-	indexedItems   []models.IndexedContent
+	indexedItems   []searchpkg.IndexedContent
 	anyItemChanged bool
 	Has404         bool
 }
@@ -35,8 +37,8 @@ type Context struct {
 	PinnedItems         []models.ContentMetadata
 	Taxonomies          map[string]models.TaxonomyData
 	TaxonomyMap         map[string]map[string][]models.ContentMetadata
-	IndexedItems        []models.IndexedContent
-	PrebuiltSearchIndex *models.SearchIndex
+	IndexedItems        []searchpkg.IndexedContent
+	PrebuiltSearchIndex *searchpkg.SearchIndex
 	AnyItemChanged      bool
 }
 
@@ -88,7 +90,7 @@ type Parser interface {
 
 // ProcessOptions configures post processing operations.
 type ProcessOptions struct {
-	SearchIngestor     models.SearchIngestor
+	SearchIngestor     searchpkg.SearchIngestor
 	Ctx                context.Context
 	ShouldForce        bool
 	ForceSocialRebuild bool

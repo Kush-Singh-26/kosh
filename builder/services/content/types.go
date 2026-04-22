@@ -7,6 +7,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 )
 
 // ShortcodeProcessor processes shortcodes in markdown content.
@@ -26,11 +27,11 @@ type renderTask struct {
 }
 
 type searchTask struct {
-	record         models.ContentRecord
+	record         searchpkg.ContentRecord
 	plainText      string
-	indexed        *models.IndexedContent
+	indexed        *searchpkg.IndexedContent
 	cached         *models.SearchRecord
-	SearchIngestor models.SearchIngestor
+	SearchIngestor searchpkg.SearchIngestor
 }
 
 // workerLocalState accumulates results within a single parse worker,
@@ -40,7 +41,7 @@ type workerLocalState struct {
 	allItems         []models.ContentMetadata
 	pinnedItems      []models.ContentMetadata
 	taxonomyEntries  []taxonomyEntry
-	indexedItems     []models.IndexedContent
+	indexedItems     []searchpkg.IndexedContent
 	searchTasks      []deferredSearchTask
 	newItemsMeta     []*models.ContentMeta
 	newSearchRecords map[string]*models.SearchRecord
@@ -56,7 +57,7 @@ type taxonomyEntry struct {
 }
 
 type deferredSearchTask struct {
-	record     models.ContentRecord
+	record     searchpkg.ContentRecord
 	plainText  string
 	localIndex int // index into this worker's indexedItems
 	cached     *models.SearchRecord
@@ -68,7 +69,7 @@ type WorkerContext struct {
 	ProcessContext     *contentProcessContext
 	CardPool           *async.WorkerPool[socialCardTask]
 	SearchPool         *async.WorkerPool[searchTask]
-	SearchIngestor     models.SearchIngestor
+	SearchIngestor     searchpkg.SearchIngestor
 	RenderChan         chan<- renderTask
 	ShouldForce        bool
 	ForceSocialRebuild bool
@@ -84,7 +85,7 @@ type contentProcessContext struct {
 	newItemsMeta     []*models.ContentMeta
 	newSearchRecords map[string]*models.SearchRecord
 	newDependencies  map[string]*models.Dependencies
-	indexedItems     []models.IndexedContent
+	indexedItems     []searchpkg.IndexedContent
 	errs             []error
 }
 

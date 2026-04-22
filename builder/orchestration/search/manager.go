@@ -17,10 +17,12 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 )
+
 
 // Manager coordinates search index regeneration and cache updates.
 type Manager struct {
@@ -33,7 +35,7 @@ type Manager struct {
 	render render.Service
 
 	mu           sync.RWMutex // protects sink, render, logger, indexedPosts
-	indexedPosts []models.IndexedContent
+	indexedPosts []searchpkg.IndexedContent
 }
 
 // HealthRegistry records search-related health metrics.
@@ -75,14 +77,14 @@ func (managerInstance *Manager) ReconfigureWithLogger(logger *slog.Logger) {
 }
 
 // SetIndexedPosts replaces the in-memory indexed posts cache.
-func (managerInstance *Manager) SetIndexedPosts(posts []models.IndexedContent) {
+func (managerInstance *Manager) SetIndexedPosts(posts []searchpkg.IndexedContent) {
 	managerInstance.mu.Lock()
 	defer managerInstance.mu.Unlock()
 	managerInstance.indexedPosts = posts
 }
 
 // GetIndexedPosts returns the current indexed posts cache.
-func (managerInstance *Manager) GetIndexedPosts() []models.IndexedContent {
+func (managerInstance *Manager) GetIndexedPosts() []searchpkg.IndexedContent {
 	managerInstance.mu.RLock()
 	defer managerInstance.mu.RUnlock()
 	return managerInstance.indexedPosts
@@ -107,7 +109,7 @@ func (managerInstance *Manager) UpdateIndexedContentCache(relativePath string, p
 
 	for index, IndexedContent := range managerInstance.indexedPosts {
 		if indexedPostStableKey(IndexedContent) == targetKey {
-			managerInstance.indexedPosts[index] = models.IndexedContent{
+			managerInstance.indexedPosts[index] = searchpkg.IndexedContent{
 				Record:          record,
 				SourcePath:      targetKey,
 				WordFreqs:       parseResult.WordFreqs,
@@ -121,7 +123,7 @@ func (managerInstance *Manager) UpdateIndexedContentCache(relativePath string, p
 	}
 
 	if !found {
-		managerInstance.indexedPosts = append(managerInstance.indexedPosts, models.IndexedContent{
+		managerInstance.indexedPosts = append(managerInstance.indexedPosts, searchpkg.IndexedContent{
 			Record:          record,
 			SourcePath:      targetKey,
 			WordFreqs:       parseResult.WordFreqs,
@@ -138,7 +140,7 @@ func (managerInstance *Manager) PruneDeletedItem(relativePath string) {
 	defer managerInstance.mu.Unlock()
 
 	targetKey := fspkg.NormalizePath(relativePath)
-	newIndexed := make([]models.IndexedContent, 0, len(managerInstance.indexedPosts))
+	newIndexed := make([]searchpkg.IndexedContent, 0, len(managerInstance.indexedPosts))
 	for _, IndexedContent := range managerInstance.indexedPosts {
 		if indexedPostStableKey(IndexedContent) != targetKey {
 			newIndexed = append(newIndexed, IndexedContent)
@@ -171,7 +173,7 @@ func (managerInstance *Manager) RegenerateIndex(_ context.Context) error {
 
 	// Optimization: Skip generation if search searchable content remains unchanged.
 	newHash := managerInstance.calculateSearchHash(indexedPosts)
-	if !managerInstance.cfg.ShouldForceRebuild {
+	if managerInstance.cache != nil && !managerInstance.cfg.ShouldForceRebuild {
 		if cachedHash, err := managerInstance.cache.GetSearchHash(); err == nil && cachedHash == newHash {
 			managerInstance.logger.Debug("Search index unchanged, skipping generation", "hash", newHash)
 			return nil
@@ -189,8 +191,10 @@ func (managerInstance *Manager) RegenerateIndex(_ context.Context) error {
 	renderSvc.RegisterFile(indexPath)
 
 	// Persist the new hash for future builds.
-	if err := managerInstance.cache.SetSearchHash(newHash); err != nil {
-		managerInstance.logger.Warn("Failed to persist search hash", "error", err)
+	if managerInstance.cache != nil {
+		if err := managerInstance.cache.SetSearchHash(newHash); err != nil {
+			managerInstance.logger.Warn("Failed to persist search hash", "error", err)
+		}
 	}
 
 	if managerInstance.health != nil {
@@ -202,13 +206,13 @@ func (managerInstance *Manager) RegenerateIndex(_ context.Context) error {
 	return nil
 }
 
-func (managerInstance *Manager) calculateSearchHash(posts []models.IndexedContent) string {
+func (managerInstance *Manager) calculateSearchHash(posts []searchpkg.IndexedContent) string {
 	if len(posts) == 0 {
 		return ""
 	}
 
 	// Sort copy to ensure deterministic hash.
-	sorted := make([]models.IndexedContent, len(posts))
+	sorted := make([]searchpkg.IndexedContent, len(posts))
 	copy(sorted, posts)
 	sort.Slice(sorted, func(i, j int) bool {
 		return indexedPostStableKey(sorted[i]) < indexedPostStableKey(sorted[j])
@@ -216,7 +220,7 @@ func (managerInstance *Manager) calculateSearchHash(posts []models.IndexedConten
 
 	hasher := xxh3.New()
 	// Include schema version and logic version to force rebuild on engine changes
-	_, _ = hasher.WriteString(strconv.Itoa(models.CurrentSchemaVersion))
+	_, _ = hasher.WriteString(strconv.Itoa(searchpkg.CurrentSchemaVersion))
 	
 	// Include ranking configuration so changing kosh.yaml triggers a re-index
 	ranking := managerInstance.cfg.Features.Generators.Search.Ranking
@@ -236,7 +240,7 @@ func (managerInstance *Manager) calculateSearchHash(posts []models.IndexedConten
 	return fmt.Sprintf("%x", hasher.Sum64())
 }
 
-func (managerInstance *Manager) ensureIndexedPosts() ([]models.IndexedContent, error) {
+func (managerInstance *Manager) ensureIndexedPosts() ([]searchpkg.IndexedContent, error) {
 	managerInstance.mu.RLock()
 	if len(managerInstance.indexedPosts) > 0 {
 		posts := managerInstance.indexedPosts
@@ -277,8 +281,8 @@ func (managerInstance *Manager) getPostsFromCache() ([]string, map[string]*model
 	return postIDs, posts, records, nil
 }
 
-func (managerInstance *Manager) buildIndexedPostsParallel(ids []string, posts map[string]*models.ContentMeta, records map[string]*models.SearchRecord) ([]models.IndexedContent, error) {
-	indexedPosts := make([]models.IndexedContent, 0, len(posts))
+func (managerInstance *Manager) buildIndexedPostsParallel(ids []string, posts map[string]*models.ContentMeta, records map[string]*models.SearchRecord) ([]searchpkg.IndexedContent, error) {
+	indexedPosts := make([]searchpkg.IndexedContent, 0, len(posts))
 	var mu sync.Mutex
 
 	g, _ := errgroup.WithContext(context.Background())
@@ -293,11 +297,10 @@ func (managerInstance *Manager) buildIndexedPostsParallel(ids []string, posts ma
 				return nil
 			}
 
-			htmlPath := fspkg.MarkdownToHTMLPath(metadata.Path)
-			indexed := models.IndexedContent{
-				Record: models.ContentRecord{
+			indexed := searchpkg.IndexedContent{
+				Record: searchpkg.ContentRecord{
 					Title:           metadata.Title,
-					Link:            htmlPath,
+					Link:            metadata.Link,
 					Description:     metadata.Description,
 					Taxonomies:      metadata.Taxonomies,
 					NormalizedTaxs:  record.NormalizedTaxs,
@@ -324,19 +327,19 @@ func (managerInstance *Manager) buildIndexedPostsParallel(ids []string, posts ma
 	return indexedPosts, nil
 }
 
-func indexedPostStableKey(indexedContent models.IndexedContent) string {
+func indexedPostStableKey(indexedContent searchpkg.IndexedContent) string {
 	if indexedContent.SourcePath != "" {
 		return fspkg.NormalizePath(indexedContent.SourcePath)
 	}
 	return fspkg.NormalizePath(indexedContent.Record.Link)
 }
 
-func dedupeIndexedPosts(posts []models.IndexedContent) []models.IndexedContent {
+func dedupeIndexedPosts(posts []searchpkg.IndexedContent) []searchpkg.IndexedContent {
 	if len(posts) < 2 {
 		return posts
 	}
 	seen := make(map[string]int, len(posts))
-	result := make([]models.IndexedContent, 0, len(posts))
+	result := make([]searchpkg.IndexedContent, 0, len(posts))
 	for _, IndexedContent := range posts {
 		key := indexedPostStableKey(IndexedContent)
 		if index, ok := seen[key]; ok {

@@ -13,6 +13,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 	renderSvc "github.com/Kush-Singh-26/kosh/builder/services/render"
@@ -76,7 +77,7 @@ type ParsedMarkdownResult struct {
 	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
 	Metadata        map[string]any
 	Item            models.ContentMetadata
-	SearchRecord    models.ContentRecord
+	SearchRecord    searchpkg.ContentRecord
 	TOC             []models.TOCEntry
 	FrontmatterHash string
 	PlainText       string

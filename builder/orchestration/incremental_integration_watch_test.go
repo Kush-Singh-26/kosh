@@ -7,6 +7,7 @@ import (
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 )
 
@@ -18,7 +19,7 @@ func TestIncrementalBuild_SearchSourceChange(t *testing.T) {
 	}{
 		{"cmd/search path", "cmd/search/main.go", true},
 		{"builder/search path", "builder/search/fuzzy.go", true},
-		{"builder/models path", "builder/models/models.go", true},
+		{"builder/models path", "builder/models/searchpkg/search.go", true},
 		{"content path", "content/Content.md", false},
 		{"template path", "themes/template.html", false},
 	}
@@ -64,10 +65,10 @@ func TestIncrementalBuild_ModTimeQuickBail(t *testing.T) {
 }
 
 func TestIncrementalBuild_DedupeIndexedPosts(t *testing.T) {
-	posts := []models.IndexedContent{
-		{SourcePath: "content/post1.md", Record: models.ContentRecord{Link: "post1"}},
-		{SourcePath: "content/post2.md", Record: models.ContentRecord{Link: "post2"}},
-		{SourcePath: "content/post1.md", Record: models.ContentRecord{Link: "post1"}},
+	posts := []searchpkg.IndexedContent{
+		{SourcePath: "content/post1.md", Record: searchpkg.ContentRecord{Link: "post1"}},
+		{SourcePath: "content/post2.md", Record: searchpkg.ContentRecord{Link: "post2"}},
+		{SourcePath: "content/post1.md", Record: searchpkg.ContentRecord{Link: "post1"}},
 	}
 
 	deduped := dedupeIndexedPosts(posts)
@@ -76,19 +77,19 @@ func TestIncrementalBuild_DedupeIndexedPosts(t *testing.T) {
 	}
 }
 
-func indexedPostStableKey(ip models.IndexedContent) string {
+func indexedPostStableKey(ip searchpkg.IndexedContent) string {
 	if ip.SourcePath != "" {
 		return fspkg.NormalizePath(ip.SourcePath)
 	}
 	return fspkg.NormalizePath(ip.Record.Link)
 }
 
-func dedupeIndexedPosts(posts []models.IndexedContent) []models.IndexedContent {
+func dedupeIndexedPosts(posts []searchpkg.IndexedContent) []searchpkg.IndexedContent {
 	if len(posts) < 2 {
 		return posts
 	}
 	seen := make(map[string]int, len(posts))
-	result := make([]models.IndexedContent, 0, len(posts))
+	result := make([]searchpkg.IndexedContent, 0, len(posts))
 	for _, ip := range posts {
 		key := indexedPostStableKey(ip)
 		if idx, ok := seen[key]; ok {

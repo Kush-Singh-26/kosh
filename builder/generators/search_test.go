@@ -4,21 +4,20 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/testutil"
-
-	"github.com/andybalholm/brotli"
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
+	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
+
 
 func TestGenerateSearchIndex(t *testing.T) {
 	sink := testutil.NewMemSink()
 
-	indexedItems := []models.IndexedContent{
+	indexedItems := []searchpkg.IndexedContent{
 		{
 			DenseID: 0,
-			Record: models.ContentRecord{
+			Record: searchpkg.ContentRecord{
 				Title:   "Item 1",
 				Link:    "/item1.html",
 				Content: "Body of item 1",
@@ -35,7 +34,7 @@ func TestGenerateSearchIndex(t *testing.T) {
 		},
 	}
 
-	resultPath, size, err := GenerateSearchIndex(sink, indexedItems, models.SearchRankingConfig{})
+	resultPath, size, err := GenerateSearchIndex(sink, indexedItems, searchpkg.SearchRankingConfig{})
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed: %v", err)
 	}
@@ -55,15 +54,14 @@ func TestGenerateSearchIndex(t *testing.T) {
 	}
 
 	// Verify decoding
-	var index models.SearchIndex
-	br := brotli.NewReader(bytes.NewReader(content))
-	mr := msgp.NewReader(br)
+	var index searchpkg.SearchIndex
+	mr := msgp.NewReader(bytes.NewReader(content))
 	if err := index.DecodeMsg(mr); err != nil {
 		t.Fatalf("Failed to decode search index: %v", err)
 	}
 
-	if index.SchemaVersion != models.CurrentSchemaVersion {
-		t.Errorf("Expected schema version %d, got %d", models.CurrentSchemaVersion, index.SchemaVersion)
+	if index.SchemaVersion != searchpkg.CurrentSchemaVersion {
+		t.Errorf("Expected schema version %d, got %d", searchpkg.CurrentSchemaVersion, index.SchemaVersion)
 	}
 
 	if index.TotalItems != 1 {
@@ -99,7 +97,7 @@ func TestGenerateSearchIndex(t *testing.T) {
 
 func TestGenerateSearchIndex_Empty(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, _, err := GenerateSearchIndex(sink, []models.IndexedContent{}, models.SearchRankingConfig{})
+	_, _, err := GenerateSearchIndex(sink, []searchpkg.IndexedContent{}, searchpkg.SearchRankingConfig{})
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with empty items: %v", err)
 	}
@@ -109,9 +107,8 @@ func TestGenerateSearchIndex_Empty(t *testing.T) {
 		t.Fatal("Expected search.bin to be written even for empty input")
 	}
 
-	var index models.SearchIndex
-	br := brotli.NewReader(bytes.NewReader(content))
-	mr := msgp.NewReader(br)
+	var index searchpkg.SearchIndex
+	mr := msgp.NewReader(bytes.NewReader(content))
 	if err := index.DecodeMsg(mr); err != nil {
 		t.Fatalf("Failed to decode empty search index: %v", err)
 	}
@@ -123,7 +120,7 @@ func TestGenerateSearchIndex_Empty(t *testing.T) {
 
 func TestGenerateSearchIndex_Nil(t *testing.T) {
 	sink := testutil.NewMemSink()
-	_, _, err := GenerateSearchIndex(sink, nil, models.SearchRankingConfig{})
+	_, _, err := GenerateSearchIndex(sink, nil, searchpkg.SearchRankingConfig{})
 	if err != nil {
 		t.Fatalf("GenerateSearchIndex failed with nil items: %v", err)
 	}

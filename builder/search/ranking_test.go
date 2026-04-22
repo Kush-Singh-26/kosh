@@ -4,15 +4,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
-func buildRankingIndex() *models.SearchIndex {
-	indexedPosts := []models.IndexedContent{
+
+func buildRankingIndex() *searchpkg.SearchIndex {
+	indexedPosts := []searchpkg.IndexedContent{
 		{
 			DenseID: 0,
-			Record: models.ContentRecord{
+			Record: searchpkg.ContentRecord{
 				Title:       "Go Programming Guide",
 				Description: "Learn Go programming basics",
 				NormalizedTaxs: map[string][]string{"tags": {"go", "programming"}},
@@ -24,7 +25,7 @@ func buildRankingIndex() *models.SearchIndex {
 		},
 		{
 			DenseID: 1,
-			Record: models.ContentRecord{
+			Record: searchpkg.ContentRecord{
 				Title:       "Rust Programming Tutorial",
 				Description: "Learn Rust programming from scratch",
 				NormalizedTaxs: map[string][]string{"tags": {"rust", "programming"}},
@@ -37,7 +38,7 @@ func buildRankingIndex() *models.SearchIndex {
 	}
 
 	idx := index.Build(indexedPosts)
-	idx.Ranking = models.SearchRankingConfig{
+	idx.Ranking = searchpkg.SearchRankingConfig{
 		TitleBoost:       50.0,
 		TagBoost:         5.0,
 		DescriptionBoost: 5.0,
@@ -67,16 +68,16 @@ func TestRanking_TagBoost(t *testing.T) {
 }
 
 func TestRanking_PhraseMatch(t *testing.T) {
-	indexedPosts := []models.IndexedContent{
+	indexedPosts := []searchpkg.IndexedContent{
 		{
 			DenseID: 0,
-			Record: models.ContentRecord{Title: "Neural Network Basics", Content: "A neural network."},
+			Record: searchpkg.ContentRecord{Title: "Neural Network Basics", Content: "A neural network."},
 			PositionalIndex: map[string][]uint32{"neural": {0}, "network": {1}},
 			DocLen: 10,
 		},
 		{
 			DenseID: 1,
-			Record: models.ContentRecord{Title: "Network Security", Content: "Networks are for security."},
+			Record: searchpkg.ContentRecord{Title: "Network Security", Content: "Networks are for security."},
 			PositionalIndex: map[string][]uint32{"network": {0}},
 			DocLen: 10,
 		},

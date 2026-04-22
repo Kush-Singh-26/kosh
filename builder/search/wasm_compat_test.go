@@ -4,15 +4,16 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
+
 func TestSearchIndex_RoundTrip(t *testing.T) {
-	indexedPosts := []models.IndexedContent{
+	indexedPosts := []searchpkg.IndexedContent{
 		{
 			DenseID: 0,
-			Record: models.ContentRecord{
+			Record: searchpkg.ContentRecord{
 				Title:       "Test Item",
 				Link:        "/items/test.html",
 				Description: "A test item",
@@ -34,7 +35,7 @@ func TestSearchIndex_RoundTrip(t *testing.T) {
 	}
 
 	// Decode
-	var decoded models.SearchIndex
+	var decoded searchpkg.SearchIndex
 	if _, err := decoded.UnmarshalMsg(encoded); err != nil {
 		t.Fatalf("Failed to decode: %v", err)
 	}

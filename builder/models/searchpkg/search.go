@@ -1,4 +1,4 @@
-package models
+package searchpkg
  
 //go:generate msgp
 

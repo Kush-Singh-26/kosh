@@ -9,6 +9,7 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search"
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
@@ -74,12 +75,12 @@ func BenchmarkExtractSnippet(b *testing.B) {
 	}
 }
 
-func createMockSearchIndex(size int) *models.SearchIndex {
-	var indexedPosts []models.IndexedContent
+func createMockSearchIndex(size int) *searchpkg.SearchIndex {
+	var indexedPosts []searchpkg.IndexedContent
 	for i := 0; i < size; i++ {
-		indexedPosts = append(indexedPosts, models.IndexedContent{
+		indexedPosts = append(indexedPosts, searchpkg.IndexedContent{
 			DenseID: uint32(i),
-			Record: models.ContentRecord{
+			Record: searchpkg.ContentRecord{
 				Title:       fmt.Sprintf("Item %d", i),
 				Description: fmt.Sprintf("Desc %d", i),
 				Link:        fmt.Sprintf("/item-%d", i),

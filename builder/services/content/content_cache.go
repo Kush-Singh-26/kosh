@@ -1,8 +1,8 @@
 package content
 
 import (
-
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 )
 
 func (s *contentService) checkCache(relPath string, f models.ScannedResource, shouldForce bool, forceRerender bool) (*models.ContentMeta, bool) {
@@ -22,7 +22,7 @@ func (s *contentService) checkCache(relPath string, f models.ScannedResource, sh
 	return cachedMeta, fastBail
 }
 
-func (s *contentService) loadFromCache(cachedMeta *models.ContentMeta, htmlRelPath string) (*ParsedMarkdownResult, string, bool) {
+func (s *contentService) loadFromCache(cachedMeta *models.ContentMeta) (*ParsedMarkdownResult, string, bool) {
 	cachedHTML, err := s.cache.GetHTMLContent(cachedMeta)
 	if err != nil || cachedHTML == nil {
 		return nil, "", false
@@ -36,9 +36,9 @@ func (s *contentService) loadFromCache(cachedMeta *models.ContentMeta, htmlRelPa
 		Metadata: cachedMeta.Meta, TOC: cachedMeta.TOC,
 		FrontmatterHash: cachedMeta.ContentHash, SSRHashes: cachedMeta.SSRInputHashes,
 		HasImages: cachedMeta.HasImages, MathExpressions: cachedMeta.MathExpressions,
-		SearchRecord: models.ContentRecord{
+		SearchRecord: searchpkg.ContentRecord{
 			Title:          cachedSearch.Title,
-			Link:           htmlRelPath,
+			Link:           cachedMeta.Link,
 			Content:        cachedSearch.Content,
 			Taxonomies:     cachedSearch.Taxonomies,
 			NormalizedTaxs: cachedSearch.NormalizedTaxs,

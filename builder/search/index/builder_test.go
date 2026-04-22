@@ -4,8 +4,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 )
+
 
 func TestBuildEmpty(t *testing.T) {
 	idx := Build(nil)
@@ -15,16 +16,16 @@ func TestBuildEmpty(t *testing.T) {
 	if idx.TotalItems != 0 {
 		t.Errorf("TotalItems = %d, want 0", idx.TotalItems)
 	}
-	if idx.SchemaVersion != models.CurrentSchemaVersion {
-		t.Errorf("SchemaVersion = %d, want %d", idx.SchemaVersion, models.CurrentSchemaVersion)
+	if idx.SchemaVersion != searchpkg.CurrentSchemaVersion {
+		t.Errorf("SchemaVersion = %d, want %d", idx.SchemaVersion, searchpkg.CurrentSchemaVersion)
 	}
 }
 
 func TestBuildSingleItem(t *testing.T) {
-	items := []models.IndexedContent{
+	items := []searchpkg.IndexedContent{
 		{
 			DenseID: 0,
-			Record:  models.ContentRecord{Title: "Go Tutorial", Link: "/go"},
+			Record:  searchpkg.ContentRecord{Title: "Go Tutorial", Link: "/go"},
 			DocLen:  3,
 			PositionalIndex: map[string][]uint32{
 				"go":       {0},
@@ -50,16 +51,16 @@ func TestBuildSingleItem(t *testing.T) {
 }
 
 func TestBuildMultipleItems(t *testing.T) {
-	items := []models.IndexedContent{
+	items := []searchpkg.IndexedContent{
 		{
 			DenseID: 0,
-			Record:  models.ContentRecord{Title: "Go 1"},
+			Record:  searchpkg.ContentRecord{Title: "Go 1"},
 			DocLen:  2,
 			PositionalIndex: map[string][]uint32{"go": {0}, "one": {1}},
 		},
 		{
 			DenseID: 1,
-			Record:  models.ContentRecord{Title: "Go 2"},
+			Record:  searchpkg.ContentRecord{Title: "Go 2"},
 			DocLen:  2,
 			PositionalIndex: map[string][]uint32{"go": {0}, "two": {1}},
 		},
@@ -82,7 +83,7 @@ func TestBuildMultipleItems(t *testing.T) {
 }
 
 func TestBuildStemMapMerging(t *testing.T) {
-	items := []models.IndexedContent{
+	items := []searchpkg.IndexedContent{
 		{
 			DenseID: 0,
 			StemMap: map[string]string{"running": "run"},

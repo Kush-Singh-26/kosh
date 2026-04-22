@@ -12,6 +12,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
@@ -147,7 +148,7 @@ func (service *contentService) newcontentProcessContext(totalFiles int) *content
 		taxonomyMap:      make(map[string]map[string][]models.ContentMetadata),
 		newSearchRecords: make(map[string]*models.SearchRecord),
 		newDependencies:  make(map[string]*models.Dependencies),
-		indexedItems:     make([]models.IndexedContent, 0, totalFiles),
+		indexedItems:     make([]searchpkg.IndexedContent, 0, totalFiles),
 		newItemsMeta:     make([]*models.ContentMeta, 0, totalFiles),
 	}
 }
@@ -315,7 +316,7 @@ func (service *contentService) runStreamingParsePhase(numWorkers int, fileChan <
 		locals[i] = &workerLocalState{
 			allItems:         make([]models.ContentMetadata, 0, expectedPerWorker),
 			pinnedItems:      make([]models.ContentMetadata, 0, expectedPerWorker/4),
-			indexedItems:     make([]models.IndexedContent, 0, expectedPerWorker),
+			indexedItems:     make([]searchpkg.IndexedContent, 0, expectedPerWorker),
 			searchTasks:      make([]deferredSearchTask, 0, expectedPerWorker),
 			newItemsMeta:     make([]*models.ContentMeta, 0, expectedPerWorker),
 			newSearchRecords: make(map[string]*models.SearchRecord),

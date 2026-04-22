@@ -5,27 +5,28 @@ import (
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
-	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/mocks/services"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/services/content"
 )
+
 
 func TestManager_UpdateIndexedContentCache(t *testing.T) {
 	m := NewManager(ManagerDependencies{
 		Cfg: &config.Config{},
 	})
 
-	idxPost := models.IndexedContent{
+	idxPost := searchpkg.IndexedContent{
 		SourcePath: "test.md",
-		Record: models.ContentRecord{
+		Record: searchpkg.ContentRecord{
 			Title: "Test",
 		},
 	}
-	m.SetIndexedPosts([]models.IndexedContent{idxPost})
+	m.SetIndexedPosts([]searchpkg.IndexedContent{idxPost})
 
 	// Update existing
 	newParseRes := &content.ParsedMarkdownResult{
-		SearchRecord: models.ContentRecord{Title: "Updated"},
+		SearchRecord: searchpkg.ContentRecord{Title: "Updated"},
 	}
 	m.UpdateIndexedContentCache("test.md", newParseRes)
 
@@ -48,16 +49,16 @@ func TestManager_UpdateIndexedContentCache_Canonicalization(t *testing.T) {
 	})
 
 	// Add initial record with relative link
-	m.SetIndexedPosts([]models.IndexedContent{
+	m.SetIndexedPosts([]searchpkg.IndexedContent{
 		{
 			SourcePath: "blogs/test.md",
-			Record:     models.ContentRecord{Title: "Initial", Link: "blogs/test.html"},
+			Record:     searchpkg.ContentRecord{Title: "Initial", Link: "blogs/test.html"},
 		},
 	})
 
 	// Simulate incremental update with absolute link
 	m.UpdateIndexedContentCache("blogs/test.md", &content.ParsedMarkdownResult{
-		SearchRecord: models.ContentRecord{Title: "Updated", Link: "https://example.com/blogs/test.html"},
+		SearchRecord: searchpkg.ContentRecord{Title: "Updated", Link: "https://example.com/blogs/test.html"},
 	})
 
 	posts := m.GetIndexedPosts()
@@ -72,7 +73,7 @@ func TestManager_UpdateIndexedContentCache_Canonicalization(t *testing.T) {
 
 func TestManager_PruneDeletedItem(t *testing.T) {
 	m := NewManager(ManagerDependencies{})
-	m.SetIndexedPosts([]models.IndexedContent{
+	m.SetIndexedPosts([]searchpkg.IndexedContent{
 		{SourcePath: "a.md"},
 		{SourcePath: "b.md"},
 	})

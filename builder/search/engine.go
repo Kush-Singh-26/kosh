@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
@@ -38,7 +38,7 @@ type Result struct {
 }
 
 // PerformSearch executes a search query against the index using a structured pipeline
-func PerformSearch(index *models.SearchIndex, query string) []Result {
+func PerformSearch(index *searchpkg.SearchIndex, query string) []Result {
 	query = core.NormalizeNFC(query)
 	query = core.ToLower(strings.TrimSpace(query))
 	if query == "" {
@@ -100,7 +100,7 @@ func extractTagFilter(query string) (string, string) {
 	return "", query
 }
 
-func finalizeResults(index *models.SearchIndex, opts *ScoringOptions) []Result {
+func finalizeResults(index *searchpkg.SearchIndex, opts *ScoringOptions) []Result {
 	finalHighlightTerms := make([]string, 0, len(opts.HighlightTerms))
 	for term := range opts.HighlightTerms {
 		finalHighlightTerms = append(finalHighlightTerms, term)
@@ -113,7 +113,7 @@ func finalizeResults(index *models.SearchIndex, opts *ScoringOptions) []Result {
 	return results
 }
 
-func convertResults(index *models.SearchIndex, scores map[uint32]float64) []Result {
+func convertResults(index *searchpkg.SearchIndex, scores map[uint32]float64) []Result {
 	results := make([]Result, 0, len(scores))
 	for id, score := range scores {
 		item := index.Items[id]
@@ -154,7 +154,7 @@ func sortResults(results []Result) {
 	})
 }
 
-func enrichWithSnippets(index *models.SearchIndex, results []Result, highlightTerms []string) {
+func enrichWithSnippets(index *searchpkg.SearchIndex, results []Result, highlightTerms []string) {
 	for i := range results {
 		item := index.Items[results[i].ID]
 		// JIT scanning: JIT snippet extraction from item.Content

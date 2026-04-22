@@ -287,6 +287,7 @@ func (service *metadataScanner) ScanFile(sourceFs afero.Fs, siteConfig *config.C
 	}
 
 	relativePath, _ := filepath.Rel(siteConfig.ContentDir, path)
+	relativePath = fspkg.NormalizePath(relativePath)
 	frontmatter, bodyOffset, _ := service.extractFrontmatterAndBodyOffset(sourceFs, path, fileData, bytesRead)
 	preparsedMetadata, _ := hashing.ParseFrontmatter(frontmatter)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
@@ -21,10 +22,10 @@ type SiteWideOptions struct {
 	AssetsReadySignal  <-chan struct{}
 	WasmWaitGroup      *sync.WaitGroup
 	ForceSocialRebuild bool
-	SearchIndex        *models.SearchIndex
+	SearchIndex        *searchpkg.SearchIndex
 }
 
-func (engineInstance *Engine) updateSearchIndex(metadataContext *content.Context, psearchIndex *models.SearchIndex) {
+func (engineInstance *Engine) updateSearchIndex(metadataContext *content.Context, psearchIndex *searchpkg.SearchIndex) {
 	if engineInstance.Search != nil && metadataContext.IndexedItems != nil {
 		engineInstance.Search.SetIndexedPosts(metadataContext.IndexedItems)
 	}
@@ -33,7 +34,7 @@ func (engineInstance *Engine) updateSearchIndex(metadataContext *content.Context
 	}
 }
 
-func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *errgroup.Group, metadataContext *content.Context, assetsReadySignal <-chan struct{}, forceSocialRebuild bool, searchIndex *models.SearchIndex) {
+func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *errgroup.Group, metadataContext *content.Context, assetsReadySignal <-chan struct{}, forceSocialRebuild bool, searchIndex *searchpkg.SearchIndex) {
 	group.Go(func() error {
 		engineInstance.Assets.WaitForAvailability(ctx, assetsReadySignal)
 		return engineInstance.renderPagination(renderPaginationOptions{
@@ -124,8 +125,8 @@ type MetadataRenderOptions struct {
 	AllPosts              []models.ContentMetadata
 	TaxonomyMapSummarized map[string]models.TaxonomyData
 	TaxonomyMap           map[string]map[string][]models.ContentMetadata
-	IndexedPosts          []models.IndexedContent
-	SearchIndex           *models.SearchIndex
+	IndexedPosts          []searchpkg.IndexedContent
+	SearchIndex           *searchpkg.SearchIndex
 	AssetsReadySignal     <-chan struct{}
 }
 

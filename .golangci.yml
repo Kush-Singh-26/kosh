@@ -46,6 +46,10 @@ issues:
     linters:
     - funlen
     - gocyclo
+  - path: msgp_methods\.go
+    linters:
+    - funlen
+    - gocyclo
   - path: scripts
     linters:
     - funlen

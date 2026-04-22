@@ -201,7 +201,10 @@ func (coordinatorInstance *Coordinator) IsAssetPath(path string) bool {
 // IsSearchSourcePath reports whether a path affects search source files.
 func IsSearchSourcePath(path string) bool {
 	normalizedPath := fspkg.NormalizePath(path)
-	return strings.HasPrefix(normalizedPath, "cmd/search/") || strings.HasPrefix(normalizedPath, "builder/search/") || strings.HasPrefix(normalizedPath, "builder/models/")
+	return strings.HasPrefix(normalizedPath, "cmd/search/") ||
+		strings.HasPrefix(normalizedPath, "builder/search/") ||
+		strings.HasPrefix(normalizedPath, "builder/models/searchpkg/") ||
+		normalizedPath == "builder/models/searchpkg/search.go"
 }
 
 // InvalidateForTemplate returns paths to invalidate for a template change.

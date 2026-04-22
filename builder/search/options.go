@@ -1,7 +1,7 @@
 package search
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
@@ -15,7 +15,7 @@ type ScoringOptions struct {
 	K1             float64
 	B              float64
 	Modifier       float64
-	Ranking        models.SearchRankingConfig
+	Ranking        searchpkg.SearchRankingConfig
 }
 
 // ScoringResult holds the output of a scoring pass.

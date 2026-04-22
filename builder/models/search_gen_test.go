@@ -7,10 +7,12 @@ import (
 	"testing"
 
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 )
 
 func TestMarshalUnmarshalContentRecord(t *testing.T) {
-	v := ContentRecord{}
+	v := searchpkg.ContentRecord{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +35,7 @@ func TestMarshalUnmarshalContentRecord(t *testing.T) {
 }
 
 func BenchmarkMarshalMsgContentRecord(b *testing.B) {
-	v := ContentRecord{}
+	v := searchpkg.ContentRecord{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -42,7 +44,7 @@ func BenchmarkMarshalMsgContentRecord(b *testing.B) {
 }
 
 func BenchmarkAppendMsgContentRecord(b *testing.B) {
-	v := ContentRecord{}
+	v := searchpkg.ContentRecord{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -54,7 +56,7 @@ func BenchmarkAppendMsgContentRecord(b *testing.B) {
 }
 
 func BenchmarkUnmarshalContentRecord(b *testing.B) {
-	v := ContentRecord{}
+	v := searchpkg.ContentRecord{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -68,16 +70,16 @@ func BenchmarkUnmarshalContentRecord(b *testing.B) {
 }
 
 func TestEncodeDecodeContentRecord(t *testing.T) {
-	v := ContentRecord{}
+	v := searchpkg.ContentRecord{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Log("WARNING: TestEncodeDecodeContentRecord Msgsize() is inaccurate")
+		t.Log("WARNING: TestEncodeDecodesearchpkg.ContentRecord Msgsize() is inaccurate")
 	}
 
-	vn := ContentRecord{}
+	vn := searchpkg.ContentRecord{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -92,7 +94,7 @@ func TestEncodeDecodeContentRecord(t *testing.T) {
 }
 
 func BenchmarkEncodeContentRecord(b *testing.B) {
-	v := ContentRecord{}
+	v := searchpkg.ContentRecord{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -106,7 +108,7 @@ func BenchmarkEncodeContentRecord(b *testing.B) {
 }
 
 func BenchmarkDecodeContentRecord(b *testing.B) {
-	v := ContentRecord{}
+	v := searchpkg.ContentRecord{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -123,7 +125,7 @@ func BenchmarkDecodeContentRecord(b *testing.B) {
 }
 
 func TestMarshalUnmarshalIndexedContent(t *testing.T) {
-	v := IndexedContent{}
+	v := searchpkg.IndexedContent{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +148,7 @@ func TestMarshalUnmarshalIndexedContent(t *testing.T) {
 }
 
 func BenchmarkMarshalMsgIndexedContent(b *testing.B) {
-	v := IndexedContent{}
+	v := searchpkg.IndexedContent{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -155,7 +157,7 @@ func BenchmarkMarshalMsgIndexedContent(b *testing.B) {
 }
 
 func BenchmarkAppendMsgIndexedContent(b *testing.B) {
-	v := IndexedContent{}
+	v := searchpkg.IndexedContent{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -167,7 +169,7 @@ func BenchmarkAppendMsgIndexedContent(b *testing.B) {
 }
 
 func BenchmarkUnmarshalIndexedContent(b *testing.B) {
-	v := IndexedContent{}
+	v := searchpkg.IndexedContent{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -181,16 +183,16 @@ func BenchmarkUnmarshalIndexedContent(b *testing.B) {
 }
 
 func TestEncodeDecodeIndexedContent(t *testing.T) {
-	v := IndexedContent{}
+	v := searchpkg.IndexedContent{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Log("WARNING: TestEncodeDecodeIndexedContent Msgsize() is inaccurate")
+		t.Log("WARNING: TestEncodeDecodesearchpkg.IndexedContent Msgsize() is inaccurate")
 	}
 
-	vn := IndexedContent{}
+	vn := searchpkg.IndexedContent{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -205,7 +207,7 @@ func TestEncodeDecodeIndexedContent(t *testing.T) {
 }
 
 func BenchmarkEncodeIndexedContent(b *testing.B) {
-	v := IndexedContent{}
+	v := searchpkg.IndexedContent{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -219,7 +221,7 @@ func BenchmarkEncodeIndexedContent(b *testing.B) {
 }
 
 func BenchmarkDecodeIndexedContent(b *testing.B) {
-	v := IndexedContent{}
+	v := searchpkg.IndexedContent{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -236,7 +238,7 @@ func BenchmarkDecodeIndexedContent(b *testing.B) {
 }
 
 func TestMarshalUnmarshalSearchIndex(t *testing.T) {
-	v := SearchIndex{}
+	v := searchpkg.SearchIndex{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -259,7 +261,7 @@ func TestMarshalUnmarshalSearchIndex(t *testing.T) {
 }
 
 func BenchmarkMarshalMsgSearchIndex(b *testing.B) {
-	v := SearchIndex{}
+	v := searchpkg.SearchIndex{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -268,7 +270,7 @@ func BenchmarkMarshalMsgSearchIndex(b *testing.B) {
 }
 
 func BenchmarkAppendMsgSearchIndex(b *testing.B) {
-	v := SearchIndex{}
+	v := searchpkg.SearchIndex{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -280,7 +282,7 @@ func BenchmarkAppendMsgSearchIndex(b *testing.B) {
 }
 
 func BenchmarkUnmarshalSearchIndex(b *testing.B) {
-	v := SearchIndex{}
+	v := searchpkg.SearchIndex{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -294,16 +296,16 @@ func BenchmarkUnmarshalSearchIndex(b *testing.B) {
 }
 
 func TestEncodeDecodeSearchIndex(t *testing.T) {
-	v := SearchIndex{}
+	v := searchpkg.SearchIndex{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Log("WARNING: TestEncodeDecodeSearchIndex Msgsize() is inaccurate")
+		t.Log("WARNING: TestEncodeDecodesearchpkg.SearchIndex Msgsize() is inaccurate")
 	}
 
-	vn := SearchIndex{}
+	vn := searchpkg.SearchIndex{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -318,7 +320,7 @@ func TestEncodeDecodeSearchIndex(t *testing.T) {
 }
 
 func BenchmarkEncodeSearchIndex(b *testing.B) {
-	v := SearchIndex{}
+	v := searchpkg.SearchIndex{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -332,7 +334,7 @@ func BenchmarkEncodeSearchIndex(b *testing.B) {
 }
 
 func BenchmarkDecodeSearchIndex(b *testing.B) {
-	v := SearchIndex{}
+	v := searchpkg.SearchIndex{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

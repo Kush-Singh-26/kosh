@@ -10,9 +10,10 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
+
 
 const (
 	maxIndexWorkers             = 8
@@ -28,7 +29,7 @@ type tempPostings struct {
 }
 
 type partialResult struct {
-	items         map[uint32]models.ContentRecord
+	items         map[uint32]searchpkg.ContentRecord
 	inverted      map[string]*tempPostings
 	titleInverted map[string][]uint32
 	itemLens     map[uint32]int32
@@ -39,7 +40,7 @@ type partialResult struct {
 }
 
 // Build constructs an in-memory search index from a list of indexed posts.
-func Build(indexedPosts []models.IndexedContent) *models.SearchIndex {
+func Build(indexedPosts []searchpkg.IndexedContent) *searchpkg.SearchIndex {
 	sb := NewStreamBuilder(len(indexedPosts))
 	for _, ip := range indexedPosts {
 		sb.Add(ip)
@@ -49,7 +50,7 @@ func Build(indexedPosts []models.IndexedContent) *models.SearchIndex {
 
 // StreamBuilder manages concurrent search index building from a stream of posts.
 type StreamBuilder struct {
-	postChan   chan models.IndexedContent
+	postChan   chan searchpkg.IndexedContent
 	results    []partialResult
 	numWorkers int
 	wg         sync.WaitGroup
@@ -60,7 +61,7 @@ type StreamBuilder struct {
 func NewStreamBuilder(expectedDocs int) *StreamBuilder {
 	numWorkers := min(runtime.NumCPU(), maxIndexWorkers)
 	sb := &StreamBuilder{
-		postChan:   make(chan models.IndexedContent, max(expectedDocs, 32)),
+		postChan:   make(chan searchpkg.IndexedContent, max(expectedDocs, 32)),
 		results:    make([]partialResult, numWorkers),
 		numWorkers: numWorkers,
 		expectedDocs: expectedDocs,
@@ -87,7 +88,7 @@ func NewStreamBuilder(expectedDocs int) *StreamBuilder {
 func (sb *StreamBuilder) runWorker(workerID int) {
 	workerCap := max(sb.expectedDocs/sb.numWorkers, minWorkerCap)
 	res := partialResult{
-		items:         make(map[uint32]models.ContentRecord, workerCap),
+		items:         make(map[uint32]searchpkg.ContentRecord, workerCap),
 		inverted:      make(map[string]*tempPostings, workerCap*10),
 		titleInverted: make(map[string][]uint32, workerCap*2),
 		itemLens:      make(map[uint32]int32, workerCap),
@@ -137,24 +138,24 @@ func (sb *StreamBuilder) runWorker(workerID int) {
 }
 
 // Add enqueues a post for background indexing.
-func (sb *StreamBuilder) Add(ip models.IndexedContent) {
+func (sb *StreamBuilder) Add(ip searchpkg.IndexedContent) {
 	sb.postChan <- ip
 }
 
 // Complete closes the input stream and merges the results into a single index.
-func (sb *StreamBuilder) Complete() *models.SearchIndex {
+func (sb *StreamBuilder) Complete() *searchpkg.SearchIndex {
 	close(sb.postChan)
 	sb.wg.Wait()
 
 	totalDocs, totalLen, maxDenseID := sb.calculateGlobalStats()
 	if totalDocs == 0 {
-		return &models.SearchIndex{SchemaVersion: models.CurrentSchemaVersion}
+		return &searchpkg.SearchIndex{SchemaVersion: searchpkg.CurrentSchemaVersion}
 	}
 
 	allocSize := max(totalDocs, int(maxDenseID)+1)
-	index := &models.SearchIndex{
-		SchemaVersion: models.CurrentSchemaVersion,
-		Items:         make([]models.ContentRecord, allocSize),
+	index := &searchpkg.SearchIndex{
+		SchemaVersion: searchpkg.CurrentSchemaVersion,
+		Items:         make([]searchpkg.ContentRecord, allocSize),
 		ItemLens:      make([]int32, allocSize),
 		TotalItems:    int64(totalDocs),
 		AvgDocLen:     float64(totalLen) / float64(totalDocs),
@@ -187,7 +188,7 @@ func (sb *StreamBuilder) calculateGlobalStats() (totalDocs int, totalLen int64, 
 	return
 }
 
-func (sb *StreamBuilder) mergePartialResults(index *models.SearchIndex) (map[string]*tempPostings, map[string][]uint32, map[string]map[string]bool) {
+func (sb *StreamBuilder) mergePartialResults(index *searchpkg.SearchIndex) (map[string]*tempPostings, map[string][]uint32, map[string]map[string]bool) {
 	masterInverted := make(map[string]*tempPostings)
 	masterTitleInverted := make(map[string][]uint32)
 	stemOrigins := make(map[string]map[string]bool)
@@ -243,7 +244,7 @@ func (sb *StreamBuilder) extractSortedTerms(masterInverted map[string]*tempPosti
 	return terms
 }
 
-func (sb *StreamBuilder) buildCSRTables(index *models.SearchIndex, terms []string, masterInverted map[string]*tempPostings, masterTitleInverted map[string][]uint32) {
+func (sb *StreamBuilder) buildCSRTables(index *searchpkg.SearchIndex, terms []string, masterInverted map[string]*tempPostings, masterTitleInverted map[string][]uint32) {
 	numTerms := len(terms)
 	index.PostingOffsets = make([]uint32, numTerms+1)
 	index.PosOffsets = make([]uint32, numTerms+1)
@@ -259,7 +260,7 @@ func (sb *StreamBuilder) buildCSRTables(index *models.SearchIndex, terms []strin
 	sb.fillCSRTables(index, terms, masterInverted, masterTitleInverted)
 }
 
-func (sb *StreamBuilder) calculateCSRSizes(index *models.SearchIndex, terms []string, masterInverted map[string]*tempPostings, masterTitleInverted map[string][]uint32) (totalPostings, totalPositions, totalTitlePostings int) {
+func (sb *StreamBuilder) calculateCSRSizes(index *searchpkg.SearchIndex, terms []string, masterInverted map[string]*tempPostings, masterTitleInverted map[string][]uint32) (totalPostings, totalPositions, totalTitlePostings int) {
 	for i, term := range terms {
 		tp := masterInverted[term]
 		sortPostings(tp)
@@ -287,7 +288,7 @@ func (sb *StreamBuilder) calculateCSRSizes(index *models.SearchIndex, terms []st
 	return
 }
 
-func (sb *StreamBuilder) fillCSRTables(index *models.SearchIndex, terms []string, masterInverted map[string]*tempPostings, masterTitleInverted map[string][]uint32) {
+func (sb *StreamBuilder) fillCSRTables(index *searchpkg.SearchIndex, terms []string, masterInverted map[string]*tempPostings, masterTitleInverted map[string][]uint32) {
 	currPosting := 0
 	currPos := 0
 	currTitlePosting := 0

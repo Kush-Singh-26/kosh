@@ -10,6 +10,7 @@ import (
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/spf13/afero"
 
 	"gopkg.in/yaml.v3"
@@ -204,7 +205,7 @@ func defaultFeaturesConfig() models.FeaturesConfig {
 			IsPWAEnabled:     true,
 			Search: models.SearchOptionsConfig{
 				IsEnabled: true,
-				Ranking: models.SearchRankingConfig{
+				Ranking: searchpkg.SearchRankingConfig{
 					TitleBoost:       50.0,
 					TagBoost:         5.0,
 					DescriptionBoost: 5.0,

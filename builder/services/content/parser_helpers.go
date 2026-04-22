@@ -10,8 +10,10 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
+
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 
 	"github.com/yuin/goldmark"
@@ -127,7 +129,7 @@ func buildContentMetadata(
 func buildSearchRecord(
 	item models.ContentMetadata,
 	plainText string,
-) models.ContentRecord {
+) searchpkg.ContentRecord {
 	normTaxs := make(map[string][]string, len(item.Taxonomies))
 	for k, terms := range item.Taxonomies {
 		norm := make([]string, len(terms))
@@ -137,7 +139,7 @@ func buildSearchRecord(
 		normTaxs[k] = norm
 	}
 
-	return models.ContentRecord{
+	return searchpkg.ContentRecord{
 		Title:           item.Title,
 		Link:            item.Link,
 		Description:     item.Description,
@@ -150,7 +152,7 @@ func buildSearchRecord(
 
 // tokenizeSearchData performs search tokenization and builds search-related fields
 func tokenizeSearchData(
-	searchRecord models.ContentRecord,
+	searchRecord searchpkg.ContentRecord,
 	plainText string,
 ) (map[string]int, int, map[string]string, map[string][]uint32) {
 	builder := pools.SharedStringBuilderPool.Get()
@@ -188,7 +190,7 @@ func tokenizeSearchData(
 	// Encode positions using delta encoding
 	positionalIndex := make(map[string][]uint32, len(positions))
 	for term, posList := range positions {
-		positionalIndex[term] = models.EncodePositions(posList)
+		positionalIndex[term] = searchpkg.EncodePositions(posList)
 	}
 
 	return wordFreqs, docLen, stemMap, positionalIndex

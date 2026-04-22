@@ -2,6 +2,10 @@ package models
 
 //go:generate msgp
 
+import (
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
+)
+
 // MenuEntry defines a single menu item in site navigation.
 type MenuEntry struct {
 	Name   string `yaml:"name"`
@@ -17,20 +21,11 @@ type AuthorConfig struct {
 	URL  string `yaml:"url"`
 }
 
-// SearchRankingConfig defines BM25 and custom scoring weights.
-type SearchRankingConfig struct {
-	TitleBoost       float64 `yaml:"titleBoost"`
-	TagBoost         float64 `yaml:"tagBoost"`
-	DescriptionBoost float64 `yaml:"descriptionBoost"`
-	BM25K1           float64 `yaml:"bm25K1"`
-	BM25B            float64 `yaml:"bm25b"`
-}
-
 // SearchOptionsConfig configures search behavior and federated endpoints.
 type SearchOptionsConfig struct {
-	IsEnabled bool                `yaml:"isEnabled"`
-	Ranking   SearchRankingConfig `yaml:"ranking"`
-	Endpoints []string            `yaml:"endpoints"`
+	IsEnabled bool                   `yaml:"isEnabled"`
+	Ranking   searchpkg.SearchRankingConfig `yaml:"ranking"`
+	Endpoints []string               `yaml:"endpoints"`
 }
 
 // GeneratorsConfig enables/disables site-wide generators.

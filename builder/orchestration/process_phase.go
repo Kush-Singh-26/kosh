@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
@@ -17,7 +17,7 @@ type postStreamResult struct {
 	error  error
 }
 
-func (engineInstance *Engine) startPostProcessingStream(ctx context.Context, setup *buildSetupResult, scan *buildScanResult, searchIngestor models.SearchIngestor) chan postStreamResult {
+func (engineInstance *Engine) startPostProcessingStream(ctx context.Context, setup *buildSetupResult, scan *buildScanResult, searchIngestor searchpkg.SearchIngestor) chan postStreamResult {
 	contentResultChan := make(chan postStreamResult, 1)
 	logger := engineInstance.Deps.Logger
 	if logger == nil {
@@ -67,7 +67,7 @@ func waitForPostProcessing(ctx context.Context, contentResultChan chan postStrea
 	}
 }
 
-func (engineInstance *Engine) finalizePostPhase(ctx context.Context, contentResultChan chan postStreamResult, searchStream *index.StreamBuilder) (*content.Result, *models.SearchIndex, error) {
+func (engineInstance *Engine) finalizePostPhase(ctx context.Context, contentResultChan chan postStreamResult, searchStream *index.StreamBuilder) (*content.Result, *searchpkg.SearchIndex, error) {
 	contentResult, processError := waitForPostProcessing(ctx, contentResultChan)
 	if processError != nil {
 		return nil, nil, fmt.Errorf("content processing failed: %w", processError)
@@ -86,7 +86,7 @@ func (engineInstance *Engine) runSiteWidePhase(
 	setup *buildSetupResult,
 	assetsRes *buildAssetResult,
 	contentResult *content.Result,
-	finalSearchIndex *models.SearchIndex,
+	finalSearchIndex *searchpkg.SearchIndex,
 ) error {
 	runSiteWide, _ := engineInstance.setupSiteWideRendering(SiteWideOptions{
 		Ctx:                ctx,
