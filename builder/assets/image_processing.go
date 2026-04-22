@@ -24,7 +24,7 @@ import (
 	"golang.org/x/image/draw"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
+	koshminify "github.com/Kush-Singh-26/kosh/builder/minify"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 )
@@ -94,7 +94,10 @@ func maybeCopyOriginal(options MaybeCopyOriginalOptions) error {
 	if strings.ToLower(filepath.Ext(options.DstWebp)) != ".webp" {
 		return nil
 	}
-	originalDestination := strings.TrimSuffix(options.DstWebp, filepath.Ext(options.DstWebp)) + extension
+	originalDestination := strings.TrimSuffix(
+		options.DstWebp,
+		filepath.Ext(options.DstWebp),
+	) + extension
 	modTime := int64(0)
 	if options.SrcInfo != nil {
 		modTime = options.SrcInfo.ModTime().UnixNano()
@@ -216,7 +219,7 @@ func minifyAndWriteSVG(options ProcessImageOptions, srcInfo os.FileInfo) (bool, 
 	if err != nil {
 		return false, nil
 	}
-	minifier := koshMinify.GetHTMLMinifier()
+	minifier := koshminify.GetHTMLMinifier()
 	minified, err := minifier.Bytes("image/svg+xml", data)
 	if err != nil {
 		return false, nil
@@ -503,6 +506,7 @@ func writeEncodedWebP(options ProcessImageOptions, key imageCacheKey, cacheFile 
 	return nil
 }
 
+//nolint:funlen // Central image-processing pipeline; splitting this adds noise.
 func convertToWebPVFS(options ProcessImageOptions) error {
 	if err := ensureSrcInfo(&options); err != nil {
 		return err

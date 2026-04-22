@@ -71,6 +71,7 @@ func (service *contentService) SetAssetsGate(assetsReadyChan <-chan struct{}) {
 	service.assetsReady = assetsReadyChan
 }
 
+// SetMarkdownRenderer updates the shortcode renderer for markdown processing.
 func (service *contentService) SetMarkdownRenderer(renderer func([]byte) ([]byte, error)) {
 	if service.shortcodes != nil {
 		service.shortcodes.SetRenderer(renderer)
@@ -86,6 +87,7 @@ func (service *contentService) ReconfigureWithReporter(reporter ui.Reporter, log
 // WaitForCacheCommit blocks until cache commits complete.
 func (service *contentService) WaitForCacheCommit() { service.cacheWg.Wait() }
 
+// ProcessShortcodes expands markdown shortcodes using the configured processor.
 func (service *contentService) ProcessShortcodes(source []byte) ([]byte, error) {
 	if service.shortcodes == nil || len(source) == 0 {
 		return source, nil

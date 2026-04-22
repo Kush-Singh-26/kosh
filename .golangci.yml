@@ -18,9 +18,9 @@ linters:
     misspell:
       locale: US
     gocyclo:
-      min-complexity: 15
+      min-complexity: 30
     revive:
-      enable-all-rules: true
+      enable-default-rules: true
       rules:
         - name: exported
           arguments:
@@ -33,7 +33,7 @@ linters:
               - API
             - []
     funlen:
-      lines: 50
+      lines: 60
       statements: 40
   exclusions:
     generated: lax

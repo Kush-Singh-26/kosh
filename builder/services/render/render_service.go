@@ -57,6 +57,7 @@ func (service *renderService) ReconfigureWithLogger(logger *slog.Logger) {
 	service.renderer.SetLogger(logger)
 }
 
+// RenderFragment renders a named fragment block through the renderer.
 func (service *renderService) RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error) {
 	return service.renderer.RenderFragment(context, blockName, data)
 }

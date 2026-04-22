@@ -134,7 +134,15 @@ func RecordConvertedImage(originalDestination, webpDestination string) {
 func GetConvertedImages() map[string]string {
 	result := make(map[string]string)
 	convertedImagePaths.Range(func(key, value any) bool {
-		result[key.(string)] = value.(string)
+		original, ok := key.(string)
+		if !ok {
+			return true
+		}
+		converted, ok := value.(string)
+		if !ok {
+			return true
+		}
+		result[original] = converted
 		return true
 	})
 	return result
@@ -154,7 +162,11 @@ var keyBufPool = sync.Pool{
 }
 
 func getImageHash(key imageCacheKey) string {
-	bufferPointer := keyBufPool.Get().(*[]byte)
+	bufferPointer, ok := keyBufPool.Get().(*[]byte)
+	if !ok || bufferPointer == nil {
+		buffer := make([]byte, 0, keyBufCap)
+		bufferPointer = &buffer
+	}
 	buffer := (*bufferPointer)[:0]
 	defer func() {
 		*bufferPointer = buffer
@@ -444,4 +456,3 @@ func copyOriginalImage(opts CopyFromDiskCacheOptions) error {
 	}
 	return nil
 }
-

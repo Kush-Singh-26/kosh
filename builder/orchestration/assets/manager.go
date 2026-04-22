@@ -164,7 +164,7 @@ func (managerInstance *Manager) CheckChanged(ctx context.Context, assetsReady <-
 	return changed
 }
 
-// WaitForAvailability blocks until assets are ready or context is cancelled.
+// WaitForAvailability blocks until assets are ready or context is canceled.
 func (managerInstance *Manager) WaitForAvailability(workingContext context.Context, assetsReady <-chan struct{}) {
 	if len(managerInstance.deps.Render.GetAssets()) > 0 {
 		return
