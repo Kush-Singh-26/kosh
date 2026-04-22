@@ -58,6 +58,8 @@ ant.md
 nul
 
 themes/
+!tests/themes/
+!tests/themes/**
 .opencode/
 *.out
 *.db

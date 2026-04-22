@@ -1,0 +1,13 @@
+{{ define "content" }}
+<h1>{{ .Title }}</h1>
+{{ if .Items }}
+<ul>
+    {{ range .Items }}
+    <li><a href="{{ relativize $.BaseURL $.RelativePrefix .Link }}">{{ .Title }}</a></li>
+    {{ end }}
+</ul>
+{{ end }}
+{{ end }}
+
+{{ define "head-extra" }}{{ end }}
+{{ define "scripts-extra" }}{{ end }}

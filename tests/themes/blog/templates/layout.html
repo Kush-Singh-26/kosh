@@ -1,0 +1,26 @@
+{{ define "content" }}
+{{ if .Items }}
+<h1 class="center-text">{{ .Title }}</h1>
+<ul class="post-list">
+    {{ range .Items }}
+    <li>
+        <a href="{{ relativize $.BaseURL $.RelativePrefix .Link }}" class="post-title">{{ .Title }}</a>
+        <div class="meta-info mb-small">
+            <span>{{ .DateObj.Format "Jan 02, 2006" }}</span>
+            <span class="meta-divider">•</span>
+            <span>{{ .ReadingTime }} min read</span>
+        </div>
+        <div class="post-desc">{{ .Description }}</div>
+    </li>
+    {{ end }}
+</ul>
+{{ else }}
+<article>
+    <h1>{{ .Title }}</h1>
+    <div class="content-body">{{ .Content }}</div>
+</article>
+{{ end }}
+{{ end }}
+
+{{ define "head-extra" }}{{ end }}
+{{ define "scripts-extra" }}{{ end }}
