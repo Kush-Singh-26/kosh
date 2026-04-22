@@ -20,13 +20,18 @@ linters:
     gocyclo:
       min-complexity: 15
     revive:
-      exported:
-        check-private: true
-      var-naming:
-        - JSON
-        - URL
-        - ID
-        - API
+      enable-all-rules: true
+      rules:
+        - name: exported
+          arguments:
+            - check-private-receivers
+        - name: var-naming
+          arguments:
+            - - JSON
+              - URL
+              - ID
+              - API
+            - []
     funlen:
       lines: 50
       statements: 40
