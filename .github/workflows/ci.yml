@@ -26,6 +26,9 @@ jobs:
           install-mode: goinstall
 
       - name: Run Tests
+        run: go test -v -count=1 ./tests
+
+      - name: Run Full Tests
         run: go test -race ./...
 
       - name: Build CLI
