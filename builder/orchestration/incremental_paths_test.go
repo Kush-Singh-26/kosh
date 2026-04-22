@@ -62,6 +62,7 @@ func TestIsAssetPath(t *testing.T) {
 				},
 			}
 			b := NewEngine(WithDeps(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger}))
+			defer b.Close()
 			got := b.Watch.IsAssetPath(tt.path)
 			if got != tt.want {
 				t.Errorf("isAssetPath(%q) = %v, want %v", tt.path, got, tt.want)
@@ -78,6 +79,7 @@ func TestNormalizeWatchPath_ProjectRelativeAbsolutePath(t *testing.T) {
 	logger := InitLogger()
 	cfg := &config.Config{}
 	b := NewEngine(WithDeps(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger}))
+	defer b.Close()
 	abs := filepath.Join(wd, "themes", "test-theme", "static", "css", "style.css")
 	got := b.Watch.NormalizeWatchPath(abs)
 	expected := fspkg.NormalizePath("themes/test-theme/static/css/style.css")
@@ -95,6 +97,7 @@ func TestIsContentPathWithAbsoluteConfiguredContentDir(t *testing.T) {
 	logger := InitLogger()
 	cfg := &config.Config{PathConfig: config.PathConfig{ContentDir: contentDir}}
 	b := NewEngine(WithDeps(EngineDependencies{Config: cfg, Logger: logger}))
+	defer b.Close()
 	path := filepath.Join(contentDir, "posts", "hello.md")
 	if !b.Watch.IsContentPath(path) {
 		t.Fatalf("expected absolute markdown path to match absolute content dir")
@@ -151,6 +154,7 @@ func TestInvalidateForTemplate(t *testing.T) {
 				},
 			}
 			b := NewEngine(WithDeps(EngineDependencies{Config: cfg, Wasm: &mocks.MockWasmService{}, Logger: logger}))
+			defer b.Close()
 			got := b.Watch.InvalidateForTemplate(tt.templatePath)
 			if (got == nil) != tt.wantNil {
 				t.Errorf("invalidateForTemplate(%q) returned nil=%v, want nil=%v", tt.templatePath, got == nil, tt.wantNil)

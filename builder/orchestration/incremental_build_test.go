@@ -151,6 +151,7 @@ Initial body.
 		NativeRenderer: nativeRenderer,
 		Fragments:      nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 

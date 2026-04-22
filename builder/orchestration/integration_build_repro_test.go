@@ -122,6 +122,7 @@ ItemsPerPage: 10,
 			Cache:          nil,
 			Diagrams:       nil,
 		}))
+		defer b.Close()
 		b.artifactSink = sink
 		b.buildTransaction = tx
 
@@ -263,6 +264,7 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 		Cache:          nil,
 		Diagrams:       nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 

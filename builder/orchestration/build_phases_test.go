@@ -42,6 +42,7 @@ func TestSetupPhase(t *testing.T) {
 		Metrics:  buildMetrics,
 		SourceFs: fs,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
@@ -68,6 +69,7 @@ func TestAssetPhase(t *testing.T) {
 		Asset:  assetSvc,
 		Logger: logger,
 	}))
+	defer b.Close()
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
 	ctx := context.Background()
@@ -104,6 +106,7 @@ func TestScanPhase(t *testing.T) {
 		Logger:   logger,
 		SourceFs: fs,
 	}))
+	defer b.Close()
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
 	ctx := context.Background()
@@ -141,6 +144,7 @@ func TestCheckAssetsChanged(t *testing.T) {
 		Render: renderSvc,
 		Logger: logger,
 	}))
+	defer b.Close()
 
 	assetsReady := make(chan struct{})
 	close(assetsReady)
@@ -177,6 +181,7 @@ func TestShouldSkipSiteWideRendering(t *testing.T) {
 		Config: cfg,
 		Logger: logger,
 	}))
+	defer b.Close()
 	b.State.ForceGenerators.Store(false)
 
 	cb := &content.Context{
@@ -229,6 +234,7 @@ func TestFinalizePhase(t *testing.T) {
 		Logger:  logger,
 		Metrics: m,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 

@@ -72,11 +72,9 @@ func (engineInstance *Engine) BuildLocked(ctx context.Context) error {
 	scanResult := engineInstance.scanPhase(ctx, contentAssetsChan)
 
 	if processError := engineInstance.processPhase(ctx, setup, assetsResult, scanResult); processError != nil {
-		close(contentAssetsChan)
 		return processError
 	}
 
-	close(contentAssetsChan)
 	return engineInstance.finalizePhase(ctx, setup.wasmWg, assetsResult.assetsReadySignal)
 }
 

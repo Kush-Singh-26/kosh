@@ -154,6 +154,7 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 		Cache:          nil,
 		Diagrams:       nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
@@ -289,6 +290,7 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 		Cache:          nil,
 		Diagrams:       nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 

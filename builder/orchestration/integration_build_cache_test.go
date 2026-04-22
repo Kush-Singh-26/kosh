@@ -119,6 +119,7 @@ func TestBuild_WithRealCache(t *testing.T) {
 		Cache:          nil,
 		Diagrams:       nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 

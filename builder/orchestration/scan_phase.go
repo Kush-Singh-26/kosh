@@ -43,6 +43,7 @@ func (engineInstance *Engine) scanPhase(ctx context.Context, contentAssetsChan c
 		Logger:    logger,
 		Operation: "metadata scan",
 		Fn: func() error {
+			defer close(contentAssetsChan)
 			defer close(scannerReady)
 			defer close(fileChannel)
 			defer close(metadataResultChan)

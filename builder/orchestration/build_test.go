@@ -38,6 +38,7 @@ baseURL: "https://kosh.dev"
 
 	cfg := config.LoadFs(fs, args)
 	b := NewEngine(WithFs(fs), WithConfig(cfg))
+	defer b.Close()
 
 	if b.Cfg.BaseURL != "https://kosh.dev" {
 		t.Errorf("Expected BaseURL https://kosh.dev, got %s", b.Cfg.BaseURL)
@@ -153,6 +154,7 @@ func TestFullBuild(t *testing.T) {
 		MdPool:         mdPool,
 		NativeRenderer: nativeRenderer,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 

@@ -153,6 +153,7 @@ This is post number %d.
 			NativeRenderer: nativeRenderer,
 			Fragments:      nil,
 		}))
+		defer engine.Close()
 
 		engine.SetArtifactSink(sink)
 		engine.SetBuildTransaction(tx)

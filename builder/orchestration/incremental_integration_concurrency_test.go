@@ -145,6 +145,7 @@ date: "2026-03-15"
 		NativeRenderer: nativeRenderer,
 		Fragments:      nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 

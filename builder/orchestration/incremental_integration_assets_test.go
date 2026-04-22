@@ -141,6 +141,7 @@ func TestIncrementalBuild_CSSChange(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		Fragments:      nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
@@ -276,6 +277,7 @@ func TestIncrementalBuild_TemplateChange(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		Fragments:      nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 

@@ -101,6 +101,7 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 		NativeRenderer: nativeRenderer,
 		Fragments:      nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 

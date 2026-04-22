@@ -149,6 +149,7 @@ Initial body.
 		NativeRenderer: nativeRenderer,
 		Fragments:      nil,
 	}))
+	defer b.Close()
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
@@ -281,6 +282,7 @@ date: "2026-03-06"
 		NativeRenderer: nativeRenderer,
 		Fragments:      nil,
 	}))
+	defer b.Close()
 	b.SetSink(testutil.NewMemSink())
 	b.buildTransaction = testutil.NewMockTransaction("public")
 
