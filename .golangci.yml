@@ -1,24 +1,7 @@
-version: 2
-
-linters-settings:
-  misspell:
-    locale: US
-  gocyclo:
-    min-complexity: 15
-  revive:
-    exported:
-      check-private: true
-    var-naming:
-      - JSON
-      - URL
-      - ID
-      - API
-  funlen:
-    lines: 50
-    statements: 40
+version: "2"
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - govet
     - staticcheck
@@ -31,60 +14,82 @@ linters:
     - gocritic
     - gocyclo
     - funlen
+  settings:
+    misspell:
+      locale: US
+    gocyclo:
+      min-complexity: 15
+    revive:
+      exported:
+        check-private: true
+      var-naming:
+        - JSON
+        - URL
+        - ID
+        - API
+    funlen:
+      lines: 50
+      statements: 40
+  exclusions:
+    generated: lax
+    warn-unused: true
+    paths:
+      - public
+      - bin
+      - tmp
+    rules:
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocyclo
+      - path: tests
+        linters:
+          - funlen
+          - gocyclo
+      - path: msgp_methods\.go
+        linters:
+          - funlen
+          - gocyclo
+      - path: scripts
+        linters:
+          - funlen
+          - gocyclo
+      - linters:
+          - gocritic
+        text: "exitAfterDefer"
+      - path: builder/orchestration/
+        linters:
+          - revive
+        text: "unused-parameter|exported"
+      - path: builder/cache/
+        linters:
+          - revive
+        text: "unused-parameter"
+      - path: builder/renderer/
+        linters:
+          - revive
+        text: "unused-parameter"
+      - path: builder/search/
+        linters:
+          - revive
+        text: "unused-parameter"
+      - path: builder/pools/
+        linters:
+          - revive
+        text: "unused-parameter"
+      - path: builder/testutil/
+        linters:
+          - revive
+        text: "unused-parameter|exported"
+      - path: internal/
+        linters:
+          - revive
+        text: "unused-parameter"
 
 issues:
-  exclude-dirs:
-  - public
-  - bin
-  - tmp
-  exclude-rules:
-  - path: _test\.go
-    linters:
-    - funlen
-    - gocyclo
-  - path: tests
-    linters:
-    - funlen
-    - gocyclo
-  - path: msgp_methods\.go
-    linters:
-    - funlen
-    - gocyclo
-  - path: scripts
-    linters:
-    - funlen
-    - gocyclo
-  - linters:
-    - gocritic
-    text: "exitAfterDefer"
-  - path: builder/orchestration/
-    linters:
-      - revive
-    text: "unused-parameter|exported"
-  - path: builder/cache/
-    linters:
-    - revive
-    text: "unused-parameter"
-  - path: builder/renderer/
-    linters:
-    - revive
-    text: "unused-parameter"
-  - path: builder/search/
-    linters:
-    - revive
-    text: "unused-parameter"
-  - path: builder/pools/
-    linters:
-    - revive
-    text: "unused-parameter"
-  - path: builder/testutil/
-    linters:
-    - revive
-    text: "unused-parameter|exported"
-  - path: internal/
-    linters:
-    - revive
-    text: "unused-parameter"
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: false
 
 run:
   timeout: 5m
