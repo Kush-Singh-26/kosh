@@ -24,6 +24,7 @@ import (
 	koshMinify "github.com/Kush-Singh-26/kosh/builder/minify"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/base"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
@@ -54,6 +55,12 @@ type Renderer struct {
 	Minifier       *minify.M
 	fragmentCache  sync.Map // context string -> template.HTML
 	Cache          models.FragmentCache
+	Diagrams       DiagramCache
+}
+
+// DiagramCache defines a read-only interface to the global diagram cache.
+type DiagramCache interface {
+	Get(key string) (any, bool)
 }
 
 // Options configures a Renderer instance.
@@ -67,6 +74,7 @@ type Options struct {
 	DevMode     bool
 	Logger      *slog.Logger
 	Cache       models.FragmentCache
+	Diagrams    DiagramCache
 }
 
 // New creates a Renderer with default filesystem settings.
@@ -90,6 +98,7 @@ func NewWithFs(opts Options) *Renderer {
 		devMode:     opts.DevMode,
 		Minifier:    koshMinify.GetHTMLMinifier(),
 		Cache:       opts.Cache,
+		Diagrams:    opts.Diagrams,
 	}
 	r.ReloadTemplates()
 	return r
@@ -160,25 +169,42 @@ func (r *Renderer) ReloadTemplates() {
 
 // RenderFragment renders a specific named template block into the cache.
 func (r *Renderer) RenderFragment(context string, blockName string, data models.PageData) (template.HTML, error) {
-	// Cache key includes block name, context and relative prefix to ensure path safety
-	cacheKey := fmt.Sprintf("%s:%s:%s", blockName, context, data.RelativePrefix)
+	cacheKey := fmt.Sprintf("%s:%s:%s:%s", blockName, context, data.RelativePrefix, data.Permalink)
 
-	// In-memory cache lookup: skip in dev mode to always use fresh fragment data
-	// This prevents stale navbar/footer from broken builds affecting new renders
-	if val, ok := r.fragmentCache.Load(cacheKey); ok && !data.IsCleanBuild && !r.devMode {
-		return val.(template.HTML), nil
+	if html, ok := r.checkFragmentCache(cacheKey, &data); ok {
+		return html, nil
 	}
 
-	// Persistent cache lookup: skip if this is a clean build to ensure branding/config updates
-	// Also skip in dev mode to avoid stale fragments from prior broken builds
+	fragmentHTML, err := r.executeFragmentTemplate(blockName, &data)
+	if err != nil {
+		return "", err
+	}
+
+	// Mid-pass SSR Replacement for Fragments (Math & D2)
+	fragmentHTML = r.hydrateAndReplaceSSR(fragmentHTML, &data)
+
+	// Persist fragment for cross-build reuse
+	r.storeFragmentInCache(cacheKey, fragmentHTML)
+
+	return template.HTML(fragmentHTML), nil
+}
+
+func (r *Renderer) checkFragmentCache(cacheKey string, data *models.PageData) (template.HTML, bool) {
+	if val, ok := r.fragmentCache.Load(cacheKey); ok && !data.IsCleanBuild && !r.devMode {
+		return val.(template.HTML), true
+	}
+
 	if r.Cache != nil && !data.IsCleanBuild && !r.devMode {
 		if cached, err := r.Cache.GetFragment(cacheKey); err == nil && len(cached) > 0 {
 			html := template.HTML(string(cached))
 			r.fragmentCache.Store(cacheKey, html)
-			return html, nil
+			return html, true
 		}
 	}
+	return "", false
+}
 
+func (r *Renderer) executeFragmentTemplate(blockName string, data *models.PageData) (string, error) {
 	r.mu.RLock()
 	parentTmpl := r.Layout
 	r.mu.RUnlock()
@@ -195,34 +221,54 @@ func (r *Renderer) RenderFragment(context string, blockName string, data models.
 	buf := pools.SharedBufferPool.Get()
 	defer pools.SharedBufferPool.Put(buf)
 
-	// We prepare assets here to ensure path relativization and site data are available,
-	// but we call PrepareAssets instead of PreparePageData to avoid infinite recursion
-	// with global fragment pre-rendering.
-	r.PrepareAssets(&data)
+	r.PrepareAssets(data)
 
-	// Always execute the block from the parent template set using ExecuteTemplate.
-	// This ensures that ONLY the named block is rendered, avoiding accidental
-	// inheritance of the full "base.html" document which happens if we call
-	// Execute() on the block template directly.
 	if err := parentTmpl.ExecuteTemplate(buf, blockName, data); err != nil {
 		return "", err
 	}
+	return buf.String(), nil
+}
 
-	// Persist fragment for cross-build reuse using raw bytes from buffer to avoid extra allocation
-	// Skip persisting in dev mode to avoid polluting both caches
+func (r *Renderer) hydrateAndReplaceSSR(fragmentHTML string, data *models.PageData) string {
+	if r.Diagrams != nil && parser.HasD2Placeholders(fragmentHTML) {
+		hashes := parser.ExtractD2Hashes(fragmentHTML)
+		if len(hashes) > 0 {
+			if data.SSRD2 == nil {
+				data.SSRD2 = make(map[string]models.SSRThemePair)
+			}
+			for _, hash := range hashes {
+				if _, ok := data.SSRD2[hash]; !ok {
+					if val, ok := r.Diagrams.Get("d2:" + hash); ok {
+						if pair, ok := val.(models.SSRThemePair); ok {
+							data.SSRD2[hash] = pair
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if len(data.SSRMath) > 0 || len(data.SSRD2) > 0 {
+		if len(data.SSRMath) > 0 {
+			fragmentHTML = parser.LateReplaceMath(fragmentHTML, data.SSRMath)
+		}
+		if len(data.SSRD2) > 0 {
+			fragmentHTML = parser.LateReplaceD2(fragmentHTML, data.SSRD2)
+		}
+	}
+	return fragmentHTML
+}
+
+func (r *Renderer) storeFragmentInCache(cacheKey string, fragmentHTML string) {
 	if r.Cache != nil && !r.devMode {
-		if err := r.Cache.StoreFragment(cacheKey, buf.Bytes()); err != nil {
+		if err := r.Cache.StoreFragment(cacheKey, []byte(fragmentHTML)); err != nil {
 			r.logger.Debug("Failed to persist fragment", "key", cacheKey, "error", err)
 		}
 	}
 
-	html := template.HTML(buf.String())
-	// Only store to in-memory cache if not in dev mode to avoid stale data on next render
 	if !r.devMode {
-		r.fragmentCache.Store(cacheKey, html)
+		r.fragmentCache.Store(cacheKey, template.HTML(fragmentHTML))
 	}
-
-	return html, nil
 }
 
 func (r *Renderer) applyTemplateCache(tc *templateCache) {

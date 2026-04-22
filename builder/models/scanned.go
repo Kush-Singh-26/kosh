@@ -14,9 +14,11 @@ type LightResourceMetadata struct {
 	DateObj     time.Time
 	Taxonomies  map[string][]string
 	IsPinned    bool
+	IsHidden    bool
 	Weight      int
 	ReadingTime int
 	IsDraft     bool
+
 	Description string
 	Link        string
 	HTMLPath    string
@@ -51,6 +53,7 @@ type ScannedResource struct {
 	ReadingTime     int
 	BodyOffset      int
 	Link            string
+	IsHidden        bool
 	SourceLoader    func() ([]byte, error) // Lazy file loader to avoid I/O waste
 	// PreParsedMeta holds YAML frontmatter values already decoded by the scanner.
 	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.

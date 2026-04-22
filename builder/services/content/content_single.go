@@ -34,12 +34,25 @@ type navResult struct {
 }
 
 func (service *contentService) resolveNavigation(item models.ContentMetadata) *navResult {
+	items := service.getAllItemsMetadata(item)
+	timeutil.SortItems(items)
+	prev, next, _ := navigation.FindPrevNext(item, items)
+
+	return &navResult{
+		prev:       prev,
+		next:       next,
+		taxonomies: service.buildTaxonomies(items),
+	}
+}
+
+func (service *contentService) getAllItemsMetadata(item models.ContentMetadata) []models.ContentMetadata {
 	var items []models.ContentMetadata
 	if service.cache != nil {
 		if metas, err := service.cache.GetAllItemsMetadata(); err == nil {
 			items = make([]models.ContentMetadata, len(metas))
 			for idx, meta := range metas {
-				p := models.ContentMetadata{
+				items[idx] = models.ContentMetadata{
+					Path:       meta.Path,
 					Title:      meta.Title,
 					Link:       meta.Link,
 					Weight:     meta.Weight,
@@ -47,7 +60,6 @@ func (service *contentService) resolveNavigation(item models.ContentMetadata) *n
 					DateObj:    meta.Date,
 					Taxonomies: meta.Taxonomies,
 				}
-				items[idx] = p
 			}
 		}
 	}
@@ -63,11 +75,10 @@ func (service *contentService) resolveNavigation(item models.ContentMetadata) *n
 	if !found {
 		items = append(items, item)
 	}
+	return items
+}
 
-	timeutil.SortItems(items)
-	prev, next, _ := navigation.FindPrevNext(item, items)
-
-	// Build all taxonomies
+func (service *contentService) buildTaxonomies(items []models.ContentMetadata) map[string]models.TaxonomyData {
 	taxonomyMap := make(map[string]map[string][]models.ContentMetadata)
 	for _, p := range items {
 		if p.IsDraft && !service.cfg.ShouldIncludeDrafts {
@@ -93,8 +104,7 @@ func (service *contentService) resolveNavigation(item models.ContentMetadata) *n
 			}
 		}
 	}
-
-	return &navResult{prev: prev, next: next, taxonomies: taxonomies}
+	return taxonomies
 }
 
 func (service *contentService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]string, map[string]models.SSRThemePair) {
@@ -119,7 +129,7 @@ func (service *contentService) renderMathSSR(ctx context.Context, html string, r
 	if service.diagramAdapter != nil {
 		for _, expr := range result.MathExpressions {
 			key := "math:" + expr.Hash
-			if val, ok := service.diagramAdapter.GetLocal(key); ok {
+			if val, ok := service.diagramAdapter.Get(key); ok {
 				if renderedStr, ok := val.(string); ok {
 					cached[expr.Hash] = renderedStr
 				}
@@ -157,7 +167,7 @@ func (service *contentService) renderD2SSR(ctx context.Context, html string, res
 	if service.diagramAdapter != nil {
 		for _, expr := range result.D2Expressions {
 			key := "d2:" + expr.Hash
-			if val, ok := service.diagramAdapter.GetLocal(key); ok {
+			if val, ok := service.diagramAdapter.Get(key); ok {
 				if pair, ok := val.(models.SSRThemePair); ok {
 					cached[expr.Hash] = pair
 				}
@@ -449,7 +459,6 @@ func (service *contentService) buildCacheMeta(options commitContentCacheOptions,
 func (service *contentService) buildSearchRecord(parseRes *ParsedMarkdownResult) *models.SearchRecord {
 	return &models.SearchRecord{
 		Title:           parseRes.Item.Title,
-		NormalizedTitle: strings.ToLower(parseRes.Item.Title),
 		WordFreqs:       parseRes.WordFreqs,
 		DocLen:          parseRes.DocLen,
 		Content:         parseRes.PlainText,
@@ -457,7 +466,6 @@ func (service *contentService) buildSearchRecord(parseRes *ParsedMarkdownResult)
 		NormalizedTaxs:  parseRes.SearchRecord.NormalizedTaxs,
 		StemMap:         parseRes.StemMap,
 		PositionalIndex: parseRes.PositionalIndex,
-		ByteOffsets:     parseRes.ByteOffsets,
 	}
 }
 

@@ -180,10 +180,18 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 	}
 
 	// Extract results
-	pc.Set(tocKey, state.toc)
+	if len(state.toc) > 0 {
+		tocCopy := make([]models.TOCEntry, len(state.toc))
+		copy(tocCopy, state.toc)
+		pc.Set(tocKey, tocCopy)
+	}
+
 	pc.Set(plainTextKey, state.plainText.String())
+
 	if len(state.mathExpressions) > 0 {
-		pc.Set(mathExpressionsKey, state.mathExpressions)
+		mathCopy := make([]models.MathExpression, len(state.mathExpressions))
+		copy(mathCopy, state.mathExpressions)
+		pc.Set(mathExpressionsKey, mathCopy)
 	}
 }
 

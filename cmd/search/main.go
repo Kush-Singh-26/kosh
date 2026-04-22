@@ -80,33 +80,8 @@ func initSearch(this js.Value, args []js.Value) any {
 				return nil
 			}
 
-			// Merge into global index
-			if index.SchemaVersion == 0 {
-				index = newIndex
-			} else {
-				for k, v := range newIndex.Items {
-					index.Items[k] = v
-				}
-				for k, v := range newIndex.Inverted {
-					if index.Inverted[k] == nil {
-						index.Inverted[k] = make(map[string][]uint32)
-					}
-					for id, pos := range v {
-						index.Inverted[k][id] = pos
-					}
-				}
-				for k, v := range newIndex.ItemLens {
-					index.ItemLens[k] = v
-				}
-				if index.NgramIndex != nil && newIndex.NgramIndex != nil {
-					for k, v := range newIndex.NgramIndex {
-						index.NgramIndex[k] = append(index.NgramIndex[k], v...)
-					}
-				}
-				index.TotalItems += newIndex.TotalItems
-				// Averaging doc len approximately
-				index.AvgDocLen = ((index.AvgDocLen * float64(index.TotalItems-newIndex.TotalItems)) + (newIndex.AvgDocLen * float64(newIndex.TotalItems))) / float64(index.TotalItems)
-			}
+			// Replace global index
+			index = newIndex
 
 			// Clear cache on new index load
 			lastQuery = ""

@@ -209,7 +209,6 @@ func TestEncodeDecode(t *testing.T) {
 			name: "SearchRecord",
 			data: &SearchRecord{
 				Title:           "Test",
-				NormalizedTitle: "test",
 				WordFreqs:       map[string]int{"test": 1, "record": 2},
 				DocLen:          10,
 			},

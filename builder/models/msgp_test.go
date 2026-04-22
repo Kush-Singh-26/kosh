@@ -31,9 +31,7 @@ func TestTOCEntry_Msgp(t *testing.T) {
 
 func TestContentRecord_Msgp(t *testing.T) {
 	v := ContentRecord{
-		ID:              123,
 		Title:           "Title",
-		NormalizedTitle: "title",
 		Link:            "/link",
 		Description:     "Desc",
 		Taxonomies:      map[string][]string{"tags": {"a", "b"}},
@@ -51,7 +49,7 @@ func TestContentRecord_Msgp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if v.ID != v2.ID || v.Title != v2.Title || v.Content != v2.Content {
+	if v.Title != v2.Title || v.Content != v2.Content {
 		t.Errorf("ContentRecord roundtrip failed")
 	}
 }
@@ -59,12 +57,16 @@ func TestContentRecord_Msgp(t *testing.T) {
 func TestSearchIndex_Msgp(t *testing.T) {
 	v := SearchIndex{
 		SchemaVersion: CurrentSchemaVersion,
-		Items:         map[string]ContentRecord{"1": {ID: 1, Title: "P1"}},
-		ItemLens:      map[string]int64{"1": 10},
+		Items:         []ContentRecord{{Title: "P1"}},
+		ItemLens:      []int32{10},
 		AvgDocLen:     10.5,
 		TotalItems:    1,
-		Inverted:      map[string]map[string][]uint32{"word": {"1": {1, 2}}},
-		Offsets:       map[string]map[string][]uint32{"word": {"1": {0, 4}}},
+		Terms:         []string{"word"},
+		PostingOffsets: []uint32{0, 1},
+		DocIDs:         []uint32{0},
+		DocPosOffsets:  []uint32{0, 2},
+		PosOffsets:     []uint32{0, 2},
+		Positions:      []uint32{1, 2},
 	}
 
 	var buf bytes.Buffer

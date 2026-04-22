@@ -47,27 +47,25 @@ func (service *contentService) startCardPool(ctx context.Context, numWorkers int
 
 func (service *contentService) startSearchPool(ctx context.Context, numWorkers int) *async.WorkerPool[searchTask] {
 	pool := async.NewWorkerPool(ctx, numWorkers, func(task searchTask) error {
-		wordFreqs, docLen, stemMap, posIndex, byteOffsets := tokenizeSearchData(task.record, task.plainText)
+		docFreqs, docLen, stemMap, posIndex := tokenizeSearchData(task.record, task.plainText)
 
-		task.indexed.WordFreqs = wordFreqs
+		task.indexed.WordFreqs = docFreqs
 		task.indexed.DocLen = docLen
 		task.indexed.StemMap = stemMap
 		task.indexed.PositionalIndex = posIndex
-		task.indexed.ByteOffsets = byteOffsets
 
 		if task.cached != nil {
-			task.cached.WordFreqs = wordFreqs
+			task.cached.WordFreqs = docFreqs
 			task.cached.DocLen = docLen
 			task.cached.StemMap = stemMap
 			task.cached.PositionalIndex = posIndex
-			task.cached.ByteOffsets = byteOffsets
 		}
 
 		if task.SearchIngestor != nil {
 			task.SearchIngestor.Add(*task.indexed)
 		}
 		return nil
-	}).WithScheduler(service.ctx.Scheduler, scheduler.TaskMarkdown)
+	}).WithScheduler(service.ctx.Scheduler, scheduler.TaskSearch)
 	pool.Start()
 	return pool
 }
@@ -173,6 +171,7 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 	numWorkers := models.GetDefaultWorkerCount()
 
 	cardPool, searchPool := service.setupStreamingContext(ctx, numWorkers)
+	denseIDCounter := &atomic.Uint32{}
 	defer func() {
 		if err := cardPool.Stop(); err != nil {
 			service.logger.Error("Failed to stop card pool", "error", err)
@@ -197,6 +196,7 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 		ShouldForce:    opts.ShouldForce,
 		ForceSocialRebuild: opts.ForceSocialRebuild,
 		ForceRerender:      opts.ForceRerender,
+		DenseIDCounter:     denseIDCounter,
 	}
 
 	err := service.runStreamingParsePhase(numWorkers, opts.FileChan, collectedFilesChan, workerCtx)
@@ -229,50 +229,12 @@ func (service *contentService) GetMetadataContext(_ context.Context) (*Context, 
 		return &Context{}, nil
 	}
 
-	ids, err := service.cache.ListAllItems()
+	metas, err := service.loadAllCachedMetas()
 	if err != nil {
 		return nil, err
 	}
 
-	metas, err := service.cache.GetItemsByIDs(ids)
-	if err != nil {
-		return nil, err
-	}
-
-	var allItems []models.ContentMetadata
-	pinnedItems := make([]models.ContentMetadata, 0)
-	taxonomyMap := make(map[string]map[string][]models.ContentMetadata)
-
-	for _, meta := range metas {
-		if meta.IsDraft && !service.cfg.ShouldIncludeDrafts {
-			continue
-		}
-		ContentMeta := models.ContentMetadata{
-			Title: meta.Title, Link: meta.Link, Description: meta.Description,
-			IsPinned: meta.IsPinned, Weight: meta.Weight,
-			ReadingTime: meta.ReadingTime, DateObj: meta.Date,
-			IsDraft:    meta.IsDraft,
-			Taxonomies: meta.Taxonomies,
-		}
-
-		// Taxonomy extraction logic removed: directly utilizing meta.Taxonomies from cache.
-
-		allItems = append(allItems, ContentMeta)
-		if ContentMeta.IsPinned {
-			pinnedItems = append(pinnedItems, ContentMeta)
-		}
-
-		// Aggregate into taxonomyMap
-		for taxKey, terms := range ContentMeta.Taxonomies {
-			if taxonomyMap[taxKey] == nil {
-				taxonomyMap[taxKey] = make(map[string][]models.ContentMetadata)
-			}
-			for _, term := range terms {
-				normTerm := strings.ToLower(strings.TrimSpace(term))
-				taxonomyMap[taxKey][normTerm] = append(taxonomyMap[taxKey][normTerm], ContentMeta)
-			}
-		}
-	}
+	allItems, pinnedItems, taxonomyMap := service.aggregateMetadata(metas)
 
 	timeutil.SortItems(allItems)
 	timeutil.SortItems(pinnedItems)
@@ -287,6 +249,59 @@ func (service *contentService) GetMetadataContext(_ context.Context) (*Context, 
 		PinnedItems: pinnedItems,
 		TaxonomyMap: taxonomyMap,
 	}, nil
+}
+
+func (service *contentService) loadAllCachedMetas() ([]*models.ContentMeta, error) {
+	ids, err := service.cache.ListAllItems()
+	if err != nil {
+		return nil, err
+	}
+	metaMap, err := service.cache.GetItemsByIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+	metas := make([]*models.ContentMeta, 0, len(metaMap))
+	for _, m := range metaMap {
+		metas = append(metas, m)
+	}
+	return metas, nil
+}
+
+func (service *contentService) aggregateMetadata(metas []*models.ContentMeta) ([]models.ContentMetadata, []models.ContentMetadata, map[string]map[string][]models.ContentMetadata) {
+	allItems := make([]models.ContentMetadata, 0, len(metas))
+	pinnedItems := make([]models.ContentMetadata, 0)
+	taxonomyMap := make(map[string]map[string][]models.ContentMetadata)
+
+	for _, meta := range metas {
+		if (meta.IsDraft && !service.cfg.ShouldIncludeDrafts) || meta.IsHidden {
+			continue
+		}
+		item := models.ContentMetadata{
+			Path:  meta.Path,
+			Title: meta.Title, Link: meta.Link, Description: meta.Description,
+			IsPinned: meta.IsPinned, Weight: meta.Weight,
+			ReadingTime: meta.ReadingTime, DateObj: meta.Date,
+			IsDraft:    meta.IsDraft,
+			Taxonomies: meta.Taxonomies,
+			Section:    meta.Section,
+		}
+
+		allItems = append(allItems, item)
+		if item.IsPinned {
+			pinnedItems = append(pinnedItems, item)
+		}
+
+		for taxKey, terms := range item.Taxonomies {
+			if taxonomyMap[taxKey] == nil {
+				taxonomyMap[taxKey] = make(map[string][]models.ContentMetadata)
+			}
+			for _, term := range terms {
+				normTerm := strings.ToLower(strings.TrimSpace(term))
+				taxonomyMap[taxKey][normTerm] = append(taxonomyMap[taxKey][normTerm], item)
+			}
+		}
+	}
+	return allItems, pinnedItems, taxonomyMap
 }
 
 func (service *contentService) runStreamingParsePhase(numWorkers int, fileChan <-chan models.ScannedResource, collector chan<- models.ScannedResource, workerCtx WorkerContext) error {
@@ -377,27 +392,25 @@ func (service *contentService) renderSingleTask(renderTaskInstance renderTask, r
 	relPrefix := fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath)
 	htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
 
-	title, _ := renderTaskInstance.parseResult.Metadata["title"].(string)
-	description, _ := renderTaskInstance.parseResult.Metadata["description"].(string)
-	if title == "" {
-		title = item.Title
-	}
-	if description == "" {
-		description = item.Description
-	}
-	socialHash := generators.SocialCardHash(title, description, &service.cfg.SocialCards)
-
-	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, renderTaskInstance.htmlRelativePath, socialHash)
-	prev, next := service.setupNavPages(nav, renderTaskInstance.file.Link)
-	sectionIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
-
 	layoutVal := service.getPageLayout(renderTaskInstance)
 	pageContext := models.ContextSection
 	if layoutVal == "home" {
 		pageContext = models.ContextHome
 	}
 
-	tabTitle := item.Title + " | " + service.cfg.Title
+	seoTitle := service.resolveSEOTitle(renderTaskInstance.parseResult.Metadata, item, pageContext)
+	description, _ := renderTaskInstance.parseResult.Metadata["description"].(string)
+	if description == "" {
+		description = item.Description
+	}
+
+	socialHash := generators.SocialCardHash(seoTitle, description, &service.cfg.SocialCards)
+
+	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, renderTaskInstance.htmlRelativePath, socialHash)
+	prev, next := service.setupNavPages(nav, renderTaskInstance.file.Link)
+	sectionIndexURL := navigation.ResolveSectionIndex(renderTaskInstance.htmlRelativePath)
+
+	tabTitle := seoTitle + " | " + service.cfg.Title
 	if pageContext == models.ContextHome {
 		tabTitle = service.cfg.Title
 	}

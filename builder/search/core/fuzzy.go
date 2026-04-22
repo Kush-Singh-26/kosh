@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -166,33 +167,48 @@ func FuzzyMatch(term, target string, maxDist int) bool {
 	return LevenshteinDistance(term, target) <= maxDist
 }
 
-// FuzzyExpand generates candidate terms for fuzzy matching
-// Returns terms within the inverted index that are similar to the input
-func FuzzyExpand(term string, inverted map[string]map[string][]uint32, maxDist int) []string {
+// FuzzyExpand generates candidate terms for fuzzy matching from a flat Lexicon.
+func FuzzyExpand(term string, lexicon []string, maxDist int) []string {
 	var candidates []string
-	termLen := len([]rune(term))
-
-	for idxTerm := range inverted {
+	termLen := utf8.RuneCountInString(term)
+ 
+	for _, idxTerm := range lexicon {
+		idxLen := utf8.RuneCountInString(idxTerm)
+ 
 		// Length-based filtering: skip impossible matches early
-		idxLen := len([]rune(idxTerm))
-
-		// 1. Live Prefix Matching (crucial for live search bars)
-		// If user typed "prog" and index has "program", match it immediately
-		if termLen >= minPrefixMatchLength && strings.HasPrefix(idxTerm, term) {
-			candidates = append(candidates, idxTerm)
-			continue
-		}
-
-		// 2. Levenshtein Distance (Fuzzy match for typos)
 		if idxLen < termLen-maxDist || idxLen > termLen+maxDist {
+			// Special case: if we want prefix matches as well, we shouldn't continue here
+			// but usually PerformSearch calls PrefixExpand separately or expects it here.
+			// Let's keep it focused on edit distance.
+			if termLen >= minPrefixMatchLength && strings.HasPrefix(idxTerm, term) {
+				candidates = append(candidates, idxTerm)
+				continue
+			}
 			continue
 		}
+ 
 		if FuzzyMatch(term, idxTerm, maxDist) {
 			candidates = append(candidates, idxTerm)
 		}
 	}
-
+ 
 	return candidates
+}
+ 
+// PrefixExpand finds all terms in the sorted lexicon that start with query.
+func PrefixExpand(query string, lexicon []string) []string {
+	if query == "" {
+		return nil
+	}
+	idx := sort.SearchStrings(lexicon, query)
+	var results []string
+	for i := idx; i < len(lexicon); i++ {
+		if !strings.HasPrefix(lexicon[i], query) {
+			break
+		}
+		results = append(results, lexicon[i])
+	}
+	return results
 }
 
 // FuzzyExpandWithNgrams uses n-gram index for faster fuzzy candidate generation
@@ -273,14 +289,9 @@ func GenerateTrigrams(word string) []string {
 // Trigrams that map to more than this many terms are dropped.
 const MaxNgramPostings = 50
 
-// BuildNgramIndex builds a trigram index for fast fuzzy lookups with pruning
-func BuildNgramIndex(inverted map[string]map[string][]uint32) map[string][]string {
+// BuildNgramIndex constructs an n-gram index for a list of terms.
+func BuildNgramIndex(terms []string) map[string][]string {
 	numWorkers := min(runtime.NumCPU(), maxNgramWorkers)
-
-	terms := make([]string, 0, len(inverted))
-	for term := range inverted {
-		terms = append(terms, term)
-	}
 
 	totalTerms := len(terms)
 	chunkSize := (totalTerms + numWorkers - 1) / numWorkers

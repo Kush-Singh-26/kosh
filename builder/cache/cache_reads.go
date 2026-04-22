@@ -329,6 +329,7 @@ func (manager *Manager) GetAllItemsMetadata() ([]models.ContentListMeta, error) 
 			var meta models.ContentMeta
 			if err := core.Decode(value, &meta); err == nil {
 				result = append(result, models.ContentListMeta{
+					Path:       meta.Path,
 					Title:      meta.Title,
 					Link:       meta.Link,
 					Weight:     meta.Weight,

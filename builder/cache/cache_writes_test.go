@@ -103,11 +103,10 @@ func TestBatchCommit_WithSearchRecords(t *testing.T) {
 
 	post := createSamplePostMeta()
 	record := &core.SearchRecord{
-		Title:           "Test Post",
-		NormalizedTitle: "test post",
-		WordFreqs:       map[string]int{"test": 1},
-		DocLen:          10,
-		NormalizedTaxs:  map[string][]string{"tags": {"test"}},
+		Title:          "Test Post",
+		WordFreqs:      map[string]int{"test": 1},
+		DocLen:         10,
+		NormalizedTaxs: map[string][]string{"tags": {"test"}},
 	}
 
 	records := map[string]*core.SearchRecord{

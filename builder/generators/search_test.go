@@ -17,8 +17,8 @@ func TestGenerateSearchIndex(t *testing.T) {
 
 	indexedItems := []models.IndexedContent{
 		{
+			DenseID: 0,
 			Record: models.ContentRecord{
-				ID:      1,
 				Title:   "Item 1",
 				Link:    "/item1.html",
 				Content: "Body of item 1",
@@ -27,10 +27,6 @@ func TestGenerateSearchIndex(t *testing.T) {
 			PositionalIndex: map[string][]uint32{
 				"body": {0},
 				"item": {2},
-			},
-			ByteOffsets: map[string][]uint32{
-				"body": {0, 4},
-				"item": {8, 4}, // Format: [start1, length1, start2-start1, length2, ...]
 			},
 			StemMap: map[string]string{
 				"body": "body",
@@ -75,22 +71,29 @@ func TestGenerateSearchIndex(t *testing.T) {
 	}
 
 	// Verify item record
-	item, ok := index.Items["1"]
-	if !ok {
-		t.Fatal("Item 1 record missing in index")
+	if len(index.Items) != 1 {
+		t.Fatal("Expected 1 item record in index")
 	}
+	item := index.Items[0]
 	if item.Title != "Item 1" {
 		t.Errorf("Expected item title Item 1, got %s", item.Title)
 	}
 
-	// Verify inverted index
-	if _, ok := index.Inverted["body"]; !ok {
-		t.Error("Inverted entry for 'body' missing")
+	// Verify CSR Lexicon
+	foundBody := false
+	for _, term := range index.Terms {
+		if term == "body" {
+			foundBody = true
+			break
+		}
+	}
+	if !foundBody {
+		t.Error("Lexicon entry for 'body' missing")
 	}
 
-	// Verify N-gram index
-	if len(index.NgramIndex) == 0 {
-		t.Error("Expected N-gram index to be generated")
+	// Verify CSR Posting Table
+	if len(index.DocIDs) == 0 {
+		t.Error("Expected DocIDs postings to be generated")
 	}
 }
 

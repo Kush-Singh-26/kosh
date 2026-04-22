@@ -43,6 +43,7 @@ type Breadcrumb struct {
 
 // NavPage represents a previous or next navigation page.
 type NavPage struct {
+	Path  string
 	Title string
 	Link  string
 }
@@ -52,6 +53,7 @@ type NavPage struct {
 // for displaying item lists, navigation, and page content.
 type ContentMetadata struct {
 	Section     string
+	Path        string // Relative path to source file (e.g. blogs/post.md)
 	Title       string
 	Link        string
 	Description string
@@ -59,6 +61,7 @@ type ContentMetadata struct {
 	Weight      int
 	ReadingTime int
 	IsPinned    bool
+	IsHidden    bool
 	IsDraft     bool
 	DateObj     time.Time
 	ContentHTML string

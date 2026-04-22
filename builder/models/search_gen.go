@@ -24,22 +24,10 @@ func (z *ContentRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "ID":
-			z.ID, err = dc.ReadUint64()
-			if err != nil {
-				err = msgp.WrapError(err, "ID")
-				return
-			}
 		case "Title":
 			z.Title, err = dc.ReadString()
 			if err != nil {
 				err = msgp.WrapError(err, "Title")
-				return
-			}
-		case "NormalizedTitle":
-			z.NormalizedTitle, err = dc.ReadString()
-			if err != nil {
-				err = msgp.WrapError(err, "NormalizedTitle")
 				return
 			}
 		case "Link":
@@ -161,35 +149,15 @@ func (z *ContentRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *ContentRecord) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 9
-	// write "ID"
-	err = en.Append(0x89, 0xa2, 0x49, 0x44)
-	if err != nil {
-		return
-	}
-	err = en.WriteUint64(z.ID)
-	if err != nil {
-		err = msgp.WrapError(err, "ID")
-		return
-	}
+	// map header, size 7
 	// write "Title"
-	err = en.Append(0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	err = en.Append(0x87, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	if err != nil {
 		return
 	}
 	err = en.WriteString(z.Title)
 	if err != nil {
 		err = msgp.WrapError(err, "Title")
-		return
-	}
-	// write "NormalizedTitle"
-	err = en.Append(0xaf, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x54, 0x69, 0x74, 0x6c, 0x65)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.NormalizedTitle)
-	if err != nil {
-		err = msgp.WrapError(err, "NormalizedTitle")
 		return
 	}
 	// write "Link"
@@ -296,16 +264,10 @@ func (z *ContentRecord) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *ContentRecord) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 9
-	// string "ID"
-	o = append(o, 0x89, 0xa2, 0x49, 0x44)
-	o = msgp.AppendUint64(o, z.ID)
+	// map header, size 7
 	// string "Title"
-	o = append(o, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	o = append(o, 0x87, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	o = msgp.AppendString(o, z.Title)
-	// string "NormalizedTitle"
-	o = append(o, 0xaf, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x54, 0x69, 0x74, 0x6c, 0x65)
-	o = msgp.AppendString(o, z.NormalizedTitle)
 	// string "Link"
 	o = append(o, 0xa4, 0x4c, 0x69, 0x6e, 0x6b)
 	o = msgp.AppendString(o, z.Link)
@@ -359,22 +321,10 @@ func (z *ContentRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "ID":
-			z.ID, bts, err = msgp.ReadUint64Bytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "ID")
-				return
-			}
 		case "Title":
 			z.Title, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Title")
-				return
-			}
-		case "NormalizedTitle":
-			z.NormalizedTitle, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "NormalizedTitle")
 				return
 			}
 		case "Link":
@@ -497,7 +447,7 @@ func (z *ContentRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ContentRecord) Msgsize() (s int) {
-	s = 1 + 3 + msgp.Uint64Size + 6 + msgp.StringPrefixSize + len(z.Title) + 16 + msgp.StringPrefixSize + len(z.NormalizedTitle) + 5 + msgp.StringPrefixSize + len(z.Link) + 12 + msgp.StringPrefixSize + len(z.Description) + 11 + msgp.MapHeaderSize
+	s = 1 + 6 + msgp.StringPrefixSize + len(z.Title) + 5 + msgp.StringPrefixSize + len(z.Link) + 12 + msgp.StringPrefixSize + len(z.Description) + 11 + msgp.MapHeaderSize
 	if z.Taxonomies != nil {
 		for za0001, za0002 := range z.Taxonomies {
 			_ = za0002
@@ -539,6 +489,12 @@ func (z *IndexedContent) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
+		case "DenseID":
+			z.DenseID, err = dc.ReadUint32()
+			if err != nil {
+				err = msgp.WrapError(err, "DenseID")
+				return
+			}
 		case "Record":
 			err = z.Record.DecodeMsg(dc)
 			if err != nil {
@@ -654,47 +610,6 @@ func (z *IndexedContent) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 				z.PositionalIndex[za0005] = za0006
 			}
-		case "ByteOffsets":
-			var zb0006 uint32
-			zb0006, err = dc.ReadMapHeader()
-			if err != nil {
-				err = msgp.WrapError(err, "ByteOffsets")
-				return
-			}
-			if z.ByteOffsets == nil {
-				z.ByteOffsets = make(map[string][]uint32, zb0006)
-			} else if len(z.ByteOffsets) > 0 {
-				clear(z.ByteOffsets)
-			}
-			for zb0006 > 0 {
-				zb0006--
-				var za0008 string
-				za0008, err = dc.ReadString()
-				if err != nil {
-					err = msgp.WrapError(err, "ByteOffsets")
-					return
-				}
-				var za0009 []uint32
-				var zb0007 uint32
-				zb0007, err = dc.ReadArrayHeader()
-				if err != nil {
-					err = msgp.WrapError(err, "ByteOffsets", za0008)
-					return
-				}
-				if cap(za0009) >= int(zb0007) {
-					za0009 = (za0009)[:zb0007]
-				} else {
-					za0009 = make([]uint32, zb0007)
-				}
-				for za0010 := range za0009 {
-					za0009[za0010], err = dc.ReadUint32()
-					if err != nil {
-						err = msgp.WrapError(err, "ByteOffsets", za0008, za0010)
-						return
-					}
-				}
-				z.ByteOffsets[za0008] = za0009
-			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -709,8 +624,18 @@ func (z *IndexedContent) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *IndexedContent) EncodeMsg(en *msgp.Writer) (err error) {
 	// map header, size 7
+	// write "DenseID"
+	err = en.Append(0x87, 0xa7, 0x44, 0x65, 0x6e, 0x73, 0x65, 0x49, 0x44)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint32(z.DenseID)
+	if err != nil {
+		err = msgp.WrapError(err, "DenseID")
+		return
+	}
 	// write "Record"
-	err = en.Append(0x87, 0xa6, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64)
+	err = en.Append(0xa6, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64)
 	if err != nil {
 		return
 	}
@@ -812,35 +737,6 @@ func (z *IndexedContent) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
-	// write "ByteOffsets"
-	err = en.Append(0xab, 0x42, 0x79, 0x74, 0x65, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
-	if err != nil {
-		return
-	}
-	err = en.WriteMapHeader(uint32(len(z.ByteOffsets)))
-	if err != nil {
-		err = msgp.WrapError(err, "ByteOffsets")
-		return
-	}
-	for za0008, za0009 := range z.ByteOffsets {
-		err = en.WriteString(za0008)
-		if err != nil {
-			err = msgp.WrapError(err, "ByteOffsets")
-			return
-		}
-		err = en.WriteArrayHeader(uint32(len(za0009)))
-		if err != nil {
-			err = msgp.WrapError(err, "ByteOffsets", za0008)
-			return
-		}
-		for za0010 := range za0009 {
-			err = en.WriteUint32(za0009[za0010])
-			if err != nil {
-				err = msgp.WrapError(err, "ByteOffsets", za0008, za0010)
-				return
-			}
-		}
-	}
 	return
 }
 
@@ -848,8 +744,11 @@ func (z *IndexedContent) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *IndexedContent) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 7
+	// string "DenseID"
+	o = append(o, 0x87, 0xa7, 0x44, 0x65, 0x6e, 0x73, 0x65, 0x49, 0x44)
+	o = msgp.AppendUint32(o, z.DenseID)
 	// string "Record"
-	o = append(o, 0x87, 0xa6, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64)
+	o = append(o, 0xa6, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64)
 	o, err = z.Record.MarshalMsg(o)
 	if err != nil {
 		err = msgp.WrapError(err, "Record")
@@ -885,16 +784,6 @@ func (z *IndexedContent) MarshalMsg(b []byte) (o []byte, err error) {
 			o = msgp.AppendUint32(o, za0006[za0007])
 		}
 	}
-	// string "ByteOffsets"
-	o = append(o, 0xab, 0x42, 0x79, 0x74, 0x65, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
-	o = msgp.AppendMapHeader(o, uint32(len(z.ByteOffsets)))
-	for za0008, za0009 := range z.ByteOffsets {
-		o = msgp.AppendString(o, za0008)
-		o = msgp.AppendArrayHeader(o, uint32(len(za0009)))
-		for za0010 := range za0009 {
-			o = msgp.AppendUint32(o, za0009[za0010])
-		}
-	}
 	return
 }
 
@@ -916,6 +805,12 @@ func (z *IndexedContent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
+		case "DenseID":
+			z.DenseID, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "DenseID")
+				return
+			}
 		case "Record":
 			bts, err = z.Record.UnmarshalMsg(bts)
 			if err != nil {
@@ -1031,47 +926,6 @@ func (z *IndexedContent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 				z.PositionalIndex[za0005] = za0006
 			}
-		case "ByteOffsets":
-			var zb0006 uint32
-			zb0006, bts, err = msgp.ReadMapHeaderBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "ByteOffsets")
-				return
-			}
-			if z.ByteOffsets == nil {
-				z.ByteOffsets = make(map[string][]uint32, zb0006)
-			} else if len(z.ByteOffsets) > 0 {
-				clear(z.ByteOffsets)
-			}
-			for zb0006 > 0 {
-				var za0009 []uint32
-				zb0006--
-				var za0008 string
-				za0008, bts, err = msgp.ReadStringBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "ByteOffsets")
-					return
-				}
-				var zb0007 uint32
-				zb0007, bts, err = msgp.ReadArrayHeaderBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "ByteOffsets", za0008)
-					return
-				}
-				if cap(za0009) >= int(zb0007) {
-					za0009 = (za0009)[:zb0007]
-				} else {
-					za0009 = make([]uint32, zb0007)
-				}
-				for za0010 := range za0009 {
-					za0009[za0010], bts, err = msgp.ReadUint32Bytes(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "ByteOffsets", za0008, za0010)
-						return
-					}
-				}
-				z.ByteOffsets[za0008] = za0009
-			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1086,7 +940,7 @@ func (z *IndexedContent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *IndexedContent) Msgsize() (s int) {
-	s = 1 + 7 + z.Record.Msgsize() + 11 + msgp.StringPrefixSize + len(z.SourcePath) + 10 + msgp.MapHeaderSize
+	s = 1 + 8 + msgp.Uint32Size + 7 + z.Record.Msgsize() + 11 + msgp.StringPrefixSize + len(z.SourcePath) + 10 + msgp.MapHeaderSize
 	if z.WordFreqs != nil {
 		for za0001, za0002 := range z.WordFreqs {
 			_ = za0002
@@ -1105,13 +959,6 @@ func (z *IndexedContent) Msgsize() (s int) {
 		for za0005, za0006 := range z.PositionalIndex {
 			_ = za0006
 			s += msgp.StringPrefixSize + len(za0005) + msgp.ArrayHeaderSize + (len(za0006) * (msgp.Uint32Size))
-		}
-	}
-	s += 12 + msgp.MapHeaderSize
-	if z.ByteOffsets != nil {
-		for za0008, za0009 := range z.ByteOffsets {
-			_ = za0009
-			s += msgp.StringPrefixSize + len(za0008) + msgp.ArrayHeaderSize + (len(za0009) * (msgp.Uint32Size))
 		}
 	}
 	return
@@ -1143,59 +990,41 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 			}
 		case "Items":
 			var zb0002 uint32
-			zb0002, err = dc.ReadMapHeader()
+			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Items")
 				return
 			}
-			if z.Items == nil {
-				z.Items = make(map[string]ContentRecord, zb0002)
-			} else if len(z.Items) > 0 {
-				clear(z.Items)
+			if cap(z.Items) >= int(zb0002) {
+				z.Items = (z.Items)[:zb0002]
+			} else {
+				z.Items = make([]ContentRecord, zb0002)
 			}
-			for zb0002 > 0 {
-				zb0002--
-				var za0001 string
-				za0001, err = dc.ReadString()
-				if err != nil {
-					err = msgp.WrapError(err, "Items")
-					return
-				}
-				var za0002 ContentRecord
-				err = za0002.DecodeMsg(dc)
+			for za0001 := range z.Items {
+				err = z.Items[za0001].DecodeMsg(dc)
 				if err != nil {
 					err = msgp.WrapError(err, "Items", za0001)
 					return
 				}
-				z.Items[za0001] = za0002
 			}
 		case "ItemLens":
 			var zb0003 uint32
-			zb0003, err = dc.ReadMapHeader()
+			zb0003, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "ItemLens")
 				return
 			}
-			if z.ItemLens == nil {
-				z.ItemLens = make(map[string]int64, zb0003)
-			} else if len(z.ItemLens) > 0 {
-				clear(z.ItemLens)
+			if cap(z.ItemLens) >= int(zb0003) {
+				z.ItemLens = (z.ItemLens)[:zb0003]
+			} else {
+				z.ItemLens = make([]int32, zb0003)
 			}
-			for zb0003 > 0 {
-				zb0003--
-				var za0003 string
-				za0003, err = dc.ReadString()
+			for za0002 := range z.ItemLens {
+				z.ItemLens[za0002], err = dc.ReadInt32()
 				if err != nil {
-					err = msgp.WrapError(err, "ItemLens")
+					err = msgp.WrapError(err, "ItemLens", za0002)
 					return
 				}
-				var za0004 int64
-				za0004, err = dc.ReadInt64()
-				if err != nil {
-					err = msgp.WrapError(err, "ItemLens", za0003)
-					return
-				}
-				z.ItemLens[za0003] = za0004
 			}
 		case "AvgDocLen":
 			z.AvgDocLen, err = dc.ReadFloat64()
@@ -1229,240 +1058,184 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 			}
 			for zb0004 > 0 {
 				zb0004--
-				var za0005 string
-				za0005, err = dc.ReadString()
+				var za0003 string
+				za0003, err = dc.ReadString()
 				if err != nil {
 					err = msgp.WrapError(err, "StemMap")
 					return
 				}
-				var za0006 []string
+				var za0004 []string
 				var zb0005 uint32
 				zb0005, err = dc.ReadArrayHeader()
 				if err != nil {
-					err = msgp.WrapError(err, "StemMap", za0005)
+					err = msgp.WrapError(err, "StemMap", za0003)
 					return
 				}
-				if cap(za0006) >= int(zb0005) {
-					za0006 = (za0006)[:zb0005]
+				if cap(za0004) >= int(zb0005) {
+					za0004 = (za0004)[:zb0005]
 				} else {
-					za0006 = make([]string, zb0005)
+					za0004 = make([]string, zb0005)
 				}
-				for za0007 := range za0006 {
-					za0006[za0007], err = dc.ReadString()
+				for za0005 := range za0004 {
+					za0004[za0005], err = dc.ReadString()
 					if err != nil {
-						err = msgp.WrapError(err, "StemMap", za0005, za0007)
+						err = msgp.WrapError(err, "StemMap", za0003, za0005)
 						return
 					}
 				}
-				z.StemMap[za0005] = za0006
+				z.StemMap[za0003] = za0004
 			}
-		case "NgramIndex":
+		case "Terms":
 			var zb0006 uint32
-			zb0006, err = dc.ReadMapHeader()
+			zb0006, err = dc.ReadArrayHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "NgramIndex")
+				err = msgp.WrapError(err, "Terms")
 				return
 			}
-			if z.NgramIndex == nil {
-				z.NgramIndex = make(map[string][]string, zb0006)
-			} else if len(z.NgramIndex) > 0 {
-				clear(z.NgramIndex)
+			if cap(z.Terms) >= int(zb0006) {
+				z.Terms = (z.Terms)[:zb0006]
+			} else {
+				z.Terms = make([]string, zb0006)
 			}
-			for zb0006 > 0 {
-				zb0006--
-				var za0008 string
-				za0008, err = dc.ReadString()
+			for za0006 := range z.Terms {
+				z.Terms[za0006], err = dc.ReadString()
 				if err != nil {
-					err = msgp.WrapError(err, "NgramIndex")
+					err = msgp.WrapError(err, "Terms", za0006)
 					return
 				}
-				var za0009 []string
-				var zb0007 uint32
-				zb0007, err = dc.ReadArrayHeader()
+			}
+		case "PostingOffsets":
+			var zb0007 uint32
+			zb0007, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "PostingOffsets")
+				return
+			}
+			if cap(z.PostingOffsets) >= int(zb0007) {
+				z.PostingOffsets = (z.PostingOffsets)[:zb0007]
+			} else {
+				z.PostingOffsets = make([]uint32, zb0007)
+			}
+			for za0007 := range z.PostingOffsets {
+				z.PostingOffsets[za0007], err = dc.ReadUint32()
 				if err != nil {
-					err = msgp.WrapError(err, "NgramIndex", za0008)
+					err = msgp.WrapError(err, "PostingOffsets", za0007)
 					return
 				}
-				if cap(za0009) >= int(zb0007) {
-					za0009 = (za0009)[:zb0007]
-				} else {
-					za0009 = make([]string, zb0007)
-				}
-				for za0010 := range za0009 {
-					za0009[za0010], err = dc.ReadString()
-					if err != nil {
-						err = msgp.WrapError(err, "NgramIndex", za0008, za0010)
-						return
-					}
-				}
-				z.NgramIndex[za0008] = za0009
 			}
-		case "Inverted":
+		case "DocIDs":
 			var zb0008 uint32
-			zb0008, err = dc.ReadMapHeader()
+			zb0008, err = dc.ReadArrayHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "Inverted")
+				err = msgp.WrapError(err, "DocIDs")
 				return
 			}
-			if z.Inverted == nil {
-				z.Inverted = make(map[string]map[string][]uint32, zb0008)
-			} else if len(z.Inverted) > 0 {
-				clear(z.Inverted)
+			if cap(z.DocIDs) >= int(zb0008) {
+				z.DocIDs = (z.DocIDs)[:zb0008]
+			} else {
+				z.DocIDs = make([]uint32, zb0008)
 			}
-			for zb0008 > 0 {
-				zb0008--
-				var za0011 string
-				za0011, err = dc.ReadString()
+			for za0008 := range z.DocIDs {
+				z.DocIDs[za0008], err = dc.ReadUint32()
 				if err != nil {
-					err = msgp.WrapError(err, "Inverted")
+					err = msgp.WrapError(err, "DocIDs", za0008)
 					return
 				}
-				var za0012 map[string][]uint32
-				var zb0009 uint32
-				zb0009, err = dc.ReadMapHeader()
+			}
+		case "DocPosOffsets":
+			var zb0009 uint32
+			zb0009, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "DocPosOffsets")
+				return
+			}
+			if cap(z.DocPosOffsets) >= int(zb0009) {
+				z.DocPosOffsets = (z.DocPosOffsets)[:zb0009]
+			} else {
+				z.DocPosOffsets = make([]uint32, zb0009)
+			}
+			for za0009 := range z.DocPosOffsets {
+				z.DocPosOffsets[za0009], err = dc.ReadUint32()
 				if err != nil {
-					err = msgp.WrapError(err, "Inverted", za0011)
+					err = msgp.WrapError(err, "DocPosOffsets", za0009)
 					return
 				}
-				if za0012 == nil {
-					za0012 = make(map[string][]uint32, zb0009)
-				} else if len(za0012) > 0 {
-					clear(za0012)
-				}
-				for zb0009 > 0 {
-					zb0009--
-					var za0013 string
-					za0013, err = dc.ReadString()
-					if err != nil {
-						err = msgp.WrapError(err, "Inverted", za0011)
-						return
-					}
-					var za0014 []uint32
-					var zb0010 uint32
-					zb0010, err = dc.ReadArrayHeader()
-					if err != nil {
-						err = msgp.WrapError(err, "Inverted", za0011, za0013)
-						return
-					}
-					if cap(za0014) >= int(zb0010) {
-						za0014 = (za0014)[:zb0010]
-					} else {
-						za0014 = make([]uint32, zb0010)
-					}
-					for za0015 := range za0014 {
-						za0014[za0015], err = dc.ReadUint32()
-						if err != nil {
-							err = msgp.WrapError(err, "Inverted", za0011, za0013, za0015)
-							return
-						}
-					}
-					za0012[za0013] = za0014
-				}
-				z.Inverted[za0011] = za0012
 			}
-		case "TitleInverted":
+		case "PosOffsets":
+			var zb0010 uint32
+			zb0010, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "PosOffsets")
+				return
+			}
+			if cap(z.PosOffsets) >= int(zb0010) {
+				z.PosOffsets = (z.PosOffsets)[:zb0010]
+			} else {
+				z.PosOffsets = make([]uint32, zb0010)
+			}
+			for za0010 := range z.PosOffsets {
+				z.PosOffsets[za0010], err = dc.ReadUint32()
+				if err != nil {
+					err = msgp.WrapError(err, "PosOffsets", za0010)
+					return
+				}
+			}
+		case "Positions":
 			var zb0011 uint32
-			zb0011, err = dc.ReadMapHeader()
+			zb0011, err = dc.ReadArrayHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "TitleInverted")
+				err = msgp.WrapError(err, "Positions")
 				return
 			}
-			if z.TitleInverted == nil {
-				z.TitleInverted = make(map[string][]uint64, zb0011)
-			} else if len(z.TitleInverted) > 0 {
-				clear(z.TitleInverted)
+			if cap(z.Positions) >= int(zb0011) {
+				z.Positions = (z.Positions)[:zb0011]
+			} else {
+				z.Positions = make([]uint32, zb0011)
 			}
-			for zb0011 > 0 {
-				zb0011--
-				var za0016 string
-				za0016, err = dc.ReadString()
+			for za0011 := range z.Positions {
+				z.Positions[za0011], err = dc.ReadUint32()
 				if err != nil {
-					err = msgp.WrapError(err, "TitleInverted")
+					err = msgp.WrapError(err, "Positions", za0011)
 					return
 				}
-				var za0017 []uint64
-				var zb0012 uint32
-				zb0012, err = dc.ReadArrayHeader()
+			}
+		case "TitlePostingOffsets":
+			var zb0012 uint32
+			zb0012, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "TitlePostingOffsets")
+				return
+			}
+			if cap(z.TitlePostingOffsets) >= int(zb0012) {
+				z.TitlePostingOffsets = (z.TitlePostingOffsets)[:zb0012]
+			} else {
+				z.TitlePostingOffsets = make([]uint32, zb0012)
+			}
+			for za0012 := range z.TitlePostingOffsets {
+				z.TitlePostingOffsets[za0012], err = dc.ReadUint32()
 				if err != nil {
-					err = msgp.WrapError(err, "TitleInverted", za0016)
+					err = msgp.WrapError(err, "TitlePostingOffsets", za0012)
 					return
 				}
-				if cap(za0017) >= int(zb0012) {
-					za0017 = (za0017)[:zb0012]
-				} else {
-					za0017 = make([]uint64, zb0012)
-				}
-				for za0018 := range za0017 {
-					za0017[za0018], err = dc.ReadUint64()
-					if err != nil {
-						err = msgp.WrapError(err, "TitleInverted", za0016, za0018)
-						return
-					}
-				}
-				z.TitleInverted[za0016] = za0017
 			}
-		case "Offsets":
+		case "TitleDocIDs":
 			var zb0013 uint32
-			zb0013, err = dc.ReadMapHeader()
+			zb0013, err = dc.ReadArrayHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "Offsets")
+				err = msgp.WrapError(err, "TitleDocIDs")
 				return
 			}
-			if z.Offsets == nil {
-				z.Offsets = make(map[string]map[string][]uint32, zb0013)
-			} else if len(z.Offsets) > 0 {
-				clear(z.Offsets)
+			if cap(z.TitleDocIDs) >= int(zb0013) {
+				z.TitleDocIDs = (z.TitleDocIDs)[:zb0013]
+			} else {
+				z.TitleDocIDs = make([]uint32, zb0013)
 			}
-			for zb0013 > 0 {
-				zb0013--
-				var za0019 string
-				za0019, err = dc.ReadString()
+			for za0013 := range z.TitleDocIDs {
+				z.TitleDocIDs[za0013], err = dc.ReadUint32()
 				if err != nil {
-					err = msgp.WrapError(err, "Offsets")
+					err = msgp.WrapError(err, "TitleDocIDs", za0013)
 					return
 				}
-				var za0020 map[string][]uint32
-				var zb0014 uint32
-				zb0014, err = dc.ReadMapHeader()
-				if err != nil {
-					err = msgp.WrapError(err, "Offsets", za0019)
-					return
-				}
-				if za0020 == nil {
-					za0020 = make(map[string][]uint32, zb0014)
-				} else if len(za0020) > 0 {
-					clear(za0020)
-				}
-				for zb0014 > 0 {
-					zb0014--
-					var za0021 string
-					za0021, err = dc.ReadString()
-					if err != nil {
-						err = msgp.WrapError(err, "Offsets", za0019)
-						return
-					}
-					var za0022 []uint32
-					var zb0015 uint32
-					zb0015, err = dc.ReadArrayHeader()
-					if err != nil {
-						err = msgp.WrapError(err, "Offsets", za0019, za0021)
-						return
-					}
-					if cap(za0022) >= int(zb0015) {
-						za0022 = (za0022)[:zb0015]
-					} else {
-						za0022 = make([]uint32, zb0015)
-					}
-					for za0023 := range za0022 {
-						za0022[za0023], err = dc.ReadUint32()
-						if err != nil {
-							err = msgp.WrapError(err, "Offsets", za0019, za0021, za0023)
-							return
-						}
-					}
-					za0020[za0021] = za0022
-				}
-				z.Offsets[za0019] = za0020
 			}
 		default:
 			err = dc.Skip()
@@ -1477,9 +1250,9 @@ func (z *SearchIndex) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 11
+	// map header, size 15
 	// write "SchemaVersion"
-	err = en.Append(0x8b, 0xad, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	err = en.Append(0x8f, 0xad, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	if err != nil {
 		return
 	}
@@ -1493,18 +1266,13 @@ func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteMapHeader(uint32(len(z.Items)))
+	err = en.WriteArrayHeader(uint32(len(z.Items)))
 	if err != nil {
 		err = msgp.WrapError(err, "Items")
 		return
 	}
-	for za0001, za0002 := range z.Items {
-		err = en.WriteString(za0001)
-		if err != nil {
-			err = msgp.WrapError(err, "Items")
-			return
-		}
-		err = za0002.EncodeMsg(en)
+	for za0001 := range z.Items {
+		err = z.Items[za0001].EncodeMsg(en)
 		if err != nil {
 			err = msgp.WrapError(err, "Items", za0001)
 			return
@@ -1515,20 +1283,15 @@ func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteMapHeader(uint32(len(z.ItemLens)))
+	err = en.WriteArrayHeader(uint32(len(z.ItemLens)))
 	if err != nil {
 		err = msgp.WrapError(err, "ItemLens")
 		return
 	}
-	for za0003, za0004 := range z.ItemLens {
-		err = en.WriteString(za0003)
+	for za0002 := range z.ItemLens {
+		err = en.WriteInt32(z.ItemLens[za0002])
 		if err != nil {
-			err = msgp.WrapError(err, "ItemLens")
-			return
-		}
-		err = en.WriteInt64(za0004)
-		if err != nil {
-			err = msgp.WrapError(err, "ItemLens", za0003)
+			err = msgp.WrapError(err, "ItemLens", za0002)
 			return
 		}
 	}
@@ -1572,163 +1335,159 @@ func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "StemMap")
 		return
 	}
-	for za0005, za0006 := range z.StemMap {
-		err = en.WriteString(za0005)
+	for za0003, za0004 := range z.StemMap {
+		err = en.WriteString(za0003)
 		if err != nil {
 			err = msgp.WrapError(err, "StemMap")
 			return
 		}
-		err = en.WriteArrayHeader(uint32(len(za0006)))
+		err = en.WriteArrayHeader(uint32(len(za0004)))
 		if err != nil {
-			err = msgp.WrapError(err, "StemMap", za0005)
+			err = msgp.WrapError(err, "StemMap", za0003)
 			return
 		}
-		for za0007 := range za0006 {
-			err = en.WriteString(za0006[za0007])
+		for za0005 := range za0004 {
+			err = en.WriteString(za0004[za0005])
 			if err != nil {
-				err = msgp.WrapError(err, "StemMap", za0005, za0007)
+				err = msgp.WrapError(err, "StemMap", za0003, za0005)
 				return
 			}
 		}
 	}
-	// write "NgramIndex"
-	err = en.Append(0xaa, 0x4e, 0x67, 0x72, 0x61, 0x6d, 0x49, 0x6e, 0x64, 0x65, 0x78)
+	// write "Terms"
+	err = en.Append(0xa5, 0x54, 0x65, 0x72, 0x6d, 0x73)
 	if err != nil {
 		return
 	}
-	err = en.WriteMapHeader(uint32(len(z.NgramIndex)))
+	err = en.WriteArrayHeader(uint32(len(z.Terms)))
 	if err != nil {
-		err = msgp.WrapError(err, "NgramIndex")
+		err = msgp.WrapError(err, "Terms")
 		return
 	}
-	for za0008, za0009 := range z.NgramIndex {
-		err = en.WriteString(za0008)
+	for za0006 := range z.Terms {
+		err = en.WriteString(z.Terms[za0006])
 		if err != nil {
-			err = msgp.WrapError(err, "NgramIndex")
+			err = msgp.WrapError(err, "Terms", za0006)
 			return
-		}
-		err = en.WriteArrayHeader(uint32(len(za0009)))
-		if err != nil {
-			err = msgp.WrapError(err, "NgramIndex", za0008)
-			return
-		}
-		for za0010 := range za0009 {
-			err = en.WriteString(za0009[za0010])
-			if err != nil {
-				err = msgp.WrapError(err, "NgramIndex", za0008, za0010)
-				return
-			}
 		}
 	}
-	// write "Inverted"
-	err = en.Append(0xa8, 0x49, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64)
+	// write "PostingOffsets"
+	err = en.Append(0xae, 0x50, 0x6f, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
 	if err != nil {
 		return
 	}
-	err = en.WriteMapHeader(uint32(len(z.Inverted)))
+	err = en.WriteArrayHeader(uint32(len(z.PostingOffsets)))
 	if err != nil {
-		err = msgp.WrapError(err, "Inverted")
+		err = msgp.WrapError(err, "PostingOffsets")
 		return
 	}
-	for za0011, za0012 := range z.Inverted {
-		err = en.WriteString(za0011)
+	for za0007 := range z.PostingOffsets {
+		err = en.WriteUint32(z.PostingOffsets[za0007])
 		if err != nil {
-			err = msgp.WrapError(err, "Inverted")
+			err = msgp.WrapError(err, "PostingOffsets", za0007)
 			return
-		}
-		err = en.WriteMapHeader(uint32(len(za0012)))
-		if err != nil {
-			err = msgp.WrapError(err, "Inverted", za0011)
-			return
-		}
-		for za0013, za0014 := range za0012 {
-			err = en.WriteString(za0013)
-			if err != nil {
-				err = msgp.WrapError(err, "Inverted", za0011)
-				return
-			}
-			err = en.WriteArrayHeader(uint32(len(za0014)))
-			if err != nil {
-				err = msgp.WrapError(err, "Inverted", za0011, za0013)
-				return
-			}
-			for za0015 := range za0014 {
-				err = en.WriteUint32(za0014[za0015])
-				if err != nil {
-					err = msgp.WrapError(err, "Inverted", za0011, za0013, za0015)
-					return
-				}
-			}
 		}
 	}
-	// write "TitleInverted"
-	err = en.Append(0xad, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x49, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64)
+	// write "DocIDs"
+	err = en.Append(0xa6, 0x44, 0x6f, 0x63, 0x49, 0x44, 0x73)
 	if err != nil {
 		return
 	}
-	err = en.WriteMapHeader(uint32(len(z.TitleInverted)))
+	err = en.WriteArrayHeader(uint32(len(z.DocIDs)))
 	if err != nil {
-		err = msgp.WrapError(err, "TitleInverted")
+		err = msgp.WrapError(err, "DocIDs")
 		return
 	}
-	for za0016, za0017 := range z.TitleInverted {
-		err = en.WriteString(za0016)
+	for za0008 := range z.DocIDs {
+		err = en.WriteUint32(z.DocIDs[za0008])
 		if err != nil {
-			err = msgp.WrapError(err, "TitleInverted")
+			err = msgp.WrapError(err, "DocIDs", za0008)
 			return
-		}
-		err = en.WriteArrayHeader(uint32(len(za0017)))
-		if err != nil {
-			err = msgp.WrapError(err, "TitleInverted", za0016)
-			return
-		}
-		for za0018 := range za0017 {
-			err = en.WriteUint64(za0017[za0018])
-			if err != nil {
-				err = msgp.WrapError(err, "TitleInverted", za0016, za0018)
-				return
-			}
 		}
 	}
-	// write "Offsets"
-	err = en.Append(0xa7, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
+	// write "DocPosOffsets"
+	err = en.Append(0xad, 0x44, 0x6f, 0x63, 0x50, 0x6f, 0x73, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
 	if err != nil {
 		return
 	}
-	err = en.WriteMapHeader(uint32(len(z.Offsets)))
+	err = en.WriteArrayHeader(uint32(len(z.DocPosOffsets)))
 	if err != nil {
-		err = msgp.WrapError(err, "Offsets")
+		err = msgp.WrapError(err, "DocPosOffsets")
 		return
 	}
-	for za0019, za0020 := range z.Offsets {
-		err = en.WriteString(za0019)
+	for za0009 := range z.DocPosOffsets {
+		err = en.WriteUint32(z.DocPosOffsets[za0009])
 		if err != nil {
-			err = msgp.WrapError(err, "Offsets")
+			err = msgp.WrapError(err, "DocPosOffsets", za0009)
 			return
 		}
-		err = en.WriteMapHeader(uint32(len(za0020)))
+	}
+	// write "PosOffsets"
+	err = en.Append(0xaa, 0x50, 0x6f, 0x73, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.PosOffsets)))
+	if err != nil {
+		err = msgp.WrapError(err, "PosOffsets")
+		return
+	}
+	for za0010 := range z.PosOffsets {
+		err = en.WriteUint32(z.PosOffsets[za0010])
 		if err != nil {
-			err = msgp.WrapError(err, "Offsets", za0019)
+			err = msgp.WrapError(err, "PosOffsets", za0010)
 			return
 		}
-		for za0021, za0022 := range za0020 {
-			err = en.WriteString(za0021)
-			if err != nil {
-				err = msgp.WrapError(err, "Offsets", za0019)
-				return
-			}
-			err = en.WriteArrayHeader(uint32(len(za0022)))
-			if err != nil {
-				err = msgp.WrapError(err, "Offsets", za0019, za0021)
-				return
-			}
-			for za0023 := range za0022 {
-				err = en.WriteUint32(za0022[za0023])
-				if err != nil {
-					err = msgp.WrapError(err, "Offsets", za0019, za0021, za0023)
-					return
-				}
-			}
+	}
+	// write "Positions"
+	err = en.Append(0xa9, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.Positions)))
+	if err != nil {
+		err = msgp.WrapError(err, "Positions")
+		return
+	}
+	for za0011 := range z.Positions {
+		err = en.WriteUint32(z.Positions[za0011])
+		if err != nil {
+			err = msgp.WrapError(err, "Positions", za0011)
+			return
+		}
+	}
+	// write "TitlePostingOffsets"
+	err = en.Append(0xb3, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x50, 0x6f, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.TitlePostingOffsets)))
+	if err != nil {
+		err = msgp.WrapError(err, "TitlePostingOffsets")
+		return
+	}
+	for za0012 := range z.TitlePostingOffsets {
+		err = en.WriteUint32(z.TitlePostingOffsets[za0012])
+		if err != nil {
+			err = msgp.WrapError(err, "TitlePostingOffsets", za0012)
+			return
+		}
+	}
+	// write "TitleDocIDs"
+	err = en.Append(0xab, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x44, 0x6f, 0x63, 0x49, 0x44, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.TitleDocIDs)))
+	if err != nil {
+		err = msgp.WrapError(err, "TitleDocIDs")
+		return
+	}
+	for za0013 := range z.TitleDocIDs {
+		err = en.WriteUint32(z.TitleDocIDs[za0013])
+		if err != nil {
+			err = msgp.WrapError(err, "TitleDocIDs", za0013)
+			return
 		}
 	}
 	return
@@ -1737,16 +1496,15 @@ func (z *SearchIndex) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *SearchIndex) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 11
+	// map header, size 15
 	// string "SchemaVersion"
-	o = append(o, 0x8b, 0xad, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = append(o, 0x8f, 0xad, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendInt64(o, z.SchemaVersion)
 	// string "Items"
 	o = append(o, 0xa5, 0x49, 0x74, 0x65, 0x6d, 0x73)
-	o = msgp.AppendMapHeader(o, uint32(len(z.Items)))
-	for za0001, za0002 := range z.Items {
-		o = msgp.AppendString(o, za0001)
-		o, err = za0002.MarshalMsg(o)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.Items)))
+	for za0001 := range z.Items {
+		o, err = z.Items[za0001].MarshalMsg(o)
 		if err != nil {
 			err = msgp.WrapError(err, "Items", za0001)
 			return
@@ -1754,10 +1512,9 @@ func (z *SearchIndex) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 	// string "ItemLens"
 	o = append(o, 0xa8, 0x49, 0x74, 0x65, 0x6d, 0x4c, 0x65, 0x6e, 0x73)
-	o = msgp.AppendMapHeader(o, uint32(len(z.ItemLens)))
-	for za0003, za0004 := range z.ItemLens {
-		o = msgp.AppendString(o, za0003)
-		o = msgp.AppendInt64(o, za0004)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.ItemLens)))
+	for za0002 := range z.ItemLens {
+		o = msgp.AppendInt32(o, z.ItemLens[za0002])
 	}
 	// string "AvgDocLen"
 	o = append(o, 0xa9, 0x41, 0x76, 0x67, 0x44, 0x6f, 0x63, 0x4c, 0x65, 0x6e)
@@ -1775,60 +1532,60 @@ func (z *SearchIndex) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "StemMap"
 	o = append(o, 0xa7, 0x53, 0x74, 0x65, 0x6d, 0x4d, 0x61, 0x70)
 	o = msgp.AppendMapHeader(o, uint32(len(z.StemMap)))
-	for za0005, za0006 := range z.StemMap {
-		o = msgp.AppendString(o, za0005)
-		o = msgp.AppendArrayHeader(o, uint32(len(za0006)))
-		for za0007 := range za0006 {
-			o = msgp.AppendString(o, za0006[za0007])
+	for za0003, za0004 := range z.StemMap {
+		o = msgp.AppendString(o, za0003)
+		o = msgp.AppendArrayHeader(o, uint32(len(za0004)))
+		for za0005 := range za0004 {
+			o = msgp.AppendString(o, za0004[za0005])
 		}
 	}
-	// string "NgramIndex"
-	o = append(o, 0xaa, 0x4e, 0x67, 0x72, 0x61, 0x6d, 0x49, 0x6e, 0x64, 0x65, 0x78)
-	o = msgp.AppendMapHeader(o, uint32(len(z.NgramIndex)))
-	for za0008, za0009 := range z.NgramIndex {
-		o = msgp.AppendString(o, za0008)
-		o = msgp.AppendArrayHeader(o, uint32(len(za0009)))
-		for za0010 := range za0009 {
-			o = msgp.AppendString(o, za0009[za0010])
-		}
+	// string "Terms"
+	o = append(o, 0xa5, 0x54, 0x65, 0x72, 0x6d, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.Terms)))
+	for za0006 := range z.Terms {
+		o = msgp.AppendString(o, z.Terms[za0006])
 	}
-	// string "Inverted"
-	o = append(o, 0xa8, 0x49, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64)
-	o = msgp.AppendMapHeader(o, uint32(len(z.Inverted)))
-	for za0011, za0012 := range z.Inverted {
-		o = msgp.AppendString(o, za0011)
-		o = msgp.AppendMapHeader(o, uint32(len(za0012)))
-		for za0013, za0014 := range za0012 {
-			o = msgp.AppendString(o, za0013)
-			o = msgp.AppendArrayHeader(o, uint32(len(za0014)))
-			for za0015 := range za0014 {
-				o = msgp.AppendUint32(o, za0014[za0015])
-			}
-		}
+	// string "PostingOffsets"
+	o = append(o, 0xae, 0x50, 0x6f, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.PostingOffsets)))
+	for za0007 := range z.PostingOffsets {
+		o = msgp.AppendUint32(o, z.PostingOffsets[za0007])
 	}
-	// string "TitleInverted"
-	o = append(o, 0xad, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x49, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64)
-	o = msgp.AppendMapHeader(o, uint32(len(z.TitleInverted)))
-	for za0016, za0017 := range z.TitleInverted {
-		o = msgp.AppendString(o, za0016)
-		o = msgp.AppendArrayHeader(o, uint32(len(za0017)))
-		for za0018 := range za0017 {
-			o = msgp.AppendUint64(o, za0017[za0018])
-		}
+	// string "DocIDs"
+	o = append(o, 0xa6, 0x44, 0x6f, 0x63, 0x49, 0x44, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.DocIDs)))
+	for za0008 := range z.DocIDs {
+		o = msgp.AppendUint32(o, z.DocIDs[za0008])
 	}
-	// string "Offsets"
-	o = append(o, 0xa7, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
-	o = msgp.AppendMapHeader(o, uint32(len(z.Offsets)))
-	for za0019, za0020 := range z.Offsets {
-		o = msgp.AppendString(o, za0019)
-		o = msgp.AppendMapHeader(o, uint32(len(za0020)))
-		for za0021, za0022 := range za0020 {
-			o = msgp.AppendString(o, za0021)
-			o = msgp.AppendArrayHeader(o, uint32(len(za0022)))
-			for za0023 := range za0022 {
-				o = msgp.AppendUint32(o, za0022[za0023])
-			}
-		}
+	// string "DocPosOffsets"
+	o = append(o, 0xad, 0x44, 0x6f, 0x63, 0x50, 0x6f, 0x73, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.DocPosOffsets)))
+	for za0009 := range z.DocPosOffsets {
+		o = msgp.AppendUint32(o, z.DocPosOffsets[za0009])
+	}
+	// string "PosOffsets"
+	o = append(o, 0xaa, 0x50, 0x6f, 0x73, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.PosOffsets)))
+	for za0010 := range z.PosOffsets {
+		o = msgp.AppendUint32(o, z.PosOffsets[za0010])
+	}
+	// string "Positions"
+	o = append(o, 0xa9, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.Positions)))
+	for za0011 := range z.Positions {
+		o = msgp.AppendUint32(o, z.Positions[za0011])
+	}
+	// string "TitlePostingOffsets"
+	o = append(o, 0xb3, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x50, 0x6f, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.TitlePostingOffsets)))
+	for za0012 := range z.TitlePostingOffsets {
+		o = msgp.AppendUint32(o, z.TitlePostingOffsets[za0012])
+	}
+	// string "TitleDocIDs"
+	o = append(o, 0xab, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x44, 0x6f, 0x63, 0x49, 0x44, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.TitleDocIDs)))
+	for za0013 := range z.TitleDocIDs {
+		o = msgp.AppendUint32(o, z.TitleDocIDs[za0013])
 	}
 	return
 }
@@ -1859,59 +1616,41 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 		case "Items":
 			var zb0002 uint32
-			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Items")
 				return
 			}
-			if z.Items == nil {
-				z.Items = make(map[string]ContentRecord, zb0002)
-			} else if len(z.Items) > 0 {
-				clear(z.Items)
+			if cap(z.Items) >= int(zb0002) {
+				z.Items = (z.Items)[:zb0002]
+			} else {
+				z.Items = make([]ContentRecord, zb0002)
 			}
-			for zb0002 > 0 {
-				var za0002 ContentRecord
-				zb0002--
-				var za0001 string
-				za0001, bts, err = msgp.ReadStringBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Items")
-					return
-				}
-				bts, err = za0002.UnmarshalMsg(bts)
+			for za0001 := range z.Items {
+				bts, err = z.Items[za0001].UnmarshalMsg(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Items", za0001)
 					return
 				}
-				z.Items[za0001] = za0002
 			}
 		case "ItemLens":
 			var zb0003 uint32
-			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
+			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "ItemLens")
 				return
 			}
-			if z.ItemLens == nil {
-				z.ItemLens = make(map[string]int64, zb0003)
-			} else if len(z.ItemLens) > 0 {
-				clear(z.ItemLens)
+			if cap(z.ItemLens) >= int(zb0003) {
+				z.ItemLens = (z.ItemLens)[:zb0003]
+			} else {
+				z.ItemLens = make([]int32, zb0003)
 			}
-			for zb0003 > 0 {
-				var za0004 int64
-				zb0003--
-				var za0003 string
-				za0003, bts, err = msgp.ReadStringBytes(bts)
+			for za0002 := range z.ItemLens {
+				z.ItemLens[za0002], bts, err = msgp.ReadInt32Bytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "ItemLens")
+					err = msgp.WrapError(err, "ItemLens", za0002)
 					return
 				}
-				za0004, bts, err = msgp.ReadInt64Bytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "ItemLens", za0003)
-					return
-				}
-				z.ItemLens[za0003] = za0004
 			}
 		case "AvgDocLen":
 			z.AvgDocLen, bts, err = msgp.ReadFloat64Bytes(bts)
@@ -1944,10 +1683,10 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				clear(z.StemMap)
 			}
 			for zb0004 > 0 {
-				var za0006 []string
+				var za0004 []string
 				zb0004--
-				var za0005 string
-				za0005, bts, err = msgp.ReadStringBytes(bts)
+				var za0003 string
+				za0003, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "StemMap")
 					return
@@ -1955,230 +1694,174 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				var zb0005 uint32
 				zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "StemMap", za0005)
+					err = msgp.WrapError(err, "StemMap", za0003)
 					return
 				}
-				if cap(za0006) >= int(zb0005) {
-					za0006 = (za0006)[:zb0005]
+				if cap(za0004) >= int(zb0005) {
+					za0004 = (za0004)[:zb0005]
 				} else {
-					za0006 = make([]string, zb0005)
+					za0004 = make([]string, zb0005)
 				}
-				for za0007 := range za0006 {
-					za0006[za0007], bts, err = msgp.ReadStringBytes(bts)
+				for za0005 := range za0004 {
+					za0004[za0005], bts, err = msgp.ReadStringBytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "StemMap", za0005, za0007)
+						err = msgp.WrapError(err, "StemMap", za0003, za0005)
 						return
 					}
 				}
-				z.StemMap[za0005] = za0006
+				z.StemMap[za0003] = za0004
 			}
-		case "NgramIndex":
+		case "Terms":
 			var zb0006 uint32
-			zb0006, bts, err = msgp.ReadMapHeaderBytes(bts)
+			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "NgramIndex")
+				err = msgp.WrapError(err, "Terms")
 				return
 			}
-			if z.NgramIndex == nil {
-				z.NgramIndex = make(map[string][]string, zb0006)
-			} else if len(z.NgramIndex) > 0 {
-				clear(z.NgramIndex)
+			if cap(z.Terms) >= int(zb0006) {
+				z.Terms = (z.Terms)[:zb0006]
+			} else {
+				z.Terms = make([]string, zb0006)
 			}
-			for zb0006 > 0 {
-				var za0009 []string
-				zb0006--
-				var za0008 string
-				za0008, bts, err = msgp.ReadStringBytes(bts)
+			for za0006 := range z.Terms {
+				z.Terms[za0006], bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "NgramIndex")
+					err = msgp.WrapError(err, "Terms", za0006)
 					return
 				}
-				var zb0007 uint32
-				zb0007, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			}
+		case "PostingOffsets":
+			var zb0007 uint32
+			zb0007, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "PostingOffsets")
+				return
+			}
+			if cap(z.PostingOffsets) >= int(zb0007) {
+				z.PostingOffsets = (z.PostingOffsets)[:zb0007]
+			} else {
+				z.PostingOffsets = make([]uint32, zb0007)
+			}
+			for za0007 := range z.PostingOffsets {
+				z.PostingOffsets[za0007], bts, err = msgp.ReadUint32Bytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "NgramIndex", za0008)
+					err = msgp.WrapError(err, "PostingOffsets", za0007)
 					return
 				}
-				if cap(za0009) >= int(zb0007) {
-					za0009 = (za0009)[:zb0007]
-				} else {
-					za0009 = make([]string, zb0007)
-				}
-				for za0010 := range za0009 {
-					za0009[za0010], bts, err = msgp.ReadStringBytes(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "NgramIndex", za0008, za0010)
-						return
-					}
-				}
-				z.NgramIndex[za0008] = za0009
 			}
-		case "Inverted":
+		case "DocIDs":
 			var zb0008 uint32
-			zb0008, bts, err = msgp.ReadMapHeaderBytes(bts)
+			zb0008, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Inverted")
+				err = msgp.WrapError(err, "DocIDs")
 				return
 			}
-			if z.Inverted == nil {
-				z.Inverted = make(map[string]map[string][]uint32, zb0008)
-			} else if len(z.Inverted) > 0 {
-				clear(z.Inverted)
+			if cap(z.DocIDs) >= int(zb0008) {
+				z.DocIDs = (z.DocIDs)[:zb0008]
+			} else {
+				z.DocIDs = make([]uint32, zb0008)
 			}
-			for zb0008 > 0 {
-				var za0012 map[string][]uint32
-				zb0008--
-				var za0011 string
-				za0011, bts, err = msgp.ReadStringBytes(bts)
+			for za0008 := range z.DocIDs {
+				z.DocIDs[za0008], bts, err = msgp.ReadUint32Bytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Inverted")
+					err = msgp.WrapError(err, "DocIDs", za0008)
 					return
 				}
-				var zb0009 uint32
-				zb0009, bts, err = msgp.ReadMapHeaderBytes(bts)
+			}
+		case "DocPosOffsets":
+			var zb0009 uint32
+			zb0009, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "DocPosOffsets")
+				return
+			}
+			if cap(z.DocPosOffsets) >= int(zb0009) {
+				z.DocPosOffsets = (z.DocPosOffsets)[:zb0009]
+			} else {
+				z.DocPosOffsets = make([]uint32, zb0009)
+			}
+			for za0009 := range z.DocPosOffsets {
+				z.DocPosOffsets[za0009], bts, err = msgp.ReadUint32Bytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Inverted", za0011)
+					err = msgp.WrapError(err, "DocPosOffsets", za0009)
 					return
 				}
-				if za0012 == nil {
-					za0012 = make(map[string][]uint32, zb0009)
-				} else if len(za0012) > 0 {
-					clear(za0012)
-				}
-				for zb0009 > 0 {
-					var za0014 []uint32
-					zb0009--
-					var za0013 string
-					za0013, bts, err = msgp.ReadStringBytes(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Inverted", za0011)
-						return
-					}
-					var zb0010 uint32
-					zb0010, bts, err = msgp.ReadArrayHeaderBytes(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Inverted", za0011, za0013)
-						return
-					}
-					if cap(za0014) >= int(zb0010) {
-						za0014 = (za0014)[:zb0010]
-					} else {
-						za0014 = make([]uint32, zb0010)
-					}
-					for za0015 := range za0014 {
-						za0014[za0015], bts, err = msgp.ReadUint32Bytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Inverted", za0011, za0013, za0015)
-							return
-						}
-					}
-					za0012[za0013] = za0014
-				}
-				z.Inverted[za0011] = za0012
 			}
-		case "TitleInverted":
+		case "PosOffsets":
+			var zb0010 uint32
+			zb0010, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "PosOffsets")
+				return
+			}
+			if cap(z.PosOffsets) >= int(zb0010) {
+				z.PosOffsets = (z.PosOffsets)[:zb0010]
+			} else {
+				z.PosOffsets = make([]uint32, zb0010)
+			}
+			for za0010 := range z.PosOffsets {
+				z.PosOffsets[za0010], bts, err = msgp.ReadUint32Bytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "PosOffsets", za0010)
+					return
+				}
+			}
+		case "Positions":
 			var zb0011 uint32
-			zb0011, bts, err = msgp.ReadMapHeaderBytes(bts)
+			zb0011, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "TitleInverted")
+				err = msgp.WrapError(err, "Positions")
 				return
 			}
-			if z.TitleInverted == nil {
-				z.TitleInverted = make(map[string][]uint64, zb0011)
-			} else if len(z.TitleInverted) > 0 {
-				clear(z.TitleInverted)
+			if cap(z.Positions) >= int(zb0011) {
+				z.Positions = (z.Positions)[:zb0011]
+			} else {
+				z.Positions = make([]uint32, zb0011)
 			}
-			for zb0011 > 0 {
-				var za0017 []uint64
-				zb0011--
-				var za0016 string
-				za0016, bts, err = msgp.ReadStringBytes(bts)
+			for za0011 := range z.Positions {
+				z.Positions[za0011], bts, err = msgp.ReadUint32Bytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "TitleInverted")
+					err = msgp.WrapError(err, "Positions", za0011)
 					return
 				}
-				var zb0012 uint32
-				zb0012, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			}
+		case "TitlePostingOffsets":
+			var zb0012 uint32
+			zb0012, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TitlePostingOffsets")
+				return
+			}
+			if cap(z.TitlePostingOffsets) >= int(zb0012) {
+				z.TitlePostingOffsets = (z.TitlePostingOffsets)[:zb0012]
+			} else {
+				z.TitlePostingOffsets = make([]uint32, zb0012)
+			}
+			for za0012 := range z.TitlePostingOffsets {
+				z.TitlePostingOffsets[za0012], bts, err = msgp.ReadUint32Bytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "TitleInverted", za0016)
+					err = msgp.WrapError(err, "TitlePostingOffsets", za0012)
 					return
 				}
-				if cap(za0017) >= int(zb0012) {
-					za0017 = (za0017)[:zb0012]
-				} else {
-					za0017 = make([]uint64, zb0012)
-				}
-				for za0018 := range za0017 {
-					za0017[za0018], bts, err = msgp.ReadUint64Bytes(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "TitleInverted", za0016, za0018)
-						return
-					}
-				}
-				z.TitleInverted[za0016] = za0017
 			}
-		case "Offsets":
+		case "TitleDocIDs":
 			var zb0013 uint32
-			zb0013, bts, err = msgp.ReadMapHeaderBytes(bts)
+			zb0013, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Offsets")
+				err = msgp.WrapError(err, "TitleDocIDs")
 				return
 			}
-			if z.Offsets == nil {
-				z.Offsets = make(map[string]map[string][]uint32, zb0013)
-			} else if len(z.Offsets) > 0 {
-				clear(z.Offsets)
+			if cap(z.TitleDocIDs) >= int(zb0013) {
+				z.TitleDocIDs = (z.TitleDocIDs)[:zb0013]
+			} else {
+				z.TitleDocIDs = make([]uint32, zb0013)
 			}
-			for zb0013 > 0 {
-				var za0020 map[string][]uint32
-				zb0013--
-				var za0019 string
-				za0019, bts, err = msgp.ReadStringBytes(bts)
+			for za0013 := range z.TitleDocIDs {
+				z.TitleDocIDs[za0013], bts, err = msgp.ReadUint32Bytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Offsets")
+					err = msgp.WrapError(err, "TitleDocIDs", za0013)
 					return
 				}
-				var zb0014 uint32
-				zb0014, bts, err = msgp.ReadMapHeaderBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Offsets", za0019)
-					return
-				}
-				if za0020 == nil {
-					za0020 = make(map[string][]uint32, zb0014)
-				} else if len(za0020) > 0 {
-					clear(za0020)
-				}
-				for zb0014 > 0 {
-					var za0022 []uint32
-					zb0014--
-					var za0021 string
-					za0021, bts, err = msgp.ReadStringBytes(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Offsets", za0019)
-						return
-					}
-					var zb0015 uint32
-					zb0015, bts, err = msgp.ReadArrayHeaderBytes(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Offsets", za0019, za0021)
-						return
-					}
-					if cap(za0022) >= int(zb0015) {
-						za0022 = (za0022)[:zb0015]
-					} else {
-						za0022 = make([]uint32, zb0015)
-					}
-					for za0023 := range za0022 {
-						za0022[za0023], bts, err = msgp.ReadUint32Bytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Offsets", za0019, za0021, za0023)
-							return
-						}
-					}
-					za0020[za0021] = za0022
-				}
-				z.Offsets[za0019] = za0020
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -2194,72 +1877,24 @@ func (z *SearchIndex) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *SearchIndex) Msgsize() (s int) {
-	s = 1 + 14 + msgp.Int64Size + 6 + msgp.MapHeaderSize
-	if z.Items != nil {
-		for za0001, za0002 := range z.Items {
-			_ = za0002
-			s += msgp.StringPrefixSize + len(za0001) + za0002.Msgsize()
-		}
+	s = 1 + 14 + msgp.Int64Size + 6 + msgp.ArrayHeaderSize
+	for za0001 := range z.Items {
+		s += z.Items[za0001].Msgsize()
 	}
-	s += 9 + msgp.MapHeaderSize
-	if z.ItemLens != nil {
-		for za0003, za0004 := range z.ItemLens {
-			_ = za0004
-			s += msgp.StringPrefixSize + len(za0003) + msgp.Int64Size
-		}
-	}
-	s += 10 + msgp.Float64Size + 11 + msgp.Int64Size + 8 + z.Ranking.Msgsize() + 8 + msgp.MapHeaderSize
+	s += 9 + msgp.ArrayHeaderSize + (len(z.ItemLens) * (msgp.Int32Size)) + 10 + msgp.Float64Size + 11 + msgp.Int64Size + 8 + z.Ranking.Msgsize() + 8 + msgp.MapHeaderSize
 	if z.StemMap != nil {
-		for za0005, za0006 := range z.StemMap {
-			_ = za0006
-			s += msgp.StringPrefixSize + len(za0005) + msgp.ArrayHeaderSize
-			for za0007 := range za0006 {
-				s += msgp.StringPrefixSize + len(za0006[za0007])
+		for za0003, za0004 := range z.StemMap {
+			_ = za0004
+			s += msgp.StringPrefixSize + len(za0003) + msgp.ArrayHeaderSize
+			for za0005 := range za0004 {
+				s += msgp.StringPrefixSize + len(za0004[za0005])
 			}
 		}
 	}
-	s += 11 + msgp.MapHeaderSize
-	if z.NgramIndex != nil {
-		for za0008, za0009 := range z.NgramIndex {
-			_ = za0009
-			s += msgp.StringPrefixSize + len(za0008) + msgp.ArrayHeaderSize
-			for za0010 := range za0009 {
-				s += msgp.StringPrefixSize + len(za0009[za0010])
-			}
-		}
+	s += 6 + msgp.ArrayHeaderSize
+	for za0006 := range z.Terms {
+		s += msgp.StringPrefixSize + len(z.Terms[za0006])
 	}
-	s += 9 + msgp.MapHeaderSize
-	if z.Inverted != nil {
-		for za0011, za0012 := range z.Inverted {
-			_ = za0012
-			s += msgp.StringPrefixSize + len(za0011) + msgp.MapHeaderSize
-			if za0012 != nil {
-				for za0013, za0014 := range za0012 {
-					_ = za0014
-					s += msgp.StringPrefixSize + len(za0013) + msgp.ArrayHeaderSize + (len(za0014) * (msgp.Uint32Size))
-				}
-			}
-		}
-	}
-	s += 14 + msgp.MapHeaderSize
-	if z.TitleInverted != nil {
-		for za0016, za0017 := range z.TitleInverted {
-			_ = za0017
-			s += msgp.StringPrefixSize + len(za0016) + msgp.ArrayHeaderSize + (len(za0017) * (msgp.Uint64Size))
-		}
-	}
-	s += 8 + msgp.MapHeaderSize
-	if z.Offsets != nil {
-		for za0019, za0020 := range z.Offsets {
-			_ = za0020
-			s += msgp.StringPrefixSize + len(za0019) + msgp.MapHeaderSize
-			if za0020 != nil {
-				for za0021, za0022 := range za0020 {
-					_ = za0022
-					s += msgp.StringPrefixSize + len(za0021) + msgp.ArrayHeaderSize + (len(za0022) * (msgp.Uint32Size))
-				}
-			}
-		}
-	}
+	s += 15 + msgp.ArrayHeaderSize + (len(z.PostingOffsets) * (msgp.Uint32Size)) + 7 + msgp.ArrayHeaderSize + (len(z.DocIDs) * (msgp.Uint32Size)) + 14 + msgp.ArrayHeaderSize + (len(z.DocPosOffsets) * (msgp.Uint32Size)) + 11 + msgp.ArrayHeaderSize + (len(z.PosOffsets) * (msgp.Uint32Size)) + 10 + msgp.ArrayHeaderSize + (len(z.Positions) * (msgp.Uint32Size)) + 20 + msgp.ArrayHeaderSize + (len(z.TitlePostingOffsets) * (msgp.Uint32Size)) + 12 + msgp.ArrayHeaderSize + (len(z.TitleDocIDs) * (msgp.Uint32Size))
 	return
 }

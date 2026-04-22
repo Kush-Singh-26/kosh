@@ -1,7 +1,6 @@
 package content
 
 import (
-	"github.com/zeebo/xxh3"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
@@ -38,15 +37,14 @@ func (s *contentService) loadFromCache(cachedMeta *models.ContentMeta, htmlRelPa
 		FrontmatterHash: cachedMeta.ContentHash, SSRHashes: cachedMeta.SSRInputHashes,
 		HasImages: cachedMeta.HasImages, MathExpressions: cachedMeta.MathExpressions,
 		SearchRecord: models.ContentRecord{
-			ID:    xxh3.HashString(cachedMeta.Link),
-			Title: cachedSearch.Title, NormalizedTitle: cachedSearch.NormalizedTitle,
-			Link: htmlRelPath, Content: cachedSearch.Content,
+			Title:          cachedSearch.Title,
+			Link:           htmlRelPath,
+			Content:        cachedSearch.Content,
 			Taxonomies:     cachedSearch.Taxonomies,
 			NormalizedTaxs: cachedSearch.NormalizedTaxs,
 		},
 		WordFreqs: cachedSearch.WordFreqs, DocLen: cachedSearch.DocLen,
 		StemMap: cachedSearch.StemMap, PositionalIndex: cachedSearch.PositionalIndex,
-		ByteOffsets: cachedSearch.ByteOffsets,
 		Item: models.ContentMetadata{
 			Title: cachedMeta.Title, Link: cachedMeta.Link, Description: cachedMeta.Description,
 			Taxonomies: cachedMeta.Taxonomies, IsPinned: cachedMeta.IsPinned, Weight: cachedMeta.Weight,

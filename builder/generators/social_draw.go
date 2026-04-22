@@ -7,107 +7,90 @@ import (
 )
 
 const (
-	gradientMinColors        = 2
-	gradientDefaultBG        = "#faf8f5"
-	gradientFullTurnDegrees  = 360
-	gradientHorizontalStart  = 45
-	gradientHorizontalEnd    = 135
-	gradientHorizontalStart2 = 225
-	gradientHorizontalEnd2   = 315
-	gradientAlpha            = 1.0
-	gradientRectThickness    = 1.0
-	colorMaxFloat            = 255.0
-	dotColorR                = 120
-	dotColorG                = 100
-	dotColorB                = 80
-	dotColorA                = 70
-	dotSpacing               = 32
 	dotRadius                = 2.0
 	dotGridOffset            = dotSpacing / 2
+
+	dotColorA  = 70
+	dotSpacing = 32
+
+	grainOpacity = 0.05
+	accentWidth  = 12.0
+	borderWidth  = 1.0
 )
 
-// GradientOptions configures gradient drawing.
-type GradientOptions struct {
-	DC     *gg.Context
-	W, H   int
-	Colors []string
-	Angle  int
+// drawClassyBackground draws a solid background with a subtle radial highlight for depth.
+func drawClassyBackground(dc *gg.Context, w, h int, baseColor string) {
+	dc.Push()
+	defer dc.Pop()
+
+	// 1. Solid Base
+	dc.SetColor(hexToRGBA(baseColor))
+	dc.Clear()
+
+	// 2. Subtle Radial Glow (Top Left)
+	// This adds "material" depth without looking like a traditional gradient
+	grad := gg.NewRadialGradient(0, 0, 0, 0, 0, float64(w)*0.8)
+	c := hexToRGBA(baseColor)
+	// Slightly lighter version for the center of the glow
+	highlight := color.RGBA{
+		R: uint8(min(255, int(c.R)+15)),
+		G: uint8(min(255, int(c.G)+15)),
+		B: uint8(min(255, int(c.B)+15)),
+		A: 255,
+	}
+	grad.AddColorStop(0, highlight)
+	grad.AddColorStop(1, c)
+
+	dc.SetFillStyle(grad)
+	dc.DrawRectangle(0, 0, float64(w), float64(h))
+	dc.Fill()
 }
 
-// drawGradient draws a linear gradient on the context
-func drawGradient(opts GradientOptions) {
-	dc := opts.DC
-	w, h := opts.W, opts.H
-	colors := opts.Colors
-	angle := opts.Angle
+// drawElegantBorder adds a thin, sophisticated border.
+func drawElegantBorder(dc *gg.Context, w, h int, color color.RGBA) {
+	dc.Push()
+	defer dc.Pop()
 
-	if len(colors) < gradientMinColors {
-		// If only one color or no colors, use solid background
-		bg := gradientDefaultBG
-		if len(colors) == 1 {
-			bg = colors[0]
-		}
-		dc.SetColor(hexToRGBA(bg))
-		dc.Clear()
-		return
+	// Subtle border - 15% opacity of the accent color
+	dc.SetRGBA255(int(color.R), int(color.G), int(color.B), 40)
+	dc.SetLineWidth(borderWidth)
+	dc.DrawRectangle(borderWidth/2, borderWidth/2, float64(w)-borderWidth, float64(h)-borderWidth)
+	dc.Stroke()
+}
+
+// drawGrain adds a subtle noise texture to the social card.
+func drawGrain(dc *gg.Context, w, h int) {
+	dc.Push()
+	defer dc.Pop()
+
+	// Very subtle noise - 5% opacity
+	dc.SetRGBA(0, 0, 0, grainOpacity)
+
+	// Simple noise simulation using many small dots
+	for i := 0; i < 20000; i++ {
+		x := float64(i%w) + (float64(i) * 0.7)
+		y := float64(i/w) + (float64(i) * 0.3)
+		x = float64(int(x) % w)
+		y = float64(int(y) % h)
+		dc.DrawPoint(x, y, 1.0)
 	}
+	dc.Stroke()
+}
 
-	// Convert colors
-	parsedColors := make([]color.RGBA, len(colors))
-	for i, c := range colors {
-		parsedColors[i] = hexToRGBA(c)
-	}
+// drawAccentLine draws a vertical accent stripe on the left edge.
+func drawAccentLine(dc *gg.Context, h int, color color.RGBA) {
+	dc.Push()
+	defer dc.Pop()
 
-	// Normalize angle to 0-360
-	angle %= gradientFullTurnDegrees
-	if angle < 0 {
-		angle += gradientFullTurnDegrees
-	}
-
-	// Draw gradient as a series of rectangles
-	steps := h
-	isHorizontal := angle >= gradientHorizontalStart && angle < gradientHorizontalEnd ||
-		angle >= gradientHorizontalStart2 && angle < gradientHorizontalEnd2
-	if !isHorizontal {
-		steps = w
-	}
-
-	for i := 0; i < steps; i++ {
-		t := float64(i) / float64(steps-1)
-
-		// Interpolate color
-		colorIdx := t * float64(len(parsedColors)-1)
-		idx1 := int(colorIdx)
-		idx2 := idx1 + 1
-		if idx2 >= len(parsedColors) {
-			idx2 = len(parsedColors) - 1
-		}
-
-		localT := colorIdx - float64(idx1)
-		c1 := parsedColors[idx1]
-		c2 := parsedColors[idx2]
-
-		r := uint8(float64(c1.R)*(1-localT) + float64(c2.R)*localT)
-		g := uint8(float64(c1.G)*(1-localT) + float64(c2.G)*localT)
-		b := uint8(float64(c1.B)*(1-localT) + float64(c2.B)*localT)
-
-		dc.SetRGBA(float64(r)/colorMaxFloat, float64(g)/colorMaxFloat, float64(b)/colorMaxFloat, gradientAlpha)
-
-		if isHorizontal {
-			// Draw horizontal strip
-			dc.DrawRectangle(0, float64(i), float64(w), gradientRectThickness)
-		} else {
-			// Draw vertical strip
-			dc.DrawRectangle(float64(i), 0, gradientRectThickness, float64(h))
-		}
-		dc.Fill()
-	}
+	dc.SetColor(color)
+	dc.DrawRectangle(0, 0, accentWidth, float64(h))
+	dc.Fill()
 }
 
 // drawDotPattern adds a visible dot pattern overlay
-func drawDotPattern(dc *gg.Context, w, h int) {
-	// More visible warm brown dots
-	dc.SetRGBA255(dotColorR, dotColorG, dotColorB, dotColorA) // Warm brown with ~27% opacity
+func drawDotPattern(dc *gg.Context, w, h int, baseColor color.RGBA) {
+	// Use a 10% opacity version of the provided color (usually text color)
+	dc.SetRGBA255(int(baseColor.R), int(baseColor.G), int(baseColor.B), dotColorA)
 
 	// Grid spacing
 	spacing := dotSpacing

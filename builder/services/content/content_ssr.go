@@ -119,12 +119,30 @@ func collectExpressions(tasks []renderTask) (math map[string]models.MathExpressi
 	d2 = make(map[string]models.D2Expression)
 
 	for _, task := range tasks {
-		if len(task.parseResult.MathExpressions) > 0 && mdParser.HasMathPlaceholders(task.htmlContent) {
+		// Check both body and TOC headers for placeholders
+		hasMath := mdParser.HasMathPlaceholders(task.htmlContent)
+		hasD2 := mdParser.HasD2Placeholders(task.htmlContent)
+
+		if !hasMath || !hasD2 {
+			for _, entry := range task.parseResult.TOC {
+				if !hasMath && mdParser.HasMathPlaceholders(entry.Text) {
+					hasMath = true
+				}
+				if !hasD2 && mdParser.HasD2Placeholders(entry.Text) {
+					hasD2 = true
+				}
+				if hasMath && hasD2 {
+					break
+				}
+			}
+		}
+
+		if len(task.parseResult.MathExpressions) > 0 && hasMath {
 			for _, expr := range task.parseResult.MathExpressions {
 				math[expr.Hash] = expr
 			}
 		}
-		if len(task.parseResult.D2Expressions) > 0 && mdParser.HasD2Placeholders(task.htmlContent) {
+		if len(task.parseResult.D2Expressions) > 0 && hasD2 {
 			for _, expr := range task.parseResult.D2Expressions {
 				d2[expr.Hash] = expr
 			}

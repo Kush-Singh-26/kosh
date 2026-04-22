@@ -10,7 +10,7 @@ type ScoringOptions struct {
 	TagFilter      string
 	QueryTerms     []string
 	HighlightTerms map[string]bool
-	Scores         map[string]float64
+	Scores         map[uint32]float64
 	TermInfos      []core.QueryTerm
 	K1             float64
 	B              float64
@@ -20,6 +20,6 @@ type ScoringOptions struct {
 
 // ScoringResult holds the output of a scoring pass.
 type ScoringResult struct {
-	Scores         map[string]float64
+	Scores         map[uint32]float64
 	HighlightTerms []string
 }

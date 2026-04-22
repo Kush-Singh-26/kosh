@@ -99,16 +99,21 @@ func (managerInstance *Manager) UpdateIndexedContentCache(relativePath string, p
 
 	found := false
 	targetKey := fspkg.NormalizePath(relativePath)
+
+	// Canonicalize the search record link to a relative HTML path to avoid duplicates
+	// and malformed double-prefixed paths in incremental dev builds.
+	record := parseResult.SearchRecord
+	record.Link = fspkg.MarkdownToHTMLPath(relativePath)
+
 	for index, IndexedContent := range managerInstance.indexedPosts {
 		if indexedPostStableKey(IndexedContent) == targetKey {
 			managerInstance.indexedPosts[index] = models.IndexedContent{
-				Record:          parseResult.SearchRecord,
+				Record:          record,
 				SourcePath:      targetKey,
 				WordFreqs:       parseResult.WordFreqs,
 				DocLen:          parseResult.DocLen,
 				StemMap:         parseResult.StemMap,
 				PositionalIndex: parseResult.PositionalIndex,
-				ByteOffsets:     parseResult.ByteOffsets,
 			}
 			found = true
 			break
@@ -117,13 +122,12 @@ func (managerInstance *Manager) UpdateIndexedContentCache(relativePath string, p
 
 	if !found {
 		managerInstance.indexedPosts = append(managerInstance.indexedPosts, models.IndexedContent{
-			Record:          parseResult.SearchRecord,
+			Record:          record,
 			SourcePath:      targetKey,
 			WordFreqs:       parseResult.WordFreqs,
 			DocLen:          parseResult.DocLen,
 			StemMap:         parseResult.StemMap,
 			PositionalIndex: parseResult.PositionalIndex,
-			ByteOffsets:     parseResult.ByteOffsets,
 		})
 	}
 }
@@ -292,9 +296,7 @@ func (managerInstance *Manager) buildIndexedPostsParallel(ids []string, posts ma
 			htmlPath := fspkg.MarkdownToHTMLPath(metadata.Path)
 			indexed := models.IndexedContent{
 				Record: models.ContentRecord{
-					ID:              xxh3.HashString(htmlPath),
 					Title:           metadata.Title,
-					NormalizedTitle: record.NormalizedTitle,
 					Link:            htmlPath,
 					Description:     metadata.Description,
 					Taxonomies:      metadata.Taxonomies,
@@ -307,7 +309,6 @@ func (managerInstance *Manager) buildIndexedPostsParallel(ids []string, posts ma
 				DocLen:          record.DocLen,
 				StemMap:         record.StemMap,
 				PositionalIndex: record.PositionalIndex,
-				ByteOffsets:     record.ByteOffsets,
 			}
 
 			mu.Lock()

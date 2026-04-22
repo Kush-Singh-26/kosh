@@ -53,6 +53,31 @@ func HasD2Placeholders(html string) bool {
 	return strings.Contains(html, "<!--KOSH_D2:")
 }
 
+// ExtractD2Hashes returns all unique D2 diagram hashes found in the HTML.
+func ExtractD2Hashes(html string) []string {
+	if !HasD2Placeholders(html) {
+		return nil
+	}
+
+	matches := d2LateReplaceRe.FindAllStringSubmatch(html, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	hashes := make([]string, 0, len(matches))
+	for _, m := range matches {
+		if len(m) >= 2 {
+			hash := m[1]
+			if _, ok := seen[hash]; !ok {
+				seen[hash] = struct{}{}
+				hashes = append(hashes, hash)
+			}
+		}
+	}
+	return hashes
+}
+
 // LateReplaceD2 performs a final replacement of D2 placeholders using registry comments.
 func LateReplaceD2(htmlContent string, rendered map[string]models.SSRThemePair) string {
 	if len(rendered) == 0 || !HasD2Placeholders(htmlContent) {

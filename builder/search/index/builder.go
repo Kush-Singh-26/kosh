@@ -3,9 +3,10 @@ package index
 import (
 	"context"
 	"log/slog"
-	"maps"
 	"runtime"
-	"strconv"
+	"slices"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
@@ -15,95 +16,26 @@ import (
 
 const (
 	maxIndexWorkers             = 8
-	globalCapScale              = 0.5
-	minGlobalCap                = 500
-	workerCapScale              = 0.7
 	minWorkerCap                = 64
 	perWordMapCap               = 4
 	minStemMapCap               = 100
-	decimalBase                 = 10
-	maxSearchIndexContentLength = 2048
 )
 
+// tempPostings helps group postings by term before flattening into CSR
+type tempPostings struct {
+	docIDs    []uint32
+	positions [][]uint32 // list of position slices for each docID
+}
+
 type partialResult struct {
-	posts         map[string]models.ContentRecord
-	inverted      map[string]map[string][]uint32
-	offsets       map[string]map[string][]uint32
-	docLens       map[string]int64
-	stemMap       map[string]map[string]bool
-	titleInverted map[string][]uint64
-	totalLen      int64
-}
-
-func emptySearchIndex() *models.SearchIndex {
-	return &models.SearchIndex{
-		SchemaVersion: models.CurrentSchemaVersion,
-		Items:         make(map[string]models.ContentRecord),
-		Inverted:      make(map[string]map[string][]uint32),
-		TitleInverted: make(map[string][]uint64),
-		ItemLens:      make(map[string]int64),
-		StemMap:       make(map[string][]string),
-		TotalItems:    0,
-		Offsets:       make(map[string]map[string][]uint32),
-		AvgDocLen:     0,
-	}
-}
-
-func mergePartialResults(index *models.SearchIndex, results []partialResult) int64 {
-	var totalLen int64
-	for _, r := range results {
-		totalLen += r.totalLen
-		maps.Copy(index.Items, r.posts)
-		maps.Copy(index.ItemLens, r.docLens)
-		for word, docs := range r.inverted {
-			if _, ok := index.Inverted[word]; !ok {
-				index.Inverted[word] = docs
-			} else {
-				maps.Copy(index.Inverted[word], docs)
-			}
-		}
-		for word, docs := range r.offsets {
-			if _, ok := index.Offsets[word]; !ok {
-				index.Offsets[word] = docs
-			} else {
-				maps.Copy(index.Offsets[word], docs)
-			}
-		}
-		for word, ids := range r.titleInverted {
-			if _, ok := index.TitleInverted[word]; !ok {
-				index.TitleInverted[word] = ids
-			} else {
-				index.TitleInverted[word] = append(index.TitleInverted[word], ids...)
-			}
-		}
-	}
-	return totalLen
-}
-
-func buildStemOrigins(results []partialResult, globalCap int) map[string][]string {
-	stemMapCap := max(globalCap/2, minStemMapCap)
-	stemMap := make(map[string]map[string]bool, stemMapCap)
-	for _, r := range results {
-		for stem, origins := range r.stemMap {
-			if _, ok := stemMap[stem]; !ok {
-				stemMap[stem] = origins
-			} else {
-				for orig := range origins {
-					stemMap[stem][orig] = true
-				}
-			}
-		}
-	}
-
-	flattened := make(map[string][]string, len(stemMap))
-	for stem, originMap := range stemMap {
-		origins := make([]string, 0, len(originMap))
-		for origin := range originMap {
-			origins = append(origins, origin)
-		}
-		flattened[stem] = origins
-	}
-	return flattened
+	items         map[uint32]models.ContentRecord
+	inverted      map[string]*tempPostings
+	titleInverted map[string][]uint32
+	itemLens     map[uint32]int32
+	stemMap      map[string]map[string]bool
+	totalLen     int64
+	totalDocs    int
+	maxDenseID   uint32
 }
 
 // Build constructs an in-memory search index from a list of indexed posts.
@@ -116,13 +48,12 @@ func Build(indexedPosts []models.IndexedContent) *models.SearchIndex {
 }
 
 // StreamBuilder manages concurrent search index building from a stream of posts.
-// It implements the models.SearchIngestor interface.
 type StreamBuilder struct {
 	postChan   chan models.IndexedContent
 	results    []partialResult
 	numWorkers int
 	wg         sync.WaitGroup
-	totalDocs  int
+	expectedDocs int
 }
 
 // NewStreamBuilder initializes a new pipelined search index builder.
@@ -132,7 +63,7 @@ func NewStreamBuilder(expectedDocs int) *StreamBuilder {
 		postChan:   make(chan models.IndexedContent, max(expectedDocs, 32)),
 		results:    make([]partialResult, numWorkers),
 		numWorkers: numWorkers,
-		totalDocs:  expectedDocs,
+		expectedDocs: expectedDocs,
 	}
 
 	for i := 0; i < numWorkers; i++ {
@@ -154,60 +85,55 @@ func NewStreamBuilder(expectedDocs int) *StreamBuilder {
 }
 
 func (sb *StreamBuilder) runWorker(workerID int) {
-	workerCap := minWorkerCap
-	if sb.totalDocs > 0 {
-		workerCap = max(sb.totalDocs/sb.numWorkers, minWorkerCap)
-	}
+	workerCap := max(sb.expectedDocs/sb.numWorkers, minWorkerCap)
 	res := partialResult{
-		posts:         make(map[string]models.ContentRecord, workerCap),
-		inverted:      make(map[string]map[string][]uint32, workerCap*2),
-		offsets:       make(map[string]map[string][]uint32, workerCap*2),
-		docLens:       make(map[string]int64, workerCap),
+		items:         make(map[uint32]models.ContentRecord, workerCap),
+		inverted:      make(map[string]*tempPostings, workerCap*10),
+		titleInverted: make(map[string][]uint32, workerCap*2),
+		itemLens:      make(map[uint32]int32, workerCap),
 		stemMap:       make(map[string]map[string]bool, workerCap),
-		titleInverted: make(map[string][]uint64, workerCap),
 	}
 
 	for ip := range sb.postChan {
-		idStr := strconv.FormatUint(ip.Record.ID, decimalBase)
-		rec := ip.Record
-		if len(rec.Content) > maxSearchIndexContentLength {
-			rec.Content = core.TruncateToLength(rec.Content, maxSearchIndexContentLength)
-		}
-		res.posts[idStr] = rec
-		res.docLens[idStr] = int64(ip.DocLen)
+		res.items[ip.DenseID] = ip.Record
+		res.itemLens[ip.DenseID] = int32(ip.DocLen)
 		res.totalLen += int64(ip.DocLen)
-
-		titleTokens := core.DefaultAnalyzer.Analyze(ip.Record.NormalizedTitle)
-		for _, word := range titleTokens {
-			res.titleInverted[word] = append(res.titleInverted[word], ip.Record.ID)
+		res.totalDocs++
+		if ip.DenseID > res.maxDenseID {
+			res.maxDenseID = ip.DenseID
 		}
 
-		sb.ingestWordIndices(&res, idStr, ip)
+		// Index title tokens separately
+		titleTokens := core.DefaultAnalyzer.Analyze(strings.ToLower(ip.Record.Title))
+		for _, word := range titleTokens {
+			res.titleInverted[word] = append(res.titleInverted[word], ip.DenseID)
+		}
+
+		// Index body tokens
+		for word, positions := range ip.PositionalIndex {
+			tp, ok := res.inverted[word]
+			if !ok {
+				tp = &tempPostings{
+					docIDs:    make([]uint32, 0, perWordMapCap),
+					positions: make([][]uint32, 0, perWordMapCap),
+				}
+				res.inverted[word] = tp
+			}
+			tp.docIDs = append(tp.docIDs, ip.DenseID)
+			tp.positions = append(tp.positions, positions)
+		}
+
+		// Stem mappings
+		for orig, stem := range ip.StemMap {
+			oMap, ok := res.stemMap[stem]
+			if !ok {
+				oMap = make(map[string]bool, 2)
+				res.stemMap[stem] = oMap
+			}
+			oMap[orig] = true
+		}
 	}
 	sb.results[workerID] = res
-}
-
-func (sb *StreamBuilder) ingestWordIndices(res *partialResult, idStr string, ip models.IndexedContent) {
-	for word, positions := range ip.PositionalIndex {
-		if _, ok := res.inverted[word]; !ok {
-			res.inverted[word] = make(map[string][]uint32, perWordMapCap)
-		}
-		res.inverted[word][idStr] = positions
-	}
-
-	for word, off := range ip.ByteOffsets {
-		if _, ok := res.offsets[word]; !ok {
-			res.offsets[word] = make(map[string][]uint32, perWordMapCap)
-		}
-		res.offsets[word][idStr] = off
-	}
-
-	for orig, stem := range ip.StemMap {
-		if _, ok := res.stemMap[stem]; !ok {
-			res.stemMap[stem] = make(map[string]bool, perWordMapCap)
-		}
-		res.stemMap[stem][orig] = true
-	}
 }
 
 // Add enqueues a post for background indexing.
@@ -220,32 +146,196 @@ func (sb *StreamBuilder) Complete() *models.SearchIndex {
 	close(sb.postChan)
 	sb.wg.Wait()
 
-	totalDocs := 0
-	for _, r := range sb.results {
-		totalDocs += len(r.posts)
-	}
-
+	totalDocs, totalLen, maxDenseID := sb.calculateGlobalStats()
 	if totalDocs == 0 {
-		return emptySearchIndex()
+		return &models.SearchIndex{SchemaVersion: models.CurrentSchemaVersion}
 	}
 
+	allocSize := max(totalDocs, int(maxDenseID)+1)
 	index := &models.SearchIndex{
 		SchemaVersion: models.CurrentSchemaVersion,
-		Items:         make(map[string]models.ContentRecord, totalDocs),
-		Inverted:      make(map[string]map[string][]uint32, totalDocs*2),
-		TitleInverted: make(map[string][]uint64, totalDocs),
-		ItemLens:      make(map[string]int64, totalDocs),
-		StemMap:       make(map[string][]string, totalDocs),
+		Items:         make([]models.ContentRecord, allocSize),
+		ItemLens:      make([]int32, allocSize),
 		TotalItems:    int64(totalDocs),
-		Offsets:       make(map[string]map[string][]uint32, totalDocs*2),
+		AvgDocLen:     float64(totalLen) / float64(totalDocs),
 	}
 
-	totalLen := mergePartialResults(index, sb.results)
-	if index.TotalItems > 0 {
-		index.AvgDocLen = float64(totalLen) / float64(index.TotalItems)
-	}
+	// 1. Merge items and stem origins
+	masterInverted, masterTitleInverted, stemOrigins := sb.mergePartialResults(index)
 
-	index.StemMap = buildStemOrigins(sb.results, totalDocs*2)
-	index.NgramIndex = core.BuildNgramIndex(index.Inverted)
+	// Flatten StemMap
+	index.StemMap = sb.flattenStemMap(stemOrigins)
+
+	// 2. Sort terms and build CSR
+	terms := sb.extractSortedTerms(masterInverted)
+	index.Terms = terms
+
+	// 3. Pre-calculate sizes and fill CSR tables
+	sb.buildCSRTables(index, terms, masterInverted, masterTitleInverted)
+
 	return index
+}
+
+func (sb *StreamBuilder) calculateGlobalStats() (totalDocs int, totalLen int64, maxDenseID uint32) {
+	for _, r := range sb.results {
+		totalDocs += r.totalDocs
+		totalLen += r.totalLen
+		if r.maxDenseID > maxDenseID {
+			maxDenseID = r.maxDenseID
+		}
+	}
+	return
+}
+
+func (sb *StreamBuilder) mergePartialResults(index *models.SearchIndex) (map[string]*tempPostings, map[string][]uint32, map[string]map[string]bool) {
+	masterInverted := make(map[string]*tempPostings)
+	masterTitleInverted := make(map[string][]uint32)
+	stemOrigins := make(map[string]map[string]bool)
+
+	for _, r := range sb.results {
+		for id, item := range r.items {
+			index.Items[id] = item
+			index.ItemLens[id] = r.itemLens[id]
+		}
+		for word, tp := range r.inverted {
+			if mTP, ok := masterInverted[word]; !ok {
+				masterInverted[word] = tp
+			} else {
+				mTP.docIDs = append(mTP.docIDs, tp.docIDs...)
+				mTP.positions = append(mTP.positions, tp.positions...)
+			}
+		}
+		for word, ids := range r.titleInverted {
+			masterTitleInverted[word] = append(masterTitleInverted[word], ids...)
+		}
+		for stem, origins := range r.stemMap {
+			mOrigins, ok := stemOrigins[stem]
+			if !ok {
+				stemOrigins[stem] = origins
+			} else {
+				for o := range origins {
+					mOrigins[o] = true
+				}
+			}
+		}
+	}
+	return masterInverted, masterTitleInverted, stemOrigins
+}
+
+func (sb *StreamBuilder) flattenStemMap(stemOrigins map[string]map[string]bool) map[string][]string {
+	res := make(map[string][]string, len(stemOrigins))
+	for stem, oMap := range stemOrigins {
+		origins := make([]string, 0, len(oMap))
+		for o := range oMap {
+			origins = append(origins, o)
+		}
+		res[stem] = origins
+	}
+	return res
+}
+
+func (sb *StreamBuilder) extractSortedTerms(masterInverted map[string]*tempPostings) []string {
+	terms := make([]string, 0, len(masterInverted))
+	for t := range masterInverted {
+		terms = append(terms, t)
+	}
+	sort.Strings(terms)
+	return terms
+}
+
+func (sb *StreamBuilder) buildCSRTables(index *models.SearchIndex, terms []string, masterInverted map[string]*tempPostings, masterTitleInverted map[string][]uint32) {
+	numTerms := len(terms)
+	index.PostingOffsets = make([]uint32, numTerms+1)
+	index.PosOffsets = make([]uint32, numTerms+1)
+	index.TitlePostingOffsets = make([]uint32, numTerms+1)
+
+	totalPostings, totalPositions, totalTitlePostings := sb.calculateCSRSizes(index, terms, masterInverted, masterTitleInverted)
+
+	index.DocIDs = make([]uint32, totalPostings)
+	index.DocPosOffsets = make([]uint32, totalPostings+1)
+	index.Positions = make([]uint32, totalPositions)
+	index.TitleDocIDs = make([]uint32, totalTitlePostings)
+
+	sb.fillCSRTables(index, terms, masterInverted, masterTitleInverted)
+}
+
+func (sb *StreamBuilder) calculateCSRSizes(index *models.SearchIndex, terms []string, masterInverted map[string]*tempPostings, masterTitleInverted map[string][]uint32) (totalPostings, totalPositions, totalTitlePostings int) {
+	for i, term := range terms {
+		tp := masterInverted[term]
+		sortPostings(tp)
+		
+		index.PostingOffsets[i] = uint32(totalPostings)
+		totalPostings += len(tp.docIDs)
+
+		index.PosOffsets[i] = uint32(totalPositions)
+		for _, posList := range tp.positions {
+			totalPositions += len(posList)
+		}
+
+		if tIDs, ok := masterTitleInverted[term]; ok {
+			slices.Sort(tIDs)
+			masterTitleInverted[term] = slices.Compact(tIDs)
+			index.TitlePostingOffsets[i] = uint32(totalTitlePostings)
+			totalTitlePostings += len(masterTitleInverted[term])
+		} else {
+			index.TitlePostingOffsets[i] = uint32(totalTitlePostings)
+		}
+	}
+	index.PostingOffsets[len(terms)] = uint32(totalPostings)
+	index.PosOffsets[len(terms)] = uint32(totalPositions)
+	index.TitlePostingOffsets[len(terms)] = uint32(totalTitlePostings)
+	return
+}
+
+func (sb *StreamBuilder) fillCSRTables(index *models.SearchIndex, terms []string, masterInverted map[string]*tempPostings, masterTitleInverted map[string][]uint32) {
+	currPosting := 0
+	currPos := 0
+	currTitlePosting := 0
+	for _, term := range terms {
+		tp := masterInverted[term]
+		lastID := uint32(0)
+		for i, docID := range tp.docIDs {
+			postingIdx := currPosting + i
+			index.DocIDs[postingIdx] = docID - lastID
+			lastID = docID
+			index.DocPosOffsets[postingIdx] = uint32(currPos)
+			posList := tp.positions[i]
+			copy(index.Positions[currPos:], posList)
+			currPos += len(posList)
+		}
+		currPosting += len(tp.docIDs)
+
+		if tIDs, ok := masterTitleInverted[term]; ok {
+			lastTID := uint32(0)
+			for i, tid := range tIDs {
+				index.TitleDocIDs[currTitlePosting+i] = tid - lastTID
+				lastTID = tid
+			}
+			currTitlePosting += len(tIDs)
+		}
+	}
+	index.DocPosOffsets[currPosting] = uint32(currPos)
+}
+
+// sortPostings sorts docIDs and their parallel positions by docID
+func sortPostings(tp *tempPostings) {
+	if len(tp.docIDs) <= 1 {
+		return
+	}
+	// Use a small helper struct for sorting
+	type item struct {
+		id  uint32
+		pos []uint32
+	}
+	items := make([]item, len(tp.docIDs))
+	for i := range tp.docIDs {
+		items[i] = item{tp.docIDs[i], tp.positions[i]}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].id < items[j].id
+	})
+	for i := range items {
+		tp.docIDs[i] = items[i].id
+		tp.positions[i] = items[i].pos
+	}
 }

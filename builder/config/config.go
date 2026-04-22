@@ -219,10 +219,10 @@ func defaultFeaturesConfig() models.FeaturesConfig {
 
 func defaultSocialCardsConfig() models.SocialCardsConfig {
 	return models.SocialCardsConfig{
-		Background: "#fafafa",
-		Gradient:   []string{"#e0d8c0", "#c0b090"},
+		Background: "#141816", // Deep Inky Black
+		Gradient:   nil,       // Classy solid look
 		Angle:      DefaultSocialCardAngle,
-		TextColor:  "#262626",
+		TextColor:  "#e1e9e4", // Scholar's Slate
 	}
 }
 

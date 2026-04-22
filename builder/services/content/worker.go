@@ -5,8 +5,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/zeebo/xxh3"
-
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -167,11 +165,15 @@ func (service *contentService) parseWorkerTaskLocal(file models.ScannedResource,
 
 func (service *contentService) prepareIndexedItem(aggregateContext AggregateContext) models.IndexedContent {
 	searchRecord := aggregateContext.Result.SearchRecord
-	searchRecord.ID = xxh3.HashString(searchRecord.Link)
+	denseID := aggregateContext.WorkerContext.DenseIDCounter.Add(1) - 1
 
 	return models.IndexedContent{
-		Record: searchRecord, WordFreqs: aggregateContext.Result.WordFreqs, DocLen: aggregateContext.Result.DocLen,
-		StemMap: aggregateContext.Result.StemMap, PositionalIndex: aggregateContext.Result.PositionalIndex, ByteOffsets: aggregateContext.Result.ByteOffsets,
+		DenseID:         denseID,
+		Record:          searchRecord,
+		WordFreqs:       aggregateContext.Result.WordFreqs,
+		DocLen:          aggregateContext.Result.DocLen,
+		StemMap:         aggregateContext.Result.StemMap,
+		PositionalIndex: aggregateContext.Result.PositionalIndex,
 	}
 }
 
@@ -182,9 +184,9 @@ func (service *contentService) handleSearchTasks(aggregateContext AggregateConte
 
 	if !aggregateContext.UseCache && service.cache != nil {
 		newSearch := &models.SearchRecord{
-			Title: aggregateContext.Item.Title, NormalizedTitle: aggregateContext.Result.SearchRecord.NormalizedTitle,
-			Content: aggregateContext.Result.SearchRecord.Content,
-			Taxonomies: aggregateContext.Result.SearchRecord.Taxonomies,
+			Title:          aggregateContext.Item.Title,
+			Content:        aggregateContext.Result.SearchRecord.Content,
+			Taxonomies:     aggregateContext.Result.SearchRecord.Taxonomies,
 			NormalizedTaxs: aggregateContext.Result.SearchRecord.NormalizedTaxs,
 		}
 		ContentID := core.GenerateContentID("", aggregateContext.RelativePath)
@@ -212,7 +214,7 @@ func (service *contentService) storeCacheMetadata(aggregateContext AggregateCont
 		Taxonomies: aggregateContext.Item.Taxonomies, ReadingTime: aggregateContext.Item.ReadingTime,
 		Description: aggregateContext.Item.Description, Link: aggregateContext.Item.Link,
 		IsPinned: aggregateContext.Item.IsPinned, Weight: aggregateContext.Item.Weight,
-		IsDraft: aggregateContext.Item.IsDraft, Meta: aggregateContext.Result.Metadata,
+		IsDraft: aggregateContext.Item.IsDraft, IsHidden: aggregateContext.Item.IsHidden, Meta: aggregateContext.Result.Metadata,
 		TOC: aggregateContext.Result.TOC, SSRInputHashes: aggregateContext.SSRHashes,
 		CardHash: aggregateContext.Result.FrontmatterHash, HasImages: aggregateContext.Result.HasImages,
 		MathExpressions: aggregateContext.Result.MathExpressions,
@@ -234,19 +236,21 @@ func (service *contentService) aggregateLocal(aggregateContext AggregateContext)
 	local.indexedItems = append(local.indexedItems, indexed)
 
 	service.handleSearchTasks(aggregateContext, indexed, localIndex)
+	
+	if !aggregateContext.Item.IsHidden {
+		local.allItems = append(local.allItems, aggregateContext.Item)
+		if aggregateContext.Item.IsPinned {
+			local.pinnedItems = append(local.pinnedItems, aggregateContext.Item)
+		}
 
-	local.allItems = append(local.allItems, aggregateContext.Item)
-	if aggregateContext.Item.IsPinned {
-		local.pinnedItems = append(local.pinnedItems, aggregateContext.Item)
-	}
-
-	for taxKey, terms := range aggregateContext.Item.Taxonomies {
-		for _, term := range terms {
-			local.taxonomyEntries = append(local.taxonomyEntries, taxonomyEntry{
-				taxonomy: taxKey,
-				term:     strings.ToLower(strings.TrimSpace(term)),
-				item:     aggregateContext.Item,
-			})
+		for taxKey, terms := range aggregateContext.Item.Taxonomies {
+			for _, term := range terms {
+				local.taxonomyEntries = append(local.taxonomyEntries, taxonomyEntry{
+					taxonomy: taxKey,
+					term:     strings.ToLower(strings.TrimSpace(term)),
+					item:     aggregateContext.Item,
+				})
+			}
 		}
 	}
 

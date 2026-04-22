@@ -35,7 +35,43 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 
 	finalBytes := buf.Bytes()
 
+	// Self-hydrate D2 diagrams from global cache if they aren't in the page data.
+	r.hydrateD2Diagrams(finalBytes, &data)
+
 	// Late-pass SSR Replacement (Full-Page: Body + Fragments + TOC)
+	finalBytes = r.applySSRReplacements(finalBytes, &data)
+
+	// Rewrite PNG/JPG/JPEG image references to WebP if compression is enabled
+	if r.Compress {
+		finalBytes = rewriteImageRefs(finalBytes, path, r.devMode)
+	}
+
+	// Final Write with Streaming Minification
+	return r.writeProcessedHTML(path, finalBytes)
+}
+
+func (r *Renderer) hydrateD2Diagrams(finalBytes []byte, data *models.PageData) {
+	if r.Diagrams != nil && parser.HasD2Placeholders(string(finalBytes)) {
+		htmlStr := string(finalBytes)
+		hashes := parser.ExtractD2Hashes(htmlStr)
+		if len(hashes) > 0 {
+			if data.SSRD2 == nil {
+				data.SSRD2 = make(map[string]models.SSRThemePair)
+			}
+			for _, hash := range hashes {
+				if _, ok := data.SSRD2[hash]; !ok {
+					if val, ok := r.Diagrams.Get("d2:" + hash); ok {
+						if pair, ok := val.(models.SSRThemePair); ok {
+							data.SSRD2[hash] = pair
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func (r *Renderer) applySSRReplacements(finalBytes []byte, data *models.PageData) []byte {
 	if len(data.SSRMath) > 0 || len(data.SSRD2) > 0 {
 		htmlStr := string(finalBytes)
 		if len(data.SSRMath) > 0 {
@@ -44,17 +80,13 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 		if len(data.SSRD2) > 0 {
 			htmlStr = parser.LateReplaceD2(htmlStr, data.SSRD2)
 		}
-		// Final cleanup of any remaining registry comments (TOC, SEARCH, or leftovers)
 		htmlStr = parser.StripRegistryComments(htmlStr)
-		finalBytes = []byte(htmlStr)
+		return []byte(htmlStr)
 	}
+	return finalBytes
+}
 
-	// Rewrite PNG/JPG/JPEG image references to WebP if compression is enabled
-	if r.Compress {
-		finalBytes = rewriteImageRefs(finalBytes, path, r.devMode)
-	}
-
-	// Final Write with Streaming Minification
+func (r *Renderer) writeProcessedHTML(path string, finalBytes []byte) error {
 	if err := r.Sink.WriteStream(path, func(w io.Writer) error {
 		if r.Minify {
 			minifier := r.Minifier

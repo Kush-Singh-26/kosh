@@ -60,6 +60,7 @@ func FindPrevNext(currentPost models.ContentMetadata, allPosts []models.ContentM
 	if currentIdx > 0 {
 		p := sortedPosts[currentIdx-1]
 		prev = &models.NavPage{
+			Path:  p.Path,
 			Title: p.Title,
 			Link:  p.Link,
 		}
@@ -69,6 +70,7 @@ func FindPrevNext(currentPost models.ContentMetadata, allPosts []models.ContentM
 	if currentIdx < len(sortedPosts)-1 {
 		n := sortedPosts[currentIdx+1]
 		next = &models.NavPage{
+			Path:  n.Path,
 			Title: n.Title,
 			Link:  n.Link,
 		}

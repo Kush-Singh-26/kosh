@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,11 +16,14 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"github.com/spf13/afero"
 )
 
@@ -144,7 +148,15 @@ func (m *Manager) BuildSingleFileChange(ctx context.Context, path string, op fsn
 			m.HandleAssetChange(ctx, path)
 			return
 		case watch.ChangeTypeDelete:
-			m.HandleMarkdownChange(ctx, path)
+			ext := strings.ToLower(filepath.Ext(path))
+			switch ext {
+			case ".md":
+				m.HandleDeleteChange(ctx, path)
+			case ".png", ".jpg", ".jpeg", ".css", ".js", ".svg", ".webp", ".gif":
+				m.HandleAssetChange(ctx, path)
+			default:
+				m.HandleOtherChange(ctx, path)
+			}
 			return
 		}
 	}
@@ -227,9 +239,12 @@ func (m *Manager) BuildSingleItem(ctx context.Context, path string) {
 
 	switch changeType {
 	case PostChangeNew, PostChangeFrontmatter:
-		m.logger.Info("New or frontmatter change detected, running full build...")
-		if err := m.builder.BuildLocked(ctx); err != nil {
-			m.logger.Error("Build failed", "error", err)
+		m.logger.Info("New or frontmatter change detected, running incremental build...")
+		if err := m.handleSinglePostBodyChange(ctx, path, source, relPath, htmlRelPath, cleanHTMLRelPath); err != nil {
+			m.logger.Error("Incremental rebuild failed", "error", err)
+			if buildErr := m.builder.BuildLocked(ctx); buildErr != nil {
+				m.logger.Error("Full build fallback failed", "error", buildErr)
+			}
 		}
 
 	case PostChangeBody:
@@ -281,9 +296,7 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 		return err
 	}
 
-	if m.search != nil {
-		m.search.UpdateIndexedContentCache(relPath, parseRes)
-	}
+	m.updateSearchAndNeighbors(ctx, relPath, parseRes)
 
 	if err := m.renderIncrementalSiteWide(ctx); err != nil {
 		return err
@@ -303,12 +316,29 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 	return nil
 }
 
+func (m *Manager) updateSearchAndNeighbors(ctx context.Context, relPath string, parseRes *content.ParsedMarkdownResult) {
+	if m.search != nil {
+		m.search.UpdateIndexedContentCache(relPath, parseRes)
+	}
+
+	if m.deps.Content != nil {
+		m.deps.Content.WaitForCacheCommit()
+		// Re-render immediate neighbors to ensure their navigation links are up-to-date.
+		m.rebuildNeighbors(ctx, parseRes.Item.Link)
+	}
+}
+
 func (m *Manager) renderIncrementalSiteWide(ctx context.Context) error {
 	metadataCtx, err := m.builder.GetContent().GetMetadataContext(ctx)
 	if err != nil {
 		m.logger.Error("Failed to retrieve metadata context for site-wide rendering", "error", err)
 		return err
 	}
+
+	// Force the engine to execute the site-wide generators (RSS, pagination, sitemap)
+	// so they immediately reflect frontmatter and file changes made during dev mode.
+	metadataCtx.AnyItemChanged = true
+
 	if err := m.builder.RenderSiteWide(ctx, metadataCtx); err != nil {
 		m.logger.Error("Failed to update site-wide assets during incremental build", "error", err)
 		return err
@@ -399,4 +429,148 @@ func (m *Manager) DeterminePostChange(relPath, newFrontmatterHash, newBodyHash s
 		return PostChangeBody
 	}
 	return PostChangeNone
+}
+
+// rebuildNeighbors identifies and re-renders the immediate previous and next posts
+// to ensure their navigation links (Title, etc.) stay in sync after a metadata change.
+func (m *Manager) rebuildNeighbors(ctx context.Context, currentLink string) {
+	metadataCtx, err := m.builder.GetContent().GetMetadataContext(ctx)
+	if err != nil {
+		return
+	}
+
+	items := metadataCtx.AllItems
+	timeutil.SortItems(items)
+
+	var currentItem models.ContentMetadata
+	found := false
+	for _, item := range items {
+		if item.Link == currentLink {
+			currentItem = item
+			found = true
+			break
+		}
+	}
+	if !found {
+		return
+	}
+
+	prev, next, _ := navigation.FindPrevNext(currentItem, items)
+
+	// Re-render neighbors if they exist. We pass nil for source to force
+	// the content service to read the latest source from disk.
+	if prev != nil && prev.Path != "" {
+		absPath := filepath.Join(m.cfg.ContentDir, prev.Path)
+		if err := m.deps.Content.ProcessSingle(ctx, absPath, nil); err != nil {
+			m.logger.Warn("Failed to re-render previous neighbor post", "path", prev.Path, "error", err)
+		}
+	}
+	if next != nil && next.Path != "" {
+		absPath := filepath.Join(m.cfg.ContentDir, next.Path)
+		if err := m.deps.Content.ProcessSingle(ctx, absPath, nil); err != nil {
+			m.logger.Warn("Failed to re-render next neighbor post", "path", next.Path, "error", err)
+		}
+	}
+}
+
+// HandleDeleteChange processes a deleted markdown file incrementally.
+func (m *Manager) HandleDeleteChange(ctx context.Context, path string) {
+	m.builder.LockBuild()
+	defer m.builder.UnlockBuild()
+
+	m.logger.Info("Content deletion detected, processing incremental removal...", "path", path)
+	m.builder.RefreshBuildSession()
+
+	relPath, htmlRelPath, _, err := m.ResolveContentPaths(path)
+	if err != nil {
+		m.logger.Warn("Failed to resolve paths for deleted file", "path", path, "error", err)
+	}
+
+	// 1. Identify neighbors BEFORE removing the item from the cache
+	prevPath, nextPath := m.identifyNeighborsForDeletion(ctx, relPath)
+
+	// 2. Remove the physical HTML file from output directory
+	if htmlRelPath != "" {
+		outPath := filepath.Join(m.cfg.OutputDir, htmlRelPath)
+		if err := os.Remove(outPath); err != nil && !os.IsNotExist(err) {
+			m.logger.Warn("Failed to remove deleted html file", "path", outPath, "error", err)
+		}
+	}
+
+	// 3. Remove from Cache and Search Index
+	m.DeleteItemFromCache(path)
+	if m.deps.Content != nil {
+		m.deps.Content.WaitForCacheCommit()
+	}
+
+	// 4. Re-render neighbors AFTER the deleted item is gone from the cache
+	m.rebuildDeletedNeighbors(ctx, prevPath, nextPath)
+
+	// 5. Update Site-Wide Generators (RSS, Sitemap, Pagination)
+	if err := m.renderIncrementalSiteWide(ctx); err != nil {
+		m.logger.Error("Failed to update site-wide assets after deletion", "error", err)
+	}
+
+	// 6. Commit and save caches
+	if err := m.commitIncrementalBuild(ctx, path); err != nil {
+		m.logger.Error("Failed to commit after deletion", "error", err)
+	}
+	m.builder.SaveCaches()
+	m.deps.Render.ClearRenderedFiles()
+
+	// 7. Trigger WASM search index rebuild
+	if watchCoordinator := m.builder.GetWatch(); watchCoordinator != nil {
+		watchCoordinator.TriggerSearchRegeneration()
+	}
+}
+
+func (m *Manager) identifyNeighborsForDeletion(ctx context.Context, relPath string) (prevPath, nextPath string) {
+	if m.deps.Cache == nil || relPath == "" {
+		return
+	}
+	meta, err := m.deps.Cache.GetItemByPath(relPath)
+	if err != nil || meta == nil {
+		return
+	}
+	metadataCtx, _ := m.builder.GetContent().GetMetadataContext(ctx)
+	if metadataCtx == nil {
+		return
+	}
+	items := metadataCtx.AllItems
+	timeutil.SortItems(items)
+	var currentItem models.ContentMetadata
+	for _, item := range items {
+		if item.Link == meta.Link {
+			currentItem = item
+			break
+		}
+	}
+	if currentItem.Link != "" {
+		prev, next, _ := navigation.FindPrevNext(currentItem, items)
+		if prev != nil {
+			prevPath = prev.Path
+		}
+		if next != nil {
+			nextPath = next.Path
+		}
+	}
+	return
+}
+
+func (m *Manager) rebuildDeletedNeighbors(ctx context.Context, prevPath, nextPath string) {
+	if prevPath != "" {
+		absPath := filepath.Join(m.cfg.ContentDir, prevPath)
+		if err := m.deps.Content.ProcessSingle(ctx, absPath, nil); err != nil {
+			m.logger.Warn("Failed to re-render previous neighbor post", "path", prevPath, "error", err)
+		}
+	}
+	if nextPath != "" {
+		absPath := filepath.Join(m.cfg.ContentDir, nextPath)
+		if err := m.deps.Content.ProcessSingle(ctx, absPath, nil); err != nil {
+			m.logger.Warn("Failed to re-render next neighbor post", "path", nextPath, "error", err)
+		}
+	}
+	if m.deps.Content != nil && (prevPath != "" || nextPath != "") {
+		m.deps.Content.WaitForCacheCommit()
+	}
 }

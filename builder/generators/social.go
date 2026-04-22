@@ -197,23 +197,20 @@ func getBaseSocialCardImage(opts SocialCardOptions) *image.RGBA {
 
 	dc := gg.NewContext(socialCardWidth, socialCardHeight)
 
-	// --- 1. Draw Gradient Background ---
-	allColors := append([]string{opts.Cfg.Background}, opts.Cfg.Gradient...)
-	drawGradient(GradientOptions{
-		DC:     dc,
-		W:      socialCardWidth,
-		H:      socialCardHeight,
-		Colors: allColors,
-		Angle:  opts.Cfg.Angle,
-	})
+	// --- 1. Draw Classy Solid Background with Depth ---
+	drawClassyBackground(dc, socialCardWidth, socialCardHeight, opts.Cfg.Background)
 
-	// --- 2. Draw Dot Pattern Overlay ---
-	drawDotPattern(dc, socialCardWidth, socialCardHeight)
-
-	boldFont := "Inter-Bold.ttf"
 	textColor := hexToRGBA(opts.Cfg.TextColor)
 
-	// --- 3. Header: Logo + Brand (Top Left) ---
+	// --- 2. Draw Text-Adaptive Dot Pattern Overlay ---
+	drawDotPattern(dc, socialCardWidth, socialCardHeight, textColor)
+
+	// --- 3. Draw Subtle Grain Texture ---
+	drawGrain(dc, socialCardWidth, socialCardHeight)
+
+	boldFont := "Inter-Bold.ttf"
+
+	// --- 4. Header: Logo + Brand (Top Left) ---
 	currentX := marginX
 
 	if opts.LogoPath != "" {
@@ -251,6 +248,14 @@ func generateSocialCardImage(opts SocialCardOptions) (image.Image, error) {
 	copy(clonedImg.Pix, baseImg.Pix)
 
 	dc := gg.NewContextForRGBA(clonedImg)
+
+	// --- Accent Stripe (Scholar Branding) ---
+	accentColor := hexToRGBA(opts.Cfg.TextColor)
+	if len(opts.Cfg.Gradient) > 0 {
+		accentColor = hexToRGBA(opts.Cfg.Gradient[0])
+	}
+	drawAccentLine(dc, socialCardHeight, accentColor)
+	drawElegantBorder(dc, socialCardWidth, socialCardHeight, accentColor)
 
 	// --- Typography Setup ---
 	boldFont := "Inter-Bold.ttf"

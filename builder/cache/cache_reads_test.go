@@ -152,11 +152,10 @@ func TestGetSearchRecord(t *testing.T) {
 	// Create post with search record
 	post := createSamplePostMeta()
 	record := &core.SearchRecord{
-		Title:           "Test Post",
-		NormalizedTitle: "test post",
-		WordFreqs:       map[string]int{"test": 1, "post": 2},
-		DocLen:          10,
-		NormalizedTaxs:  map[string][]string{"tags": {"test", "go"}},
+		Title:          "Test Post",
+		WordFreqs:      map[string]int{"test": 1, "post": 2},
+		DocLen:         10,
+		NormalizedTaxs: map[string][]string{"tags": {"test", "go"}},
 	}
 
 	records := map[string]*core.SearchRecord{

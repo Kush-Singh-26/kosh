@@ -73,6 +73,7 @@ type WorkerContext struct {
 	ShouldForce        bool
 	ForceSocialRebuild bool
 	ForceRerender      bool
+	DenseIDCounter     *atomic.Uint32
 }
 
 type contentProcessContext struct {

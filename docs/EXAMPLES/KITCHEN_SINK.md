@@ -1,12 +1,25 @@
 ---
+# Primary Metadata
 title: "The Kitchen Sink"
+date: "2026-04-21"
 description: "A demonstration of every feature supported by Kosh SSG."
-date: 2026-04-16
-taxonomies:
-  tags: ["documentation", "kitchen-sink", "features"]
-  categories: ["Guide"]
+draft: false
+pinned: true
 weight: 1
-isPinned: true
+layout: "post"
+
+# SEO Overrides
+seo_title: "Kosh Kitchen Sink - All Features Demo"
+meta_title: "Kitchen Sink Meta Title"
+
+# Taxonomies (Flat structure)
+tags: ["documentation", "kitchen-sink", "features"]
+categories: ["Guide"]
+series: ["Getting Started"]
+
+# Custom Fields (Accessible via .Meta in templates)
+author: "Kosh Maintainer"
+hero_image: "/static/logo.svg"
 ---
 
 # The Kitchen Sink
@@ -83,4 +96,18 @@ Kosh supports standard GFM (GitHub Flavored Markdown) including tables:
 | Search | WASM |
 
 ## 4. Frontmatter Features
-This page has `weight: 1` and `isPinned: true`, which means it will appear at the top of list pages and is featured in the navigation.
+
+This page has `weight: 1` and `pinned: true`, which means it will appear at the top of list pages and is featured in the navigation. It also uses `seo_title` for search engines and social cards.
+
+### Complete List of Supported Fields:
+- `title`: The page title.
+- `date`: Publication date (YYYY-MM-DD).
+- `description`: Short summary.
+- `draft`: Boolean (if true, only appears in dev mode).
+- `pinned`: Boolean (marks as featured).
+- `weight`: Sorting integer.
+- `layout`: Template name (e.g., `post`, `index`).
+- `seo_title`: SEO override.
+- `meta_title`: SEO override.
+- `[taxonomy-keys]`: Lists (e.g., `tags`, `categories`, `series`).
+- `[custom-keys]`: Any other keys you want to use in your templates!

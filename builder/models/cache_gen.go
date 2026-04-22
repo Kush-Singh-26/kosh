@@ -2291,12 +2291,6 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Title")
 				return
 			}
-		case "NormalizedTitle":
-			z.NormalizedTitle, err = dc.ReadString()
-			if err != nil {
-				err = msgp.WrapError(err, "NormalizedTitle")
-				return
-			}
 		case "WordFreqs":
 			var zb0002 uint32
 			zb0002, err = dc.ReadMapHeader()
@@ -2488,47 +2482,6 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 				z.PositionalIndex[za0011] = za0012
 			}
-		case "ByteOffsets":
-			var zb0010 uint32
-			zb0010, err = dc.ReadMapHeader()
-			if err != nil {
-				err = msgp.WrapError(err, "ByteOffsets")
-				return
-			}
-			if z.ByteOffsets == nil {
-				z.ByteOffsets = make(map[string][]uint32, zb0010)
-			} else if len(z.ByteOffsets) > 0 {
-				clear(z.ByteOffsets)
-			}
-			for zb0010 > 0 {
-				zb0010--
-				var za0014 string
-				za0014, err = dc.ReadString()
-				if err != nil {
-					err = msgp.WrapError(err, "ByteOffsets")
-					return
-				}
-				var za0015 []uint32
-				var zb0011 uint32
-				zb0011, err = dc.ReadArrayHeader()
-				if err != nil {
-					err = msgp.WrapError(err, "ByteOffsets", za0014)
-					return
-				}
-				if cap(za0015) >= int(zb0011) {
-					za0015 = (za0015)[:zb0011]
-				} else {
-					za0015 = make([]uint32, zb0011)
-				}
-				for za0016 := range za0015 {
-					za0015[za0016], err = dc.ReadUint32()
-					if err != nil {
-						err = msgp.WrapError(err, "ByteOffsets", za0014, za0016)
-						return
-					}
-				}
-				z.ByteOffsets[za0014] = za0015
-			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -2542,25 +2495,15 @@ func (z *SearchRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *SearchRecord) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 10
+	// map header, size 8
 	// write "Title"
-	err = en.Append(0x8a, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	err = en.Append(0x88, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	if err != nil {
 		return
 	}
 	err = en.WriteString(z.Title)
 	if err != nil {
 		err = msgp.WrapError(err, "Title")
-		return
-	}
-	// write "NormalizedTitle"
-	err = en.Append(0xaf, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x54, 0x69, 0x74, 0x6c, 0x65)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.NormalizedTitle)
-	if err != nil {
-		err = msgp.WrapError(err, "NormalizedTitle")
 		return
 	}
 	// write "WordFreqs"
@@ -2714,48 +2657,16 @@ func (z *SearchRecord) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
-	// write "ByteOffsets"
-	err = en.Append(0xab, 0x42, 0x79, 0x74, 0x65, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
-	if err != nil {
-		return
-	}
-	err = en.WriteMapHeader(uint32(len(z.ByteOffsets)))
-	if err != nil {
-		err = msgp.WrapError(err, "ByteOffsets")
-		return
-	}
-	for za0014, za0015 := range z.ByteOffsets {
-		err = en.WriteString(za0014)
-		if err != nil {
-			err = msgp.WrapError(err, "ByteOffsets")
-			return
-		}
-		err = en.WriteArrayHeader(uint32(len(za0015)))
-		if err != nil {
-			err = msgp.WrapError(err, "ByteOffsets", za0014)
-			return
-		}
-		for za0016 := range za0015 {
-			err = en.WriteUint32(za0015[za0016])
-			if err != nil {
-				err = msgp.WrapError(err, "ByteOffsets", za0014, za0016)
-				return
-			}
-		}
-	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *SearchRecord) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 10
+	// map header, size 8
 	// string "Title"
-	o = append(o, 0x8a, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
+	o = append(o, 0x88, 0xa5, 0x54, 0x69, 0x74, 0x6c, 0x65)
 	o = msgp.AppendString(o, z.Title)
-	// string "NormalizedTitle"
-	o = append(o, 0xaf, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x54, 0x69, 0x74, 0x6c, 0x65)
-	o = msgp.AppendString(o, z.NormalizedTitle)
 	// string "WordFreqs"
 	o = append(o, 0xa9, 0x57, 0x6f, 0x72, 0x64, 0x46, 0x72, 0x65, 0x71, 0x73)
 	o = msgp.AppendMapHeader(o, uint32(len(z.WordFreqs)))
@@ -2806,16 +2717,6 @@ func (z *SearchRecord) MarshalMsg(b []byte) (o []byte, err error) {
 			o = msgp.AppendUint32(o, za0012[za0013])
 		}
 	}
-	// string "ByteOffsets"
-	o = append(o, 0xab, 0x42, 0x79, 0x74, 0x65, 0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x73)
-	o = msgp.AppendMapHeader(o, uint32(len(z.ByteOffsets)))
-	for za0014, za0015 := range z.ByteOffsets {
-		o = msgp.AppendString(o, za0014)
-		o = msgp.AppendArrayHeader(o, uint32(len(za0015)))
-		for za0016 := range za0015 {
-			o = msgp.AppendUint32(o, za0015[za0016])
-		}
-	}
 	return
 }
 
@@ -2841,12 +2742,6 @@ func (z *SearchRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			z.Title, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Title")
-				return
-			}
-		case "NormalizedTitle":
-			z.NormalizedTitle, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "NormalizedTitle")
 				return
 			}
 		case "WordFreqs":
@@ -3040,47 +2935,6 @@ func (z *SearchRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 				z.PositionalIndex[za0011] = za0012
 			}
-		case "ByteOffsets":
-			var zb0010 uint32
-			zb0010, bts, err = msgp.ReadMapHeaderBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "ByteOffsets")
-				return
-			}
-			if z.ByteOffsets == nil {
-				z.ByteOffsets = make(map[string][]uint32, zb0010)
-			} else if len(z.ByteOffsets) > 0 {
-				clear(z.ByteOffsets)
-			}
-			for zb0010 > 0 {
-				var za0015 []uint32
-				zb0010--
-				var za0014 string
-				za0014, bts, err = msgp.ReadStringBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "ByteOffsets")
-					return
-				}
-				var zb0011 uint32
-				zb0011, bts, err = msgp.ReadArrayHeaderBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "ByteOffsets", za0014)
-					return
-				}
-				if cap(za0015) >= int(zb0011) {
-					za0015 = (za0015)[:zb0011]
-				} else {
-					za0015 = make([]uint32, zb0011)
-				}
-				for za0016 := range za0015 {
-					za0015[za0016], bts, err = msgp.ReadUint32Bytes(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "ByteOffsets", za0014, za0016)
-						return
-					}
-				}
-				z.ByteOffsets[za0014] = za0015
-			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -3095,7 +2949,7 @@ func (z *SearchRecord) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *SearchRecord) Msgsize() (s int) {
-	s = 1 + 6 + msgp.StringPrefixSize + len(z.Title) + 16 + msgp.StringPrefixSize + len(z.NormalizedTitle) + 10 + msgp.MapHeaderSize
+	s = 1 + 6 + msgp.StringPrefixSize + len(z.Title) + 10 + msgp.MapHeaderSize
 	if z.WordFreqs != nil {
 		for za0001, za0002 := range z.WordFreqs {
 			_ = za0002
@@ -3134,13 +2988,6 @@ func (z *SearchRecord) Msgsize() (s int) {
 		for za0011, za0012 := range z.PositionalIndex {
 			_ = za0012
 			s += msgp.StringPrefixSize + len(za0011) + msgp.ArrayHeaderSize + (len(za0012) * (msgp.Uint32Size))
-		}
-	}
-	s += 12 + msgp.MapHeaderSize
-	if z.ByteOffsets != nil {
-		for za0014, za0015 := range z.ByteOffsets {
-			_ = za0015
-			s += msgp.StringPrefixSize + len(za0014) + msgp.ArrayHeaderSize + (len(za0015) * (msgp.Uint32Size))
 		}
 	}
 	return

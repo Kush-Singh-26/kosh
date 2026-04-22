@@ -85,3 +85,5 @@ builder/services/social-cards/*.webp
 
 .qwen
 .impeccable.md
+test-site/
+*.wasm

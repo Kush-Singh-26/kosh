@@ -4,8 +4,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
@@ -16,16 +18,22 @@ func (service *contentService) queueSocialCard(options SocialCardOptions) {
 	shouldForce := options.ForceSocialRebuild
 	cardPool := options.CardPool
 
-	title, _ := result.Metadata["title"].(string)
 	description, _ := result.Metadata["description"].(string)
-	if title == "" {
-		title = result.Item.Title
-	}
 	if description == "" {
 		description = result.Item.Description
 	}
 
-	currentHash := generators.SocialCardHash(title, description, &service.cfg.SocialCards)
+	layoutVal := strings.ToLower(result.Item.Section)
+	if l, ok := result.Metadata["layout"].(string); ok {
+		layoutVal = strings.ToLower(l)
+	}
+	pageContext := models.ContextSection
+	if layoutVal == "home" {
+		pageContext = models.ContextHome
+	}
+	seoTitle := service.resolveSEOTitle(result.Metadata, result.Item, pageContext)
+
+	currentHash := generators.SocialCardHash(seoTitle, description, &service.cfg.SocialCards)
 	cardRelativePath, cardDestinationPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelativePath, currentHash)
 
 	cacheDir := service.cfg.CacheDir
@@ -42,7 +50,9 @@ func (service *contentService) queueSocialCard(options SocialCardOptions) {
 	} else {
 		cardPool.Submit(socialCardTask{
 			path: relativePath, relPath: cardRelativePath,
-			cardDestPath: cardDestinationPath, metadata: result.Metadata, frontmatterHash: currentHash,
+			cardDestPath: cardDestinationPath,
+			seoTitle:     seoTitle,
+			metadata:     result.Metadata, frontmatterHash: currentHash,
 		})
 	}
 }

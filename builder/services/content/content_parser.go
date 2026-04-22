@@ -35,6 +35,7 @@ type parsedFrontmatter struct {
 	IsPinned    bool
 	Weight      int
 	IsDraft     bool
+	IsHidden    bool
 }
 
 func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
@@ -62,6 +63,7 @@ func extractFrontmatter(metadata map[string]any) parsedFrontmatter {
 		IsPinned:    timeutil.ExtractBoolFromMap(metadata, "pinned"),
 		Weight:      weight,
 		IsDraft:     timeutil.ExtractBoolFromMap(metadata, "draft"),
+		IsHidden:    timeutil.ExtractBoolFromMap(metadata, "hidden"),
 	}
 }
 
@@ -141,11 +143,11 @@ func ParseMarkdownMetadata(ctx context.Context, options ParseOptions) (*ParsedMa
 	postLink := navigation.BuildAbsoluteURL(options.Cfg.BaseURL, options.CleanHTMLRelPath)
 	readingTime := computeReadingTime(options.Source, options.KnownReadingTime)
 
-	result.Item = buildContentMetadata(frontmatter, postLink, readingTime)
+	result.Item = buildContentMetadata(frontmatter, postLink, readingTime, options.RelPath)
 
 	// Step 5: Get plain text and build search record
 	result.PlainText = mdParser.GetPlainText(mdCtx)
-	result.SearchRecord = buildSearchRecord(result.Item, options.HTMLRelPath, result.PlainText)
+	result.SearchRecord = buildSearchRecord(result.Item, result.PlainText)
 
 	// Step 5.5: Update reading time based on actual plain text (more accurate)
 	if options.KnownReadingTime <= 0 && result.PlainText != "" {

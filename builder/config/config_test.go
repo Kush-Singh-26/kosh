@@ -366,20 +366,20 @@ func TestConfig_SocialCardsDefaults(t *testing.T) {
 
 	cfg := Load([]string{})
 
-	if cfg.SocialCards.Background != "#fafafa" {
-		t.Errorf("SocialCards.Background = %q, want %q", cfg.SocialCards.Background, "#fafafa")
+	if cfg.SocialCards.Background != "#141816" {
+		t.Errorf("SocialCards.Background = %q, want %q", cfg.SocialCards.Background, "#141816")
 	}
 
-	if len(cfg.SocialCards.Gradient) != 2 {
-		t.Errorf("SocialCards.Gradient length = %d, want 2", len(cfg.SocialCards.Gradient))
+	if cfg.SocialCards.Gradient != nil {
+		t.Errorf("SocialCards.Gradient = %v, want nil (solid look)", cfg.SocialCards.Gradient)
 	}
 
 	if cfg.SocialCards.Angle != 135 {
 		t.Errorf("SocialCards.Angle = %d, want 135", cfg.SocialCards.Angle)
 	}
 
-	if cfg.SocialCards.TextColor != "#262626" {
-		t.Errorf("SocialCards.TextColor = %q, want %q", cfg.SocialCards.TextColor, "#262626")
+	if cfg.SocialCards.TextColor != "#e1e9e4" {
+		t.Errorf("SocialCards.TextColor = %q, want %q", cfg.SocialCards.TextColor, "#e1e9e4")
 	}
 }
 

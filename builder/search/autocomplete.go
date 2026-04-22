@@ -27,25 +27,18 @@ func GetSuggestions(index *models.SearchIndex, prefix string) []string {
 	}
 
 	var suggestions []suggestion
-	suggestions = findInvertedSuggestions(index, prefix, suggestions)
-	suggestions = findStemSuggestions(index, prefix, suggestions)
-
-	return sortAndFinalizeSuggestions(suggestions)
-}
-
-func findInvertedSuggestions(index *models.SearchIndex, prefix string, suggestions []suggestion) []suggestion {
-	for term, docs := range index.Inverted {
-		if strings.HasPrefix(term, prefix) {
-			suggestions = append(suggestions, suggestion{
-				term:  term,
-				count: len(docs),
-			})
+	
+	// 1. Lexicon prefix match (fast binary search via core.PrefixExpand)
+	prefixTerms := core.PrefixExpand(prefix, index.Terms)
+	for _, term := range prefixTerms {
+		termIdx := index.LookupTerm(term)
+		if termIdx >= 0 {
+			count := int(index.PostingOffsets[termIdx+1] - index.PostingOffsets[termIdx])
+			suggestions = append(suggestions, suggestion{term: term, count: count})
 		}
 	}
-	return suggestions
-}
 
-func findStemSuggestions(index *models.SearchIndex, prefix string, suggestions []suggestion) []suggestion {
+	// 2. StemMap prefix match
 	for stem, origins := range index.StemMap {
 		if strings.HasPrefix(stem, prefix) {
 			for _, origin := range origins {
@@ -67,7 +60,8 @@ func findStemSuggestions(index *models.SearchIndex, prefix string, suggestions [
 			}
 		}
 	}
-	return suggestions
+
+	return sortAndFinalizeSuggestions(suggestions)
 }
 
 func containsSuggestion(suggestions []suggestion, term string) bool {

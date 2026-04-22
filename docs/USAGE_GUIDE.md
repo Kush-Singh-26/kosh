@@ -3,6 +3,7 @@
 > [!TIP]
 > **Documentation Index**
 > - [Usage Guide](file:///c:/Users/KIIT0001/blogs/docs/USAGE_GUIDE.md) (This file)
+> - [Frontmatter Reference](file:///c:/Users/KIIT0001/blogs/docs/FRONTMATTER.md) (Standard & Custom Fields)
 > - [Full Feature List](file:///c:/Users/KIIT0001/blogs/docs/FEATURES.md) (Shortcodes, Math, D2)
 > - [Configuration Reference](file:///c:/Users/KIIT0001/blogs/docs/KOSH_EXAMPLE.yaml) (Exhaustive `kosh.yaml`)
 > - [Kitchen Sink Example](file:///c:/Users/KIIT0001/blogs/docs/EXAMPLES/KITCHEN_SINK.md) (See everything in action)

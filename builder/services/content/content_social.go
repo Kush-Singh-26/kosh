@@ -6,10 +6,32 @@ import (
 	"path/filepath"
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 const socialCardCacheDirMode = 0755
+
+func (service *contentService) resolveSEOTitle(metadata map[string]any, item models.ContentMetadata, pageContext models.PageContext) string {
+	// 1. Check for explicit SEO overrides
+	if seoTitle, ok := metadata["seo_title"].(string); ok && seoTitle != "" {
+		return seoTitle
+	}
+	if metaTitle, ok := metadata["meta_title"].(string); ok && metaTitle != "" {
+		return metaTitle
+	}
+
+	// 2. Special case for home page identity
+	if pageContext == models.ContextHome {
+		return service.cfg.Title
+	}
+
+	// 3. Fallback to page title
+	if title, ok := metadata["title"].(string); ok && title != "" {
+		return title
+	}
+	return item.Title
+}
 
 func (service *contentService) generateSocialCard(task socialCardTask) {
 	cachedCardPath := filepath.Join(service.cfg.CacheDir, "social-cards", task.frontmatterHash+".webp")
@@ -22,7 +44,7 @@ func (service *contentService) generateSocialCard(task socialCardTask) {
 		SrcFs:       service.sourceFs,
 		Cfg:         &service.cfg.SocialCards,
 		SiteTitle:   service.cfg.Title,
-		Title:       timeutil.ExtractStringFromMap(task.metadata, "title"),
+		Title:       task.seoTitle,
 		Description: timeutil.ExtractStringFromMap(task.metadata, "description"),
 		DateStr:     timeutil.ExtractStringFromMap(task.metadata, "date"),
 		DestPath:    cachedCardPath,

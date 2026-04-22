@@ -31,6 +31,7 @@ type ContentMeta struct {
 	Link           string
 	Weight         int
 	IsPinned       bool
+	IsHidden       bool
 	IsDraft        bool
 	// Meta stores raw frontmatter values for templating and downstream reuse.
 	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
@@ -44,7 +45,6 @@ type ContentMeta struct {
 // SearchRecord stores pre-computed search data for BM25 (v2)
 type SearchRecord struct {
 	Title           string
-	NormalizedTitle string
 	WordFreqs       map[string]int // word -> frequency
 	DocLen          int
 	Content         string
@@ -52,7 +52,6 @@ type SearchRecord struct {
 	NormalizedTaxs  map[string][]string
 	StemMap         map[string]string
 	PositionalIndex map[string][]uint32
-	ByteOffsets     map[string][]uint32
 }
 
 // Dependencies tracks what an item depends on
@@ -66,6 +65,7 @@ type Dependencies struct {
 // It is used to quickly build navigation and item lists
 // without loading full ContentMeta records from the cache.
 type ContentListMeta struct {
+	Path       string
 	Section    string
 	Title      string
 	Link       string

@@ -251,6 +251,7 @@ func (service *metadataScanner) aggregateScanResult(result *models.MetadataScann
 		DateObj:     scannedFile.DateObj,
 		Taxonomies:  scannedFile.Taxonomies,
 		IsPinned:    scannedFile.IsPinned,
+		IsHidden:    scannedFile.IsHidden,
 		Weight:      scannedFile.Weight,
 		ReadingTime: scannedFile.ReadingTime,
 		IsDraft:     scannedFile.IsDraft,
@@ -336,6 +337,7 @@ func (service *metadataScanner) parseScannedMetadata(siteConfig *config.Config, 
 	date := timeutil.ExtractDateStringFromMap(metadata, "date")
 	isDraft := timeutil.ExtractBoolFromMap(metadata, "draft")
 	isPinned := timeutil.ExtractBoolFromMap(metadata, "pinned")
+	isHidden := timeutil.ExtractBoolFromMap(metadata, "hidden")
 	weight := extractWeight(metadata)
 
 	dateObj, _ := time.ParseInLocation("2006-01-02", date, time.UTC)
@@ -373,6 +375,7 @@ func (service *metadataScanner) parseScannedMetadata(siteConfig *config.Config, 
 		DateObj:         dateObj,
 		IsDraft:         isDraft,
 		IsPinned:        isPinned,
+		IsHidden:        isHidden,
 		Weight:          weight,
 		Taxonomies:      taxonomies,
 		FrontmatterHash: frontmatterHash,

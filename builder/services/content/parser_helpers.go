@@ -106,8 +106,10 @@ func buildContentMetadata(
 	fm parsedFrontmatter,
 	postLink string,
 	readingTime int,
+	relPath string,
 ) models.ContentMetadata {
 	return models.ContentMetadata{
+		Path:        relPath,
 		Title:       fm.Title,
 		Link:        postLink,
 		Description: fm.Description,
@@ -117,13 +119,13 @@ func buildContentMetadata(
 		Weight:      fm.Weight,
 		DateObj:     fm.DateObj,
 		IsDraft:     fm.IsDraft,
+		IsHidden:    fm.IsHidden,
 	}
 }
 
 // buildSearchRecord creates a ContentRecord for search indexing
 func buildSearchRecord(
 	item models.ContentMetadata,
-	htmlRelPath string,
 	plainText string,
 ) models.ContentRecord {
 	normTaxs := make(map[string][]string, len(item.Taxonomies))
@@ -136,10 +138,8 @@ func buildSearchRecord(
 	}
 
 	return models.ContentRecord{
-		ID:              0, // Temporary ID, assigned in post_service.go
 		Title:           item.Title,
-		NormalizedTitle: strings.ToLower(item.Title),
-		Link:            htmlRelPath,
+		Link:            item.Link,
 		Description:     item.Description,
 		Taxonomies:      item.Taxonomies,
 		NormalizedTaxs:  normTaxs,
@@ -152,7 +152,7 @@ func buildSearchRecord(
 func tokenizeSearchData(
 	searchRecord models.ContentRecord,
 	plainText string,
-) (map[string]int, int, map[string]string, map[string][]uint32, map[string][]uint32) {
+) (map[string]int, int, map[string]string, map[string][]uint32) {
 	builder := pools.SharedStringBuilderPool.Get()
 	defer pools.SharedStringBuilderPool.Put(builder)
 
@@ -167,10 +167,9 @@ func tokenizeSearchData(
 			builder.WriteByte(' ')
 		}
 	}
-	metaOffset := builder.Len()
 	builder.WriteString(plainText)
 
-	words, freshStemMap, positions, rawOffsets := core.DefaultAnalyzer.AnalyzeWithPositions(builder.String())
+	words, freshStemMap, positions, _ := core.DefaultAnalyzer.AnalyzeWithPositions(builder.String())
 
 	wordFreqs := make(map[string]int, len(words)/wordFreqMapDivisor)
 	for _, word := range words {
@@ -192,28 +191,7 @@ func tokenizeSearchData(
 		positionalIndex[term] = models.EncodePositions(posList)
 	}
 
-	// Shift and encode offsets using delta format
-	byteOffsets := make(map[string][]uint32, len(rawOffsets))
-	bodyOffsetsPtr := pools.SharedIntSlicePool.Get()
-	defer pools.SharedIntSlicePool.Put(bodyOffsetsPtr)
-
-	for term, termOffsets := range rawOffsets {
-		bodyOffsets := (*bodyOffsetsPtr)[:0]
-		for i := 0; i < len(termOffsets); i += offsetPairSize {
-			start := termOffsets[i]
-			end := termOffsets[i+1]
-			if start >= metaOffset {
-				bodyOffsets = append(bodyOffsets, start-metaOffset, end-metaOffset)
-			}
-		}
-		if len(bodyOffsets) > 0 {
-			byteOffsets[term] = models.EncodeOffsets(bodyOffsets)
-		}
-		// Update the pointer's slice for the next iteration (though append might have changed capacity)
-		*bodyOffsetsPtr = bodyOffsets
-	}
-
-	return wordFreqs, docLen, stemMap, positionalIndex, byteOffsets
+	return wordFreqs, docLen, stemMap, positionalIndex
 }
 
 // computeReadingTime calculates reading time if not already known

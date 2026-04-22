@@ -207,6 +207,7 @@ func (setup *buildSetup) createRenderer() *renderer.Renderer {
 		DevMode:     setup.config.IsDev,
 		Logger:      setup.logger,
 		Cache:       setup.fragmentAdapter,
+		Diagrams:    setup.diagramAdapter,
 	})
 }
 

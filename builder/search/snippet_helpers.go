@@ -36,42 +36,23 @@ func truncateContent(content string) string {
 }
 
 // findMatches finds all term matches in the content
-func findMatches(content string, terms []string, termOffsets map[string][]int) []snippetMatch {
+func findMatches(content string, terms []string) []snippetMatch {
 	var matches []snippetMatch
-
-	// First try to use term offsets if available
-	if len(termOffsets) > 0 {
-		for _, term := range terms {
-			if offsets, ok := termOffsets[term]; ok {
-				for i := 0; i < len(offsets); i += 2 {
-					start := offsets[i]
-					if start < len(content) {
-						matches = append(matches, snippetMatch{pos: start, term: term})
-					}
-				}
+	contentLower := core.ToLower(content)
+	for _, term := range terms {
+		if len(term) < minTermLengthForScan {
+			continue
+		}
+		curr := 0
+		for {
+			idx := strings.Index(contentLower[curr:], term)
+			if idx == -1 {
+				break
 			}
+			matches = append(matches, snippetMatch{pos: curr + idx, term: term})
+			curr += idx + len(term)
 		}
 	}
-
-	// If no matches from offsets, search in content
-	if len(matches) == 0 {
-		contentLower := core.ToLower(content)
-		for _, term := range terms {
-			if len(term) < minTermLengthForScan {
-				continue
-			}
-			curr := 0
-			for {
-				idx := strings.Index(contentLower[curr:], term)
-				if idx == -1 {
-					break
-				}
-				matches = append(matches, snippetMatch{pos: curr + idx, term: term})
-				curr += idx + len(term)
-			}
-		}
-	}
-
 	return matches
 }
 
@@ -286,7 +267,8 @@ func buildSimpleSnippet(content string) string {
 }
 
 // ExtractSnippet extracts a search snippet from content, highlighting matching terms.
-func ExtractSnippet(content string, terms []string, termOffsets map[string][]int) string {
+// ExtractSnippet extracts a search snippet from content, highlighting matching terms.
+func ExtractSnippet(content string, terms []string) string {
 	if len(content) == 0 {
 		return ""
 	}
@@ -297,7 +279,7 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 		return buildSimpleSnippet(content)
 	}
 
-	matches := findMatches(content, terms, termOffsets)
+	matches := findMatches(content, terms)
 
 	if len(matches) == 0 {
 		return buildSimpleSnippet(content)
@@ -315,6 +297,57 @@ func ExtractSnippet(content string, terms []string, termOffsets map[string][]int
 	islands := findBestSnippetIslands(matches, content, termToIndex)
 
 	return buildSnippetText(content, matches, islands, true)
+}
+
+// HighlightText wraps all occurrences of terms in text with <b> tags.
+// It is designed for titles where truncation is not required.
+func HighlightText(text string, terms []string) string {
+	if len(text) == 0 || len(terms) == 0 {
+		return text
+	}
+
+	matches := findMatches(text, terms)
+	if len(matches) == 0 {
+		return text
+	}
+
+	slices.SortFunc(matches, func(a, b snippetMatch) int {
+		return a.pos - b.pos
+	})
+
+	builder := pools.SharedStringBuilderPool.Get()
+	defer pools.SharedStringBuilderPool.Put(builder)
+	builder.Grow(int(float64(len(text)) * 1.2))
+
+	lastPos := 0
+	for _, match := range matches {
+		if match.pos < lastPos {
+			continue
+		}
+
+		escapeToBuilder(builder, text[lastPos:match.pos])
+
+		actualEnd := match.pos + len(match.term)
+		// Expand to full word boundaries if possible
+		for actualEnd < len(text) {
+			char, size := utf8.DecodeRuneInString(text[actualEnd:])
+			if !unicode.IsLetter(char) && !unicode.IsNumber(char) && char != '_' {
+				break
+			}
+			actualEnd += size
+		}
+
+		builder.WriteString("<b>")
+		escapeToBuilder(builder, text[match.pos:actualEnd])
+		builder.WriteString("</b>")
+		lastPos = actualEnd
+	}
+
+	if lastPos < len(text) {
+		escapeToBuilder(builder, text[lastPos:])
+	}
+
+	return builder.String()
 }
 
 func escapeToBuilder(sb *strings.Builder, s string) {

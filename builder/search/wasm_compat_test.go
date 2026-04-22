@@ -1,49 +1,42 @@
 package search
 
 import (
-	"bytes"
 	"reflect"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
 func TestSearchIndex_RoundTrip(t *testing.T) {
-	original := &models.SearchIndex{
-		SchemaVersion: models.CurrentSchemaVersion,
-		Items: map[string]models.ContentRecord{
-			"0": {
-				ID:              0,
-				Title:           "Test Item",
-				NormalizedTitle: "test item",
-				Link:            "/items/test.html",
-				Description:     "A test item",
-				Taxonomies:      map[string][]string{"tags": {"test", "demo"}},
-				NormalizedTaxs:  map[string][]string{"tags": {"test", "demo"}},
-				Content:         "This is the full content of the test item for snippet extraction.",
+	indexedPosts := []models.IndexedContent{
+		{
+			DenseID: 0,
+			Record: models.ContentRecord{
+				Title:       "Test Item",
+				Link:        "/items/test.html",
+				Description: "A test item",
+				Taxonomies:  map[string][]string{"tags": {"test", "demo"}},
+				Content:     "This is the full content of the test item.",
 			},
-		},
-		ItemLens:   map[string]int64{"0": 12},
-		AvgDocLen:  12.0,
-		TotalItems: 1,
-		StemMap:    map[string][]string{"test": {"tests", "testing"}},
-		Inverted: map[string]map[string][]uint32{
-			"test": {"0": {0, 5, 10}},
+			WordFreqs:       map[string]int{"test": 1},
+			DocLen:          10,
+			PositionalIndex: map[string][]uint32{"test": {0}},
 		},
 	}
 
+	original := index.Build(indexedPosts)
+
 	// Encode
-	var buf bytes.Buffer
 	encoded, err := original.MarshalMsg(nil)
 	if err != nil {
-		t.Fatalf("Failed to encode SearchIndex: %v", err)
+		t.Fatalf("Failed to encode: %v", err)
 	}
-	buf.Write(encoded)
 
 	// Decode
 	var decoded models.SearchIndex
-	if _, err := decoded.UnmarshalMsg(buf.Bytes()); err != nil {
-		t.Fatalf("Failed to decode SearchIndex: %v", err)
+	if _, err := decoded.UnmarshalMsg(encoded); err != nil {
+		t.Fatalf("Failed to decode: %v", err)
 	}
 
 	// Verify
@@ -55,15 +48,15 @@ func TestSearchIndex_RoundTrip(t *testing.T) {
 		t.Fatalf("Items length mismatch: got %d, want %d", len(decoded.Items), len(original.Items))
 	}
 
-	if decoded.Items["0"].Content != original.Items["0"].Content {
-		t.Errorf("Content field mismatch: got %q, want %q", decoded.Items["0"].Content, original.Items["0"].Content)
+	if decoded.Items[0].Content != original.Items[0].Content {
+		t.Errorf("Content mismatch: got %q, want %q", decoded.Items[0].Content, original.Items[0].Content)
 	}
 
-	if !reflect.DeepEqual(decoded.Inverted, original.Inverted) {
-		t.Errorf("Inverted index mismatch: got %v, want %v", decoded.Inverted, original.Inverted)
+	if !reflect.DeepEqual(decoded.Terms, original.Terms) {
+		t.Error("Lexicon mismatch")
 	}
 
-	if !reflect.DeepEqual(decoded.ItemLens, original.ItemLens) {
-		t.Errorf("ItemLens mismatch: got %v, want %v", decoded.ItemLens, original.ItemLens)
+	if !reflect.DeepEqual(decoded.PostingOffsets, original.PostingOffsets) {
+		t.Error("PostingOffsets mismatch")
 	}
 }

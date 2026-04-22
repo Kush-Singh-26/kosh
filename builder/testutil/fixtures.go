@@ -58,9 +58,8 @@ func CreateSamplePageData() models.PageData {
 // CreateSampleSearchRecord creates a valid SearchRecord for testing
 func CreateSampleSearchRecord() *models.SearchRecord {
 	return &models.SearchRecord{
-		Title:           "Test Post",
-		NormalizedTitle: "test post",
-		WordFreqs:       map[string]int{"test": 1, "post": 1},
+		Title:          "Test Post",
+		WordFreqs:      map[string]int{"test": 1, "post": 1},
 		DocLen:          sampleDocLen,
 		Taxonomies:      map[string][]string{"tags": {"test", "go"}},
 		NormalizedTaxs:  map[string][]string{"tags": {"test", "go"}},

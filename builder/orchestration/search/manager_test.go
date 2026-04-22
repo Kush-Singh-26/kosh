@@ -42,6 +42,34 @@ func TestManager_UpdateIndexedContentCache(t *testing.T) {
 	}
 }
 
+func TestManager_UpdateIndexedContentCache_Canonicalization(t *testing.T) {
+	m := NewManager(ManagerDependencies{
+		Cfg: &config.Config{SiteConfig: config.SiteConfig{BaseURL: "https://example.com/"}},
+	})
+
+	// Add initial record with relative link
+	m.SetIndexedPosts([]models.IndexedContent{
+		{
+			SourcePath: "blogs/test.md",
+			Record:     models.ContentRecord{Title: "Initial", Link: "blogs/test.html"},
+		},
+	})
+
+	// Simulate incremental update with absolute link
+	m.UpdateIndexedContentCache("blogs/test.md", &content.ParsedMarkdownResult{
+		SearchRecord: models.ContentRecord{Title: "Updated", Link: "https://example.com/blogs/test.html"},
+	})
+
+	posts := m.GetIndexedPosts()
+	if len(posts) != 1 {
+		t.Fatalf("Expected 1 post after update, got %d", len(posts))
+	}
+
+	if posts[0].Record.Link != "blogs/test.html" {
+		t.Errorf("Link was not canonicalized: got %s, want blogs/test.html", posts[0].Record.Link)
+	}
+}
+
 func TestManager_PruneDeletedItem(t *testing.T) {
 	m := NewManager(ManagerDependencies{})
 	m.SetIndexedPosts([]models.IndexedContent{
