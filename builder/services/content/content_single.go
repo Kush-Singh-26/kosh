@@ -16,6 +16,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -227,18 +228,10 @@ func (service *contentService) ProcessSingleWithResult(ctx context.Context, path
 			source:      source,
 		})
 
-		title, _ := parseRes.Metadata["title"].(string)
-		description, _ := parseRes.Metadata["description"].(string)
-		if title == "" {
-			title = parseRes.Item.Title
-		}
-		if description == "" {
-			description = parseRes.Item.Description
-		}
-		socialHash := generators.SocialCardHash(title, description, &service.cfg.SocialCards)
+		seoTitle, _, _, socialHash := service.resolveSocialCardData(parseRes)
 
 		cardRelPath, cardDestPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath, socialHash)
-		service.handleSocialCard(parseRes, relPath, cardRelPath, cardDestPath, socialHash)
+		service.handleSocialCard(parseRes, relPath, htmlRelPath, cardRelPath, cardDestPath, seoTitle, socialHash)
 	}
 
 	return service.renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section, parseRes, renderedMath, renderedD2)
@@ -283,6 +276,9 @@ func (service *contentService) ensureParsed(ctx context.Context, path, relPath, 
 	if preParsed != nil {
 		return preParsed, nil
 	}
+
+	preParsedMeta, bodyOffset := service.resolveCascadedMetadata(path, source)
+
 	if service.shortcodes != nil && len(source) > 0 {
 		processed, err := service.shortcodes.Process(source)
 		if err == nil {
@@ -303,8 +299,19 @@ func (service *contentService) ensureParsed(ctx context.Context, path, relPath, 
 		Metrics:          service.metrics,
 		Cfg:              service.cfg,
 		HTMLRelPath:      htmlRelPath,
-		CleanHTMLRelPath: strings.TrimSuffix(htmlRelPath, "index.html"),
+		CleanHTMLRelPath: htmlRelPath,
+		BodyOffset:       bodyOffset,
+		PreParsedMeta:    preParsedMeta,
 	})
+}
+
+func (service *contentService) resolveCascadedMetadata(path string, source []byte) (map[string]any, int) {
+	preParsedMeta, bodyOffset, err := scanner.BuildCascadedMetadataForPath(service.sourceFs, service.cfg, path, source)
+	if err != nil {
+		service.logger.Debug("Failed to resolve cascaded metadata for single content parse", "path", path, "error", err)
+		return nil, 0
+	}
+	return preParsedMeta, bodyOffset
 }
 
 func (service *contentService) handleRawMarkdown(destPath string, source []byte) {
@@ -324,27 +331,18 @@ func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix,
 	item := parseRes.Item
 	nav := service.resolveNavigation(item)
 
-	title, _ := parseRes.Metadata["title"].(string)
-	description, _ := parseRes.Metadata["description"].(string)
-	if title == "" {
-		title = item.Title
-	}
-	if description == "" {
-		description = item.Description
-	}
-	socialHash := generators.SocialCardHash(title, description, &service.cfg.SocialCards)
+	seoTitle, _, _, socialHash := service.resolveSocialCardData(parseRes)
 
 	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath, socialHash)
 
-	contentPrefix := strings.Trim(service.cfg.ContentPrefix, "/")
-	sectionIndexURL := service.getSectionIndexURL(relPrefix, contentPrefix)
+	sectionIndexURL := navigation.ResolveSectionIndex(htmlRelPath)
 
 	pageContext := models.ContextSection
 	if getLayoutVal(parseRes.Metadata) == "home" {
 		pageContext = models.ContextHome
 	}
 
-	tabTitle := item.Title + " | " + service.cfg.Title
+	tabTitle := seoTitle + " | " + service.cfg.Title
 	if pageContext == models.ContextHome {
 		tabTitle = service.cfg.Title
 	}
@@ -359,24 +357,15 @@ func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix,
 		ItemTaxonomies: item.Taxonomies,
 		PrevPage:       nav.prev, NextPage: nav.next, RelativePrefix: relPrefix,
 		HasImages: parseRes.HasImages, Context: pageContext,
-		ContentPrefix:   contentPrefix,
+		ContentPrefix:   service.cfg.ContentPrefix,
 		SectionIndexURL: sectionIndexURL,
+		SiteData:        service.cfg.SiteData,
 		JSONLD:          service.generateJSONLD(item, cardImageURL),
 		Section:         section,
 		IsCleanBuild:    service.ctx.IsCleanBuild,
 		SSRMath:         renderedMath,
 		SSRD2:           renderedD2,
 	})
-}
-
-func (service *contentService) getSectionIndexURL(relPrefix, contentPrefix string) string {
-	if contentPrefix != "" {
-		return "/" + contentPrefix + "/"
-	}
-	if relPrefix != "" {
-		return relPrefix + "index.html"
-	}
-	return "index.html"
 }
 
 func getLayoutVal(metadata map[string]any) string {
@@ -387,6 +376,27 @@ func getLayoutVal(metadata map[string]any) string {
 		return strings.ToLower(l)
 	}
 	return ""
+}
+
+func (service *contentService) resolveSocialCardData(parseRes *ParsedMarkdownResult) (seoTitle, description, dateStr, socialHash string) {
+	layoutVal := strings.ToLower(parseRes.Item.Section)
+	if layout := getLayoutVal(parseRes.Metadata); layout != "" {
+		layoutVal = layout
+	}
+
+	pageContext := models.ContextSection
+	if layoutVal == "home" {
+		pageContext = models.ContextHome
+	}
+
+	seoTitle = service.resolveSEOTitle(parseRes.Metadata, parseRes.Item, pageContext)
+	description, _ = parseRes.Metadata["description"].(string)
+	if description == "" {
+		description = parseRes.Item.Description
+	}
+	dateStr = timeutil.ExtractDateStringFromMap(parseRes.Metadata, "date")
+	socialHash = generators.SocialCardHashWithBadge(seoTitle, description, dateStr, &service.cfg.SocialCards)
+	return seoTitle, description, dateStr, socialHash
 }
 
 type commitContentCacheOptions struct {
@@ -469,12 +479,13 @@ func (service *contentService) buildSearchRecord(parseRes *ParsedMarkdownResult)
 	}
 }
 
-func (service *contentService) handleSocialCard(parseRes *ParsedMarkdownResult, relPath, cardRelPath, cardDestPath, socialHash string) {
+func (service *contentService) handleSocialCard(parseRes *ParsedMarkdownResult, relPath, htmlRelPath, cardRelPath, cardDestPath, seoTitle, socialHash string) {
 	cachedHash, _ := service.cache.GetSocialCardHash(relPath)
 	if cachedHash != "" && cachedHash == socialHash {
 		service.sink.Register(cardDestPath)
 		return
 	}
+	service.cleanupObsoleteSocialCard(relPath, htmlRelPath, socialHash)
 	if err := service.sink.MkdirAll(filepath.Dir(cardDestPath)); err != nil {
 		return
 	}
@@ -482,6 +493,7 @@ func (service *contentService) handleSocialCard(parseRes *ParsedMarkdownResult, 
 		path:            relPath,
 		relPath:         cardRelPath,
 		cardDestPath:    cardDestPath,
+		seoTitle:        seoTitle,
 		metadata:        parseRes.Metadata,
 		frontmatterHash: socialHash,
 	})

@@ -2,6 +2,7 @@ package content
 
 import (
 	"context"
+	"errors"
 	"html/template"
 	"io"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 
 	"github.com/spf13/afero"
@@ -23,6 +25,7 @@ import (
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
@@ -178,13 +181,45 @@ func (m *mockCacheService) StoreHTMLForItem(_ *models.ContentMeta, _ []byte) err
 func (m *mockCacheService) BatchCommit(_ []*models.ContentMeta, _ map[string]*models.SearchRecord, _ map[string]*models.Dependencies) error {
 	return nil
 }
-func (m *mockCacheService) DeleteItem(_ string) error    { return nil }
-func (m *mockCacheService) MarkDirty(_ string)           {}
-func (m *mockCacheService) IsDirty(_ string) bool        { return false }
-func (m *mockCacheService) ClearDirty()                  {}
+func (m *mockCacheService) DeleteItem(_ string) error        { return nil }
+func (m *mockCacheService) MarkDirty(_ string)               {}
+func (m *mockCacheService) IsDirty(_ string) bool            { return false }
+func (m *mockCacheService) ClearDirty()                      {}
 func (m *mockCacheService) Stats() (*core.CacheStats, error) { return nil, nil }
-func (m *mockCacheService) IncrementBuildCount() error   { return nil }
-func (m *mockCacheService) Close() error                 { return nil }
+func (m *mockCacheService) IncrementBuildCount() error       { return nil }
+func (m *mockCacheService) Close() error                     { return nil }
+
+type socialHashCacheMock struct {
+	mockCacheService
+	mu     sync.RWMutex
+	hashes map[string]string
+}
+
+func newSocialHashCacheMock() *socialHashCacheMock {
+	return &socialHashCacheMock{hashes: make(map[string]string)}
+}
+
+func (m *socialHashCacheMock) GetSocialCardHash(path string) (string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.hashes[path], nil
+}
+
+func (m *socialHashCacheMock) SetSocialCardHash(path, hash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.hashes[path] = hash
+	return nil
+}
+
+func (m *socialHashCacheMock) BatchSetSocialCardHashes(hashes map[string]string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for path, hash := range hashes {
+		m.hashes[path] = hash
+	}
+	return nil
+}
 
 func setupPostServiceTest(t *testing.T) *contentService {
 	t.Helper()
@@ -369,6 +404,95 @@ func TestPostService_ProcessSingle_PanicRecovery(t *testing.T) {
 
 	err := s.ProcessSingle(ctx, testPath, validContent)
 	t.Logf("ProcessSingle completed with error: %v", err)
+}
+
+func TestPostService_ProcessSingle_UsesSEOTitleForSocialHash(t *testing.T) {
+	s := setupPostServiceTest(t)
+	mockRend := &mockRenderServiceWithCapture{}
+	s.renderer = mockRend
+	s.cache = nil
+
+	testPath := filepath.Join("content", "blogs", "seo.md")
+	testContent := []byte("---\ntitle: Visible Title\nseo_title: Search Title\ndescription: Search Description\ndate: 2026-04-22\n---\n\nBody")
+	_ = s.sourceFs.MkdirAll(filepath.Dir(testPath), 0755)
+	_ = afero.WriteFile(s.sourceFs, testPath, testContent, 0644)
+
+	if err := s.ProcessSingle(context.Background(), testPath, nil); err != nil {
+		t.Fatalf("ProcessSingle failed: %v", err)
+	}
+
+	rendered := mockRend.Pages
+	if len(rendered) != 1 {
+		t.Fatalf("expected 1 rendered page, got %d", len(rendered))
+	}
+
+	var page models.PageData
+	for _, p := range rendered {
+		page = p
+		break
+	}
+
+	expectedHash := generators.SocialCardHashWithBadge("Search Title", "Search Description", "2026-04-22", &s.cfg.SocialCards)
+	if page.SocialHash != expectedHash {
+		t.Fatalf("unexpected social hash: got %q want %q", page.SocialHash, expectedHash)
+	}
+
+	if !strings.Contains(page.Image, expectedHash) {
+		t.Fatalf("expected image URL %q to contain social hash %q", page.Image, expectedHash)
+	}
+
+	expectedTabTitle := "Search Title | " + s.cfg.Title
+	if page.TabTitle != expectedTabTitle {
+		t.Fatalf("unexpected tab title: got %q want %q", page.TabTitle, expectedTabTitle)
+	}
+}
+
+func TestContentService_CleanupObsoleteSocialCard_RemovesOldHashedFiles(t *testing.T) {
+	s := setupPostServiceTest(t)
+
+	outputDir := t.TempDir()
+	cacheDir := t.TempDir()
+	s.cfg.OutputDir = outputDir
+	s.cfg.CacheDir = cacheDir
+	s.sink = testutil.NewMemSinkWithDir(outputDir)
+
+	cache := newSocialHashCacheMock()
+	s.cache = cache
+
+	contentRelPath := "blogs/inference_engine.md"
+	htmlRelPath := "blogs/inference_engine.html"
+	oldHash := "old-social-hash"
+	newHash := "new-social-hash"
+
+	if err := cache.SetSocialCardHash(contentRelPath, oldHash); err != nil {
+		t.Fatalf("failed to set old social hash: %v", err)
+	}
+
+	_, oldCardOutputPath, _ := navigation.CardPaths(s.cfg.BaseURL, s.cfg.OutputDir, htmlRelPath, oldHash)
+	oldCardCachePath := filepath.Join(cacheDir, "social-cards", oldHash+".webp")
+
+	if err := os.MkdirAll(filepath.Dir(oldCardOutputPath), 0o755); err != nil {
+		t.Fatalf("failed to create output social card directory: %v", err)
+	}
+	if err := os.WriteFile(oldCardOutputPath, []byte("old-card"), 0o644); err != nil {
+		t.Fatalf("failed to seed old output social card: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(oldCardCachePath), 0o755); err != nil {
+		t.Fatalf("failed to create cache social card directory: %v", err)
+	}
+	if err := os.WriteFile(oldCardCachePath, []byte("old-card-cache"), 0o644); err != nil {
+		t.Fatalf("failed to seed old cache social card: %v", err)
+	}
+
+	s.cleanupObsoleteSocialCard(contentRelPath, htmlRelPath, newHash)
+
+	if _, err := os.Stat(oldCardOutputPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected old output social card to be removed, stat err=%v", err)
+	}
+	if _, err := os.Stat(oldCardCachePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected old cached social card to be removed, stat err=%v", err)
+	}
 }
 
 func TestDecoupledPipeline(t *testing.T) {

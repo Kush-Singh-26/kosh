@@ -356,14 +356,14 @@ func (service *metadataScanner) parseScannedMetadata(siteConfig *config.Config, 
 	postLink := navigation.BuildAbsoluteURL(siteConfig.BaseURL, cleanHTMLRelPath)
 
 	frontmatterHash := hashing.GetFrontmatterHashFromValues(hashing.FrontmatterHashOptions{
-		Title:       title,
-		Description: description,
-		Date:        date,
-		Taxonomies:  taxonomies,
-		IsPinned:    isPinned,
-		IsDraft:     isDraft,
-		Weight:      weight,
-		Other:       metadata,
+		Title:        title,
+		Description:  description,
+		Date:         date,
+		Taxonomies:   taxonomies,
+		IsPinned:     isPinned,
+		IsDraft:      isDraft,
+		Weight:       weight,
+		Other:        metadata,
 		TaxonomyKeys: taxonomyKeys,
 	})
 
@@ -391,4 +391,97 @@ func extractWeight(metadata map[string]any) int {
 		return int(weightValue)
 	}
 	return 0
+}
+
+// BuildCascadedMetadataForPath returns metadata for a single file with section
+// cascade (_index.md) merged in scanner order, along with the body offset.
+func BuildCascadedMetadataForPath(sourceFs afero.Fs, siteConfig *config.Config, path string, source []byte) (map[string]any, int, error) {
+	if len(source) == 0 {
+		var err error
+		source, err = afero.ReadFile(sourceFs, path)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	fileMeta, bodyOffset := parseFrontmatterMetadata(source)
+	relPath, err := filepath.Rel(siteConfig.ContentDir, path)
+	if err != nil {
+		return fileMeta, bodyOffset, err
+	}
+	relPath = fspkg.NormalizePath(relPath)
+	relDir := filepath.Dir(relPath)
+	if relDir == "." {
+		relDir = ""
+	}
+
+	merged := make(map[string]any)
+	for _, section := range sectionAncestors(relDir) {
+		indexPath := filepath.Join(siteConfig.ContentDir, filepath.FromSlash(section), "_index.md")
+		indexSource, err := afero.ReadFile(sourceFs, indexPath)
+		if err != nil {
+			continue
+		}
+		sectionMeta, _ := parseFrontmatterMetadata(indexSource)
+		if cascade, ok := sectionMeta["cascade"].(map[string]any); ok {
+			for k, v := range cascade {
+				merged[k] = v
+			}
+		}
+		if section == "" {
+			if desc, ok := sectionMeta["description"].(string); ok && desc != "" {
+				merged["description"] = desc
+			}
+		}
+	}
+
+	for k, v := range fileMeta {
+		merged[k] = v
+	}
+	return merged, bodyOffset, nil
+}
+
+func parseFrontmatterMetadata(source []byte) (map[string]any, int) {
+	parts := bytes.SplitN(source, hashing.YAMLDelim, frontmatterParts)
+	if len(parts) < frontmatterParts {
+		return map[string]any{}, 0
+	}
+
+	frontmatter := bytes.TrimSpace(parts[1])
+	bodyOffset := bytes.Index(source, parts[2])
+	if bodyOffset < 0 {
+		bodyOffset = 0
+	}
+
+	metadata, err := hashing.ParseFrontmatter(frontmatter)
+	if err != nil {
+		return map[string]any{}, bodyOffset
+	}
+	return metadata, bodyOffset
+}
+
+func sectionAncestors(relDir string) []string {
+	normalized := strings.Trim(filepath.ToSlash(relDir), "/")
+	if normalized == "" {
+		return []string{""}
+	}
+
+	parts := strings.Split(normalized, "/")
+	sections := make([]string, 0, len(parts)+1)
+	sections = append(sections, "")
+
+	current := ""
+	for _, part := range parts {
+		if part == "" || part == "." {
+			continue
+		}
+		if current == "" {
+			current = part
+		} else {
+			current += "/" + part
+		}
+		sections = append(sections, current)
+	}
+
+	return sections
 }

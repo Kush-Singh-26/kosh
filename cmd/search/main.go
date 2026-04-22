@@ -4,7 +4,9 @@
 package main
 
 import (
+	"sort"
 	"strconv"
+	"strings"
 	"syscall/js"
 
 	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
@@ -24,6 +26,7 @@ func main() {
 	js.Global().Set("initSearch", js.FuncOf(initSearch))
 	js.Global().Set("searchItems", js.FuncOf(searchItems))
 	js.Global().Set("getSuggestions", js.FuncOf(getSuggestions))
+	js.Global().Set("getFeaturedTopics", js.FuncOf(getFeaturedTopics))
 
 	println("WASM Search Engine Ready")
 	<-c
@@ -42,6 +45,52 @@ func getSuggestions(this js.Value, args []js.Value) any {
 	}
 
 	return js.ValueOf(jsSug)
+}
+
+func getFeaturedTopics(this js.Value, args []js.Value) any {
+	_ = args
+
+	type topic struct {
+		Name  string `json:"name"`
+		Count int    `json:"count"`
+	}
+
+	counts := make(map[string]int)
+	displayNames := make(map[string]string)
+	for _, item := range index.Items {
+		for _, tag := range item.Taxonomies["tags"] {
+			key := strings.ToLower(strings.TrimSpace(tag))
+			if key == "" {
+				continue
+			}
+			counts[key]++
+			if _, ok := displayNames[key]; !ok {
+				displayNames[key] = strings.TrimSpace(tag)
+			}
+		}
+	}
+
+	topics := make([]topic, 0, len(counts))
+	for key, count := range counts {
+		topics = append(topics, topic{Name: displayNames[key], Count: count})
+	}
+
+	sort.Slice(topics, func(i, j int) bool {
+		if topics[i].Count == topics[j].Count {
+			return strings.ToLower(topics[i].Name) < strings.ToLower(topics[j].Name)
+		}
+		return topics[i].Count > topics[j].Count
+	})
+
+	jsTopics := make([]any, 0, len(topics))
+	for _, t := range topics {
+		jsTopics = append(jsTopics, map[string]any{
+			"name":  t.Name,
+			"count": t.Count,
+		})
+	}
+
+	return js.ValueOf(jsTopics)
 }
 
 func initSearch(this js.Value, args []js.Value) any {

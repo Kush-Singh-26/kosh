@@ -46,7 +46,7 @@ func (service *contentService) generateSocialCard(task socialCardTask) {
 		SiteTitle:   service.cfg.Title,
 		Title:       task.seoTitle,
 		Description: timeutil.ExtractStringFromMap(task.metadata, "description"),
-		DateStr:     timeutil.ExtractStringFromMap(task.metadata, "date"),
+		DateStr:     timeutil.ExtractDateStringFromMap(task.metadata, "date"),
 		DestPath:    cachedCardPath,
 		LogoPath:    logoPath,
 	}

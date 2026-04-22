@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
-	"github.com/Kush-Singh-26/kosh/builder/generators"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
@@ -192,9 +191,9 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 
 	workerCtx := WorkerContext{
 		Ctx: ctx, ProcessContext: processCtx, CardPool: cardPool, SearchPool: searchPool,
-		SearchIngestor: opts.SearchIngestor,
-		RenderChan:     renderCollector.renderChan,
-		ShouldForce:    opts.ShouldForce,
+		SearchIngestor:     opts.SearchIngestor,
+		RenderChan:         renderCollector.renderChan,
+		ShouldForce:        opts.ShouldForce,
 		ForceSocialRebuild: opts.ForceSocialRebuild,
 		ForceRerender:      opts.ForceRerender,
 		DenseIDCounter:     denseIDCounter,
@@ -399,13 +398,7 @@ func (service *contentService) renderSingleTask(renderTaskInstance renderTask, r
 		pageContext = models.ContextHome
 	}
 
-	seoTitle := service.resolveSEOTitle(renderTaskInstance.parseResult.Metadata, item, pageContext)
-	description, _ := renderTaskInstance.parseResult.Metadata["description"].(string)
-	if description == "" {
-		description = item.Description
-	}
-
-	socialHash := generators.SocialCardHash(seoTitle, description, &service.cfg.SocialCards)
+	seoTitle, _, _, socialHash := service.resolveSocialCardData(renderTaskInstance.parseResult)
 
 	_, _, cardImageURL := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, renderTaskInstance.htmlRelativePath, socialHash)
 	prev, next := service.setupNavPages(nav, renderTaskInstance.file.Link)

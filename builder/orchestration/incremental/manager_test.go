@@ -1,11 +1,14 @@
 package incremental
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
 func TestManager_ResolveContentPaths(t *testing.T) {
@@ -83,4 +86,61 @@ func TestManager_DeterminePostChange(t *testing.T) {
 			t.Errorf("expected PostChangeNone, got %v", change)
 		}
 	})
+}
+
+func TestManager_RemoveDeletedOutputs_RemovesGeneratedArtifacts(t *testing.T) {
+	tempDir := t.TempDir()
+	outputDir := filepath.Join(tempDir, "public")
+	cacheDir := filepath.Join(tempDir, ".kosh-cache")
+	cfg := &config.Config{
+		SiteConfig: config.SiteConfig{
+			BaseURL: "https://example.com",
+		},
+		PathConfig: config.PathConfig{
+			OutputDir: outputDir,
+			CacheDir:  cacheDir,
+		},
+		Features: models.FeaturesConfig{
+			UseRawMarkdown: true,
+		},
+	}
+
+	cacheService := mocks.NewMockCacheService()
+	const (
+		relPath     = "blogs/sample.md"
+		htmlRelPath = "blogs/sample.html"
+		cardHash    = "card-hash-123"
+	)
+	cacheService.SocialCardHashes[relPath] = cardHash
+
+	m := NewManager(ManagerDependencies{
+		Cfg: cfg,
+		Deps: Dependencies{
+			Cache: cacheService,
+		},
+	})
+
+	htmlPath := filepath.Join(outputDir, htmlRelPath)
+	rawPath := filepath.Join(outputDir, "blogs", "sample.md")
+	_, cardOutHashed, _ := navigation.CardPaths(cfg.BaseURL, cfg.OutputDir, htmlRelPath, cardHash)
+	_, cardOutPlain, _ := navigation.CardPaths(cfg.BaseURL, cfg.OutputDir, htmlRelPath, "")
+	cacheCardPath := filepath.Join(cacheDir, "social-cards", cardHash+".webp")
+
+	paths := []string{htmlPath, rawPath, cardOutHashed, cardOutPlain, cacheCardPath}
+	for _, path := range paths {
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("failed to create directory for %s: %v", path, err)
+		}
+		if err := os.WriteFile(path, []byte("x"), 0644); err != nil {
+			t.Fatalf("failed to create file %s: %v", path, err)
+		}
+	}
+
+	m.removeDeletedOutputs(relPath, htmlRelPath)
+
+	for _, path := range paths {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("expected %s to be removed, stat err=%v", path, err)
+		}
+	}
 }

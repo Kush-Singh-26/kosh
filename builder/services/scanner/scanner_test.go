@@ -165,3 +165,61 @@ Body content`
 		t.Error("Expected non-zero body offset")
 	}
 }
+
+func TestBuildCascadedMetadataForPath(t *testing.T) {
+	cfg := testutil.CreateSampleConfig()
+	sourceFs := afero.NewMemMapFs()
+
+	rootIndexPath := filepath.Join(cfg.ContentDir, "_index.md")
+	sectionIndexPath := filepath.Join(cfg.ContentDir, "blogs", "_index.md")
+	postPath := filepath.Join(cfg.ContentDir, "blogs", "sample.md")
+
+	_ = sourceFs.MkdirAll(filepath.Dir(postPath), 0755)
+	_ = afero.WriteFile(sourceFs, rootIndexPath, []byte(`---
+description: "Root Description"
+cascade:
+  layout: "home"
+  tags: ["root"]
+---
+Root`), 0644)
+	_ = afero.WriteFile(sourceFs, sectionIndexPath, []byte(`---
+cascade:
+  tags: ["section"]
+  author: "Kosh"
+---
+Section`), 0644)
+
+	source := []byte(`---
+title: "Sample"
+tags: ["item"]
+---
+Hello world`)
+	_ = afero.WriteFile(sourceFs, postPath, source, 0644)
+
+	merged, bodyOffset, err := BuildCascadedMetadataForPath(sourceFs, cfg, postPath, source)
+	if err != nil {
+		t.Fatalf("BuildCascadedMetadataForPath failed: %v", err)
+	}
+
+	if merged["title"] != "Sample" {
+		t.Fatalf("expected title to come from file frontmatter, got %#v", merged["title"])
+	}
+	if merged["layout"] != "home" {
+		t.Fatalf("expected layout from root cascade, got %#v", merged["layout"])
+	}
+	if merged["description"] != "Root Description" {
+		t.Fatalf("expected root description to be inherited, got %#v", merged["description"])
+	}
+	if merged["author"] != "Kosh" {
+		t.Fatalf("expected author from section cascade, got %#v", merged["author"])
+	}
+
+	tags, ok := merged["tags"].([]any)
+	if !ok || len(tags) != 1 || tags[0] != "item" {
+		t.Fatalf("expected file frontmatter tags to override cascade tags, got %#v", merged["tags"])
+	}
+
+	if bodyOffset <= 0 {
+		t.Fatalf("expected non-zero body offset, got %d", bodyOffset)
+	}
+}

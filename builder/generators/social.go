@@ -1,22 +1,22 @@
 package generators
 
 import (
-"bytes"
-"fmt"
-"image"
-"io"
-"log/slog"
-"os"
-"path/filepath"
-"strings"
+	"bytes"
+	"fmt"
+	"image"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 
-"github.com/Kush-Singh-26/kosh/builder/cache/core"
-buildctx "github.com/Kush-Singh-26/kosh/builder/context"
-"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
+	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 
-"github.com/chai2010/webp"
-"github.com/fogleman/gg"
-"github.com/spf13/afero"
+	"github.com/chai2010/webp"
+	"github.com/fogleman/gg"
+	"github.com/spf13/afero"
 )
 
 const (
@@ -44,20 +44,41 @@ const (
 	descSpacingY         = 25.0
 )
 
-// SocialCardHash generates a stable hash for social card content including visual config
+// SocialCardHash generates a stable hash for social card content including visual config.
 func SocialCardHash(title, description string, cfg *models.SocialCardsConfig) string {
+	return SocialCardHashWithBadge(title, description, "", cfg)
+}
+
+// SocialCardHashWithBadge generates a stable hash including an optional badge/date string.
+func SocialCardHashWithBadge(title, description, badge string, cfg *models.SocialCardsConfig) string {
 	var cardContent string
 	if cfg != nil {
-		cardContent = fmt.Sprintf("%s|%s|%s|%s|%d|%s",
-			title,
-			description,
-			cfg.Background,
-			strings.Join(cfg.Gradient, ","),
-			cfg.Angle,
-			cfg.TextColor,
-		)
+		if badge == "" {
+			cardContent = fmt.Sprintf("%s|%s|%s|%s|%d|%s",
+				title,
+				description,
+				cfg.Background,
+				strings.Join(cfg.Gradient, ","),
+				cfg.Angle,
+				cfg.TextColor,
+			)
+		} else {
+			cardContent = fmt.Sprintf("%s|%s|%s|%s|%s|%d|%s",
+				title,
+				description,
+				badge,
+				cfg.Background,
+				strings.Join(cfg.Gradient, ","),
+				cfg.Angle,
+				cfg.TextColor,
+			)
+		}
 	} else {
-		cardContent = fmt.Sprintf("%s|%s", title, description)
+		if badge == "" {
+			cardContent = fmt.Sprintf("%s|%s", title, description)
+		} else {
+			cardContent = fmt.Sprintf("%s|%s|%s", title, description, badge)
+		}
 	}
 	return core.HashString(cardContent)
 }
@@ -107,7 +128,7 @@ type ProvideSocialCardOptions struct {
 
 // ProvideSocialCard ensures a social card exists in the VFS, using cache if possible
 func ProvideSocialCard(opts ProvideSocialCardOptions) {
-	currentHash := SocialCardHash(opts.CardTitle, opts.Description, opts.SocialCfg)
+	currentHash := SocialCardHashWithBadge(opts.CardTitle, opts.Description, opts.Badge, opts.SocialCfg)
 	cachedCardPath := filepath.Join(opts.CacheDir, "social-cards", currentHash+".webp")
 
 	needsGen := ShouldGenerateSocialCard(CheckSocialCardOptions{

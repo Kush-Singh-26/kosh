@@ -81,7 +81,8 @@ __pycache__/
 *.json.bak
 
 # Generated social card images (created at build time, not committed)
-builder/services/social-cards/*.webp
+builder/services/content/social-cards/*.webp
+builder/orchestration/social-cards/*.webp
 
 .qwen
 .impeccable.md

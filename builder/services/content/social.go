@@ -1,13 +1,12 @@
 package content
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/Kush-Singh-26/kosh/builder/generators"
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
@@ -18,23 +17,9 @@ func (service *contentService) queueSocialCard(options SocialCardOptions) {
 	shouldForce := options.ForceSocialRebuild
 	cardPool := options.CardPool
 
-	description, _ := result.Metadata["description"].(string)
-	if description == "" {
-		description = result.Item.Description
-	}
-
-	layoutVal := strings.ToLower(result.Item.Section)
-	if l, ok := result.Metadata["layout"].(string); ok {
-		layoutVal = strings.ToLower(l)
-	}
-	pageContext := models.ContextSection
-	if layoutVal == "home" {
-		pageContext = models.ContextHome
-	}
-	seoTitle := service.resolveSEOTitle(result.Metadata, result.Item, pageContext)
-
-	currentHash := generators.SocialCardHash(seoTitle, description, &service.cfg.SocialCards)
+	seoTitle, _, _, currentHash := service.resolveSocialCardData(result)
 	cardRelativePath, cardDestinationPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelativePath, currentHash)
+	service.cleanupObsoleteSocialCard(relativePath, htmlRelativePath, currentHash)
 
 	cacheDir := service.cfg.CacheDir
 	if !filepath.IsAbs(cacheDir) {
@@ -55,6 +40,90 @@ func (service *contentService) queueSocialCard(options SocialCardOptions) {
 			metadata:     result.Metadata, frontmatterHash: currentHash,
 		})
 	}
+}
+
+func (service *contentService) cleanupObsoleteSocialCard(contentRelPath, htmlRelPath, currentHash string) {
+	if service.cache == nil || currentHash == "" {
+		return
+	}
+
+	previousHash, err := service.cache.GetSocialCardHash(contentRelPath)
+	if err != nil || previousHash == "" || previousHash == currentHash {
+		return
+	}
+
+	cardRelPath, cardDestPath, _ := navigation.CardPaths(service.cfg.BaseURL, service.cfg.OutputDir, htmlRelPath, previousHash)
+	service.removeOutputSocialCardFile(cardDestPath, cardRelPath)
+	service.removeCachedSocialCardFile(previousHash)
+}
+
+func (service *contentService) removeOutputSocialCardFile(cardDestPath, cardRelPath string) {
+	candidates := []string{cardDestPath}
+
+	if sinkOutputDir := strings.TrimSpace(service.sink.GetOutputDir()); sinkOutputDir != "" {
+		candidates = append(candidates, filepath.Join(
+			sinkOutputDir,
+			"static",
+			"images",
+			"cards",
+			filepath.FromSlash(cardRelPath),
+		))
+	}
+
+	for _, candidate := range candidates {
+		service.removeIfWithinRoots(candidate, []string{service.cfg.OutputDir, service.sink.GetOutputDir()})
+	}
+}
+
+func (service *contentService) removeCachedSocialCardFile(hash string) {
+	cacheRoot := strings.TrimSpace(service.cfg.CacheDir)
+	if hash == "" || cacheRoot == "" {
+		return
+	}
+
+	cacheCardPath := filepath.Join(cacheRoot, "social-cards", hash+".webp")
+	service.removeIfWithinRoots(cacheCardPath, []string{cacheRoot})
+}
+
+func (service *contentService) removeIfWithinRoots(target string, roots []string) {
+	absTarget, err := filepath.Abs(filepath.FromSlash(target))
+	if err != nil {
+		return
+	}
+
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+
+		absRoot, err := filepath.Abs(filepath.FromSlash(root))
+		if err != nil {
+			continue
+		}
+		if !isPathWithinRoot(absTarget, absRoot) {
+			continue
+		}
+
+		if err := os.Remove(absTarget); err != nil && !errors.Is(err, os.ErrNotExist) {
+			service.logger.Debug("Failed to remove stale social card file", "path", absTarget, "error", err)
+		}
+		return
+	}
+}
+
+func isPathWithinRoot(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	if strings.HasPrefix(rel, "..") {
+		return false
+	}
+	return !filepath.IsAbs(rel)
 }
 
 func (service *contentService) copyCachedSocialCard(cardHash, cardDestinationPath string) {

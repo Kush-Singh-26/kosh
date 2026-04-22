@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -18,12 +17,14 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/hashing"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	svcCache "github.com/Kush-Singh-26/kosh/builder/services/cache"
 	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration/watch"
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/afero"
 )
 
@@ -240,7 +241,7 @@ func (m *Manager) BuildSingleItem(ctx context.Context, path string) {
 	switch changeType {
 	case PostChangeNew, PostChangeFrontmatter:
 		m.logger.Info("New or frontmatter change detected, running incremental build...")
-		if err := m.handleSinglePostBodyChange(ctx, path, source, relPath, htmlRelPath, cleanHTMLRelPath); err != nil {
+		if err := m.handleSinglePostBodyChange(ctx, path, source, relPath, htmlRelPath, cleanHTMLRelPath, newFrontmatterHash, newBodyHash); err != nil {
 			m.logger.Error("Incremental rebuild failed", "error", err)
 			if buildErr := m.builder.BuildLocked(ctx); buildErr != nil {
 				m.logger.Error("Full build fallback failed", "error", buildErr)
@@ -248,7 +249,7 @@ func (m *Manager) BuildSingleItem(ctx context.Context, path string) {
 		}
 
 	case PostChangeBody:
-		if err := m.handleSinglePostBodyChange(ctx, path, source, relPath, htmlRelPath, cleanHTMLRelPath); err != nil {
+		if err := m.handleSinglePostBodyChange(ctx, path, source, relPath, htmlRelPath, cleanHTMLRelPath, newFrontmatterHash, newBodyHash); err != nil {
 			m.logger.Error("Single post body rebuild failed", "error", err)
 		}
 
@@ -257,7 +258,7 @@ func (m *Manager) BuildSingleItem(ctx context.Context, path string) {
 	}
 }
 
-func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, source []byte, relPath, htmlRelPath, cleanHTMLRelPath string) error {
+func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, source []byte, relPath, htmlRelPath, cleanHTMLRelPath, knownFrontmatterHash, newBodyHash string) error {
 	m.logger.Info("Content change detected, rebuilding single Content...")
 
 	// Only refresh session and commit for body-only changes.
@@ -271,16 +272,22 @@ func (m *Manager) handleSinglePostBodyChange(ctx context.Context, path string, s
 		}
 	}
 
+	preParsedMeta, bodyOffset, knownReadingTime := m.resolveIncrementalParseInputs(path, relPath, source, newBodyHash)
+
 	parseRes, err := content.ParseMarkdown(ctx, content.ParseOptions{
-		Source:           source,
-		Path:             path,
-		RelPath:          relPath,
-		CleanHTMLRelPath: cleanHTMLRelPath,
-		HTMLRelPath:      htmlRelPath,
-		MdPool:           m.mdPool,
-		Cfg:              m.cfg,
-		NativeRenderer:   m.nativeRenderer,
-		DiagramAdapter:   m.deps.Diagrams,
+		Source:               source,
+		Path:                 path,
+		RelPath:              relPath,
+		CleanHTMLRelPath:     cleanHTMLRelPath,
+		HTMLRelPath:          htmlRelPath,
+		MdPool:               m.mdPool,
+		Cfg:                  m.cfg,
+		NativeRenderer:       m.nativeRenderer,
+		DiagramAdapter:       m.deps.Diagrams,
+		KnownFrontmatterHash: knownFrontmatterHash,
+		KnownReadingTime:     knownReadingTime,
+		BodyOffset:           bodyOffset,
+		PreParsedMeta:        preParsedMeta,
 	})
 
 	if err != nil {
@@ -489,13 +496,8 @@ func (m *Manager) HandleDeleteChange(ctx context.Context, path string) {
 	// 1. Identify neighbors BEFORE removing the item from the cache
 	prevPath, nextPath := m.identifyNeighborsForDeletion(ctx, relPath)
 
-	// 2. Remove the physical HTML file from output directory
-	if htmlRelPath != "" {
-		outPath := filepath.Join(m.cfg.OutputDir, htmlRelPath)
-		if err := os.Remove(outPath); err != nil && !os.IsNotExist(err) {
-			m.logger.Warn("Failed to remove deleted html file", "path", outPath, "error", err)
-		}
-	}
+	// 2. Remove generated artifacts for this Content
+	m.removeDeletedOutputs(relPath, htmlRelPath)
 
 	// 3. Remove from Cache and Search Index
 	m.DeleteItemFromCache(path)
@@ -521,6 +523,65 @@ func (m *Manager) HandleDeleteChange(ctx context.Context, path string) {
 	// 7. Trigger WASM search index rebuild
 	if watchCoordinator := m.builder.GetWatch(); watchCoordinator != nil {
 		watchCoordinator.TriggerSearchRegeneration()
+	}
+}
+
+func (m *Manager) resolveIncrementalParseInputs(path, relPath string, source []byte, newBodyHash string) (map[string]any, int, int) {
+	preParsedMeta, bodyOffset, err := scanner.BuildCascadedMetadataForPath(m.sourceFs, m.cfg, path, source)
+	if err != nil {
+		m.logger.Debug("Failed to resolve cascaded metadata during incremental parse", "path", path, "error", err)
+	}
+
+	knownReadingTime := 0
+	if m.deps.Cache != nil {
+		if meta, cacheErr := m.deps.Cache.GetItemByPath(relPath); cacheErr == nil && meta != nil && meta.BodyHash == newBodyHash && meta.ReadingTime > 0 {
+			knownReadingTime = meta.ReadingTime
+		}
+	}
+
+	return preParsedMeta, bodyOffset, knownReadingTime
+}
+
+func (m *Manager) removeDeletedOutputs(relPath, htmlRelPath string) {
+	if htmlRelPath == "" {
+		return
+	}
+
+	outPath := filepath.Join(m.cfg.OutputDir, htmlRelPath)
+	if err := os.Remove(outPath); err != nil && !os.IsNotExist(err) {
+		m.logger.Warn("Failed to remove deleted html file", "path", outPath, "error", err)
+	}
+
+	if m.cfg.Features.UseRawMarkdown {
+		rawPath := strings.TrimSuffix(outPath, filepath.Ext(outPath)) + ".md"
+		if err := os.Remove(rawPath); err != nil && !os.IsNotExist(err) {
+			m.logger.Warn("Failed to remove deleted raw markdown output", "path", rawPath, "error", err)
+		}
+	}
+
+	hash := ""
+	if m.deps.Cache != nil && relPath != "" {
+		if cachedHash, err := m.deps.Cache.GetSocialCardHash(relPath); err == nil {
+			hash = cachedHash
+		}
+	}
+
+	cardHashes := []string{hash}
+	if hash != "" {
+		cardHashes = append(cardHashes, "")
+	}
+	for _, cardHash := range cardHashes {
+		_, cardOutPath, _ := navigation.CardPaths(m.cfg.BaseURL, m.cfg.OutputDir, htmlRelPath, cardHash)
+		if err := os.Remove(cardOutPath); err != nil && !os.IsNotExist(err) {
+			m.logger.Warn("Failed to remove deleted social card output", "path", cardOutPath, "error", err)
+		}
+	}
+
+	if hash != "" {
+		cachedCard := filepath.Join(m.cfg.CacheDir, "social-cards", hash+".webp")
+		if err := os.Remove(cachedCard); err != nil && !os.IsNotExist(err) {
+			m.logger.Warn("Failed to remove deleted cached social card", "path", cachedCard, "error", err)
+		}
 	}
 }
 
