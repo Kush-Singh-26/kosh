@@ -46,7 +46,7 @@ func TestE2E_SearchAndGraph(t *testing.T) {
 	cfg.KoshSourceRoot = repoRoot
 	cfg.BaseURL = fmt.Sprintf("http://%s", addr)
 	// Fix paths for the test environment (ensure absolute paths)
-	cfg.ThemeDir = filepath.Join(repoRoot, "themes")
+	cfg.ThemeDir = filepath.Join(repoRoot, "tests", "themes")
 	cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 	cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
 	cfg.ContentDir = filepath.Join(mockSiteDir, "content")

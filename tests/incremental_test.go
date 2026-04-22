@@ -61,7 +61,7 @@ Body content`
 	// Override paths
 	cfg.OutputDir = filepath.Join(mockSiteDir, "public")
 	cfg.ContentDir = filepath.Join(mockSiteDir, "content")
-	cfg.ThemeDir = filepath.Join(repoRoot, "themes")
+	cfg.ThemeDir = filepath.Join(repoRoot, "tests", "themes")
 	cfg.Theme = "blog"
 	cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 

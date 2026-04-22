@@ -54,7 +54,7 @@ Body`
 	cfg.OutputDir = filepath.Join(mockSiteDir, "public")
 	cfg.ContentDir = filepath.Join(mockSiteDir, "content")
 	cfg.LayoutsDir = filepath.Join(mockSiteDir, "layouts")
-	cfg.ThemeDir = filepath.Join(repoRoot, "themes")
+	cfg.ThemeDir = filepath.Join(repoRoot, "tests", "themes")
 	cfg.Theme = "blog"
 	cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 
@@ -109,7 +109,7 @@ outputDir: "public"
 	cfg := config.Load(nil)
 	cfg.OutputDir = filepath.Join(mockSiteDir, "public")
 	cfg.ContentDir = filepath.Join(mockSiteDir, "content")
-	cfg.ThemeDir = filepath.Join(repoRoot, "themes")
+	cfg.ThemeDir = filepath.Join(repoRoot, "tests", "themes")
 	cfg.Theme = "blog"
 	cfg.TemplateDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "templates")
 
