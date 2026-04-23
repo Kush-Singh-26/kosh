@@ -13,7 +13,12 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 type mockReporter struct{}
 
@@ -41,6 +46,8 @@ func TestMockSiteBuild(t *testing.T) {
 
 	// 2. Load config
 	cfg := config.Load(nil)
+	cfg.ParserWorkers = 1
+	cfg.ImageWorkers = 1
 
 	// Override paths to be absolute for the test
 	cfg.OutputDir = filepath.Join(mockSiteDir, "public")
@@ -60,6 +67,7 @@ func TestMockSiteBuild(t *testing.T) {
 		orchestration.WithFs(sourceFs),
 		orchestration.WithReporter(reporter),
 	)
+	defer func() { engine.Close() }()
 
 	// 4. Run Build
 	err = engine.Build(context.Background())

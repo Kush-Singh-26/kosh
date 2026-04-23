@@ -70,7 +70,9 @@ func TestManager_SetupBuilding(t *testing.T) {
 		Logger: logger,
 	})
 
-	assetsReady, discoveryReady, wg, errChan := m.SetupBuilding(context.Background(), nil, true)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	assetsReady, discoveryReady, wg, errChan := m.SetupBuilding(ctx, nil, true)
 
 	if assetsReady == nil || discoveryReady == nil || wg == nil || errChan == nil {
 		t.Error("SetupBuilding returned nil channels/wg")

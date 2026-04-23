@@ -8,7 +8,12 @@ import (
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestRenderer_RenderD2(t *testing.T) {
 	r := New(WithWorkers(1))
@@ -49,7 +54,7 @@ func TestRenderer_RenderMath(t *testing.T) {
 }
 
 func TestRenderer_RenderAllMath(t *testing.T) {
-	r := New(WithWorkers(2))
+	r := New(WithWorkers(1))
 	defer func() { _ = r.Close() }()
 
 	ctx := context.Background()
@@ -84,7 +89,8 @@ func TestRenderer_RenderAllMath(t *testing.T) {
 }
 
 func TestRenderer_ConcurrentInitialization(t *testing.T) {
-	r := New(WithWorkers(2))
+	r := New(WithWorkers(1))
+	defer func() { _ = r.Close() }()
 
 	var wg sync.WaitGroup
 
@@ -103,7 +109,8 @@ func TestRenderer_ConcurrentInitialization(t *testing.T) {
 }
 
 func TestRenderer_PoolChannels(t *testing.T) {
-	r := New(WithWorkers(2))
+	r := New(WithWorkers(1))
+	defer func() { _ = r.Close() }()
 
 	r.ensureInitialized()
 
@@ -118,7 +125,7 @@ func TestRenderer_PoolChannels(t *testing.T) {
 }
 
 func TestRenderer_Close(t *testing.T) {
-	r := New(WithWorkers(2))
+	r := New(WithWorkers(1))
 
 	// Close before initialization
 	if err := r.Close(); err != nil {
@@ -126,7 +133,7 @@ func TestRenderer_Close(t *testing.T) {
 	}
 
 	// Close after initialization
-	r2 := New(WithWorkers(2))
+	r2 := New(WithWorkers(1))
 	r2.ensureInitialized()
 	if err := r2.Close(); err != nil {
 		t.Errorf("Close failed after initialization: %v", err)
@@ -141,7 +148,7 @@ func TestRenderer_Close(t *testing.T) {
 }
 
 func TestRenderer_Close_Race(t *testing.T) {
-	r := New(WithWorkers(4))
+	r := New(WithWorkers(2))
 
 	// Initialize first, then close — tests clean shutdown without artificial race
 	r.ensureInitialized()

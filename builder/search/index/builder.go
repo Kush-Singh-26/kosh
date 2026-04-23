@@ -41,7 +41,7 @@ type partialResult struct {
 
 // Build constructs an in-memory search index from a list of indexed posts.
 func Build(indexedPosts []searchpkg.IndexedContent) *searchpkg.SearchIndex {
-	sb := NewStreamBuilder(len(indexedPosts))
+	sb := NewStreamBuilder(context.Background(), len(indexedPosts))
 	for _, ip := range indexedPosts {
 		sb.Add(ip)
 	}
@@ -58,12 +58,12 @@ type StreamBuilder struct {
 }
 
 // NewStreamBuilder initializes a new pipelined search index builder.
-func NewStreamBuilder(expectedDocs int) *StreamBuilder {
+func NewStreamBuilder(ctx context.Context, expectedDocs int) *StreamBuilder {
 	numWorkers := min(runtime.NumCPU(), maxIndexWorkers)
 	sb := &StreamBuilder{
-		postChan:   make(chan searchpkg.IndexedContent, max(expectedDocs, 32)),
-		results:    make([]partialResult, numWorkers),
-		numWorkers: numWorkers,
+		postChan:     make(chan searchpkg.IndexedContent, max(expectedDocs, 32)),
+		results:      make([]partialResult, numWorkers),
+		numWorkers:   numWorkers,
 		expectedDocs: expectedDocs,
 	}
 
@@ -71,11 +71,11 @@ func NewStreamBuilder(expectedDocs int) *StreamBuilder {
 		sb.wg.Add(1)
 		workerID := i
 		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       context.Background(),
+			Ctx:       ctx,
 			Logger:    slog.Default(),
 			Operation: "search index stream build",
 			Fn: func() error {
-				sb.runWorker(workerID)
+				sb.runWorker(ctx, workerID)
 				return nil
 			},
 			Cleanup: sb.wg.Done,
@@ -85,7 +85,7 @@ func NewStreamBuilder(expectedDocs int) *StreamBuilder {
 	return sb
 }
 
-func (sb *StreamBuilder) runWorker(workerID int) {
+func (sb *StreamBuilder) runWorker(ctx context.Context, workerID int) {
 	workerCap := max(sb.expectedDocs/sb.numWorkers, minWorkerCap)
 	res := partialResult{
 		items:         make(map[uint32]searchpkg.ContentRecord, workerCap),
@@ -95,46 +95,54 @@ func (sb *StreamBuilder) runWorker(workerID int) {
 		stemMap:       make(map[string]map[string]bool, workerCap),
 	}
 
-	for ip := range sb.postChan {
-		res.items[ip.DenseID] = ip.Record
-		res.itemLens[ip.DenseID] = int32(ip.DocLen)
-		res.totalLen += int64(ip.DocLen)
-		res.totalDocs++
-		if ip.DenseID > res.maxDenseID {
-			res.maxDenseID = ip.DenseID
-		}
-
-		// Index title tokens separately
-		titleTokens := core.DefaultAnalyzer.Analyze(strings.ToLower(ip.Record.Title))
-		for _, word := range titleTokens {
-			res.titleInverted[word] = append(res.titleInverted[word], ip.DenseID)
-		}
-
-		// Index body tokens
-		for word, positions := range ip.PositionalIndex {
-			tp, ok := res.inverted[word]
+	for {
+		select {
+		case ip, ok := <-sb.postChan:
 			if !ok {
-				tp = &tempPostings{
-					docIDs:    make([]uint32, 0, perWordMapCap),
-					positions: make([][]uint32, 0, perWordMapCap),
+				sb.results[workerID] = res
+				return
+			}
+			res.items[ip.DenseID] = ip.Record
+			res.itemLens[ip.DenseID] = int32(ip.DocLen)
+			res.totalLen += int64(ip.DocLen)
+			res.totalDocs++
+			if ip.DenseID > res.maxDenseID {
+				res.maxDenseID = ip.DenseID
+			}
+
+			// Index title tokens separately
+			titleTokens := core.DefaultAnalyzer.Analyze(strings.ToLower(ip.Record.Title))
+			for _, word := range titleTokens {
+				res.titleInverted[word] = append(res.titleInverted[word], ip.DenseID)
+			}
+
+			// Index body tokens
+			for word, positions := range ip.PositionalIndex {
+				tp, ok := res.inverted[word]
+				if !ok {
+					tp = &tempPostings{
+						docIDs:    make([]uint32, 0, perWordMapCap),
+						positions: make([][]uint32, 0, perWordMapCap),
+					}
+					res.inverted[word] = tp
 				}
-				res.inverted[word] = tp
+				tp.docIDs = append(tp.docIDs, ip.DenseID)
+				tp.positions = append(tp.positions, positions)
 			}
-			tp.docIDs = append(tp.docIDs, ip.DenseID)
-			tp.positions = append(tp.positions, positions)
-		}
 
-		// Stem mappings
-		for orig, stem := range ip.StemMap {
-			oMap, ok := res.stemMap[stem]
-			if !ok {
-				oMap = make(map[string]bool, 2)
-				res.stemMap[stem] = oMap
+			// Stem mappings
+			for orig, stem := range ip.StemMap {
+				oMap, ok := res.stemMap[stem]
+				if !ok {
+					oMap = make(map[string]bool, 2)
+					res.stemMap[stem] = oMap
+				}
+				oMap[orig] = true
 			}
-			oMap[orig] = true
+		case <-ctx.Done():
+			return
 		}
 	}
-	sb.results[workerID] = res
 }
 
 // Add enqueues a post for background indexing.

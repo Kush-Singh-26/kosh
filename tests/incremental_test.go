@@ -72,6 +72,7 @@ Body content`
 		orchestration.WithFs(sourceFs),
 		orchestration.WithReporter(reporter),
 	)
+	defer func() { engine.Close() }()
 
 	// 3. Initial Build
 	err = engine.Build(context.Background())

@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/goleak"
+
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 
@@ -31,6 +33,10 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 // noopHandler is a slog.Handler that does nothing, used in tests to avoid race conditions in standard handlers.
 type noopHandler struct{}
@@ -221,6 +227,7 @@ func (m *socialHashCacheMock) BatchSetSocialCardHashes(hashes map[string]string)
 	return nil
 }
 
+// noopHandler is a slog.Handler that does nothing, used in tests to avoid race conditions in standard handlers.
 func setupPostServiceTest(t *testing.T) *contentService {
 	t.Helper()
 

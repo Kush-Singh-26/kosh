@@ -27,7 +27,7 @@ func TestFullPipeline(t *testing.T) {
 		},
 	}
 	// Use real native renderer if possible, or nil if we skip SSR parts
-	r := native.New()
+	r := native.New(native.WithWorkers(1))
 	defer func() { _ = r.Close() }()
 
 	diagramCache := NewMemorySSRMap()
@@ -171,7 +171,7 @@ func TestMathHelpers(t *testing.T) {
 
 func TestRenderMathForHTML(t *testing.T) {
 	ctx := context.Background()
-	r := native.New()
+	r := native.New(native.WithWorkers(1))
 	defer func() { _ = r.Close() }()
 
 	html := "Body <!--KOSH_MATH:c8c77e1c84e0aa52-->"

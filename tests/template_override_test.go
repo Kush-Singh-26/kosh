@@ -65,6 +65,7 @@ Body`
 		orchestration.WithFs(sourceFs),
 		orchestration.WithReporter(&mockReporter{}),
 	)
+	defer engine.Close()
 
 	// 4. Run Build
 	err = engine.Build(context.Background())
@@ -118,6 +119,7 @@ outputDir: "public"
 		orchestration.WithFs(afero.NewOsFs()),
 		orchestration.WithReporter(&mockReporter{}),
 	)
+	defer func() { engine.Close() }()
 
 	err := engine.Build(context.Background())
 	require.NoError(t, err)
@@ -137,6 +139,7 @@ outputDir: "public"
 	cfg.ShouldForceRebuild = true
 
 	// Re-initialize engine to be absolutely sure
+	engine.Close()
 	engine = orchestration.NewEngine(
 		orchestration.WithConfig(cfg),
 		orchestration.WithFs(afero.NewOsFs()),

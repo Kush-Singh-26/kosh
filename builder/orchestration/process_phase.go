@@ -129,7 +129,7 @@ func (engineInstance *Engine) processPhase(
 	assetsRes *buildAssetResult,
 	scan *buildScanResult,
 ) error {
-	searchStream := index.NewStreamBuilder(0)
+	searchStream := index.NewStreamBuilder(ctx, 0)
 	contentResultChan := engineInstance.startPostProcessingStream(ctx, setup, scan, searchStream)
 
 	_, discoverySignal, scannerError, assetError, _ := engineInstance.waitForScannerAndAssets(WaitScannerAssetsOptions{

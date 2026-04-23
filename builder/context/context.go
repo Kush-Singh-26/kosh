@@ -10,6 +10,7 @@ import (
 // BuildContext holds build-scoped state and dependencies to avoid global variables.
 type BuildContext struct {
 	Ctx          context.Context
+	Cancel       context.CancelFunc
 	IsTesting    bool
 	IsDev        bool
 	IsCleanBuild bool
@@ -34,8 +35,11 @@ func NewBuildContext(opts ContextOptions) *BuildContext {
 		ctx = context.Background()
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+
 	return &BuildContext{
 		Ctx:          ctx,
+		Cancel:       cancel,
 		IsTesting:    opts.IsTesting,
 		IsDev:        opts.IsDev,
 		IsCleanBuild: opts.IsCleanBuild,

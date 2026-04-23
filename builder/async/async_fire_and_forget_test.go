@@ -69,24 +69,16 @@ func TestFireAndForget_ContextCancellation(t *testing.T) {
 	logger := helperLogger(t)
 
 	var executed bool
-	var wg sync.WaitGroup
-	wg.Add(1)
-
 	FireAndForget(ctx, logger, "test cancelled", func() error {
 		executed = true
-		wg.Done()
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			return nil
-		}
+		return nil
 	})
 
-	wg.Wait()
+	// Give it a moment to potentially execute (though it shouldn't)
+	time.Sleep(10 * time.Millisecond)
 
-	if !executed {
-		t.Error("FireAndForget did not execute with cancelled context")
+	if executed {
+		t.Error("FireAndForget should not execute with already cancelled context")
 	}
 }
 

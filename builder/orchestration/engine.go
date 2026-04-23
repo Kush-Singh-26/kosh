@@ -486,6 +486,11 @@ func (e *Engine) SaveCaches() {
 // Close releases build resources.
 func (e *Engine) Close() {
 	e.State.CloseOnce.Do(func() {
+		// Cancel engine lifetime context to stop all background goroutines
+		if e.Ctx != nil && e.Ctx.Cancel != nil {
+			e.Ctx.Cancel()
+		}
+
 		if e.Watch != nil {
 			e.Watch.Close()
 		}

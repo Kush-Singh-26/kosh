@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	"go.uber.org/goleak"
+
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
@@ -25,6 +27,10 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestAssetService_Build(t *testing.T) {
 	// We need real OS FS because esbuild runs as external process
@@ -242,6 +248,9 @@ func TestAssetService_Build_DoesNotCopySourceSearchWasm(t *testing.T) {
 }
 
 func TestAssetService_Build_ContextCancellationRace(t *testing.T) {
+	// Stop image cache writer to ensure no leaks
+	defer assets.StopImageCacheWriter()
+
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	outputDir := filepath.Join(tmpDir, "output")
@@ -310,6 +319,9 @@ func TestAssetService_Build_ContextCancellationRace(t *testing.T) {
 }
 
 func TestAssetService_Build_ImageCompression(t *testing.T) {
+	// Stop image cache writer to ensure all writes are flushed and no leaks
+	defer assets.StopImageCacheWriter()
+
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	outputDir := filepath.Join(tmpDir, "output")

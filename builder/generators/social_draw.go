@@ -70,11 +70,8 @@ func drawGrain(dc *gg.Context, w, h int) {
 	for i := 0; i < 20000; i++ {
 		x := float64(i%w) + (float64(i) * 0.7)
 		y := float64(i/w) + (float64(i) * 0.3)
-		x = float64(int(x) % w)
-		y = float64(int(y) % h)
-		dc.DrawPoint(x, y, 1.0)
+		dc.SetPixel(int(x)%w, int(y)%h)
 	}
-	dc.Stroke()
 }
 
 // drawAccentLine draws a vertical accent stripe on the left edge.

@@ -72,7 +72,8 @@ func TestAssetPhase(t *testing.T) {
 	defer b.Close()
 
 	contentAssetsChan := make(chan []models.ScannedAsset, 1)
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	res := b.assetPhase(ctx, contentAssetsChan)
 	if res.assetsReadySignal == nil {

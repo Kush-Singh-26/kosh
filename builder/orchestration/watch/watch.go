@@ -366,7 +366,10 @@ func (coordinatorInstance *Coordinator) processSearchQueue() {
 				timer.Stop()
 			}
 			return
-		case <-coordinatorInstance.searchChan:
+		case _, ok := <-coordinatorInstance.searchChan:
+			if !ok {
+				return
+			}
 			pending = true
 			if !timerRunning {
 				delay := searchDelay

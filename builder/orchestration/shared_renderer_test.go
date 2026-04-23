@@ -1,11 +1,11 @@
 package orchestration
 
 import (
-	"os"
 	"sync"
 	"testing"
 
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
+	"go.uber.org/goleak"
 )
 
 var (
@@ -24,12 +24,12 @@ func getSharedRenderer() *native.Renderer {
 }
 
 func TestMain(m *testing.M) {
-	code := m.Run()
+	// Shutdown shared renderer if initialized after tests
+	defer func() {
+		if sharedRenderer != nil {
+			_ = sharedRenderer.Close()
+		}
+	}()
 
-	// Shutdown shared renderer if initialized
-	if sharedRenderer != nil {
-		_ = sharedRenderer.Close()
-	}
-
-	os.Exit(code)
+	goleak.VerifyTestMain(m)
 }

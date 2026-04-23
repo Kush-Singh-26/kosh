@@ -65,7 +65,7 @@ func (m *MockAssetService) Build(ctx context.Context) error {
 }
 
 // BuildWithOptions runs the mock build with options.
-func (m *MockAssetService) BuildWithOptions(_ context.Context, _ bool) error {
+func (m *MockAssetService) BuildWithOptions(ctx context.Context, _ bool) error {
 	m.mu.Lock()
 	failBuild := m.FailBuild
 	contentAssetsChan := m.contentAssetsChan
@@ -79,17 +79,24 @@ func (m *MockAssetService) BuildWithOptions(_ context.Context, _ bool) error {
 	}
 	m.mu.Unlock()
 
+	defer func() {
+		if assetsReady != nil {
+			close(assetsReady)
+		}
+		if discoveryReady != nil {
+			close(discoveryReady)
+		}
+	}()
+
 	if failBuild {
 		return context.Canceled
 	}
 	if contentAssetsChan != nil {
-		<-contentAssetsChan
-	}
-	if assetsReady != nil {
-		close(assetsReady)
-	}
-	if discoveryReady != nil {
-		close(discoveryReady)
+		select {
+		case <-contentAssetsChan:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	return nil
 }

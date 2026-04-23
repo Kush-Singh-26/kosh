@@ -7,15 +7,11 @@ import (
 )
 
 // FireAndForget runs a function in a goroutine with standardized error handling.
-// Errors are logged but don't propagate, suitable for background tasks like
-// cache commits, social card generation, and other non-critical operations.
-//
-// Example:
-//
-//	FireAndForget(ctx, logger, "cache commit", func() error {
-//	    return cache.BatchCommit(...)
-//	})
-func FireAndForget(_ context.Context, logger *slog.Logger, operation string, fn func() error) {
+// Errors are logged but don't propagate.
+func FireAndForget(ctx context.Context, logger *slog.Logger, operation string, fn func() error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	go func() {
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -25,6 +21,13 @@ func FireAndForget(_ context.Context, logger *slog.Logger, operation string, fn 
 					"stack", string(debug.Stack()))
 			}
 		}()
+
+		// Check context before starting
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 
 		if err := fn(); err != nil {
 			logger.Error("Background operation failed",
@@ -50,7 +53,10 @@ func FireAndForget(_ context.Context, logger *slog.Logger, operation string, fn 
 //	case <-time.After(5 * time.Second):
 //	    /* timeout */
 //	}
-func FireAndForgetWithResult(_ context.Context, logger *slog.Logger, operation string, fn func() error) <-chan error {
+func FireAndForgetWithResult(ctx context.Context, logger *slog.Logger, operation string, fn func() error) <-chan error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	errCh := make(chan error, 1) // buffered to prevent goroutine leak
 	go func() {
 		defer func() {
@@ -63,6 +69,14 @@ func FireAndForgetWithResult(_ context.Context, logger *slog.Logger, operation s
 				return
 			}
 		}()
+
+		// Check context before starting
+		select {
+		case <-ctx.Done():
+			errCh <- ctx.Err()
+			return
+		default:
+		}
 
 		err := fn()
 		if err != nil {
@@ -121,6 +135,13 @@ func FireAndForgetWithCallback(opts FireAndForgetCallbackOptions) {
 			}
 		}()
 
+		// Check context before starting
+		select {
+		case <-opts.Ctx.Done():
+			return
+		default:
+		}
+
 		if err := opts.Fn(); err != nil {
 			opts.Logger.Error("Background operation failed",
 				"operation", opts.Operation,
@@ -178,6 +199,13 @@ func FireAndForgetWithMetrics(opts FireAndForgetMetricsOptions) {
 			}
 		}()
 
+		// Check context before starting
+		select {
+		case <-opts.Ctx.Done():
+			return
+		default:
+		}
+
 		if err := opts.Fn(); err != nil {
 			opts.Logger.Error("Background operation failed",
 				"operation", opts.Operation,
@@ -203,16 +231,6 @@ type FireAndForgetCleanupOptions struct {
 
 // FireAndForgetWithCleanup runs a function in a goroutine with cleanup callback.
 // The cleanup function is always called, even on panic or error.
-//
-// Example:
-//
-//	FireAndForgetWithCleanup(FireAndForgetCleanupOptions{
-//	    Ctx:       ctx,
-//	    Logger:    logger,
-//	    Operation: "social card",
-//	    Fn:        func() error { return generateCard() },
-//	    Cleanup:   func() { cleanupResources() },
-//	})
 func FireAndForgetWithCleanup(opts FireAndForgetCleanupOptions) {
 	if opts.Ctx == nil {
 		opts.Ctx = context.Background()
@@ -241,6 +259,13 @@ func FireAndForgetWithCleanup(opts FireAndForgetCleanupOptions) {
 					"stack", string(debug.Stack()))
 			}
 		}()
+
+		// Check context before starting
+		select {
+		case <-opts.Ctx.Done():
+			return
+		default:
+		}
 
 		if err := opts.Fn(); err != nil {
 			opts.Logger.Error("Background operation failed",

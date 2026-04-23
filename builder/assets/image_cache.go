@@ -185,7 +185,6 @@ func getImageHash(key imageCacheKey) string {
 var imageCacheWriter struct {
 	mu      sync.RWMutex
 	channel chan imageCacheEntry
-	once    sync.Once
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 	logger  *slog.Logger
@@ -193,44 +192,47 @@ var imageCacheWriter struct {
 
 // InitImageCacheWriter initializes the background writer for the image cache.
 func InitImageCacheWriter(ctx context.Context, logger *slog.Logger) {
-	imageCacheWriter.once.Do(func() {
-		if logger == nil {
-			logger = slog.Default()
-		}
+	imageCacheWriter.mu.Lock()
+	defer imageCacheWriter.mu.Unlock()
 
-		ctx, cancel := context.WithCancel(ctx)
-		ch := make(chan imageCacheEntry, imageCacheWriterBuffer)
+	if imageCacheWriter.channel != nil {
+		return // Already initialized
+	}
 
-		imageCacheWriter.mu.Lock()
-		imageCacheWriter.logger = logger
-		imageCacheWriter.cancel = cancel
-		imageCacheWriter.channel = ch
-		imageCacheWriter.mu.Unlock()
+	if logger == nil {
+		logger = slog.Default()
+	}
 
-		imageCacheWriter.wg.Add(1)
+	ctx, cancel := context.WithCancel(ctx)
+	ch := make(chan imageCacheEntry, imageCacheWriterBuffer)
 
-		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       ctx,
-			Logger:    logger,
-			Operation: "image cache writer",
-			Fn: func() error {
-				for {
-					select {
-					case cacheEntry, ok := <-ch:
-						if !ok {
-							return nil
-						}
-						_ = os.MkdirAll(filepath.Dir(cacheEntry.path), imageCacheDirMode)
-						if err := os.WriteFile(cacheEntry.path, cacheEntry.data, imageCacheFileMode); err != nil {
-							logger.Warn("Failed to write image cache file", "path", cacheEntry.path, "error", err)
-						}
-					case <-ctx.Done():
-						return ctx.Err()
+	imageCacheWriter.logger = logger
+	imageCacheWriter.cancel = cancel
+	imageCacheWriter.channel = ch
+
+	imageCacheWriter.wg.Add(1)
+
+	async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
+		Ctx:       ctx,
+		Logger:    logger,
+		Operation: "image cache writer",
+		Fn: func() error {
+			for {
+				select {
+				case cacheEntry, ok := <-ch:
+					if !ok {
+						return nil
 					}
+					_ = os.MkdirAll(filepath.Dir(cacheEntry.path), imageCacheDirMode)
+					if err := os.WriteFile(cacheEntry.path, cacheEntry.data, imageCacheFileMode); err != nil {
+						logger.Warn("Failed to write image cache file", "path", cacheEntry.path, "error", err)
+					}
+				case <-ctx.Done():
+					return ctx.Err()
 				}
-			},
-			Cleanup: imageCacheWriter.wg.Done,
-		})
+			}
+		},
+		Cleanup: imageCacheWriter.wg.Done,
 	})
 }
 
