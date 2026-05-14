@@ -65,7 +65,6 @@ func (managerInstance *Manager) SetupBuilding(ctx context.Context, contentAssets
 
 	assets.ResetConvertedImages()
 	assets.ResetWasmExecForBuild()
-	managerInstance.deps.Render.SetAssets(map[string]string{})
 
 	skipImages := managerInstance.determineSkipImages(force)
 	managerInstance.configureAssetService(contentAssetsChan)

@@ -73,10 +73,18 @@ func (w *Watcher) resetTimer(pendingMu *sync.Mutex, pendingEvents *map[string]fs
 	})
 }
 
+// Close stops watching for changes
+func (w *Watcher) Close() error {
+	w.timerMu.Lock()
+	if w.timer != nil {
+		w.timer.Stop()
+	}
+	w.timerMu.Unlock()
+	return w.watcher.Close()
+}
+
 // Start begins watching for events
 func (w *Watcher) Start() {
-	defer func() { _ = w.watcher.Close() }()
-
 	w.addWatchDirs()
 	orchestration.DevLogInfo("Watch mode active. Waiting for changes...")
 	w.handleWatchEvents()

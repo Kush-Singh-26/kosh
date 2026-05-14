@@ -486,11 +486,6 @@ func (e *Engine) SaveCaches() {
 // Close releases build resources.
 func (e *Engine) Close() {
 	e.State.CloseOnce.Do(func() {
-		// Cancel engine lifetime context to stop all background goroutines
-		if e.Ctx != nil && e.Ctx.Cancel != nil {
-			e.Ctx.Cancel()
-		}
-
 		if e.Watch != nil {
 			e.Watch.Close()
 		}
@@ -500,6 +495,11 @@ func (e *Engine) Close() {
 
 		// Wait for any background cache flush to complete before closing BoltDB
 		e.flushWaitGroup.Wait()
+
+		// Cancel engine lifetime context to stop any remaining background goroutines
+		if e.Ctx != nil && e.Ctx.Cancel != nil {
+			e.Ctx.Cancel()
+		}
 
 		if e.Deps.Diagrams != nil {
 			_ = e.Deps.Diagrams.Close()

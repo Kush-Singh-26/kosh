@@ -228,7 +228,7 @@ func InitImageCacheWriter(ctx context.Context, logger *slog.Logger) {
 						logger.Warn("Failed to write image cache file", "path", cacheEntry.path, "error", err)
 					}
 				case <-ctx.Done():
-					return ctx.Err()
+					return nil
 				}
 			}
 		},

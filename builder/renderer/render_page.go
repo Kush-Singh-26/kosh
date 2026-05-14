@@ -26,6 +26,9 @@ const (
 func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data models.PageData, templateName string) error {
 	r.PreparePageData(&data)
 
+	// Apply SSR math replacement to TOC entries before template execution
+	r.applySSRToTOC(&data)
+
 	buf := pools.SharedBufferPool.Get()
 	defer pools.SharedBufferPool.Put(buf)
 
@@ -84,6 +87,15 @@ func (r *Renderer) applySSRReplacements(finalBytes []byte, data *models.PageData
 		return []byte(htmlStr)
 	}
 	return finalBytes
+}
+
+func (r *Renderer) applySSRToTOC(data *models.PageData) {
+	if len(data.SSRMath) == 0 || len(data.TOC) == 0 {
+		return
+	}
+	for i := range data.TOC {
+		data.TOC[i].Text = parser.LateReplaceMath(data.TOC[i].Text, data.SSRMath)
+	}
 }
 
 func (r *Renderer) writeProcessedHTML(path string, finalBytes []byte) error {

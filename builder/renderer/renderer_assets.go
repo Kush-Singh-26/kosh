@@ -75,7 +75,6 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 		snapshot[k] = v
 	}
 	r.assetsSnapshot.Store(&snapshot)
-	slog.Debug("Asset map snapshot updated", "count", len(snapshot))
 
 	// Invalidate relativization cache because assets have changed
 	r.assetCache.Range(func(key, _ any) bool {
@@ -95,8 +94,22 @@ func (r *Renderer) PrepareAssets(data *models.PageData) {
 		data.TabTitle = data.Title
 	}
 
-	if data.Assets == nil {
-		data.Assets = r.GetAssets()
+	if data.Assets == nil || len(data.Assets) == 0 {
+		assets := r.GetAssets()
+		// Only use assets if they look valid (have proper keys like /static/css/...)
+		// Otherwise, clear to let template fall back to direct paths
+		validAssets := false
+		for k := range assets {
+			if strings.HasPrefix(k, "/static/css/") || strings.HasPrefix(k, "/static/js/") {
+				validAssets = true
+				break
+			}
+		}
+		if validAssets {
+			data.Assets = assets
+		} else {
+			data.Assets = nil
+		}
 	}
 
 	// Optimization: Use cached relativized asset maps to save massive allocation churn

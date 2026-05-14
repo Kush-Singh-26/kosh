@@ -126,6 +126,9 @@ func setupCPUProfiling() func() {
 
 func runWatchBuild(ctx context.Context, filteredArgs []string) {
 	engine := orchestration.NewEngine(orchestration.WithArgs(filteredArgs), orchestration.WithReporter(reporter))
+	defer engine.Close()
+	defer engine.SaveCaches()
+
 	if reporter != nil {
 		reporter.Start("Watch Build")
 	}
@@ -137,7 +140,7 @@ func runWatchBuild(ctx context.Context, filteredArgs []string) {
 	maybePrintPhaseTimings()
 	maybeWritePhaseTimings()
 
-	watchDirs := []string{"content", engine.Cfg.TemplateDir, engine.Cfg.LayoutsDir, engine.Cfg.StaticDir, "kosh.yaml"}
+	watchDirs := []string{engine.Cfg.ContentDir, engine.Cfg.TemplateDir, engine.Cfg.LayoutsDir, engine.Cfg.StaticDir, "kosh.yaml"}
 	watcher, err := watch.New(watchDirs, func(event watch.Event) {
 		orchestration.DevLogRebuild("Change detected: " + event.Name)
 		timeutil.ResetPhaseTracking()
@@ -150,6 +153,12 @@ func runWatchBuild(ctx context.Context, filteredArgs []string) {
 		timeutil.DisablePhaseTracking()
 		os.Exit(1)
 	}
+
+	go func() {
+		<-ctx.Done()
+		_ = watcher.Close()
+	}()
+
 	watcher.Start()
 }
 

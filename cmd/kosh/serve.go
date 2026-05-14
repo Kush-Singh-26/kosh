@@ -92,13 +92,18 @@ func runDevServe(ctx context.Context, filteredArgs []string) {
 	}
 	printStartupBanner("Live Preview", cfg)
 	engine := setupDevEngine(cfg)
+	defer engine.Close()
+	defer engine.SaveCaches()
 
 	if err := engine.Build(ctx); err != nil {
 		orchestration.DevLogError("Build failed: " + err.Error())
 		os.Exit(1)
 	}
 
-	startWatcher(ctx, engine)
+	watcher := startWatcher(ctx, engine)
+	if watcher != nil {
+		defer watcher.Close()
+	}
 
 	server.Run(server.Options{
 		Ctx:            ctx,
@@ -133,21 +138,29 @@ func setupDevEngine(cfg *config.Config) *orchestration.Engine {
 	return engine
 }
 
-func startWatcher(ctx context.Context, engine *orchestration.Engine) {
-	async.FireAndForget(ctx, slog.Default(), "watcher", func() error {
-		watchDirs := []string{engine.Cfg.ContentDir, engine.Cfg.TemplateDir, engine.Cfg.LayoutsDir, engine.Cfg.StaticDir, "kosh.yaml"}
+func startWatcher(ctx context.Context, engine *orchestration.Engine) *watch.Watcher {
+	watchDirs := []string{engine.Cfg.ContentDir, engine.Cfg.TemplateDir, engine.Cfg.LayoutsDir, engine.Cfg.StaticDir, "kosh.yaml"}
 
-		watcher, err := watch.New(watchDirs, func(event watch.Event) {
-			orchestration.DevLogChange(event.Name, "watch")
-			engine.BuildChanged(ctx, event.Name, event.Op)
-		})
-		if err != nil {
-			orchestration.DevLogError("Watcher failed: " + err.Error())
-			return nil
-		}
+	watcher, err := watch.New(watchDirs, func(event watch.Event) {
+		orchestration.DevLogChange(event.Name, "watch")
+		engine.BuildChanged(ctx, event.Name, event.Op)
+	})
+	if err != nil {
+		orchestration.DevLogError("Watcher failed: " + err.Error())
+		return nil
+	}
+
+	async.FireAndForget(ctx, slog.Default(), "watcher", func() error {
+		go func() {
+			<-ctx.Done()
+			_ = watcher.Close()
+		}()
+
 		watcher.Start()
 		return nil
 	})
+
+	return watcher
 }
 
 func runStaticServe(ctx context.Context, filteredArgs []string) {
