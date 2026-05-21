@@ -11,7 +11,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 )
 
-
 func TestMarshalUnmarshalAuthorConfig(t *testing.T) {
 	v := AuthorConfig{}
 	bts, err := v.MarshalMsg(nil)

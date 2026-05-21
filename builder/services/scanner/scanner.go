@@ -143,7 +143,13 @@ func (service *metadataScanner) processScanPath(ctx context.Context, path string
 
 	filename := filepath.Base(path)
 	if filename == "_index.md" {
-		return nil
+		relDir := filepath.Dir(strings.TrimPrefix(path, options.Cfg.ContentDir))
+		relDir = strings.TrimPrefix(relDir, "/")
+		relDir = strings.TrimPrefix(relDir, string(filepath.Separator))
+		// Skip root _index.md — pagination handles the root index page
+		if relDir == "" || relDir == "." {
+			return nil
+		}
 	}
 
 	if filepath.Ext(path) != ".md" {
@@ -352,7 +358,7 @@ func (service *metadataScanner) parseScannedMetadata(siteConfig *config.Config, 
 		}
 	}
 
-	cleanHTMLRelPath := strings.TrimSuffix(relativePath, filepath.Ext(relativePath)) + ".html"
+	cleanHTMLRelPath := fspkg.MarkdownToHTMLPath(relativePath)
 	postLink := navigation.BuildAbsoluteURL(siteConfig.BaseURL, cleanHTMLRelPath)
 
 	frontmatterHash := hashing.GetFrontmatterHashFromValues(hashing.FrontmatterHashOptions{

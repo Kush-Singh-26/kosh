@@ -125,6 +125,8 @@ type PageData struct {
 	ReadingTime     int
 	HasImages       bool
 	Section         string
+	DateObj         time.Time
+	RelPath         string // Relative path to source file (e.g. "docs/getting-started.md")
 
 	// SiteData holds structured data from the data/ directory
 	SiteData map[string]any
@@ -142,7 +144,7 @@ type PageData struct {
 	Config TemplateConfig // To access Config fields in templates (Menu, Author, etc.)
 
 	// SEO
-	JSONLD          template.JS
+	JSONLD template.JS
 
 	// Universal Fragment Cache
 	Fragments    map[string]template.HTML
@@ -151,4 +153,8 @@ type PageData struct {
 	// SSR Replacement Maps (for late-pass rendering in TOC/Fragments)
 	SSRMath map[string]string       `json:"-"`
 	SSRD2   map[string]SSRThemePair `json:"-"`
+
+	// Showcase pre-rendered HTML for the docs landing page (avoids html/template comment stripping)
+	ShowcaseMath template.HTML
+	ShowcaseD2   template.HTML
 }

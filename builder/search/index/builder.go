@@ -14,12 +14,11 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
-
 const (
-	maxIndexWorkers             = 8
-	minWorkerCap                = 64
-	perWordMapCap               = 4
-	minStemMapCap               = 100
+	maxIndexWorkers = 8
+	minWorkerCap    = 64
+	perWordMapCap   = 4
+	minStemMapCap   = 100
 )
 
 // tempPostings helps group postings by term before flattening into CSR
@@ -32,11 +31,11 @@ type partialResult struct {
 	items         map[uint32]searchpkg.ContentRecord
 	inverted      map[string]*tempPostings
 	titleInverted map[string][]uint32
-	itemLens     map[uint32]int32
-	stemMap      map[string]map[string]bool
-	totalLen     int64
-	totalDocs    int
-	maxDenseID   uint32
+	itemLens      map[uint32]int32
+	stemMap       map[string]map[string]bool
+	totalLen      int64
+	totalDocs     int
+	maxDenseID    uint32
 }
 
 // Build constructs an in-memory search index from a list of indexed posts.
@@ -50,10 +49,10 @@ func Build(indexedPosts []searchpkg.IndexedContent) *searchpkg.SearchIndex {
 
 // StreamBuilder manages concurrent search index building from a stream of posts.
 type StreamBuilder struct {
-	postChan   chan searchpkg.IndexedContent
-	results    []partialResult
-	numWorkers int
-	wg         sync.WaitGroup
+	postChan     chan searchpkg.IndexedContent
+	results      []partialResult
+	numWorkers   int
+	wg           sync.WaitGroup
 	expectedDocs int
 }
 
@@ -272,7 +271,7 @@ func (sb *StreamBuilder) calculateCSRSizes(index *searchpkg.SearchIndex, terms [
 	for i, term := range terms {
 		tp := masterInverted[term]
 		sortPostings(tp)
-		
+
 		index.PostingOffsets[i] = uint32(totalPostings)
 		totalPostings += len(tp.docIDs)
 

@@ -8,7 +8,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
-
 func TestSearchIndex_RoundTrip(t *testing.T) {
 	indexedPosts := []searchpkg.IndexedContent{
 		{

@@ -1,5 +1,5 @@
 package searchpkg
- 
+
 //go:generate msgp
 
 import (
@@ -16,18 +16,18 @@ type SearchIngestor interface {
 // search functionality. It contains normalized fields for efficient text
 // matching and version-aware search.
 type ContentRecord struct {
-	Title       string
-	Link        string
-	Description string
-	Taxonomies  map[string][]string // All taxonomies (e.g., tags, categories)
-	NormalizedTaxs  map[string][]string // Lowercase taxonomies for search
-	Content         string              // Raw plain text for snippet extraction
-	Date            int64               // Unix timestamp for recency scoring
+	Title          string
+	Link           string
+	Description    string
+	Taxonomies     map[string][]string // All taxonomies (e.g., tags, categories)
+	NormalizedTaxs map[string][]string // Lowercase taxonomies for search
+	Content        string              // Raw plain text for snippet extraction
+	Date           int64               // Unix timestamp for recency scoring
 }
 
 // IndexedContent bundles a search record with pre-computed word frequencies for BM25
 type IndexedContent struct {
-	DenseID         uint32            // monotonic 0-based index
+	DenseID         uint32 // monotonic 0-based index
 	Record          ContentRecord
 	SourcePath      string `msgp:"-"`
 	WordFreqs       map[string]int
@@ -64,15 +64,15 @@ type SearchIndex struct {
 	//   - positions:    Positions[ PosOffsets[i] : PosOffsets[i+1] ]
 	PostingOffsets []uint32 // len = len(Terms)+1
 	DocIDs         []uint32 // flat list of delta-encoded doc IDs
-	
+
 	// DocPosOffsets[k] is the index into Positions for the start of doc k's positions.
 	// k is the index into DocIDs.
 	// DocPosOffsets[k+1] - DocPosOffsets[k] is the frequency for doc k.
-	DocPosOffsets  []uint32 // parallel to DocIDs (plus one sentinel at end of each term block?)
+	DocPosOffsets []uint32 // parallel to DocIDs (plus one sentinel at end of each term block?)
 	// Actually, easier to make it just DocPosOffsets[ PostingOffsets[i] : PostingOffsets[i+1]+1 ]
-	
-	PosOffsets     []uint32 // len = len(Terms)+1 (into Positions)
-	Positions      []uint32 // flat list of delta-encoded positions
+
+	PosOffsets []uint32 // len = len(Terms)+1 (into Positions)
+	Positions  []uint32 // flat list of delta-encoded positions
 
 	// Title-only inverted list for fast title scoring
 	// Parallel to Terms: TitlePostings[i] = doc IDs that contain term i in title

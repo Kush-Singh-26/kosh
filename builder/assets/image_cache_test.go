@@ -78,4 +78,3 @@ func TestImageCache_LRUWithRealLibrary(t *testing.T) {
 
 	t.Log("Real LRU library test passed")
 }
-

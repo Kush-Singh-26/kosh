@@ -8,7 +8,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
-
 const (
 	minSuggestionPrefixLen = 2
 	defaultSuggestionCount = 1
@@ -28,7 +27,7 @@ func GetSuggestions(index *searchpkg.SearchIndex, prefix string) []string {
 	}
 
 	var suggestions []suggestion
-	
+
 	// 1. Lexicon prefix match (fast binary search via core.PrefixExpand)
 	prefixTerms := core.PrefixExpand(prefix, index.Terms)
 	for _, term := range prefixTerms {

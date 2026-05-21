@@ -2,13 +2,13 @@
 package testutil
 
 import (
-"html/template"
+	"html/template"
 	"strings"
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/config"
 
-"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 	sampleDay          = 15
 	sampleHour         = 10
 	sampleWeight       = 10
-	sampleFileSize    = 150
+	sampleFileSize     = 150
 	sampleDocLen       = 10
 	largeHTMLSize      = 35000
 	samplePostsPerPage = 10
@@ -34,7 +34,7 @@ func CreateSamplePostMeta() *models.ContentMeta {
 		Description: "A test post for testing purposes",
 		IsDraft:     false,
 		Weight:      sampleWeight,
-		FileSize:   sampleFileSize,
+		FileSize:    sampleFileSize,
 		ReadingTime: 1,
 		// Meta values mirror YAML frontmatter decoding (string, bool, int/float64, time.Time, []any, map[string]any).
 		Meta: make(map[string]any),
@@ -60,9 +60,9 @@ func CreateSampleSearchRecord() *models.SearchRecord {
 	return &models.SearchRecord{
 		Title:          "Test Post",
 		WordFreqs:      map[string]int{"test": 1, "post": 1},
-		DocLen:          sampleDocLen,
-		Taxonomies:      map[string][]string{"tags": {"test", "go"}},
-		NormalizedTaxs:  map[string][]string{"tags": {"test", "go"}},
+		DocLen:         sampleDocLen,
+		Taxonomies:     map[string][]string{"tags": {"test", "go"}},
+		NormalizedTaxs: map[string][]string{"tags": {"test", "go"}},
 	}
 }
 

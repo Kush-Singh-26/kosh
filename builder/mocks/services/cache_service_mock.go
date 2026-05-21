@@ -2,48 +2,48 @@
 package mocks
 
 import (
-"context"
-"maps"
+	"context"
+	"maps"
 
-"github.com/Kush-Singh-26/kosh/builder/cache/core"
-"github.com/Kush-Singh-26/kosh/builder/cache/gc"
-"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
+	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // MockCacheService is a test double for the cache service.
 type MockCacheService struct {
-	Posts map[string]*models.ContentMeta
-	PostsByPath map[string]*models.ContentMeta
-	HTML map[string][]byte
-	SearchRecords map[string]*models.SearchRecord
-	Dirty map[string]bool
-	SocialCardHashes map[string]string
-	Fragments map[string][]byte
-	GraphHash string
-	WasmHash string
-	SearchHash string
-	Err error
-	CallCount map[string]int
-	BatchCommitPosts []*models.ContentMeta
+	Posts              map[string]*models.ContentMeta
+	PostsByPath        map[string]*models.ContentMeta
+	HTML               map[string][]byte
+	SearchRecords      map[string]*models.SearchRecord
+	Dirty              map[string]bool
+	SocialCardHashes   map[string]string
+	Fragments          map[string][]byte
+	GraphHash          string
+	WasmHash           string
+	SearchHash         string
+	Err                error
+	CallCount          map[string]int
+	BatchCommitPosts   []*models.ContentMeta
 	BatchCommitRecords map[string]*models.SearchRecord
-	BatchCommitDeps map[string]*models.Dependencies
-	GetItemByPathFn func(path string) (*models.ContentMeta, error)
+	BatchCommitDeps    map[string]*models.Dependencies
+	GetItemByPathFn    func(path string) (*models.ContentMeta, error)
 }
 
 // NewMockCacheService returns a new mock cache service with initialized maps.
 func NewMockCacheService() *MockCacheService {
 
 	return &MockCacheService{
-		Posts: make(map[string]*models.ContentMeta),
-		PostsByPath: make(map[string]*models.ContentMeta),
-		HTML: make(map[string][]byte),
-		SearchRecords: make(map[string]*models.SearchRecord),
-		Dirty: make(map[string]bool),
-		SocialCardHashes: make(map[string]string),
-		Fragments: make(map[string][]byte),
-		CallCount: make(map[string]int),
+		Posts:              make(map[string]*models.ContentMeta),
+		PostsByPath:        make(map[string]*models.ContentMeta),
+		HTML:               make(map[string][]byte),
+		SearchRecords:      make(map[string]*models.SearchRecord),
+		Dirty:              make(map[string]bool),
+		SocialCardHashes:   make(map[string]string),
+		Fragments:          make(map[string][]byte),
+		CallCount:          make(map[string]int),
 		BatchCommitRecords: make(map[string]*models.SearchRecord),
-		BatchCommitDeps: make(map[string]*models.Dependencies),
+		BatchCommitDeps:    make(map[string]*models.Dependencies),
 	}
 }
 

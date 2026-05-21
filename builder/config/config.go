@@ -71,6 +71,7 @@ type SiteConfig struct {
 	Navbar      models.NavbarIdentityConfig `yaml:"navbar"`      // Context-aware branding
 	HomeBadge   string                      `yaml:"homeBadge"`   // Label for home page social card badge
 	ArticleType string                      `yaml:"articleType"` // Schema.org article type (default: "BlogPosting")
+	DocRepoURL  string                      `yaml:"docRepoURL"`  // Base URL for "Edit this page" links (e.g., "https://github.com/user/repo/edit/main/content")
 }
 
 // BuildOptions defines build-time tuning parameters.
@@ -115,6 +116,7 @@ type Config struct {
 	Features      models.FeaturesConfig    `yaml:"features"` // Enable/Disable features
 	ThemeMetadata ThemeConfig              `yaml:"-"`        // Loaded from theme.yaml
 	SocialCards   models.SocialCardsConfig `yaml:"socialCards"`
+	D2            models.D2Config          `yaml:"d2"` // D2 diagram rendering options
 
 	// Internal / Runtime fields
 	ShouldForceRebuild  bool   `yaml:"-"`
@@ -150,7 +152,16 @@ func defaultConfig() *Config {
 		PathConfig:   defaultPathConfig(),
 		Features:     defaultFeaturesConfig(),
 		SocialCards:  defaultSocialCardsConfig(),
+		D2:           defaultD2Config(),
 		BuildVersion: 0,
+	}
+}
+
+func defaultD2Config() models.D2Config {
+	return models.D2Config{
+		LightThemeID: 0,
+		DarkThemeID:  200,
+		Pad:          0,
 	}
 }
 
@@ -475,6 +486,7 @@ func (c *Config) IsDevMode() bool { return c.IsDev }
 
 // GetNavbar returns the navbar branding configuration.
 func (c *Config) GetNavbar() models.NavbarIdentityConfig { return c.Navbar }
+func (c *Config) GetDocRepoURL() string                  { return c.DocRepoURL }
 
 // GetHomeBadge returns the home page badge label.
 func (c *Config) GetHomeBadge() string {

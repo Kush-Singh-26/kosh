@@ -29,11 +29,17 @@ func GenerateContentJSONLD(item ContentMetadata, author AuthorConfig, imageURL s
 	if articleType == "" {
 		articleType = "BlogPosting"
 	}
+	ldType := articleType
+	datePublished := item.DateObj.Format("2006-01-02")
+	if item.DateObj.IsZero() {
+		ldType = "WebPage"
+		datePublished = ""
+	}
 	article := JSONLDArticle{
 		Context:       "https://schema.org",
-		Type:          articleType,
+		Type:          ldType,
 		Headline:      item.Title,
-		DatePublished: item.DateObj.Format("2006-01-02"),
+		DatePublished: datePublished,
 		Description:   item.Description,
 		Image:         imageURL,
 	}

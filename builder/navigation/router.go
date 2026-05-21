@@ -32,6 +32,17 @@ func ComputePathVars(outputDir, relPath string) (string, string, string) {
 func BuildAbsoluteURL(baseURL, relPath string) string {
 	baseURL = strings.TrimSuffix(baseURL, "/")
 	relPath = strings.TrimPrefix(fs.NormalizePath(relPath), "/")
+
+	// Index pages get the directory URL: docs/index.html → /docs/, _index.html → /
+	if relPath == "index.html" || relPath == "_index.html" {
+		return baseURL + "/"
+	}
+	if strings.HasSuffix(relPath, "/_index.html") || strings.HasSuffix(relPath, "/index.html") {
+		relPath = strings.TrimSuffix(relPath, "index.html")
+		relPath = strings.TrimSuffix(relPath, "_")
+		return baseURL + "/" + strings.TrimRight(relPath, "/") + "/"
+	}
+
 	return baseURL + "/" + relPath
 }
 

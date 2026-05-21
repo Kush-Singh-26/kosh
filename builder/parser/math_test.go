@@ -19,7 +19,7 @@ func TestReplaceMathExpressions(t *testing.T) {
 	}
 
 	result := ReplaceMathExpressions(html, expressions, rendered)
-	
+
 	expected1 := `<span class="katex-inline" data-latex="x+1=0"><button class="katex-copy-btn" aria-label="Copy LaTeX">Copy</button><span>RENDERED_INLINE</span></span>`
 	expected2 := `<div class="katex-display" data-latex="y^2=4"><button class="katex-copy-btn" aria-label="Copy LaTeX">Copy</button><div>RENDERED_BLOCK</div></div>`
 

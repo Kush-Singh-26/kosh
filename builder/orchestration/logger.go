@@ -13,7 +13,7 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
-var rebuildLevel = slog.Level(slog.LevelWarn + 1)
+var rebuildLevel = slog.LevelWarn + 1
 
 // DevLogChange logs a file change event in dev mode.
 func DevLogChange(path, changeType string) {

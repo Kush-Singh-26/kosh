@@ -2,6 +2,7 @@ package orchestration
 
 import (
 	"context"
+	"html/template"
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -13,6 +14,8 @@ type renderPaginationOptions struct {
 	pinnedItems    []models.ContentMetadata
 	force          bool
 	taxonomies     map[string]models.TaxonomyData
+	showcaseMath   template.HTML
+	showcaseD2     template.HTML
 }
 
 func (engineInstance *Engine) renderPagination(options renderPaginationOptions) error {
@@ -23,18 +26,20 @@ func (engineInstance *Engine) renderPagination(options renderPaginationOptions) 
 	taxonomies := options.taxonomies
 
 	return generators.RenderPagination(generators.PaginationOptions{
-		Ctx:         workingContext,
-		Cfg:         engineInstance.Cfg,
-		Sink:        engineInstance.artifactSink,
-		Render:      engineInstance.Deps.Render,
-		Cache:       engineInstance.Deps.Cache,
-		SourceFs:    engineInstance.Deps.SourceFs,
-		AllPosts:    allPosts,
-		PinnedItems: pinnedItems,
-		Force:       force,
-		Logger:      engineInstance.Deps.Logger,
-		LogoPath:    engineInstance.GetLogoPath(),
-		Taxonomies:  taxonomies,
+		ShowcaseMath: options.showcaseMath,
+		ShowcaseD2:   options.showcaseD2,
+		Ctx:          workingContext,
+		Cfg:          engineInstance.Cfg,
+		Sink:         engineInstance.artifactSink,
+		Render:       engineInstance.Deps.Render,
+		Cache:        engineInstance.Deps.Cache,
+		SourceFs:     engineInstance.Deps.SourceFs,
+		AllPosts:     allPosts,
+		PinnedItems:  pinnedItems,
+		Force:        force,
+		Logger:       engineInstance.Deps.Logger,
+		LogoPath:     engineInstance.GetLogoPath(),
+		Taxonomies:   taxonomies,
 	})
 }
 

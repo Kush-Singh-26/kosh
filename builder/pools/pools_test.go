@@ -90,7 +90,7 @@ func TestBufferPoolConcurrency(t *testing.T) {
 			for range iterations {
 				buf := pool.Get()
 				buf.WriteString("goroutine ")
-				buf.WriteByte(byte('0' + byte(id%10)))
+				buf.WriteByte('0' + byte(id%10))
 				pool.Put(buf)
 			}
 		}(i)

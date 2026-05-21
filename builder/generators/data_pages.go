@@ -56,9 +56,9 @@ func renderDataPageIfEligible(opts DataPagesOptions, m map[string]any) error {
 	if layout != "" && slug != "" {
 		title := timeutil.ExtractStringFromMap(m, "title")
 		desc := timeutil.ExtractStringFromMap(m, "description")
-		
+
 		outputPath := filepath.Join(opts.Cfg.OutputDir, slug+".html")
-		
+
 		// Map for templates (frontmatter-like)
 		meta := make(map[string]any)
 		for k, v := range m {

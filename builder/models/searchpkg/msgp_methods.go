@@ -1,4 +1,5 @@
 package searchpkg
+
 // nolint: funlen
 
 import (
@@ -6,6 +7,7 @@ import (
 )
 
 // DecodeMsg implements msgp.Decodable
+//
 //nolint:funlen
 func (z *SearchRankingConfig) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
@@ -144,6 +146,7 @@ func (z *SearchRankingConfig) MarshalMsg(b []byte) (o []byte, err error) {
 }
 
 // UnmarshalMsg implements msgp.Unmarshaler
+//
 //nolint:funlen
 func (z *SearchRankingConfig) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var field []byte

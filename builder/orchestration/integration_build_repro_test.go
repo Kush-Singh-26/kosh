@@ -46,9 +46,9 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 				CacheDir:    cacheDir,
 			},
 			BuildOptions: config.BuildOptions{
-ItemsPerPage: 10,
-		},
-	}
+				ItemsPerPage: 10,
+			},
+		}
 
 		logger := InitLogger()
 		buildMetrics := metrics.NewBuildMetrics()

@@ -78,7 +78,7 @@ func TestRenderer_GetAssets_NilSnapshot(t *testing.T) {
 
 func TestRenderer_PreparePageData_NilAssets(t *testing.T) {
 	r := setupTestRenderer(t)
-	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
+	r.SetAssets(map[string]string{"/static/css/main.css": "/static/css/main.abc123.css"})
 
 	data := &models.PageData{
 		Title: "Test",
@@ -97,7 +97,7 @@ func TestRenderer_PreparePageData_NilAssets(t *testing.T) {
 
 func TestRenderer_PreparePageData_WithBaseURL(t *testing.T) {
 	r := setupTestRenderer(t)
-	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
+	r.SetAssets(map[string]string{"/static/css/main.css": "/static/css/main.abc123.css"})
 
 	data := &models.PageData{
 		Title:   "Test",
@@ -106,14 +106,14 @@ func TestRenderer_PreparePageData_WithBaseURL(t *testing.T) {
 
 	r.PreparePageData(data)
 
-	if data.Assets["main.css"] != "https://example.com/static/main.css" {
-		t.Errorf("PreparePageData should prepend BaseURL, got %s", data.Assets["main.css"])
+	if data.Assets["/static/css/main.css"] != "https://example.com/static/css/main.abc123.css" {
+		t.Errorf("PreparePageData should prepend BaseURL, got %s", data.Assets["/static/css/main.css"])
 	}
 }
 
 func TestRenderer_PreparePageData_WithRelativePrefix(t *testing.T) {
 	r := setupTestRenderer(t)
-	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
+	r.SetAssets(map[string]string{"/static/css/main.css": "/static/css/main.abc123.css"})
 
 	data := &models.PageData{
 		Title:          "Test",
@@ -123,14 +123,14 @@ func TestRenderer_PreparePageData_WithRelativePrefix(t *testing.T) {
 
 	r.PreparePageData(data)
 
-	if data.Assets["main.css"] != "../static/main.css" {
-		t.Errorf("PreparePageData should prepend RelativePrefix, got %s", data.Assets["main.css"])
+	if data.Assets["/static/css/main.css"] != "../static/css/main.abc123.css" {
+		t.Errorf("PreparePageData should prepend RelativePrefix, got %s", data.Assets["/static/css/main.css"])
 	}
 }
 
 func TestRenderer_PreparePageData_WithEmptyPrefix(t *testing.T) {
 	r := setupTestRenderer(t)
-	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
+	r.SetAssets(map[string]string{"/static/css/main.css": "/static/css/main.abc123.css"})
 
 	data := &models.PageData{
 		Title:          "Test",
@@ -140,14 +140,14 @@ func TestRenderer_PreparePageData_WithEmptyPrefix(t *testing.T) {
 
 	r.PreparePageData(data)
 
-	if data.Assets["main.css"] != "static/main.css" {
-		t.Errorf("PreparePageData with empty prefix should remove leading slash, got %s", data.Assets["main.css"])
+	if data.Assets["/static/css/main.css"] != "static/css/main.abc123.css" {
+		t.Errorf("PreparePageData with empty prefix should remove leading slash, got %s", data.Assets["/static/css/main.css"])
 	}
 }
 
 func TestRenderer_PreparePageData_CacheHit(t *testing.T) {
 	r := setupTestRenderer(t)
-	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
+	r.SetAssets(map[string]string{"/static/css/main.css": "/static/css/main.abc123.css"})
 
 	data := &models.PageData{
 		Title:          "Test",
@@ -158,7 +158,7 @@ func TestRenderer_PreparePageData_CacheHit(t *testing.T) {
 	r.PreparePageData(data)
 	firstAssets := data.Assets
 
-	data.Assets = map[string]string{"main.css": "/static/main.css"}
+	data.Assets = map[string]string{"/static/css/main.css": "/static/css/main.abc123.css"}
 	r.PreparePageData(data)
 
 	if firstAssets["main.css"] != data.Assets["main.css"] {
@@ -206,14 +206,15 @@ func TestRenderer_RelativizeFunc(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			r := setupTestRenderer(t)
+
 			data := &models.PageData{
 				Title:          "Test",
 				BaseURL:        tt.baseURL,
 				RelativePrefix: tt.prefix,
+				Assets:         map[string]string{"test": tt.link},
 			}
 
-			r := setupTestRenderer(t)
-			r.SetAssets(map[string]string{"test": tt.link})
 			r.PreparePageData(data)
 
 			if data.Assets["test"] != tt.expected {
@@ -226,7 +227,7 @@ func TestRenderer_RelativizeFunc(t *testing.T) {
 func TestRenderer_AssetCacheInvalidation(t *testing.T) {
 	r := setupTestRenderer(t)
 
-	r.SetAssets(map[string]string{"main.css": "/static/main.css"})
+	r.SetAssets(map[string]string{"/static/css/main.css": "/static/css/main.abc123.css"})
 
 	data := &models.PageData{
 		Title:          "Test",
@@ -245,7 +246,7 @@ func TestRenderer_AssetCacheInvalidation(t *testing.T) {
 		t.Errorf("Asset cache should have 1 entry, got %d", cacheSize)
 	}
 
-	r.SetAssets(map[string]string{"new.css": "/static/new.css"})
+	r.SetAssets(map[string]string{"/static/css/new.css": "/static/css/new.xyz789.css"})
 
 	cacheSize = 0
 	r.assetCache.Range(func(_, _ any) bool {

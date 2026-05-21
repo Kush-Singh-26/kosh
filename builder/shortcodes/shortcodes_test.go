@@ -32,12 +32,12 @@ func TestShortcodes(t *testing.T) {
 		{
 			name:     "Callout Shortcode (Default)",
 			markdown: `{{< callout >}}This is a note{{< /callout >}}`,
-			contains: []string{`class="shortcode-callout callout-note"`, `This is a note`},
+			contains: []string{`class="admonition admonition-note"`, `This is a note`},
 		},
 		{
 			name:     "Callout Shortcode (Warning)",
 			markdown: `{{< callout type="warning" title="Warning Title" >}}Be careful!{{< /callout >}}`,
-			contains: []string{`class="shortcode-callout callout-warning"`, `class="callout-title">Warning Title`, `Be careful!`},
+			contains: []string{`class="admonition admonition-warning"`, `class="admonition-title">Warning Title`, `Be careful!`},
 		},
 		{
 			name:     "Details Shortcode",
@@ -47,7 +47,7 @@ func TestShortcodes(t *testing.T) {
 		{
 			name:     "Nested/Mixed Shortcodes",
 			markdown: `{{< callout >}}{{< youtube id="123" >}}{{< /callout >}}`,
-			contains: []string{`class="shortcode-callout`, `src="https://www.youtube.com/embed/123"`},
+			contains: []string{`class="admonition`, `src="https://www.youtube.com/embed/123"`},
 		},
 	}
 

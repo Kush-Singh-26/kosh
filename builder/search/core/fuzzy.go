@@ -171,10 +171,10 @@ func FuzzyMatch(term, target string, maxDist int) bool {
 func FuzzyExpand(term string, lexicon []string, maxDist int) []string {
 	var candidates []string
 	termLen := utf8.RuneCountInString(term)
- 
+
 	for _, idxTerm := range lexicon {
 		idxLen := utf8.RuneCountInString(idxTerm)
- 
+
 		// Length-based filtering: skip impossible matches early
 		if idxLen < termLen-maxDist || idxLen > termLen+maxDist {
 			// Special case: if we want prefix matches as well, we shouldn't continue here
@@ -186,15 +186,15 @@ func FuzzyExpand(term string, lexicon []string, maxDist int) []string {
 			}
 			continue
 		}
- 
+
 		if FuzzyMatch(term, idxTerm, maxDist) {
 			candidates = append(candidates, idxTerm)
 		}
 	}
- 
+
 	return candidates
 }
- 
+
 // PrefixExpand finds all terms in the sorted lexicon that start with query.
 func PrefixExpand(query string, lexicon []string) []string {
 	if query == "" {

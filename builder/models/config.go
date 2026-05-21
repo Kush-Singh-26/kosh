@@ -23,9 +23,9 @@ type AuthorConfig struct {
 
 // SearchOptionsConfig configures search behavior and federated endpoints.
 type SearchOptionsConfig struct {
-	IsEnabled bool                   `yaml:"isEnabled"`
+	IsEnabled bool                          `yaml:"isEnabled"`
 	Ranking   searchpkg.SearchRankingConfig `yaml:"ranking"`
-	Endpoints []string               `yaml:"endpoints"`
+	Endpoints []string                      `yaml:"endpoints"`
 }
 
 // GeneratorsConfig enables/disables site-wide generators.
@@ -84,4 +84,5 @@ type TemplateConfig interface {
 	GetSiteData() map[string]any
 	GetNavbar() NavbarIdentityConfig
 	GetHomeBadge() string
+	GetDocRepoURL() string
 }

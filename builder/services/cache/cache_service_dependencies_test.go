@@ -13,9 +13,9 @@ func TestCacheService_BatchCommit_WithDependencies(t *testing.T) {
 
 	post := testutil.CreateSamplePostMeta()
 	deps := &models.Dependencies{
-		Templates: []string{"layouts/post.html", "partials/header.html"},
-		Taxonomies:      map[string][]string{"tags": {"go", "tutorial"}},
-		Includes:  []string{"partials/footer.html"},
+		Templates:  []string{"layouts/post.html", "partials/header.html"},
+		Taxonomies: map[string][]string{"tags": {"go", "tutorial"}},
+		Includes:   []string{"partials/footer.html"},
 	}
 
 	depsMap := map[string]*models.Dependencies{

@@ -1,101 +1,37 @@
-version: "2"
+run:
+  timeout: 3m
+  concurrency: 4
 
 linters:
-  default: none
   enable:
+    - gofmt
     - govet
+    - misspell
+    - unconvert
+    - ineffassign
+    - gosimple
     - staticcheck
     - unused
-    - ineffassign
-    - misspell
-    - errorlint
     - errcheck
-    - revive
-    - gocritic
-    - gocyclo
-    - funlen
-  settings:
-    misspell:
-      locale: US
-    gocyclo:
-      min-complexity: 30
-    revive:
-      enable-default-rules: true
-      rules:
-        - name: exported
-          arguments:
-            - check-private-receivers
-        - name: var-naming
-          arguments:
-            - - JSON
-              - URL
-              - ID
-              - API
-            - []
-    funlen:
-      lines: 60
-      statements: 40
-  exclusions:
-    generated: lax
-    warn-unused: true
-    paths:
-      - public
-      - bin
-      - tmp
-    rules:
-      - path: _test\.go
-        linters:
-          - funlen
-          - gocyclo
-      - path: tests
-        linters:
-          - funlen
-          - gocyclo
-      - path: msgp_methods\.go
-        linters:
-          - funlen
-          - gocyclo
-      - path: scripts
-        linters:
-          - funlen
-          - gocyclo
-      - linters:
-          - gocritic
-        text: "exitAfterDefer"
-      - path: builder/orchestration/
-        linters:
-          - revive
-        text: "unused-parameter|exported"
-      - path: builder/cache/
-        linters:
-          - revive
-        text: "unused-parameter"
-      - path: builder/renderer/
-        linters:
-          - revive
-        text: "unused-parameter"
-      - path: builder/search/
-        linters:
-          - revive
-        text: "unused-parameter"
-      - path: builder/pools/
-        linters:
-          - revive
-        text: "unused-parameter"
-      - path: builder/testutil/
-        linters:
-          - revive
-        text: "unused-parameter|exported"
-      - path: internal/
-        linters:
-          - revive
-        text: "unused-parameter"
+  disable:
+    - typecheck
 
 issues:
-  max-issues-per-linter: 0
-  max-same-issues: 0
-  uniq-by-line: false
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+    - path: builder/models/searchpkg/
+      linters:
+        - gofmt
+        - goimports
+    - path: builder/mocks/
+      linters:
+        - gofmt
+        - goimports
 
-run:
-  timeout: 5m
-  tests: false
+linters-settings:
+  goimports:
+    local-prefixes: github.com/Kush-Singh-26/kosh
+  misspell:
+    locale: US

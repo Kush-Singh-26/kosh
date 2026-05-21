@@ -30,29 +30,72 @@ Kosh is a Go-based static site generator for blogs. It supports:
 
 Repository root:
 
-- `C:\Users\KIIT0001\blogs`
+- `/home/kush26/Projects/kosh`
 
 Typical consumer site repo used during development:
 
-- `C:\Users\KIIT0001\Kush-Singh-26.github.io`
+- `/home/kush26/Projects/Kush-Singh-26.github.io`
 
-## Theme Development Layout (Symlinks/Junctions)
+## Theme Development Layout
 
-Theme work is centralized in the Kosh submodule path:
+### Blog Theme
 
-- Canonical theme path: `C:\Users\KIIT0001\blogs\themes\blog`
+Canonical theme path:
 
-Two convenience symlinks point to the same files for local testing:
+- `/home/kush26/Projects/kosh-theme-blog`
 
-- `C:\Users\KIIT0001\kosh-theme-blog` (symlink)
-- `C:\Users\KIIT0001\Kush-Singh-26.github.io\themes\blog` (symlink)
+Used by the consumer site repo as a theme directory:
 
-Rules for agents:
+- `/home/kush26/Projects/Kush-Singh-26.github.io/themes/blog` -> `/home/kush26/Projects/kosh-theme-blog`
 
-1. Treat `C:\Users\KIIT0001\blogs\themes\blog` as the source of truth.
-2. Commit and push theme changes from the canonical path only.
-3. Modifying `kosh.yaml` files or other site-specific content/data must be done in the site repo: `C:\Users\KIIT0001\Kush-Singh-26.github.io`.
-4. Avoid editing any `*.bak` backup folders.
+### Docs Theme
+
+Canonical theme path:
+
+- `/home/kush26/Projects/kosh-theme-docs`
+
+Used by the kosh engine for the docs playground/docs preview.
+
+Key docs theme files:
+
+| File | Purpose |
+|------|---------|
+| `templates/layout.html` | Single doc page layout (sidebar + article + TOC) |
+| `templates/index.html` | Section listing pages and home page (`context: "home"` for `/docs/`) |
+| `templates/home.html` | Docs home page (hero + feature cards) |
+| `templates/partials/sidebar-nav.html` | Recursive sidebar tree with `<details>` expand/collapse |
+| `templates/partials/breadcrumbs.html` | Section breadcrumb trail |
+| `templates/partials/doc-footer.html` | Prev/Next page navigation |
+| `static/css/layout.css` | Grid layout, sidebar, TOC, footer nav, print styles, responsive |
+| `static/css/theme.css` | CSS variables, code blocks, typography |
+| `static/js/docs.js` | Sidebar toggle + mobile backdrop, sidebar scroll-follow, TOC scroll-spy |
+
+The docs theme extends the embedded base template (`builder/renderer/base/base.html`) via Go template blocks:
+- `content` — main page content
+- `head-extra` — sets `window.KOSH_GRAPH_ENABLED=false` (hides graph UI in search modal)
+- `scripts-extra` — loads docs.js
+
+Important behaviors:
+- `index.html` uses `{{ if eq .Context "home" }}` to distinguish the docs root landing page from section listing pages.
+- `layout.html` is used for single doc pages and includes last-updated date and "Edit this page" link (requires `docRepoURL` in config).
+- `sidebar-nav.html` uses `isActiveSection` to auto-open the containing `<details>` on the current page.
+- **Heading anchor links**: All headings rendered by goldmark get a `#` anchor link via `builder/parser/heading.go` (custom node renderer).
+- **Search graph disabled**: Docs pages set `window.KOSH_GRAPH_ENABLED=false` in `head-extra`, hiding "Explore in Graph" buttons from the search modal.
+
+### Base Shared Layer
+
+Cross-theme functionality lives in the kosh engine:
+
+- `builder/renderer/base/base.html` — shared template skeleton (nav, search modal, footer)
+- `builder/renderer/base/css/kosh-core.css` — chroma syntax highlighting, code block headers, copy buttons, shortcode styles, heading anchor styles
+- `builder/renderer/base/js/kosh-search.js` — WASM search with `graphEnabled()` check (reads `window.KOSH_GRAPH_ENABLED`, defaults true)
+
+### Rules for agents
+
+1. Edit theme files in their canonical repo paths (`kosh-theme-blog/` or `kosh-theme-docs/`).
+2. Base layer files are in the kosh engine repo (`builder/renderer/base/`).
+3. Modifying `kosh.yaml` or site content must be done in the consumer site repo: `/home/kush26/Projects/Kush-Singh-26.github.io`.
+4. Build and verify against the consumer site repo after engine changes.
 
 ## Current Stable State
 

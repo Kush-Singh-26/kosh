@@ -180,8 +180,8 @@ func TestGetFrontmatterHashFromValuesWithTaxonomyKeys(t *testing.T) {
 		"description": "A test description",
 		"date":        "2026-02-12",
 		"tags":        []any{"go", "testing"},
-		"categories": []any{"tech"},
-		"pinned":     true,
+		"categories":  []any{"tech"},
+		"pinned":      true,
 	}
 	taxonomyKeys := []string{"tags", "categories"}
 
@@ -193,13 +193,13 @@ func TestGetFrontmatterHashFromValuesWithTaxonomyKeys(t *testing.T) {
 	hashFromValues := GetFrontmatterHashFromValues(FrontmatterHashOptions{
 		Title:       "Test Post",
 		Description: "A test description",
-		Date:       "2026-02-12",
+		Date:        "2026-02-12",
 		Taxonomies: map[string][]string{
-			"tags":        {"go", "testing"},
+			"tags":       {"go", "testing"},
 			"categories": {"tech"},
 		},
-		IsPinned:    true,
-		Other:      metaData,
+		IsPinned:     true,
+		Other:        metaData,
 		TaxonomyKeys: taxonomyKeys,
 	})
 

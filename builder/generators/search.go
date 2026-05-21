@@ -11,7 +11,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
-
 // GenerateSearchIndex builds and writes the search index to the output directory.
 func GenerateSearchIndex(sink fspkg.ArtifactSink, indexedPosts []searchpkg.IndexedContent, ranking searchpkg.SearchRankingConfig) (string, int64, error) {
 	idx := index.Build(indexedPosts)

@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 
+	assetpkg "github.com/Kush-Singh-26/kosh/builder/assets"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/fs/tx"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -62,6 +63,8 @@ func (engineInstance *Engine) ReloadConfig(ctx context.Context) error {
 // BuildLocked executes the build logic without locking.
 // This is used internally and by the incremental manager when it already holds the build lock.
 func (engineInstance *Engine) BuildLocked(ctx context.Context) error {
+	assetpkg.ResetWasmExecForBuild()
+
 	setup, setupError := engineInstance.setupPhase(ctx)
 	if setupError != nil {
 		return setupError

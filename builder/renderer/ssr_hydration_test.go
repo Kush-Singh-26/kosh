@@ -23,7 +23,7 @@ func (m *mockDiagramCache) Get(key string) (any, bool) {
 func TestRenderer_RenderFragment_D2Hydration(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	_ = fs.MkdirAll("themes/blog/templates", 0755)
-	
+
 	// Create required templates to avoid os.Exit(1) in ReloadTemplates
 	_ = afero.WriteFile(fs, "themes/blog/templates/layout.html", []byte(`
 {{define "layout"}}{{template "base.html" .}}{{end}}
@@ -32,10 +32,10 @@ func TestRenderer_RenderFragment_D2Hydration(t *testing.T) {
 	_ = afero.WriteFile(fs, "themes/blog/templates/index.html", []byte(`{{define "index"}}{{template "base.html" .}}{{end}}`), 0644)
 	_ = afero.WriteFile(fs, "themes/blog/templates/home.html", []byte(`{{define "home"}}{{template "base.html" .}}{{end}}`), 0644)
 	_ = afero.WriteFile(fs, "themes/blog/templates/404.html", []byte(`{{define "404"}}{{template "base.html" .}}{{end}}`), 0644)
-	
+
 	sink := testutil.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
 	cache := &mockDiagramCache{
 		items: map[string]any{
 			"d2:abc123": models.SSRThemePair{

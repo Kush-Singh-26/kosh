@@ -2,13 +2,60 @@ package content
 
 import (
 	"context"
+	"html/template"
 	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
+
+const (
+	showcaseLaTeX = `\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V`
+
+	showcaseD2Code = `direction: right
+
+content -> parser: ".md files"
+parser -> renderer: AST
+renderer -> workers: page tasks
+workers -> output: HTML + assets
+`
+)
+
+// PopulateShowcaseHTML sets the ShowcaseMath and ShowcaseD2 fields on PageData
+// from the rendered SSR maps, falling back to placeholders for late-pass replacement.
+func PopulateShowcaseHTML(data *models.PageData, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) {
+	mathHash := native.HashContent("math-block", showcaseLaTeX)
+	d2Hash := native.HashContent("d2", showcaseD2Code)
+
+	if renderedMath != nil {
+		if html, ok := renderedMath[mathHash]; ok && html != "" {
+			data.ShowcaseMath = template.HTML(html)
+		}
+	}
+	if data.ShowcaseMath == "" {
+		data.ShowcaseMath = template.HTML("<!--KOSH_MATH:" + mathHash + "-->")
+	}
+
+	if renderedD2 != nil {
+		if pair, ok := renderedD2[d2Hash]; ok && pair.Light != "" {
+			buf := pools.SharedBufferPool.Get()
+			buf.WriteString(`<div class="d2-container" data-diagram="true"><div class="d2-light">`)
+			buf.WriteString(pair.Light)
+			buf.WriteString(`</div><div class="d2-dark">`)
+			buf.WriteString(pair.Dark)
+			buf.WriteString(`</div><span class="zoom-hint">Click to zoom</span></div>`)
+			data.ShowcaseD2 = template.HTML(buf.String())
+			pools.SharedBufferPool.Put(buf)
+		}
+	}
+	if data.ShowcaseD2 == "" {
+		data.ShowcaseD2 = template.HTML("<!--KOSH_D2:" + d2Hash + "-->")
+	}
+}
 
 func (service *contentService) processCachedMath(html string, expressions []models.MathExpression) (string, bool) {
 	if service.diagramAdapter == nil || len(expressions) == 0 {
@@ -72,6 +119,9 @@ func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []rend
 	}
 
 	allMath, allD2 := collectExpressions(tasks)
+
+	// Inject showcase examples so the docs landing page gets real SSR output.
+	injectShowcaseExamples(allMath, allD2)
 
 	if len(allMath) == 0 && len(allD2) == 0 {
 		return nil, nil
@@ -295,6 +345,28 @@ func (service *contentService) replaceExpressionsInTasks(tasks []renderTask, ren
 		}(chunk)
 	}
 	replaceWg.Wait()
+}
+
+// injectShowcaseExamples injects the landing page's hardcoded LaTeX and D2
+// showcase expressions into the SSR pipeline so they get rendered by KaTeX/D2
+// and made available for late-pass replacement in the template.
+func injectShowcaseExamples(allMath map[string]models.MathExpression, allD2 map[string]models.D2Expression) {
+	latexHash := native.HashContent("math-block", showcaseLaTeX)
+	if _, exists := allMath[latexHash]; !exists {
+		allMath[latexHash] = models.MathExpression{
+			LaTeX:       showcaseLaTeX,
+			DisplayMode: true,
+			Hash:        latexHash,
+		}
+	}
+
+	d2Hash := native.HashContent("d2", showcaseD2Code)
+	if _, exists := allD2[d2Hash]; !exists {
+		allD2[d2Hash] = models.D2Expression{
+			Code: showcaseD2Code,
+			Hash: d2Hash,
+		}
+	}
 }
 
 func rewriteStaticAssetPaths(htmlContent, relativePrefix string) string {

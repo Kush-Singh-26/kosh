@@ -25,7 +25,7 @@ func createTestCache(t *testing.T) (*Manager, func()) {
 // createSamplePostMeta creates a sample core.ContentMeta for testing
 func createSamplePostMeta() *core.ContentMeta {
 	return &core.ContentMeta{
-		ContentID:      "test-post",
+		ContentID:   "test-post",
 		Title:       "Test Post",
 		Path:        "content/posts/test-post.md",
 		Date:        time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
@@ -33,7 +33,7 @@ func createSamplePostMeta() *core.ContentMeta {
 		Description: "A test post for testing purposes",
 		IsDraft:     false,
 		Weight:      10,
-		FileSize:   150,
+		FileSize:    150,
 		ReadingTime: 1,
 		Meta:        make(map[string]any),
 	}

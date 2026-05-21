@@ -217,9 +217,13 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 	service.finalizeBuild(processCtx)
 	finalizePostProcessing(processCtx)
 
+	var showcasePD models.PageData
+	PopulateShowcaseHTML(&showcasePD, renderedMath, renderedD2)
+
 	return &Result{
 		allItems: processCtx.allItems, PinnedItems: processCtx.pinnedItems, TaxonomyMap: processCtx.taxonomyMap,
 		indexedItems: processCtx.indexedItems, anyItemChanged: processCtx.anyItemChanged.Load(), Has404: false,
+		ShowcaseMath: showcasePD.ShowcaseMath, ShowcaseD2: showcasePD.ShowcaseD2,
 	}, nil
 }
 
@@ -366,6 +370,9 @@ func (service *contentService) getPageLayout(renderTaskInstance renderTask) stri
 			layoutVal = strings.ToLower(l)
 		}
 	}
+	if layoutVal == "" && strings.HasSuffix(renderTaskInstance.file.RelPath, "_index.md") {
+		layoutVal = "index"
+	}
 	return layoutVal
 }
 
@@ -397,6 +404,16 @@ func (service *contentService) renderSingleTask(renderTaskInstance renderTask, r
 	if layoutVal == "home" {
 		pageContext = models.ContextHome
 	}
+	if layoutVal == "index" {
+		if renderTaskInstance.parseResult.Metadata == nil {
+			renderTaskInstance.parseResult.Metadata = make(map[string]any)
+		}
+		if _, ok := renderTaskInstance.parseResult.Metadata["layout"]; !ok {
+			if _, ok := renderTaskInstance.parseResult.Metadata["Layout"]; !ok {
+				renderTaskInstance.parseResult.Metadata["layout"] = "index"
+			}
+		}
+	}
 
 	seoTitle, _, _, socialHash := service.resolveSocialCardData(renderTaskInstance.parseResult)
 
@@ -409,7 +426,7 @@ func (service *contentService) renderSingleTask(renderTaskInstance renderTask, r
 		tabTitle = service.cfg.Title
 	}
 
-	if err := service.renderer.RenderPage(renderTaskInstance.destinationPath, models.PageData{
+	pageData := models.PageData{
 		Title: item.Title, Description: item.Description, Content: template.HTML(htmlContent),
 		Meta: renderTaskInstance.parseResult.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 		TabTitle: tabTitle, Permalink: renderTaskInstance.file.Link, Image: cardImageURL,
@@ -423,10 +440,15 @@ func (service *contentService) renderSingleTask(renderTaskInstance renderTask, r
 		SiteData:        service.cfg.SiteData,
 		JSONLD:          service.generateJSONLD(item, cardImageURL),
 		Section:         item.Section,
+		DateObj:         item.DateObj,
+		RelPath:         item.Path,
 		IsCleanBuild:    service.ctx.IsCleanBuild,
 		SSRMath:         renderedMath,
 		SSRD2:           renderedD2,
-	}); err != nil {
+		NavigationTree:  nav.navigationTree,
+	}
+	PopulateShowcaseHTML(&pageData, renderedMath, renderedD2)
+	if err := service.renderer.RenderPage(renderTaskInstance.destinationPath, pageData); err != nil {
 		return err
 	}
 

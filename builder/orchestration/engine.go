@@ -238,6 +238,8 @@ func (e *Engine) BuildAssetOnlyWithOptions(ctx context.Context, forceImages bool
 }
 
 func (e *Engine) runAssetOnlyPostProcessing(ctx context.Context) error {
+	assetpkg.ResetWasmExecForBuild()
+
 	e.Deps.Content.SetAssetsGate(nil)
 	e.State.ForceGenerators.Store(true)
 
@@ -289,6 +291,11 @@ func (e *Engine) runAssetOnlyPostProcessing(ctx context.Context) error {
 
 	// Remove original raster images when .webp equivalents exist
 	assetpkg.CleanupOriginalImages(ctx, e.buildTransaction.StagingDir())
+
+	// Deploy WASM to staging before commit
+	if err := assetpkg.DeployWasmExec(e.artifactSink); err != nil {
+		e.Deps.Logger.Warn("Failed to deploy Search WASM", "error", err)
+	}
 
 	// Finalize the build
 	if err := e.buildTransaction.Commit(ctx); err != nil {

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	assetpkg "github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
@@ -343,6 +344,16 @@ func Run(opts Options) {
 }
 
 func waitForBuildCompletion(_ http.ResponseWriter, request *http.Request) bool {
+	if initialDone := waitForInitialBuild(); initialDone != nil {
+		select {
+		case <-initialDone:
+		case <-request.Context().Done():
+			return false
+		case <-time.After(buildWaitTimeout):
+			slog.Warn("Wait for initial build timed out", "path", request.URL.Path)
+		}
+	}
+
 	buildDone := waitForBuild()
 	if buildDone == nil {
 		return true
@@ -419,8 +430,29 @@ func handleFileRequest(opts fileRequestOptions) {
 	serve := func(writer http.ResponseWriter, request *http.Request) {
 		finalPath, fileInfo, err := opts.handleDirectory(fullPath)
 		if err != nil {
-			handleFileError(writer, opts.staticDir, err)
-			return
+			if os.IsNotExist(err) && opts.isDev && opts.normalizedPath == "/static/js/wasm_exec.js" {
+				sink := fspkg.NewDiskSink(opts.engineOutputDir, opts.engineOutputDir)
+				if deployErr := assetpkg.DeployWasmExec(sink); deployErr == nil {
+					if refreshedPath, refreshedInfo, statErr := opts.handleDirectory(fullPath); statErr == nil {
+						finalPath = refreshedPath
+						fileInfo = refreshedInfo
+						err = nil
+					}
+				}
+			}
+			// Clean URL support: if file not found and path has no extension, try .html
+			if !strings.HasSuffix(fullPath, ".html") && !strings.Contains(filepath.Base(fullPath), ".") {
+				htmlPath := fullPath + ".html"
+				if info, statErr := os.Stat(htmlPath); statErr == nil && !info.IsDir() {
+					finalPath = htmlPath
+					fileInfo = info
+					err = nil
+				}
+			}
+			if err != nil {
+				handleFileError(writer, opts.staticDir, err)
+				return
+			}
 		}
 
 		if opts.shouldInjectReload(finalPath) {

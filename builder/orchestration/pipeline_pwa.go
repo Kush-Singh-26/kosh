@@ -13,7 +13,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-
 const (
 	pwaCacheDirMode  = 0755
 	pwaCacheFileMode = 0644

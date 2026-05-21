@@ -10,7 +10,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/content"
 )
 
-
 func TestManager_UpdateIndexedContentCache(t *testing.T) {
 	m := NewManager(ManagerDependencies{
 		Cfg: &config.Config{},

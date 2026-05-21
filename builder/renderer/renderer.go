@@ -56,6 +56,7 @@ type Renderer struct {
 	fragmentCache  sync.Map // context string -> template.HTML
 	Cache          models.FragmentCache
 	Diagrams       DiagramCache
+	renderData func(string) (template.HTML, error)
 }
 
 // DiagramCache defines a read-only interface to the global diagram cache.
@@ -75,6 +76,7 @@ type Options struct {
 	Logger      *slog.Logger
 	Cache       models.FragmentCache
 	Diagrams    DiagramCache
+	RenderData func(string) (template.HTML, error)
 }
 
 // New creates a Renderer with default filesystem settings.
@@ -99,6 +101,7 @@ func NewWithFs(opts Options) *Renderer {
 		Minifier:    koshMinify.GetHTMLMinifier(),
 		Cache:       opts.Cache,
 		Diagrams:    opts.Diagrams,
+		renderData: opts.RenderData,
 	}
 	r.ReloadTemplates()
 	return r
@@ -148,7 +151,7 @@ func (r *Renderer) ReloadTemplates() {
 		return
 	}
 
-	funcMap := templateFuncMap()
+	funcMap := templateFuncMap(r.renderData)
 	layoutTmpl, indexTmpl, homeTmpl, graphTmpl, notFoundTmpl, err := r.loadTemplates(tc, funcMap)
 	if err != nil {
 		r.logger.Error("Template parsing failed", "error", err)
@@ -248,6 +251,24 @@ func (r *Renderer) hydrateAndReplaceSSR(fragmentHTML string, data *models.PageDa
 		}
 	}
 
+	if r.Diagrams != nil && parser.HasMathPlaceholders(fragmentHTML) {
+		hashes := parser.ExtractMathHashes(fragmentHTML)
+		if len(hashes) > 0 {
+			if data.SSRMath == nil {
+				data.SSRMath = make(map[string]string)
+			}
+			for _, hash := range hashes {
+				if _, ok := data.SSRMath[hash]; !ok {
+					if val, ok := r.Diagrams.Get("math:" + hash); ok {
+						if renderedStr, ok := val.(string); ok {
+							data.SSRMath[hash] = renderedStr
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if len(data.SSRMath) > 0 || len(data.SSRD2) > 0 {
 		if len(data.SSRMath) > 0 {
 			fragmentHTML = parser.LateReplaceMath(fragmentHTML, data.SSRMath)
@@ -272,7 +293,7 @@ func (r *Renderer) storeFragmentInCache(cacheKey string, fragmentHTML string) {
 }
 
 func (r *Renderer) applyTemplateCache(tc *templateCache) {
-	funcMap := templateFuncMap()
+	funcMap := templateFuncMap(r.renderData)
 
 	applyFuncs := func(t *template.Template) *template.Template {
 		if t != nil {
@@ -290,12 +311,13 @@ func (r *Renderer) applyTemplateCache(tc *templateCache) {
 	r.mu.Unlock()
 }
 
-func templateFuncMap() template.FuncMap {
+func templateFuncMap(renderData func(string) (template.HTML, error)) template.FuncMap {
 	return template.FuncMap{
 		"lower":      strings.ToLower,
 		"hasPrefix":  strings.HasPrefix,
 		"replace":    replaceFunc,
 		"trimPrefix": strings.TrimPrefix,
+		"trimSuffix": strings.TrimSuffix,
 		"relativize": relativizeFunc,
 		"now":        time.Now,
 		"urlEscape":  url.PathEscape,
@@ -309,7 +331,97 @@ func templateFuncMap() template.FuncMap {
 		"add": func(a, b int) int {
 			return a + b
 		},
+		"isActiveSection": func(node *models.NodeTree, currentLink string) bool {
+			if node == nil {
+				return false
+			}
+			if node.Resource.Link == currentLink {
+				return true
+			}
+			for _, child := range node.Children {
+				if isActiveSectionHelper(child, currentLink) {
+					return true
+				}
+			}
+			return false
+		},
+		"containsNode": func(node *models.NodeTree, link string) bool {
+			if node == nil {
+				return false
+			}
+			for _, child := range node.Children {
+				if child.Resource.Link == link {
+					return true
+				}
+			}
+			return false
+		},
+		"treeForPath": func(node *models.NodeTree, path string) *models.NodeTree {
+			if node == nil {
+				return nil
+			}
+			if node.Resource.Link == path {
+				return node
+			}
+			for _, child := range node.Children {
+				if result := treeForPathHelper(child, path); result != nil {
+					return result
+				}
+			}
+			return nil
+		},
+		"dict": func(values ...any) (map[string]any, error) {
+			if len(values)%2 != 0 {
+				return nil, fmt.Errorf("dict requires even number of arguments (key-value pairs)")
+			}
+			d := make(map[string]any, len(values)/2)
+			for i := 0; i < len(values); i += 2 {
+				key, ok := values[i].(string)
+				if !ok {
+					return nil, fmt.Errorf("dict keys must be strings, got %T", values[i])
+				}
+				d[key] = values[i+1]
+			}
+			return d, nil
+		},
+		"renderData": func(input any) (template.HTML, error) {
+			if input == nil {
+				return "", nil
+			}
+			str, ok := input.(string)
+			if !ok {
+				return "", fmt.Errorf("renderData expects a string, got %T", input)
+			}
+			if renderData == nil {
+				return template.HTML(str), nil
+			}
+			return renderData(str)
+		},
 	}
+}
+
+func isActiveSectionHelper(node *models.NodeTree, currentLink string) bool {
+	if node.Resource.Link == currentLink {
+		return true
+	}
+	for _, child := range node.Children {
+		if isActiveSectionHelper(child, currentLink) {
+			return true
+		}
+	}
+	return false
+}
+
+func treeForPathHelper(node *models.NodeTree, path string) *models.NodeTree {
+	if node.Resource.Link == path {
+		return node
+	}
+	for _, child := range node.Children {
+		if result := treeForPathHelper(child, path); result != nil {
+			return result
+		}
+	}
+	return nil
 }
 
 func replaceFunc(from, to, input string) string {
@@ -469,7 +581,7 @@ func (r *Renderer) handleTemplateLoadError(name string, err error) error {
 }
 
 func (r *Renderer) loadGraphTemplate(tc *templateCache, baseTmpl *template.Template) (*template.Template, error) {
-	funcMap := templateFuncMap()
+	funcMap := templateFuncMap(r.renderData)
 
 	t, err := baseTmpl.Clone()
 	if err != nil {
@@ -486,7 +598,7 @@ func (r *Renderer) loadGraphTemplate(tc *templateCache, baseTmpl *template.Templ
 }
 
 func (r *Renderer) loadSlotTmpl(tc *templateCache, baseTmpl *template.Template, mu *sync.Mutex, name, fileName string) (*template.Template, error) {
-	funcMap := templateFuncMap()
+	funcMap := templateFuncMap(r.renderData)
 
 	// 1. Check Site Layouts
 	path := filepath.Join(r.layoutsDir, fileName)
@@ -496,7 +608,12 @@ func (r *Renderer) loadSlotTmpl(tc *templateCache, baseTmpl *template.Template, 
 		path = filepath.Join(r.templateDir, fileName)
 		content, err = afero.ReadFile(r.SourceFs, path)
 		if err != nil {
-			return nil, err
+			// 3. Fallback to embedded default (404 only)
+			if name == "404" {
+				content = []byte(base.Default404Template)
+			} else {
+				return nil, err
+			}
 		}
 	}
 

@@ -69,7 +69,7 @@ func TestFireAndForget_ContextCancellation(t *testing.T) {
 	logger := helperLogger(t)
 
 	var executed bool
-	FireAndForget(ctx, logger, "test cancelled", func() error {
+	FireAndForget(ctx, logger, "test canceled", func() error {
 		executed = true
 		return nil
 	})
@@ -78,7 +78,7 @@ func TestFireAndForget_ContextCancellation(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	if executed {
-		t.Error("FireAndForget should not execute with already cancelled context")
+		t.Error("FireAndForget should not execute with already canceled context")
 	}
 }
 

@@ -201,6 +201,6 @@ func TestBuild_Cancellation(t *testing.T) {
 		_, cancel := context.WithCancel(context.Background())
 		cancel() // Immediate cancel
 
-		// In a real test, calling build with cancelled ctx should return error early
+		// In a real test, calling build with canceled ctx should return error early
 	})
 }

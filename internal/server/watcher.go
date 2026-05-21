@@ -27,6 +27,7 @@ var (
 	buildMu       sync.Mutex
 	buildActive   bool
 	buildWaitChan chan struct{}
+	initialBuildDone chan struct{}
 
 	// Watch directory mapping
 	watchTargets   = make(map[string]string) // Normalized path -> target
@@ -36,6 +37,10 @@ var (
 	watchExclusions   []string
 	watchExclusionsMu sync.RWMutex
 )
+
+func init() {
+	initialBuildDone = make(chan struct{})
+}
 
 func isPathExcluded(path string) bool {
 	absPath, err := fspkg.AbsNormalizePath(path)
@@ -73,6 +78,24 @@ func SetBuildActive(active bool) {
 			}
 		}
 	}
+}
+
+// MarkInitialBuildComplete marks the initial dev build as complete.
+func MarkInitialBuildComplete() {
+	buildMu.Lock()
+	if initialBuildDone != nil {
+		close(initialBuildDone)
+		initialBuildDone = nil
+	}
+	buildMu.Unlock()
+}
+
+// waitForInitialBuild returns a channel that closes once the initial build completes.
+// If it is already complete, it returns nil.
+func waitForInitialBuild() chan struct{} {
+	buildMu.Lock()
+	defer buildMu.Unlock()
+	return initialBuildDone
 }
 
 // waitForBuild returns a channel that will be closed when the current build completes.

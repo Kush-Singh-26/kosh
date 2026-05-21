@@ -19,13 +19,13 @@ func TestGenerateSW(t *testing.T) {
 	}
 
 	err := GenerateSW(SWOptions{
-		Sink:         sink,
-		DestDir:      destDir,
-		BuildVersion: buildVersion,
+		Sink:               sink,
+		DestDir:            destDir,
+		BuildVersion:       buildVersion,
 		ShouldForceRebuild: forceRebuild,
-		BaseURL:      baseURL,
-		Assets:       assets,
-		IsTesting:    true,
+		BaseURL:            baseURL,
+		Assets:             assets,
+		IsTesting:          true,
 	})
 	if err != nil {
 		t.Fatalf("GenerateSW failed: %v", err)
@@ -64,13 +64,13 @@ func TestGenerateManifest(t *testing.T) {
 	forceRebuild := true
 
 	err := GenerateManifest(ManifestOptions{
-		Sink:            sink,
-		DestDir:         destDir,
-		BaseURL:         baseURL,
-		SiteTitle:       siteTitle,
-		SiteDescription: siteDescription,
-		ShouldForceRebuild:    forceRebuild,
-		IsTesting:       true,
+		Sink:               sink,
+		DestDir:            destDir,
+		BaseURL:            baseURL,
+		SiteTitle:          siteTitle,
+		SiteDescription:    siteDescription,
+		ShouldForceRebuild: forceRebuild,
+		IsTesting:          true,
 	})
 	if err != nil {
 		t.Fatalf("GenerateManifest failed: %v", err)

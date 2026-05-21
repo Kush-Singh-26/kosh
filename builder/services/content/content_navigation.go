@@ -5,13 +5,15 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/navigation"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 type navInfo struct {
-	allItems   []models.ContentMetadata
-	postPos    map[string]int
-	taxonomies map[string]models.TaxonomyData
+	allItems       []models.ContentMetadata
+	postPos        map[string]int
+	taxonomies     map[string]models.TaxonomyData
+	navigationTree *models.NodeTree
 }
 
 func (service *contentService) prepareNavigationInfo(files []models.ScannedResource) navInfo {
@@ -29,10 +31,24 @@ func (service *contentService) prepareNavigationInfo(files []models.ScannedResou
 	}
 
 	timeutil.SortItems(allItems)
-	postPos := buildPostPositionMap(allItems)
+	navigationTree := navigation.BuildNavigationTree(allItems)
+
+	// Derive sequential navigation from the hierarchical tree to ensure
+	// Next/Prev matches the Sidebar order perfectly.
+	sequentialResources := navigation.FlattenTree(navigationTree)
+	sequentialItems := make([]models.ContentMetadata, len(sequentialResources))
+	for i, r := range sequentialResources {
+		sequentialItems[i] = models.ContentMetadata{
+			Title: r.Title, Link: r.Link, Path: r.RelPath, Weight: r.Weight,
+			IsPinned: r.IsPinned, DateObj: r.Date, Description: r.Description,
+			ReadingTime: r.ReadingTime,
+		}
+	}
+
+	postPos := buildPostPositionMap(sequentialItems)
 	taxonomies := service.buildTaxonomyData(taxonomyMap)
 
-	return navInfo{allItems: allItems, postPos: postPos, taxonomies: taxonomies}
+	return navInfo{allItems: sequentialItems, postPos: postPos, taxonomies: taxonomies, navigationTree: navigationTree}
 }
 
 func (service *contentService) createContentMetadata(file models.ScannedResource) models.ContentMetadata {
@@ -45,8 +61,8 @@ func (service *contentService) createContentMetadata(file models.ScannedResource
 		Title: file.Title, Link: file.Link, Weight: file.Weight,
 		IsPinned: file.IsPinned, IsDraft: file.IsDraft,
 		DateObj: date, Description: file.Description,
-		ReadingTime: file.ReadingTime,
-		Taxonomies:  make(map[string][]string),
+		ReadingTime: file.ReadingTime, Path: file.RelPath,
+		Taxonomies: make(map[string][]string),
 	}
 
 	if file.PreParsedMeta != nil {

@@ -6,8 +6,12 @@
     <script>
         (function() {
             const savedTheme = localStorage.getItem('theme');
-            if (savedTheme === 'light') {
+            if (savedTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else if (savedTheme === 'light') {
                 document.documentElement.setAttribute('data-theme', 'light');
+            } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.setAttribute('data-theme', 'dark');
             }
         })();
     </script>
@@ -35,7 +39,7 @@
     <meta property="og:image" content="{{ .Image }}">
     <meta name="image" property="og:image" content="{{ .Image }}">
 
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://github-contributions-api.jogruber.de; object-src 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://github-contributions-api.jogruber.de; object-src 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self';">
     
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="{{ .Permalink }}">
@@ -50,20 +54,23 @@
     </style>
     {{ end }}
 
+    {{ $v := .BuildVersion }}
+    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/kosh-core.css" }}?v={{ $v }}">
+    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/katex.min.css" }}?v={{ $v }}">
+    {{ if .IsGraphPage }}
+    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/graph.css" }}?v={{ $v }}">
+    {{ end }}
+
     {{ if .Assets }}
     <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/css/layout.css") }}">
-    {{ if .IsGraphPage }}
-    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/css/graph.css") }}">
-    {{ end }}
-    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/main.js") }}">
-    {{ if .IsGraphPage }}
-    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/graph.js") }}">
-    {{ end }}
     {{ else }}
-    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/layout.css" }}">
-    {{ if .IsGraphPage }}
-    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/graph.css" }}">
+    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/layout.css" }}?v={{ $v }}">
     {{ end }}
+
+    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-main.js" }}?v={{ $v }}">
+    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-search.js" }}?v={{ $v }}">
+    {{ if .IsGraphPage }}
+    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ $v }}">
     {{ end }}
 
     {{ if and .Config.GetFeatures.Generators.Search.IsEnabled (not .Config.IsDevMode) }}
@@ -334,18 +341,11 @@
     </button>
     {{ end }}
 
-    {{ if .Assets }}
-    <script defer src="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/main.js") }}"></script>
-    <script defer src="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/search.js") }}"></script>
+    {{ $v := .BuildVersion }}
+    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-main.js" }}?v={{ $v }}"></script>
+    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-search.js" }}?v={{ $v }}"></script>
     {{ if .IsGraphPage }}
-    <script defer src="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/js/graph.js") }}"></script>
-    {{ end }}
-    {{ else }}
-    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/main.js" }}?v={{ .BuildVersion }}"></script>
-    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/search.js" }}?v={{ .BuildVersion }}"></script>
-    {{ if .IsGraphPage }}
-    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ .BuildVersion }}"></script>
-    {{ end }}
+    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ $v }}"></script>
     {{ end }}
 
     <script>

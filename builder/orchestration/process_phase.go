@@ -164,5 +164,3 @@ func (engineInstance *Engine) processPhase(
 
 	return engineInstance.runSiteWidePhase(ctx, setup, assetsRes, contentResult, finalSearchIndex)
 }
-
-

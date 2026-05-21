@@ -9,7 +9,7 @@ import (
 
 // EncodedPost holds pre-encoded data for batch commit
 type EncodedPost struct {
-	ContentID     []byte
+	ContentID  []byte
 	Data       []byte
 	Path       []byte
 	SearchData []byte

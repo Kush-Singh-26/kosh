@@ -195,6 +195,7 @@ func New(cfg *config.Config, opts ...Option) goldmark.Markdown {
 			html.WithUnsafe(),
 			goldmarkRenderer.WithNodeRenderers(
 				util.Prioritized(&rawHTMLBlockRenderer{}, rawHTMLRendererPriority),
+				util.Prioritized(newHeadingAnchorRenderer(), headingAnchorRendererPriority),
 			),
 		),
 	)

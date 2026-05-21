@@ -20,7 +20,7 @@ func setupTestRenderer(t *testing.T) *Renderer {
 	sink := testutil.NewMemSink()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	baseTmpl := template.Must(template.New("base.html").Funcs(templateFuncMap()).Parse(base.BaseTemplate))
+	baseTmpl := template.Must(template.New("base.html").Funcs(templateFuncMap(nil)).Parse(base.BaseTemplate))
 
 	loadStub := func(content string) *template.Template {
 		cloned := template.Must(baseTmpl.Clone())

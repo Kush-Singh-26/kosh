@@ -43,6 +43,8 @@ func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *er
 			pinnedItems:    metadataContext.PinnedItems,
 			force:          engineInstance.Cfg.ShouldForceRebuild,
 			taxonomies:     metadataContext.Taxonomies,
+			showcaseMath:   metadataContext.ShowcaseMath,
+			showcaseD2:     metadataContext.ShowcaseD2,
 		})
 	})
 	group.Go(func() error {
@@ -63,7 +65,6 @@ func (engineInstance *Engine) submitSiteWideTasks(ctx context.Context, group *er
 		return engineInstance.renderDataPages(ctx)
 	})
 }
-
 
 func (engineInstance *Engine) handlePWAGeneration(ctx context.Context, wasmWaitGroup *sync.WaitGroup, assetsReadySignal <-chan struct{}) {
 	wasmWaitGroup.Add(1)
@@ -110,10 +111,10 @@ func (engineInstance *Engine) setupSiteWideRendering(options SiteWideOptions) (f
 	return runSiteWide, nil
 }
 
-
 func (engineInstance *Engine) shouldSkipSiteWideRendering(metadataContext *content.Context, assetsChanged bool) bool {
 	useStaging := !engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild
-	if metadataContext.AnyItemChanged || engineInstance.State.IsCleanBuild || useStaging || engineInstance.State.ForceGenerators.Load() || assetsChanged {
+	isFirstBuild := engineInstance.buildTransaction != nil && engineInstance.buildTransaction.GetLastBuildTime().IsZero()
+	if isFirstBuild || metadataContext.AnyItemChanged || engineInstance.State.IsCleanBuild || useStaging || engineInstance.State.ForceGenerators.Load() || assetsChanged {
 		engineInstance.State.ForceGenerators.Store(false)
 		return false
 	}
@@ -281,6 +282,8 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 			pinnedItems:    metadataContext.PinnedItems,
 			force:          false,
 			taxonomies:     metadataContext.Taxonomies,
+			showcaseMath:   metadataContext.ShowcaseMath,
+			showcaseD2:     metadataContext.ShowcaseD2,
 		})
 	})
 
@@ -302,7 +305,6 @@ func (engineInstance *Engine) RenderSiteWide(ctx context.Context, metadataContex
 
 	return errorGroup.Wait()
 }
-
 
 func (engineInstance *Engine) renderDataPages(ctx context.Context) error {
 	return generators.RenderDataPages(generators.DataPagesOptions{

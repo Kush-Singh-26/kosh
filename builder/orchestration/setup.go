@@ -14,7 +14,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-
 const (
 	cacheDirMode       = 0755
 	cacheErrorLogLimit = 5

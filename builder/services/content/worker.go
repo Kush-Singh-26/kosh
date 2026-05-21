@@ -12,8 +12,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/navigation"
 )
 
-
-
 func (service *contentService) loadCachedItem(_ string, _ string, _ models.ScannedResource, cachedMeta *models.ContentMeta, useCache bool) (*ParsedMarkdownResult, string, []string, bool) {
 	var parseRes *ParsedMarkdownResult
 	var htmlContent string
@@ -111,8 +109,6 @@ func (service *contentService) parseIfNeeded(ctx context.Context, file models.Sc
 	return parseRes, htmlContent, finalSSRHashes, false, nil
 }
 
-
-
 func (service *contentService) parseWorkerTaskLocal(file models.ScannedResource, workerContext WorkerContext, local *workerLocalState) {
 	relativePath := file.RelPath
 	htmlRelativePath, _, destinationPath := navigation.ComputePathVars(service.cfg.OutputDir, relativePath)
@@ -163,7 +159,6 @@ func (service *contentService) parseWorkerTaskLocal(file models.ScannedResource,
 	}
 }
 
-
 func (service *contentService) prepareIndexedItem(aggregateContext AggregateContext) searchpkg.IndexedContent {
 	searchRecord := aggregateContext.Result.SearchRecord
 	denseID := aggregateContext.WorkerContext.DenseIDCounter.Add(1) - 1
@@ -211,7 +206,7 @@ func (service *contentService) storeCacheMetadata(aggregateContext AggregateCont
 		ContentID: ContentID, Path: aggregateContext.RelativePath, ModTime: aggregateContext.ScannedFile.Info.ModTime().UnixNano(),
 		ContentHash: aggregateContext.Result.FrontmatterHash, BodyHash: hashing.GetBodyHash(aggregateContext.SourceBytes),
 		Title: aggregateContext.Item.Title, Date: aggregateContext.Item.DateObj,
-		FileSize:    int(aggregateContext.ScannedFile.Info.Size()),
+		FileSize:   int(aggregateContext.ScannedFile.Info.Size()),
 		Taxonomies: aggregateContext.Item.Taxonomies, ReadingTime: aggregateContext.Item.ReadingTime,
 		Description: aggregateContext.Item.Description, Link: aggregateContext.Item.Link,
 		IsPinned: aggregateContext.Item.IsPinned, Weight: aggregateContext.Item.Weight,
@@ -237,7 +232,7 @@ func (service *contentService) aggregateLocal(aggregateContext AggregateContext)
 	local.indexedItems = append(local.indexedItems, indexed)
 
 	service.handleSearchTasks(aggregateContext, indexed, localIndex)
-	
+
 	if !aggregateContext.Item.IsHidden {
 		local.allItems = append(local.allItems, aggregateContext.Item)
 		if aggregateContext.Item.IsPinned {

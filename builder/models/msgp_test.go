@@ -9,7 +9,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 )
 
-
 func TestTOCEntry_Msgp(t *testing.T) {
 	v := TOCEntry{
 		ID:    "test-id",
@@ -34,12 +33,12 @@ func TestTOCEntry_Msgp(t *testing.T) {
 
 func TestContentRecord_Msgp(t *testing.T) {
 	v := searchpkg.ContentRecord{
-		Title:           "Title",
-		Link:            "/link",
-		Description:     "Desc",
-		Taxonomies:      map[string][]string{"tags": {"a", "b"}},
-		NormalizedTaxs:  map[string][]string{"tags": {"a", "b"}},
-		Content:         "Content",
+		Title:          "Title",
+		Link:           "/link",
+		Description:    "Desc",
+		Taxonomies:     map[string][]string{"tags": {"a", "b"}},
+		NormalizedTaxs: map[string][]string{"tags": {"a", "b"}},
+		Content:        "Content",
 	}
 
 	var buf bytes.Buffer
@@ -59,12 +58,12 @@ func TestContentRecord_Msgp(t *testing.T) {
 
 func TestSearchIndex_Msgp(t *testing.T) {
 	v := searchpkg.SearchIndex{
-		SchemaVersion: searchpkg.CurrentSchemaVersion,
-		Items:         []searchpkg.ContentRecord{{Title: "P1"}},
-		ItemLens:      []int32{10},
-		AvgDocLen:     10.5,
-		TotalItems:    1,
-		Terms:         []string{"word"},
+		SchemaVersion:  searchpkg.CurrentSchemaVersion,
+		Items:          []searchpkg.ContentRecord{{Title: "P1"}},
+		ItemLens:       []int32{10},
+		AvgDocLen:      10.5,
+		TotalItems:     1,
+		Terms:          []string{"word"},
 		PostingOffsets: []uint32{0, 1},
 		DocIDs:         []uint32{0},
 		DocPosOffsets:  []uint32{0, 2},

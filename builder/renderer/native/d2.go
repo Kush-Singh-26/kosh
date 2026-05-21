@@ -19,11 +19,6 @@ import (
 	"oss.terrastruct.com/util-go/go2"
 )
 
-const (
-	d2LightTheme = 0
-	d2DarkTheme  = 200
-)
-
 // RenderGlobalD2Batch renders all unique D2 diagrams across the entire site
 // in parallel using the worker pool.
 func (r *Renderer) RenderGlobalD2Batch(ctx context.Context, expressions []models.D2Expression) (map[string]models.SSRThemePair, error) {
@@ -66,7 +61,7 @@ func (r *Renderer) spawnD2Worker(ctx context.Context, taskChan <-chan models.D2E
 		Operation: "d2 render",
 		Fn: func() error {
 			for expr := range taskChan {
-				lightSVG, err := r.RenderD2(ctx, expr.Code, d2LightTheme)
+				lightSVG, err := r.RenderD2(ctx, expr.Code, r.d2ThemeLight)
 				if err != nil {
 					mu.Lock()
 					if *globalErr == nil {
@@ -76,7 +71,7 @@ func (r *Renderer) spawnD2Worker(ctx context.Context, taskChan <-chan models.D2E
 					return nil
 				}
 
-				darkSVG, err := r.RenderD2(ctx, expr.Code, d2DarkTheme)
+				darkSVG, err := r.RenderD2(ctx, expr.Code, r.d2ThemeDark)
 				if err != nil {
 					mu.Lock()
 					if *globalErr == nil {
@@ -191,7 +186,13 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 
 	renderOpts := &d2svg.RenderOpts{
 		ThemeID: &themeID,
-		Pad:     go2.Pointer(int64(0)),
+		Pad:     go2.Pointer(r.d2Pad),
+	}
+	if r.d2Scale > 0 {
+		renderOpts.Scale = go2.Pointer(r.d2Scale)
+	}
+	if r.d2Sketch {
+		renderOpts.Sketch = go2.Pointer(true)
 	}
 
 	// Use provided context instead of Background

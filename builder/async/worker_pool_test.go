@@ -51,7 +51,7 @@ func TestWorkerPool_SchedulerTokenReleaseOnCancel(t *testing.T) {
 	mockScheduler := &mockScheduler{
 		acquire: func(ctx context.Context, _ scheduler.TaskType) error {
 			acquired.Add(1)
-			// Block until context is cancelled
+			// Block until context is canceled
 			<-ctx.Done()
 			return ctx.Err()
 		},

@@ -79,7 +79,13 @@ func NormalizeURLPath(path string) string {
 
 // MarkdownToHTMLPath converts a .md file path to its .html equivalent (lowercased).
 func MarkdownToHTMLPath(path string) string {
-	return strings.ToLower(strings.Replace(path, ".md", ".html", 1))
+	path = strings.ToLower(strings.Replace(path, ".md", ".html", 1))
+	// _index.md → index.html so section index pages write to the correct path
+	path = strings.Replace(path, "/_index.html", "/index.html", 1)
+	if strings.HasPrefix(path, "_index.html") {
+		path = "index.html"
+	}
+	return path
 }
 
 // NormalizeWatchPath normalizes a path from a file watcher, making it relative to the working directory if needed.

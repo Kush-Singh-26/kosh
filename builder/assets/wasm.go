@@ -139,6 +139,7 @@ func DeployWasmExec(sink fspkg.ArtifactSink) error {
 
 	// Check if already deployed by comparing hash
 	if _, err := sink.Stat(jsPath); err == nil {
+		sink.Register(jsPath)
 		wasmExecJsDeployed = true
 		return nil
 	}

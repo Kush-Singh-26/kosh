@@ -9,7 +9,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/core"
 )
 
-
 const (
 	scoreModifierBase          = 1.0
 	scoreModifierPrefixMatch   = 0.9

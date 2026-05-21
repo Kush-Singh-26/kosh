@@ -2,6 +2,7 @@ package content
 
 import (
 	"context"
+	"html/template"
 	"log/slog"
 	"sync"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	renderSvc "github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
-
 )
 
 // Result contains the aggregated results of content processing
@@ -29,6 +29,8 @@ type Result struct {
 	indexedItems   []searchpkg.IndexedContent
 	anyItemChanged bool
 	Has404         bool
+	ShowcaseMath   template.HTML
+	ShowcaseD2     template.HTML
 }
 
 // Context holds aggregated content metadata ready for site-wide generators.
@@ -40,6 +42,8 @@ type Context struct {
 	IndexedItems        []searchpkg.IndexedContent
 	PrebuiltSearchIndex *searchpkg.SearchIndex
 	AnyItemChanged      bool
+	ShowcaseMath        template.HTML
+	ShowcaseD2          template.HTML
 }
 
 // ToContext converts a Result into its Context subset.
@@ -52,6 +56,8 @@ func (pr *Result) ToContext() *Context {
 		IndexedItems:        pr.indexedItems,
 		PrebuiltSearchIndex: nil, // Will be set by orchestration if needed
 		AnyItemChanged:      pr.anyItemChanged,
+		ShowcaseMath:        pr.ShowcaseMath,
+		ShowcaseD2:          pr.ShowcaseD2,
 	}
 }
 

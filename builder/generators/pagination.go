@@ -3,6 +3,7 @@ package generators
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"log/slog"
 	"math"
 	"os"
@@ -30,18 +31,20 @@ const (
 
 // PaginationOptions holds dependencies for pagination rendering
 type PaginationOptions struct {
-	Ctx         context.Context
-	Cfg         *config.Config
-	Sink        models.ArtifactSink
-	Render      models.RenderService
-	Cache       models.SocialCardCache
-	SourceFs    afero.Fs
-	AllPosts    []models.ContentMetadata
-	PinnedItems []models.ContentMetadata
-	Force       bool
-	Logger      *slog.Logger
-	LogoPath    string
-	Taxonomies  map[string]models.TaxonomyData
+	Ctx          context.Context
+	Cfg          *config.Config
+	Sink         models.ArtifactSink
+	Render       models.RenderService
+	Cache        models.SocialCardCache
+	SourceFs     afero.Fs
+	AllPosts     []models.ContentMetadata
+	PinnedItems  []models.ContentMetadata
+	Force        bool
+	Logger       *slog.Logger
+	LogoPath     string
+	Taxonomies   map[string]models.TaxonomyData
+	ShowcaseMath template.HTML
+	ShowcaseD2   template.HTML
 }
 
 func ensureHomeSocialCard(opts PaginationOptions) {
@@ -214,6 +217,8 @@ func RenderPagination(opts PaginationOptions) error {
 				SectionIndexURL: sectionIndexURL,
 				Taxonomies:      opts.Taxonomies,
 				SiteData:        cfg.SiteData,
+				ShowcaseMath:    opts.ShowcaseMath,
+				ShowcaseD2:      opts.ShowcaseD2,
 			}); err != nil {
 				return fmt.Errorf("failed to render index page %d: %w", pageIdx, err)
 			}

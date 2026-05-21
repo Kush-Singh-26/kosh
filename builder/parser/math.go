@@ -117,6 +117,29 @@ func HasMathPlaceholders(html string) bool {
 	return strings.Contains(html, "<!--KOSH_MATH:")
 }
 
+// ExtractMathHashes returns all unique math expression hashes found in the HTML.
+func ExtractMathHashes(html string) []string {
+	if !HasMathPlaceholders(html) {
+		return nil
+	}
+	matches := mathLateReplaceRe.FindAllStringSubmatch(html, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	hashes := make([]string, 0, len(matches))
+	for _, m := range matches {
+		if len(m) >= 2 {
+			hash := m[1]
+			if _, ok := seen[hash]; !ok {
+				seen[hash] = struct{}{}
+				hashes = append(hashes, hash)
+			}
+		}
+	}
+	return hashes
+}
+
 // LateReplaceMath performs a final replacement of Math placeholders using registry comments.
 // This is used for TOC and theme fragments where normal AST-based replacement isn't possible.
 func LateReplaceMath(htmlContent string, rendered map[string]string) string {

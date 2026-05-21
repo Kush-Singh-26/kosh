@@ -23,7 +23,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 )
 
-
 // Manager coordinates search index regeneration and cache updates.
 type Manager struct {
 	cfg    *config.Config
@@ -221,7 +220,7 @@ func (managerInstance *Manager) calculateSearchHash(posts []searchpkg.IndexedCon
 	hasher := xxh3.New()
 	// Include schema version and logic version to force rebuild on engine changes
 	_, _ = hasher.WriteString(strconv.Itoa(searchpkg.CurrentSchemaVersion))
-	
+
 	// Include ranking configuration so changing kosh.yaml triggers a re-index
 	ranking := managerInstance.cfg.Features.Generators.Search.Ranking
 	_, _ = hasher.WriteString(strconv.FormatFloat(ranking.TitleBoost, 'f', -1, 64))
@@ -299,13 +298,13 @@ func (managerInstance *Manager) buildIndexedPostsParallel(ids []string, posts ma
 
 			indexed := searchpkg.IndexedContent{
 				Record: searchpkg.ContentRecord{
-					Title:           metadata.Title,
-					Link:            metadata.Link,
-					Description:     metadata.Description,
-					Taxonomies:      metadata.Taxonomies,
-					NormalizedTaxs:  record.NormalizedTaxs,
-					Content:         record.Content,
-					Date:            metadata.Date.Unix(),
+					Title:          metadata.Title,
+					Link:           metadata.Link,
+					Description:    metadata.Description,
+					Taxonomies:     metadata.Taxonomies,
+					NormalizedTaxs: record.NormalizedTaxs,
+					Content:        record.Content,
+					Date:           metadata.Date.Unix(),
 				},
 				SourcePath:      metadata.Path,
 				WordFreqs:       record.WordFreqs,

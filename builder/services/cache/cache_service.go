@@ -1,23 +1,23 @@
 package cache
 
 import (
-"context"
-"log/slog"
-"sync"
+	"context"
+	"log/slog"
+	"sync"
 
+	cachepkg "github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/gc"
-	cachepkg "github.com/Kush-Singh-26/kosh/builder/cache"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 
-"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 // cacheService implements CacheService
 type cacheService struct {
-	ctx *buildctx.BuildContext
+	ctx     *buildctx.BuildContext
 	manager *cachepkg.Manager
-	logger *slog.Logger
+	logger  *slog.Logger
 
 	// Dirty tracking using sync.Map for thread safety
 	dirtyItemsMap sync.Map // contentID -> bool

@@ -15,8 +15,10 @@ import (
 )
 
 var (
-	openingRegex = regexp.MustCompile(`(?s)^\{\{<\s*(\w+)\s*(.*?)\s*>\}\}`)
-	argRegex     = regexp.MustCompile(`(\w+)\s*=\s*("([^"]*)"|'([^']*)'|(\S+))`)
+	openingRegex       = regexp.MustCompile(`(?s)^\{\{<\s*(\w+)\s*(.*?)\s*>\}\}`)
+	argRegex           = regexp.MustCompile(`(\w+)\s*=\s*("([^"]*)"|'([^']*)'|(\S+))`)
+	admonitionOpenRe   = regexp.MustCompile(`(?m)^( *):::(note|warning|info|tip|danger)([ \t]+(.*?))?$`)
+	admonitionCloseRe  = regexp.MustCompile(`(?m)^ *:::$`)
 )
 
 // Processor handles shortcode parsing and rendering.
@@ -67,6 +69,9 @@ func (p *Processor) SetRenderer(renderer func([]byte) ([]byte, error)) {
 
 // Process parses and renders all shortcodes in the given markdown.
 func (p *Processor) Process(markdown []byte) ([]byte, error) {
+	// First convert ::: admonition blocks to callout shortcodes
+	markdown = p.processAdmonitions(markdown)
+
 	if !bytes.Contains(markdown, []byte("{{<")) {
 		return markdown, nil
 	}
@@ -209,6 +214,73 @@ func (p *Processor) loadBuiltins() error {
 	return nil
 }
 
+// processAdmonitions converts :::type [title] ... ::: markdown blocks
+// into the equivalent callout shortcodes for processing.
+func (p *Processor) processAdmonitions(source []byte) []byte {
+	if !bytes.Contains(source, []byte(":::")) {
+		return source
+	}
+
+	var result bytes.Buffer
+	remaining := source
+
+	for {
+		openLoc := admonitionOpenRe.FindSubmatchIndex(remaining)
+		if openLoc == nil {
+			result.Write(remaining)
+			break
+		}
+
+		result.Write(remaining[:openLoc[0]])
+		indent := string(remaining[openLoc[2]:openLoc[3]])
+		adviceType := string(remaining[openLoc[4]:openLoc[5]])
+		title := ""
+		if openLoc[6] >= 0 {
+			title = strings.TrimSpace(string(remaining[openLoc[8]:openLoc[9]]))
+		}
+
+		afterOpen := remaining[openLoc[1]:]
+
+		// Find the matching ::: closing on its own line
+		closeLoc := admonitionCloseRe.FindIndex(afterOpen)
+		if closeLoc == nil {
+			// No closing ::: just write the raw text and continue
+			result.Write(remaining[openLoc[0]:openLoc[1]])
+			remaining = afterOpen
+			continue
+		}
+
+		innerContent := afterOpen[:closeLoc[0]]
+		afterClose := afterOpen[closeLoc[1]:]
+
+		// De-indent inner content by the same margin
+		innerLines := strings.Split(string(innerContent), "\n")
+		for i, line := range innerLines {
+			if strings.HasPrefix(line, indent) && len(indent) > 0 {
+				innerLines[i] = line[len(indent):]
+			}
+		}
+		innerStr := strings.Join(innerLines, "\n")
+
+		// Escape quotes in title for shortcode attr safety
+		titleEsc := strings.ReplaceAll(title, `"`, `\"`)
+
+		if titleEsc != "" {
+			result.WriteString(`{{< callout type="` + adviceType + `" title="` + titleEsc + `" >}}`)
+			result.WriteString(innerStr)
+			result.WriteString(`{{< /callout >}}`)
+		} else {
+			result.WriteString(`{{< callout type="` + adviceType + `" >}}`)
+			result.WriteString(innerStr)
+			result.WriteString(`{{< /callout >}}`)
+		}
+
+		remaining = afterClose
+	}
+
+	return result.Bytes()
+}
+
 func (p *Processor) funcMap() template.FuncMap {
 	return template.FuncMap{
 		"default": func(defaultValue, value any) any {
@@ -251,7 +323,10 @@ func (p *Processor) funcMap() template.FuncMap {
 
 var builtins = map[string]string{
 	"youtube": `<div class="shortcode-youtube"><iframe src="https://www.youtube.com/embed/{{ index .Args "id" }}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`,
-	"figure": `<figure class="shortcode-figure {{ index .Args "class" }}" {{ with index .Args "size" }}style="max-width: {{ . }};"{{ end }}><img src="{{ index .Args "src" }}" alt="{{ index .Args "alt" | default (index .Args "caption") }}" {{ with index .Args "width" }}width="{{ . }}"{{ end }} {{ with index .Args "height" }}height="{{ . }}"{{ end }} loading="lazy">{{ with index .Args "caption" }}<figcaption>{{ . | markdown }}</figcaption>{{ end }}</figure>`,
-	"callout": `<div class="shortcode-callout callout-{{ index .Args "type" | default "note" }}">{{ with index .Args "title" }}<div class="callout-title">{{ . | markdown }}</div>{{ end }}<div class="callout-content">{{ .Inner }}</div></div>`,
+	"figure":  `<figure class="shortcode-figure {{ index .Args "class" }}" {{ with index .Args "size" }}style="max-width: {{ . }};"{{ end }}><img src="{{ index .Args "src" }}" alt="{{ index .Args "alt" | default (index .Args "caption") }}" {{ with index .Args "width" }}width="{{ . }}"{{ end }} {{ with index .Args "height" }}height="{{ . }}"{{ end }} loading="lazy">{{ with index .Args "caption" }}<figcaption>{{ . | markdown }}</figcaption>{{ end }}</figure>`,
+	"callout": `<div class="admonition admonition-{{ index .Args "type" | default "note" }}">{{ with index .Args "title" }}<div class="admonition-title">{{ . | markdown }}</div>{{ end }}<div>{{ .Inner }}</div></div>`,
 	"details": `<details class="shortcode-details"><summary>{{ index .Args "summary" | default "Details" | markdown }}</summary><div class="details-content">{{ .Inner }}</div></details>`,
+	"tabs":    `<div class="tabs">{{ .Inner }}</div>`,
+	"tab":     `<div class="tabs-panel" data-tab-name="{{ index .Args "name" }}">{{ .Inner }}</div>`,
+	"steps":   `<div class="steps">{{ .Inner }}</div>`,
 }

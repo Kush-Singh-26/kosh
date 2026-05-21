@@ -2,14 +2,16 @@ package orchestration
 
 import (
 	"bytes"
+	"context"
+	"html/template"
 	"log/slog"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"sync"
 
-	"github.com/Kush-Singh-26/kosh/builder/async"
 	assetpkg "github.com/Kush-Singh-26/kosh/builder/assets"
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
@@ -118,6 +120,7 @@ func (setup *buildSetup) initNativeRenderer() {
 		native.WithWorkers(workers),
 		native.WithScheduler(buildScheduler),
 		native.WithContext(setup.ctx.Ctx),
+		native.WithD2Config(setup.config.D2),
 	)
 	async.FireAndForget(setup.ctx.Ctx, setup.logger, "native renderer warmup", func() error {
 		setup.nativeRenderer.EnsureInitialized(setup.ctx.Ctx)
@@ -208,6 +211,7 @@ func (setup *buildSetup) createRenderer() *renderer.Renderer {
 		Logger:      setup.logger,
 		Cache:       setup.fragmentAdapter,
 		Diagrams:    setup.diagramAdapter,
+		RenderData:  setup.createDataRenderer(),
 	})
 }
 
@@ -222,6 +226,34 @@ func (setup *buildSetup) initShortcodes() content.ShortcodeProcessor {
 		shortcodeProc.SetRenderer(setup.createMarkdownRenderer())
 	}
 	return shortcodeProc
+}
+
+func (setup *buildSetup) createDataRenderer() func(string) (template.HTML, error) {
+	shortcodeProc := setup.initShortcodes()
+	processor, ok := shortcodeProc.(*shortcodes.Processor)
+	if !ok {
+		processor = nil
+	}
+
+	renderD2 := func(ctx context.Context, code string) (string, string, error) {
+		lightSVG, err := setup.nativeRenderer.RenderD2(ctx, code, setup.config.D2.LightThemeID)
+		if err != nil {
+			return "", "", err
+		}
+		darkSVG, err := setup.nativeRenderer.RenderD2(ctx, code, setup.config.D2.DarkThemeID)
+		if err != nil {
+			return lightSVG, "", nil
+		}
+		return lightSVG, darkSVG, nil
+	}
+
+	renderMath := func(ctx context.Context, latex string, displayMode bool) (string, error) {
+		return setup.nativeRenderer.RenderMath(ctx, latex, displayMode)
+	}
+
+	return func(input string) (template.HTML, error) {
+		return renderer.RenderDataWithShortcodes(input, setup.mdPool, processor, renderD2, renderMath)
+	}
 }
 
 func (setup *buildSetup) createMarkdownRenderer() func(content []byte) ([]byte, error) {

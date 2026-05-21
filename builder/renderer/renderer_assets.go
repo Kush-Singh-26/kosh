@@ -66,6 +66,7 @@ func (m MockConfig) GetNavbar() models.NavbarIdentityConfig { return models.Navb
 
 // GetHomeBadge returns default badge text for testing.
 func (m MockConfig) GetHomeBadge() string { return "Latest Items" }
+func (m MockConfig) GetDocRepoURL() string { return "" }
 
 // SetAssets snapshots the asset map for template rendering.
 func (r *Renderer) SetAssets(assets map[string]string) {
@@ -83,21 +84,10 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 	})
 }
 
-// PrepareAssets performs common optimizations like asset map relativization,
-// site data setup, and context detection. It is non-recursive and safe to call
-// from fragment rendering.
-func (r *Renderer) PrepareAssets(data *models.PageData) {
-	if data.Config == nil {
-		data.Config = MockConfig{}
-	}
-	if data.TabTitle == "" && data.Title != "" {
-		data.TabTitle = data.Title
-	}
-
-	if data.Assets == nil || len(data.Assets) == 0 {
+// resolveAssets populates data.Assets from the renderer snapshot if empty.
+func (r *Renderer) resolveAssets(data *models.PageData) {
+	if len(data.Assets) == 0 {
 		assets := r.GetAssets()
-		// Only use assets if they look valid (have proper keys like /static/css/...)
-		// Otherwise, clear to let template fall back to direct paths
 		validAssets := false
 		for k := range assets {
 			if strings.HasPrefix(k, "/static/css/") || strings.HasPrefix(k, "/static/js/") {
@@ -111,6 +101,20 @@ func (r *Renderer) PrepareAssets(data *models.PageData) {
 			data.Assets = nil
 		}
 	}
+}
+
+// PrepareAssets performs common optimizations like asset map relativization,
+// site data setup, and context detection. It is non-recursive and safe to call
+// from fragment rendering.
+func (r *Renderer) PrepareAssets(data *models.PageData) {
+	if data.Config == nil {
+		data.Config = MockConfig{}
+	}
+	if data.TabTitle == "" && data.Title != "" {
+		data.TabTitle = data.Title
+	}
+
+	r.resolveAssets(data)
 
 	// Optimization: Use cached relativized asset maps to save massive allocation churn
 	if len(data.Assets) > 0 {
@@ -161,7 +165,6 @@ func (r *Renderer) PrepareAssets(data *models.PageData) {
 // PreparePageData performs full page preparation including global fragment pre-rendering.
 func (r *Renderer) PreparePageData(data *models.PageData) {
 	r.PrepareAssets(data)
-
 	// Classic Path Optimization: Pre-render fragments
 	contextKey := string(data.Context)
 

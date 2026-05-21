@@ -57,9 +57,9 @@ func TestRunGC(t *testing.T) {
 
 	err = db.Update(func(tx *bbolt.Tx) error {
 		post := &core.ContentMeta{
-			ContentID:   ContentID,
-			Path:     "test.md",
-			HTMLHash: htmlHash,
+			ContentID: ContentID,
+			Path:      "test.md",
+			HTMLHash:  htmlHash,
 		}
 		data, _ := core.Encode(post)
 		return tx.Bucket([]byte(core.BucketPosts)).Put([]byte(ContentID), data)

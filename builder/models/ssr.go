@@ -71,3 +71,13 @@ type SSRThemePair struct {
 	Light string `msg:"light"`
 	Dark  string `msg:"dark"`
 }
+
+// D2Config controls D2 diagram rendering behavior.
+// Fields map to d2svg.RenderOpts options.
+type D2Config struct {
+	LightThemeID int64   `yaml:"lightThemeID" json:"lightThemeID"`
+	DarkThemeID  int64   `yaml:"darkThemeID" json:"darkThemeID"`
+	Scale        float64 `yaml:"scale" json:"scale"`
+	Pad          int64   `yaml:"pad" json:"pad"`
+	Sketch       bool    `yaml:"sketch" json:"sketch"`
+}

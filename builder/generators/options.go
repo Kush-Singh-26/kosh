@@ -7,17 +7,17 @@ import (
 
 // GeneratorOptions holds all common and specific parameters for various site-wide generators.
 type GeneratorOptions struct {
-	Sink            fspkg.ArtifactSink
-	BaseURL         string
-	Posts           []models.ContentMetadata
-	Tags            map[string][]models.ContentMetadata
-	OutputPath      string
-	Title           string
-	Description     string
-	SiteTitle       string
-	SiteDescription string
-	GraphConfig     models.GraphConfig
-	BuildVersion    int64
+	Sink               fspkg.ArtifactSink
+	BaseURL            string
+	Posts              []models.ContentMetadata
+	Tags               map[string][]models.ContentMetadata
+	OutputPath         string
+	Title              string
+	Description        string
+	SiteTitle          string
+	SiteDescription    string
+	GraphConfig        models.GraphConfig
+	BuildVersion       int64
 	ShouldForceRebuild bool
 	Assets             map[string]string
 	IsTesting          bool

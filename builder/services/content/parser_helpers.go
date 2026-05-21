@@ -140,13 +140,13 @@ func buildSearchRecord(
 	}
 
 	return searchpkg.ContentRecord{
-		Title:           item.Title,
-		Link:            item.Link,
-		Description:     item.Description,
-		Taxonomies:      item.Taxonomies,
-		NormalizedTaxs:  normTaxs,
-		Content:         plainText,
-		Date:            item.DateObj.Unix(),
+		Title:          item.Title,
+		Link:           item.Link,
+		Description:    item.Description,
+		Taxonomies:     item.Taxonomies,
+		NormalizedTaxs: normTaxs,
+		Content:        plainText,
+		Date:           item.DateObj.Unix(),
 	}
 }
 

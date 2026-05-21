@@ -38,8 +38,9 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 
 	finalBytes := buf.Bytes()
 
-	// Self-hydrate D2 diagrams from global cache if they aren't in the page data.
+	// Self-hydrate D2 diagrams and math from global cache if they aren't in the page data.
 	r.hydrateD2Diagrams(finalBytes, &data)
+	r.hydrateMath(finalBytes, &data)
 
 	// Late-pass SSR Replacement (Full-Page: Body + Fragments + TOC)
 	finalBytes = r.applySSRReplacements(finalBytes, &data)
@@ -66,6 +67,27 @@ func (r *Renderer) hydrateD2Diagrams(finalBytes []byte, data *models.PageData) {
 					if val, ok := r.Diagrams.Get("d2:" + hash); ok {
 						if pair, ok := val.(models.SSRThemePair); ok {
 							data.SSRD2[hash] = pair
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func (r *Renderer) hydrateMath(finalBytes []byte, data *models.PageData) {
+	if r.Diagrams != nil && parser.HasMathPlaceholders(string(finalBytes)) {
+		htmlStr := string(finalBytes)
+		hashes := parser.ExtractMathHashes(htmlStr)
+		if len(hashes) > 0 {
+			if data.SSRMath == nil {
+				data.SSRMath = make(map[string]string)
+			}
+			for _, hash := range hashes {
+				if _, ok := data.SSRMath[hash]; !ok {
+					if val, ok := r.Diagrams.Get("math:" + hash); ok {
+						if renderedStr, ok := val.(string); ok {
+							data.SSRMath[hash] = renderedStr
 						}
 					}
 				}

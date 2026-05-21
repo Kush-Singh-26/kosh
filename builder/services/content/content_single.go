@@ -30,8 +30,9 @@ func (service *contentService) ProcessSingle(ctx context.Context, path string, s
 }
 
 type navResult struct {
-	prev, next *models.NavPage
-	taxonomies map[string]models.TaxonomyData
+	prev, next     *models.NavPage
+	taxonomies     map[string]models.TaxonomyData
+	navigationTree *models.NodeTree
 }
 
 func (service *contentService) resolveNavigation(item models.ContentMetadata) *navResult {
@@ -40,9 +41,10 @@ func (service *contentService) resolveNavigation(item models.ContentMetadata) *n
 	prev, next, _ := navigation.FindPrevNext(item, items)
 
 	return &navResult{
-		prev:       prev,
-		next:       next,
-		taxonomies: service.buildTaxonomies(items),
+		prev:           prev,
+		next:           next,
+		taxonomies:     service.buildTaxonomies(items),
+		navigationTree: navigation.BuildNavigationTree(items),
 	}
 }
 
@@ -337,9 +339,16 @@ func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix,
 
 	sectionIndexURL := navigation.ResolveSectionIndex(htmlRelPath)
 
+	layoutVal := getLayoutVal(parseRes.Metadata)
 	pageContext := models.ContextSection
-	if getLayoutVal(parseRes.Metadata) == "home" {
+	if layoutVal == "home" {
 		pageContext = models.ContextHome
+	}
+	if layoutVal == "" && strings.HasSuffix(item.Path, "_index.md") {
+		if parseRes.Metadata == nil {
+			parseRes.Metadata = make(map[string]any)
+		}
+		parseRes.Metadata["layout"] = "index"
 	}
 
 	tabTitle := seoTitle + " | " + service.cfg.Title
@@ -347,7 +356,7 @@ func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix,
 		tabTitle = service.cfg.Title
 	}
 
-	return service.renderer.RenderPage(destPath, models.PageData{
+	pageData := models.PageData{
 		Title: item.Title, Description: item.Description, Content: template.HTML(htmlContent),
 		Meta: parseRes.Metadata, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 		TabTitle: tabTitle, Permalink: item.Link, Image: cardImageURL,
@@ -362,10 +371,15 @@ func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix,
 		SiteData:        service.cfg.SiteData,
 		JSONLD:          service.generateJSONLD(item, cardImageURL),
 		Section:         section,
+		DateObj:         item.DateObj,
+		RelPath:         item.Path,
 		IsCleanBuild:    service.ctx.IsCleanBuild,
 		SSRMath:         renderedMath,
 		SSRD2:           renderedD2,
-	})
+		NavigationTree:  nav.navigationTree,
+	}
+	PopulateShowcaseHTML(&pageData, renderedMath, renderedD2)
+	return service.renderer.RenderPage(destPath, pageData)
 }
 
 func getLayoutVal(metadata map[string]any) string {

@@ -10,20 +10,19 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
-
 func TestPerformSearch_PhraseBoost(t *testing.T) {
 	indexedPosts := []searchpkg.IndexedContent{
 		{
-			DenseID: 0,
-			Record: searchpkg.ContentRecord{Title: "Exact Phrase", Link: "/0", Content: "Learn go programming."},
+			DenseID:         0,
+			Record:          searchpkg.ContentRecord{Title: "Exact Phrase", Link: "/0", Content: "Learn go programming."},
 			PositionalIndex: map[string][]uint32{"go": {1}, "programming": {2}},
-			DocLen: 4,
+			DocLen:          4,
 		},
 		{
-			DenseID: 1,
-			Record: searchpkg.ContentRecord{Title: "Separated Words", Link: "/1", Content: "Go is great programming."},
+			DenseID:         1,
+			Record:          searchpkg.ContentRecord{Title: "Separated Words", Link: "/1", Content: "Go is great programming."},
 			PositionalIndex: map[string][]uint32{"go": {0}, "programming": {4}},
-			DocLen: 6,
+			DocLen:          6,
 		},
 	}
 
@@ -73,18 +72,18 @@ func TestTokenize(t *testing.T) {
 func TestPerformSearch_Tags(t *testing.T) {
 	indexedPosts := []searchpkg.IndexedContent{
 		{
-			DenseID: 0,
-			Record: searchpkg.ContentRecord{Title: "Go", Link: "/go", NormalizedTaxs: map[string][]string{"tags": {"go"}}},
+			DenseID:         0,
+			Record:          searchpkg.ContentRecord{Title: "Go", Link: "/go", NormalizedTaxs: map[string][]string{"tags": {"go"}}},
 			PositionalIndex: map[string][]uint32{"go": {1}},
 		},
 		{
-			DenseID: 1,
-			Record: searchpkg.ContentRecord{Title: "Rust", Link: "/rust", NormalizedTaxs: map[string][]string{"tags": {"rust"}}},
+			DenseID:         1,
+			Record:          searchpkg.ContentRecord{Title: "Rust", Link: "/rust", NormalizedTaxs: map[string][]string{"tags": {"rust"}}},
 			PositionalIndex: map[string][]uint32{"rust": {1}},
 		},
 	}
 	idx := index.Build(indexedPosts)
-	
+
 	results := PerformSearch(idx, "tag:rust")
 	if len(results) != 1 || results[0].ID != 1 {
 		t.Errorf("Tag search failed, got %v", results)

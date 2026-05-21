@@ -7,7 +7,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models/searchpkg"
 )
 
-
 func TestBuildEmpty(t *testing.T) {
 	idx := Build(nil)
 	if idx == nil {
@@ -53,15 +52,15 @@ func TestBuildSingleItem(t *testing.T) {
 func TestBuildMultipleItems(t *testing.T) {
 	items := []searchpkg.IndexedContent{
 		{
-			DenseID: 0,
-			Record:  searchpkg.ContentRecord{Title: "Go 1"},
-			DocLen:  2,
+			DenseID:         0,
+			Record:          searchpkg.ContentRecord{Title: "Go 1"},
+			DocLen:          2,
 			PositionalIndex: map[string][]uint32{"go": {0}, "one": {1}},
 		},
 		{
-			DenseID: 1,
-			Record:  searchpkg.ContentRecord{Title: "Go 2"},
-			DocLen:  2,
+			DenseID:         1,
+			Record:          searchpkg.ContentRecord{Title: "Go 2"},
+			DocLen:          2,
 			PositionalIndex: map[string][]uint32{"go": {0}, "two": {1}},
 		},
 	}

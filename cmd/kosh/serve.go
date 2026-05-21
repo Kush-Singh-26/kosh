@@ -9,7 +9,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
+	assetpkg "github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/Kush-Singh-26/kosh/internal/server"
 	"github.com/Kush-Singh-26/kosh/internal/watch"
@@ -99,10 +101,15 @@ func runDevServe(ctx context.Context, filteredArgs []string) {
 		orchestration.DevLogError("Build failed: " + err.Error())
 		os.Exit(1)
 	}
+	sink := fspkg.NewDiskSink(engine.Cfg.OutputDir, engine.Cfg.OutputDir)
+	if err := assetpkg.DeployWasmExec(sink); err != nil {
+		slog.Warn("Failed to deploy wasm_exec.js", "error", err)
+	}
+	server.MarkInitialBuildComplete()
 
 	watcher := startWatcher(ctx, engine)
 	if watcher != nil {
-		defer watcher.Close()
+			defer func() { _ = watcher.Close() }()
 	}
 
 	server.Run(server.Options{

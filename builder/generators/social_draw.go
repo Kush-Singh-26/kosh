@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	dotRadius                = 2.0
-	dotGridOffset            = dotSpacing / 2
+	dotRadius     = 2.0
+	dotGridOffset = dotSpacing / 2
 
 	dotColorA  = 70
 	dotSpacing = 32

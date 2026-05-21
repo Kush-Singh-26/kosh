@@ -1292,7 +1292,6 @@ func (z *SearchOptionsConfig) Msgsize() (s int) {
 	return
 }
 
-
 // DecodeMsg implements msgp.Decodable
 func (z *SocialCardsConfig) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte

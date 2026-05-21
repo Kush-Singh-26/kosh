@@ -10,7 +10,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
 
-
 func TestGenerateSearchIndex(t *testing.T) {
 	sink := testutil.NewMemSink()
 

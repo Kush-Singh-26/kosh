@@ -15,11 +15,17 @@ type Executor interface {
 	Execute(wr io.Writer, data any) error
 }
 
-// RenderIndex renders the homepage using the index template.
+// RenderIndex renders the homepage using the index or home template.
+// When the data context is ContextHome and a home template exists, it is preferred.
 func (r *Renderer) RenderIndex(path string, data models.PageData) error {
 	r.mu.RLock()
 	index := r.Index
+	home := r.Home
 	r.mu.RUnlock()
+
+	if data.Context == models.ContextHome && home != nil {
+		return r.executeTemplateAndWrite(path, home, data, "home")
+	}
 
 	if index == nil {
 		return fmt.Errorf("required template index.html not found for %s", path)

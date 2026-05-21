@@ -1,0 +1,9 @@
+{{ define "content" }}
+<article>
+    <h1>Page Not Found</h1>
+    <div class="content-body">
+        <p>The page you were looking for does not exist.</p>
+        <p><a href="{{ relativize .BaseURL .RelativePrefix "/" }}">Return home</a></p>
+    </div>
+</article>
+{{ end }}

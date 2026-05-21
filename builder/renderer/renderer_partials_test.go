@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/afero"
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/spf13/afero"
 )
 
 func TestPartials_LoadedAndRendered(t *testing.T) {
@@ -99,9 +99,8 @@ func TestPartials_CacheInvalidation(t *testing.T) {
 
 	// Update partial
 	_ = afero.WriteFile(fs, filepath.Join(partialsDir, "var.html"), []byte(`v2`), 0644)
-	
+
 	// Force reload
 	r.ReloadTemplates()
 	check("v2")
 }
-

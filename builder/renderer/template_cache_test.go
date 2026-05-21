@@ -159,4 +159,3 @@ func TestGraphTemplate_LoadedAutomatically(t *testing.T) {
 
 	t.Log("Graph template automatic load test passed")
 }
-

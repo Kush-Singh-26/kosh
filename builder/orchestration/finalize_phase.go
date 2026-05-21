@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Kush-Singh-26/kosh/builder/assets"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/base"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
@@ -36,6 +37,11 @@ func (engineInstance *Engine) finalizeBuild(ctx context.Context, wasmWaitGroup *
 
 	if err := engineInstance.Deps.Wasm.Deploy(ctx, engineInstance.artifactSink); err != nil {
 		engineInstance.Deps.Logger.Warn("Failed to deploy Search WASM", "error", err)
+	}
+
+	// Deploy embedded core assets (CSS, JS, KaTeX fonts)
+	if err := base.DeployCoreAssets(engineInstance.artifactSink); err != nil {
+		engineInstance.Deps.Logger.Warn("Failed to deploy core assets", "error", err)
 	}
 
 	// Ensure asset pipeline finished so converted-image map is complete.

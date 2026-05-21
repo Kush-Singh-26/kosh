@@ -66,6 +66,12 @@ type Renderer struct {
 	mathBatchPool  sync.Pool
 	D2Singleflight singleflight.Group
 	initOnce       sync.Once
+
+	d2ThemeLight int64
+	d2ThemeDark  int64
+	d2Scale      float64
+	d2Pad        int64
+	d2Sketch     bool
 }
 
 type mathRequest struct {
@@ -111,6 +117,19 @@ func WithMathBatchSize(batchSize int) RendererOption {
 	}
 }
 
+// WithD2Config sets D2 diagram rendering options from the site config.
+func WithD2Config(cfg models.D2Config) RendererOption {
+	return func(r *Renderer) {
+		r.d2ThemeLight = cfg.LightThemeID
+		r.d2ThemeDark = cfg.DarkThemeID
+		if cfg.Scale > 0 {
+			r.d2Scale = cfg.Scale
+		}
+		r.d2Pad = cfg.Pad
+		r.d2Sketch = cfg.Sketch
+	}
+}
+
 // New creates a new Renderer - workers are lazy-initialized
 func New(opts ...RendererOption) *Renderer {
 	numWorkers := max(runtime.NumCPU(), minWorkers)
@@ -135,6 +154,9 @@ func New(opts ...RendererOption) *Renderer {
 		initReady:     make(chan struct{}),
 		scheduler:     nil, // Must be set via WithScheduler option
 		mathQueue:     make(chan mathRequest, mathQueueBufferSize),
+		d2ThemeLight:  0,
+		d2ThemeDark:   200,
+		d2Pad:         0,
 	}
 
 	for _, opt := range opts {

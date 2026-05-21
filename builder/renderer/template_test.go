@@ -64,7 +64,7 @@ func TestRenderer_ReloadTemplates_Missing(t *testing.T) {
 
 func TestRenderer_FuncMap_Relativize(t *testing.T) {
 	// Test the function in isolation to avoid base.html field requirements
-	funcMap := templateFuncMap()
+	funcMap := templateFuncMap(nil)
 	tmpl := template.Must(template.New("test").Funcs(funcMap).Parse(`{{ relativize .BaseURL .RelativePrefix .Link }}`))
 
 	tests := []struct {
@@ -103,7 +103,7 @@ func TestRenderer_FuncMap_Relativize(t *testing.T) {
 
 func TestRenderer_FuncMap_Slugify(t *testing.T) {
 	// Test the function in isolation
-	funcMap := templateFuncMap()
+	funcMap := templateFuncMap(nil)
 	tmpl := template.Must(template.New("test").Funcs(funcMap).Parse(`{{ slugify .Title }}`))
 
 	buf := new(bytes.Buffer)
@@ -112,4 +112,3 @@ func TestRenderer_FuncMap_Slugify(t *testing.T) {
 		t.Errorf("Expected hello-world, got %s", buf.String())
 	}
 }
-

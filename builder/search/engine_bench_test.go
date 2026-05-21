@@ -10,7 +10,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
-
 func BenchmarkExtractSnippet(b *testing.B) {
 	content := strings.Repeat("The quick brown fox jumps over the lazy dog. ", 10)
 	terms := []string{"fox", "dog"}
@@ -35,7 +34,7 @@ func BenchmarkPerformSearch(b *testing.B) {
 		indexedPosts = append(indexedPosts, searchpkg.IndexedContent{
 			DenseID: uint32(i),
 			Record: searchpkg.ContentRecord{
-				Title: fmt.Sprintf("Item %d", i),
+				Title:   fmt.Sprintf("Item %d", i),
 				Content: "This is some content kosh.",
 			},
 			PositionalIndex: map[string][]uint32{"kosh": {4}},

@@ -87,9 +87,9 @@ func createMockSearchIndex(size int) *searchpkg.SearchIndex {
 				Taxonomies:  map[string][]string{"tags": {"go", "ssg"}},
 			},
 			PositionalIndex: map[string][]uint32{
-				"test": {uint32(i)},
-				"query": {uint32(i + 1)},
-				"programming": {uint32(i + 2)},
+				"test":         {uint32(i)},
+				"query":        {uint32(i + 1)},
+				"programming":  {uint32(i + 2)},
 				"optimization": {uint32(i + 3)},
 			},
 			DocLen: 100,

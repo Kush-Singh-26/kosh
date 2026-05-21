@@ -8,17 +8,16 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/search/index"
 )
 
-
 func buildRankingIndex() *searchpkg.SearchIndex {
 	indexedPosts := []searchpkg.IndexedContent{
 		{
 			DenseID: 0,
 			Record: searchpkg.ContentRecord{
-				Title:       "Go Programming Guide",
-				Description: "Learn Go programming basics",
+				Title:          "Go Programming Guide",
+				Description:    "Learn Go programming basics",
 				NormalizedTaxs: map[string][]string{"tags": {"go", "programming"}},
-				Content:      "Go is a programming language created at Google.",
-				Date:         1713686400,
+				Content:        "Go is a programming language created at Google.",
+				Date:           1713686400,
 			},
 			PositionalIndex: map[string][]uint32{"go": {0}, "program": {1}, "guide": {3}},
 			DocLen:          10,
@@ -26,11 +25,11 @@ func buildRankingIndex() *searchpkg.SearchIndex {
 		{
 			DenseID: 1,
 			Record: searchpkg.ContentRecord{
-				Title:       "Rust Programming Tutorial",
-				Description: "Learn Rust programming from scratch",
+				Title:          "Rust Programming Tutorial",
+				Description:    "Learn Rust programming from scratch",
 				NormalizedTaxs: map[string][]string{"tags": {"rust", "programming"}},
-				Content:      "Rust is a systems programming language.",
-				Date:         1713600000,
+				Content:        "Rust is a systems programming language.",
+				Date:           1713600000,
 			},
 			PositionalIndex: map[string][]uint32{"rust": {0}, "program": {1}, "tutorial": {2}},
 			DocLen:          10,
@@ -70,16 +69,16 @@ func TestRanking_TagBoost(t *testing.T) {
 func TestRanking_PhraseMatch(t *testing.T) {
 	indexedPosts := []searchpkg.IndexedContent{
 		{
-			DenseID: 0,
-			Record: searchpkg.ContentRecord{Title: "Neural Network Basics", Content: "A neural network."},
+			DenseID:         0,
+			Record:          searchpkg.ContentRecord{Title: "Neural Network Basics", Content: "A neural network."},
 			PositionalIndex: map[string][]uint32{"neural": {0}, "network": {1}},
-			DocLen: 10,
+			DocLen:          10,
 		},
 		{
-			DenseID: 1,
-			Record: searchpkg.ContentRecord{Title: "Network Security", Content: "Networks are for security."},
+			DenseID:         1,
+			Record:          searchpkg.ContentRecord{Title: "Network Security", Content: "Networks are for security."},
 			PositionalIndex: map[string][]uint32{"network": {0}},
-			DocLen: 10,
+			DocLen:          10,
 		},
 	}
 	idx := index.Build(indexedPosts)
