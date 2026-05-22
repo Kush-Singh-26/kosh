@@ -24,9 +24,9 @@ var (
 	debounceTimer  *time.Timer
 
 	// Build coordination
-	buildMu       sync.Mutex
-	buildActive   bool
-	buildWaitChan chan struct{}
+	buildMu          sync.Mutex
+	buildActive      bool
+	buildWaitChan    chan struct{}
 	initialBuildDone chan struct{}
 
 	// Watch directory mapping

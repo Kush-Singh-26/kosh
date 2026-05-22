@@ -77,12 +77,12 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 // Options configures the development server.
 type Options struct {
-	Ctx           context.Context
-	Args          []string
-	OutputDir     string
-	RootDirectory string
-	SiteRoot      string
-	BaseURL       string
+	Ctx            context.Context
+	Args           []string
+	OutputDir      string
+	RootDirectory  string
+	SiteRoot       string
+	BaseURL        string
 	BuildConfig    *config.BuildConfig
 	Reporter       ui.Reporter
 	IsDev          bool
@@ -239,7 +239,7 @@ func (opts Options) prepareWatchConfig(cfg serveConfig) watchConfig {
 }
 
 func (opts Options) handleRequest(cfg serveConfig, writer http.ResponseWriter, request *http.Request) {
-	if !waitForBuildCompletion(writer, request) {
+	if !opts.waitForBuildCompletion(writer, request) {
 		return
 	}
 
@@ -292,7 +292,7 @@ func Run(opts Options) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/events", handleSSE)
-	
+
 	// Dev Dashboard endpoints
 	if opts.IsDev && opts.HealthRegistry != nil {
 		mux.HandleFunc("/api/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -343,7 +343,11 @@ func Run(opts Options) {
 	orchestration.DevLogSuccess("Server stopped")
 }
 
-func waitForBuildCompletion(_ http.ResponseWriter, request *http.Request) bool {
+func (opts Options) waitForBuildCompletion(_ http.ResponseWriter, request *http.Request) bool {
+	if !opts.IsDev {
+		return true
+	}
+
 	if initialDone := waitForInitialBuild(); initialDone != nil {
 		select {
 		case <-initialDone:

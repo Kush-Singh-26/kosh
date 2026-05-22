@@ -65,7 +65,7 @@ func (m MockConfig) GetSiteData() map[string]any { return nil }
 func (m MockConfig) GetNavbar() models.NavbarIdentityConfig { return models.NavbarIdentityConfig{} }
 
 // GetHomeBadge returns default badge text for testing.
-func (m MockConfig) GetHomeBadge() string { return "Latest Items" }
+func (m MockConfig) GetHomeBadge() string  { return "Latest Items" }
 func (m MockConfig) GetDocRepoURL() string { return "" }
 
 // SetAssets snapshots the asset map for template rendering.

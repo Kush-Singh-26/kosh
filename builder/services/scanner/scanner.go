@@ -146,8 +146,8 @@ func (service *metadataScanner) processScanPath(ctx context.Context, path string
 		relDir := filepath.Dir(strings.TrimPrefix(path, options.Cfg.ContentDir))
 		relDir = strings.TrimPrefix(relDir, "/")
 		relDir = strings.TrimPrefix(relDir, string(filepath.Separator))
-		// Skip root _index.md — pagination handles the root index page
-		if relDir == "" || relDir == "." {
+		// Skip non-root _index.md (section metadata), let root _index.md through
+		if relDir != "" && relDir != "." {
 			return nil
 		}
 	}

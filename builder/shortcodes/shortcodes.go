@@ -15,10 +15,10 @@ import (
 )
 
 var (
-	openingRegex       = regexp.MustCompile(`(?s)^\{\{<\s*(\w+)\s*(.*?)\s*>\}\}`)
-	argRegex           = regexp.MustCompile(`(\w+)\s*=\s*("([^"]*)"|'([^']*)'|(\S+))`)
-	admonitionOpenRe   = regexp.MustCompile(`(?m)^( *):::(note|warning|info|tip|danger)([ \t]+(.*?))?$`)
-	admonitionCloseRe  = regexp.MustCompile(`(?m)^ *:::$`)
+	openingRegex      = regexp.MustCompile(`(?s)^\{\{<\s*(\w+)\s*(.*?)\s*>\}\}`)
+	argRegex          = regexp.MustCompile(`(\w+)\s*=\s*("([^"]*)"|'([^']*)'|(\S+))`)
+	admonitionOpenRe  = regexp.MustCompile(`(?m)^( *):::(note|warning|info|tip|danger)([ \t]+(.*?))?$`)
+	admonitionCloseRe = regexp.MustCompile(`(?m)^ *:::$`)
 )
 
 // Processor handles shortcode parsing and rendering.

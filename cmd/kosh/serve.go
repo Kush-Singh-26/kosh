@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Kush-Singh-26/kosh/builder/async"
 	assetpkg "github.com/Kush-Singh-26/kosh/builder/assets"
+	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/Kush-Singh-26/kosh/builder/orchestration"
@@ -109,7 +109,7 @@ func runDevServe(ctx context.Context, filteredArgs []string) {
 
 	watcher := startWatcher(ctx, engine)
 	if watcher != nil {
-			defer func() { _ = watcher.Close() }()
+		defer func() { _ = watcher.Close() }()
 	}
 
 	server.Run(server.Options{

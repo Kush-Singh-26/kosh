@@ -56,7 +56,7 @@ type Renderer struct {
 	fragmentCache  sync.Map // context string -> template.HTML
 	Cache          models.FragmentCache
 	Diagrams       DiagramCache
-	renderData func(string) (template.HTML, error)
+	renderData     func(string) (template.HTML, error)
 }
 
 // DiagramCache defines a read-only interface to the global diagram cache.
@@ -76,7 +76,7 @@ type Options struct {
 	Logger      *slog.Logger
 	Cache       models.FragmentCache
 	Diagrams    DiagramCache
-	RenderData func(string) (template.HTML, error)
+	RenderData  func(string) (template.HTML, error)
 }
 
 // New creates a Renderer with default filesystem settings.
@@ -101,7 +101,7 @@ func NewWithFs(opts Options) *Renderer {
 		Minifier:    koshMinify.GetHTMLMinifier(),
 		Cache:       opts.Cache,
 		Diagrams:    opts.Diagrams,
-		renderData: opts.RenderData,
+		renderData:  opts.RenderData,
 	}
 	r.ReloadTemplates()
 	return r

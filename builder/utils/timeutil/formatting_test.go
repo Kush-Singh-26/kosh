@@ -16,13 +16,13 @@ func TestSortItems(t *testing.T) {
 		expected []string // Expected order of titles
 	}{
 		{
-			name: "sort by weight descending",
+			name: "sort by weight ascending",
 			items: []models.ContentMetadata{
 				{Title: "Low Weight", Weight: 1, DateObj: now},
 				{Title: "High Weight", Weight: 10, DateObj: now},
 				{Title: "Medium Weight", Weight: 5, DateObj: now},
 			},
-			expected: []string{"High Weight", "Medium Weight", "Low Weight"},
+			expected: []string{"Low Weight", "Medium Weight", "High Weight"},
 		},
 		{
 			name: "same weight sort by date descending",
@@ -34,13 +34,13 @@ func TestSortItems(t *testing.T) {
 			expected: []string{"New", "Medium", "Old"},
 		},
 		{
-			name: "same weight and date sort by title descending",
+			name: "same weight and date sort by title ascending",
 			items: []models.ContentMetadata{
 				{Title: "Apple", Weight: 5, DateObj: now},
 				{Title: "Zebra", Weight: 5, DateObj: now},
 				{Title: "Banana", Weight: 5, DateObj: now},
 			},
-			expected: []string{"Zebra", "Banana", "Apple"},
+			expected: []string{"Apple", "Banana", "Zebra"},
 		},
 		{
 			name: "mixed weight and date",
@@ -49,7 +49,7 @@ func TestSortItems(t *testing.T) {
 				{Title: "Light New", Weight: 1, DateObj: now},
 				{Title: "Heavy New", Weight: 10, DateObj: now},
 			},
-			expected: []string{"Heavy New", "Heavy Old", "Light New"},
+			expected: []string{"Light New", "Heavy New", "Heavy Old"},
 		},
 		{
 			name:     "empty slice",

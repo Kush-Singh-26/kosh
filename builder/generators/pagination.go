@@ -194,6 +194,16 @@ func RenderPagination(opts PaginationOptions) error {
 			pageItems := allItems[start:end]
 			destPath, permalink, relPath := pagePaths(cfg, sink, pageIdx)
 			paginator := buildPaginator(cfg, pageIdx, totalPages)
+
+			// Skip root pagination if root _index.md exists - it's rendered as a single page
+			if pageIdx == firstPageIndex && (relPath == "" || relPath == "index.html" || relPath == "./") {
+				rootIndexPath := filepath.Join(cfg.ContentDir, "_index.md")
+				exists, _ := afero.Exists(opts.SourceFs, rootIndexPath)
+				if exists {
+					return nil
+				}
+			}
+
 			var curPinned []models.ContentMetadata
 			if pageIdx == firstPageIndex {
 				curPinned = opts.PinnedItems
