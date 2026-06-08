@@ -4,7 +4,6 @@
 package orchestration
 
 import (
-	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -154,7 +153,8 @@ This is the initial body.
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
-	ctx := context.Background()
+	ctx, cancel := testCtx()
+	defer cancel()
 	if err := b.Build(ctx); err != nil {
 		t.Fatalf("initial build failed: %v", err)
 	}
@@ -325,7 +325,8 @@ Body content.
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
-	ctx := context.Background()
+	ctx, cancel := testCtx()
+	defer cancel()
 	if err := b.Build(ctx); err != nil {
 		t.Fatalf("initial build failed: %v", err)
 	}

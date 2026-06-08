@@ -4,7 +4,6 @@
 package orchestration
 
 import (
-	"context"
 	"sync"
 	"testing"
 
@@ -158,7 +157,8 @@ func TestFullBuildPipeline_Integration(t *testing.T) {
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
-	ctx := context.Background()
+	ctx, cancel := testCtx()
+	defer cancel()
 	err = b.Build(ctx)
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
@@ -294,7 +294,8 @@ func TestIncrementalBuild_CacheUtilization(t *testing.T) {
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
-	ctx := context.Background()
+	ctx, cancel := testCtx()
+	defer cancel()
 
 	if err := b.Build(ctx); err != nil {
 		t.Fatalf("initial build failed: %v", err)

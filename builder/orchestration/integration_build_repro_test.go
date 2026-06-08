@@ -1,7 +1,6 @@
 package orchestration
 
 import (
-	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -129,7 +128,8 @@ func TestCleanBuild_Reproducibility(t *testing.T) {
 		renderSvc.ReconfigureForBuild(sink, fs)
 		contentSvc.ReconfigureForBuild(sink, fs)
 
-		ctx := context.Background()
+		ctx, cancel := testCtx()
+		defer cancel()
 		_ = b.Build(ctx)
 		return sink.Files
 	}
@@ -268,7 +268,8 @@ func TestTransactionFailure_Rollback(t *testing.T) {
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
-	ctx := context.Background()
+	ctx, cancel := testCtx()
+	defer cancel()
 	err := b.Build(ctx)
 
 	if err == nil {

@@ -1,11 +1,9 @@
 package orchestration
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/spf13/afero"
 
@@ -107,7 +105,9 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
-	if err := b.Build(context.Background()); err != nil {
+	buildCtx, buildCancel := testCtx()
+	defer buildCancel()
+	if err := b.Build(buildCtx); err != nil {
 		t.Fatalf("Initial build failed: %v", err)
 	}
 
@@ -117,9 +117,9 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	failingSink := &testutil.FailingSink{Err: errors.New("no space left on device")}
 	b.artifactSink = failingSink
 
-	buildCtx, buildCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer buildCancel()
-	err := b.Build(buildCtx)
+	buildCtx2, buildCancel2 := testCtx()
+	defer buildCancel2()
+	err := b.Build(buildCtx2)
 	if err == nil {
 		t.Error("Build should have failed due to disk full")
 	} else {

@@ -1,7 +1,6 @@
 package orchestration
 
 import (
-	"context"
 	"sync"
 	"testing"
 
@@ -123,7 +122,8 @@ func TestBuild_WithRealCache(t *testing.T) {
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
-	ctx := context.Background()
+	ctx, cancel := testCtx()
+	defer cancel()
 
 	if err := b.Build(ctx); err != nil {
 		t.Fatalf("first build failed: %v", err)

@@ -1,8 +1,10 @@
 package orchestration
 
 import (
+	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"go.uber.org/goleak"
 
@@ -22,6 +24,10 @@ func getSharedRenderer() *native.Renderer {
 		sharedRenderer = native.New(native.WithWorkers(1))
 	})
 	return sharedRenderer
+}
+
+func testCtx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 120*time.Second)
 }
 
 func TestMain(m *testing.M) {

@@ -1,7 +1,6 @@
 package orchestration
 
 import (
-	"context"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -153,7 +152,8 @@ Initial body.
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
-	ctx := context.Background()
+	ctx, cancel := testCtx()
+	defer cancel()
 	if err := b.Build(ctx); err != nil {
 		t.Fatalf("initial build failed: %v", err)
 	}
@@ -286,8 +286,9 @@ date: "2026-03-06"
 	b.SetSink(testutil.NewMemSink())
 	b.buildTransaction = testutil.NewMockTransaction("public")
 
-	ctx := context.Background()
-	_ = b.Build(ctx)
+	ctx2, cancel2 := testCtx()
+	defer cancel2()
+	_ = b.Build(ctx2)
 
 	updatedContent := `---
 title: "Updated Title"
@@ -297,5 +298,5 @@ date: "2026-03-06"
 `
 	_ = afero.WriteFile(fs, absPath, []byte(updatedContent), 0644)
 
-	b.Incremental.BuildSingleItem(ctx, absPath)
+	b.Incremental.BuildSingleItem(ctx2, absPath)
 }

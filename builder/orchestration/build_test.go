@@ -158,7 +158,8 @@ func TestFullBuild(t *testing.T) {
 	b.artifactSink = sink
 	b.buildTransaction = tx
 
-	ctx := context.Background()
+	ctx, cancel := testCtx()
+	defer cancel()
 	err := b.Build(ctx)
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
