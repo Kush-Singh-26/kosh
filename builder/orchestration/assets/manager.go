@@ -83,7 +83,7 @@ func (managerInstance *Manager) SetupBuilding(ctx context.Context, contentAssets
 
 	managerInstance.runAssetBuild(ctx, skipImages, &wg, errChan, timer)
 
-	return assetsReady, managerInstance.deps.Asset.DiscoveryReady(), &wg, errChan
+	return assetsReady, discoveryCh, &wg, errChan
 }
 
 func (managerInstance *Manager) determineSkipImages(force bool) bool {
