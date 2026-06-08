@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spf13/afero"
 
@@ -116,7 +117,9 @@ func TestBuild_DiskFullGracefulFailure(t *testing.T) {
 	failingSink := &testutil.FailingSink{Err: errors.New("no space left on device")}
 	b.artifactSink = failingSink
 
-	err := b.Build(context.Background())
+	buildCtx, buildCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer buildCancel()
+	err := b.Build(buildCtx)
 	if err == nil {
 		t.Error("Build should have failed due to disk full")
 	} else {
