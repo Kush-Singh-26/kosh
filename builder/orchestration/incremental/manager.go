@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
+	"github.com/spf13/afero"
+
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/config"
@@ -24,8 +27,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/afero"
 )
 
 // PostChangeType describes the kind of change detected for a Content.

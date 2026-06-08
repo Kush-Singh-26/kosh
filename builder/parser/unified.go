@@ -10,14 +10,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/pools"
-	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 	"golang.org/x/sync/singleflight"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/pools"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
 const (

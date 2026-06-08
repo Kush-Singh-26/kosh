@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	"go.uber.org/goleak"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestMain(m *testing.M) {

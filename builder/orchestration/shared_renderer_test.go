@@ -4,8 +4,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 	"go.uber.org/goleak"
+
+	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
 var (

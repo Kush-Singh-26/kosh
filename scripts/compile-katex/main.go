@@ -7,9 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"runtime"
+
 	"github.com/fastschema/qjs"
 	"github.com/zeebo/xxh3"
-	"runtime"
 )
 
 const (

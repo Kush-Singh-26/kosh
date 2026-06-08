@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"go.etcd.io/bbolt"
+
 	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"github.com/Kush-Singh-26/kosh/builder/cache/store"
-	"go.etcd.io/bbolt"
 )
 
 func TestRunGC(t *testing.T) {

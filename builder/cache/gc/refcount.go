@@ -4,8 +4,9 @@ import (
 	"encoding/binary"
 	"log/slog"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"go.etcd.io/bbolt"
+
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 )
 
 const (

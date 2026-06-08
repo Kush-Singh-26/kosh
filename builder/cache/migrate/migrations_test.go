@@ -6,8 +6,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 	"go.etcd.io/bbolt"
+
+	"github.com/Kush-Singh-26/kosh/builder/cache/core"
 )
 
 func TestRunMigrations_NoOp(t *testing.T) {

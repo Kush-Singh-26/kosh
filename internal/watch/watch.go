@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 )
 
 const watchDebounceDuration = 50 * time.Millisecond

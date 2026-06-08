@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/spf13/afero"
+
+	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 )
 
 func TestPostService_TaxonomyPopulation(t *testing.T) {

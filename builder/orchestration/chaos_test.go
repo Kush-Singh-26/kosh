@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/spf13/afero"
+
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/metrics"
@@ -17,7 +19,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/render"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
-	"github.com/spf13/afero"
 )
 
 func TestBuild_DiskFullGracefulFailure(t *testing.T) {

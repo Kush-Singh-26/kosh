@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/afero"
+
 	"github.com/Kush-Singh-26/kosh/builder/cache"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
-	"github.com/spf13/afero"
 )
 
 func TestPostService_ReadingTimeReuse_Explicit(t *testing.T) {

@@ -7,11 +7,12 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/spf13/afero"
+
 	"github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
-	"github.com/spf13/afero"
 )
 
 // Dependencies holds all dependencies for WasmService.

@@ -8,8 +8,9 @@ import (
 	"strconv"
 	"sync"
 
-	"golang.org/x/sync/errgroup"
 	"runtime"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/zeebo/xxh3"
 

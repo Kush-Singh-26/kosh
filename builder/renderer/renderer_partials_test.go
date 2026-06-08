@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/spf13/afero"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestPartials_LoadedAndRendered(t *testing.T) {

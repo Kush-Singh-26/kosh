@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
+
+	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
 )
 
 func TestE2E_SearchAndGraph(t *testing.T) {

@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/andybalholm/brotli"
+
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 const (

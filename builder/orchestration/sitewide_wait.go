@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/content"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
-	"golang.org/x/sync/errgroup"
 )
 
 // waitForSiteWideRendering waits for site-wide generators and renders 404 if needed.

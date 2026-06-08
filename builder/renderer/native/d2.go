@@ -6,10 +6,6 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/Kush-Singh-26/kosh/builder/async"
-	"github.com/Kush-Singh-26/kosh/builder/models"
-	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 	"oss.terrastruct.com/d2/d2graph"
 	"oss.terrastruct.com/d2/d2layouts/d2dagrelayout"
 	"oss.terrastruct.com/d2/d2lib"
@@ -17,6 +13,11 @@ import (
 	d2log "oss.terrastruct.com/d2/lib/log"
 	"oss.terrastruct.com/d2/lib/textmeasure"
 	"oss.terrastruct.com/util-go/go2"
+
+	"github.com/Kush-Singh-26/kosh/builder/async"
+	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/scheduler"
+	"github.com/Kush-Singh-26/kosh/builder/utils/timeutil"
 )
 
 // RenderGlobalD2Batch renders all unique D2 diagrams across the entire site

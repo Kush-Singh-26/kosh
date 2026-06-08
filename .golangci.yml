@@ -1,37 +1,41 @@
+version: "2"
+
 run:
   timeout: 3m
   concurrency: 4
 
 linters:
+  default: none
   enable:
-    - gofmt
     - govet
     - misspell
     - unconvert
     - ineffassign
-    - gosimple
     - staticcheck
     - unused
     - errcheck
-  disable:
-    - typecheck
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+      - path: builder/models/searchpkg/
+        linters:
+          - gofmt
+          - goimports
+      - path: builder/mocks/
+        linters:
+          - gofmt
+          - goimports
+  settings:
+    misspell:
+      locale: US
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-    - path: builder/models/searchpkg/
-      linters:
-        - gofmt
-        - goimports
-    - path: builder/mocks/
-      linters:
-        - gofmt
-        - goimports
-
-linters-settings:
-  goimports:
-    local-prefixes: github.com/Kush-Singh-26/kosh
-  misspell:
-    locale: US
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes: github.com/Kush-Singh-26/kosh

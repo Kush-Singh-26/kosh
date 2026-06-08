@@ -4,11 +4,12 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/spf13/afero"
+
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/services/scanner"
-	"github.com/spf13/afero"
 )
 
 // MockScanner is a test double for the metadata scanner.

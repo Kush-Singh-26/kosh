@@ -10,6 +10,9 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/spf13/afero"
+	"github.com/yuin/goldmark"
+
 	assetpkg "github.com/Kush-Singh-26/kosh/builder/assets"
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/cache"
@@ -30,8 +33,6 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/services/wasm"
 	"github.com/Kush-Singh-26/kosh/builder/shortcodes"
 	"github.com/Kush-Singh-26/kosh/builder/ui"
-	"github.com/spf13/afero"
-	"github.com/yuin/goldmark"
 )
 
 func init() {

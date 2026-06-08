@@ -11,9 +11,10 @@ import (
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
 
-	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 	"go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
+
+	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 const parallelDecodeThreshold = 10

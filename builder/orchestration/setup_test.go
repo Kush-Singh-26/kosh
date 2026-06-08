@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/spf13/afero"
+
+	"github.com/Kush-Singh-26/kosh/builder/config"
 )
 
 func TestVerifyThemeFs_Detached(t *testing.T) {

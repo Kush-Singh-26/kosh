@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/fs"
 	"github.com/spf13/afero"
+
+	"github.com/Kush-Singh-26/kosh/builder/fs"
 )
 
 func TestSyncVFS_RollbackOnFailure(t *testing.T) {

@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/afero"
+
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
-	"github.com/spf13/afero"
 )
 
 type mockDiagramCache struct {

@@ -6,11 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yuin/goldmark/parser"
+	"golang.org/x/sync/singleflight"
+
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
-	"github.com/yuin/goldmark/parser"
-	"golang.org/x/sync/singleflight"
 )
 
 type pipelineTestCase struct {

@@ -3,11 +3,12 @@ package parser
 import (
 	"testing"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
+
+	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
 func TestTOCTransformer(t *testing.T) {

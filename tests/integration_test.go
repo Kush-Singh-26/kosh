@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kush-Singh-26/kosh/builder/config"
-	"github.com/Kush-Singh-26/kosh/builder/orchestration"
-	"github.com/Kush-Singh-26/kosh/builder/ui"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"github.com/Kush-Singh-26/kosh/builder/config"
+	"github.com/Kush-Singh-26/kosh/builder/orchestration"
+	"github.com/Kush-Singh-26/kosh/builder/ui"
 )
 
 func TestMain(m *testing.M) {

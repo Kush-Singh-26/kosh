@@ -16,11 +16,12 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Kush-Singh-26/kosh/builder/async"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/spf13/afero"
 	"github.com/zeebo/xxh3"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/Kush-Singh-26/kosh/builder/async"
 
 	fspkg "github.com/Kush-Singh-26/kosh/builder/fs"
 )

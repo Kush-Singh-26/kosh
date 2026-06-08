@@ -3,8 +3,9 @@ package core
 import (
 	"sync"
 
-	"github.com/Kush-Singh-26/kosh/builder/pools"
 	lru "github.com/hashicorp/golang-lru/v2"
+
+	"github.com/Kush-Singh-26/kosh/builder/pools"
 )
 
 const (

@@ -6,9 +6,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/spf13/afero"
+
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	mocks "github.com/Kush-Singh-26/kosh/builder/mocks/services"
-	"github.com/spf13/afero"
 )
 
 func TestManager_Reconfigure(t *testing.T) {

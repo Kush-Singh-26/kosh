@@ -4,9 +4,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/yuin/goldmark/ast"
+
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/pools"
-	"github.com/yuin/goldmark/ast"
 )
 
 var d2LateReplaceRe = regexp.MustCompile(`<!--KOSH_D2:([a-f0-9]+)-->(?:<!--KOSH_D2_REG:([a-f0-9]+):([^:]+):([^:]+)-->)?`)

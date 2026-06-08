@@ -6,10 +6,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/spf13/afero"
+
 	"github.com/Kush-Singh-26/kosh/builder/config"
 	buildctx "github.com/Kush-Singh-26/kosh/builder/context"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
-	"github.com/spf13/afero"
 )
 
 func TestWasmService_SkipInTestMode(t *testing.T) {
