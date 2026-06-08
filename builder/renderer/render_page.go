@@ -24,6 +24,23 @@ const (
 // executeTemplateAndWrite executes a template, processes HTML, optionally minifies, and writes via sink.
 // This is a unified helper to avoid duplication across RenderPage, RenderIndex, RenderGraph, and Render404.
 func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data models.PageData, templateName string) error {
+	// Copy SSR maps to avoid races when multiple goroutines share the same
+	// underlying map from the content service.
+	if data.SSRD2 != nil {
+		d2Copy := make(map[string]models.SSRThemePair, len(data.SSRD2))
+		for k, v := range data.SSRD2 {
+			d2Copy[k] = v
+		}
+		data.SSRD2 = d2Copy
+	}
+	if data.SSRMath != nil {
+		mathCopy := make(map[string]string, len(data.SSRMath))
+		for k, v := range data.SSRMath {
+			mathCopy[k] = v
+		}
+		data.SSRMath = mathCopy
+	}
+
 	r.PreparePageData(&data)
 
 	// Apply SSR math replacement to TOC entries before template execution
@@ -175,10 +192,14 @@ func (r *Renderer) RenderPage(path string, data models.PageData) error {
 
 	// Choose layout
 	switch {
-	case layoutReq == "home" && r.Home != nil:
+	case layoutReq == "home" && r.Home != nil && isRoot:
 		layout = r.Home
 	case isRoot && r.Home != nil:
 		layout = r.Home
+	case layoutReq == "home" && r.Index != nil && !isRoot:
+		// Section _index.md with layout: "home" uses index.html so theme
+		// can distinguish root landing page from section home pages.
+		layout = r.Index
 	case layoutReq == "index" && r.Index != nil:
 		layout = r.Index
 	}

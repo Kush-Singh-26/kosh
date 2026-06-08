@@ -84,6 +84,55 @@ func TestGenerateRSS_EmptyItems(t *testing.T) {
 	}
 }
 
+func TestGenerateRSS_FiltersPinnedItems(t *testing.T) {
+	sink := testutil.NewMemSink()
+	items := []models.ContentMetadata{
+		{
+			Title:       "Pinned Post",
+			Link:        "/pinned",
+			Description: "Should not appear in RSS",
+			DateObj:     time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC),
+			IsPinned:    true,
+		},
+		{
+			Title:       "Regular Post",
+			Link:        "/regular",
+			Description: "Should appear in RSS",
+			DateObj:     time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC),
+			IsPinned:    false,
+		},
+		{
+			Title:       "Another Regular Post",
+			Link:        "/another",
+			Description: "Should also appear in RSS",
+			DateObj:     time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	_, err := GenerateRSS(RSSOptions{
+		Sink:        sink,
+		BaseURL:     "https://example.com",
+		Items:       items,
+		Title:       "My Blog",
+		Description: "Blog Description",
+		OutputPath:  "rss.xml",
+	})
+	if err != nil {
+		t.Fatalf("GenerateRSS failed: %v", err)
+	}
+
+	rssStr := string(sink.Files["rss.xml"])
+	if strings.Contains(rssStr, "Pinned Post") {
+		t.Error("RSS should not contain pinned items")
+	}
+	if !strings.Contains(rssStr, "<title>Regular Post</title>") {
+		t.Error("RSS missing regular post")
+	}
+	if !strings.Contains(rssStr, "<title>Another Regular Post</title>") {
+		t.Error("RSS missing another regular post")
+	}
+}
+
 func TestGenerateRSS_SpecialCharacters(t *testing.T) {
 	sink := testutil.NewMemSink()
 	items := []models.ContentMetadata{

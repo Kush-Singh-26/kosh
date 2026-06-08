@@ -1,6 +1,7 @@
 package content
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/generators"
@@ -22,6 +23,9 @@ func (service *contentService) prepareNavigationInfo(files []models.ScannedResou
 
 	for _, file := range files {
 		if file.IsDraft && !service.cfg.ShouldIncludeDrafts {
+			continue
+		}
+		if strings.HasSuffix(file.RelPath, "_index.md") {
 			continue
 		}
 

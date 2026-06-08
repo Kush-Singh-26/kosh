@@ -56,21 +56,23 @@
 
     {{ $v := .BuildVersion }}
     <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/kosh-core.css" }}?v={{ $v }}">
+    {{ if .HasMath }}
     <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/katex.min.css" }}?v={{ $v }}">
+    {{ end }}
     {{ if .IsGraphPage }}
     <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/graph.css" }}?v={{ $v }}">
     {{ end }}
 
     {{ if .Assets }}
-    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix (index .Assets "/static/css/layout.css") }}">
+    <link rel="stylesheet" href="{{ index .Assets "/static/css/layout.css" }}">
     {{ else }}
     <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/layout.css" }}?v={{ $v }}">
     {{ end }}
 
-    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-main.js" }}?v={{ $v }}">
-    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-search.js" }}?v={{ $v }}">
+    <link rel="modulepreload" href="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-main.js" }}?v={{ $v }}">
+    <link rel="modulepreload" href="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-search.js" }}?v={{ $v }}">
     {{ if .IsGraphPage }}
-    <link rel="preload" as="script" href="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ $v }}">
+    <link rel="modulepreload" href="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ $v }}">
     {{ end }}
 
     {{ if and .Config.GetFeatures.Generators.Search.IsEnabled (not .Config.IsDevMode) }}
@@ -221,11 +223,6 @@
                 <div class="graph-stats">
                     <div class="graph-node-count">Nodes: <span id="graph-count">—</span></div>
                 </div>
-                <div class="graph-legend">
-                    <div class="graph-legend-item"><span class="graph-legend-dot" style="background: var(--accent-primary)"></span>Hub</div>
-                    <div class="graph-legend-item"><span class="graph-legend-dot" style="background: var(--accent-link)"></span>Tag</div>
-                    <div class="graph-legend-item"><span class="graph-legend-dot" style="background: var(--accent-secondary)"></span>Article</div>
-                </div>
             </div>
             <div class="graph-controls">
                 <div class="graph-control-btn" id="graph-zi" title="Zoom In">+</div>
@@ -342,10 +339,10 @@
     {{ end }}
 
     {{ $v := .BuildVersion }}
-    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-main.js" }}?v={{ $v }}"></script>
-    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-search.js" }}?v={{ $v }}"></script>
+    <script type="module" src="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-main.js" }}?v={{ $v }}"></script>
+    <script type="module" src="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-search.js" }}?v={{ $v }}"></script>
     {{ if .IsGraphPage }}
-    <script defer src="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ $v }}"></script>
+    <script type="module" src="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ $v }}"></script>
     {{ end }}
 
     <script>

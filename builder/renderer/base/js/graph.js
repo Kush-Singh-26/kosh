@@ -106,16 +106,18 @@
         data.nodes.forEach(n => {
             const isRoot = n.group === 0;
             const isTag = n.group === 2;
-            nmap[n.id] = {
-                ...n,
-                x: isRoot ? 0 : (Math.random() - 0.5) * 200,
-                y: isRoot ? 0 : (Math.random() - 0.5) * 200,
-                vx: 0, vy: 0,
-                r: isRoot ? 22 : (isTag ? 10 : 7),
-                conns: [],
-                isRoot,
-                isTag
-            };
+nmap[n.id] = {
+                    ...n,
+                    x: isRoot ? 0 : (Math.random() - 0.5) * 200,
+                    y: isRoot ? 0 : (Math.random() - 0.5) * 200,
+                    vx: 0, vy: 0,
+                    r: isRoot ? 22 : (isTag ? 10 : 7),
+                    conns: [],
+                    isRoot,
+                    isTag,
+                    entranceDelay: Math.random() * 400,
+                    entranceStart: Date.now(),
+                };
             if (isTag) tags.push(nmap[n.id]);
         });
 
@@ -131,25 +133,33 @@
         const nodes = Object.values(nmap);
         nodes.forEach(n => { n.r += Math.min(Math.sqrt(n.conns.length) * 0.8, 5); });
         document.getElementById('graph-count').textContent = nodes.length;
+
+        allNodes = nodes;
+        rootNode = nodes.find(n => n.isRoot);
     }
 
     let tick = 0;
     const CIRCLE_R = 380;
+    let running = true;
+    let allNodes = [];
+    let rootNode = null;
+    let cachedVars = null;
+    let varsDirty = true;
 
     function physics() {
-        const nodes = Object.values(nmap);
-        if (nodes.length === 0) return;
-        const rootNode = nodes.find(n => n.isRoot);
+        if (allNodes.length === 0) return;
         if (!rootNode) return;
-        if (tick > 550) return;
+        // Remove hard tick stop; only rely on velocity threshold
+        // if (tick > 300) return;
         tick++;
 
-        const tagNodes = nodes.filter(n => n.isTag);
-        const articles = nodes.filter(n => n.group === 1);
+        const tagNodes = allNodes.filter(n => n.isTag);
+        const articles = allNodes.filter(n => n.group === 1);
 
-        for (let i = 0; i < nodes.length; i++) {
-            for (let j = i + 1; j < nodes.length; j++) {
-                const a = nodes[i], b = nodes[j];
+        let totalV = 0;
+        for (let i = 0; i < allNodes.length; i++) {
+            for (let j = i + 1; j < allNodes.length; j++) {
+                const a = allNodes[i], b = allNodes[j];
                 if (a.isRoot || b.isRoot) continue;
                 const dx = b.x - a.x, dy = b.y - a.y;
                 const d2 = dx * dx + dy * dy + 60;
@@ -210,13 +220,16 @@
             b.vx -= fx; b.vy -= fy;
         });
 
-        nodes.forEach(n => {
+        allNodes.forEach(n => {
             if (n.isRoot) return;
             n.vx *= 0.74; n.vy *= 0.74;
             n.vx = Math.max(-10, Math.min(10, n.vx));
             n.vy = Math.max(-10, Math.min(10, n.vy));
             n.x += n.vx; n.y += n.vy;
+            totalV += Math.abs(n.vx) + Math.abs(n.vy);
         });
+
+        if (totalV < 0.5) tick = 99999999;
     }
 
     let hover = null, active = null, searchMatch = null;
@@ -232,11 +245,12 @@
     }
 
     function getCSSVars() {
+        if (cachedVars && !varsDirty) return cachedVars;
         const rootStyle = getComputedStyle(document.documentElement);
-        return {
-            accentPrimary: rootStyle.getPropertyValue('--accent-primary').trim() || '#8c948c', // Sage
-            accentLink: rootStyle.getPropertyValue('--accent-link').trim() || '#6c7e8c', // Indigo
-            accentSecondary: rootStyle.getPropertyValue('--accent-secondary').trim() || '#a38c85', // Clay
+        cachedVars = {
+            accentPrimary: rootStyle.getPropertyValue('--accent-primary').trim() || '#8c948c',
+            accentLink: rootStyle.getPropertyValue('--accent-link').trim() || '#6c7e8c',
+            accentSecondary: rootStyle.getPropertyValue('--accent-secondary').trim() || '#a38c85',
             accentSage: rootStyle.getPropertyValue('--accent-sage').trim() || '#8c948c',
             accentClay: rootStyle.getPropertyValue('--accent-clay').trim() || '#a38c85',
             accentIndigo: rootStyle.getPropertyValue('--accent-indigo').trim() || '#6c7e8c',
@@ -246,6 +260,8 @@
             textMuted: rootStyle.getPropertyValue('--text-muted').trim() || '#787470',
             cardBg: rootStyle.getPropertyValue('--bg-card').trim() || '#23221e'
         };
+        varsDirty = false;
+        return cachedVars;
     }
 
     function getGraphColor(n) {
@@ -262,7 +278,7 @@
 
     function draw() {
         const vars = getCSSVars();
-        const { accentPrimary, accentSecondary, textMuted, cardBg } = vars;
+        const { accentSecondary, textMuted, cardBg } = vars;
 
         ctx.clearRect(0, 0, W, H);
 
@@ -284,20 +300,6 @@
         const sp = 60 * zoom, ox = (W / 2 + camX) % sp, oy = (H / 2 + camY) % sp;
         for (let x = ox - sp; x < W + sp; x += sp)
             for (let y = oy - sp; y < H + sp; y += sp) { ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI * 2); ctx.fill(); }
-
-        const nodes = Object.values(nmap);
-        const rootNode = nodes.find(n => n.isRoot);
-        if (rootNode) {
-            const [rx, ry] = toScreen(rootNode.x, rootNode.y);
-            const cr = CIRCLE_R * zoom;
-            ctx.beginPath();
-            ctx.arc(rx, ry, cr, 0, Math.PI * 2);
-            ctx.strokeStyle = accentPrimary;
-            ctx.globalAlpha = 0.15;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.globalAlpha = 1;
-        }
 
         links.forEach(l => {
             const [ax, ay] = toScreen(l.a.x, l.a.y);
@@ -323,9 +325,7 @@
                 ctx.lineWidth = 3 * zoom; 
             }
             else if (l.a.isRoot || l.b.isRoot) { 
-                ctx.strokeStyle = accentPrimary; 
-                ctx.globalAlpha = faded ? 0.05 : 0.4; 
-                ctx.lineWidth = 1.2 * zoom; 
+                return;
             }
             else { 
                 ctx.strokeStyle = textMuted; 
@@ -341,18 +341,29 @@
             ctx.stroke();
         });
 
-        nodes.forEach(n => {
+        allNodes.forEach(n => {
+            if (n.isRoot) return;
             const [sx, sy] = toScreen(n.x, n.y);
-            
-            // Entrance scaling
-            const elapsed = Date.now() - startTick;
+
+            // --- Bounce/scale for hover feedback ---
+            if (n.lastBounce == null) n.lastBounce = 0;
+            const isHover = n === hover;
+            const bounceTgt = isHover ? 1 : 0;
+            n.lastBounce += (bounceTgt - n.lastBounce) * 0.25;
+            const bounce = 1 + n.lastBounce * 0.22;
+
+            // Per-node entrance scaling
+            const entranceMs = 800;
+            let entranceElapsed = Date.now() - n.entranceStart - n.entranceDelay;
             let entranceScale = 1;
-            if (elapsed < animDuration) {
+            let entranceAlpha = 1;
+            if (entranceElapsed < entranceMs) {
                 // Ease out cubic
-                const t = elapsed / animDuration;
+                const t = Math.max(0, entranceElapsed / entranceMs);
                 entranceScale = 1 - Math.pow(1 - t, 3);
+                entranceAlpha = t;
             }
-            const r = n.r * zoom * entranceScale;
+            const r = n.r * zoom * entranceScale * bounce;
             
             if (sx + r < 0 || sx - r > W || sy + r < 0 || sy - r > H) return;
             const isTag = n.group === 2;
@@ -362,7 +373,7 @@
             const isFaded = focus && !focusSet.has(n);
             const isActive = n === active || n === searchMatch;
 
-            ctx.globalAlpha = isFaded ? 0.08 : 1;
+            ctx.globalAlpha = (isFaded ? 0.08 : 1) * entranceAlpha;
             if (!isFaded) {
                 ctx.shadowColor = color;
                 // High-end Bloom Effect
@@ -378,8 +389,28 @@
             else ctx.arc(sx, sy, r, 0, Math.PI * 2);
             
             ctx.fillStyle = cardBg; 
-            ctx.fill();
-            
+            ctx.fill(); 
+
+            // Draw strong hover outline (after normal stroke)
+            if (isHover && entranceAlpha > 0.92) {
+                ctx.save();
+                ctx.shadowBlur = 30;
+                ctx.shadowColor = color;
+                ctx.beginPath();
+                if (isTag) {
+                    const s = r * 0.92;
+                    ctx.roundRect(sx - s, sy - s, s * 2, s * 2, 8);
+                } else {
+                    ctx.arc(sx, sy, r * 1.04, 0, Math.PI * 2);
+                }
+                ctx.lineWidth = 5.2;
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = 0.68 * entranceAlpha;
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+
             ctx.lineWidth = isActive ? 3 : (isFocus ? 2 : 1.5);
             ctx.strokeStyle = color; 
             ctx.stroke();
@@ -405,7 +436,7 @@
                 ctx.font = `${weight} ${fs}px ${fontStack}`;
                 ctx.fillStyle = getGraphColor(n);
                 ctx.textAlign = 'center';
-                ctx.globalAlpha = isFaded ? 0.12 : 1;
+                ctx.globalAlpha = (n === hover) ? 1 : (isFaded ? 0.12 : 1);
                 const lbl = n.label.length > 35 ? n.label.slice(0, 34) + '…' : n.label;
                 ctx.fillText(lbl, sx, sy + r + fs + 8);
             }
@@ -433,7 +464,28 @@
         ctx.globalAlpha = 1; ctx.shadowBlur = 0;
     }
 
-    function loop() { physics(); draw(); requestAnimationFrame(loop); }
+    function needsAnimation() {
+        if (tick < 999999) return true;
+        if (following && !dragging && !touchDragging) return true;
+        const dx = Math.abs(tCamX - camX), dy = Math.abs(tCamY - camY), dz = Math.abs(tZoom - zoom);
+        if (dx > 0.01 || dy > 0.01 || dz > 0.001) return true;
+        if (pingNode) return true;
+        return false;
+    }
+
+    function wakeLoop() {
+        if (!running) { running = true; loop(); }
+    }
+
+    function loop() {
+        physics();
+        draw();
+        if (needsAnimation()) {
+            requestAnimationFrame(loop);
+        } else {
+            running = false;
+        }
+    }
 
     function nodeAt(mx, my) {
         const [wx, wy] = toWorld(mx, my);
@@ -489,6 +541,7 @@
     function closePanel() {
         active = null; searchMatch = null; panel.classList.remove('open');
         tZoom = 0.14; tCamX = 0; tCamY = 0;
+        wakeLoop();
     }
     document.getElementById('graph-panel-close').onclick = closePanel;
 
@@ -503,6 +556,7 @@
     canvas.addEventListener('mousedown', e => {
         dragging = true; lastMX = e.clientX; lastMY = e.clientY;
         downMX = e.clientX; downMY = e.clientY;
+        wakeLoop();
     });
 
     canvas.addEventListener('mousemove', e => {
@@ -513,9 +567,41 @@
             tCamX += e.clientX - lastMX; tCamY += e.clientY - lastMY;
             lastMX = e.clientX; lastMY = e.clientY;
             canvas.className = 'dragging';
+            wakeLoop();
         } else {
             hover = nodeAt(mx, my);
             canvas.className = hover ? 'pointer' : '';
+
+            // Tooltip for hovered node
+            let tip = document.getElementById('graph-tooltip');
+            if (!tip) {
+                tip = document.createElement('div');
+                tip.id = 'graph-tooltip';
+                tip.style.position = 'fixed';
+                tip.style.pointerEvents = 'none';
+                tip.style.zIndex = '1000';
+                tip.style.background = 'rgba(34,31,23,0.98)';
+                tip.style.color = '#fff';
+                tip.style.font = '600 14px var(--font-main, sans-serif)';
+                tip.style.boxShadow = '0 4px 24px 0 rgba(0,0,0,0.34)';
+                tip.style.borderRadius = '7px';
+                tip.style.padding = '8px 13px 6px 13px';
+                tip.style.maxWidth = '320px';
+                tip.style.display = 'none';
+                tip.style.whiteSpace = 'pre-line';
+                document.body.appendChild(tip);
+            }
+            if (hover && hover.entranceStart && (Date.now() - hover.entranceStart - (hover.entranceDelay||0)) > 750) {
+                tip.textContent = hover.label || '';
+                if (hover.excerpt) {
+                    tip.innerHTML = `<strong>${hover.label}</strong><br><span style='font-weight:400;opacity:0.86;'>${hover.excerpt.replace(/</g,'&lt;')}</span>`;
+                }
+                tip.style.left = (e.clientX + 15) + 'px';
+                tip.style.top = (e.clientY + 14) + 'px';
+                tip.style.display = 'block';
+            } else {
+                tip.style.display = 'none';
+            }
         }
     });
 
@@ -538,6 +624,7 @@
                         openPanel(n);
                         tZoom = Math.max(tZoom, 0.8);
                         focusOn(n);
+                        wakeLoop();
                     }, 250);
                 }
             } else {
@@ -549,6 +636,7 @@
     let lastTouchDist = 0, touchDragging = false, lastTX = 0, lastTY = 0, downTX = 0, downTY = 0;
     canvas.addEventListener('touchstart', e => {
         e.preventDefault();
+        wakeLoop();
         if (e.touches.length === 1) {
             touchDragging = true;
             lastTX = e.touches[0].clientX; lastTY = e.touches[0].clientY;
@@ -583,7 +671,7 @@
             if (moved < 10) {
                 const rect = canvas.getBoundingClientRect();
                 const n = nodeAt(e.changedTouches[0].clientX - rect.left, e.changedTouches[0].clientY - rect.top);
-                if (n) { openPanel(n); tZoom = Math.max(tZoom, 0.8); focusOn(n); }
+                if (n) { openPanel(n); tZoom = Math.max(tZoom, 0.8); focusOn(n); wakeLoop(); }
                 else closePanel();
             }
         }
@@ -592,6 +680,7 @@
     canvas.addEventListener('wheel', e => {
         e.preventDefault();
         following = null;
+        wakeLoop();
         const rect = canvas.getBoundingClientRect();
         const mx = e.clientX - rect.left, my = e.clientY - rect.top;
         const factor = e.deltaY > 0 ? 0.87 : 1.15;
@@ -601,13 +690,14 @@
         tZoom = newZoom;
     }, { passive: false });
 
-    document.getElementById('graph-zi').onclick = () => { following = null; tZoom = Math.min(4, tZoom * 1.3); };
-    document.getElementById('graph-zo').onclick = () => { following = null; tZoom = Math.max(0.1, tZoom * 0.77); };
-    document.getElementById('graph-re').onclick = () => { following = null; tZoom = 0.25; tCamX = 0; tCamY = 0; closePanel(); };
+    document.getElementById('graph-zi').onclick = () => { following = null; tZoom = Math.min(4, tZoom * 1.3); wakeLoop(); };
+    document.getElementById('graph-zo').onclick = () => { following = null; tZoom = Math.max(0.1, tZoom * 0.77); wakeLoop(); };
+    document.getElementById('graph-re').onclick = () => { following = null; tZoom = 0.25; tCamX = 0; tCamY = 0; closePanel(); wakeLoop(); };
 
     // Custom Event for Search Sync
     window.addEventListener('kosh:graph-focus', (e) => {
         handleGraphFocus(e.detail.link);
+        wakeLoop();
     });
 
     // Keyboard Navigation & Escape
@@ -669,6 +759,7 @@
             openPanel(next);
             tZoom = Math.max(tZoom, 0.8);
             focusOn(next);
+            wakeLoop();
         }
     });
 })();

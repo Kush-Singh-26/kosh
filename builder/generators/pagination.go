@@ -181,6 +181,16 @@ func RenderPagination(opts PaginationOptions) error {
 
 	allItems := opts.AllPosts
 
+	// Filter out pinned items from the main listing — they are rendered
+	// separately via PinnedItems in the bento grid on the first page.
+	nonPinned := make([]models.ContentMetadata, 0, len(allItems))
+	for _, item := range allItems {
+		if !item.IsPinned {
+			nonPinned = append(nonPinned, item)
+		}
+	}
+	allItems = nonPinned
+
 	itemsPerPage := resolveItemsPerPage(cfg)
 	totalPages := resolveTotalPages(len(allItems), itemsPerPage)
 

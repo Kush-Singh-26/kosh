@@ -52,6 +52,9 @@ func buildRSSItems(opts RSSOptions) ([]models.Item, string) {
 	}
 
 	for _, p := range opts.Items {
+		if p.IsPinned {
+			continue
+		}
 		var allTerms []string
 		for _, terms := range p.Taxonomies {
 			allTerms = append(allTerms, terms...)

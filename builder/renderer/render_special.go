@@ -16,14 +16,17 @@ type Executor interface {
 }
 
 // RenderIndex renders the homepage using the index or home template.
-// When the data context is ContextHome and a home template exists, it is preferred.
+// home.html is preferred only for root index pages (ContextHome with empty RelativePrefix).
+// Section _index.md files (e.g. docs/_index.md) always use index.html so the theme
+// can distinguish the root landing page from section home pages.
 func (r *Renderer) RenderIndex(path string, data models.PageData) error {
 	r.mu.RLock()
 	index := r.Index
 	home := r.Home
 	r.mu.RUnlock()
 
-	if data.Context == models.ContextHome && home != nil {
+	isRootIndex := data.RelativePrefix == "" || data.RelativePrefix == "./"
+	if data.Context == models.ContextHome && home != nil && isRootIndex {
 		return r.executeTemplateAndWrite(path, home, data, "home")
 	}
 

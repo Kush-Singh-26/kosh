@@ -2185,6 +2185,19 @@ blockquote p:last-child {
     transform: translateY(-5px);
 }
 
+/* Search Highlight on Target Page */
+.search-highlight {
+    background: var(--accent-gold);
+    color: var(--text-main);
+    padding: 1px 3px;
+    border-radius: 2px;
+    transition: opacity 0.5s ease;
+}
+
+.search-highlight.fade-out {
+    opacity: 0;
+}
+
 /* --- Footer --- */
 footer {
     text-align: center;

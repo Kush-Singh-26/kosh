@@ -153,6 +153,8 @@ func buildEsbuildOptions(ctx buildAssetsContext, entryPoints []string, bundle bo
 		EntryPoints:       entryPoints,
 		Bundle:            bundle,
 		Write:             false,
+		Format:            api.FormatESModule,
+		Splitting:         bundle,
 		Outdir:            ctx.destDir,
 		Outbase:           ctx.srcDir,
 		MinifyWhitespace:  ctx.minify,
@@ -251,7 +253,18 @@ func updateAssetsFromMetafile(metaJSON string, srcDir string, assets map[string]
 		}
 
 		entryPointAbs, _ := filepath.Abs(outInfo.EntryPoint)
-		relEntryPoint, _ := SafeRel(srcDir, NormalizePath(entryPointAbs))
+
+		// Evaluate symlinks to handle symlinked theme directories correctly
+		resolvedSrcDir := srcDir
+		if realSrc, err := filepath.EvalSymlinks(srcDir); err == nil {
+			resolvedSrcDir = realSrc
+		}
+		resolvedEntryPoint := entryPointAbs
+		if realEntry, err := filepath.EvalSymlinks(entryPointAbs); err == nil {
+			resolvedEntryPoint = realEntry
+		}
+
+		relEntryPoint, _ := SafeRel(resolvedSrcDir, NormalizePath(resolvedEntryPoint))
 		relEntryPoint = strings.TrimPrefix(filepath.ToSlash(relEntryPoint), "/")
 
 		key := "/static/" + relEntryPoint

@@ -233,7 +233,7 @@ func (service *contentService) aggregateLocal(aggregateContext AggregateContext)
 
 	service.handleSearchTasks(aggregateContext, indexed, localIndex)
 
-	if !aggregateContext.Item.IsHidden {
+	if !aggregateContext.Item.IsHidden && !strings.HasSuffix(aggregateContext.Item.Path, "_index.md") {
 		local.allItems = append(local.allItems, aggregateContext.Item)
 		if aggregateContext.Item.IsPinned {
 			local.pinnedItems = append(local.pinnedItems, aggregateContext.Item)

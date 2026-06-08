@@ -141,17 +141,6 @@ func (service *metadataScanner) processScanPath(ctx context.Context, path string
 		return nil
 	}
 
-	filename := filepath.Base(path)
-	if filename == "_index.md" {
-		relDir := filepath.Dir(strings.TrimPrefix(path, options.Cfg.ContentDir))
-		relDir = strings.TrimPrefix(relDir, "/")
-		relDir = strings.TrimPrefix(relDir, string(filepath.Separator))
-		// Skip non-root _index.md (section metadata), let root _index.md through
-		if relDir != "" && relDir != "." {
-			return nil
-		}
-	}
-
 	if filepath.Ext(path) != ".md" {
 		mutex.Lock()
 		result.ContentAssets = append(result.ContentAssets, models.ScannedAsset{
@@ -162,6 +151,7 @@ func (service *metadataScanner) processScanPath(ctx context.Context, path string
 		return nil
 	}
 
+	filename := filepath.Base(path)
 	if filename == "404.md" {
 		mutex.Lock()
 		result.Has404 = true

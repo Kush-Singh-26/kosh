@@ -150,6 +150,9 @@ type PageData struct {
 	Fragments    map[string]template.HTML
 	IsCleanBuild bool
 
+	HasMath bool
+	HasD2   bool
+
 	// SSR Replacement Maps (for late-pass rendering in TOC/Fragments)
 	SSRMath map[string]string       `json:"-"`
 	SSRD2   map[string]SSRThemePair `json:"-"`

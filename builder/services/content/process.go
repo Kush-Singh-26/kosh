@@ -280,6 +280,9 @@ func (service *contentService) aggregateMetadata(metas []*models.ContentMeta) ([
 		if (meta.IsDraft && !service.cfg.ShouldIncludeDrafts) || meta.IsHidden {
 			continue
 		}
+		if strings.HasSuffix(meta.Path, "_index.md") {
+			continue
+		}
 		item := models.ContentMetadata{
 			Path:  meta.Path,
 			Title: meta.Title, Link: meta.Link, Description: meta.Description,
@@ -443,6 +446,8 @@ func (service *contentService) renderSingleTask(renderTaskInstance renderTask, r
 		DateObj:         item.DateObj,
 		RelPath:         item.Path,
 		IsCleanBuild:    service.ctx.IsCleanBuild,
+		HasMath:         len(renderedMath) > 0,
+		HasD2:           len(renderedD2) > 0,
 		SSRMath:         renderedMath,
 		SSRD2:           renderedD2,
 		NavigationTree:  nav.navigationTree,

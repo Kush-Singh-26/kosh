@@ -299,6 +299,7 @@
         });
     }
 
+    let currentQuery = '';
     let debounceTimer;
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
@@ -358,7 +359,8 @@
     }
 
     function performSearch(query) {
-        if (!wasmLoaded || !query || !query.trim()) { renderDiscovery(); return; }
+        if (!wasmLoaded || !query || !query.trim()) { currentQuery = ''; renderDiscovery(); return; }
+        currentQuery = query.trim();
         try {
             const results = window.searchItems(query, "all");
             if (!results || results.length === 0) {
@@ -381,7 +383,9 @@
         results.slice(0, 20).forEach(res => {
             const item = document.createElement('a');
             // res.link is already absolute (e.g., /blogs/maths-matrices.html), use it directly
-            item.href = res.link;
+            item.href = currentQuery
+                ? res.link + '?highlight=' + encodeURIComponent(currentQuery)
+                : res.link;
             item.className = 'search-result-item';
             item.innerHTML = `
                 <div class="search-result-title">${res.title}</div>

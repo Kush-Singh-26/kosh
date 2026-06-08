@@ -374,6 +374,77 @@
                 }
             });
         });
+
+        // 10. Search Highlight on Target Page
+        (function initSearchHighlight() {
+            const params = new URLSearchParams(window.location.search);
+            const highlightTerm = params.get('highlight');
+            if (!highlightTerm) return;
+
+            // Clean the URL without reload
+            params.delete('highlight');
+            const cleanSearch = params.toString();
+            const cleanURL = cleanSearch
+                ? window.location.pathname + '?' + cleanSearch + window.location.hash
+                : window.location.pathname + window.location.hash;
+            history.replaceState({}, '', cleanURL);
+
+            const SKIP_TAGS = new Set(['CODE', 'PRE', 'SCRIPT', 'STYLE', 'MARK']);
+
+            function findFirstMatch(root, term) {
+                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+                    acceptNode(node) {
+                        const parent = node.parentElement;
+                        if (!parent) return NodeFilter.FILTER_REJECT;
+                        if (SKIP_TAGS.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+                        if (parent.classList && parent.classList.contains('search-highlight')) return NodeFilter.FILTER_REJECT;
+                        return NodeFilter.FILTER_ACCEPT;
+                    }
+                });
+
+                const lowerTerm = term.toLowerCase();
+                let node;
+                while ((node = walker.nextNode())) {
+                    const text = node.textContent;
+                    const lowerText = text.toLowerCase();
+                    const idx = lowerText.indexOf(lowerTerm);
+                    if (idx === -1) continue;
+
+                    return { node, idx, length: term.length };
+                }
+                return null;
+            }
+
+            function highlightAndScroll(term) {
+                const container = document.querySelector('article') || document.querySelector('.content-body') || document.body;
+                const match = findFirstMatch(container, term);
+                if (!match) return;
+
+                const { node, idx, length } = match;
+                const range = document.createRange();
+                range.setStart(node, idx);
+                range.setEnd(node, idx + length);
+
+                const mark = document.createElement('mark');
+                mark.className = 'search-highlight';
+                range.surroundContents(mark);
+
+                mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                setTimeout(() => {
+                    mark.classList.add('fade-out');
+                    setTimeout(() => {
+                        const parent = mark.parentNode;
+                        if (parent) {
+                            while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+                            parent.removeChild(mark);
+                        }
+                    }, 500);
+                }, 3000);
+            }
+
+            highlightAndScroll(highlightTerm);
+        })();
     }
 
     if (document.readyState === "loading") {
