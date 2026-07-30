@@ -3,6 +3,7 @@ package new
 import (
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -44,8 +45,11 @@ func sanitizeSlug(title string) string {
 	return slug
 }
 
-// RunFs creates a new content file using the provided filesystem
-func RunFs(fs afero.Fs, args []string) {
+// RunFs creates a new content file using the provided filesystem.
+// section, when non-empty, overrides the configured content prefix and places
+// the new file under <contentDir>/<section>/. When empty, the section is taken
+// from the contentPrefix configured in kosh.yaml (falling back to content root).
+func RunFs(fs afero.Fs, section string, args []string) {
 	if len(args) < 1 {
 		slog.Info("Usage: kosh new \"My New Content Title\"")
 		return
@@ -60,13 +64,27 @@ func RunFs(fs afero.Fs, args []string) {
 	}
 
 	contentDir := "content"
-	// Basic try-load of kosh.yaml to find ContentDir
+	// Basic try-load of kosh.yaml to find ContentDir and contentPrefix
 	// We don't want to fail if not in a kosh project, but we want to be helpful
 	if data, err := afero.ReadFile(fs, "kosh.yaml"); err == nil {
-		contentDir = parseContentDirFromYAML(string(data))
+		yamlData := string(data)
+		contentDir = parseContentDirFromYAML(yamlData)
+		if section == "" {
+			section = parseContentPrefixFromYAML(yamlData)
+		}
 	}
 
-	filename := fmt.Sprintf("%s/%s.md", contentDir, slug)
+	targetDir := contentDir
+	if section != "" {
+		targetDir = filepath.Join(contentDir, section)
+	}
+
+	if err := fs.MkdirAll(targetDir, 0755); err != nil {
+		slog.Error("Error creating content directory", "path", targetDir, "error", err)
+		return
+	}
+
+	filename := filepath.Join(targetDir, slug+".md")
 
 	// Basic Frontmatter template
 	content := fmt.Sprintf(`---
@@ -117,7 +135,24 @@ func parseContentDirFromYAML(data string) string {
 	return "content"
 }
 
-// Run creates a new content file in the local filesystem
-func Run(args []string) {
-	RunFs(afero.NewOsFs(), args)
+func parseContentPrefixFromYAML(data string) string {
+	for _, line := range strings.Split(data, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "contentPrefix:") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				prefix := strings.TrimSpace(parts[1])
+				prefix = strings.Trim(prefix, "\"")
+				prefix = strings.Trim(prefix, "'")
+				return prefix
+			}
+		}
+	}
+	return ""
+}
+
+// Run creates a new content file in the local filesystem.
+// section overrides the configured content prefix when non-empty.
+func Run(args []string, section string) {
+	RunFs(afero.NewOsFs(), section, args)
 }

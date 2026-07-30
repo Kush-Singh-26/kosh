@@ -217,6 +217,8 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 	service.finalizeBuild(processCtx)
 	finalizePostProcessing(processCtx)
 
+	service.rerenderHomePage(processCtx.allItems, processCtx.pinnedItems)
+
 	var showcasePD models.PageData
 	PopulateShowcaseHTML(&showcasePD, renderedMath, renderedD2)
 

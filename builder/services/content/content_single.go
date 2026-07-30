@@ -381,6 +381,8 @@ func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix,
 		SSRD2:           renderedD2,
 		NavigationTree:  nav.navigationTree,
 	}
+
+
 	PopulateShowcaseHTML(&pageData, renderedMath, renderedD2)
 	return service.renderer.RenderPage(destPath, pageData)
 }
@@ -514,4 +516,116 @@ func (service *contentService) handleSocialCard(parseRes *ParsedMarkdownResult, 
 		metadata:        parseRes.Metadata,
 		frontmatterHash: socialHash,
 	})
+}
+
+// rerenderHomePage re-renders the home page with the full items list after all
+// content has been processed. During streaming, the home page is rendered before
+// the cache is populated, so Items/PinnedItems are empty.
+func (service *contentService) rerenderHomePage(allItems []models.ContentMetadata, pinnedItems []models.ContentMetadata) {
+	homeIndexPath := filepath.Join(service.cfg.ContentDir, "index.md")
+	if _, err := os.Stat(homeIndexPath); os.IsNotExist(err) {
+		return
+	}
+
+	source, err := os.ReadFile(homeIndexPath)
+	if err != nil {
+		return
+	}
+
+	frontmatter, body, err := parseHomeFrontmatter(source)
+	if err != nil {
+		return
+	}
+
+	layoutVal := ""
+	if lv, ok := frontmatter["layout"]; ok {
+		if s, ok := lv.(string); ok {
+			layoutVal = s
+		}
+	}
+	if layoutVal != "home" {
+		return
+	}
+
+	destPath := filepath.Join(service.cfg.OutputDir, "index.html")
+	relPrefix := ""
+	sectionIndexURL := navigation.ResolveSectionIndex("index.html")
+
+	desc := service.cfg.Description
+	if len(desc) > 100 {
+		desc = desc[:97] + "..."
+	}
+	socialHash := generators.SocialCardHash(service.cfg.Title, desc, &service.cfg.SocialCards)
+	cardImageURL := fmt.Sprintf("%s/static/images/cards/home.%s.webp", service.cfg.BaseURL, socialHash)
+
+	var homeItems []models.ContentMetadata
+	for _, it := range allItems {
+		if !it.IsDraft && !it.IsHidden {
+			homeItems = append(homeItems, it)
+		}
+	}
+	if len(homeItems) > 3 {
+		homeItems = homeItems[:3]
+	}
+
+	taxonomies := make(map[string]models.TaxonomyData)
+
+	if err := service.renderer.RenderPage(destPath, models.PageData{
+		Title: service.cfg.Title, Description: service.cfg.Description, Content: template.HTML(body),
+		Meta: frontmatter, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
+		TabTitle: service.cfg.Title, Permalink: service.cfg.BaseURL, Image: cardImageURL,
+		SocialHash:  socialHash,
+		Config:      service.cfg, Context: models.ContextHome,
+		Items:       homeItems, PinnedItems: pinnedItems,
+		RelativePrefix: relPrefix, ContentPrefix: service.cfg.ContentPrefix,
+		SectionIndexURL: sectionIndexURL,
+		Taxonomies:      taxonomies,
+		SiteData:        service.cfg.SiteData,
+	}); err != nil {
+		service.logger.Warn("Failed to re-render home page", "error", err)
+	}
+}
+
+func parseHomeFrontmatter(data []byte) (map[string]any, string, error) {
+	content := string(data)
+	if len(content) < 3 || content[:3] != "---" {
+		return nil, content, nil
+	}
+
+	endIdx := -1
+	for i := 4; i < len(content)-3; i++ {
+		if content[i] == '\n' && content[i+1] == '-' && content[i+2] == '-' && content[i+3] == '-' {
+			endIdx = i
+			break
+		}
+	}
+	if endIdx == -1 {
+		return nil, content, fmt.Errorf("unterminated frontmatter")
+	}
+
+	fmStr := content[4:endIdx]
+	body := content[endIdx+4:]
+	if len(body) > 0 && body[0] == '\n' {
+		body = body[1:]
+	}
+
+	fm := make(map[string]any)
+	for _, line := range strings.Split(fmStr, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || line[0] == '#' {
+			continue
+		}
+		colonIdx := strings.Index(line, ":")
+		if colonIdx == -1 {
+			continue
+		}
+		key := strings.TrimSpace(line[:colonIdx])
+		val := strings.TrimSpace(line[colonIdx+1:])
+		if len(val) >= 2 && ((val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'')) {
+			val = val[1 : len(val)-1]
+		}
+		fm[key] = val
+	}
+
+	return fm, body, nil
 }

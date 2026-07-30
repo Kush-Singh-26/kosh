@@ -143,6 +143,7 @@ func (setup *buildSetup) initNativeRenderer() {
 				parser.WithRenderer(setup.nativeRenderer),
 				parser.WithDiagramCache(ssrMap),
 				parser.WithD2Group(d2Group),
+				parser.WithD2ConfigSignature(setup.config.D2.ConfigSignature()),
 			)
 		},
 	}

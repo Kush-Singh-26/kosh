@@ -35,6 +35,25 @@ func TestRenderer_RenderD2(t *testing.T) {
 	}
 }
 
+func TestScaleD2StrokeWidth(t *testing.T) {
+	in := `<svg><rect stroke-width="0"/><polygon stroke-width="2"/>` +
+		`<path class="stroke-B1" style="stroke-width:2;"/><path style="stroke-width:3.5;"/></svg>`
+	out := scaleD2StrokeWidth(in, 0.5)
+
+	if strings.Contains(out, `stroke-width="0"`) == false {
+		t.Error("zero stroke-width should be left untouched")
+	}
+	if !strings.Contains(out, `stroke-width="1"`) {
+		t.Errorf("expected stroke-width=\"1\", got %s", out)
+	}
+	if !strings.Contains(out, `stroke-width:1;`) {
+		t.Errorf("expected style stroke-width:1;, got %s", out)
+	}
+	if !strings.Contains(out, `stroke-width:1.75;`) {
+		t.Errorf("expected style stroke-width:1.75;, got %s", out)
+	}
+}
+
 func TestRenderer_RenderMath(t *testing.T) {
 	r := New(WithWorkers(1))
 	defer func() { _ = r.Close() }()

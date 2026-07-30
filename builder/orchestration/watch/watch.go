@@ -258,6 +258,19 @@ func (coordinatorInstance *Coordinator) ClassifyChange(path string, op fsnotify.
 		return event
 	}
 
+	// A rename/move away from a path is reported as a Rename op on the old path
+	// (plus a Create op on the new path). When the source file no longer exists,
+	// treat it as a deletion so its cache entry and any listings referencing it
+	// are cleaned up. If the file still exists at that path (e.g. an editor that
+	// saves via temp-file + rename onto the same path), treat it as a normal
+	// content change to avoid needlessly dropping and re-adding the item.
+	if op&fsnotify.Rename != 0 {
+		if _, statErr := os.Stat(path); statErr != nil {
+			event.Type = ChangeTypeDelete
+			return event
+		}
+	}
+
 	path = coordinatorInstance.NormalizeAbsoluteWatchPath(path)
 	extension := strings.ToLower(filepath.Ext(path))
 
@@ -342,6 +355,11 @@ func (coordinatorInstance *Coordinator) dispatchChange(path string, op fsnotify.
 func (coordinatorInstance *Coordinator) classify(path string, op fsnotify.Op) ChangeType {
 	if op&fsnotify.Remove != 0 {
 		return ChangeTypeDelete
+	}
+	if op&fsnotify.Rename != 0 {
+		if _, statErr := os.Stat(path); statErr != nil {
+			return ChangeTypeDelete
+		}
 	}
 	path = coordinatorInstance.NormalizeAbsoluteWatchPath(path)
 	extension := strings.ToLower(filepath.Ext(path))

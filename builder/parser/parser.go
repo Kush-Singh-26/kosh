@@ -118,6 +118,9 @@ type Options struct {
 	Renderer     *native.Renderer
 	DiagramCache SSRMap
 	D2Group      *singleflight.Group
+	// D2ConfigSig is folded into the per-diagram cache key so that changing
+	// D2 rendering settings invalidates previously cached SVGs.
+	D2ConfigSig string
 }
 
 // Option is a functional option for configuring the parser.
@@ -141,6 +144,13 @@ func WithDiagramCache(cache SSRMap) Option {
 func WithD2Group(group *singleflight.Group) Option {
 	return func(o *Options) {
 		o.D2Group = group
+	}
+}
+
+// WithD2ConfigSignature sets the D2 config signature used in diagram cache keys.
+func WithD2ConfigSignature(sig string) Option {
+	return func(o *Options) {
+		o.D2ConfigSig = sig
 	}
 }
 
@@ -180,12 +190,13 @@ func New(cfg *config.Config, opts ...Option) goldmark.Markdown {
 			// Register Unified Transformer
 			parser.WithASTTransformers(
 				util.Prioritized(&unifiedTransformer{
-					BaseURL:  baseURL,
-					Compress: compress,
-					Renderer: options.Renderer,
-					Cache:    options.DiagramCache,
-					D2Group:  options.D2Group,
-					IsDev:    cfg.IsDev,
+					BaseURL:     baseURL,
+					Compress:    compress,
+					Renderer:    options.Renderer,
+					Cache:       options.DiagramCache,
+					D2Group:     options.D2Group,
+					IsDev:       cfg.IsDev,
+					D2ConfigSig: options.D2ConfigSig,
 				}, unifiedTransformerPriority),
 			),
 			parser.WithAutoHeadingID(),

@@ -3,6 +3,13 @@
 // at the infrastructure layer (builder/cache) without creating upward dependencies.
 package models
 
+import (
+	"fmt"
+	"strings"
+
+	"oss.terrastruct.com/d2/d2target"
+)
+
 //go:generate msgp
 
 // SSRArtifactType represents the type of SSR content
@@ -80,4 +87,89 @@ type D2Config struct {
 	Scale        float64 `yaml:"scale" json:"scale"`
 	Pad          int64   `yaml:"pad" json:"pad"`
 	Sketch       bool    `yaml:"sketch" json:"sketch"`
+	// StrokeWidth scales the rendered diagram line/shape thickness (1.0 = default).
+	// Values below 1.0 make diagrams thinner; 0 (unset) is treated as 1.0.
+	StrokeWidth float64 `yaml:"strokeWidth" json:"strokeWidth"`
+	// LightOverrides retints the light D2 theme to match the site palette.
+	LightOverrides *D2ThemeOverrides `yaml:"lightOverrides" json:"lightOverrides"`
+	// DarkOverrides retints the dark D2 theme to match the site palette.
+	DarkOverrides *D2ThemeOverrides `yaml:"darkOverrides" json:"darkOverrides"`
+}
+
+// D2ThemeOverrides mirrors d2target.ThemeOverrides. It lets a site retint D2
+// diagrams (neutrals N1-N7 darkest->lightest, base colors B1-B6, and accent
+// colors AA2/AA4/AA5/AB4/AB5) without coupling the models/cache layer to d2.
+// All fields are optional hex strings; nil leaves the base theme color intact.
+type D2ThemeOverrides struct {
+	N1  *string `yaml:"n1,omitempty" json:"n1,omitempty"`
+	N2  *string `yaml:"n2,omitempty" json:"n2,omitempty"`
+	N3  *string `yaml:"n3,omitempty" json:"n3,omitempty"`
+	N4  *string `yaml:"n4,omitempty" json:"n4,omitempty"`
+	N5  *string `yaml:"n5,omitempty" json:"n5,omitempty"`
+	N6  *string `yaml:"n6,omitempty" json:"n6,omitempty"`
+	N7  *string `yaml:"n7,omitempty" json:"n7,omitempty"`
+	B1  *string `yaml:"b1,omitempty" json:"b1,omitempty"`
+	B2  *string `yaml:"b2,omitempty" json:"b2,omitempty"`
+	B3  *string `yaml:"b3,omitempty" json:"b3,omitempty"`
+	B4  *string `yaml:"b4,omitempty" json:"b4,omitempty"`
+	B5  *string `yaml:"b5,omitempty" json:"b5,omitempty"`
+	B6  *string `yaml:"b6,omitempty" json:"b6,omitempty"`
+	AA2 *string `yaml:"aa2,omitempty" json:"aa2,omitempty"`
+	AA4 *string `yaml:"aa4,omitempty" json:"aa4,omitempty"`
+	AA5 *string `yaml:"aa5,omitempty" json:"aa5,omitempty"`
+	AB4 *string `yaml:"ab4,omitempty" json:"ab4,omitempty"`
+	AB5 *string `yaml:"ab5,omitempty" json:"ab5,omitempty"`
+}
+
+// ToD2Target converts the model overrides into the d2 library's ThemeOverrides
+// type. Returns a nil pointer when no overrides are set.
+func (o *D2ThemeOverrides) ToD2Target() *d2target.ThemeOverrides {
+	if o == nil {
+		return nil
+	}
+	return &d2target.ThemeOverrides{
+		N1: o.N1, N2: o.N2, N3: o.N3, N4: o.N4, N5: o.N5, N6: o.N6, N7: o.N7,
+		B1: o.B1, B2: o.B2, B3: o.B3, B4: o.B4, B5: o.B5, B6: o.B6,
+		AA2: o.AA2, AA4: o.AA4, AA5: o.AA5, AB4: o.AB4, AB5: o.AB5,
+	}
+}
+
+// signature returns a stable representation of the color overrides so they can
+// be folded into the per-diagram cache key.
+func (o *D2ThemeOverrides) signature() string {
+	if o == nil {
+		return ""
+	}
+	vals := []*string{o.N1, o.N2, o.N3, o.N4, o.N5, o.N6, o.N7,
+		o.B1, o.B2, o.B3, o.B4, o.B5, o.B6, o.AA2, o.AA4, o.AA5, o.AB4, o.AB5}
+	var b strings.Builder
+	for i, v := range vals {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		if v != nil {
+			b.WriteString(*v)
+		}
+	}
+	return b.String()
+}
+
+// ConfigSignature returns a stable string capturing every D2 rendering setting
+// that affects the output SVG: theme IDs, scale, padding, sketch mode, stroke
+// width, and color overrides. It is folded into the per-diagram cache key
+// (see parser unified transformer) so that changing any of these settings
+// invalidates previously cached SVGs instead of serving stale output.
+func (c *D2Config) ConfigSignature() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "L%d|D%d|S%g|P%d|K%t|W%g",
+		c.LightThemeID, c.DarkThemeID, c.Scale, c.Pad, c.Sketch, c.StrokeWidth)
+	if c.LightOverrides != nil {
+		b.WriteString("|LO:")
+		b.WriteString(c.LightOverrides.signature())
+	}
+	if c.DarkOverrides != nil {
+		b.WriteString("|DO:")
+		b.WriteString(c.DarkOverrides.signature())
+	}
+	return b.String()
 }

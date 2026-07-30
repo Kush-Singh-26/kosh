@@ -3,6 +3,7 @@ package renderer
 import (
 	"testing"
 
+	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 )
 
@@ -221,6 +222,76 @@ func TestRenderer_RelativizeFunc(t *testing.T) {
 				t.Errorf("Expected %s, got %s", tt.expected, data.Assets["test"])
 			}
 		})
+	}
+}
+
+func TestRenderer_NavbarBranding_HomeContext(t *testing.T) {
+	r := setupTestRenderer(t)
+
+	data := &models.PageData{
+		Title:         "Test",
+		Context:       models.ContextHome,
+		ContentPrefix: "blogs",
+		Config: &config.Config{
+			SiteConfig: config.SiteConfig{
+				Navbar: models.NavbarIdentityConfig{
+					Home:    models.NavbarContextConfig{Title: "Kush Singh", BtnLabel: "Blogs"},
+					Section: models.NavbarContextConfig{Title: "Kush Blogs", BtnLabel: "Home"},
+				},
+			},
+			BuildOptions: config.BuildOptions{ContentPrefix: "blogs"},
+		},
+	}
+
+	// Home pages are root-level; the brand must point to "/" (not the section).
+	r.PreparePageData(data)
+
+	if data.Navbar.Title != "Kush Singh" {
+		t.Errorf("home brand title = %q, want %q", data.Navbar.Title, "Kush Singh")
+	}
+	if data.Navbar.TitleURL != "/" {
+		t.Errorf("home brand URL = %q, want %q", data.Navbar.TitleURL, "/")
+	}
+	if data.Navbar.BtnLabel != "Blogs" {
+		t.Errorf("home button label = %q, want %q", data.Navbar.BtnLabel, "Blogs")
+	}
+	if data.Navbar.BtnURL != "/blogs/" {
+		t.Errorf("home button URL = %q, want %q", data.Navbar.BtnURL, "/blogs/")
+	}
+}
+
+func TestRenderer_NavbarBranding_SectionContext(t *testing.T) {
+	r := setupTestRenderer(t)
+
+	data := &models.PageData{
+		Title:          "Test",
+		Context:        models.ContextSection,
+		ContentPrefix:  "blogs",
+		RelativePrefix: "../",
+		Config: &config.Config{
+			SiteConfig: config.SiteConfig{
+				Navbar: models.NavbarIdentityConfig{
+					Home:    models.NavbarContextConfig{Title: "Kush Singh", BtnLabel: "Blogs"},
+					Section: models.NavbarContextConfig{Title: "Kush Blogs", BtnLabel: "Home"},
+				},
+			},
+			BuildOptions: config.BuildOptions{ContentPrefix: "blogs"},
+		},
+	}
+
+	r.PreparePageData(data)
+
+	if data.Navbar.Title != "Kush Blogs" {
+		t.Errorf("section brand title = %q, want %q", data.Navbar.Title, "Kush Blogs")
+	}
+	if data.Navbar.TitleURL != "/blogs/" {
+		t.Errorf("section brand URL = %q, want %q (must stay root-absolute, not relative)", data.Navbar.TitleURL, "/blogs/")
+	}
+	if data.Navbar.BtnLabel != "Home" {
+		t.Errorf("section button label = %q, want %q", data.Navbar.BtnLabel, "Home")
+	}
+	if data.Navbar.BtnURL != "../" {
+		t.Errorf("section button URL = %q, want %q (relative for nested page)", data.Navbar.BtnURL, "../")
 	}
 }
 

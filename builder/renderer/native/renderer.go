@@ -18,6 +18,7 @@ import (
 	"github.com/fastschema/qjs"
 	"github.com/zeebo/xxh3"
 	"golang.org/x/sync/singleflight"
+	"oss.terrastruct.com/d2/d2target"
 	"oss.terrastruct.com/d2/lib/textmeasure"
 )
 
@@ -67,11 +68,15 @@ type Renderer struct {
 	D2Singleflight singleflight.Group
 	initOnce       sync.Once
 
-	d2ThemeLight int64
-	d2ThemeDark  int64
-	d2Scale      float64
-	d2Pad        int64
-	d2Sketch     bool
+	d2ThemeLight  int64
+	d2ThemeDark   int64
+	d2Scale       float64
+	d2Pad         int64
+	d2Sketch      bool
+	d2StrokeScale float64
+
+	d2LightOverrides *d2target.ThemeOverrides
+	d2DarkOverrides  *d2target.ThemeOverrides
 }
 
 type mathRequest struct {
@@ -127,6 +132,15 @@ func WithD2Config(cfg models.D2Config) RendererOption {
 		}
 		r.d2Pad = cfg.Pad
 		r.d2Sketch = cfg.Sketch
+		// strokeWidth scales the rendered line/shape thickness. 0 (unset)
+		// defaults to 1.0 (no change) to avoid regressing existing sites.
+		if cfg.StrokeWidth > 0 {
+			r.d2StrokeScale = cfg.StrokeWidth
+		} else {
+			r.d2StrokeScale = 1.0
+		}
+		r.d2LightOverrides = cfg.LightOverrides.ToD2Target()
+		r.d2DarkOverrides = cfg.DarkOverrides.ToD2Target()
 	}
 }
 

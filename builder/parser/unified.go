@@ -82,6 +82,9 @@ type unifiedTransformer struct {
 	D2Group  *singleflight.Group
 	A11yMap  sync.Map // key: string, value: string (a11y warning)
 	IsDev    bool
+	// D2ConfigSig is folded into each diagram's cache key so that changing
+	// D2 rendering settings invalidates previously cached SVGs.
+	D2ConfigSig string
 }
 
 type replacement struct {
@@ -531,7 +534,10 @@ func (s *transformState) handleD2(cb *ast.FencedCodeBlock) {
 			lines.Write(line.Value(s.source))
 		}
 		code := lines.String()
-		hash := native.HashContent("d2", code)
+		// Fold the D2 config signature into the hash so that changing theme
+		// IDs, stroke width, colors, etc. invalidates the cached SVG. When no
+		// signature is supplied (e.g. in tests) this matches the legacy key.
+		hash := native.HashContent("d2", s.transformer.D2ConfigSig+"|"+code)
 
 		s.d2Blocks = append(s.d2Blocks, d2BlockInfo{node: cb, code: code, hash: hash})
 		AddSSRHash(s.pc, hash)

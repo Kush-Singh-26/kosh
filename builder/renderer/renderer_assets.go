@@ -213,6 +213,7 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 	if ctx == models.ContextHome {
 		data.Navbar.Title = navCfg.Home.Title
 		data.Navbar.BtnLabel = navCfg.Home.BtnLabel
+		// Brand stays on the home page; the button switches to the content section.
 		data.Navbar.TitleURL = "/"
 		if contentPrefix != "" {
 			data.Navbar.BtnURL = "/" + contentPrefix + "/"
@@ -223,6 +224,7 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 	} else {
 		data.Navbar.Title = navCfg.Section.Title
 		data.Navbar.BtnLabel = navCfg.Section.BtnLabel
+		// Brand stays in the current section; the button switches back home.
 		if contentPrefix != "" {
 			data.Navbar.TitleURL = "/" + contentPrefix + "/"
 		} else {
@@ -238,8 +240,11 @@ func setupNavbar(data *models.PageData, logger *slog.Logger) {
 		data.Navbar.Title = cfg.GetSiteTitle()
 	}
 
-	// Apply RelativePrefix to button URL only if it's a relative path (doesn't start with /)
-	if data.RelativePrefix != "" && !strings.HasPrefix(data.Navbar.BtnURL, "/") && !strings.HasPrefix(data.Navbar.BtnURL, "http") {
+	// Apply RelativePrefix to the button URL so it resolves correctly from
+	// nested pages. The brand (TitleURL) is intentionally left root-absolute:
+	// the navbar-identity template only honors URLs starting with "/" or "http",
+	// so relativizing it would drop it to the site root on nested pages.
+	if data.RelativePrefix != "" && !strings.HasPrefix(data.Navbar.BtnURL, "http") {
 		prefix := data.RelativePrefix
 		if !strings.HasSuffix(prefix, "/") {
 			prefix += "/"

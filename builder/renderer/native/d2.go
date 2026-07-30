@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 
 	"oss.terrastruct.com/d2/d2graph"
@@ -196,6 +199,16 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 		renderOpts.Sketch = go2.Pointer(true)
 	}
 
+	// Retint the diagram to match the site theme. We render each variant with
+	// a single ThemeID (DarkThemeID is nil), so d2svg applies ThemeOverrides.
+	// The light variant gets the light overrides and the dark variant gets the
+	// dark overrides so each SVG stays consistent with the blog palette.
+	if themeID == r.d2ThemeLight && r.d2LightOverrides != nil {
+		renderOpts.ThemeOverrides = r.d2LightOverrides
+	} else if themeID == r.d2ThemeDark && r.d2DarkOverrides != nil {
+		renderOpts.ThemeOverrides = r.d2DarkOverrides
+	}
+
 	// Use provided context instead of Background
 	// Wrap with D2 default logger to silence warnings
 	ctx = d2log.WithDefault(ctx)
@@ -209,5 +222,44 @@ func (r *Renderer) RenderD2(ctx context.Context, code string, themeID int64) (st
 		return "", fmt.Errorf("d2 render failed: %w", err)
 	}
 
-	return string(out), nil
+	svg := string(out)
+	if r.d2StrokeScale != 1.0 {
+		svg = scaleD2StrokeWidth(svg, r.d2StrokeScale)
+	}
+
+	return svg, nil
+}
+
+// strokeWidthAttrRe matches stroke-width as an element attribute, e.g.
+// stroke-width="2".
+var strokeWidthAttrRe = regexp.MustCompile(`stroke-width="(\d+(?:\.\d+)?)"`)
+
+// strokeWidthStyleRe matches stroke-width inside an inline style attribute, e.g.
+// style="stroke-width:2;".
+var strokeWidthStyleRe = regexp.MustCompile(`stroke-width:(\d+(?:\.\d+)?)`)
+
+// scaleD2StrokeWidth multiplies every stroke-width value in the rendered D2 SVG
+// by factor. D2 emits stroke-width both as an element attribute and inside
+// inline style attributes, so both forms are scaled. A value of 0 (e.g. the
+// background rect) is left untouched, and results are clamped to a sane minimum
+// so lines stay visible.
+func scaleD2StrokeWidth(svg string, factor float64) string {
+	scale := func(full, num string) string {
+		v, err := strconv.ParseFloat(num, 64)
+		if err != nil || v == 0 {
+			return full
+		}
+		scaled := v * factor
+		if scaled < 0.25 {
+			scaled = 0.25
+		}
+		return strings.Replace(full, num, strconv.FormatFloat(scaled, 'g', -1, 64), 1)
+	}
+	svg = strokeWidthAttrRe.ReplaceAllStringFunc(svg, func(s string) string {
+		return scale(s, strokeWidthAttrRe.FindStringSubmatch(s)[1])
+	})
+	svg = strokeWidthStyleRe.ReplaceAllStringFunc(svg, func(s string) string {
+		return scale(s, strokeWidthStyleRe.FindStringSubmatch(s)[1])
+	})
+	return svg
 }

@@ -339,9 +339,17 @@ blockquote::before {
 
 .d2-container svg {
     display: block;
+    /* Keep the diagram at its natural size, capped at the column width. This
+       prevents tall, narrow diagrams (e.g. vertical flowcharts) from being
+       stretched to 100% width and ballooning to several thousand pixels tall.
+       Wide diagrams still scale down to fit the column via max-width. */
     max-width: 100%;
-    max-height: 400px;
+    width: auto;
     height: auto !important; /* Force override of fixed height attributes */
+    /* Cap the rendered height so long vertical diagrams don't dominate the
+       page. The SVG scales down uniformly (preserving aspect ratio) to fit,
+       and the click-to-zoom lightbox still shows the full diagram. */
+    max-height: 70vh;
     margin: 0 auto;
     border-radius: var(--space-1);
 }
