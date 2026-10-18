@@ -186,6 +186,23 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 	processCtx := service.newcontentProcessContext(len(opts.Files))
 	logger := service.getLogger()
 
+	// Cached page HTML embeds D2 placeholder hashes derived from the D2
+	// config signature. If the config changed since the cache was written,
+	// every page must re-parse; otherwise warm builds would hydrate stale
+	// diagram SVGs. Computed once per build; persisted in finalizeBuild.
+	currentD2Sig := service.cfg.D2.ConfigSignature()
+	d2SigMismatch := true
+	if service.cache != nil {
+		if stored, err := service.cache.GetD2Sig(); err == nil && stored == currentD2Sig {
+			d2SigMismatch = false
+		}
+	}
+	if d2SigMismatch {
+		service.pendingD2Sig = currentD2Sig
+	} else {
+		service.pendingD2Sig = ""
+	}
+
 	collectedFilesChan, navReady, collectWg := startNavCollector(ctx, logger, service.prepareNavigationInfo)
 	renderCollector := startRenderTaskCollector(ctx, logger, numWorkers)
 
@@ -196,6 +213,7 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 		ShouldForce:        opts.ShouldForce,
 		ForceSocialRebuild: opts.ForceSocialRebuild,
 		ForceRerender:      opts.ForceRerender,
+		D2SigMismatch:      d2SigMismatch,
 		DenseIDCounter:     denseIDCounter,
 	}
 
@@ -206,9 +224,9 @@ func (service *contentService) ProcessStreaming(opts ProcessOptions) (*Result, e
 	close(renderCollector.renderChan)
 	renderTasks := waitForRenderTasks(renderCollector)
 
-	renderedMath, renderedD2 := service.renderSSRGlobal(ctx, renderTasks)
+	renderedMath, renderedD2, renderedMermaid := service.renderSSRGlobal(ctx, renderTasks)
 	nav := <-navReady
-	service.runStreamingRenderPhase(ctx, numWorkers, nav, renderTasks, renderedMath, renderedD2)
+	service.runStreamingRenderPhase(ctx, numWorkers, nav, renderTasks, renderedMath, renderedD2, renderedMermaid)
 
 	if err != nil {
 		return nil, err
@@ -381,12 +399,12 @@ func (service *contentService) getPageLayout(renderTaskInstance renderTask) stri
 	return layoutVal
 }
 
-func (service *contentService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) {
+func (service *contentService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]models.SSRThemePair) {
 	processed := atomic.Int32{}
 	totalFiles := len(tasks)
 
 	renderPool := async.NewWorkerPool(ctx, numWorkers, func(renderTaskInstance renderTask) error {
-		return service.renderSingleTask(renderTaskInstance, renderedMath, renderedD2, nav, &processed, totalFiles)
+		return service.renderSingleTask(renderTaskInstance, renderedMath, renderedD2, renderedMermaid, nav, &processed, totalFiles)
 	}).WithScheduler(service.ctx.Scheduler, scheduler.TaskMarkdown)
 
 	renderPool.Start()
@@ -398,7 +416,7 @@ func (service *contentService) runStreamingRenderPhase(ctx context.Context, numW
 	}
 }
 
-func (service *contentService) renderSingleTask(renderTaskInstance renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, nav navInfo, processed *atomic.Int32, totalFiles int) error {
+func (service *contentService) renderSingleTask(renderTaskInstance renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]models.SSRThemePair, nav navInfo, processed *atomic.Int32, totalFiles int) error {
 	item := renderTaskInstance.parseResult.Item
 	htmlContent := renderTaskInstance.htmlContent
 	relPrefix := fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath)
@@ -450,8 +468,10 @@ func (service *contentService) renderSingleTask(renderTaskInstance renderTask, r
 		IsCleanBuild:    service.ctx.IsCleanBuild,
 		HasMath:         len(renderedMath) > 0,
 		HasD2:           len(renderedD2) > 0,
+		HasMermaid:      len(renderedMermaid) > 0,
 		SSRMath:         renderedMath,
 		SSRD2:           renderedD2,
+		SSRMermaid:      renderedMermaid,
 		NavigationTree:  nav.navigationTree,
 	}
 	PopulateShowcaseHTML(&pageData, renderedMath, renderedD2)

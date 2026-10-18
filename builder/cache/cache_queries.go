@@ -138,6 +138,30 @@ func (manager *Manager) SetGraphHash(hash string) error {
 	})
 }
 
+// GetD2Sig retrieves the D2 config signature the cached page HTML was parsed
+// with. A mismatch means D2 settings changed and cached placeholders are stale.
+func (manager *Manager) GetD2Sig() (string, error) {
+	var sig string
+	err := manager.db.View(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		data := metaBucket.Get([]byte(core.KeyD2Sig))
+		if data == nil {
+			return core.ErrNoContent
+		}
+		sig = string(data)
+		return nil
+	})
+	return sig, err
+}
+
+// SetD2Sig stores the D2 config signature for parsed-HTML cache validation.
+func (manager *Manager) SetD2Sig(sig string) error {
+	return manager.db.Update(func(tx *bbolt.Tx) error {
+		metaBucket := tx.Bucket([]byte(core.BucketMeta))
+		return metaBucket.Put([]byte(core.KeyD2Sig), []byte(sig))
+	})
+}
+
 // GetWasmHash retrieves the stored WASM source hash
 func (manager *Manager) GetWasmHash() (string, error) {
 	var hash string

@@ -179,6 +179,8 @@ func (m *mockCacheService) GetGraphHash() (string, error)                       
 func (m *mockCacheService) SetGraphHash(_ string) error                            { return nil }
 func (m *mockCacheService) GetWasmHash() (string, error)                           { return "", nil }
 func (m *mockCacheService) SetWasmHash(_ string) error                             { return nil }
+func (m *mockCacheService) GetD2Sig() (string, error)                              { return "", nil }
+func (m *mockCacheService) SetD2Sig(_ string) error                                { return nil }
 func (m *mockCacheService) GetAllItemsMetadata() ([]models.ContentListMeta, error) {
 	return nil, nil
 }

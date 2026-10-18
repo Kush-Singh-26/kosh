@@ -20,6 +20,8 @@ const (
 	SSRTypeD2 SSRArtifactType = iota
 	// SSRTypeMath represents LaTeX math HTML output
 	SSRTypeMath
+	// SSRTypeMermaid represents Mermaid diagram SVG output
+	SSRTypeMermaid
 )
 
 // String returns the string representation of SSR artifact type
@@ -29,6 +31,8 @@ func (t SSRArtifactType) String() string {
 		return "d2"
 	case SSRTypeMath:
 		return "math"
+	case SSRTypeMermaid:
+		return "mermaid"
 	default:
 		return "unknown"
 	}
@@ -41,6 +45,8 @@ func ParseSSRType(s string) SSRArtifactType {
 		return SSRTypeD2
 	case "math":
 		return SSRTypeMath
+	case "mermaid":
+		return SSRTypeMermaid
 	default:
 		return SSRTypeD2
 	}
@@ -51,6 +57,16 @@ func ParseSSRType(s string) SSRArtifactType {
 // and retrieve server-side rendered D2 diagrams.
 type D2Expression struct {
 	// Code is the raw D2 source code
+	Code string `json:"code" msg:"code"`
+	// Hash is the content hash used for caching and deduplication
+	Hash string `json:"-" msg:"hash"`
+}
+
+// MermaidExpression represents a Mermaid diagram with its metadata.
+// This structure is used by both the cache layer and renderer to store
+// and retrieve server-side rendered Mermaid diagrams.
+type MermaidExpression struct {
+	// Code is the raw Mermaid source code
 	Code string `json:"code" msg:"code"`
 	// Hash is the content hash used for caching and deduplication
 	Hash string `json:"-" msg:"hash"`
@@ -172,4 +188,26 @@ func (c *D2Config) ConfigSignature() string {
 		b.WriteString(c.DarkOverrides.signature())
 	}
 	return b.String()
+}
+
+// MermaidConfig controls Mermaid diagram rendering behavior.
+type MermaidConfig struct {
+	// Enabled toggles Mermaid diagram SSR (default: true).
+	Enabled *bool `yaml:"enabled" json:"enabled"`
+}
+
+// IsEnabled returns whether Mermaid rendering is enabled (defaults to true).
+func (c *MermaidConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return true
+	}
+	return *c.Enabled
+}
+
+// Signature returns a stable string capturing the Mermaid config for cache key generation.
+func (c *MermaidConfig) Signature() string {
+	if c.IsEnabled() {
+		return "enabled"
+	}
+	return "disabled"
 }

@@ -22,6 +22,7 @@ type MockCacheService struct {
 	GraphHash          string
 	WasmHash           string
 	SearchHash         string
+	D2Sig              string
 	Err                error
 	CallCount          map[string]int
 	BatchCommitPosts   []*models.ContentMeta
@@ -234,6 +235,25 @@ func (m *MockCacheService) SetSearchHash(hash string) error {
 		return m.Err
 	}
 	m.SearchHash = hash
+	return nil
+}
+
+// GetD2Sig returns the D2 config signature cached page HTML was parsed with.
+func (m *MockCacheService) GetD2Sig() (string, error) {
+	m.recordCall("GetD2Sig")
+	if m.Err != nil {
+		return "", m.Err
+	}
+	return m.D2Sig, nil
+}
+
+// SetD2Sig stores the D2 config signature for parsed-HTML cache validation.
+func (m *MockCacheService) SetD2Sig(sig string) error {
+	m.recordCall("SetD2Sig")
+	if m.Err != nil {
+		return m.Err
+	}
+	m.D2Sig = sig
 	return nil
 }
 

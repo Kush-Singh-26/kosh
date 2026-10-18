@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -373,7 +374,7 @@ func (coordinatorInstance *Coordinator) classify(path string, op fsnotify.Op) Ch
 }
 
 func (coordinatorInstance *Coordinator) processSearchQueue() {
-	var pending bool
+	var pending atomic.Bool
 	var timer *time.Timer
 	var timerRunning bool
 
@@ -388,15 +389,15 @@ func (coordinatorInstance *Coordinator) processSearchQueue() {
 			if !ok {
 				return
 			}
-			pending = true
+			pending.Store(true)
 			if !timerRunning {
 				delay := searchDelay
 				if time.Since(coordinatorInstance.lastSearchReg) > searchQuickThreshold {
 					delay = searchQuickDelay
 				}
 				timer = time.AfterFunc(delay, func() {
-					if pending {
-						pending = false
+					timerRunning = false
+					if pending.CompareAndSwap(true, false) {
 						async.FireAndForget(coordinatorInstance.ctx, slog.Default(), "watch search regen", func() error {
 							coordinatorInstance.buildMu.Lock()
 							defer coordinatorInstance.buildMu.Unlock()

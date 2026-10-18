@@ -144,6 +144,7 @@ func (setup *buildSetup) initNativeRenderer() {
 				parser.WithDiagramCache(ssrMap),
 				parser.WithD2Group(d2Group),
 				parser.WithD2ConfigSignature(setup.config.D2.ConfigSignature()),
+				parser.WithMermaidConfigSignature(setup.config.Mermaid.Signature()),
 			)
 		},
 	}

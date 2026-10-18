@@ -27,9 +27,9 @@ func TestURLTransformer_Basic(t *testing.T) {
 			expectedLink: "post.html",
 		},
 		{
-			name:         "lowercase conversion",
+			name:         "preserve case",
 			input:        "[Post](MyPost.md)",
-			expectedLink: "mypost.html",
+			expectedLink: "MyPost.html",
 		},
 		{
 			name:         "trim leading dot",

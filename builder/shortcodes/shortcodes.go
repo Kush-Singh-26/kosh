@@ -324,7 +324,7 @@ func (p *Processor) funcMap() template.FuncMap {
 var builtins = map[string]string{
 	"youtube": `<div class="shortcode-youtube"><iframe src="https://www.youtube.com/embed/{{ index .Args "id" }}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`,
 	"figure":  `<figure class="shortcode-figure {{ index .Args "class" }}" {{ with index .Args "size" }}style="max-width: {{ . }};"{{ end }}><img src="{{ index .Args "src" }}" alt="{{ index .Args "alt" | default (index .Args "caption") }}" {{ with index .Args "width" }}width="{{ . }}"{{ end }} {{ with index .Args "height" }}height="{{ . }}"{{ end }} loading="lazy">{{ with index .Args "caption" }}<figcaption>{{ . | markdown }}</figcaption>{{ end }}</figure>`,
-	"callout": `<div class="admonition admonition-{{ index .Args "type" | default "note" }}">{{ with index .Args "title" }}<div class="admonition-title">{{ . | markdown }}</div>{{ end }}<div>{{ .Inner }}</div></div>`,
+	"callout": `<div class="shortcode-callout callout-{{ index .Args "type" | default "note" }}">{{ with index .Args "title" }}<div class="callout-title">{{ . | markdown }}</div>{{ end }}<div class="callout-content">{{ .Inner }}</div></div>`,
 	"details": `<details class="shortcode-details"><summary>{{ index .Args "summary" | default "Details" | markdown }}</summary><div class="details-content">{{ .Inner }}</div></details>`,
 	"tabs":    `<div class="tabs">{{ .Inner }}</div>`,
 	"tab":     `<div class="tabs-panel" data-tab-name="{{ index .Args "name" }}">{{ .Inner }}</div>`,

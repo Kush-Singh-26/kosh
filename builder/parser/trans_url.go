@@ -12,16 +12,6 @@ import (
 // Isolated via parser.NewContextKey() which guarantees global uniqueness.
 var ContextKeyFilePath = parser.NewContextKey()
 
-func (t *unifiedTransformer) processImageDestination(_ *ast.Image, dest []byte) {
-	src := string(dest)
-	if src == "" {
-		return
-	}
-	if strings.HasPrefix(src, "http") || strings.HasPrefix(src, "//") || strings.HasPrefix(src, "data:") { //nolint:staticcheck
-		return
-	}
-}
-
 func (t *unifiedTransformer) processDestination(n ast.Node, dest []byte, _ parser.Context) {
 	href := string(dest)
 	idx := strings.IndexAny(href, "?#")
@@ -44,8 +34,7 @@ func (t *unifiedTransformer) processDestination(n ast.Node, dest []byte, _ parse
 	}
 
 	if strings.HasSuffix(href, ".md") && !strings.HasPrefix(href, "http") {
-		href = strings.Replace(href, ".md", ".html", 1)
-		href = strings.ToLower(href)
+		href = strings.TrimSuffix(href, ".md") + ".html"
 	}
 	href = strings.TrimPrefix(href, "./")
 

@@ -75,22 +75,23 @@ type ParsedMarkdownResult struct {
 	HTMLContent string
 	// Metadata contains YAML frontmatter decoded values.
 	// Expected types: string, bool, int/float64, time.Time, []any, map[string]any.
-	Metadata        map[string]any
-	Item            models.ContentMetadata
-	SearchRecord    searchpkg.ContentRecord
-	TOC             []models.TOCEntry
-	FrontmatterHash string
-	PlainText       string
-	SSRHashes       []string
-	WordFreqs       map[string]int
-	DocLen          int
-	StemMap         map[string]string
-	PositionalIndex map[string][]uint32
-	ByteOffsets     map[string][]uint32
-	MathExpressions []models.MathExpression
-	D2Expressions   []models.D2Expression
-	HasImages       bool
-	BodyOnly        []byte
+	Metadata           map[string]any
+	Item               models.ContentMetadata
+	SearchRecord       searchpkg.ContentRecord
+	TOC                []models.TOCEntry
+	FrontmatterHash    string
+	PlainText          string
+	SSRHashes          []string
+	WordFreqs          map[string]int
+	DocLen             int
+	StemMap            map[string]string
+	PositionalIndex    map[string][]uint32
+	ByteOffsets        map[string][]uint32
+	MathExpressions    []models.MathExpression
+	D2Expressions      []models.D2Expression
+	MermaidExpressions []models.MermaidExpression
+	HasImages          bool
+	BodyOnly           []byte
 }
 
 // ParseOptions configures markdown parsing and metadata extraction.
@@ -224,6 +225,14 @@ func RenderParsedMarkdown(options MarkdownRenderOptions) error {
 	if bytes.Contains(source, []byte("```d2")) || bytes.Contains(source, []byte("<!--KOSH_D2:")) {
 		result.D2Expressions = mdParser.GetD2Expressions(result.Context)
 		for _, expr := range result.D2Expressions {
+			result.SSRHashes = append(result.SSRHashes, expr.Hash)
+		}
+	}
+
+	// Mermaid discovery (deferred to global orchestration)
+	if bytes.Contains(source, []byte("```mermaid")) || bytes.Contains(source, []byte("<!--KOSH_MERMAID:")) {
+		result.MermaidExpressions = mdParser.GetMermaidExpressions(result.Context)
+		for _, expr := range result.MermaidExpressions {
 			result.SSRHashes = append(result.SSRHashes, expr.Hash)
 		}
 	}

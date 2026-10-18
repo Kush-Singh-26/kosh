@@ -114,6 +114,9 @@ func (service *contentService) parseWorkerTaskLocal(file models.ScannedResource,
 	htmlRelativePath, _, destinationPath := navigation.ComputePathVars(service.cfg.OutputDir, relativePath)
 
 	cachedMeta, useCache := service.checkCache(relativePath, file, workerContext.ShouldForce, workerContext.ForceRerender)
+	if workerContext.D2SigMismatch {
+		useCache = false
+	}
 	parseResult, htmlContent, finalSSRHashes, useCache := service.loadCachedItem(relativePath, htmlRelativePath, file, cachedMeta, useCache)
 
 	sourceBytes, err := service.loadSourceIfNeeded(file, useCache)

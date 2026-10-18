@@ -31,6 +31,8 @@ type Service interface {
 	SetWasmHash(hash string) error
 	GetSearchHash() (string, error)
 	SetSearchHash(hash string) error
+	GetD2Sig() (string, error)
+	SetD2Sig(sig string) error
 
 	Stats() (*core.CacheStats, error)
 	IncrementBuildCount() (uint32, error)

@@ -33,6 +33,13 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 		}
 		data.SSRD2 = d2Copy
 	}
+	if data.SSRMermaid != nil {
+		mermaidCopy := make(map[string]models.SSRThemePair, len(data.SSRMermaid))
+		for k, v := range data.SSRMermaid {
+			mermaidCopy[k] = v
+		}
+		data.SSRMermaid = mermaidCopy
+	}
 	if data.SSRMath != nil {
 		mathCopy := make(map[string]string, len(data.SSRMath))
 		for k, v := range data.SSRMath {
@@ -55,8 +62,9 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 
 	finalBytes := buf.Bytes()
 
-	// Self-hydrate D2 diagrams and math from global cache if they aren't in the page data.
+	// Self-hydrate D2 diagrams, Mermaid diagrams, and math from global cache if they aren't in the page data.
 	r.hydrateD2Diagrams(finalBytes, &data)
+	r.hydrateMermaidDiagrams(finalBytes, &data)
 	r.hydrateMath(finalBytes, &data)
 
 	// Late-pass SSR Replacement (Full-Page: Body + Fragments + TOC)
@@ -92,6 +100,27 @@ func (r *Renderer) hydrateD2Diagrams(finalBytes []byte, data *models.PageData) {
 	}
 }
 
+func (r *Renderer) hydrateMermaidDiagrams(finalBytes []byte, data *models.PageData) {
+	if r.Diagrams != nil && parser.HasMermaidPlaceholders(string(finalBytes)) {
+		htmlStr := string(finalBytes)
+		hashes := parser.ExtractMermaidHashes(htmlStr)
+		if len(hashes) > 0 {
+			if data.SSRMermaid == nil {
+				data.SSRMermaid = make(map[string]models.SSRThemePair)
+			}
+			for _, hash := range hashes {
+				if _, ok := data.SSRMermaid[hash]; !ok {
+					if val, ok := r.Diagrams.Get("mermaid:" + hash); ok {
+						if pair, ok := val.(models.SSRThemePair); ok {
+							data.SSRMermaid[hash] = pair
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 func (r *Renderer) hydrateMath(finalBytes []byte, data *models.PageData) {
 	if r.Diagrams != nil && parser.HasMathPlaceholders(string(finalBytes)) {
 		htmlStr := string(finalBytes)
@@ -114,13 +143,16 @@ func (r *Renderer) hydrateMath(finalBytes []byte, data *models.PageData) {
 }
 
 func (r *Renderer) applySSRReplacements(finalBytes []byte, data *models.PageData) []byte {
-	if len(data.SSRMath) > 0 || len(data.SSRD2) > 0 {
+	if len(data.SSRMath) > 0 || len(data.SSRD2) > 0 || len(data.SSRMermaid) > 0 {
 		htmlStr := string(finalBytes)
 		if len(data.SSRMath) > 0 {
 			htmlStr = parser.LateReplaceMath(htmlStr, data.SSRMath)
 		}
 		if len(data.SSRD2) > 0 {
 			htmlStr = parser.LateReplaceD2(htmlStr, data.SSRD2)
+		}
+		if len(data.SSRMermaid) > 0 {
+			htmlStr = parser.LateReplaceMermaid(htmlStr, data.SSRMermaid)
 		}
 		htmlStr = parser.StripRegistryComments(htmlStr)
 		return []byte(htmlStr)

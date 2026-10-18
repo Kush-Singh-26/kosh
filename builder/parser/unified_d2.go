@@ -19,6 +19,21 @@ type d2BlockInfo struct {
 	hash string
 }
 
+// D2FigureHTML wraps a rendered light/dark SVG pair in an accessible figure:
+// keyboard-focusable, activatable to zoom, with the zoom hint as figcaption.
+func D2FigureHTML(pair models.SSRThemePair) string {
+	buf := pools.SharedBufferPool.Get()
+	defer pools.SharedBufferPool.Put(buf)
+
+	buf.WriteString(`<figure class="d2-container" data-diagram="true" tabindex="0" role="button" aria-label="Diagram. Activate to zoom."><div class="d2-light">`)
+	buf.WriteString(pair.Light)
+	buf.WriteString(`</div><div class="d2-dark">`)
+	buf.WriteString(pair.Dark)
+	buf.WriteString(`</div><figcaption class="zoom-hint">Click to zoom</figcaption></figure>`)
+
+	return buf.String()
+}
+
 // ReplaceD2Expressions replaces D2 placeholders in HTML with rendered SVG output.
 func ReplaceD2Expressions(htmlContent string, expressions []models.D2Expression, rendered map[string]models.SSRThemePair) string {
 	if len(expressions) == 0 {
@@ -29,16 +44,7 @@ func ReplaceD2Expressions(htmlContent string, expressions []models.D2Expression,
 	for _, expr := range expressions {
 		if pair, ok := rendered[expr.Hash]; ok {
 			placeholder := "<!--KOSH_D2:" + expr.Hash + "-->"
-			buf := pools.SharedBufferPool.Get()
-			buf.WriteString(`<div class="d2-container" data-diagram="true"><div class="d2-light">`)
-			buf.WriteString(pair.Light)
-			buf.WriteString(`</div><div class="d2-dark">`)
-			buf.WriteString(pair.Dark)
-			buf.WriteString(`</div><span class="zoom-hint">Click to zoom</span></div>`)
-
-			replacement := buf.String()
-			pools.SharedBufferPool.Put(buf)
-			replacements = append(replacements, placeholder, replacement)
+			replacements = append(replacements, placeholder, D2FigureHTML(pair))
 		}
 	}
 
@@ -96,15 +102,6 @@ func LateReplaceD2(htmlContent string, rendered map[string]models.SSRThemePair) 
 			return match
 		}
 
-		buf := pools.SharedBufferPool.Get()
-		defer pools.SharedBufferPool.Put(buf)
-
-		buf.WriteString(`<div class="d2-container" data-diagram="true"><div class="d2-light">`)
-		buf.WriteString(pair.Light)
-		buf.WriteString(`</div><div class="d2-dark">`)
-		buf.WriteString(pair.Dark)
-		buf.WriteString(`</div><span class="zoom-hint">Click to zoom</span></div>`)
-
-		return buf.String()
+		return D2FigureHTML(pair)
 	})
 }

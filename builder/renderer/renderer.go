@@ -251,6 +251,24 @@ func (r *Renderer) hydrateAndReplaceSSR(fragmentHTML string, data *models.PageDa
 		}
 	}
 
+	if r.Diagrams != nil && parser.HasMermaidPlaceholders(fragmentHTML) {
+		hashes := parser.ExtractMermaidHashes(fragmentHTML)
+		if len(hashes) > 0 {
+			if data.SSRMermaid == nil {
+				data.SSRMermaid = make(map[string]models.SSRThemePair)
+			}
+			for _, hash := range hashes {
+				if _, ok := data.SSRMermaid[hash]; !ok {
+					if val, ok := r.Diagrams.Get("mermaid:" + hash); ok {
+						if pair, ok := val.(models.SSRThemePair); ok {
+							data.SSRMermaid[hash] = pair
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if r.Diagrams != nil && parser.HasMathPlaceholders(fragmentHTML) {
 		hashes := parser.ExtractMathHashes(fragmentHTML)
 		if len(hashes) > 0 {
@@ -269,12 +287,15 @@ func (r *Renderer) hydrateAndReplaceSSR(fragmentHTML string, data *models.PageDa
 		}
 	}
 
-	if len(data.SSRMath) > 0 || len(data.SSRD2) > 0 {
+	if len(data.SSRMath) > 0 || len(data.SSRD2) > 0 || len(data.SSRMermaid) > 0 {
 		if len(data.SSRMath) > 0 {
 			fragmentHTML = parser.LateReplaceMath(fragmentHTML, data.SSRMath)
 		}
 		if len(data.SSRD2) > 0 {
 			fragmentHTML = parser.LateReplaceD2(fragmentHTML, data.SSRD2)
+		}
+		if len(data.SSRMermaid) > 0 {
+			fragmentHTML = parser.LateReplaceMermaid(fragmentHTML, data.SSRMermaid)
 		}
 	}
 	return fragmentHTML

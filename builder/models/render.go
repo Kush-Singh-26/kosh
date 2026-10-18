@@ -150,14 +150,17 @@ type PageData struct {
 	Fragments    map[string]template.HTML
 	IsCleanBuild bool
 
-	HasMath bool
-	HasD2   bool
+	HasMath    bool
+	HasD2      bool
+	HasMermaid bool
 
 	// SSR Replacement Maps (for late-pass rendering in TOC/Fragments)
-	SSRMath map[string]string       `json:"-"`
-	SSRD2   map[string]SSRThemePair `json:"-"`
+	SSRMath    map[string]string       `json:"-"`
+	SSRD2      map[string]SSRThemePair `json:"-"`
+	SSRMermaid map[string]SSRThemePair `json:"-"`
 
 	// Showcase pre-rendered HTML for the docs landing page (avoids html/template comment stripping)
-	ShowcaseMath template.HTML
-	ShowcaseD2   template.HTML
+	ShowcaseMath    template.HTML
+	ShowcaseD2      template.HTML
+	ShowcaseMermaid template.HTML
 }

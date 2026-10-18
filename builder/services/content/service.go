@@ -37,6 +37,10 @@ type contentService struct {
 	fragments      *cache.FragmentCacheAdapter
 	shortcodes     ShortcodeProcessor
 	cacheWg        sync.WaitGroup
+	// pendingD2Sig is set when the build's D2 config differs from the
+	// signature cached page HTML was parsed with; persisted on success so
+	// the next build can trust the HTML cache again.
+	pendingD2Sig string
 }
 
 // NewService constructs the PostService with injected dependencies.

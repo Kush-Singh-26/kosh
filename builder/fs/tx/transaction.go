@@ -108,6 +108,11 @@ func (txn *DirectoryTx) StagingDir() string {
 	return txn.stagingDir
 }
 
+// IsCommitted reports whether the transaction has already been committed.
+func (txn *DirectoryTx) IsCommitted() bool {
+	return txn.isCommitted
+}
+
 // Commit publishes the staging directory to the final output.
 func (txn *DirectoryTx) Commit(ctx context.Context) error {
 	if txn.isCommitted {

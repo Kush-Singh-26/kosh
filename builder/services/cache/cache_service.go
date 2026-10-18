@@ -118,6 +118,16 @@ func (service *cacheService) SetSearchHash(hash string) error {
 	return service.manager.SetSearchHash(hash)
 }
 
+// GetD2Sig returns the D2 config signature cached page HTML was parsed with.
+func (service *cacheService) GetD2Sig() (string, error) {
+	return service.manager.GetD2Sig()
+}
+
+// SetD2Sig stores the D2 config signature for parsed-HTML cache validation.
+func (service *cacheService) SetD2Sig(sig string) error {
+	return service.manager.SetD2Sig(sig)
+}
+
 // StoreHTML stores HTML content and returns its hash.
 func (service *cacheService) StoreHTML(content []byte) (string, error) {
 	return service.manager.StoreHTML(content)

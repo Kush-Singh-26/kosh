@@ -85,6 +85,8 @@ type unifiedTransformer struct {
 	// D2ConfigSig is folded into each diagram's cache key so that changing
 	// D2 rendering settings invalidates previously cached SVGs.
 	D2ConfigSig string
+	// MermaidConfigSig is folded into each mermaid diagram's cache key.
+	MermaidConfigSig string
 }
 
 type replacement struct {
@@ -104,6 +106,7 @@ type transformState struct {
 	toc             []models.TOCEntry
 	plainText       strings.Builder
 	d2Blocks        []d2BlockInfo
+	mermaidBlocks   []mermaidBlockInfo
 	mathExpressions []models.MathExpression
 	toReplace       []replacement
 	ctx             *transformContext
@@ -112,12 +115,13 @@ type transformState struct {
 }
 
 var (
-	mathRe      = regexp.MustCompile(`<!--kosh_math:(.*?)-->`)
-	mathRegRe   = regexp.MustCompile(`<!--KOSH_MATH_REG:(.*?):(.*?):(.*?):(.*?)-->`)
-	tocRegRe    = regexp.MustCompile(`<!--KOSH_TOC_REG:(.*?)-->`)
-	searchRegRe = regexp.MustCompile(`<!--KOSH_SEARCH_REG:(.*?)-->`)
-	d2RegRe     = regexp.MustCompile(`<!--KOSH_D2_REG:(.*?):(.*?):(.*?)-->`)
-	imgRe       = regexp.MustCompile(`(?i)<img\b[^>]*?\balt=["'](.*?)["'][^>]*?>`)
+	mathRe       = regexp.MustCompile(`<!--kosh_math:(.*?)-->`)
+	mathRegRe    = regexp.MustCompile(`<!--KOSH_MATH_REG:(.*?):(.*?):(.*?):(.*?)-->`)
+	tocRegRe     = regexp.MustCompile(`<!--KOSH_TOC_REG:(.*?)-->`)
+	searchRegRe  = regexp.MustCompile(`<!--KOSH_SEARCH_REG:(.*?)-->`)
+	d2RegRe      = regexp.MustCompile(`<!--KOSH_D2_REG:(.*?):(.*?):(.*?)-->`)
+	mermaidRegRe = regexp.MustCompile(`<!--KOSH_MERMAID_REG:(.*?):(.*?):(.*?)-->`)
+	imgRe        = regexp.MustCompile(`(?i)<img\b[^>]*?\balt=["'](.*?)["'][^>]*?>`)
 
 	transformStatePool = sync.Pool{
 		New: func() any {
@@ -134,6 +138,7 @@ func (s *transformState) reset(transformer *unifiedTransformer, source []byte, p
 	s.pc = pc
 	s.toc = s.toc[:0]
 	s.d2Blocks = s.d2Blocks[:0]
+	s.mermaidBlocks = s.mermaidBlocks[:0]
 	s.mathExpressions = s.mathExpressions[:0]
 	s.toReplace = s.toReplace[:0]
 	s.plainText.Reset()
@@ -161,6 +166,18 @@ func (t *unifiedTransformer) Transform(node *ast.Document, reader text.Reader, p
 			}
 		}
 		pc.Set(d2ExpressionsKey, d2Exprs)
+	}
+
+	// Post-walk: Collect Mermaid expressions
+	if len(state.mermaidBlocks) > 0 {
+		mermaidExprs := make([]models.MermaidExpression, len(state.mermaidBlocks))
+		for i, block := range state.mermaidBlocks {
+			mermaidExprs[i] = models.MermaidExpression{
+				Code: block.code,
+				Hash: block.hash,
+			}
+		}
+		pc.Set(mermaidExpressionsKey, mermaidExprs)
 	}
 
 	// Apply all replacements
@@ -228,9 +245,10 @@ func (s *transformState) walkFunc(n ast.Node, entering bool) (ast.WalkStatus, er
 		s.handleHTML(n, kind)
 	}
 
-	// 5. D2 Diagrams
+	// 5. D2 Diagrams and Mermaid
 	if kind == ast.KindFencedCodeBlock {
 		s.handleD2(n.(*ast.FencedCodeBlock))
+		s.handleMermaid(n.(*ast.FencedCodeBlock))
 	}
 
 	// 6. Math (LaTeX)
@@ -310,7 +328,6 @@ func (s *transformState) handleLinkOrImage(n ast.Node, kind ast.NodeKind) {
 		s.checkLinkA11y(ln)
 	} else {
 		s.transformer.processDestination(img, img.Destination, s.pc)
-		s.transformer.processImageDestination(img, img.Destination)
 		img.SetAttribute([]byte("loading"), []byte("lazy"))
 		s.checkImageA11y(img)
 		s.handleImageCaption(img)
@@ -399,6 +416,7 @@ func (s *transformState) handleHTML(n ast.Node, kind ast.NodeKind) {
 	s.recoverTOC(htmlContent)
 	s.recoverSearch(htmlContent)
 	s.recoverD2(htmlContent)
+	s.recoverMermaid(htmlContent)
 
 	s.processImages(n, kind, htmlContent)
 }
@@ -495,6 +513,26 @@ func (s *transformState) recoverD2(htmlContent string) {
 	}
 }
 
+func (s *transformState) recoverMermaid(htmlContent string) {
+	mermaidMatches := mermaidRegRe.FindAllStringSubmatch(htmlContent, -1)
+	for _, m := range mermaidMatches {
+		if len(m) < 4 {
+			continue
+		}
+		hash := m[1]
+		codeBase64 := m[2]
+		code, err := base64.StdEncoding.DecodeString(codeBase64)
+		if err == nil {
+			s.mermaidBlocks = append(s.mermaidBlocks, mermaidBlockInfo{
+				node: nil,
+				code: string(code),
+				hash: hash,
+			})
+			AddSSRHash(s.pc, hash)
+		}
+	}
+}
+
 func (s *transformState) processImages(n ast.Node, kind ast.NodeKind, htmlContent string) {
 	if !imgRe.MatchString(htmlContent) {
 		return
@@ -546,6 +584,29 @@ func (s *transformState) handleD2(cb *ast.FencedCodeBlock) {
 		registry := fmt.Sprintf("<!--KOSH_D2_REG:%s:%s:d2-->",
 			hash, base64.StdEncoding.EncodeToString([]byte(code)))
 		placeholder := "<!--KOSH_D2:" + hash + "-->" + registry
+		s.toReplace = append(s.toReplace, replacement{old: cb, new: &RawHTMLBlock{Content: []byte(placeholder)}})
+	}
+}
+
+func (s *transformState) handleMermaid(cb *ast.FencedCodeBlock) {
+	lang := string(cb.Language(s.source))
+	if lang == "mermaid" {
+		lines := pools.SharedStringBuilderPool.Get()
+		defer pools.SharedStringBuilderPool.Put(lines)
+		l := cb.Lines().Len()
+		for i := 0; i < l; i++ {
+			line := cb.Lines().At(i)
+			lines.Write(line.Value(s.source))
+		}
+		code := lines.String()
+		hash := native.HashContent("mermaid", s.transformer.MermaidConfigSig+"|"+code)
+
+		s.mermaidBlocks = append(s.mermaidBlocks, mermaidBlockInfo{node: cb, code: code, hash: hash})
+		AddSSRHash(s.pc, hash)
+
+		registry := fmt.Sprintf("<!--KOSH_MERMAID_REG:%s:%s:mermaid-->",
+			hash, base64.StdEncoding.EncodeToString([]byte(code)))
+		placeholder := "<!--KOSH_MERMAID:" + hash + "-->" + registry
 		s.toReplace = append(s.toReplace, replacement{old: cb, new: &RawHTMLBlock{Content: []byte(placeholder)}})
 	}
 }

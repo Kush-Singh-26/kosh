@@ -117,7 +117,8 @@ type Config struct {
 	Features      models.FeaturesConfig    `yaml:"features"` // Enable/Disable features
 	ThemeMetadata ThemeConfig              `yaml:"-"`        // Loaded from theme.yaml
 	SocialCards   models.SocialCardsConfig `yaml:"socialCards"`
-	D2            models.D2Config          `yaml:"d2"` // D2 diagram rendering options
+	D2            models.D2Config          `yaml:"d2"`      // D2 diagram rendering options
+	Mermaid       models.MermaidConfig     `yaml:"mermaid"` // Mermaid diagram rendering options
 
 	// Internal / Runtime fields
 	ShouldForceRebuild  bool   `yaml:"-"`
@@ -160,9 +161,49 @@ func defaultConfig() *Config {
 
 func defaultD2Config() models.D2Config {
 	return models.D2Config{
-		LightThemeID: 0,
-		DarkThemeID:  200,
-		Pad:          0,
+		LightThemeID:   0,
+		DarkThemeID:    200,
+		Pad:            20,
+		LightOverrides: defaultNordLightOverrides(),
+		DarkOverrides:  defaultNordDarkOverrides(),
+	}
+}
+
+// d2hex is a tiny pointer helper for D2 hex color overrides.
+func d2hex(s string) *string { return &s }
+
+// defaultNordLightOverrides retints D2's Neutral Default theme (ID 0) to the
+// Nord palette: Snow Storm page background so the diagram melts into the
+// page, frost blue edges, and Polar Night text. Key order preserves the base
+// theme's lightness relationships so text-on-fill contrast is retained.
+func defaultNordLightOverrides() *models.D2ThemeOverrides {
+	return &models.D2ThemeOverrides{
+		N1: d2hex("#2E3440"), N2: d2hex("#4C566A"), N3: d2hex("#4C566A"),
+		N4: d2hex("#D8DEE9"), N5: d2hex("#E5E9F0"), N6: d2hex("#E5E9F0"),
+		N7: d2hex("#ECEFF4"),
+		B1: d2hex("#5E81AC"), B2: d2hex("#5E81AC"),
+		B3: d2hex("#D8DEE9"), B4: d2hex("#D8DEE9"),
+		B5: d2hex("#E5E9F0"), B6: d2hex("#E5E9F0"),
+		AA2: d2hex("#81A1C1"),
+		AA4: d2hex("#E5E9F0"), AA5: d2hex("#E5E9F0"),
+		AB4: d2hex("#E5E9F0"), AB5: d2hex("#D8DEE9"),
+	}
+}
+
+// defaultNordDarkOverrides retints D2's Dark Mauve theme (ID 200) to the Nord
+// palette: Polar Night page background, frost cyan edges, Snow Storm text.
+// Nord has no lavender, so the mauve/pink accents become frost and aurora.
+func defaultNordDarkOverrides() *models.D2ThemeOverrides {
+	return &models.D2ThemeOverrides{
+		N1: d2hex("#ECEFF4"), N2: d2hex("#E5E9F0"), N3: d2hex("#D8DEE9"),
+		N4: d2hex("#4C566A"), N5: d2hex("#434C5E"), N6: d2hex("#3B4252"),
+		N7: d2hex("#2E3440"),
+		B1: d2hex("#88C0D0"), B2: d2hex("#88C0D0"),
+		B3: d2hex("#4C566A"), B4: d2hex("#434C5E"),
+		B5: d2hex("#3B4252"), B6: d2hex("#3B4252"),
+		AA2: d2hex("#A3BE8C"),
+		AA4: d2hex("#3B4252"), AA5: d2hex("#3B4252"),
+		AB4: d2hex("#3B4252"), AB5: d2hex("#434C5E"),
 	}
 }
 
@@ -193,7 +234,7 @@ func defaultBuildOptions() BuildOptions {
 		WebPQuality:          DefaultWebPQuality,
 		ParserWorkers:        DefaultParserWorkers,
 		ContentPrefix:        "",
-		NoStaging:            true,
+		NoStaging:            false,
 	}
 }
 
@@ -338,7 +379,7 @@ func applyCLIOverrides(cfg *Config, args []string) {
 	forceLockFlag := flagSet.Bool("force-lock", false, "Acquire build lock even if another build is running")
 	debugFlag := flagSet.Bool("debug", false, "Enable debug output")
 	staging := flagSet.Bool("staging", false, "Use atomic staging for build (disables direct output writing)")
-	noStaging := flagSet.Bool("no-staging", true, "Disable atomic staging (overwrites output in place)")
+	noStaging := flagSet.Bool("no-staging", false, "Disable atomic staging (overwrites output in place)")
 
 	_ = flagSet.Parse(args)
 
@@ -357,6 +398,7 @@ func applyCLIOverrides(cfg *Config, args []string) {
 		cfg.StaticDir = filepath.Join(cfg.ThemeDir, cfg.Theme, "static")
 	}
 	if *debugFlag {
+		cfg.Debug = true
 		cfg.Build.Debug = true
 	}
 	if *staging {

@@ -74,6 +74,8 @@ type BuildArtifactCache interface {
 	MarkDirty(ContentID string)
 	IsDirty(ContentID string) bool
 	ClearDirty()
+	GetD2Sig() (string, error)
+	SetD2Sig(sig string) error
 }
 
 // FragmentCache provides persistent storage for pre-rendered UI components.

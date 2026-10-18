@@ -31,6 +31,7 @@ const (
 	KeyGraphHash     = "graph_hash"
 	KeyWasmHash      = "wasm_hash"
 	KeySearchHash    = "search_hash"
+	KeyD2Sig         = "d2_sig"
 )
 
 // AllBuckets returns the list of BoltDB bucket names used by the cache.

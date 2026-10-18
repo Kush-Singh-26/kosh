@@ -23,8 +23,20 @@ import (
 func (engineInstance *Engine) refreshBuildSession(ctx context.Context) {
 	// Clear per-file content cache so dev rebuilds don't serve stale data
 	fspkg.ClearSyncCache()
-	// If we already have a sink/tx (e.g. injected in tests), don't overwrite it
-	if engineInstance.artifactSink == nil || !engineInstance.Ctx.IsTesting {
+
+	// Reuse a test-injected sink/tx only while the transaction is still valid.
+	// Tests inject a MockTransaction alongside their sink and expect it to be
+	// reused across build passes. A real DirectoryTx that has already published
+	// becomes committed and its staging directory no longer exists, so the sink
+	// pointing into it is stale and a fresh session must be created.
+	reuseInjected := engineInstance.artifactSink != nil && engineInstance.Ctx.IsTesting
+	if reuseInjected {
+		if directoryTx, ok := engineInstance.buildTransaction.(*tx.DirectoryTx); ok && directoryTx.IsCommitted() {
+			reuseInjected = false
+		}
+	}
+
+	if !reuseInjected {
 		useStaging := (!engineInstance.Cfg.IsDev || engineInstance.State.IsCleanBuild) && !engineInstance.Cfg.NoStaging
 		// Explicit cleanup before creating new transaction for clean builds
 		if useStaging {
@@ -78,7 +90,16 @@ func (engineInstance *Engine) BuildLocked(ctx context.Context) error {
 		return processError
 	}
 
-	return engineInstance.finalizePhase(ctx, setup.wasmWg, assetsResult.assetsReadySignal)
+	if err := engineInstance.finalizePhase(ctx, setup.wasmWg, assetsResult.assetsReadySignal); err != nil {
+		return err
+	}
+
+	// A clean build is a single pass. Once the initial full build publishes,
+	// subsequent passes (dev/incremental rebuilds) write directly to output
+	// and reuse caches instead of re-staging from scratch.
+	engineInstance.State.IsCleanBuild = false
+
+	return nil
 }
 
 // Build runs a full build with concurrency and locking safeguards.

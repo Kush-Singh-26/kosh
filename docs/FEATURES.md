@@ -64,6 +64,9 @@ Kosh renders Math using server-side rendering, so it works even if the user has 
 Render beautiful diagrams using the [D2 declarative language](https://d2lang.com/).
 - Just use a fenced code block with the `d2` language.
 - Kosh generates optimized SVGs during the build process.
+- Both light and dark variants are pre-rendered; the theme toggle swaps them with pure CSS.
+- Default palette is Nord-matched (Snow Storm / Polar Night, frost edges) so diagrams melt into the page inside a hairline frame. Override via `d2.lightThemeID`, `d2.darkThemeID`, `d2.pad`, `d2.strokeWidth`, and `d2.lightOverrides` / `d2.darkOverrides` in `kosh.yaml` (any `d2:` setting change automatically invalidates diagram caches on the next build).
+- Diagrams render as keyboard-focusable figures (`Enter`/`Space` or click opens the zoom lightbox).
 
 ```d2
 direction: right

@@ -199,10 +199,20 @@
                 
                 const svg = lightboxSvgContainer.querySelector('svg');
                 if (svg) {
-                    svg.removeAttribute('width');
-                    svg.removeAttribute('height');
-                    svg.setAttribute('width', '100%');
-                    svg.style.display = 'block';
+                    // Strip fixed pixel dimensions so CSS controls sizing,
+                    // then pin the natural size from the viewBox. Combined
+                    // with CSS min-width:100%, small diagrams fill the
+                    // lightbox while large ones keep natural size + scroll.
+                    lightboxSvgContainer.querySelectorAll('svg').forEach((s) => {
+                        s.removeAttribute('width');
+                        s.removeAttribute('height');
+                        s.style.display = 'block';
+                    });
+                    const vb = svg.viewBox && svg.viewBox.baseVal;
+                    if (vb && vb.width > 0) {
+                        svg.style.width = `${vb.width}px`;
+                        svg.style.height = 'auto';
+                    }
                 }
             }
             lightbox.classList.add('active');
@@ -244,6 +254,16 @@
                     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
                     const selector = isLight ? '.d2-light svg' : '.d2-dark svg';
                     const activeSvg = d2Container.querySelector(selector);
+                    if (activeSvg) openLightbox('svg', activeSvg.outerHTML);
+                    return;
+                }
+
+                // Handle Mermaid SVG Click
+                const mermaidContainer = e.target.closest('.mermaid-container');
+                if (mermaidContainer) {
+                    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+                    const selector = isLight ? '.mermaid-light svg' : '.mermaid-dark svg';
+                    const activeSvg = mermaidContainer.querySelector(selector);
                     if (activeSvg) openLightbox('svg', activeSvg.outerHTML);
                     return;
                 }
@@ -292,6 +312,16 @@
                 if (e.key === 'Escape') {
                     if (lightbox && lightbox.classList.contains('active')) closeLightbox();
                     if (mobileMenu && mobileMenu.classList.contains('open')) closeMobileMenu();
+                }
+
+                // Keyboard zoom for focused D2 diagrams (figures are tabindex="0").
+                if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('.d2-container')) {
+                    e.preventDefault();
+                    const d2Container = e.target.closest('.d2-container');
+                    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+                    const selector = isLight ? '.d2-light svg' : '.d2-dark svg';
+                    const activeSvg = d2Container.querySelector(selector);
+                    if (activeSvg) openLightbox('svg', activeSvg.outerHTML);
                 }
             });
         }

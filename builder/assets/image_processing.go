@@ -293,13 +293,10 @@ func retryWriteFile(sink fspkg.ArtifactSink, path string, data []byte) error {
 	for index := 0; index < retryWriteAttempts; index++ {
 		if err := sink.WriteFile(path, data); err == nil {
 			return nil
-		} else { //nolint:revive
+		} else {
 			lastErr = err
 			if index < retryWriteAttempts-1 {
-				select {
-				case <-time.After(retryWriteDelay):
-				default:
-				}
+				time.Sleep(retryWriteDelay)
 			}
 		}
 	}

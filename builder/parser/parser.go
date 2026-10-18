@@ -121,6 +121,8 @@ type Options struct {
 	// D2ConfigSig is folded into the per-diagram cache key so that changing
 	// D2 rendering settings invalidates previously cached SVGs.
 	D2ConfigSig string
+	// MermaidConfigSig is folded into the per-mermaid-diagram cache key.
+	MermaidConfigSig string
 }
 
 // Option is a functional option for configuring the parser.
@@ -154,10 +156,17 @@ func WithD2ConfigSignature(sig string) Option {
 	}
 }
 
+// WithMermaidConfigSignature sets the Mermaid config signature used in diagram cache keys.
+func WithMermaidConfigSignature(sig string) Option {
+	return func(o *Options) {
+		o.MermaidConfigSig = sig
+	}
+}
+
 // StripRegistryComments removes Kosh internal registry comments from HTML content.
 func StripRegistryComments(html string) string {
 	// Pattern to match all KOSH registry comments
-	re := regexp.MustCompile(`<!--KOSH_(MATH|D2|TOC|SEARCH)_REG:[^>]+-->`)
+	re := regexp.MustCompile(`<!--KOSH_(MATH|D2|MERMAID|TOC|SEARCH)_REG:[^>]+-->`)
 	return re.ReplaceAllString(html, "")
 }
 
@@ -190,13 +199,14 @@ func New(cfg *config.Config, opts ...Option) goldmark.Markdown {
 			// Register Unified Transformer
 			parser.WithASTTransformers(
 				util.Prioritized(&unifiedTransformer{
-					BaseURL:     baseURL,
-					Compress:    compress,
-					Renderer:    options.Renderer,
-					Cache:       options.DiagramCache,
-					D2Group:     options.D2Group,
-					IsDev:       cfg.IsDev,
-					D2ConfigSig: options.D2ConfigSig,
+					BaseURL:          baseURL,
+					Compress:         compress,
+					Renderer:         options.Renderer,
+					Cache:            options.DiagramCache,
+					D2Group:          options.D2Group,
+					IsDev:            cfg.IsDev,
+					D2ConfigSig:      options.D2ConfigSig,
+					MermaidConfigSig: options.MermaidConfigSig,
 				}, unifiedTransformerPriority),
 			),
 			parser.WithAutoHeadingID(),

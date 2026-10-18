@@ -111,15 +111,16 @@ func (service *contentService) buildTaxonomies(items []models.ContentMetadata) m
 	return taxonomies
 }
 
-func (service *contentService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]string, map[string]models.SSRThemePair) {
-	if len(result.MathExpressions) == 0 && len(result.D2Expressions) == 0 {
-		return html, nil, nil
+func (service *contentService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]string, map[string]models.SSRThemePair, map[string]models.SSRThemePair) {
+	if len(result.MathExpressions) == 0 && len(result.D2Expressions) == 0 && len(result.MermaidExpressions) == 0 {
+		return html, nil, nil, nil
 	}
 
 	html, renderedMath := service.renderMathSSR(ctx, html, result)
 	html, renderedD2 := service.renderD2SSR(ctx, html, result)
+	html, renderedMermaid := service.renderMermaidSSR(ctx, html, result)
 
-	return html, renderedMath, renderedD2
+	return html, renderedMath, renderedD2, renderedMermaid
 }
 
 func (service *contentService) renderMathSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]string) {
@@ -198,6 +199,44 @@ func (service *contentService) renderD2SSR(ctx context.Context, html string, res
 	return mdParser.ReplaceD2Expressions(html, result.D2Expressions, rendered), rendered
 }
 
+func (service *contentService) renderMermaidSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]models.SSRThemePair) {
+	if len(result.MermaidExpressions) == 0 {
+		return html, nil
+	}
+
+	cached := pools.SharedMapStringSSRThemePairPool.Get()
+	defer pools.SharedMapStringSSRThemePairPool.Put(cached)
+
+	if service.diagramAdapter != nil {
+		for _, expr := range result.MermaidExpressions {
+			key := "mermaid:" + expr.Hash
+			if val, ok := service.diagramAdapter.Get(key); ok {
+				if pair, ok := val.(models.SSRThemePair); ok {
+					cached[expr.Hash] = pair
+				}
+			}
+		}
+	}
+
+	rendered, err := service.nativeRenderer.RenderAllMermaid(ctx, result.MermaidExpressions, cached)
+	if err != nil {
+		return html, nil
+	}
+
+	if service.diagramAdapter != nil && len(rendered) > 0 {
+		newMermaid := make(map[string]any)
+		for hash, pair := range rendered {
+			if _, ok := cached[hash]; !ok {
+				newMermaid["mermaid:"+hash] = pair
+			}
+		}
+		if len(newMermaid) > 0 {
+			service.diagramAdapter.Merge(newMermaid)
+		}
+	}
+	return mdParser.ReplaceMermaidExpressions(html, result.MermaidExpressions, rendered), rendered
+}
+
 // ProcessSingleWithResult processes and renders a single markdown file using an optional pre-parse result.
 func (service *contentService) ProcessSingleWithResult(ctx context.Context, path string, source []byte, preParsed *ParsedMarkdownResult) error {
 	info, source, err := service.validateAndReadSource(path, source)
@@ -215,7 +254,7 @@ func (service *contentService) ProcessSingleWithResult(ctx context.Context, path
 	}
 	parseRes.Item.Section = section
 
-	htmlContent, renderedMath, renderedD2 := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
+	htmlContent, renderedMath, renderedD2, renderedMermaid := service.renderSSR(ctx, parseRes.HTMLContent, parseRes)
 	relPrefix := fspkg.GetRelativePrefix(htmlRelPath)
 	htmlContent = rewriteStaticAssetPaths(htmlContent, relPrefix)
 
@@ -237,7 +276,7 @@ func (service *contentService) ProcessSingleWithResult(ctx context.Context, path
 		service.handleSocialCard(parseRes, relPath, htmlRelPath, cardRelPath, cardDestPath, seoTitle, socialHash)
 	}
 
-	return service.renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section, parseRes, renderedMath, renderedD2)
+	return service.renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section, parseRes, renderedMath, renderedD2, renderedMermaid)
 }
 
 func (service *contentService) validateAndReadSource(path string, source []byte) (os.FileInfo, []byte, error) {
@@ -330,7 +369,7 @@ func (service *contentService) handleRawMarkdown(destPath string, source []byte)
 	}
 }
 
-func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) error {
+func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]models.SSRThemePair) error {
 	item := parseRes.Item
 	nav := service.resolveNavigation(item)
 
@@ -377,11 +416,12 @@ func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix,
 		IsCleanBuild:    service.ctx.IsCleanBuild,
 		HasMath:         len(renderedMath) > 0,
 		HasD2:           len(renderedD2) > 0,
+		HasMermaid:      len(renderedMermaid) > 0,
 		SSRMath:         renderedMath,
 		SSRD2:           renderedD2,
+		SSRMermaid:      renderedMermaid,
 		NavigationTree:  nav.navigationTree,
 	}
-
 
 	PopulateShowcaseHTML(&pageData, renderedMath, renderedD2)
 	return service.renderer.RenderPage(destPath, pageData)
@@ -574,9 +614,9 @@ func (service *contentService) rerenderHomePage(allItems []models.ContentMetadat
 		Title: service.cfg.Title, Description: service.cfg.Description, Content: template.HTML(body),
 		Meta: frontmatter, BaseURL: service.cfg.BaseURL, BuildVersion: service.cfg.BuildVersion,
 		TabTitle: service.cfg.Title, Permalink: service.cfg.BaseURL, Image: cardImageURL,
-		SocialHash:  socialHash,
-		Config:      service.cfg, Context: models.ContextHome,
-		Items:       homeItems, PinnedItems: pinnedItems,
+		SocialHash: socialHash,
+		Config:     service.cfg, Context: models.ContextHome,
+		Items: homeItems, PinnedItems: pinnedItems,
 		RelativePrefix: relPrefix, ContentPrefix: service.cfg.ContentPrefix,
 		SectionIndexURL: sectionIndexURL,
 		Taxonomies:      taxonomies,

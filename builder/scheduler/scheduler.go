@@ -27,6 +27,8 @@ const (
 	TaskSocialCard
 	// TaskAsset schedules asset bundling work.
 	TaskAsset
+	// TaskMermaid schedules Mermaid diagram rendering work.
+	TaskMermaid
 )
 
 const (
@@ -79,6 +81,7 @@ func NewBuildScheduler() BuildScheduler {
 			TaskSearch:     WeightModerate, // Moderate - indexing operations
 			TaskSocialCard: WeightModerate, // Moderate - image drawing
 			TaskAsset:      WeightHeavy,    // Heavy - esbuild bundling
+			TaskMermaid:    WeightModerate, // Moderate - fast native Go rendering (~100µs)
 		},
 	}
 }

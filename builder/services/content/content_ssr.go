@@ -9,7 +9,6 @@ import (
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	mdParser "github.com/Kush-Singh-26/kosh/builder/parser"
-	"github.com/Kush-Singh-26/kosh/builder/pools"
 	"github.com/Kush-Singh-26/kosh/builder/renderer/native"
 )
 
@@ -42,14 +41,7 @@ func PopulateShowcaseHTML(data *models.PageData, renderedMath map[string]string,
 
 	if renderedD2 != nil {
 		if pair, ok := renderedD2[d2Hash]; ok && pair.Light != "" {
-			buf := pools.SharedBufferPool.Get()
-			buf.WriteString(`<div class="d2-container" data-diagram="true"><div class="d2-light">`)
-			buf.WriteString(pair.Light)
-			buf.WriteString(`</div><div class="d2-dark">`)
-			buf.WriteString(pair.Dark)
-			buf.WriteString(`</div><span class="zoom-hint">Click to zoom</span></div>`)
-			data.ShowcaseD2 = template.HTML(buf.String())
-			pools.SharedBufferPool.Put(buf)
+			data.ShowcaseD2 = template.HTML(mdParser.D2FigureHTML(pair))
 		}
 	}
 	if data.ShowcaseD2 == "" {
@@ -113,29 +105,31 @@ func (service *contentService) processCachedD2(html string, expressions []models
 	return html, true
 }
 
-func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []renderTask) (map[string]string, map[string]models.SSRThemePair) {
+func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []renderTask) (map[string]string, map[string]models.SSRThemePair, map[string]models.SSRThemePair) {
 	if len(tasks) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	allMath, allD2 := collectExpressions(tasks)
+	allMath, allD2, allMermaid := collectExpressions(tasks)
 
 	// Inject showcase examples so the docs landing page gets real SSR output.
 	injectShowcaseExamples(allMath, allD2)
 
-	if len(allMath) == 0 && len(allD2) == 0 {
-		return nil, nil
+	if len(allMath) == 0 && len(allD2) == 0 && len(allMermaid) == 0 {
+		return nil, nil, nil
 	}
 
 	var (
-		renderedMath map[string]string
-		renderedD2   map[string]models.SSRThemePair
-		mathErr      error
-		d2Err        error
+		renderedMath    map[string]string
+		renderedD2      map[string]models.SSRThemePair
+		renderedMermaid map[string]models.SSRThemePair
+		mathErr         error
+		d2Err           error
+		mermaidErr      error
 	)
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
@@ -153,27 +147,36 @@ func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []rend
 		}
 	}()
 
+	go func() {
+		defer wg.Done()
+		renderedMermaid, mermaidErr = service.renderMermaidWithCache(ctx, allMermaid)
+		if mermaidErr != nil {
+			service.logger.Warn("Global Mermaid render failed", "error", mermaidErr)
+		}
+	}()
+
 	wg.Wait()
 
-	if len(renderedMath) == 0 && len(renderedD2) == 0 {
-		return nil, nil
+	if len(renderedMath) == 0 && len(renderedD2) == 0 && len(renderedMermaid) == 0 {
+		return nil, nil, nil
 	}
 
-	service.replaceExpressionsInTasks(tasks, renderedMath, renderedD2)
-	return renderedMath, renderedD2
+	service.replaceExpressionsInTasks(tasks, renderedMath, renderedD2, renderedMermaid)
+	return renderedMath, renderedD2, renderedMermaid
 }
 
-// collectExpressions gathers all Math and D2 expressions from tasks.
-func collectExpressions(tasks []renderTask) (math map[string]models.MathExpression, d2 map[string]models.D2Expression) {
+// collectExpressions gathers all Math, D2, and Mermaid expressions from tasks.
+func collectExpressions(tasks []renderTask) (math map[string]models.MathExpression, d2 map[string]models.D2Expression, mermaid map[string]models.MermaidExpression) {
 	math = make(map[string]models.MathExpression)
 	d2 = make(map[string]models.D2Expression)
+	mermaid = make(map[string]models.MermaidExpression)
 
 	for _, task := range tasks {
-		// Check both body and TOC headers for placeholders
 		hasMath := mdParser.HasMathPlaceholders(task.htmlContent)
 		hasD2 := mdParser.HasD2Placeholders(task.htmlContent)
+		hasMermaid := mdParser.HasMermaidPlaceholders(task.htmlContent)
 
-		if !hasMath || !hasD2 {
+		if !hasMath || !hasD2 || !hasMermaid {
 			for _, entry := range task.parseResult.TOC {
 				if !hasMath && mdParser.HasMathPlaceholders(entry.Text) {
 					hasMath = true
@@ -181,7 +184,10 @@ func collectExpressions(tasks []renderTask) (math map[string]models.MathExpressi
 				if !hasD2 && mdParser.HasD2Placeholders(entry.Text) {
 					hasD2 = true
 				}
-				if hasMath && hasD2 {
+				if !hasMermaid && mdParser.HasMermaidPlaceholders(entry.Text) {
+					hasMermaid = true
+				}
+				if hasMath && hasD2 && hasMermaid {
 					break
 				}
 			}
@@ -197,9 +203,14 @@ func collectExpressions(tasks []renderTask) (math map[string]models.MathExpressi
 				d2[expr.Hash] = expr
 			}
 		}
+		if len(task.parseResult.MermaidExpressions) > 0 && hasMermaid {
+			for _, expr := range task.parseResult.MermaidExpressions {
+				mermaid[expr.Hash] = expr
+			}
+		}
 	}
 
-	return math, d2
+	return math, d2, mermaid
 }
 
 // renderMathWithCache renders Math expressions with caching.
@@ -288,8 +299,51 @@ func (service *contentService) renderD2WithCache(ctx context.Context, allD2 map[
 	return renderedD2, nil
 }
 
-// replaceExpressionsInTasks replaces Math and D2 placeholders in task HTML content.
-func (service *contentService) replaceExpressionsInTasks(tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) {
+// renderMermaidWithCache renders Mermaid expressions with caching.
+func (service *contentService) renderMermaidWithCache(ctx context.Context, allMermaid map[string]models.MermaidExpression) (map[string]models.SSRThemePair, error) {
+	if len(allMermaid) == 0 {
+		return nil, nil
+	}
+
+	mermaidList := make([]models.MermaidExpression, 0, len(allMermaid))
+	for _, expr := range allMermaid {
+		mermaidList = append(mermaidList, expr)
+	}
+
+	cachedMermaid := make(map[string]models.SSRThemePair)
+	if service.diagramAdapter != nil {
+		for _, expr := range mermaidList {
+			key := "mermaid:" + expr.Hash
+			if val, ok := service.diagramAdapter.GetLocal(key); ok {
+				if pair, ok := val.(models.SSRThemePair); ok {
+					cachedMermaid[expr.Hash] = pair
+				}
+			}
+		}
+	}
+
+	renderedMermaid, err := service.nativeRenderer.RenderAllMermaid(ctx, mermaidList, cachedMermaid)
+	if err != nil {
+		return nil, err
+	}
+
+	if service.diagramAdapter != nil && len(renderedMermaid) > 0 {
+		newMermaid := make(map[string]any)
+		for hash, pair := range renderedMermaid {
+			if _, ok := cachedMermaid[hash]; !ok {
+				newMermaid["mermaid:"+hash] = pair
+			}
+		}
+		if len(newMermaid) > 0 {
+			service.diagramAdapter.Merge(newMermaid)
+		}
+	}
+
+	return renderedMermaid, nil
+}
+
+// replaceExpressionsInTasks replaces Math, D2, and Mermaid placeholders in task HTML content.
+func (service *contentService) replaceExpressionsInTasks(tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]models.SSRThemePair) {
 	numWorkers := runtime.NumCPU()
 	if numWorkers > len(tasks) {
 		numWorkers = len(tasks)
@@ -340,6 +394,9 @@ func (service *contentService) replaceExpressionsInTasks(tasks []renderTask, ren
 				}
 				if len(renderedD2) > 0 && len(tasks[i].parseResult.D2Expressions) > 0 && mdParser.HasD2Placeholders(tasks[i].htmlContent) {
 					tasks[i].htmlContent = mdParser.ReplaceD2Expressions(tasks[i].htmlContent, tasks[i].parseResult.D2Expressions, renderedD2)
+				}
+				if len(renderedMermaid) > 0 && len(tasks[i].parseResult.MermaidExpressions) > 0 && mdParser.HasMermaidPlaceholders(tasks[i].htmlContent) {
+					tasks[i].htmlContent = mdParser.ReplaceMermaidExpressions(tasks[i].htmlContent, tasks[i].parseResult.MermaidExpressions, renderedMermaid)
 				}
 			}
 		}(chunk)

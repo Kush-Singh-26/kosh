@@ -74,7 +74,10 @@ type WorkerContext struct {
 	ShouldForce        bool
 	ForceSocialRebuild bool
 	ForceRerender      bool
-	DenseIDCounter     *atomic.Uint32
+	// D2SigMismatch forces re-parse: cached HTML embeds D2 placeholder
+	// hashes derived from the D2 config, so a config change invalidates it.
+	D2SigMismatch  bool
+	DenseIDCounter *atomic.Uint32
 }
 
 type contentProcessContext struct {

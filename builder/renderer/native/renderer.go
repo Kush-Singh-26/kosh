@@ -1,4 +1,4 @@
-// Package native provides a native Go renderer for D2 diagrams and LaTeX math.
+// Package native provides a native Go renderer for D2 diagrams, Mermaid diagrams, and LaTeX math.
 package native
 
 import (
@@ -52,21 +52,22 @@ var katexBytecode []byte
 
 // Renderer manages a pool of native rendering instances for concurrency
 type Renderer struct {
-	ctx            context.Context
-	pool           chan *instance
-	numWorkers     int
-	mathBatchSize  int
-	initReady      chan struct{}
-	scheduler      scheduler.BuildScheduler
-	mathQueue      chan mathRequest
-	mu             sync.Mutex
-	isClosed       bool
-	taskWg         sync.WaitGroup
-	katexBytecode  []byte
-	rulerPool      sync.Pool
-	mathBatchPool  sync.Pool
-	D2Singleflight singleflight.Group
-	initOnce       sync.Once
+	ctx                 context.Context
+	pool                chan *instance
+	numWorkers          int
+	mathBatchSize       int
+	initReady           chan struct{}
+	scheduler           scheduler.BuildScheduler
+	mathQueue           chan mathRequest
+	mu                  sync.Mutex
+	isClosed            bool
+	taskWg              sync.WaitGroup
+	katexBytecode       []byte
+	rulerPool           sync.Pool
+	mathBatchPool       sync.Pool
+	D2Singleflight      singleflight.Group
+	MermaidSingleflight singleflight.Group
+	initOnce            sync.Once
 
 	d2ThemeLight  int64
 	d2ThemeDark   int64

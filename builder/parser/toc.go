@@ -8,11 +8,12 @@ import (
 
 // Package-level context keys, isolated by being unexported.
 var (
-	tocKey           = parser.NewContextKey()
-	plainTextKey     = parser.NewContextKey()
-	ssrHashesKey     = parser.NewContextKey()
-	contextKeyBuild  = parser.NewContextKey()
-	d2ExpressionsKey = parser.NewContextKey()
+	tocKey                = parser.NewContextKey()
+	plainTextKey          = parser.NewContextKey()
+	ssrHashesKey          = parser.NewContextKey()
+	contextKeyBuild       = parser.NewContextKey()
+	d2ExpressionsKey      = parser.NewContextKey()
+	mermaidExpressionsKey = parser.NewContextKey()
 )
 
 // GetTOC returns the table of contents from the parser context.
@@ -61,6 +62,16 @@ func AddSSRHash(pc parser.Context, hash string) {
 func GetD2Expressions(pc parser.Context) []models.D2Expression {
 	if v := pc.Get(d2ExpressionsKey); v != nil {
 		if expressions, ok := v.([]models.D2Expression); ok {
+			return expressions
+		}
+	}
+	return nil
+}
+
+// GetMermaidExpressions returns all unique Mermaid diagrams from the parser context.
+func GetMermaidExpressions(pc parser.Context) []models.MermaidExpression {
+	if v := pc.Get(mermaidExpressionsKey); v != nil {
+		if expressions, ok := v.([]models.MermaidExpression); ok {
 			return expressions
 		}
 	}
