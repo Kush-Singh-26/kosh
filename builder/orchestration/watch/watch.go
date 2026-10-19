@@ -90,7 +90,7 @@ type Coordinator struct {
 	buildQueue chan BuildRequest
 	searchChan chan struct{}
 
-	lastSearchReg time.Time
+	lastSearchReg atomic.Int64
 	closeOnce     sync.Once
 	closed        chan struct{}
 }
@@ -375,13 +375,13 @@ func (coordinatorInstance *Coordinator) classify(path string, op fsnotify.Op) Ch
 
 func (coordinatorInstance *Coordinator) processSearchQueue() {
 	var pending atomic.Bool
+	var timerRunning atomic.Bool
 	var timer *time.Timer
-	var timerRunning bool
 
 	for {
 		select {
 		case <-coordinatorInstance.closed:
-			if timer != nil && timerRunning {
+			if timer != nil && timerRunning.Load() {
 				timer.Stop()
 			}
 			return
@@ -390,18 +390,19 @@ func (coordinatorInstance *Coordinator) processSearchQueue() {
 				return
 			}
 			pending.Store(true)
-			if !timerRunning {
+			if !timerRunning.Load() {
 				delay := searchDelay
-				if time.Since(coordinatorInstance.lastSearchReg) > searchQuickThreshold {
+				if time.Since(time.Unix(0, coordinatorInstance.lastSearchReg.Load())) > searchQuickThreshold {
 					delay = searchQuickDelay
 				}
+				timerRunning.Store(true)
 				timer = time.AfterFunc(delay, func() {
-					timerRunning = false
+					timerRunning.Store(false)
 					if pending.CompareAndSwap(true, false) {
 						async.FireAndForget(coordinatorInstance.ctx, slog.Default(), "watch search regen", func() error {
 							coordinatorInstance.buildMu.Lock()
 							defer coordinatorInstance.buildMu.Unlock()
-							coordinatorInstance.lastSearchReg = time.Now()
+							coordinatorInstance.lastSearchReg.Store(time.Now().UnixNano())
 							if coordinatorInstance.onSearch != nil {
 								coordinatorInstance.onSearch(coordinatorInstance.ctx)
 							}
@@ -409,7 +410,6 @@ func (coordinatorInstance *Coordinator) processSearchQueue() {
 						})
 					}
 				})
-				timerRunning = true
 			}
 		}
 	}
