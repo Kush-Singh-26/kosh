@@ -50,6 +50,12 @@ var katexJS string
 //go:embed katex.bytecode
 var katexBytecode []byte
 
+//go:embed pele.global.js
+var peleJS string
+
+// peleExportSuffix exposes the bundle's `var pele` binding on the global object.
+const peleExportSuffix = "\n;globalThis.pele=pele;"
+
 // Renderer manages a pool of native rendering instances for concurrency
 type Renderer struct {
 	ctx                 context.Context
@@ -63,6 +69,7 @@ type Renderer struct {
 	isClosed            bool
 	taskWg              sync.WaitGroup
 	katexBytecode       []byte
+	peleBytecode        []byte
 	rulerPool           sync.Pool
 	mathBatchPool       sync.Pool
 	D2Singleflight      singleflight.Group
@@ -247,7 +254,7 @@ func (r *Renderer) mathBatchWorker() {
 	}
 }
 
-func (r *Renderer) validateBytecode(bytecode []byte) ([]byte, bool) {
+func (r *Renderer) validateBytecode(bytecode []byte, source string) ([]byte, bool) {
 	if len(bytecode) < bytecodeHeaderSize {
 		return nil, false
 	}
@@ -256,7 +263,7 @@ func (r *Renderer) validateBytecode(bytecode []byte) ([]byte, bool) {
 	}
 	// Check hash of source JS
 	sourceHash := binary.LittleEndian.Uint64(bytecode[bytecodeSourceHashStart:bytecodeSourceHashEnd])
-	actualHash := xxh3.Hash([]byte(katexJS))
+	actualHash := xxh3.Hash([]byte(source))
 	if sourceHash != actualHash {
 		return nil, false
 	}
@@ -269,12 +276,30 @@ func (r *Renderer) validateBytecode(bytecode []byte) ([]byte, bool) {
 }
 
 // ensureInitialized lazily creates worker instances on first use
+// compileJS compiles JavaScript source into QuickJS bytecode using a temporary
+// runtime. Returns nil when compilation fails.
+func compileJS(name, source string) []byte {
+	rt, err := qjs.New(qjs.Option{MaxExecutionTime: maxExecutionTimeMs})
+	if err != nil {
+		slog.Warn("Failed to create temporary runtime for compilation", "name", name, "error", err)
+		return nil
+	}
+	defer rt.Close()
+
+	bytecode, err := rt.Compile(name, qjs.Code(source))
+	if err != nil {
+		slog.Warn("Failed to compile JS to bytecode", "name", name, "error", err)
+		return nil
+	}
+	return bytecode
+}
+
 func (r *Renderer) ensureInitialized() {
 	r.initOnce.Do(func() {
 		slog.Info("Initializing QuickJS Renderer Pool", "workers", r.numWorkers)
 
-		// Validate embedded bytecode
-		if bytecode, ok := r.validateBytecode(katexBytecode); ok {
+		// Validate embedded KaTeX bytecode, or compile it from source.
+		if bytecode, ok := r.validateBytecode(katexBytecode, katexJS); ok {
 			slog.Info("Using validated KaTeX bytecode", "size", len(bytecode))
 			r.katexBytecode = bytecode
 		} else {
@@ -283,22 +308,11 @@ func (r *Renderer) ensureInitialized() {
 			} else {
 				slog.Info("No KaTeX bytecode found, compiling from source...")
 			}
-
-			jsRuntime, err := qjs.New(qjs.Option{
-				MaxExecutionTime: maxExecutionTimeMs,
-			})
-			if err == nil {
-				bytecode, err := jsRuntime.Compile("katex.min.js", qjs.Code(katexJS))
-				if err == nil {
-					r.katexBytecode = bytecode
-				} else {
-					slog.Warn("Failed to compile KaTeX to bytecode", "error", err)
-				}
-				jsRuntime.Close()
-			} else {
-				slog.Warn("Failed to create temporary runtime for compilation", "error", err)
-			}
+			r.katexBytecode = compileJS("katex.min.js", katexJS)
 		}
+
+		// Pele (Mermaid renderer) is compiled from embedded source on startup.
+		r.peleBytecode = compileJS("pele.global.js", peleJS+peleExportSuffix)
 
 		// Start workers in background without blocking
 		var initWg sync.WaitGroup
@@ -310,7 +324,7 @@ func (r *Renderer) ensureInitialized() {
 				Operation: "native renderer init worker",
 				Fn: func() error {
 					instance := &instance{}
-					instance.ensureInitialized(r.katexBytecode)
+					instance.ensureInitialized(r.katexBytecode, r.peleBytecode)
 
 					r.mu.Lock()
 					isClosed := r.isClosed
@@ -325,12 +339,13 @@ func (r *Renderer) ensureInitialized() {
 			})
 		}
 
-		// Close initReady in background when all workers are started
-		async.FireAndForget(r.ctx, slog.Default(), "native renderer init", func() error {
+		// Close initReady once all workers are started. This must not be gated on
+		// r.ctx: Close() cancels the engine context before shutting the renderer
+		// down, and an unclosed initReady would deadlock Close.
+		go func() {
 			initWg.Wait()
 			close(r.initReady)
-			return nil
-		})
+		}()
 	})
 }
 
@@ -375,6 +390,15 @@ func (r *Renderer) Close() error {
 		}
 		if instance.katex != nil {
 			instance.katex.Free()
+		}
+		if instance.peleRenderFn != nil {
+			instance.peleRenderFn.Free()
+		}
+		if instance.pele != nil {
+			instance.pele.Free()
+		}
+		if instance.peleOpts != nil {
+			instance.peleOpts.Free()
 		}
 		// Context is tied to runtime in this library
 		if instance.rt != nil {

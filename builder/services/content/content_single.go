@@ -111,7 +111,7 @@ func (service *contentService) buildTaxonomies(items []models.ContentMetadata) m
 	return taxonomies
 }
 
-func (service *contentService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]string, map[string]models.SSRThemePair, map[string]models.SSRThemePair) {
+func (service *contentService) renderSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]string, map[string]models.SSRThemePair, map[string]string) {
 	if len(result.MathExpressions) == 0 && len(result.D2Expressions) == 0 && len(result.MermaidExpressions) == 0 {
 		return html, nil, nil, nil
 	}
@@ -199,20 +199,20 @@ func (service *contentService) renderD2SSR(ctx context.Context, html string, res
 	return mdParser.ReplaceD2Expressions(html, result.D2Expressions, rendered), rendered
 }
 
-func (service *contentService) renderMermaidSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]models.SSRThemePair) {
+func (service *contentService) renderMermaidSSR(ctx context.Context, html string, result *ParsedMarkdownResult) (string, map[string]string) {
 	if len(result.MermaidExpressions) == 0 {
 		return html, nil
 	}
 
-	cached := pools.SharedMapStringSSRThemePairPool.Get()
-	defer pools.SharedMapStringSSRThemePairPool.Put(cached)
+	cached := pools.SharedMapStringStringPool.Get()
+	defer pools.SharedMapStringStringPool.Put(cached)
 
 	if service.diagramAdapter != nil {
 		for _, expr := range result.MermaidExpressions {
 			key := "mermaid:" + expr.Hash
 			if val, ok := service.diagramAdapter.Get(key); ok {
-				if pair, ok := val.(models.SSRThemePair); ok {
-					cached[expr.Hash] = pair
+				if svg, ok := val.(string); ok {
+					cached[expr.Hash] = svg
 				}
 			}
 		}
@@ -225,9 +225,9 @@ func (service *contentService) renderMermaidSSR(ctx context.Context, html string
 
 	if service.diagramAdapter != nil && len(rendered) > 0 {
 		newMermaid := make(map[string]any)
-		for hash, pair := range rendered {
+		for hash, svg := range rendered {
 			if _, ok := cached[hash]; !ok {
-				newMermaid["mermaid:"+hash] = pair
+				newMermaid["mermaid:"+hash] = svg
 			}
 		}
 		if len(newMermaid) > 0 {
@@ -369,7 +369,7 @@ func (service *contentService) handleRawMarkdown(destPath string, source []byte)
 	}
 }
 
-func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]models.SSRThemePair) error {
+func (service *contentService) renderFinalPage(destPath, htmlContent, relPrefix, htmlRelPath, section string, parseRes *ParsedMarkdownResult, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]string) error {
 	item := parseRes.Item
 	nav := service.resolveNavigation(item)
 

@@ -157,7 +157,7 @@ type PageData struct {
 	// SSR Replacement Maps (for late-pass rendering in TOC/Fragments)
 	SSRMath    map[string]string       `json:"-"`
 	SSRD2      map[string]SSRThemePair `json:"-"`
-	SSRMermaid map[string]SSRThemePair `json:"-"`
+	SSRMermaid map[string]string       `json:"-"`
 
 	// Showcase pre-rendered HTML for the docs landing page (avoids html/template comment stripping)
 	ShowcaseMath    template.HTML

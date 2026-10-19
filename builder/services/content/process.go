@@ -399,7 +399,7 @@ func (service *contentService) getPageLayout(renderTaskInstance renderTask) stri
 	return layoutVal
 }
 
-func (service *contentService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]models.SSRThemePair) {
+func (service *contentService) runStreamingRenderPhase(ctx context.Context, numWorkers int, nav navInfo, tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]string) {
 	processed := atomic.Int32{}
 	totalFiles := len(tasks)
 
@@ -416,7 +416,7 @@ func (service *contentService) runStreamingRenderPhase(ctx context.Context, numW
 	}
 }
 
-func (service *contentService) renderSingleTask(renderTaskInstance renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]models.SSRThemePair, nav navInfo, processed *atomic.Int32, totalFiles int) error {
+func (service *contentService) renderSingleTask(renderTaskInstance renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]string, nav navInfo, processed *atomic.Int32, totalFiles int) error {
 	item := renderTaskInstance.parseResult.Item
 	htmlContent := renderTaskInstance.htmlContent
 	relPrefix := fspkg.GetRelativePrefix(renderTaskInstance.htmlRelativePath)

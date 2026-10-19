@@ -54,6 +54,62 @@ func TestScaleD2StrokeWidth(t *testing.T) {
 	}
 }
 
+func TestRenderer_RenderMermaid(t *testing.T) {
+	r := New(WithWorkers(1))
+	defer func() { _ = r.Close() }()
+
+	ctx := context.Background()
+	svg, err := r.RenderMermaid(ctx, "graph TD\n  A[Start] --> B[End]")
+	if err != nil {
+		t.Fatalf("RenderMermaid failed: %v", err)
+	}
+	if !strings.Contains(svg, "<svg") {
+		t.Error("RenderMermaid result does not contain <svg tag")
+	}
+	if !strings.Contains(svg, `class="pele`) {
+		t.Errorf("RenderMermaid result does not contain pele class: %.200s", svg)
+	}
+}
+
+func TestRenderer_RenderMermaid_Invalid(t *testing.T) {
+	r := New(WithWorkers(1))
+	defer func() { _ = r.Close() }()
+
+	if _, err := r.RenderMermaid(context.Background(), "this is not a diagram"); err == nil {
+		t.Error("expected error for invalid mermaid input")
+	}
+}
+
+func TestRenderer_RenderAllMermaid(t *testing.T) {
+	r := New(WithWorkers(1))
+	defer func() { _ = r.Close() }()
+
+	ctx := context.Background()
+	expressions := []models.MermaidExpression{
+		{Code: "graph TD\n  A --> B", Hash: "m1"},
+		{Code: "pie title Pets\n  \"Dogs\": 3\n  \"Cats\": 2", Hash: "m2"},
+	}
+
+	results, err := r.RenderAllMermaid(ctx, expressions, map[string]string{})
+	if err != nil {
+		t.Fatalf("RenderAllMermaid failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	if !strings.Contains(results["m2"], "<svg") {
+		t.Error("m2 was not rendered to svg")
+	}
+
+	cached, err := r.RenderAllMermaid(ctx, expressions, map[string]string{"m1": "cached-svg"})
+	if err != nil {
+		t.Fatalf("RenderAllMermaid with cache failed: %v", err)
+	}
+	if cached["m1"] != "cached-svg" {
+		t.Error("cache hit failed for RenderAllMermaid")
+	}
+}
+
 func TestRenderer_RenderMath(t *testing.T) {
 	r := New(WithWorkers(1))
 	defer func() { _ = r.Close() }()

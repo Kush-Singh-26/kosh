@@ -261,9 +261,7 @@
                 // Handle Mermaid SVG Click
                 const mermaidContainer = e.target.closest('.mermaid-container');
                 if (mermaidContainer) {
-                    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-                    const selector = isLight ? '.mermaid-light svg' : '.mermaid-dark svg';
-                    const activeSvg = mermaidContainer.querySelector(selector);
+                    const activeSvg = mermaidContainer.querySelector('svg');
                     if (activeSvg) openLightbox('svg', activeSvg.outerHTML);
                     return;
                 }

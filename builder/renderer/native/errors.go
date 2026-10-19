@@ -7,4 +7,6 @@ var (
 	errRulerPoolUnavailable = errors.New("failed to get text ruler from pool")
 	errKaTeXNotInitialized  = errors.New("katex not initialized in worker")
 	errRenderBatchNotInit   = errors.New("renderbatch not initialized in worker")
+	errPeleNotInitialized   = errors.New("pele not initialized in worker")
+	errMermaidNoSVG         = errors.New("pele render returned no svg")
 )

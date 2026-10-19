@@ -34,7 +34,7 @@ func (r *Renderer) executeTemplateAndWrite(path string, tmpl Executor, data mode
 		data.SSRD2 = d2Copy
 	}
 	if data.SSRMermaid != nil {
-		mermaidCopy := make(map[string]models.SSRThemePair, len(data.SSRMermaid))
+		mermaidCopy := make(map[string]string, len(data.SSRMermaid))
 		for k, v := range data.SSRMermaid {
 			mermaidCopy[k] = v
 		}
@@ -106,13 +106,13 @@ func (r *Renderer) hydrateMermaidDiagrams(finalBytes []byte, data *models.PageDa
 		hashes := parser.ExtractMermaidHashes(htmlStr)
 		if len(hashes) > 0 {
 			if data.SSRMermaid == nil {
-				data.SSRMermaid = make(map[string]models.SSRThemePair)
+				data.SSRMermaid = make(map[string]string)
 			}
 			for _, hash := range hashes {
 				if _, ok := data.SSRMermaid[hash]; !ok {
 					if val, ok := r.Diagrams.Get("mermaid:" + hash); ok {
-						if pair, ok := val.(models.SSRThemePair); ok {
-							data.SSRMermaid[hash] = pair
+						if svg, ok := val.(string); ok {
+							data.SSRMermaid[hash] = svg
 						}
 					}
 				}

@@ -105,7 +105,7 @@ func (service *contentService) processCachedD2(html string, expressions []models
 	return html, true
 }
 
-func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []renderTask) (map[string]string, map[string]models.SSRThemePair, map[string]models.SSRThemePair) {
+func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []renderTask) (map[string]string, map[string]models.SSRThemePair, map[string]string) {
 	if len(tasks) == 0 {
 		return nil, nil, nil
 	}
@@ -122,7 +122,7 @@ func (service *contentService) renderSSRGlobal(ctx context.Context, tasks []rend
 	var (
 		renderedMath    map[string]string
 		renderedD2      map[string]models.SSRThemePair
-		renderedMermaid map[string]models.SSRThemePair
+		renderedMermaid map[string]string
 		mathErr         error
 		d2Err           error
 		mermaidErr      error
@@ -300,7 +300,7 @@ func (service *contentService) renderD2WithCache(ctx context.Context, allD2 map[
 }
 
 // renderMermaidWithCache renders Mermaid expressions with caching.
-func (service *contentService) renderMermaidWithCache(ctx context.Context, allMermaid map[string]models.MermaidExpression) (map[string]models.SSRThemePair, error) {
+func (service *contentService) renderMermaidWithCache(ctx context.Context, allMermaid map[string]models.MermaidExpression) (map[string]string, error) {
 	if len(allMermaid) == 0 {
 		return nil, nil
 	}
@@ -310,13 +310,13 @@ func (service *contentService) renderMermaidWithCache(ctx context.Context, allMe
 		mermaidList = append(mermaidList, expr)
 	}
 
-	cachedMermaid := make(map[string]models.SSRThemePair)
+	cachedMermaid := make(map[string]string)
 	if service.diagramAdapter != nil {
 		for _, expr := range mermaidList {
 			key := "mermaid:" + expr.Hash
 			if val, ok := service.diagramAdapter.GetLocal(key); ok {
-				if pair, ok := val.(models.SSRThemePair); ok {
-					cachedMermaid[expr.Hash] = pair
+				if svg, ok := val.(string); ok {
+					cachedMermaid[expr.Hash] = svg
 				}
 			}
 		}
@@ -329,9 +329,9 @@ func (service *contentService) renderMermaidWithCache(ctx context.Context, allMe
 
 	if service.diagramAdapter != nil && len(renderedMermaid) > 0 {
 		newMermaid := make(map[string]any)
-		for hash, pair := range renderedMermaid {
+		for hash, svg := range renderedMermaid {
 			if _, ok := cachedMermaid[hash]; !ok {
-				newMermaid["mermaid:"+hash] = pair
+				newMermaid["mermaid:"+hash] = svg
 			}
 		}
 		if len(newMermaid) > 0 {
@@ -343,7 +343,7 @@ func (service *contentService) renderMermaidWithCache(ctx context.Context, allMe
 }
 
 // replaceExpressionsInTasks replaces Math, D2, and Mermaid placeholders in task HTML content.
-func (service *contentService) replaceExpressionsInTasks(tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]models.SSRThemePair) {
+func (service *contentService) replaceExpressionsInTasks(tasks []renderTask, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair, renderedMermaid map[string]string) {
 	numWorkers := runtime.NumCPU()
 	if numWorkers > len(tasks) {
 		numWorkers = len(tasks)

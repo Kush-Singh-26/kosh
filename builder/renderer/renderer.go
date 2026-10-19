@@ -255,13 +255,13 @@ func (r *Renderer) hydrateAndReplaceSSR(fragmentHTML string, data *models.PageDa
 		hashes := parser.ExtractMermaidHashes(fragmentHTML)
 		if len(hashes) > 0 {
 			if data.SSRMermaid == nil {
-				data.SSRMermaid = make(map[string]models.SSRThemePair)
+				data.SSRMermaid = make(map[string]string)
 			}
 			for _, hash := range hashes {
 				if _, ok := data.SSRMermaid[hash]; !ok {
 					if val, ok := r.Diagrams.Get("mermaid:" + hash); ok {
-						if pair, ok := val.(models.SSRThemePair); ok {
-							data.SSRMermaid[hash] = pair
+						if svg, ok := val.(string); ok {
+							data.SSRMermaid[hash] = svg
 						}
 					}
 				}
