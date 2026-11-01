@@ -2,8 +2,10 @@ package renderer
 
 import (
 	"html/template"
+	"strings"
 	"testing"
 
+	"github.com/Kush-Singh-26/kosh/builder/config"
 	"github.com/Kush-Singh-26/kosh/builder/models"
 	"github.com/Kush-Singh-26/kosh/builder/testutil"
 )
@@ -238,5 +240,29 @@ func TestRenderer_SetSink(t *testing.T) {
 
 	if r.Sink != newSink {
 		t.Error("SetSink should update the sink")
+	}
+}
+
+func TestRenderer_CSPExtraConnectSrc(t *testing.T) {
+	r := setupTestRenderer(t)
+
+	data := models.PageData{
+		Title:  "CSP Test",
+		Config: &config.Config{CSP: config.CSPConfig{ExtraConnectSrc: []string{"https://api.example.com"}}},
+	}
+
+	_ = r.RenderPage("test/csp.html", data)
+
+	sink, ok := r.Sink.(*testutil.MemSink)
+	if !ok {
+		t.Fatal("expected MemSink")
+	}
+
+	html := string(sink.Files["test/csp.html"])
+	if !strings.Contains(html, "https://api.example.com") {
+		t.Fatalf("expected CSP to include extra origin, got %s", html)
+	}
+	if strings.Contains(html, "github-contributions-api") {
+		t.Fatalf("base CSP should not hardcode project-specific origins, got %s", html)
 	}
 }

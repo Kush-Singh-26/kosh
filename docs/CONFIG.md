@@ -74,6 +74,20 @@ features:
 | `generators.search.ranking` | Optional BM25 and field boost weights. | Internal defaults |
 | `generators.search.endpoints` | List of URLs to fetch remote search indices from. | `["/search.bin"]` |
 
+## Content Security Policy
+
+Kosh emits a restrictive CSP by default. Projects that fetch from additional APIs at runtime can add origins to `connect-src` without replacing Kosh's defaults.
+
+```yaml
+csp:
+  extraConnectSrc:
+    - "https://api.example.com"
+```
+
+| Field | Description | Default |
+| :--- | :--- | :--- |
+| `csp.extraConnectSrc` | Extra origins appended to the CSP `connect-src` directive. | `[]` |
+
 ## Taxonomies
 
 Define custom taxonomies for your content.

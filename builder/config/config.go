@@ -92,6 +92,11 @@ type ServerConfig struct {
 	RootDirectory string `yaml:"rootDirectory"` // Optional directory to serve alongside the site content
 }
 
+// CSPConfig defines additional Content-Security-Policy origins.
+type CSPConfig struct {
+	ExtraConnectSrc []string `yaml:"extraConnectSrc"`
+}
+
 // PathConfig defines filesystem paths used during builds.
 type PathConfig struct {
 	Theme       string `yaml:"theme"`
@@ -117,6 +122,7 @@ type Config struct {
 	Features      models.FeaturesConfig    `yaml:"features"` // Enable/Disable features
 	ThemeMetadata ThemeConfig              `yaml:"-"`        // Loaded from theme.yaml
 	SocialCards   models.SocialCardsConfig `yaml:"socialCards"`
+	CSP           CSPConfig                `yaml:"csp"`     // Additional CSP origins for project-specific APIs
 	D2            models.D2Config          `yaml:"d2"`      // D2 diagram rendering options
 	Mermaid       models.MermaidConfig     `yaml:"mermaid"` // Mermaid diagram rendering options
 
@@ -530,6 +536,9 @@ func (c *Config) IsDevMode() bool { return c.IsDev }
 // GetNavbar returns the navbar branding configuration.
 func (c *Config) GetNavbar() models.NavbarIdentityConfig { return c.Navbar }
 func (c *Config) GetDocRepoURL() string                  { return c.DocRepoURL }
+
+// GetCSPExtraConnectSrc returns additional origins allowed for network requests.
+func (c *Config) GetCSPExtraConnectSrc() []string { return c.CSP.ExtraConnectSrc }
 
 // GetHomeBadge returns the home page badge label.
 func (c *Config) GetHomeBadge() string {

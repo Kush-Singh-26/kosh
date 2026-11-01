@@ -143,6 +143,16 @@ features:
       isEnabled: true
 
 ###############################################################################
+# Content Security Policy
+###############################################################################
+
+# Extra origins appended to the default connect-src allowlist.
+# Use this for project-specific runtime APIs (for example, a contribution API).
+csp:
+  extraConnectSrc:
+    - "https://api.example.com"
+
+###############################################################################
 # Social Cards (Open Graph Images)
 ###############################################################################
 

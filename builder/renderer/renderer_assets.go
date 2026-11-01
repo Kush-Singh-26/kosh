@@ -68,6 +68,9 @@ func (m MockConfig) GetNavbar() models.NavbarIdentityConfig { return models.Navb
 func (m MockConfig) GetHomeBadge() string  { return "Latest Items" }
 func (m MockConfig) GetDocRepoURL() string { return "" }
 
+// GetCSPExtraConnectSrc returns no extra origins for testing.
+func (m MockConfig) GetCSPExtraConnectSrc() []string { return nil }
+
 // SetAssets snapshots the asset map for template rendering.
 func (r *Renderer) SetAssets(assets map[string]string) {
 	// Create snapshot

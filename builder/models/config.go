@@ -85,4 +85,5 @@ type TemplateConfig interface {
 	GetNavbar() NavbarIdentityConfig
 	GetHomeBadge() string
 	GetDocRepoURL() string
+	GetCSPExtraConnectSrc() []string
 }
