@@ -571,20 +571,6 @@ func (e *Engine) handleWatchChange(evt watch.ChangeEvent) {
 		}
 	}()
 
-	// Check if kosh.yaml changed - requires full config reload and rebuild
-	if evt.Path == "kosh.yaml" || evt.Path == "config.yaml" {
-		DevLogInfo("Config file changed, reloading configuration...")
-		if err := e.ReloadConfig(e.Ctx.Ctx); err != nil {
-			DevLogError("Failed to reload config: " + err.Error())
-			return
-		}
-		// Trigger full rebuild with the new config
-		if e.Incremental != nil {
-			e.Incremental.BuildSingleFileChange(e.Ctx.Ctx, evt.Path, evt.Op)
-		}
-		return
-	}
-
 	if e.Incremental != nil {
 		e.Incremental.BuildSingleFileChange(e.Ctx.Ctx, evt.Path, evt.Op)
 	}

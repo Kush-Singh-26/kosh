@@ -3,7 +3,6 @@
 package core
 
 import (
-	"html"
 	"strings"
 	"time"
 	"unicode"
@@ -31,9 +30,21 @@ func ToTitle(text string) string {
 	return string(unicode.ToUpper(runes[0])) + strings.ToLower(string(runes[1:]))
 }
 
+// htmlEscaper mirrors html.EscapeString without linking the html package.
+var htmlEscaper = strings.NewReplacer(
+	"&", "&amp;",
+	"'", "&#39;",
+	"<", "&lt;",
+	">", "&gt;",
+	`"`, "&#34;",
+)
+
 // HTMLEscape escapes HTML entities in a string.
 func HTMLEscape(text string) string {
-	return html.EscapeString(text)
+	if !strings.ContainsAny(text, "&'<>\"") {
+		return text
+	}
+	return htmlEscaper.Replace(text)
 }
 
 // NowUnix returns the current Unix timestamp.

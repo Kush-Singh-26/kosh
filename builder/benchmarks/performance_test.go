@@ -42,8 +42,7 @@ func BenchmarkMarkdownParsing(b *testing.B) {
 	content := strings.Repeat(word, 10000)
 	markdown := []byte("# Large Post\n\n" + content)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf := pools.SharedBufferPool.Get()
 		if err := parser.Convert(markdown, buf); err != nil {
 			pools.SharedBufferPool.Put(buf)
@@ -96,8 +95,7 @@ This is post number %d.
 	sink := testutil.NewMemSink()
 	tx := testutil.NewMockTransaction("public")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		// We need fresh services for each run or at least reset them
 		rnd := renderer.NewWithFs(renderer.Options{
 			SourceFs:    fs,

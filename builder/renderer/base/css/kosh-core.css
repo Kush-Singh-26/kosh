@@ -1846,6 +1846,13 @@ pre:hover .copy-btn, .copy-btn:hover { opacity: 1; }
     position: relative;
 }
 
+/* Inline-block keeps an expression unbreakable across lines, like KaTeX's
+   own inline-block wrapper did, and gives the copy button the math box height. */
+.katex-inline {
+    display: inline-block;
+    line-height: 1.2;
+}
+
 .katex-display {
     display: block;
     width: 100%;
@@ -1906,6 +1913,88 @@ pre:hover .copy-btn, .copy-btn:hover { opacity: 1; }
 
 .katex-inline:hover .katex-copy-btn {
     transform: translateY(-60%);
+}
+
+/* MathML SSR output. KaTeX's 1.21em wrapper sizes math like KaTeX fonts;
+   the wrapper styles (font-size/line-height/.katex-display layout/nowrap)
+   live here — katex.min.css was dropped when KaTeX HTML output was removed. */
+span.katex { font-family: inherit; font-size: 1.21em; line-height: 1.2; }
+/* Overflowing display math stays scrollable (trackpad/shift+wheel) without
+   a visible bar eating equation height. */
+.katex-display { display: block; margin: 1em 0; overflow-x: auto; scrollbar-width: none; }
+.katex-display::-webkit-scrollbar { display: none; }
+.katex-display > .katex { display: block; text-align: center; white-space: nowrap; }
+
+@font-face {
+    font-family: "KoshMath";
+    src: url("fonts/NewCMMath-Subset.woff2") format("woff2");
+    font-display: swap;
+}
+
+math, math mi, math mn, math mo, math mfrac, math msqrt,
+math mroot, math msub, math msup, math msubsup, math munder, math mover,
+math munderover, math mtable {
+    font-family: "KoshMath", "Cambria Math", "STIX Two Math", math;
+}
+
+math mtext {
+    font-family: serif;
+}
+
+/* Chrome ignores mathvariant and menclose notation="box"; these two rules cover
+   what \mathrm, \boxed and \fbox rely on. Variant alphabets are rewritten to
+   literal code points in builder/parser/math.go. */
+math mi[mathvariant="normal"], math mo[mathvariant="normal"], math mn[mathvariant="normal"] {
+    font-style: normal;
+}
+
+/* Chrome ignores MathML menclose notation="box"; use CSS border instead.
+   Use namespace-agnostic selector (*|menclose) since MathML elements are in
+   the MathML namespace and plain type selectors don't match them. */
+*|menclose[notation~="box"] {
+    border: 1px solid currentColor;
+    padding: 0.3em 0.2em;
+}
+
+math[display="block"] {
+    display: flex;
+    justify-content: center;
+    margin: 0;
+}
+
+/* Chrome ignores MathML rowspacing/columnspacing, so emulate KaTeX's spacing
+   with CSS. It also centers every cell regardless of columnalign, but honors
+   the legacy -webkit-* values (plain `right`/`end` behave like left); other
+   engines ignore these rules and apply columnalign natively. */
+math mtable[columnalign^="center"] > mtr > mtd {
+    text-align: -webkit-center;
+}
+
+math mtable[columnalign^="right"] > mtr > mtd:nth-child(odd) {
+    text-align: -webkit-right;
+}
+
+math mtable[columnalign^="right"] > mtr > mtd:nth-child(even) {
+    text-align: -webkit-left;
+}
+
+math mtable[rowspacing="0.5em"] > mtr > mtd {
+    padding-top: 0.2em;
+    padding-bottom: 0.2em;
+}
+
+math mtable[rowspacing="0.16em"] > mtr > mtd {
+    padding-top: 0.18em;
+    padding-bottom: 0.18em;
+}
+
+math mtable[rowspacing="0.36em"] > mtr > mtd {
+    padding-top: 0.15em;
+    padding-bottom: 0.15em;
+}
+
+math mtable[columnspacing="1em"] > mtr > mtd ~ mtd {
+    padding-left: 1em;
 }
 /* ============================================
    ZEN UTILITIES - REFINED CONTENT STYLES

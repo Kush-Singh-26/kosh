@@ -4,6 +4,7 @@ package asset
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -29,9 +30,9 @@ func (service *assetService) Build(ctx context.Context) error {
 	return service.BuildWithOptions(ctx, false)
 }
 
-// BuildWithOptions executes the asset processing pipeline with optional image processing.
-// When skipImages is true, image processing is skipped but esbuild still runs to produce
-// hashed assets for CSS/JS.
+// BuildWithOptions executes the asset processing pipeline.
+// When skipImages is true, existing dev images and cached images are reused;
+// cache misses still need conversion to populate fresh staging output.
 func (service *assetService) BuildWithOptions(ctx context.Context, skipImages bool) error {
 	errorGroup, groupCtx := errgroup.WithContext(ctx)
 
@@ -50,31 +51,14 @@ func (service *assetService) BuildWithOptions(ctx context.Context, skipImages bo
 			service.saveManifest()
 		}()
 
-		var imageChannel chan imageCopyTask
-		var imgGroup *errgroup.Group
-
-		if !skipImages {
-			imageChannel, imgGroup = service.startImageWorkers(groupCtx, service.cfg.ImageWorkers)
-		}
-
-		err := service.syncStaticAssets(ctx, groupCtx, skipImages, imageChannel)
-		if imageChannel != nil {
-			close(imageChannel)
-		}
-		if err != nil {
-			return err
-		}
+		imageChannel, imgGroup := service.startImageWorkers(groupCtx, service.cfg.ImageWorkers)
+		syncErr := service.syncStaticAssets(ctx, groupCtx, skipImages, imageChannel)
+		close(imageChannel)
 
 		// Close discoveryReady so post-processing can start while images are still processing.
 		service.finalizeDiscoveryReady()
 
-		if imgGroup != nil {
-			if err := imgGroup.Wait(); err != nil {
-				return err
-			}
-		}
-
-		return nil
+		return errors.Join(syncErr, imgGroup.Wait())
 	})
 
 	errorGroup.Go(func() error {

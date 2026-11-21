@@ -131,9 +131,13 @@ func (txn *DirectoryTx) Commit(ctx context.Context) error {
 		return err
 	}
 
-	// 3. Commit complete. Remove backup directory as it's no longer needed for rollback.
+	// 3. Commit complete. Remove backup directory asynchronously as it's
+	// no longer needed for rollback; output is already safely published.
 	if txn.backupDir != "" {
-		_ = retry.RemoveAllWithRetry(ctx, txn.backupDir, cleanupRetryMax, cleanupRetryDelay)
+		backupDir := txn.backupDir
+		go func() {
+			_ = retry.RemoveAllWithRetry(context.Background(), backupDir, cleanupRetryMax, cleanupRetryDelay)
+		}()
 	}
 	txn.isCommitted = true
 	return nil

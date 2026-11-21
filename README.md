@@ -6,7 +6,7 @@ Kosh is a high-performance static site generator written in Go. It focuses on fa
 
 ## Current State
 
-- Version: `v2.0.0`
+- Version: `v3`
 - Status: production-ready
 - Best benchmarked image settings on the reference Windows machine:
   - `imageWorkers: 8`
@@ -21,8 +21,8 @@ Kosh is a high-performance static site generator written in Go. It focuses on fa
 - CSS/JS bundling and fingerprinting via esbuild
 - Image optimization to WebP for eligible local `.png`, `.jpg`, `.jpeg`
 - Exact-copy exceptions for assets like logo where required
-- Server-side LaTeX and D2 rendering
-- Go+WASM search with schema validation and snippet extraction
+- Server-side LaTeX-to-MathML rendering with an embedded subset math font, plus D2 and Mermaid diagrams
+- Lean Go+WASM search with schema validation, snippet extraction, and optimized term filtering
 - RSS, sitemap, graph, PWA, social cards
 
 ## Install

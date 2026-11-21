@@ -283,32 +283,6 @@ func TestParseQuery(t *testing.T) {
 	}
 }
 
-func TestTrigramGeneration(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected []string
-	}{
-		{"abc", []string{"abc"}},
-		{"abcd", []string{"abc", "bcd"}},
-		{"transformer", []string{"tra", "ran", "ans", "nsf", "sfo", "for", "orm", "rme", "mer"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := core.GenerateTrigrams(tt.input)
-			if len(result) != len(tt.expected) {
-				t.Errorf("generateTrigrams(%q) returned %d trigrams, want %d", tt.input, len(result), len(tt.expected))
-				return
-			}
-			for i, exp := range tt.expected {
-				if result[i] != exp {
-					t.Errorf("generateTrigrams(%q)[%d] = %q, want %q", tt.input, i, result[i], exp)
-				}
-			}
-		})
-	}
-}
-
 func TestAnalyzerWithPositions(t *testing.T) {
 	input := "the quick brown fox"
 	_, _, positions, offsets := core.DefaultAnalyzer.AnalyzeWithPositions(input)

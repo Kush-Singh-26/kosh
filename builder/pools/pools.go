@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/limits"
 )
 
 const (
@@ -46,7 +46,7 @@ func (pool *BufferPool) Get() *bytes.Buffer {
 
 // Put returns a buffer to the pool.
 func (pool *BufferPool) Put(buf *bytes.Buffer) {
-	if buf.Cap() > models.MaxBufferSize {
+	if buf.Cap() > limits.MaxBufferSize {
 		return
 	}
 	buf.Reset()
@@ -76,7 +76,7 @@ func (pool *StringBuilderPool) Get() *strings.Builder {
 
 // Put returns a strings.Builder to the pool.
 func (pool *StringBuilderPool) Put(builder *strings.Builder) {
-	if builder.Cap() > models.MaxBufferSize {
+	if builder.Cap() > limits.MaxBufferSize {
 		return
 	}
 	builder.Reset()
@@ -93,7 +93,7 @@ func NewBufioWriterPool() *BufioWriterPool {
 	return &BufioWriterPool{
 		pool: sync.Pool{
 			New: func() any {
-				return bufio.NewWriterSize(nil, models.MaxBufferSize)
+				return bufio.NewWriterSize(nil, limits.MaxBufferSize)
 			},
 		},
 	}
@@ -106,7 +106,7 @@ func (pool *BufioWriterPool) Get(w io.Writer) *bufio.Writer {
 		writer.Reset(w)
 		return writer
 	}
-	return bufio.NewWriterSize(w, models.MaxBufferSize)
+	return bufio.NewWriterSize(w, limits.MaxBufferSize)
 }
 
 // Put returns a bufio.Writer to the pool.
@@ -125,7 +125,7 @@ func NewBufioReaderPool() *BufioReaderPool {
 	return &BufioReaderPool{
 		pool: sync.Pool{
 			New: func() any {
-				return bufio.NewReaderSize(nil, models.MaxBufferSize)
+				return bufio.NewReaderSize(nil, limits.MaxBufferSize)
 			},
 		},
 	}
@@ -138,7 +138,7 @@ func (pool *BufioReaderPool) Get(r io.Reader) *bufio.Reader {
 		reader.Reset(r)
 		return reader
 	}
-	return bufio.NewReaderSize(r, models.MaxBufferSize)
+	return bufio.NewReaderSize(r, limits.MaxBufferSize)
 }
 
 // Put returns a bufio.Reader to the pool.
@@ -324,40 +324,8 @@ func (pool *MapStringStringPool) Put(m map[string]string) {
 	pool.pool.Put(m)
 }
 
-// MapStringSSRThemePairPool manages a pool of map[string]models.SSRThemePair objects.
-type MapStringSSRThemePairPool struct {
-	pool sync.Pool // stores map[string]models.SSRThemePair
-}
-
-// NewMapStringSSRThemePairPool returns a new MapStringSSRThemePairPool.
-func NewMapStringSSRThemePairPool() *MapStringSSRThemePairPool {
-	return &MapStringSSRThemePairPool{
-		pool: sync.Pool{
-			New: func() any {
-				return make(map[string]models.SSRThemePair)
-			},
-		},
-	}
-}
-
-// Get returns a map from the pool.
-func (pool *MapStringSSRThemePairPool) Get() map[string]models.SSRThemePair {
-	return pool.pool.Get().(map[string]models.SSRThemePair)
-}
-
-// Put returns a map to the pool.
-func (pool *MapStringSSRThemePairPool) Put(m map[string]models.SSRThemePair) {
-	if m == nil {
-		return
-	}
-	clear(m)
-	pool.pool.Put(m)
-}
-
 // Global shared map pool instances.
 var (
 	// SharedMapStringStringPool is the shared map[string]string pool instance.
 	SharedMapStringStringPool = NewMapStringStringPool()
-	// SharedMapStringSSRThemePairPool is the shared map[string]models.SSRThemePair pool instance.
-	SharedMapStringSSRThemePairPool = NewMapStringSSRThemePairPool()
 )

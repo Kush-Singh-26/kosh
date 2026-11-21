@@ -14,7 +14,7 @@ func TestInjectShowcaseExamples(t *testing.T) {
 
 	injectShowcaseExamples(allMath, allD2)
 
-	expectedMathHash := native.HashContent("math-block", showcaseLaTeX)
+	expectedMathHash := native.HashContent("mathml-block", showcaseLaTeX)
 	expectedD2Hash := native.HashContent("d2", showcaseD2Code)
 
 	if _, ok := allMath[expectedMathHash]; !ok {
@@ -34,8 +34,8 @@ func TestInjectShowcaseExamples(t *testing.T) {
 		t.Error("showcase D2 code mismatch")
 	}
 
-	if expectedMathHash != "0a85ea93f69eeb76" {
-		t.Errorf("math hash mismatch: got %s, want 0a85ea93f69eeb76", expectedMathHash)
+	if expectedMathHash != "6ba6537b83f09738" {
+		t.Errorf("math hash mismatch: got %s, want 6ba6537b83f09738", expectedMathHash)
 	}
 	if expectedD2Hash != "6830177882580129" {
 		t.Errorf("D2 hash mismatch: got %s, want 6830177882580129", expectedD2Hash)

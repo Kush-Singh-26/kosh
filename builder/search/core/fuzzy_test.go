@@ -47,28 +47,12 @@ func TestFuzzyExpand(t *testing.T) {
 	}
 }
 
-func TestBuildNgramIndex(t *testing.T) {
-	lexicon := []string{"best", "test", "testing"}
-	result := BuildNgramIndex(lexicon)
-	if _, ok := result["tes"]; !ok {
-		t.Error("Expected 'tes' trigram")
-	}
-}
-
 func TestFuzzyMatch(t *testing.T) {
 	if !FuzzyMatch("test", "text", 1) {
 		t.Error("Expected fuzzy match")
 	}
 	if FuzzyMatch("test", "testing", 1) {
 		t.Error("Expected no match due to length difference")
-	}
-}
-
-func TestGenerateTrigrams(t *testing.T) {
-	res := GenerateTrigrams("hello")
-	expected := []string{"hel", "ell", "llo"}
-	if len(res) != len(expected) {
-		t.Errorf("Got %v, want %v", res, expected)
 	}
 }
 

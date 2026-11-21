@@ -41,7 +41,7 @@ func main() {
 		cmd = exec.CommandContext(context.Background(), tinygoPath, "build", "-o", wasmDest, "-target=wasm", cmdSearch)
 	} else {
 		log.Printf("TinyGo not found, falling back to standard Go...")
-		cmd = exec.CommandContext(context.Background(), "go", "build", "-ldflags=-s -w", "-o", wasmDest, cmdSearch)
+		cmd = exec.CommandContext(context.Background(), "go", "build", "-trimpath", "-ldflags=-s -w", "-o", wasmDest, cmdSearch)
 		cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm", "CGO_ENABLED=0")
 	}
 
@@ -100,7 +100,16 @@ const SearchSourceHash = "%s"
 	log.Printf("Successfully updated Search WASM assets.")
 	log.Printf("Binary Hash: %s", binaryHash)
 	log.Printf("Source Hash: %s", sourceHash)
+	log.Printf("Size: %s raw, %s brotli (q11)", humanize(data), humanize(buf.Bytes()))
 	log.Printf("IMPORTANT: Re-install Kosh to apply changes: go install ./cmd/kosh")
+}
+
+func humanize(b []byte) string {
+	kb := float64(len(b)) / 1024
+	if kb < 1024 {
+		return fmt.Sprintf("%.1fKB", kb)
+	}
+	return fmt.Sprintf("%.2fMB", kb/1024)
 }
 
 func hashBytes(data []byte) string {

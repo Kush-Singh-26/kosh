@@ -50,14 +50,14 @@ func TestIncrementalBuild_ModTimeQuickBail(t *testing.T) {
 	shouldForce := false
 	exists := true
 
-	fastBail := !shouldForce && exists && cachedMeta != nil && cachedMeta.BodyHash != "" && stat != nil && cachedMeta.ModTime == modTime
+	fastBail := !shouldForce && exists && cachedMeta.BodyHash != "" && stat != nil && cachedMeta.ModTime == modTime
 
 	if !fastBail {
 		t.Error("unchanged file should trigger fast bail")
 	}
 
 	cachedMeta.ModTime = modTime - 100
-	fastBail = !shouldForce && exists && cachedMeta != nil && cachedMeta.BodyHash != "" && stat != nil && cachedMeta.ModTime == modTime
+	fastBail = !shouldForce && exists && cachedMeta.BodyHash != "" && stat != nil && cachedMeta.ModTime == modTime
 
 	if fastBail {
 		t.Error("changed file should not trigger fast bail")

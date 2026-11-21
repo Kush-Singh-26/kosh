@@ -538,6 +538,11 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 		mu                                                       sync.Mutex
 	)
 
+	// Snapshot before parsing so edits made during loading remain detectable.
+	dependencies, err := tc.templateDependencies(r.SourceFs)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
 	baseTmpl, err := template.New("base.html").Funcs(funcMap).Parse(base.BaseTemplate)
 	if err != nil {
 		return nil, nil, nil, nil, nil, fmt.Errorf("failed to parse embedded base template: %w", err)
@@ -559,6 +564,13 @@ func (r *Renderer) loadTemplates(tc *templateCache, funcMap template.FuncMap) (*
 	if err := eg.Wait(); err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
+	tc.mu.Lock()
+	tc.templates = map[string]*template.Template{
+		"layout": layoutTmpl, "index": indexTmpl, "home": homeTmpl,
+		"graph": graphTmpl, "404": notFoundTmpl,
+	}
+	tc.mtimes = dependencies
+	tc.mu.Unlock()
 	return layoutTmpl, indexTmpl, homeTmpl, graphTmpl, notFoundTmpl, nil
 }
 
@@ -577,7 +589,7 @@ func (r *Renderer) submitSlotTemplateTasks(eg *errgroup.Group, tc *templateCache
 	for _, task := range tasks {
 		t := task
 		eg.Go(func() error {
-			tmpl, err := r.loadSlotTmpl(tc, baseTmpl, mu, t.name, t.fileName)
+			tmpl, err := r.loadSlotTmpl(tc, baseTmpl, t.name, t.fileName)
 			if err != nil {
 				return r.handleTemplateLoadError(t.name, err)
 			}
@@ -614,11 +626,11 @@ func (r *Renderer) loadGraphTemplate(tc *templateCache, baseTmpl *template.Templ
 	if _, err := r.loadPartials(t); err != nil {
 		return nil, err
 	}
-	tc.setTemplate("graph", t, time.Now(), []byte(base.BaseTemplate))
+	tc.setTemplate("graph", t, []byte(base.BaseTemplate))
 	return t, nil
 }
 
-func (r *Renderer) loadSlotTmpl(tc *templateCache, baseTmpl *template.Template, mu *sync.Mutex, name, fileName string) (*template.Template, error) {
+func (r *Renderer) loadSlotTmpl(tc *templateCache, baseTmpl *template.Template, name, fileName string) (*template.Template, error) {
 	funcMap := templateFuncMap(r.renderData)
 
 	// 1. Check Site Layouts
@@ -655,12 +667,7 @@ func (r *Renderer) loadSlotTmpl(tc *templateCache, baseTmpl *template.Template, 
 		return nil, err
 	}
 
-	info, _ := r.SourceFs.Stat(path)
-	mu.Lock()
-	if info != nil {
-		tc.setTemplate(name, t, info.ModTime(), content)
-	}
-	mu.Unlock()
+	tc.setTemplate(name, t, content)
 	return t, nil
 }
 

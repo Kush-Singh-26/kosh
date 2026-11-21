@@ -55,28 +55,21 @@
     {{ end }}
 
     {{ $v := .BuildVersion }}
-    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/kosh-core.css" }}?v={{ $v }}">
-    {{ if .HasMath }}
-    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/katex.min.css" }}?v={{ $v }}">
-    {{ end }}
+    <link rel="stylesheet" href="{{ index .Assets "/static/css/kosh-core.css" }}">
     {{ if .IsGraphPage }}
-    <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/graph.css" }}?v={{ $v }}">
+    <link rel="stylesheet" href="{{ index .Assets "/static/css/graph.css" }}">
     {{ end }}
 
-    {{ if .Assets }}
+    {{ if index .Assets "/static/css/layout.css" }}
     <link rel="stylesheet" href="{{ index .Assets "/static/css/layout.css" }}">
     {{ else }}
     <link rel="stylesheet" href="{{ relativize .BaseURL .RelativePrefix "/static/css/layout.css" }}?v={{ $v }}">
     {{ end }}
 
-    <link rel="modulepreload" href="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-main.js" }}?v={{ $v }}">
-    <link rel="modulepreload" href="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-search.js" }}?v={{ $v }}">
+    <link rel="modulepreload" href="{{ index .Assets "/static/js/kosh-main.js" }}">
+    <link rel="modulepreload" href="{{ index .Assets "/static/js/kosh-search.js" }}">
     {{ if .IsGraphPage }}
-    <link rel="modulepreload" href="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ $v }}">
-    {{ end }}
-
-    {{ if and .Config.GetFeatures.Generators.Search.IsEnabled (not .Config.IsDevMode) }}
-    <link rel="prefetch" href="{{ relativize .BaseURL .RelativePrefix "/static/wasm/search.wasm" }}" as="fetch" crossorigin fetchpriority="low">
+    <link rel="modulepreload" href="{{ index .Assets "/static/js/graph.js" }}">
     {{ end }}
 
     <script>
@@ -338,11 +331,10 @@
     </button>
     {{ end }}
 
-    {{ $v := .BuildVersion }}
-    <script type="module" src="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-main.js" }}?v={{ $v }}"></script>
-    <script type="module" src="{{ relativize .BaseURL .RelativePrefix "/static/js/kosh-search.js" }}?v={{ $v }}"></script>
+    <script type="module" src="{{ index .Assets "/static/js/kosh-main.js" }}"></script>
+    <script type="module" src="{{ index .Assets "/static/js/kosh-search.js" }}"></script>
     {{ if .IsGraphPage }}
-    <script type="module" src="{{ relativize .BaseURL .RelativePrefix "/static/js/graph.js" }}?v={{ $v }}"></script>
+    <script type="module" src="{{ index .Assets "/static/js/graph.js" }}"></script>
     {{ end }}
 
     <script>

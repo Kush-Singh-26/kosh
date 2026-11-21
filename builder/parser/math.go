@@ -18,7 +18,87 @@ import (
 var (
 	mathExpressionsKey = parser.NewContextKey()
 	mathLateReplaceRe  = regexp.MustCompile(`<!--KOSH_MATH:([a-f0-9]+)-->(?:<!--KOSH_MATH_REG:([a-f0-9]+):([^:]+):([^:]+):([^:]+)-->)?`)
+	// unarySignRe matches a sign that starts an operand. MathML spacing is
+	// form-based, so a sign after "=", ",", an opening fence or a row/fraction
+	// start would otherwise get binary spacing.
+	unarySignRe = regexp.MustCompile(`(<mrow>|<mtd>|<msqrt>|<mo[^>]*>(?:=|,|\(|\[|\{|\+|−|×|⋅|·|±)</mo>)<mo>([+−])</mo>`)
+	// accentRe swaps KaTeX's spacing accents for modifier/combining marks: Chrome
+	// floats the spacing glyphs far above the base, while these sit like KaTeX.
+	accentRe = strings.NewReplacer(
+		"<mo>^</mo>", `<mo>&#x2C6;</mo>`,
+		"<mo>~</mo>", `<mo>&#x2DC;</mo>`,
+		"<mo>ˉ</mo>", `<mo>&#x304;</mo>`,
+	)
+	// mathVariantRe matches runs Chrome renders in the wrong style: it ignores
+	// mathvariant, so bold/double-struck/script text would fall back to italic.
+	mathVariantRe = regexp.MustCompile(`<m([int]) mathvariant="(bold|bold-italic|double-struck|script)">([^<]+)</m[int]>`)
 )
+
+// mathAlphabet locates a math-alphanumeric block; a variant may place some
+// letters outside it (Script L, double-struck R, ...), hence the holes.
+type mathAlphabet struct {
+	upper, lower, digit    rune
+	upperHoles, lowerHoles map[rune]rune
+}
+
+var mathAlphabets = map[string]mathAlphabet{
+	"bold":        {0x1D400, 0x1D41A, 0x1D7CE, nil, nil},
+	"bold-italic": {0x1D468, 0x1D482, 0, nil, nil},
+	"double-struck": {0x1D538, 0x1D552, 0x1D7D8, map[rune]rune{
+		'C': 0x2102, 'H': 0x210D, 'N': 0x2115, 'P': 0x2119, 'Q': 0x211A, 'R': 0x211D, 'Z': 0x2124,
+	}, nil},
+	"script": {0x1D49C, 0x1D4B6, 0, map[rune]rune{
+		'B': 0x212C, 'E': 0x2130, 'F': 0x2131, 'H': 0x210B, 'I': 0x2110, 'L': 0x2112,
+		'M': 0x2133, 'R': 0x211B,
+	}, map[rune]rune{'e': 0x212F, 'g': 0x210A, 'o': 0x2134}},
+}
+
+// mathVariantRune maps an ASCII alphanumeric to its math-alphanumeric form.
+func (a mathAlphabet) rune(r rune) (rune, bool) {
+	switch {
+	case r >= 'A' && r <= 'Z':
+		if h, ok := a.upperHoles[r]; ok {
+			return h, true
+		}
+		return a.upper + r - 'A', a.upper != 0
+	case r >= 'a' && r <= 'z':
+		if h, ok := a.lowerHoles[r]; ok {
+			return h, true
+		}
+		return a.lower + r - 'a', a.lower != 0
+	case r >= '0' && r <= '9' && a.digit != 0:
+		return a.digit + r - '0', true
+	}
+	return 0, false
+}
+
+// applyMathVariants rewrites styled MathML runs to the literal math-alphanumeric
+// characters, which Chrome does render with the embedded math font.
+func applyMathVariants(s string) string {
+	return mathVariantRe.ReplaceAllStringFunc(s, func(m string) string {
+		parts := mathVariantRe.FindStringSubmatch(m)
+		alphabet := mathAlphabets[parts[2]]
+		runes := []rune(parts[3])
+		for i, r := range runes {
+			converted, ok := alphabet.rune(r)
+			if !ok {
+				return m
+			}
+			runes[i] = converted
+		}
+		return "<m" + parts[1] + ">" + string(runes) + "</m" + parts[1] + ">"
+	})
+}
+
+// normalizeMathML restores cues KaTeX's HTML output gives that browsers drop from MathML.
+func normalizeMathML(s string) string {
+	s = strings.ReplaceAll(s, `rowspacing="0.25em"`, `rowspacing="0.5em"`)
+	// KaTeX emits a zero-height mpadded for \vdots rows; Chrome collapses it and overlaps neighbors.
+	s = strings.ReplaceAll(s, `<mpadded height="0em" voffset="0em">`, `<mpadded>`)
+	s = accentRe.Replace(s)
+	s = applyMathVariants(s)
+	return unarySignRe.ReplaceAllString(s, `${1}<mo lspace="0" rspace="0">${2}</mo>`)
+}
 
 // ReplaceMathExpressions replaces LaTeX placeholders in HTML with rendered output.
 func ReplaceMathExpressions(htmlContent string, expressions []models.MathExpression, rendered map[string]string) string {
@@ -29,6 +109,7 @@ func ReplaceMathExpressions(htmlContent string, expressions []models.MathExpress
 	replacements := make([]string, 0, len(expressions)*2)
 	for _, expr := range expressions {
 		if renderedHTML, ok := rendered[expr.Hash]; ok {
+			renderedHTML = normalizeMathML(renderedHTML)
 			placeholder := "<!--KOSH_MATH:" + expr.Hash + "-->"
 			escapedLatex := html.EscapeString(expr.LaTeX)
 			copyBtn := `<button class="katex-copy-btn" aria-label="Copy LaTeX">Copy</button>`
@@ -157,6 +238,7 @@ func LateReplaceMath(htmlContent string, rendered map[string]string) string {
 		if !ok {
 			return match
 		}
+		renderedHTML = normalizeMathML(renderedHTML)
 
 		// If we have registry info, we can build a full KaTeX container
 		if len(parts) >= 6 && parts[3] != "" {

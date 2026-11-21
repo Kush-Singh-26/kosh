@@ -3,6 +3,7 @@
 package renderer
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log/slog"
@@ -246,11 +247,10 @@ func (r *Renderer) RenderPage(path string, data models.PageData) error {
 }
 
 func rewriteImageRefs(html []byte, path string, isDev bool) []byte {
-	converted := assets.GetConvertedImages()
-	// Short-circuit if no images to rewrite AND no img tags to check for A11y
-	if len(converted) == 0 && !strings.Contains(strings.ToLower(string(html)), "<img") {
+	if !hasImgTag(html) {
 		return html
 	}
+	converted := assets.GetConvertedImages()
 
 	result := make([]byte, 0, len(html))
 	i := 0
@@ -287,6 +287,12 @@ func rewriteImageRefs(html []byte, path string, isDev bool) []byte {
 	}
 
 	return result
+}
+
+func hasImgTag(html []byte) bool {
+	return bytes.Contains(html, []byte("<img")) ||
+		bytes.Contains(html, []byte("<IMG")) ||
+		bytes.Contains(html, []byte("<Img"))
 }
 
 func hasAltAttribute(tag []byte) bool {
@@ -349,16 +355,15 @@ func findTagEnd(html []byte, i int) int {
 }
 
 func appendLazyAttributes(result []byte) []byte {
-	lowerResult := strings.ToLower(string(result))
-	isSiteLogo := strings.Contains(lowerResult, `class="site-logo`) || strings.Contains(lowerResult, `class='site-logo`)
-	if isSiteLogo {
+	lower := bytes.ToLower(result)
+	if bytes.Contains(lower, []byte(`class="site-logo`)) || bytes.Contains(lower, []byte(`class='site-logo`)) {
 		return result
 	}
-	if !strings.Contains(lowerResult, " loading=") && !strings.Contains(lowerResult, " loading\t") && !strings.Contains(lowerResult, " loading\n") {
-		result = append(result, []byte(" loading=\"lazy\"")...)
+	if !bytes.Contains(lower, []byte(" loading=")) {
+		result = append(result, []byte(` loading="lazy"`)...)
 	}
-	if !strings.Contains(lowerResult, " decoding=") && !strings.Contains(lowerResult, " decoding\t") && !strings.Contains(lowerResult, " decoding\n") {
-		result = append(result, []byte(" decoding=\"async\"")...)
+	if !bytes.Contains(lower, []byte(" decoding=")) {
+		result = append(result, []byte(` decoding="async"`)...)
 	}
 	return result
 }

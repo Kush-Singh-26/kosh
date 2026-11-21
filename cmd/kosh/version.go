@@ -11,7 +11,7 @@ var (
 	versionInfo bool
 )
 
-const cliVersion = "v2.7"
+const cliVersion = "v3"
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
@@ -34,7 +34,7 @@ func printVersionInfo() {
 	slog.Info("Kosh Static Site Generator")
 	slog.Info("Version", "version", cliVersion)
 	slog.Info("Go version", "go", runtime.Version())
-	slog.Info("Build date", "date", "2026-04-21")
+	slog.Info("Release date", "date", "2026-11-22")
 	slog.Info("Optimized with:",
 		"features", "XXH3 hashing, Incremental single-post rebuilds, "+
 			"Atomic clean-build publish, CSS/JS fingerprinting, "+

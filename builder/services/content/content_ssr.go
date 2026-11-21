@@ -27,7 +27,7 @@ workers -> output: HTML + assets
 // PopulateShowcaseHTML sets the ShowcaseMath and ShowcaseD2 fields on PageData
 // from the rendered SSR maps, falling back to placeholders for late-pass replacement.
 func PopulateShowcaseHTML(data *models.PageData, renderedMath map[string]string, renderedD2 map[string]models.SSRThemePair) {
-	mathHash := native.HashContent("math-block", showcaseLaTeX)
+	mathHash := native.HashContent("mathml-block", showcaseLaTeX)
 	d2Hash := native.HashContent("d2", showcaseD2Code)
 
 	if renderedMath != nil {
@@ -408,7 +408,7 @@ func (service *contentService) replaceExpressionsInTasks(tasks []renderTask, ren
 // showcase expressions into the SSR pipeline so they get rendered by KaTeX/D2
 // and made available for late-pass replacement in the template.
 func injectShowcaseExamples(allMath map[string]models.MathExpression, allD2 map[string]models.D2Expression) {
-	latexHash := native.HashContent("math-block", showcaseLaTeX)
+	latexHash := native.HashContent("mathml-block", showcaseLaTeX)
 	if _, exists := allMath[latexHash]; !exists {
 		allMath[latexHash] = models.MathExpression{
 			LaTeX:       showcaseLaTeX,

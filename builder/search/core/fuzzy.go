@@ -1,15 +1,10 @@
 package core
 
 import (
-	"context"
-	"log/slog"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"unicode/utf8"
-
-	"github.com/Kush-Singh-26/kosh/builder/async"
 )
 
 const (
@@ -17,9 +12,6 @@ const (
 	runeSlicePoolCap     = 32
 	maxPooledSliceCap    = 256
 	minPrefixMatchLength = 1
-	trigramSize          = 3
-	maxNgramWorkers      = 8
-	minCandidateScore    = 1
 )
 
 // MaxEditDistance is the maximum Levenshtein distance for fuzzy matching
@@ -209,139 +201,6 @@ func PrefixExpand(query string, lexicon []string) []string {
 		results = append(results, lexicon[i])
 	}
 	return results
-}
-
-// FuzzyExpandWithNgrams uses n-gram index for faster fuzzy candidate generation
-func FuzzyExpandWithNgrams(term string, ngramIndex map[string][]string, maxDist int) []string {
-	// Generate trigrams for the term
-	trigrams := GenerateTrigrams(term)
-
-	// Count how many trigrams each candidate shares
-	candidateScores := make(map[string]int)
-	for _, trigram := range trigrams {
-		if candidates, ok := ngramIndex[trigram]; ok {
-			for _, candidate := range candidates {
-				candidateScores[candidate]++
-			}
-		}
-	}
-
-	// Filter candidates by edit distance
-	var results []string
-	for candidate, score := range candidateScores {
-		// Jaccard-like filtering: need at least some overlap
-		// Optimized: Set minimum score to 1 to avoid matching every term on short queries
-		// A 3-character word generates exactly 1 trigram, so len/2 = 0 would match everything
-		minScore := max(minCandidateScore, len(trigrams)/2)
-		if score >= minScore {
-			if FuzzyMatch(term, candidate, maxDist) {
-				results = append(results, candidate)
-			}
-		}
-	}
-
-	return results
-}
-
-// GenerateTrigrams creates trigram (3-character) sequences from a word
-// Uses a byte-slice approach for ASCII strings to reduce allocations
-func GenerateTrigrams(word string) []string {
-	n := len(word)
-
-	// Fast path for ASCII strings (common case)
-	if n < trigramSize {
-		return []string{word}
-	}
-
-	// Check if ASCII
-	isASCII := true
-	for i := 0; i < n; i++ {
-		if word[i] >= asciiBoundary {
-			isASCII = false
-			break
-		}
-	}
-
-	if isASCII {
-		// Fast path: use byte slices for ASCII
-		trigrams := make([]string, 0, n-(trigramSize-1))
-		for i := 0; i <= n-trigramSize; i++ {
-			trigrams = append(trigrams, word[i:i+trigramSize])
-		}
-		return trigrams
-	}
-
-	// Slow path: use runes for Unicode
-	runes := []rune(word)
-	n = len(runes)
-	if n < trigramSize {
-		return []string{word}
-	}
-
-	trigrams := make([]string, 0, n-(trigramSize-1))
-	for i := 0; i <= n-trigramSize; i++ {
-		trigrams = append(trigrams, string(runes[i:i+trigramSize]))
-	}
-	return trigrams
-}
-
-// MaxNgramPostings is the threshold for n-gram pruning.
-// Trigrams that map to more than this many terms are dropped.
-const MaxNgramPostings = 50
-
-// BuildNgramIndex constructs an n-gram index for a list of terms.
-func BuildNgramIndex(terms []string) map[string][]string {
-	numWorkers := min(runtime.NumCPU(), maxNgramWorkers)
-
-	totalTerms := len(terms)
-	chunkSize := (totalTerms + numWorkers - 1) / numWorkers
-
-	var wg sync.WaitGroup
-	results := make([]map[string][]string, numWorkers)
-
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		workerID := i
-		async.FireAndForgetWithCleanup(async.FireAndForgetCleanupOptions{
-			Ctx:       context.Background(),
-			Logger:    slog.Default(),
-			Operation: "ngram build",
-			Fn: func() error {
-				localNgram := make(map[string][]string)
-				start := workerID * chunkSize
-				end := min(start+chunkSize, totalTerms)
-
-				for j := start; j < end; j++ {
-					term := terms[j]
-					trigrams := GenerateTrigrams(term)
-					for _, tg := range trigrams {
-						localNgram[tg] = append(localNgram[tg], term)
-					}
-				}
-				results[workerID] = localNgram
-				return nil
-			},
-			Cleanup: wg.Done,
-		})
-	}
-	wg.Wait()
-
-	// Merge results with pruning
-	ngramIndex := make(map[string][]string)
-	for _, r := range results {
-		for tg, termList := range r {
-			ngramIndex[tg] = append(ngramIndex[tg], termList...)
-		}
-	}
-
-	// Prune common trigrams that point to too many terms
-	for tg, termList := range ngramIndex {
-		if len(termList) > MaxNgramPostings {
-			delete(ngramIndex, tg)
-		}
-	}
-
-	return ngramIndex
 }
 
 func min3(a, b, c int) int {

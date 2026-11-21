@@ -345,6 +345,8 @@ func (manager *Manager) clearFilesystemStore() error {
 		"ssr/math",
 		"ssr/math-inline",
 		"ssr/math-block",
+		"ssr/mathml-inline",
+		"ssr/mathml-block",
 		"ssr/katex",
 	}
 	for _, category := range categories {

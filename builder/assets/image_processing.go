@@ -285,7 +285,19 @@ func CopyFileWithOptionalImageProcessing(options ProcessImageOptions) error {
 // Called from the asset service background image workers.
 // Skips cache lookups (memory + disk) and goes directly to decode/encode.
 func ProcessCacheMissImage(options ProcessImageOptions) error {
-	return convertToWebPVFS(options)
+	if err := ensureSrcInfo(&options); err != nil {
+		return err
+	}
+	skipResize := options.SrcInfo.Size() <= smallImageResizeThresholdBytes
+
+	memCacheKey := imageCacheKey{
+		path:    options.SrcPath,
+		size:    options.SrcInfo.Size(),
+		modTime: options.SrcInfo.ModTime().UnixNano(),
+	}
+
+	cacheFile := resolveCacheFile(options, memCacheKey)
+	return processAndEncodeWebP(options, memCacheKey, cacheFile, skipResize)
 }
 
 func retryWriteFile(sink fspkg.ArtifactSink, path string, data []byte) error {
@@ -447,7 +459,7 @@ func resizeImageIfNeeded(sourceImage image.Image, skipResize bool, metrics Image
 			Rect:   image.Rect(0, 0, newWidth, newHeight),
 		}
 
-		draw.BiLinear.Scale(destination, destination.Bounds(), sourceImage, sourceImage.Bounds(), draw.Over, nil)
+		draw.BiLinear.Scale(destination, destination.Bounds(), sourceImage, sourceImage.Bounds(), draw.Src, nil)
 		return destination, pixelDataPointer
 	}
 
@@ -503,7 +515,6 @@ func writeEncodedWebP(options ProcessImageOptions, key imageCacheKey, cacheFile 
 	return nil
 }
 
-//nolint:funlen // Central image-processing pipeline; splitting this adds noise.
 func convertToWebPVFS(options ProcessImageOptions) error {
 	if err := ensureSrcInfo(&options); err != nil {
 		return err
@@ -525,6 +536,10 @@ func convertToWebPVFS(options ProcessImageOptions) error {
 		return err
 	}
 
+	return processAndEncodeWebP(options, memCacheKey, cacheFile, skipResize)
+}
+
+func processAndEncodeWebP(options ProcessImageOptions, memCacheKey imageCacheKey, cacheFile string, skipResize bool) error {
 	select {
 	case <-options.Ctx.Done():
 		return options.Ctx.Err()

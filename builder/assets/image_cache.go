@@ -282,40 +282,22 @@ func shouldPreserveOriginal(name string) bool {
 	return ok
 }
 
-func collectOriginalsToDelete(ctx context.Context, outputDir string, converted map[string]string) []string {
-	keys := make([]string, 0, len(converted))
-	for k := range converted {
-		keys = append(keys, k)
+func collectOriginalsToDelete(_ context.Context, outputDir string, converted map[string]string) []string {
+	toDelete := make([]string, 0, len(converted))
+	for originalPath := range converted {
+		lower := strings.ToLower(originalPath)
+		if !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") {
+			continue
+		}
+
+		base := filepath.Base(originalPath)
+		if shouldPreserveOriginal(base) {
+			continue
+		}
+
+		absolutePath := fspkg.NormalizePath(filepath.Join(outputDir, originalPath))
+		toDelete = append(toDelete, absolutePath)
 	}
-
-	toDelete := make([]string, 0, len(keys))
-	var mu sync.Mutex
-
-	g, _ := errgroup.WithContext(ctx)
-	g.SetLimit(runtime.NumCPU())
-
-	for _, k := range keys {
-		originalPath := k
-		g.Go(func() error {
-			lower := strings.ToLower(originalPath)
-			if !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") {
-				return nil
-			}
-
-			base := filepath.Base(originalPath)
-			if shouldPreserveOriginal(base) {
-				return nil
-			}
-
-			absolutePath := fspkg.NormalizePath(filepath.Join(outputDir, originalPath))
-			mu.Lock()
-			toDelete = append(toDelete, absolutePath)
-			mu.Unlock()
-			return nil
-		})
-	}
-
-	_ = g.Wait()
 	return toDelete
 }
 

@@ -121,8 +121,8 @@ func TestRenderer_RenderMath(t *testing.T) {
 		t.Fatalf("RenderMath failed: %v", err)
 	}
 
-	if !strings.Contains(html, "katex") {
-		t.Error("RenderMath result does not contain 'katex' class")
+	if !strings.Contains(html, "<math") {
+		t.Error("RenderMath result does not contain MathML output")
 	}
 	if !strings.Contains(html, "m") || !strings.Contains(html, "c") {
 		t.Error("RenderMath result does not contain 'm' or 'c'")
@@ -149,7 +149,7 @@ func TestRenderer_RenderAllMath(t *testing.T) {
 		t.Errorf("Expected 2 results, got %d", len(results))
 	}
 
-	if !strings.Contains(results["hash1"], "katex") || !strings.Contains(results["hash1"], "a") {
+	if !strings.Contains(results["hash1"], "<math") || !strings.Contains(results["hash1"], "a") {
 		t.Errorf("Result for hash1 looks wrong: %s", results["hash1"])
 	}
 
@@ -221,6 +221,25 @@ func TestRenderer_Close(t *testing.T) {
 	}
 
 	t.Log("Close tests passed")
+}
+
+func TestRenderer_Close_DrainsAllWorkers(t *testing.T) {
+	r := New(WithWorkers(4))
+	t.Cleanup(func() { _ = r.Close() })
+	r.EnsureInitialized(t.Context())
+	if got := len(r.pool); got != 4 {
+		t.Fatalf("initialized pool contains %d workers, want 4", got)
+	}
+
+	if err := r.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	if got := len(r.pool); got != 0 {
+		t.Errorf("Close left %d workers in the pool", got)
+	}
+	if _, ok := <-r.pool; ok {
+		t.Error("closed pool still contains a worker")
+	}
 }
 
 func TestRenderer_Close_Race(t *testing.T) {

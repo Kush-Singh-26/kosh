@@ -1,10 +1,13 @@
-package searchpkg
-
 //go:generate msgp
+
+// NOTE: search_gen.go and msgp_methods.go carry a "//go:build !js || !wasm"
+// tag so tinylib/msgp never links into search.wasm. Re-running go:generate
+// drops that tag; TestWasmSearchDependencyGraphStaysLean catches it.
+
+package searchpkg
 
 import (
 	"slices"
-	"sort"
 )
 
 // SearchIngestor defines an interface for pipelined search indexing.
@@ -82,17 +85,8 @@ type SearchIndex struct {
 
 // LookupTerm finds a term's index in Terms using binary search. Returns -1 if not found.
 func (idx *SearchIndex) LookupTerm(term string) int {
-	i := slices.Index(idx.Terms, term)
-	if i >= 0 {
+	if i, found := slices.BinarySearch(idx.Terms, term); found {
 		return i
-	}
-	// Fallback to binary search if slices.Index is not optimized or for clarity
-	n := len(idx.Terms)
-	j := sort.Search(n, func(j int) bool {
-		return idx.Terms[j] >= term
-	})
-	if j < n && idx.Terms[j] == term {
-		return j
 	}
 	return -1
 }

@@ -156,8 +156,7 @@ func BenchmarkBufferPoolGetPut(b *testing.B) {
 	pool := NewBufferPool()
 	data := []byte("benchmark data")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf := pool.Get()
 		buf.Write(data)
 		pool.Put(buf)
@@ -180,8 +179,7 @@ func BenchmarkBufferPoolParallel(b *testing.B) {
 func BenchmarkBufferWithoutPool(b *testing.B) {
 	data := []byte("benchmark data")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf := new(bytes.Buffer)
 		buf.Write(data)
 		// buf goes out of scope, will be GC'd

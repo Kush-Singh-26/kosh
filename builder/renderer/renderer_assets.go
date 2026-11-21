@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/renderer/base"
 )
 
 // MockConfig is a test implementation of the config interface.
@@ -87,23 +88,70 @@ func (r *Renderer) SetAssets(assets map[string]string) {
 	})
 }
 
-// resolveAssets populates data.Assets from the renderer snapshot if empty.
+// resolveAssets populates data.Assets from the renderer snapshot merged with
+// the embedded base assets, which are always present and never overwritten by
+// theme values (only filled in when missing). theme hashes and base hashes are
+// content-addressed, so the merged map relativizes uniformly downstream.
 func (r *Renderer) resolveAssets(data *models.PageData) {
+	baseAssets := base.BaseAssets()
 	if len(data.Assets) == 0 {
 		assets := r.GetAssets()
-		validAssets := false
-		for k := range assets {
-			if strings.HasPrefix(k, "/static/css/") || strings.HasPrefix(k, "/static/js/") {
-				validAssets = true
-				break
-			}
+		merged := make(map[string]string, len(assets)+len(baseAssets))
+		for k, v := range assets {
+			merged[k] = v
 		}
-		if validAssets {
-			data.Assets = assets
-		} else {
-			data.Assets = nil
+		for k, v := range baseAssets {
+			merged[k] = v
+		}
+		data.Assets = merged
+		return
+	}
+	merged := make(map[string]string, len(data.Assets)+len(baseAssets))
+	for k, v := range data.Assets {
+		merged[k] = v
+	}
+	for k, v := range baseAssets {
+		if _, ok := merged[k]; !ok {
+			merged[k] = v
 		}
 	}
+	data.Assets = merged
+}
+
+func (r *Renderer) applyAssets(data *models.PageData) {
+	cacheKey := data.BaseURL + "|" + data.RelativePrefix
+	if len(data.Assets) == 0 {
+		if cached, ok := r.assetCache.Load(cacheKey); ok {
+			if assets, ok := cached.(map[string]string); ok {
+				data.Assets = assets
+				return
+			}
+		}
+	}
+
+	r.resolveAssets(data)
+	if len(data.Assets) == 0 {
+		return
+	}
+
+	if cached, ok := r.assetCache.Load(cacheKey); ok {
+		if assets, ok := cached.(map[string]string); ok {
+			data.Assets = assets
+			return
+		}
+	}
+
+	relativizedAssets := make(map[string]string, len(data.Assets))
+	for k, v := range data.Assets {
+		if isExternalURL(v) || isDataURI(v) {
+			relativizedAssets[k] = v
+			continue
+		}
+		relativizedAsset := relativizeAsset(v, data.BaseURL, data.RelativePrefix)
+		relativizedAssets[k] = filepath.ToSlash(relativizedAsset)
+	}
+	r.assetCache.Store(cacheKey, relativizedAssets)
+	data.Assets = relativizedAssets
 }
 
 // PrepareAssets performs common optimizations like asset map relativization,
@@ -117,30 +165,7 @@ func (r *Renderer) PrepareAssets(data *models.PageData) {
 		data.TabTitle = data.Title
 	}
 
-	r.resolveAssets(data)
-
-	// Optimization: Use cached relativized asset maps to save massive allocation churn
-	if len(data.Assets) > 0 {
-		cacheKey := data.BaseURL + "|" + data.RelativePrefix
-		if cached, ok := r.assetCache.Load(cacheKey); ok {
-			if assets, ok := cached.(map[string]string); ok {
-				data.Assets = assets
-			}
-		} else {
-			relativizedAssets := make(map[string]string, len(data.Assets))
-			for k, v := range data.Assets {
-				if isExternalURL(v) || isDataURI(v) {
-					relativizedAssets[k] = v
-					continue
-				}
-
-				relativizedAsset := relativizeAsset(v, data.BaseURL, data.RelativePrefix)
-				relativizedAssets[k] = filepath.ToSlash(relativizedAsset)
-			}
-			r.assetCache.Store(cacheKey, relativizedAssets)
-			data.Assets = relativizedAssets
-		}
-	}
+	r.applyAssets(data)
 
 	if data.SiteData == nil {
 		data.SiteData = data.Config.GetSiteData()

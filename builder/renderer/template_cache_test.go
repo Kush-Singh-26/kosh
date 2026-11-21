@@ -91,7 +91,7 @@ func TestTemplateCache_SetAndGet(t *testing.T) {
 	}
 
 	tmpl, _ := template.New("layout").Parse(`{{ define "content" }}Layout{{ end }}`)
-	tc.setTemplate("layout", tmpl, time.Now(), []byte(`{{ define "content" }}Layout{{ end }}`))
+	tc.setTemplate("layout", tmpl, []byte(`{{ define "content" }}Layout{{ end }}`))
 
 	tc.mu.RLock()
 	_, exists := tc.templates["layout"]

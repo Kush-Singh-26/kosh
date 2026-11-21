@@ -55,6 +55,11 @@ func (engineInstance *Engine) ReloadConfig(ctx context.Context) error {
 	engineInstance.State.BuildMu.Lock()
 	defer engineInstance.State.BuildMu.Unlock()
 
+	return engineInstance.ReloadConfigLocked(ctx)
+}
+
+// ReloadConfigLocked reloads config while the caller holds State.BuildMu.
+func (engineInstance *Engine) ReloadConfigLocked(ctx context.Context) error {
 	if err := engineInstance.Cfg.Reload(engineInstance.Deps.SourceFs); err != nil {
 		return err
 	}
@@ -88,6 +93,20 @@ func (engineInstance *Engine) BuildLocked(ctx context.Context) error {
 
 	if processError := engineInstance.processPhase(ctx, setup, assetsResult, scanResult); processError != nil {
 		return processError
+	}
+
+	// Discovery only unblocks rendering. Join the final asset result before publishing,
+	// since images and esbuild can fail after discovery has completed.
+	assetsResult.assetWaitGroup.Wait()
+	select {
+	case err := <-assetsResult.assetErrorChan:
+		if err != nil {
+			return fmt.Errorf("failed to build assets: %w", err)
+		}
+	default:
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	if err := engineInstance.finalizePhase(ctx, setup.wasmWg, assetsResult.assetsReadySignal); err != nil {

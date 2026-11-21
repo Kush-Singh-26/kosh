@@ -91,8 +91,20 @@ func TestRenderer_PreparePageData_NilAssets(t *testing.T) {
 		t.Error("PreparePageData should initialize nil assets from renderer")
 	}
 
-	if len(data.Assets) != 1 {
-		t.Errorf("PreparePageData should copy assets, got %d", len(data.Assets))
+	if data.Assets["/static/css/main.css"] != "static/css/main.abc123.css" {
+		t.Errorf("PreparePageData should copy theme assets, got %q", data.Assets["/static/css/main.css"])
+	}
+
+	for _, key := range []string{
+		"/static/css/kosh-core.css",
+		"/static/css/graph.css",
+		"/static/js/kosh-main.js",
+		"/static/js/kosh-search.js",
+		"/static/js/graph.js",
+	} {
+		if _, ok := data.Assets[key]; !ok {
+			t.Errorf("PreparePageData should merge base asset %q", key)
+		}
 	}
 }
 

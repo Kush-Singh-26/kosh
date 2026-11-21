@@ -168,8 +168,7 @@ func TestStem_Variations(t *testing.T) {
 // BenchmarkStem benchmarks the Stem function
 func BenchmarkStem(b *testing.B) {
 	words := []string{"running", "happiness", "national", "general", "specific", "organization", "finalization"}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, word := range words {
 			Stem(word)
 		}
@@ -179,8 +178,7 @@ func BenchmarkStem(b *testing.B) {
 // BenchmarkStemCached benchmarks the StemCached function
 func BenchmarkStemCached(b *testing.B) {
 	words := []string{"running", "happiness", "national", "general", "specific", "organization", "finalization"}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, word := range words {
 			StemCached(word)
 		}

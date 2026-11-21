@@ -20,7 +20,7 @@ var (
 )
 
 func main() {
-	c := make(chan struct{}, 0)
+	c := make(chan struct{})
 	println("WASM Search Engine Initializing (Schema v" + strconv.Itoa(searchpkg.CurrentSchemaVersion) + ")...")
 
 	js.Global().Set("initSearch", js.FuncOf(initSearch))
@@ -104,8 +104,8 @@ func initSearch(this js.Value, args []js.Value) any {
 	data := make([]byte, length)
 	js.CopyBytesToGo(data, uint8Array)
 
-	var newIndex searchpkg.SearchIndex
-	if _, err := newIndex.UnmarshalMsg(data); err != nil {
+	newIndex, err := searchpkg.DecodeSearchIndex(data)
+	if err != nil {
 		return "Decode error: " + err.Error()
 	}
 
@@ -115,7 +115,7 @@ func initSearch(this js.Value, args []js.Value) any {
 	}
 
 	// Replace global index
-	index = newIndex
+	index = *newIndex
 
 	// Clear cache on new index load
 	lastQuery = ""

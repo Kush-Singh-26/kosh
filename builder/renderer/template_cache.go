@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"errors"
 	"html/template"
 	"os"
 	"path/filepath"
@@ -22,7 +23,7 @@ const (
 
 type templateCache struct {
 	templates   map[string]*template.Template
-	mtimes      map[string]time.Time
+	mtimes      map[string]time.Time // filesystem dependency paths, not template slot names
 	hashes      map[string]string
 	templateDir string
 	layoutsDir  string
@@ -106,76 +107,76 @@ func (tc *templateCache) hasTemplatesChanged(fs afero.Fs) bool {
 }
 
 func (tc *templateCache) checkTemplatesOnDisk(fs afero.Fs) (bool, error) {
-	templateFiles := []string{"layout.html", "index.html", "404.html", "home.html", "graph.html"}
-	changed := false
-
-	// Helper to collect files from a directory
-	collectFiles := func(dir string, _ string) {
-		if dir == "" {
-			return
-		}
-		partialsDir := filepath.Join(dir, "partials")
-		if info, err := fs.Stat(partialsDir); err == nil && info.IsDir() {
-			_ = afero.Walk(fs, partialsDir, func(path string, info os.FileInfo, err error) error {
-				if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".html") {
-					return nil
-				}
-				rel, err := filepath.Rel(dir, path)
-				if err == nil {
-					templateFiles = append(templateFiles, rel)
-				}
-				return nil
-			})
-		}
+	dependencies, err := tc.templateDependencies(fs)
+	if err != nil {
+		return false, err
 	}
 
-	collectFiles(tc.templateDir, "")
-	collectFiles(tc.layoutsDir, "")
-
-	// Use read lock to check metadata first
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
-
-	for _, fname := range templateFiles {
-		// Attempt to load from layoutsDir first, then templateDir
-		var path string
-		if tc.layoutsDir != "" {
-			path = filepath.Join(tc.layoutsDir, fname)
-			if _, err := fs.Stat(path); err != nil {
-				path = filepath.Join(tc.templateDir, fname)
-			}
-		} else {
-			path = filepath.Join(tc.templateDir, fname)
+	if len(dependencies) != len(tc.mtimes) {
+		return true, nil
+	}
+	for path, mtime := range dependencies {
+		cachedMtime, exists := tc.mtimes[path]
+		if !exists || !mtime.Equal(cachedMtime) {
+			return true, nil
 		}
+	}
+	return false, nil
+}
 
-		info, err := fs.Stat(path)
-		if err != nil {
-			// If a previously tracked template is gone, that's a change
-			name := strings.TrimSuffix(filepath.ToSlash(fname), ".html")
-			if _, exists := tc.mtimes[name]; exists {
-				changed = true
-				break
+// templateDependencies mirrors slot precedence and both partial loading passes.
+// The graph and fallback 404 templates are embedded and have no disk dependency.
+func (tc *templateCache) templateDependencies(fs afero.Fs) (map[string]time.Time, error) {
+	dependencies := make(map[string]time.Time)
+	for _, file := range []string{"layout.html", "index.html", "404.html", "home.html"} {
+		for _, dir := range []string{tc.layoutsDir, tc.templateDir} {
+			path := filepath.Join(dir, file)
+			info, err := fs.Stat(path)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
 			}
-			continue
-		}
-
-		name := strings.TrimSuffix(filepath.ToSlash(fname), ".html")
-		cachedMtime, exists := tc.mtimes[name]
-
-		if !exists || !info.ModTime().Equal(cachedMtime) {
-			changed = true
+			if err != nil {
+				return nil, err
+			}
+			if info.IsDir() {
+				continue
+			}
+			dependencies[path] = info.ModTime()
 			break
 		}
 	}
-
-	return changed, nil
+	for _, dir := range []string{tc.templateDir, tc.layoutsDir} {
+		if err := collectPartialDependencies(fs, filepath.Join(dir, "partials"), dependencies); err != nil {
+			return nil, err
+		}
+	}
+	return dependencies, nil
 }
 
-func (tc *templateCache) setTemplate(name string, tmpl *template.Template, mtime time.Time, content []byte) {
+func collectPartialDependencies(fs afero.Fs, dir string, dependencies map[string]time.Time) error {
+	if _, err := fs.Stat(dir); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return afero.Walk(fs, dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".html") {
+			dependencies[path] = info.ModTime()
+		}
+		return nil
+	})
+}
+
+func (tc *templateCache) setTemplate(name string, tmpl *template.Template, content []byte) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 	tc.templates[name] = tmpl
-	tc.mtimes[name] = mtime
+
 	if len(content) > 0 {
 		tc.hashes[name] = core.HashContent(content)
 	}

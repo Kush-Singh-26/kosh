@@ -13,8 +13,7 @@ import (
 func BenchmarkExtractSnippet(b *testing.B) {
 	content := strings.Repeat("The quick brown fox jumps over the lazy dog. ", 10)
 	terms := []string{"fox", "dog"}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = ExtractSnippet(content, terms)
 	}
 }
@@ -22,8 +21,7 @@ func BenchmarkExtractSnippet(b *testing.B) {
 func BenchmarkLevenshteinDistance(b *testing.B) {
 	s1 := "programming"
 	s2 := "programing"
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = core.LevenshteinDistance(s1, s2)
 	}
 }
@@ -42,8 +40,7 @@ func BenchmarkPerformSearch(b *testing.B) {
 	}
 	idx := index.Build(indexedPosts)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = PerformSearch(idx, "kosh")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"regexp"
 	"strconv"
@@ -385,7 +386,8 @@ func (s *transformState) handleImageCaption(img *ast.Image) {
 			if p, ok := parent.(*ast.Paragraph); ok {
 				if s.isSoleImage(p, img) {
 					src := string(img.Destination)
-					figHTML := fmt.Sprintf("<figure><img src=\"%s\" alt=\"%s\" loading=\"lazy\"><figcaption>%s</figcaption></figure>", src, altStr, altStr)
+					escapedAlt := html.EscapeString(altStr)
+					figHTML := fmt.Sprintf("<figure><img src=\"%s\" alt=\"%s\" loading=\"lazy\" decoding=\"async\"><figcaption>%s</figcaption></figure>", src, escapedAlt, escapedAlt)
 					s.toReplace = append(s.toReplace, replacement{old: p, new: &RawHTMLBlock{Content: []byte(figHTML)}})
 				}
 			}
@@ -412,11 +414,13 @@ func (s *transformState) isSoleImage(p *ast.Paragraph, img *ast.Image) bool {
 func (s *transformState) handleHTML(n ast.Node, kind ast.NodeKind) {
 	htmlContent := s.extractHTML(n, kind)
 
-	s.recoverMath(htmlContent)
-	s.recoverTOC(htmlContent)
-	s.recoverSearch(htmlContent)
-	s.recoverD2(htmlContent)
-	s.recoverMermaid(htmlContent)
+	if strings.Contains(htmlContent, "<!--KOSH_") {
+		s.recoverMath(htmlContent)
+		s.recoverTOC(htmlContent)
+		s.recoverSearch(htmlContent)
+		s.recoverD2(htmlContent)
+		s.recoverMermaid(htmlContent)
+	}
 
 	s.processImages(n, kind, htmlContent)
 }
@@ -652,7 +656,9 @@ func (s *transformState) handleMath(n ast.Node, kind ast.NodeKind) (ast.WalkStat
 
 		// If we are inside a heading, capture the math placeholder in the heading text
 		if s.ctx.inHeading {
-			s.ctx.headingText.WriteString("<!--KOSH_MATH:" + hash + "-->")
+			s.ctx.headingText.WriteString("<!--KOSH_MATH:")
+			s.ctx.headingText.WriteString(hash)
+			s.ctx.headingText.WriteString("-->")
 		}
 
 		newNode := s.createMathReplacement(hash, latex, displayMode, lineNum)
@@ -678,7 +684,7 @@ func (s *transformState) extractLaTeX(n ast.Node, kind ast.NodeKind) (latex stri
 	case passthrough.KindPassthroughInline:
 		m := n.(*passthrough.PassthroughInline)
 		raw = m.Segment.Value(s.source)
-		typeStr = "math-inline"
+		typeStr = "mathml-inline"
 		displayMode = false
 	case passthrough.KindPassthroughBlock:
 		m := n.(*passthrough.PassthroughBlock)
@@ -690,11 +696,11 @@ func (s *transformState) extractLaTeX(n ast.Node, kind ast.NodeKind) (latex stri
 			sb.Write(line.Value(s.source))
 		}
 		raw = []byte(sb.String())
-		typeStr = "math-block"
+		typeStr = "mathml-block"
 		displayMode = true
 	}
 
-	val := strings.TrimSpace(string(raw))
+	val := strings.TrimSpace(stripBlockquoteMarkers(string(raw)))
 	// Robustly strip delimiters
 	switch {
 	case strings.HasPrefix(val, "$$") && strings.HasSuffix(val, "$$"):
@@ -709,6 +715,23 @@ func (s *transformState) extractLaTeX(n ast.Node, kind ast.NodeKind) (latex stri
 		latex = val
 	}
 	return strings.TrimSpace(latex), typeStr, displayMode
+}
+
+// stripBlockquoteMarkers removes blockquote markers that survive in passthrough
+// raw segments. Without it, a quoted `> $$` fence leaks a ">" into the LaTeX,
+// which renders as a stray operator after the expression.
+func stripBlockquoteMarkers(s string) string {
+	if !strings.Contains(s, ">") {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, ">") {
+			lines[i] = strings.TrimPrefix(strings.TrimPrefix(trimmed, ">"), " ")
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (s *transformState) createMathReplacement(hash string, latex string, displayMode bool, line int) ast.Node {

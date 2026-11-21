@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -27,6 +28,7 @@ type restoreAssetsOptions struct {
 	destDir          string
 	onWrite          func(string)
 	onAssetProcessed func()
+	minify           bool
 }
 
 const (
@@ -35,36 +37,97 @@ const (
 	assetHashMaxLen = 12
 )
 
+// Asset URLs remain in map.json; this manifest records every output relative to DestDir.
+// Caches without a manifest cannot prove secondary outputs are complete and are rebuilt.
+type assetCacheManifest struct {
+	Version int      `json:"version"`
+	Minify  bool     `json:"minify"`
+	Outputs []string `json:"outputs"`
+}
+
+func validAssetOutputPath(rel string) bool {
+	return rel != "." && filepath.IsLocal(rel) && path.Clean(rel) == rel &&
+		!strings.ContainsAny(rel, "\\:\x00")
+}
+
+func readAssetCache(cachePath string, minify bool) (map[string]string, map[string][]byte, error) {
+	root, err := os.OpenRoot(cachePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { _ = root.Close() }()
+
+	manifestData, err := root.ReadFile("outputs.json")
+	if err != nil {
+		return nil, nil, err
+	}
+	var manifest assetCacheManifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		return nil, nil, err
+	}
+	if manifest.Version != 1 || manifest.Minify != minify || manifest.Outputs == nil {
+		return nil, nil, errors.New("incompatible asset cache manifest")
+	}
+	files := make(map[string][]byte, len(manifest.Outputs))
+	for _, rel := range manifest.Outputs {
+		if !validAssetOutputPath(rel) {
+			return nil, nil, fmt.Errorf("invalid cached asset path: %q", rel)
+		}
+		if minify && strings.HasSuffix(strings.ToLower(rel), ".map") {
+			continue
+		}
+		data, err := root.ReadFile(filepath.FromSlash(rel))
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(data) == 0 && !strings.HasSuffix(strings.ToLower(rel), ".map") {
+			return nil, nil, fmt.Errorf("empty cached asset: %q", rel)
+		}
+		files[rel] = data
+	}
+	assets, err := readCachedAssetMap(root, files)
+	return assets, files, err
+}
+
+func readCachedAssetMap(root *os.Root, files map[string][]byte) (map[string]string, error) {
+	mapData, err := root.ReadFile("map.json")
+	if err != nil {
+		return nil, err
+	}
+	var assets map[string]string
+	if err := json.Unmarshal(mapData, &assets); err != nil {
+		return nil, err
+	}
+	if assets == nil {
+		return nil, errors.New("missing asset map")
+	}
+	for _, url := range assets {
+		rel, ok := strings.CutPrefix(url, "/static/")
+		if !ok || !validAssetOutputPath(rel) {
+			return nil, fmt.Errorf("invalid cached asset URL: %q", url)
+		}
+		if _, ok := files[rel]; !ok {
+			return nil, fmt.Errorf("missing cached entrypoint: %q", rel)
+		}
+	}
+	return assets, nil
+}
+
 func restoreAssetsFromCache(opts restoreAssetsOptions) (map[string]string, bool, error) {
 	if opts.cachePath == "" || opts.sink == nil || opts.destDir == "" {
 		return nil, false, errors.New("restoreAssetsFromCache: missing required fields")
 	}
-	if info, err := os.Stat(opts.cachePath); err != nil || !info.IsDir() {
-		return nil, false, nil
-	}
-
-	mapFile := filepath.Join(opts.cachePath, "map.json")
-	mapData, err := os.ReadFile(mapFile)
+	assets, files, err := readAssetCache(opts.cachePath, opts.minify)
 	if err != nil {
-		return nil, false, nil
-	}
-	var assets map[string]string
-	if err := json.Unmarshal(mapData, &assets); err != nil {
 		return nil, false, nil
 	}
 
 	eg, _ := errgroup.WithContext(context.Background())
 	eg.SetLimit(runtime.NumCPU())
 
-	for _, assetRelative := range assets {
-		rel := assetRelative
+	for rel, data := range files {
 		eg.Go(func() error {
-			cacheFile := filepath.Join(opts.cachePath, rel)
-			destPath := filepath.Join(opts.destDir, rel)
-			data, err := os.ReadFile(cacheFile)
-			if err != nil {
-				return err
-			}
+			destPath := filepath.Join(opts.destDir, filepath.FromSlash(rel))
 			if err := opts.sink.MkdirAll(filepath.Dir(destPath)); err != nil {
 				return err
 			}
@@ -138,6 +201,7 @@ func tryRestoreAssetCache(ctx buildAssetsContext, scan *assetScanResult, force b
 		destDir:          ctx.destDir,
 		onWrite:          ctx.onWrite,
 		onAssetProcessed: ctx.onAssetProcessed,
+		minify:           ctx.minify,
 	})
 	if err != nil {
 		return nil, false, err
@@ -149,6 +213,13 @@ func tryRestoreAssetCache(ctx buildAssetsContext, scan *assetScanResult, force b
 }
 
 func buildEsbuildOptions(ctx buildAssetsContext, entryPoints []string, bundle bool) api.BuildOptions {
+	// Production (minify on) ships no sourcemaps; they'd double the CSS/JS payload
+	// in output. Opt out of minification to keep them for debugging.
+	sourcemap := api.SourceMapExternal
+	if ctx.minify {
+		sourcemap = api.SourceMapNone
+	}
+
 	buildOptions := api.BuildOptions{
 		EntryPoints:       entryPoints,
 		Bundle:            bundle,
@@ -160,7 +231,7 @@ func buildEsbuildOptions(ctx buildAssetsContext, entryPoints []string, bundle bo
 		MinifyWhitespace:  ctx.minify,
 		MinifyIdentifiers: ctx.minify,
 		MinifySyntax:      ctx.minify,
-		Sourcemap:         api.SourceMapExternal,
+		Sourcemap:         sourcemap,
 		Metafile:          true,
 		Loader: map[string]api.Loader{
 			".woff2": api.LoaderFile,
@@ -179,23 +250,51 @@ func buildEsbuildOptions(ctx buildAssetsContext, entryPoints []string, bundle bo
 	return buildOptions
 }
 
+func esbuildOutputPaths(destDir string, outFiles []api.OutputFile) ([]string, error) {
+	outputs := make([]string, 0, len(outFiles))
+	for _, file := range outFiles {
+		rel, err := filepath.Rel(destDir, NormalizePath(file.Path))
+		if err != nil {
+			return nil, err
+		}
+		rel = normalizeEsbuildHashCase(filepath.ToSlash(rel))
+		if !validAssetOutputPath(rel) {
+			return nil, fmt.Errorf("esbuild output escapes destination: %q", file.Path)
+		}
+		outputs = append(outputs, rel)
+	}
+	return outputs, nil
+}
+
+func openAssetCacheRoot(cachePath string) *os.Root {
+	if cachePath == "" {
+		return nil
+	}
+	if err := os.MkdirAll(cachePath, defaultDirMode); err != nil {
+		return nil
+	}
+	root, _ := os.OpenRoot(cachePath)
+	return root
+}
+
 func writeEsbuildOutputs(ctx buildAssetsContext, outFiles []api.OutputFile, cachePath string) error {
+	outputs, err := esbuildOutputPaths(ctx.destDir, outFiles)
+	if err != nil {
+		return err
+	}
+	cacheRoot := openAssetCacheRoot(cachePath)
+	if cacheRoot != nil {
+		defer func() { _ = cacheRoot.Close() }()
+	}
 	eg, _ := errgroup.WithContext(context.Background())
 	eg.SetLimit(runtime.NumCPU())
 
-	for _, outFile := range outFiles {
-		file := outFile
+	for i, file := range outFiles {
 		eg.Go(func() error {
 			if len(file.Contents) == 0 && !strings.HasSuffix(strings.ToLower(file.Path), ".map") {
 				return fmt.Errorf("esbuild produced empty output for %s", file.Path)
 			}
-			fullPath := NormalizePath(file.Path)
-			relPath, err := filepath.Rel(ctx.destDir, fullPath)
-			if err != nil {
-				return fmt.Errorf("failed to compute relative path for %s: %w", fullPath, err)
-			}
-			vfsPath := filepath.Join(ctx.destDir, relPath)
-			vfsPath = normalizeEsbuildHashCase(vfsPath)
+			vfsPath := filepath.Join(ctx.destDir, filepath.FromSlash(outputs[i]))
 
 			contents := file.Contents
 			ext := strings.ToLower(filepath.Ext(vfsPath))
@@ -218,13 +317,10 @@ func writeEsbuildOutputs(ctx buildAssetsContext, outFiles []api.OutputFile, cach
 				ctx.onAssetProcessed()
 			}
 
-			if cachePath != "" {
-				rel, err := filepath.Rel(ctx.destDir, vfsPath)
-				if err == nil {
-					rel = normalizeEsbuildHashCase(rel)
-					cacheFile := filepath.Join(cachePath, rel)
-					_ = os.MkdirAll(filepath.Dir(cacheFile), defaultDirMode)
-					_ = os.WriteFile(cacheFile, contents, defaultFileMode)
+			if cacheRoot != nil {
+				rel := filepath.FromSlash(outputs[i])
+				if err := cacheRoot.MkdirAll(filepath.Dir(rel), defaultDirMode); err == nil {
+					_ = cacheRoot.WriteFile(rel, contents, defaultFileMode)
 				}
 			}
 			return nil
@@ -285,7 +381,7 @@ func updateAssetsFromMetafile(metaJSON string, srcDir string, assets map[string]
 	return nil
 }
 
-func buildEntryPoints(ctx buildAssetsContext, entryPoints []string, bundle bool, assets map[string]string, assetsMu *sync.Mutex, cachePath string) error {
+func buildEntryPoints(ctx buildAssetsContext, entryPoints []string, bundle bool, assets map[string]string, assetsMu *sync.Mutex, cachePath string, outputs *[]string) error {
 	if len(entryPoints) == 0 {
 		return nil
 	}
@@ -302,7 +398,30 @@ func buildEntryPoints(ctx buildAssetsContext, entryPoints []string, bundle bool,
 		return err
 	}
 
+	paths, err := esbuildOutputPaths(ctx.destDir, result.OutputFiles)
+	if err != nil {
+		return err
+	}
+	assetsMu.Lock()
+	*outputs = append(*outputs, paths...)
+	assetsMu.Unlock()
 	return updateAssetsFromMetafile(result.Metafile, ctx.srcDir, assets, assetsMu)
+}
+
+func saveAssetCache(cachePath string, assets map[string]string, outputs []string, minify bool) {
+	root := openAssetCacheRoot(cachePath)
+	if root == nil {
+		return
+	}
+	defer func() { _ = root.Close() }()
+	slices.Sort(outputs)
+	outputs = slices.Compact(outputs)
+	mapData, _ := json.Marshal(assets)
+	if err := root.WriteFile("map.json", mapData, defaultFileMode); err != nil {
+		return
+	}
+	manifestData, _ := json.Marshal(assetCacheManifest{Version: 1, Minify: minify, Outputs: outputs})
+	_ = root.WriteFile("outputs.json", manifestData, defaultFileMode)
 }
 
 // BuildAssetsEsbuild builds CSS/JS assets with esbuild and returns the asset map.
@@ -327,6 +446,7 @@ func BuildAssetsEsbuild(opts BuildAssetsOptions) (map[string]string, error) {
 	}
 
 	assets := make(map[string]string)
+	outputs := make([]string, 0)
 	var assetsMu sync.Mutex
 
 	cachePath := ""
@@ -338,12 +458,12 @@ func BuildAssetsEsbuild(opts BuildAssetsOptions) (map[string]string, error) {
 
 	if scan.hasCSS() {
 		buildGroup.Go(func() error {
-			return buildEntryPoints(ctx, scan.points.css, true, assets, &assetsMu, cachePath)
+			return buildEntryPoints(ctx, scan.points.css, true, assets, &assetsMu, cachePath, &outputs)
 		})
 	}
 	if scan.hasJS() {
 		buildGroup.Go(func() error {
-			return buildEntryPoints(ctx, scan.points.js, true, assets, &assetsMu, cachePath)
+			return buildEntryPoints(ctx, scan.points.js, true, assets, &assetsMu, cachePath, &outputs)
 		})
 	}
 
@@ -352,8 +472,7 @@ func BuildAssetsEsbuild(opts BuildAssetsOptions) (map[string]string, error) {
 	}
 
 	if cachePath != "" {
-		mapData, _ := json.Marshal(assets)
-		_ = os.WriteFile(filepath.Join(cachePath, "map.json"), mapData, defaultFileMode)
+		saveAssetCache(cachePath, assets, outputs, ctx.minify)
 	}
 
 	return assets, nil

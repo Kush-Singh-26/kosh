@@ -35,8 +35,7 @@ func TestMarshalUnmarshalCacheStats(t *testing.T) {
 func BenchmarkMarshalMsgCacheStats(b *testing.B) {
 	v := CacheStats{}
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.MarshalMsg(nil)
 	}
 }
@@ -47,8 +46,7 @@ func BenchmarkAppendMsgCacheStats(b *testing.B) {
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		bts, _ = v.MarshalMsg(bts[0:0])
 	}
 }
@@ -58,8 +56,7 @@ func BenchmarkUnmarshalCacheStats(b *testing.B) {
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := v.UnmarshalMsg(bts)
 		if err != nil {
 			b.Fatal(err)
@@ -98,8 +95,7 @@ func BenchmarkEncodeCacheStats(b *testing.B) {
 	b.SetBytes(int64(buf.Len()))
 	en := msgp.NewWriter(msgp.Nowhere)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.EncodeMsg(en)
 	}
 	en.Flush()
@@ -113,8 +109,7 @@ func BenchmarkDecodeCacheStats(b *testing.B) {
 	rd := msgp.NewEndlessReader(buf.Bytes(), b)
 	dc := msgp.NewReader(rd)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		err := v.DecodeMsg(dc)
 		if err != nil {
 			b.Fatal(err)
@@ -148,8 +143,7 @@ func TestMarshalUnmarshalDependencies(t *testing.T) {
 func BenchmarkMarshalMsgDependencies(b *testing.B) {
 	v := Dependencies{}
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.MarshalMsg(nil)
 	}
 }
@@ -160,8 +154,7 @@ func BenchmarkAppendMsgDependencies(b *testing.B) {
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		bts, _ = v.MarshalMsg(bts[0:0])
 	}
 }
@@ -171,8 +164,7 @@ func BenchmarkUnmarshalDependencies(b *testing.B) {
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := v.UnmarshalMsg(bts)
 		if err != nil {
 			b.Fatal(err)
@@ -211,8 +203,7 @@ func BenchmarkEncodeDependencies(b *testing.B) {
 	b.SetBytes(int64(buf.Len()))
 	en := msgp.NewWriter(msgp.Nowhere)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.EncodeMsg(en)
 	}
 	en.Flush()
@@ -226,8 +217,7 @@ func BenchmarkDecodeDependencies(b *testing.B) {
 	rd := msgp.NewEndlessReader(buf.Bytes(), b)
 	dc := msgp.NewReader(rd)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		err := v.DecodeMsg(dc)
 		if err != nil {
 			b.Fatal(err)
@@ -261,8 +251,7 @@ func TestMarshalUnmarshalPostMeta(t *testing.T) {
 func BenchmarkMarshalMsgPostMeta(b *testing.B) {
 	v := ContentMeta{}
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.MarshalMsg(nil)
 	}
 }
@@ -273,8 +262,7 @@ func BenchmarkAppendMsgPostMeta(b *testing.B) {
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		bts, _ = v.MarshalMsg(bts[0:0])
 	}
 }
@@ -284,8 +272,7 @@ func BenchmarkUnmarshalPostMeta(b *testing.B) {
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := v.UnmarshalMsg(bts)
 		if err != nil {
 			b.Fatal(err)
@@ -324,8 +311,7 @@ func BenchmarkEncodePostMeta(b *testing.B) {
 	b.SetBytes(int64(buf.Len()))
 	en := msgp.NewWriter(msgp.Nowhere)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.EncodeMsg(en)
 	}
 	en.Flush()
@@ -339,8 +325,7 @@ func BenchmarkDecodePostMeta(b *testing.B) {
 	rd := msgp.NewEndlessReader(buf.Bytes(), b)
 	dc := msgp.NewReader(rd)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		err := v.DecodeMsg(dc)
 		if err != nil {
 			b.Fatal(err)
@@ -374,8 +359,7 @@ func TestMarshalUnmarshalSSRArtifact(t *testing.T) {
 func BenchmarkMarshalMsgSSRArtifact(b *testing.B) {
 	v := SSRArtifact{}
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.MarshalMsg(nil)
 	}
 }
@@ -386,8 +370,7 @@ func BenchmarkAppendMsgSSRArtifact(b *testing.B) {
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		bts, _ = v.MarshalMsg(bts[0:0])
 	}
 }
@@ -397,8 +380,7 @@ func BenchmarkUnmarshalSSRArtifact(b *testing.B) {
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := v.UnmarshalMsg(bts)
 		if err != nil {
 			b.Fatal(err)
@@ -437,8 +419,7 @@ func BenchmarkEncodeSSRArtifact(b *testing.B) {
 	b.SetBytes(int64(buf.Len()))
 	en := msgp.NewWriter(msgp.Nowhere)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.EncodeMsg(en)
 	}
 	en.Flush()
@@ -452,8 +433,7 @@ func BenchmarkDecodeSSRArtifact(b *testing.B) {
 	rd := msgp.NewEndlessReader(buf.Bytes(), b)
 	dc := msgp.NewReader(rd)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		err := v.DecodeMsg(dc)
 		if err != nil {
 			b.Fatal(err)
@@ -487,8 +467,7 @@ func TestMarshalUnmarshalSearchRecord(t *testing.T) {
 func BenchmarkMarshalMsgSearchRecord(b *testing.B) {
 	v := SearchRecord{}
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.MarshalMsg(nil)
 	}
 }
@@ -499,8 +478,7 @@ func BenchmarkAppendMsgSearchRecord(b *testing.B) {
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		bts, _ = v.MarshalMsg(bts[0:0])
 	}
 }
@@ -510,8 +488,7 @@ func BenchmarkUnmarshalSearchRecord(b *testing.B) {
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := v.UnmarshalMsg(bts)
 		if err != nil {
 			b.Fatal(err)
@@ -550,8 +527,7 @@ func BenchmarkEncodeSearchRecord(b *testing.B) {
 	b.SetBytes(int64(buf.Len()))
 	en := msgp.NewWriter(msgp.Nowhere)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		v.EncodeMsg(en)
 	}
 	en.Flush()
@@ -565,8 +541,7 @@ func BenchmarkDecodeSearchRecord(b *testing.B) {
 	rd := msgp.NewEndlessReader(buf.Bytes(), b)
 	dc := msgp.NewReader(rd)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		err := v.DecodeMsg(dc)
 		if err != nil {
 			b.Fatal(err)

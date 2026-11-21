@@ -176,7 +176,7 @@ func TestModTimeQuickBail(t *testing.T) {
 	shouldForce := false
 	exists := true
 
-	fastBail := !shouldForce && exists && cachedMeta != nil && cachedMeta.BodyHash != "" && stat != nil && cachedMeta.ModTime == stat.ModTime().Unix()
+	fastBail := !shouldForce && exists && cachedMeta.BodyHash != "" && stat != nil && cachedMeta.ModTime == stat.ModTime().Unix()
 
 	if fastBail {
 		t.Error("fastBail should be false when ModTime mismatches")

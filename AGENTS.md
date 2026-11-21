@@ -99,7 +99,7 @@ Cross-theme functionality lives in the kosh engine:
 
 ## Current Stable State
 
-- Version string in CLI: `v2.0.0`
+- Version string in CLI: `v3`
 - Production-ready
 - v2.0 introduces generalized taxonomy support and terminology changes (ContentMeta, ItemsPerPage)
 - Dev-mode correctness issues recently fixed:
@@ -305,7 +305,7 @@ go run scripts/rebuild_search.go
 
 ### Prerequisites
 
-- Go 1.26 or later
+- Go 1.27.2 or later (see `go.mod`)
 - Git
 
 ### Running Tests
@@ -357,7 +357,7 @@ Rebuild the search WASM when:
 go run scripts/rebuild_search.go
 
 # Manual cross-compilation (if needed)
-GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
+GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o search.wasm ./cmd/search
 ```
 
 ### How It Works
@@ -366,6 +366,15 @@ GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o search.wasm ./cmd/search
 2. **Schema versioning**: `models.CurrentSchemaVersion` must match between build and runtime.
 3. **Content hashing**: Uses **XXH3** content hashing of `cmd/search`, `builder/search`, and `builder/models` to detect source changes.
 4. **Developer Guardrails**: If the current source hash differs from the embedded `SearchSourceHash`, a warning reminds the developer to run `go run scripts/rebuild_search.go` before release.
+
+### Keeping the Binary Small
+
+`search.wasm` is downloaded by every visitor (the loader fetches `static/wasm/search.wasm`, not the `.br`), so accidental imports are expensive. Baseline is ~570KB brotli; the old 3MB build was D2 and JSON machinery.
+
+- `builder/pools` and `builder/async` must not import `builder/models` (it pulls D2, `html/template`, `encoding/xml`). Shared limits live in `builder/limits`; the SSR pool is build-tagged to non-wasm.
+- `builder/models/searchpkg` decodes the index in WASM via `DecodeSearchIndex` (`decode.go`). `search_gen.go` and `msgp_methods.go` are `//go:build !js || !wasm` so `tinylib/msgp`'s `init()` (which links `encoding/json`) stays out. This tag is lost if you re-run `go:generate msgp`; re-add it.
+- `TestWasmSearchDependencyGraphStaysLean` fails if any of those creep back into the wasm dependency graph.
+- `builder/search/core/unicode_wasm.go` avoids std `html`/`golang.org/x/text` for the same reason.
 
 ### Important Files
 

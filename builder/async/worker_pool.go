@@ -1,7 +1,7 @@
 package async
 
 import (
-	"github.com/Kush-Singh-26/kosh/builder/models"
+	"github.com/Kush-Singh-26/kosh/builder/limits"
 	"github.com/Kush-Singh-26/kosh/builder/scheduler"
 
 	"context"
@@ -32,13 +32,13 @@ func NewWorkerPool[T any](ctx context.Context, workers int, handler func(T) erro
 	if workers <= 0 {
 		workers = runtime.NumCPU()
 	}
-	if workers > models.MaxWorkers {
-		workers = models.MaxWorkers
+	if workers > limits.MaxWorkers {
+		workers = limits.MaxWorkers
 	}
 	return &WorkerPool[T]{
 		workers:   workers,
 		ctx:       ctx,
-		taskQueue: make(chan T, workers*models.WorkerBufferSize),
+		taskQueue: make(chan T, workers*limits.WorkerBufferSize),
 		handler:   handler,
 	}
 }

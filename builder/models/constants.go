@@ -3,6 +3,8 @@ package models
 import (
 	"path/filepath"
 	"runtime"
+
+	"github.com/Kush-Singh-26/kosh/builder/limits"
 )
 
 // AlwaysSyncPaths contains paths that should always be synced regardless of dirty state.
@@ -28,8 +30,6 @@ func IsAlwaysSyncPath(relPath string) bool {
 
 // Default constants
 const (
-	// MaxBufferSize is the maximum buffer size for stream operations.
-	MaxBufferSize = 64 * 1024 // 64KB
 	// InlineHTMLThreshold is the max size of HTML stored inline in cache.
 	InlineHTMLThreshold = 32 * 1024 // 32KB
 	// RawThreshold controls when raw content is stored without compression.
@@ -38,10 +38,6 @@ const (
 	FastZstdMax = 64 * 1024 // 64KB
 	// MaxFileSize is the maximum allowed file size for processing.
 	MaxFileSize = 50 * 1024 * 1024 // 50MB
-	// MaxWorkers is the upper bound on worker count.
-	MaxWorkers = 32
-	// WorkerBufferSize is the channel buffer size per worker.
-	WorkerBufferSize = 4
 )
 
 // GetDefaultWorkerCount returns a CPU-based default worker count.
@@ -50,8 +46,8 @@ func GetDefaultWorkerCount() int {
 	if workers < 2 {
 		return 2
 	}
-	if workers > MaxWorkers {
-		return MaxWorkers
+	if workers > limits.MaxWorkers {
+		return limits.MaxWorkers
 	}
 	return workers
 }

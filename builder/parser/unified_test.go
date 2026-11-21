@@ -228,3 +228,17 @@ func TestTransformState_TextCollection(t *testing.T) {
 		t.Errorf("Expected headingText 'hello', got %q", state.ctx.headingText.String())
 	}
 }
+
+func TestStripBlockquoteMarkers(t *testing.T) {
+	cases := map[string]string{
+		"$$\n S = x\n> $$":          "$$\n S = x\n$$",
+		"> $$\n> x + y\n> $$":       "$$\nx + y\n$$",
+		">   \\begin{aligned}\n> a": "  \\begin{aligned}\na",
+		"$$\na > b\n$$":             "$$\na > b\n$$",
+	}
+	for in, want := range cases {
+		if got := stripBlockquoteMarkers(in); got != want {
+			t.Errorf("stripBlockquoteMarkers(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

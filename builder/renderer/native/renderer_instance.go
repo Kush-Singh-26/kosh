@@ -37,7 +37,7 @@ func (i *instance) setupJSContext(rt *qjs.Runtime) (*qjs.Context, error) {
 					var html = katex.renderToString(item.l, {
 						displayMode: !!item.d,
 						throwOnError: true,
-						output: 'html'
+						output: 'mathml'
 					});
 					return { h: html, e: null };
 				} catch (err) {
@@ -161,7 +161,7 @@ func (i *instance) ensureInitialized(katexBytecode, peleBytecode []byte) {
 
 		opts := ctx.NewObject()
 		opts.SetPropertyStr("throwOnError", ctx.NewBool(false))
-		opts.SetPropertyStr("output", ctx.NewString("html"))
+		opts.SetPropertyStr("output", ctx.NewString("mathml"))
 		i.opts = opts
 	})
 }

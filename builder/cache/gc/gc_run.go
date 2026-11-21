@@ -18,7 +18,7 @@ const (
 	lastGCTimeSize    = 8
 )
 
-var ssrTypes = []string{"d2", "math", "math-inline", "math-block", "katex"}
+var ssrTypes = []string{"d2", "math", "math-inline", "math-block", "mathml-inline", "mathml-block", "katex"}
 
 func scanLiveHashes(db *bbolt.DB) (map[string]bool, map[string]bool, error) {
 	liveHTMLHashes := make(map[string]bool)

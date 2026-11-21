@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/Kush-Singh-26/kosh/builder/async"
 	"github.com/Kush-Singh-26/kosh/builder/models"
@@ -23,11 +22,7 @@ import (
 )
 
 const (
-	minWorkers           = 1
-	defaultMathBatchSize = 16
-	mathQueueBufferSize  = 2048
-	mathBatchTimeout     = 2 * time.Millisecond
-	mathBatchErrTimeout  = 10 * time.Millisecond
+	minWorkers = 1
 
 	bytecodeHeaderSize      = 20
 	bytecodeMagic           = "KBC1"
@@ -58,20 +53,18 @@ const peleExportSuffix = "\n;globalThis.pele=pele;"
 
 // Renderer manages a pool of native rendering instances for concurrency
 type Renderer struct {
-	ctx                 context.Context
-	pool                chan *instance
-	numWorkers          int
-	mathBatchSize       int
-	initReady           chan struct{}
-	scheduler           scheduler.BuildScheduler
-	mathQueue           chan mathRequest
-	mu                  sync.Mutex
-	isClosed            bool
-	taskWg              sync.WaitGroup
-	katexBytecode       []byte
-	peleBytecode        []byte
-	rulerPool           sync.Pool
-	mathBatchPool       sync.Pool
+	ctx           context.Context
+	pool          chan *instance
+	numWorkers    int
+	initReady     chan struct{}
+	scheduler     scheduler.BuildScheduler
+	mu            sync.Mutex
+	isClosed      bool
+	taskWg        sync.WaitGroup
+	katexBytecode []byte
+	peleBytecode  []byte
+	rulerPool     sync.Pool
+
 	D2Singleflight      singleflight.Group
 	MermaidSingleflight singleflight.Group
 	initOnce            sync.Once
@@ -85,12 +78,6 @@ type Renderer struct {
 
 	d2LightOverrides *d2target.ThemeOverrides
 	d2DarkOverrides  *d2target.ThemeOverrides
-}
-
-type mathRequest struct {
-	expr models.MathExpression
-	res  chan string
-	err  chan error
 }
 
 // RendererOption configures a Renderer.
@@ -118,15 +105,6 @@ func WithWorkers(numWorkers int) RendererOption {
 func WithScheduler(s scheduler.BuildScheduler) RendererOption {
 	return func(r *Renderer) {
 		r.scheduler = s
-	}
-}
-
-// WithMathBatchSize sets the batch size for math rendering.
-func WithMathBatchSize(batchSize int) RendererOption {
-	return func(r *Renderer) {
-		if batchSize > 0 {
-			r.mathBatchSize = batchSize
-		}
 	}
 }
 
@@ -165,20 +143,12 @@ func New(opts ...RendererOption) *Renderer {
 				return ruler
 			},
 		},
-		mathBatchPool: sync.Pool{
-			New: func() any {
-				b := make([]mathRequest, 0, defaultMathBatchSize)
-				return &b
-			},
-		},
-		numWorkers:    numWorkers,
-		mathBatchSize: defaultMathBatchSize,
-		initReady:     make(chan struct{}),
-		scheduler:     nil, // Must be set via WithScheduler option
-		mathQueue:     make(chan mathRequest, mathQueueBufferSize),
-		d2ThemeLight:  0,
-		d2ThemeDark:   200,
-		d2Pad:         0,
+		numWorkers:   numWorkers,
+		initReady:    make(chan struct{}),
+		scheduler:    nil, // Must be set via WithScheduler option
+		d2ThemeLight: 0,
+		d2ThemeDark:  200,
+		d2Pad:        0,
 	}
 
 	for _, opt := range opts {
@@ -190,68 +160,7 @@ func New(opts ...RendererOption) *Renderer {
 		r.pool = make(chan *instance, r.numWorkers)
 	}
 
-	// Start math batcher workers
-	for i := 0; i < r.numWorkers; i++ {
-		async.FireAndForget(r.ctx, slog.Default(), "math batch worker", func() error {
-			r.mathBatchWorker()
-			return nil
-		})
-	}
-
 	return r
-}
-
-func (r *Renderer) mathBatchWorker() {
-	for req := range r.mathQueue {
-		// Collect a small batch
-		batchPtr := r.mathBatchPool.Get().(*[]mathRequest)
-		batch := (*batchPtr)[:0]
-		batch = append(batch, req)
-
-		timeout := time.After(mathBatchTimeout)
-
-	loop:
-		for len(batch) < r.mathBatchSize {
-			select {
-			case next, ok := <-r.mathQueue:
-				if !ok {
-					break loop
-				}
-				batch = append(batch, next)
-			case <-timeout:
-				break loop
-			}
-		}
-
-		exprs := make([]models.MathExpression, len(batch))
-		for idx, item := range batch {
-			exprs[idx] = item.expr
-		}
-
-		results, renderErrors, err := r.RenderMathBatch(r.ctx, exprs)
-		if err != nil {
-			for _, b := range batch {
-				select {
-				case b.err <- err:
-				case <-time.After(mathBatchErrTimeout):
-				}
-			}
-			*batchPtr = batch[:0]
-			r.mathBatchPool.Put(batchPtr)
-			continue
-		}
-
-		for i, res := range results {
-			if renderErrors[i] != "" {
-				batch[i].res <- "error:" + renderErrors[i]
-			} else {
-				batch[i].res <- res
-			}
-		}
-
-		*batchPtr = batch[:0]
-		r.mathBatchPool.Put(batchPtr)
-	}
 }
 
 func (r *Renderer) validateBytecode(bytecode []byte, source string) ([]byte, bool) {
@@ -369,9 +278,6 @@ func (r *Renderer) Close() error {
 	r.isClosed = true
 	r.mu.Unlock()
 
-	// Stop math batchers
-	close(r.mathQueue)
-
 	// Wait for all active tasks to complete.
 	r.taskWg.Wait()
 
@@ -379,8 +285,8 @@ func (r *Renderer) Close() error {
 	r.ensureInitialized()
 	<-r.initReady
 
-	// Drain any workers that were back in the pool
-	for i := 0; i < len(r.pool); i++ {
+	// Initialization and active tasks are finished; drain the initial queue size.
+	for range len(r.pool) {
 		instance := <-r.pool
 		if instance.renderFn != nil {
 			instance.renderFn.Free()

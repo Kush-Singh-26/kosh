@@ -279,23 +279,23 @@ type FilterScorer struct{}
 
 // Score removes documents that do not contain required terms or do contain excluded terms.
 func (scorer *FilterScorer) Score(ctx *Context, opts *ScoringOptions) {
-	for id := range opts.Scores {
-		for _, info := range opts.TermInfos {
-			termIdx := ctx.Index.LookupTerm(info.Term)
-			hasTerm := false
-			if termIdx >= 0 {
-				docIDs, _ := ctx.Index.GetPostings(termIdx)
-				absIDs := searchpkg.DecodeDocIDs(docIDs)
-				hasTerm = slices.Contains(absIDs, id)
-			}
+	for _, info := range opts.TermInfos {
+		if len(opts.Scores) == 0 {
+			return
+		}
+		if !info.Required && !info.Excluded {
+			continue
+		}
 
-			if info.Required && !hasTerm {
+		var absIDs []uint32
+		if termIdx := ctx.Index.LookupTerm(info.Term); termIdx >= 0 {
+			docIDs, _ := ctx.Index.GetPostings(termIdx)
+			absIDs = searchpkg.DecodeDocIDs(docIDs)
+		}
+		for id := range opts.Scores {
+			_, hasTerm := slices.BinarySearch(absIDs, id)
+			if (info.Required && !hasTerm) || (info.Excluded && hasTerm) {
 				delete(opts.Scores, id)
-				break
-			}
-			if info.Excluded && hasTerm {
-				delete(opts.Scores, id)
-				break
 			}
 		}
 	}

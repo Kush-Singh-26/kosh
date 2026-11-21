@@ -163,11 +163,14 @@ func WithMermaidConfigSignature(sig string) Option {
 	}
 }
 
+var registryCommentRe = regexp.MustCompile(`<!--KOSH_(MATH|D2|MERMAID|TOC|SEARCH)_REG:[^>]+-->`)
+
 // StripRegistryComments removes Kosh internal registry comments from HTML content.
 func StripRegistryComments(html string) string {
-	// Pattern to match all KOSH registry comments
-	re := regexp.MustCompile(`<!--KOSH_(MATH|D2|MERMAID|TOC|SEARCH)_REG:[^>]+-->`)
-	return re.ReplaceAllString(html, "")
+	if !strings.Contains(html, "<!--KOSH_") {
+		return html
+	}
+	return registryCommentRe.ReplaceAllString(html, "")
 }
 
 // New creates a new Goldmark markdown parser with SSR support for diagrams.

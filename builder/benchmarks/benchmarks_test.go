@@ -21,8 +21,7 @@ func BenchmarkSearch(b *testing.B) {
 	for _, size := range sizes {
 		b.Run(fmt.Sprintf("IndexSize-%d", size), func(b *testing.B) {
 			idx := createMockSearchIndex(size)
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				_ = search.PerformSearch(idx, "test query")
 			}
 		})
@@ -31,16 +30,14 @@ func BenchmarkSearch(b *testing.B) {
 
 func BenchmarkSearchWithTagFilter(b *testing.B) {
 	idx := createMockSearchIndex(100)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = search.PerformSearch(idx, "tag:go test query")
 	}
 }
 
 func BenchmarkPhraseSearch(b *testing.B) {
 	idx := createMockSearchIndex(100)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = search.PerformSearch(idx, `"programming optimization"`)
 	}
 }
@@ -52,16 +49,14 @@ func BenchmarkGetFrontmatterHash(b *testing.B) {
 		"date":        "2026-02-08",
 		"tags":        []string{"go", "ssg"},
 	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = hashing.GetFrontmatterHash(metaData, nil)
 	}
 }
 
 func BenchmarkTokenize(b *testing.B) {
 	text := "The quick brown fox jumps over the lazy dog."
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = core.TokenizeWithUnicodeInto(text, nil)
 	}
 }
@@ -69,8 +64,7 @@ func BenchmarkTokenize(b *testing.B) {
 func BenchmarkExtractSnippet(b *testing.B) {
 	content := strings.Repeat("This is some text with keywords. ", 10)
 	terms := []string{"keywords", "text"}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = search.ExtractSnippet(content, terms)
 	}
 }
@@ -112,8 +106,7 @@ func createMockItems(count int) []models.ContentMetadata {
 
 func BenchmarkSortItems(b *testing.B) {
 	items := createMockItems(100)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		itemsCopy := make([]models.ContentMetadata, len(items))
 		copy(itemsCopy, items)
 		timeutil.SortItems(itemsCopy)

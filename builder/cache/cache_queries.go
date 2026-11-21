@@ -61,8 +61,14 @@ func (manager *Manager) Stats() (*core.CacheStats, error) {
 
 	htmlSize, _ := manager.store.Size("html")
 	d2Size, _ := manager.store.Size(filepath.Join("ssr", "d2"))
+	mathSize, _ := manager.store.Size(filepath.Join("ssr", "math"))
+	mathInlineSize, _ := manager.store.Size(filepath.Join("ssr", "math-inline"))
+	mathBlockSize, _ := manager.store.Size(filepath.Join("ssr", "math-block"))
+	mathmlInlineSize, _ := manager.store.Size(filepath.Join("ssr", "mathml-inline"))
+	mathmlBlockSize, _ := manager.store.Size(filepath.Join("ssr", "mathml-block"))
 	katexSize, _ := manager.store.Size(filepath.Join("ssr", "katex"))
-	stats.StoreBytes = htmlSize + d2Size + katexSize
+	stats.StoreBytes = htmlSize + d2Size + mathSize + mathInlineSize + mathBlockSize +
+		mathmlInlineSize + mathmlBlockSize + katexSize
 
 	return stats, nil
 }
